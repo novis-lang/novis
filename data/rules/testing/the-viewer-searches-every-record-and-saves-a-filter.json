@@ -1,12 +1,16 @@
 {
   "title": "The viewer searches the text of every request, dump, log line, query and exception, and a search can be saved and linked",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
     "errors/record-transformations",
     "packaging/a-c-dependency-answers-two-questions"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/search.rs",
+    "crates/nvs-cli/src/debug/settings.rs",
+    "crates/nvs-cli/tests/debug_api.rs",
+    "viewer/test/stream.browser.test.ts"
+  ]
 }

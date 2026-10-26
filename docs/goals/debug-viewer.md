@@ -34,7 +34,7 @@ stages:
         rules: [testing/the-viewer-shows-the-stream-and-hands-off-every-artifact, errors/record-transformations, observability/trace-events-carry-a-kind]
   - id: 4
     title: "the stream, the log and full-text search with saved filters"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/settings.rs, crates/nvs-config/src/data.rs, viewer/src/views/stream.tsx, viewer/src/views/search.tsx, docs/rules/testing/the-viewer-searches-every-record-and-saves-a-filter.md, docs/rules/testing/a-bad-line-degrades-and-a-bad-file-is-quarantined.md]
     extra:
       context:
@@ -305,12 +305,12 @@ linked.
 **Split:** the session lands the search API and the settings file; a writing subagent then writes the
 stream, log and search views and their browser test against the fixtures.
 
-- [ ] The stream view filters by kind, level, route and trace, and the log view shows the application's log joined to requests by `request_id`. Unparseable records and quarantined files are shown, and the index can be discarded and rebuilt from a button (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/stream.tsx:1`, `viewer/src/views/log.tsx:1`
-- [ ] Search reads the FTS5 table `debug-service`'s index holds, with words, phrases and the field terms the rule lists, newest first and grouped by request (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`). The bundled SQLite compiles FTS5 in, so no feature is added. `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/search.tsx:1`, `Cargo.toml:1046`
-- [ ] Saved filters and the other viewer settings live in one file beside the index in the data folder, and each filter has its own link. `crates/nvs-cli/src/debug/settings.rs:1`, `crates/nvs-config/src/data.rs:119`
-- [ ] Rust tests: a `secret` value is not found, a phrase and each field term, a filter kept across an index rebuild. `crates/nvs-cli/tests/debug_api.rs:1`
-- [ ] Browser tests for both views. `viewer/test/stream.browser.test.ts:1`
-- [ ] `rule:testing/the-viewer-searches-every-record-and-saves-a-filter` `shipped`. `data/rules/testing/the-viewer-searches-every-record-and-saves-a-filter.json:3`
+- [x] The stream view filters by kind, level, route and trace, and the log view shows the application's log joined to requests by `request_id`. Unparseable records and quarantined files are shown, and the index can be discarded and rebuilt from a button (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/stream.tsx:1`, `viewer/src/views/log.tsx:1`
+- [x] Search reads the FTS5 table `debug-service`'s index holds, with words, phrases and the field terms the rule lists, newest first and grouped by request (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`). The bundled SQLite compiles FTS5 in, so no feature is added. `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/search.tsx:1`, `Cargo.toml:1046`
+- [x] Saved filters and the other viewer settings live in one file beside the index in the data folder, and each filter has its own link. `crates/nvs-cli/src/debug/settings.rs:1`, `crates/nvs-config/src/data.rs:119`
+- [x] Rust tests: a `secret` value is not found, a phrase and each field term, a filter kept across an index rebuild. `crates/nvs-cli/tests/debug_api.rs:1`
+- [x] Browser tests for both views. `viewer/test/stream.browser.test.ts:1`
+- [x] `rule:testing/the-viewer-searches-every-record-and-saves-a-filter` `shipped`. `data/rules/testing/the-viewer-searches-every-record-and-saves-a-filter.json:3`
 
 ### 5. grouped exceptions, and every site is a link into the editor
 
@@ -356,6 +356,7 @@ perf test and the rule flip.
 - [ ] A `# The debug viewer` section in the CLI chapter, so the feature is `tools:cli/the-debug-viewer` and its help is in the binary. `docs/reference/tools/10-cli.md:655`
 - [ ] `about.md` and three examples: a route that dumps a value, a handler whose queries repeat, and a handler that throws. `docs/examples/tools/cli/the-debug-viewer/about.md:1`, `docs/examples/tools/cli/the-debug-viewer/01-a-route-that-dumps-a-value.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/02-queries-that-repeat.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/03-a-handler-that-throws.nvs:1`
 - [ ] The attack: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them (`rule:testing/hostile-case-contract`). `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`, `viewer/test/hostile.browser.test.ts:1`
+- [ ] The four `[debug]` keys stage 2 added (`crates/nvs-config/src/default.toml:327`) have their proofs, which CI's `proofs` job owes now: `directive:debug.listen`, `directive:debug.tls_cert_file`, `directive:debug.tls_key_file` and `directive:debug.token_file` each get `about.md`, one example and one hostile case under `docs/examples/config/debug-<key>/` and `tests/hostile/config/debug-<key>/`, and the test case the gate counts, or a skip with its reason. `bun nv proofs --gate --limit 0` names none of them. `docs/examples/config/debug-listen/about.md:1`, `tests/hostile/config/debug-listen/`, `data/proofs/skip/`
 - [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip that names it. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`, `data/proofs/skip/tools/cli/nvs-info.json:1`
 - [ ] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
 
@@ -376,40 +377,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 8 are done. `crates/nvs-cli/src/debug/api.rs` answers `GET /api/requests` (the
-page, by row-id cursor) and `GET /api/request?trace=&span=`: the row, the uncaught exception with its
-message, and the trace events, dumps and log lines in time order, capped with a `cut` flag per list.
-A shared trace id is split by writer and sequence (new standing decision). Both routes are in
-`crates/nvs-cli/src/debug/listen.rs:296`. `crates/nvs-cli/tests/debug_api.rs` writes
-`viewer/test/fixtures/requests.json` and `request.json` (the request that threw: call, query, gc and
-spawn events, a dump with a redacted node, a `$cycle` repeat and three cuts), and
-`viewer/test/api.test.ts` checks both against `viewer/src/api.ts`.
+Stages 1, 2, 3, 8 and 4 are done. The API is `crates/nvs-cli/src/debug/api.rs` (`/api/requests`,
+`/api/request`, `POST /api/index/discard`), `search.rs` (`/api/search`: one FTS5 `MATCH` joined to
+each record by primary key, prefix words, phrases, every field term of the rule, grouped by request,
+cursor `<time>.<key>`, `opens` for a pasted trace id), `stream.rs` (`/api/stream`, each table's newest
+page merged by time; `/api/quarantine`) and `settings.rs` (`GET`/`PUT /api/settings`,
+`debug/viewer.json`, written by rename). Routes are in `listen.rs`'s `Site::route`, after
+`Site::refused`; a `PUT` body is read only once the checks pass. The ingest loop in
+`crates/nvs-cli/src/debug.rs` waits on one `Signal` channel (parent gone, discard), and
+`Index::rebuild` keeps the watermark and the request ids rising across a discard.
+`crates/nvs-cli/tests/debug_api.rs` writes `stream.json`, `search.json` and `settings.json` too.
 
-The request page (`viewer/src/views/request.tsx`) shows the exception, the timeline
-(`viewer/src/views/timeline.tsx`: bars in lanes, a listbox of every record under it) and each dump as a
-value tree (`viewer/src/views/value-tree.tsx`: WAI-ARIA tree, text nodes only, a repeat links within its
-own tree). Checked once: `cargo clippy --all-targets -- -D warnings` clean, `cargo test --test
-debug_api` 1 pass, `bun x tsc -p viewer --noEmit` 0, `bun nv viewer --check` current, and
-`NV_BROWSER=1 bun test viewer/test/request.browser.test.ts viewer/test/requests.browser.test.ts` 15
-pass. The fixture has no `http` event, so the outbound-call bar is untested.
+The views (`viewer/src/views/stream.tsx`, `log.tsx`, `search.tsx`, `saved.tsx`) were written by a
+subagent and checked here. The header box is now the one search box: text that is not a trace id
+opens `/search?q=`, and the browser test builds the `dropped` and `unparseable` rows.
 
-The sweep's reds were stale: `env-secret-proofs` exits 0 at HEAD, and the nightly is the run at
-`d6f131752` that earlier handoffs read.
+Checked once: `cargo clippy --all-targets -- -D warnings` clean, `cargo fmt --check` clean,
+`cargo test --test debug_api` 2 pass, the 7 new unit tests pass, `bun x tsc -p viewer --noEmit` 0,
+`bun nv viewer --check` current, `NV_BROWSER=1 bun test viewer/test/stream.browser.test.ts` 11 pass
+(the subagent also ran `requests` 10 and `request` 5), `bun nv rules --check` clean. The sweep's
+reds were stale (`env-secret-proofs` exits 0; the nightly is `d6f131752`). CI's `proofs` job is red
+for the four `[debug]` keys until stage 7's new item lands.
 
-Expected red: none.
+Expected red: CI `proofs` (`directive:debug.*`, stage 7).
 
 ### Next
 
-**Stage 4, the stream, the log and full-text search with saved filters**, on
-`crates/nvs-cli/src/debug/api.rs`, a new `crates/nvs-cli/src/debug/settings.rs`,
-`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts` and new views. Gate: open (`debug-service` is
-gone; the index has its FTS5 table at `crates/nvs-cli/src/debug/index.rs:234`). Split as the stage
-says: the session lands the stream and search API, the settings file and their fixtures, then a writing
-subagent writes the stream, log and search views and `viewer/test/stream.browser.test.ts`.
+**Stage 5, grouped exceptions, and every site is a link into the editor**, on
+`crates/nvs-cli/src/debug/api.rs` (or a new `crates/nvs-cli/src/debug/exceptions.rs`),
+`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts`, a new `viewer/src/editor-link.ts` and
+`viewer/src/views/exceptions.tsx`. Gate: open. The groups are already kept by the index:
+`exception_groups` (class, file, line, count, first and last) at `crates/nvs-cli/src/debug/index.rs:53`,
+and `exceptions.exception_group` per request. The editor setting is `settings.rs`'s `editor`
+(`vscode` by default, free text up to 200 bytes); stage 5 decides its presets and template and
+narrows its validation. Split as the stage says: API and fixture first, then a writing subagent for
+the view and `editor-link.ts`.
 
-- [ ] `api.rs` answers a stream page (filter by kind, level, route, trace) and a search page over the `search` table, routed beside `/api/request`. `crates/nvs-cli/src/debug/api.rs:211`, `crates/nvs-cli/src/debug/index.rs:234`
-- [ ] `settings.rs` keeps saved filters and the editor setting in one file beside the index. `crates/nvs-config/src/data.rs:119`
-- [ ] `tests/debug_api.rs` covers a `secret` value not found, a phrase, each field term and a filter kept across a rebuild, and writes the stream and search fixtures with its `fixture` helper. `crates/nvs-cli/tests/debug_api.rs:1`
+- [ ] `GET /api/exceptions` pages the groups newest last-seen first, with the latest message, and `GET /api/exceptions?group=` lists its requests. `crates/nvs-cli/src/debug/index.rs:53`, `crates/nvs-cli/src/debug/api.rs:1`
+- [ ] `settings.rs`'s `editor` takes the rule's presets and a template, and path mappings. `crates/nvs-cli/src/debug/settings.rs:1`, `docs/rules/testing/a-site-in-the-viewer-opens-in-the-editor.md:1`
+- [ ] `tests/debug_api.rs` writes `exceptions.json`. `crates/nvs-cli/tests/debug_api.rs:1`
 
 ### Backlog
 
@@ -421,3 +427,5 @@ subagent writes the stream, log and search views and `viewer/test/stream.browser
 - Compare aligns queries by call site once each query carries its site id (`docs/goals/request-aware-editor.md`).
 - Viewer screenshots for the website come from `tools-website` (`docs/goals/tools-website.md`).
 - `bun nv ci-changes --files -` is refused by its own argument parser; `--files=-` works (`tools/nv/cmd/ci-changes.ts:6`).
+- The request list does not read a query, so a saved filter of the `requests` view opens the whole list (`viewer/src/views/requests.tsx:1`, `viewer/src/views/saved.tsx:1`).
+- The search's field-only `kind:` and `level:` use the writer-and-sequence owner rule, but the list's counts do not (the first backlog item); fixing the counts lets both read the same columns.
