@@ -1950,6 +1950,18 @@ mod tests {
         key: PrivateKeyDer<'static>,
         versions: &'static [&'static rustls::SupportedProtocolVersion],
     ) -> (SocketAddr, std::thread::JoinHandle<()>) {
+        peer_after(cert, key, versions, || {
+            std::thread::sleep(Duration::from_millis(20));
+        })
+    }
+
+    /// [`peer_speaking`], which sends its first flight only once `go` returns.
+    fn peer_after(
+        cert: CertificateDer<'static>,
+        key: PrivateKeyDer<'static>,
+        versions: &'static [&'static rustls::SupportedProtocolVersion],
+        go: impl FnOnce() + Send + 'static,
+    ) -> (SocketAddr, std::thread::JoinHandle<()>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
         let addr = listener
             .local_addr()
@@ -1967,7 +1979,7 @@ mod tests {
             let mut conn = rustls::ServerConnection::new(Arc::new(config))
                 .expect("the server config was rejected");
             // Late on purpose: the client is parked on this flight.
-            std::thread::sleep(Duration::from_millis(20));
+            go();
             // A client that refuses the certificate, or the version floor, hangs
             // up mid-handshake — which is the answer two of the cases below are
             // asserting, so it ends this thread quietly instead of panicking it.
@@ -1989,10 +2001,18 @@ mod tests {
     ///
     /// `resumes > 1` is what says the second half — a session that never parked
     /// would carry the same plaintext and prove nothing about the transport.
+    ///
+    /// The peer sends nothing until a child task tells it to, and the child
+    /// runs only once the session's task has parked. So the handshake parks on
+    /// every machine, however loaded.
     #[test]
     fn a_tls_session_over_the_parking_stream_survives_a_park() {
         let (cert, key, config) = issued();
-        let (addr, joined) = peer(cert, key);
+        let (go, gate) = std::sync::mpsc::channel::<()>();
+        let (addr, joined) = peer_after(cert, key, rustls::ALL_VERSIONS, move || {
+            gate.recv()
+                .expect("the session task never let the peer answer");
+        });
 
         let mut sched = Scheduler::new();
         let _installed = install(Reactor::new().expect("the OS refused a poll"));
@@ -2000,6 +2020,11 @@ mod tests {
         let recorded = Rc::clone(&session);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             let sock = NvsTcp::connect(addr).expect("the connect failed");
+            crate::scheduler::spawn_child(ctx(), TaskRoot::Worker, move |_ctx| {
+                go.send(())
+                    .expect("the peer thread ended before its handshake");
+            })
+            .expect("a running task spawns a child");
             let mut tls = upgraded(sock, "localhost", config).expect("the handshake failed");
             tls.write_all(b"ping\n").expect("the write failed");
             tls.flush().expect("the flush failed");
