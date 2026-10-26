@@ -802,22 +802,27 @@ impl Watchdog {
         interval: Duration,
         report: impl Fn(&Stall) + Send + Sync + 'static,
     ) -> Self {
-        Self {
-            shared: Arc::new(Shared {
-                margin,
-                interval,
-                sink: Box::new(report),
-                state: Mutex::new(State {
-                    watching: Vec::new(),
-                    running: true,
-                    next_id: 0,
-                    thread: None,
-                }),
-                shed: Shed::default(),
-                change: Condvar::new(),
-                slices: OnceLock::new(),
+        let shared = Arc::new(Shared {
+            margin,
+            interval,
+            sink: Box::new(report),
+            state: Mutex::new(State {
+                watching: Vec::new(),
+                running: true,
+                next_id: 0,
+                thread: None,
             }),
-        }
+            shed: Shed::default(),
+            change: Condvar::new(),
+            slices: OnceLock::new(),
+        });
+        // Notified once here, before the watchdog's thread can see it. Where
+        // std's condition variable is a pthread one (macOS), its first use
+        // allocates it. The thread's first wait and a notify on the thread that
+        // registers race for that use, so a counted run's allocations would
+        // depend on which got there first.
+        shared.change.notify_all();
+        Self { shared }
     }
 
     /// Gives every thread that registers from now on a seat in `clock`, so a

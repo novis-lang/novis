@@ -167,6 +167,11 @@ impl SliceClock {
             slots: Mutex::new(Vec::new()),
             thread: OnceLock::new(),
         });
+        // Locked once here, before the slice thread can see it. Where std's mutex
+        // is a pthread one (macOS), its first lock allocates it. A seat taken on
+        // this thread and the thread's first sweep race for that lock, so a
+        // counted run's allocations would depend on which got there first.
+        drop(clock.slots.lock().unwrap_or_else(PoisonError::into_inner));
         let ticking = Arc::clone(&clock);
         let handle = std::thread::Builder::new()
             .name("nvs-slice".to_owned())
