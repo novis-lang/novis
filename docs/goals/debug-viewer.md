@@ -298,6 +298,24 @@ through. A heat step is one of four on a log scale up to the file's most-run lin
 shared by two projects on one data folder shows the source of the one it started in alone; one
 source file of at most 4 MiB in `nvs debug`'s memory while it is sent.
 
+**The replay target reaches the service on the pipe its parent already holds.** Stage 6's call.
+The child is started before any socket is bound, so it inherits no listener, and a `:0` port is
+known only after the bind. The server writes the first TCP address it bound as one line on the
+child's standard input (`debug::Child::target`), an unspecified address replaced by the loopback
+of its family (`serve::Socket::replay_target`), and the service keeps it in a `OnceLock`
+(`debug::Target`). A Unix-only server and a service started by hand have none. `POST
+/api/replay` sends HTTP/1.1 by hand over a `std` socket with `Connection: close`, reads only the
+answer's head, and returns its status and the `traceresponse` trace and span; a cut or withheld
+body is a `409`, never a partial send. Trade-offs: one line on an existing pipe; one recorded
+input in memory per replay; a viewer thread waits up to 120 s for a slow handler.
+
+**Compare joins two `GET /api/request` answers in the browser.** Stage 6's call. A compare
+endpoint would only return the two answers side by side, so `GET /api/request` gains an `input`
+object (query, headers, request body and response headers and body, each body as text or base64
+with its `read`, `cut` and `withheld` flags, bodies put together from `body_parts` with the
+writer-and-sequence split) and the view diffs the two answers. Trade-offs: no new route; a
+request's answer carries its recorded bodies, at most the spool's body cap each.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -399,7 +417,7 @@ compare view and the dialog's browser test.
 - [ ] Compare sets input, the response (status, headers and body, a JSON body compared structurally), duration, aligned queries, dumps and log lines of two requests side by side, and a redacted header is never a difference (`rule:testing/two-requests-compare-and-a-replay-asks-first`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/compare.tsx:1`
 - [ ] Replay sends to the address the development `nvs serve` gave its child and to nothing else. The dialog names method, path and target, has cancel focused, asks every time, and takes a redacted header's value once without storing it. `crates/nvs-cli/src/debug/replay.rs:1`, `viewer/src/views/replay.tsx:1`
 - [ ] The replayed request opens beside its original in the compare view. `viewer/src/views/compare.tsx:1`
-- [ ] Rust tests: a replay from a forged `Origin` is refused, a service started by hand has no target, a typed header value is found in no file. `crates/nvs-cli/tests/debug_viewer.rs:1`
+- [x] Rust tests: a replay from a forged `Origin` is refused, a service started by hand has no target, a typed header value is found in no file. `crates/nvs-cli/tests/debug_viewer.rs:1`
 - [ ] The browser test for the dialog. `viewer/test/replay.browser.test.ts:1`
 - [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
 
@@ -435,22 +453,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 9's coverage half landed this session: the ingester
-stores each spool `coverage` line (index schema 5, `coverage` table, deleted with its request or
-by its own time), `GET /api/request` names the request's coverage row, `GET /api/coverage?id=`
-and `GET /api/source?coverage=&file=` serve it (`crates/nvs-cli/src/debug/source.rs`), and the
-request page draws the heatmap (`viewer/src/views/coverage.tsx`). The Standing decision *The
-project root `GET /api/source` reads under* records the root and the scale.
+Stages 1, 2, 3, 8, 4, 5 and 9 are done. Stage 6's replay endpoint landed this session
+(`94fff185e`): a development `nvs serve` writes its first bound TCP address on the child's pipe
+(`crates/nvs-cli/src/serve.rs`'s `Socket::replay_target`, `debug::Child::target`), `nvs debug`
+keeps it as `debug::Target`, and `POST /api/replay` (`crates/nvs-cli/src/debug/replay.rs`) sends
+the recorded request there, with a redacted header only when the body gives its value, and
+returns `{status, trace, span}` from the answer's `traceresponse`. A service started by hand
+answers `409`. The Standing decisions *The replay target reaches the service on the pipe* and
+*Compare joins two `GET /api/request` answers in the browser* record the calls.
 
-A `coverage` line did not read back before this session: `spool::Record` is tagged by `kind`, and
-serde's buffer does not parse a string key as `u32`. `spool::Coverage` parses its line numbers
-itself (`line_counts`), and `one-of-each.spool` now carries a coverage line.
-
-Checked once: build and clippy clean; `the_sample_spool_is_what_the_writer_writes`, the new
-`coverage_reads_only_the_files_it_names_under_the_project_root` and
-`the_request_list_pages_newest_first_and_writes_the_viewers_fixture` pass; `bun nv viewer --verify`
-and `NV_BROWSER=1 bun test viewer/test/request.browser.test.ts` (6 pass) pass. The sweep's reds
-were stale again: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
+Checked once: build and clippy clean; the new
+`crates/nvs-cli/tests/debug_service.rs:309` (a replay reaches the server, and the typed value is in
+no file), the updated `crates/nvs-cli/tests/debug_viewer.rs:226` (forged `Origin` is `403`, a
+hand-started service is `409`) and the unit test `a_replay_sends_a_redacted_header_only_when_its_value_is_typed`
+pass. The sweep's reds were stale again: `env-secret-proofs`' log exits 0, and nightly
+40291801939 built `d6f131752`.
 
 Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7. Possibly
 `crates/nvs-cli/tests/live_config.rs:670`, if its server runs in `development`: it expects a
@@ -461,13 +478,16 @@ whose `counts` now lists `coverage` and expects a row in it from the sample spoo
 
 ### Next
 
-**Stage 6: compare and replay.** Its gate holds: `docs/goals/debug-service.md` is gone. Follow the
-stage's `**Split:**` line: the replay endpoint and its Rust tests first, then a writing subagent
-for the compare view and the dialog's browser test.
+**Stage 6: compare and replay.** The replay endpoint is in. Next, the Rust half of compare, then a
+writing subagent for the compare view, the dialog and its browser test, as the stage's
+`**Split:**` line says.
 
-- [ ] The development `nvs serve` passes its own address to the child it starts, and `nvs debug` keeps it as the one replay target; a service started by hand has none. `crates/nvs-cli/src/debug.rs:229`
-- [ ] `POST /api/replay` sends one recorded request to that target, with a redacted header only when its value is typed. `crates/nvs-cli/src/debug/replay.rs:1`
-- [ ] The compare endpoint or the client-side join of two `GET /api/request` answers. `crates/nvs-cli/src/debug/api.rs:556`
+- [x] The development `nvs serve` passes its own address to the child it starts, and `nvs debug` keeps it as the one replay target; a service started by hand has none. `crates/nvs-cli/src/debug.rs:229`
+- [x] `POST /api/replay` sends one recorded request to that target, with a redacted header only when its value is typed. `crates/nvs-cli/src/debug/replay.rs:1`
+- [ ] `GET /api/request` gains `input` (query, headers, request and response bodies with their flags, put together from `body_parts` with the writer-and-sequence split), and the fixture test rewrites `viewer/test/fixtures/` with it. `crates/nvs-cli/src/debug/api.rs:133`, `crates/nvs-cli/src/debug/api.rs:772`
+- [ ] Whether the viewer may replay: `GET /api/request` or `/api/settings` says the service has a target, so the dialog says so before it is opened. `crates/nvs-cli/src/debug/listen.rs:318`
+- [ ] Writing subagent: `viewer/src/views/compare.tsx` (two answers side by side, JSON bodies compared structurally, queries aligned in order, redacted never a difference), `viewer/src/views/replay.tsx` (method, path and target named, cancel focused, an empty field per redacted header, opens the replay beside its original), and its browser test. `viewer/src/views/compare.tsx:1`, `viewer/src/views/replay.tsx:1`, `viewer/test/replay.browser.test.ts:1`
+- [ ] `rule:testing/two-requests-compare-and-a-replay-asks-first` `shipped`. `data/rules/testing/two-requests-compare-and-a-replay-asks-first.json:3`
 
 ### Backlog
 
