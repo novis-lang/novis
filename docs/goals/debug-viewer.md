@@ -27,7 +27,7 @@ stages:
         rules: [testing/the-viewer-shows-the-stream-and-hands-off-every-artifact, observability/a-trace-id-exists-for-every-request]
   - id: 8
     title: a request opens to its timeline and its value trees
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/api.rs, crates/nvs-runtime/src/ctx/trace.rs, viewer/src/views/request.tsx, viewer/src/views/timeline.tsx, viewer/src/views/value-tree.tsx, tools/nv/test/chromium.ts, docs/rules/errors/record-transformations.md]
     extra:
       context:
@@ -209,6 +209,15 @@ runs no Novis code, so a bench under `benches/members/` would measure nothing of
 the SQLite steps of the newest page at two index sizes and fails if they grow, and the proofs policy
 names that test in a `perf` skip.
 
+**A request's records are its trace's, narrowed by writer when the trace is shared.** Stage 8's call.
+`events`, `dumps` and `logs` carry a trace id and no span id, so `GET /api/request` gives every record
+of a trace that names one request. When several share it, a request's records are the ones its writer
+wrote after the previous request of that trace and before its own `request` line, and a tailed log line
+is the one inside its time. Two such requests in flight on one thread at once cannot be told apart.
+Each list is capped (5000 events, 200 dumps, 1000 log lines) and `cut` says which stopped. A tree is
+passed through as the index stores it (`RawValue`). Trade-offs: no schema change and no new spool field,
+for an exact split in every case but concurrent requests that share a trace id on one thread.
+
 **Gates.** Stage 1 needs no other goal. Stage 2 needs `nvs debug` to exist: `crates/nvs-cli/src/debug.rs`
 is on disk (`debug-service` stage 4). Stages 3, 4, 5 and 6 need the index: stage 4 of
 `docs/goals/debug-service.md` is `done`, or that file is gone; stage 4's quarantine list also needs its
@@ -283,10 +292,10 @@ and its browser test against the fixture alone.
 **Split:** the session lands the API's request shape and its fixture; a writing subagent then writes the
 timeline and value-tree views and their browser test.
 
-- [ ] The API returns one request's events, dumps and log lines with their start and end, and a Rust test writes its fixture. `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/tests/debug_api.rs:1`, `viewer/test/fixtures/request.json:1`
-- [ ] The timeline puts calls, queries, spawns, garbage-collection pauses, dumps and log lines of the request on one time axis, from the trace events' start and end. `viewer/src/views/timeline.tsx:1`, `crates/nvs-runtime/src/ctx/trace.rs:102`
-- [ ] A value tree renders as text nodes in the tree pattern, a repeat is a link to the node it names, and a redacted or elided node says so (`rule:errors/record-transformations`). `viewer/src/views/value-tree.tsx:1`
-- [ ] Browser tests for the timeline and a value tree with a repeat and a redacted node. `viewer/test/request.browser.test.ts:1`
+- [x] The API returns one request's events, dumps and log lines with their start and end, and a Rust test writes its fixture. `crates/nvs-cli/src/debug/api.rs:1`, `crates/nvs-cli/tests/debug_api.rs:1`, `viewer/test/fixtures/request.json:1`
+- [x] The timeline puts calls, queries, spawns, garbage-collection pauses, dumps and log lines of the request on one time axis, from the trace events' start and end. `viewer/src/views/timeline.tsx:1`, `crates/nvs-runtime/src/ctx/trace.rs:102`
+- [x] A value tree renders as text nodes in the tree pattern, a repeat is a link to the node it names, and a redacted or elided node says so (`rule:errors/record-transformations`). `viewer/src/views/value-tree.tsx:1`
+- [x] Browser tests for the timeline and a value tree with a repeat and a redacted node. `viewer/test/request.browser.test.ts:1`
 
 ### 4. the stream, the log and full-text search with saved filters
 
@@ -367,40 +376,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `crates/nvs-cli/src/debug/api.rs` answers `GET /api/requests` over one
-read connection the listener's `Site` holds (`crates/nvs-cli/src/debug/listen.rs:296`): newest first,
-with `before`, `since`, `trace`, `span` and `limit`, the watermark and the page in one transaction. The
-index is schema 3: `requests` has `span` and an `AUTOINCREMENT` id, the page cursor (new standing
-decision). The spool's `request` line carries `span` (`crates/nvs-runtime/src/spool.rs:175`), and
-the rule fragment's line table says so. `crates/nvs-cli/tests/debug_api.rs` builds a real index,
-checks every filter, and writes `viewer/test/fixtures/requests.json`, failing once when it changes;
-`viewer/test/api.test.ts` makes `tsc` check the fixture against `viewer/src/api.ts`.
+Stages 1, 2, 3 and 8 are done. `crates/nvs-cli/src/debug/api.rs` answers `GET /api/requests` (the
+page, by row-id cursor) and `GET /api/request?trace=&span=`: the row, the uncaught exception with its
+message, and the trace events, dumps and log lines in time order, capped with a `cut` flag per list.
+A shared trace id is split by writer and sequence (new standing decision). Both routes are in
+`crates/nvs-cli/src/debug/listen.rs:296`. `crates/nvs-cli/tests/debug_api.rs` writes
+`viewer/test/fixtures/requests.json` and `request.json` (the request that threw: call, query, gc and
+spawn events, a dump with a redacted node, a `$cycle` repeat and three cuts), and
+`viewer/test/api.test.ts` checks both against `viewer/src/api.ts`.
 
-The list (`viewer/src/views/requests.tsx`), the request page (`viewer/src/views/request.tsx`), the
-router, the themes and the `?` key list are in, and `viewer/dist/` is rebuilt. Checked once:
-`bun nv viewer --verify` green, and `NV_BROWSER=1 bun test viewer/test/requests.browser.test.ts
-viewer/test/frame.browser.test.ts` 11 pass. The theme colours were chosen for WCAG AA and not yet
-measured; stage 7's proofs measure them.
+The request page (`viewer/src/views/request.tsx`) shows the exception, the timeline
+(`viewer/src/views/timeline.tsx`: bars in lanes, a listbox of every record under it) and each dump as a
+value tree (`viewer/src/views/value-tree.tsx`: WAI-ARIA tree, text nodes only, a repeat links within its
+own tree). Checked once: `cargo clippy --all-targets -- -D warnings` clean, `cargo test --test
+debug_api` 1 pass, `bun x tsc -p viewer --noEmit` 0, `bun nv viewer --check` current, and
+`NV_BROWSER=1 bun test viewer/test/request.browser.test.ts viewer/test/requests.browser.test.ts` 15
+pass. The fixture has no `http` event, so the outbound-call bar is untested.
 
-The sweep's reds are the nightly at `d6f131752` again, the same run the last handoff read, and
-`env-secret-proofs` exits 0 at HEAD.
+The sweep's reds were stale: `env-secret-proofs` exits 0 at HEAD, and the nightly is the run at
+`d6f131752` that earlier handoffs read.
 
-Expected red: none. A spool line an older build wrote has no `span`, and its row's link is
-`/requests/<trace id>`.
+Expected red: none.
 
 ### Next
 
-**Stage 8, a request's timeline and value trees**, on `crates/nvs-cli/src/debug/api.rs`,
-`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts`, `viewer/src/views/request.tsx` and
-`viewer/test/`. Gate: open (`trace-timeline` is gone). Split as the stage says: the session lands the
-API's request shape and its fixture, then a writing subagent writes the timeline and value-tree views
-and their browser test against the fixture alone.
+**Stage 4, the stream, the log and full-text search with saved filters**, on
+`crates/nvs-cli/src/debug/api.rs`, a new `crates/nvs-cli/src/debug/settings.rs`,
+`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts` and new views. Gate: open (`debug-service` is
+gone; the index has its FTS5 table at `crates/nvs-cli/src/debug/index.rs:234`). Split as the stage
+says: the session lands the stream and search API, the settings file and their fixtures, then a writing
+subagent writes the stream, log and search views and `viewer/test/stream.browser.test.ts`.
 
-- [ ] `api.rs` answers `GET /api/request?trace=&span=` with the row, its events (start and end), dumps and log lines, reading `events`, `dumps` and `logs` by trace id; route it beside `/api/requests`. `crates/nvs-cli/src/debug/api.rs:170`, `crates/nvs-cli/src/debug/listen.rs:296`
-- [ ] `tests/debug_api.rs` writes `viewer/test/fixtures/request.json` for the request that threw, the way it writes `requests.json`, and `viewer/test/api.test.ts` assigns it to its type. `crates/nvs-cli/tests/debug_api.rs:305`
-- [ ] The timeline and value tree in `viewer/src/views/request.tsx`, and `viewer/test/request.browser.test.ts`. `viewer/src/views/request.tsx:12`
+- [ ] `api.rs` answers a stream page (filter by kind, level, route, trace) and a search page over the `search` table, routed beside `/api/request`. `crates/nvs-cli/src/debug/api.rs:211`, `crates/nvs-cli/src/debug/index.rs:234`
+- [ ] `settings.rs` keeps saved filters and the editor setting in one file beside the index. `crates/nvs-config/src/data.rs:119`
+- [ ] `tests/debug_api.rs` covers a `secret` value not found, a phrase, each field term and a filter kept across a rebuild, and writes the stream and search fixtures with its `fixture` helper. `crates/nvs-cli/tests/debug_api.rs:1`
 
 ### Backlog
+
+- The list's `dumps` and `logs` counts are per trace id (`crates/nvs-cli/src/debug/index.rs:241`), so two requests that share a trace id each count both's records; `viewer/test/fixtures/requests.json` shows it. Count them with the writer-and-sequence split `GET /api/request` uses.
+- A dump's properties reach the index in key order, because the spool's `Dump::tree` is a `serde_json::Value` (`crates/nvs-runtime/src/spool.rs:593`). A `RawValue` there keeps the declared order; the API already passes the stored text through.
 
 - The button that makes a recorded request a `Core\Test::request` case is `request-aware-editor`'s, beside its generator (`docs/goals/request-aware-editor.md`).
 - The development error page links to the request's timeline when `nvs serve` started the service (`docs/rules/errors/renderings.md`).
