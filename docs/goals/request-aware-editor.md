@@ -34,7 +34,7 @@ stages:
         rules: [ide/a-route-hover-shows-the-programs-grants, security/capability-question-is-grant-and-scope, ide/the-request-set-is-closed, ide/an-lsp-answer-is-frozen-as-an-lspt-case]
   - id: 4
     title: a `tainted` or `secret` value's hover shows its path
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-types/src/check.rs, crates/nvs-lsp/src/document.rs, crates/nvs-lsp/src/hover.rs, docs/rules/ide/a-hover-shows-where-a-tainted-or-secret-value-came-from.md]
     extra:
       context:
@@ -249,11 +249,11 @@ each step it took, and the hover shows it.
 **Split:** after the session lands the switch and the recorded steps, a writing subagent writes the
 `.lspt` cases under `tests/lsp/hover/` as one batch.
 
-- [ ] A switch on the expression table that only `nvs-lsp` sets, and a test that `nvs check` and a run leave it off (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`). `crates/nvs-types/src/expr_table.rs:1428`, `crates/nvs-types/src/check.rs:128`, `crates/nvs-lsp/src/document.rs:725`
-- [ ] Under it, the checker records the source, each assignment and concatenation that carried the qualifier, and the launderer (`rule:security/taint-propagation`, `rule:security/launderers-are-sink-named`). `crates/nvs-types/src/expr/quals.rs:414`, `crates/nvs-types/src/expr/quals.rs:523`, `crates/nvs-types/src/expr/quals.rs:574`
-- [ ] Hover on the value, or on an argument at a sink, shows the steps with their lines and the launderer marked. `crates/nvs-lsp/src/hover.rs:132`
-- [ ] `.lspt` cases for a `tainted` and a `secret` value from source to sink, one laundered on the way, and one that entered through a declared parameter. `tests/lsp/hover/a-tainted-value-shows-where-it-came-from.lspt:1`
-- [ ] `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from` `shipped`. `data/rules/ide/a-hover-shows-where-a-tainted-or-secret-value-came-from.json:3`
+- [x] A switch on the expression table that only `nvs-lsp` sets, and a test that `nvs check` and a run leave it off (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`). `crates/nvs-types/src/expr_table.rs:1428`, `crates/nvs-types/src/check.rs:128`, `crates/nvs-lsp/src/document.rs:725`
+- [x] Under it, the checker records the source, each assignment and concatenation that carried the qualifier, and the launderer (`rule:security/taint-propagation`, `rule:security/launderers-are-sink-named`). `crates/nvs-types/src/expr/quals.rs:414`, `crates/nvs-types/src/expr/quals.rs:523`, `crates/nvs-types/src/expr/quals.rs:574`
+- [x] Hover on the value, or on an argument at a sink, shows the steps with their lines and the launderer marked. `crates/nvs-lsp/src/hover.rs:132`
+- [x] `.lspt` cases for a `tainted` and a `secret` value from source to sink, one laundered on the way, and one that entered through a declared parameter. `tests/lsp/hover/a-tainted-value-shows-where-it-came-from.lspt:1`
+- [x] `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from` `shipped`. `data/rules/ide/a-hover-shows-where-a-tainted-or-secret-value-came-from.json:3`
 
 ### 5. a query call passes its site id, and a traced span records the site
 
@@ -313,40 +313,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 8 are done. Hovering a `#[Route]` attribute, or its handler's name, lists the
-program's grants under a first line naming the `nvs.toml` (`crates/nvs-lsp/src/grants.rs`,
-`of_program`; `crates/nvs-lsp/src/hover.rs:200`, `route`). The tree is
-`crates/nvs-lsp/src/document.rs:864`, `program_tree`, which the extension set now shares, read again
-per hover. `hover::answer` takes the data folder's file, and the `.lspt` suite passes none, so a case
-reads only what it writes. Four new cases under `tests/lsp/hover/` and `crates/nvs-lsp/tests/grants.rs`
-(no `nvs.toml`, a rewritten one, one that does not load) pass; `nvs lsp-test tests/lsp/hover/` is 57
-passed. `an-attribute-name-answers-the-attributes-card.lspt` was refrozen, because its cursor is on a
-`#[Route]` and the rule extends that answer. The rule is `shipped`, and the nvs-lsp page's questions
-are restamped.
+Stages 1, 2, 3, 4 and 8 are done. Under `ExprTypeTable::record_provenance`, which only
+`crates/nvs-lsp/src/document.rs:737` calls, the checker records each qualified value's path in
+`crates/nvs-types/src/provenance.rs`. `expr::infer` notes every expression after its type is known
+(`crates/nvs-types/src/expr/mod.rs:315`), and a typed or `var` local's initializer is noted as an
+assignment (`crates/nvs-types/src/locals.rs`, `LocalDecl`). The steps are source, `mixed`, declared,
+assigned, concatenated, interpolated, carried by a call, and ended (the launderer). A variable's path
+is keyed by its declaration's span. `crates/nvs-lsp/src/taint.rs` spells the innermost path under the
+cursor, and `hover::answer` puts it under an answer on the same node, or in place of one around it.
+`crates/nvs-types/tests/provenance.rs` (3 tests) pins the switch off for a plain check, a recorded
+path, and `nvs-lsp` as the only caller. Four new `.lspt` cases under `tests/lsp/hover/`;
+`nvs lsp-test tests/lsp/hover/` is 61 passed. The rule is `shipped`, `40-editor.md` has a section, and
+the nvs-lsp page's questions are restamped.
 
-The sweep's findings were already fixed on HEAD: the nightly ran on `d6f13175`, whose lock had the
-yanked `crypto-bigint` 0.7.6 (HEAD has 0.7.9), and `two_counted_runs_with_a_collection_print_the_same_line`
-was fixed in `e384a0ae8`. `env-secret-proofs` exits 0.
+The sweep's findings were stale: the nightly ran on `d6f13175` again, older than `origin/main`
+(`8a2e1ab7f`), and the `env-secret-proofs` log shows exit 0.
 
 May go red in the gate: `crates/nvs-lsp/tests/handshake.rs` if it pins `Client` or the
-initialization options further, and the proofs gate's perf records, because the counted baseline
-moved two sessions ago.
+initialization options further, the proofs gate's perf records (the counted baseline moved), and the
+LSP latency bound in `crates/nvs-lsp/tests/latency.rs`, since every editor check now records paths.
 
 ### Next
 
-**Stage 4, a `tainted` or `secret` value's hover shows its path**, on `crates/nvs-types/src/expr/quals.rs`,
-`crates/nvs-types/src/expr_table.rs` and `crates/nvs-lsp/src/hover.rs`. It needs no gate, and it
-follows the stage's **Split:** line.
-
-- [ ] A switch on the expression table only `nvs-lsp` sets, off for `nvs check` and a run. `crates/nvs-types/src/expr_table.rs:1428`, `crates/nvs-types/src/check.rs:128`, `crates/nvs-lsp/src/document.rs:725`
-- [ ] Under it, record the source, each carrying step and the launderer. `crates/nvs-types/src/expr/quals.rs:414`, `crates/nvs-types/src/expr/quals.rs:523`, `crates/nvs-types/src/expr/quals.rs:574`
-- [ ] Hover on the value, or on an argument at a sink, shows the steps. `crates/nvs-lsp/src/hover.rs:200`
-- [ ] `.lspt` cases (writing subagent). `tests/lsp/hover/a-tainted-value-shows-where-it-came-from.lspt:1`
-
-Stage 5 is disjoint and can run beside it.
+**Stage 5, a query call passes its site id, and a traced span records the site.** It needs no gate,
+and its items carry their anchors: `crates/nvs-stdlib/src/registry.rs:3055`,
+`crates/nvs-ir/src/lower/expr.rs:4201`, `crates/nvs-ir/src/lower/anon_fn.rs:818`,
+`crates/nvs-stdlib/src/db/span.rs:52`, `crates/nvs-db/src/pg.rs:6627`. Stage 6 follows it, behind its
+gate on `debug-service` and `debug-viewer`.
 
 ### Backlog
 
+- A taint path does not join branches: after an `if` that assigns in one arm, a read shows the last write the walk reached (`crates/nvs-types/src/provenance.rs`, `assign`).
+- A taint path does not follow a property write, so a later read of the property starts at its declared type. A captured variable in an anonymous function records no path (`crates/nvs-types/src/provenance.rs`, `read`).
 - The grants hover resolves the tree for the hovered file. A handler in a file the program autoloads from another directory reads that directory's `nvs.toml`, not the entry's (`crates/nvs-lsp/src/grants.rs`, `of_program`).
 - The grants hover lists the `[capabilities]` roster only. `net.internal`'s exceptions and an extension's own `grants` are not shown (`crates/nvs-lsp/src/grants.rs`, `list`).
 

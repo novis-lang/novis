@@ -1,0 +1,23 @@
+--TEST--
+a `tainted` value hovered at an `echo` lists its path from the source through an assignment, a concatenation and an interpolation, each with its line, `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`
+--FILE--
+<?nvs
+array<tainted string> $args = Core\Cli::arguments();
+tainted string $first = $args[0] ?? "";
+var $name = $first;
+var $line = "Hello, " . $name;
+var $page = "<p>{$line}</p>";
+echo $pa<|>ge;
+--REQUEST--
+hover
+--EXPECT--
+**This value is `tainted`.** It comes from:
+
+1. Line 2: `Core\Cli::arguments()` returns a `tainted` value.
+2. Line 2: the value is assigned to `$args`.
+3. Line 3: the value is assigned to `$first`.
+4. Line 4: the value is assigned to `$name`.
+5. Line 5: the value is joined with other text in `"Hello, " . $name`.
+6. Line 5: the value is assigned to `$line`.
+7. Line 6: the value is inserted into the string `"<p>{$line}</p>"`.
+8. Line 6: the value is assigned to `$page`.

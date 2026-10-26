@@ -1,0 +1,18 @@
+--TEST--
+a value that entered a method through a parameter declared `tainted string` starts its path at that declaration, because the path stops at the method's boundary, `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`
+--FILE--
+<?nvs
+class Greeter {
+    public function greet(tainted string $name): Core\Html\Markup {
+        var $line = "Hello, " . $name;
+        return Core\Html::escape($li<|>ne);
+    }
+}
+--REQUEST--
+hover
+--EXPECT--
+**This value is `tainted`.** It comes from:
+
+1. Line 3: `$name` is declared `tainted`.
+2. Line 4: the value is joined with other text in `"Hello, " . $name`.
+3. Line 4: the value is assigned to `$line`.

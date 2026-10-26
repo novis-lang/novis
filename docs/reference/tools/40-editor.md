@@ -165,6 +165,19 @@ The grants belong to the whole program. Every route of the program has the same 
 reads `nvs.toml` again for each hover, so a change to the file shows at once. If there is no
 `nvs.toml`, the hover says so and lists the default policy.
 
+## Where a tainted or secret value came from
+
+Hover a value whose type is `tainted` or `secret` to see where that came from. A `tainted` value comes
+from outside the program, such as request data. A `secret` value is a password or a key. The hover
+lists each step with its line. The first step is where the value entered the method: a call that
+returns it, a value of type `mixed`, or a declared parameter. The next steps are each assignment,
+each `.` and each string that inserts the value.
+
+If a call removes `tainted` or `secret`, the hover shows that call in bold. An example is
+`Core\Html::escape`. You can also hover an argument of a call, to see the path of the value that the
+call receives. The path covers one method only. A parameter declared `tainted string` is where the
+value entered that method.
+
 ## What it does not answer
 
 The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,

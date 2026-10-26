@@ -1,0 +1,21 @@
+--TEST--
+a value hovered after `Core\Html::escape` still lists its path, and the step where the escape removed `tainted` is in bold, `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`
+--FILE--
+<?nvs
+array<tainted string> $args = Core\Cli::arguments();
+tainted string $first = $args[0] ?? "";
+var $greeting = "Hello, " . $first;
+var $safe = Core\Html::escape($greeting);
+echo $sa<|>fe;
+--REQUEST--
+hover
+--EXPECT--
+**This value was `tainted`.** It comes from:
+
+1. Line 2: `Core\Cli::arguments()` returns a `tainted` value.
+2. Line 2: the value is assigned to `$args`.
+3. Line 3: the value is assigned to `$first`.
+4. Line 4: the value is joined with other text in `"Hello, " . $first`.
+5. Line 4: the value is assigned to `$greeting`.
+6. Line 5: **`Core\Html::escape($greeting)` removes `tainted`.**
+7. Line 5: the value is assigned to `$safe`.
