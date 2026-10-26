@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 ---
 
 # One binary
@@ -375,7 +375,7 @@ tree are each an error beside it.
 
 # nvs debug
 
-    nvs debug [--once] [--tail <file>]...
+    nvs debug [--once] [--tail <file>]... [--listen <address>]
 
 With `[debug] store = true` in `nvs.toml`, every request is recorded. The records are written to
 files in `debug/spool` in the data folder. `nvs debug` reads those files into one SQLite database,
@@ -412,6 +412,55 @@ the stored body has `[redacted]` in place of that value. If Novis cannot find th
 body, the body is not stored. That is the case for a multipart form, for example. A body the program
 read another way is stored as it was read, so a password in it is in the index. The files are in a
 folder that only your account can open. In production, a record has no headers and no body.
+
+# The debug viewer
+
+    nvs debug [--listen <address>]
+
+`nvs debug` also serves the debug viewer, a page that shows the recorded requests in a browser. It
+prints the page's address when it starts. The address is `http://127.0.0.1:8137/` unless
+`[debug] listen` or `--listen` sets another one. If that port is in use, `nvs debug` stops with an
+error. It does not pick another port, so a link to the viewer still works after a restart.
+
+| Page | What it shows |
+|---|---|
+| `/` | the requests, newest first: method, route, status, duration, queries, dumps and exceptions |
+| `/requests/<trace id>/<span id>` | one request: its timeline, its queries, dumps and log lines, and its input |
+| `/stream` | every record of every request, as one list you can filter |
+| `/log` | the log lines |
+| `/search` | a full-text search over requests, dumps, logs, queries and exceptions |
+| `/exceptions` | one row for each exception class and the line that threw it, with a count |
+| `/compare/...` | two requests side by side |
+
+New rows appear at the top while you watch. Press `p` or scroll down to pause the list. The list
+then counts the new rows and does not move. Each page and each filter has its own link, which still
+works after a reload. You can paste a trace id, or the value of a `traceresponse` header, into the
+search box. The viewer then opens that request.
+
+Every key is listed when you press `?`. `j` and `k` move the selection, `Enter` opens it, `/` goes to
+the search box and `s` saves a filter. `m` marks a request, and the next request you open is
+compared with it. `c` compares a request with the previous request to the same route.
+
+`r` replays a request: it sends the recorded request to your development server again. The handler
+runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
+started `nvs debug`.
+
+Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor in
+the **Editor** dialog. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
+`cursor`, `zed`, `idea`, `phpstorm` and `custom`. With `custom`, you write the link yourself, with
+`{file}`, `{line}` and `{column}` in it. A path mapping replaces the start of a recorded path. Use
+one when the program ran in a container and its paths differ from yours. The viewer saves these
+settings and your saved filters next to the index.
+
+A profile that `Core\Debug::startProfile` wrote has a download link. In VS Code, it also has a link
+that opens it in the Novis extension. When the server ran with `[debug] mode = ["coverage"]`, a
+request's page shows which lines of each source file ran, and how often.
+
+The viewer is for you alone. On a loopback address, it answers only its own page. A page on another
+site cannot read it. When `listen` is not a loopback address, for example in a container,
+`nvs debug` serves the viewer over HTTPS. It creates a certificate and a token, and prints a link
+that contains the token. Your browser warns about the certificate once. `[debug] tls_cert_file`,
+`tls_key_file` and `token_file` name your own files instead.
 
 # Profiling
 

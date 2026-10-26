@@ -133,6 +133,38 @@
           "key": "debug.index_max",
           "class": "System",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.listen",
+          "title": "debug.listen",
+          "examples": "config/debug-listen",
+          "key": "debug.listen",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:debug.tls_cert_file",
+          "title": "debug.tls_cert_file",
+          "examples": "config/debug-tls_cert_file",
+          "key": "debug.tls_cert_file",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:debug.tls_key_file",
+          "title": "debug.tls_key_file",
+          "examples": "config/debug-tls_key_file",
+          "key": "debug.tls_key_file",
+          "class": "System",
+          "apply": "Boot"
+        },
+        {
+          "id": "directive:debug.token_file",
+          "title": "debug.token_file",
+          "examples": "config/debug-token_file",
+          "key": "debug.token_file",
+          "class": "System",
+          "apply": "Boot"
         }
       ]
     },
@@ -945,6 +977,19 @@
         "id": "tools:cli/nvs-debug",
         "title": "nvs debug",
         "examples": "tools/cli/nvs-debug"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "the-debug-viewer",
+      "url": "/reference/cli/the-debug-viewer/",
+      "title": "The debug viewer",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/the-debug-viewer",
+        "title": "The debug viewer",
+        "examples": "tools/cli/the-debug-viewer"
       },
       "keys": []
     },
