@@ -11,6 +11,7 @@ import { traceKey } from "./api.ts";
 import { ignored, KEYS } from "./keys.ts";
 import { navigate, path, query, route, version } from "./router.ts";
 import { nextTheme, setTheme, theme, type Theme } from "./theme.ts";
+import { CompareView } from "./views/compare.tsx";
 import { EditorSettings } from "./views/editor.tsx";
 import { ExceptionsView } from "./views/exceptions.tsx";
 import { LogView } from "./views/log.tsx";
@@ -27,6 +28,10 @@ export function App() {
   const request = createMemo(() => {
     const now = at();
     return now.view === "request" ? now : null;
+  });
+  const compare = createMemo(() => {
+    const now = at();
+    return now.view === "compare" ? now : null;
   });
   const saved = createMemo(() => {
     const now = at();
@@ -137,6 +142,7 @@ export function App() {
           {() => (
             <Switch fallback={<RequestList />}>
               <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
+              <Match when={compare()}>{(c) => <CompareView left={c().left} right={c().right} />}</Match>
               <Match when={view() === "stream"}>
                 <StreamView />
               </Match>

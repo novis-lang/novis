@@ -45,6 +45,17 @@ export function requestLink(row: Pick<RequestRow | RecordOwner, "trace" | "span"
   return row.span ? `/requests/${row.trace}/${row.span}` : `/requests/${row.trace}`;
 }
 
+/** A request that has a span id, so a compare link can name it. */
+export interface SpanKey {
+  trace: string;
+  span: string;
+}
+
+/** The link that sets `left`, the original, against `right`. */
+export function compareLink(left: SpanKey, right: SpanKey): string {
+  return `/compare/${left.trace}/${left.span}/${right.trace}/${right.span}`;
+}
+
 /** The link to `view` with `query`, the part after `?`. */
 export function viewLink(view: SavedView, query: string): string {
   const base = view === "requests" ? "/" : `/${view}`;
@@ -55,6 +66,7 @@ export function viewLink(view: SavedView, query: string): string {
 export type Route =
   | { view: "list" }
   | { view: "request"; trace: string; span?: string }
+  | { view: "compare"; left: SpanKey; right: SpanKey }
   | { view: "stream" }
   | { view: "log" }
   | { view: "search" }
@@ -66,6 +78,8 @@ export function route(to: string): Route {
   const at = to.split("?")[0]!;
   const m = /^\/requests\/([0-9a-f]{32})(?:\/([0-9a-f]{16}))?\/?$/.exec(at);
   if (m) return m[2] ? { view: "request", trace: m[1]!, span: m[2] } : { view: "request", trace: m[1]! };
+  const c = /^\/compare\/([0-9a-f]{32})\/([0-9a-f]{16})\/([0-9a-f]{32})\/([0-9a-f]{16})\/?$/.exec(at);
+  if (c) return { view: "compare", left: { trace: c[1]!, span: c[2]! }, right: { trace: c[3]!, span: c[4]! } };
   const view = /^\/(stream|log|search|exceptions)\/?$/.exec(at)?.[1];
   if (view === "stream" || view === "log" || view === "search" || view === "exceptions") return { view };
   const saved = /^\/saved\/([^/]+)\/?$/.exec(at);

@@ -9,14 +9,18 @@
 // puts it on top. A `since` page that is not complete (`older` set) means more arrived than one page,
 // so the newest page is loaded again instead.
 //
+// `m` or the Mark button marks the selected request, and opening a second request then opens the two
+// side by side (`compare.tsx`).
+//
 // What it spends: the rows loaded so far, at most `KEEP` while following, plus what arrived while
 // paused. Each row is a few hundred bytes.
 
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { requests, watermarks, type RequestPage, type RequestRow } from "../api.ts";
 import { ignored } from "../keys.ts";
-import { navigate, requestLink } from "../router.ts";
+import { navigate } from "../router.ts";
 import { Site } from "../site.tsx";
+import { isMarked, marked, openLink, setMarked, toggleMark } from "./compare.tsx";
 
 /** A row's height in pixels. `.row` in `style.css` has the same. */
 export const ROW_HEIGHT = 28;
@@ -212,7 +216,12 @@ export function RequestList() {
     else if (top + ROW_HEIGHT > list.scrollTop + list.clientHeight) list.scrollTop = top + ROW_HEIGHT - list.clientHeight;
     list.focus({ preventScroll: true });
   };
-  const open = (row: RequestRow) => navigate(requestLink(row));
+  const open = (row: RequestRow) => navigate(openLink(row));
+  const selectedRow = () => rows()[current()];
+  const mark = () => {
+    const row = selectedRow();
+    if (row) toggleMark(row);
+  };
   const screen = () => Math.max(1, Math.floor(list.clientHeight / ROW_HEIGHT) - 1);
 
   const onKey = (e: KeyboardEvent) => {
@@ -247,6 +256,9 @@ export function RequestList() {
       case "p":
       case " ":
         toggle();
+        break;
+      case "m":
+        mark();
         break;
       default:
         return;
@@ -292,6 +304,26 @@ export function RequestList() {
             {arrivedText()}
           </button>
         </Show>
+        <button
+          type="button"
+          class="btn mark"
+          onClick={mark}
+          disabled={!selectedRow()?.span}
+          aria-pressed={selectedRow() && isMarked(selectedRow()!) ? "true" : "false"}
+          aria-keyshortcuts="m"
+        >
+          Mark to compare
+        </button>
+        <Show when={marked()}>
+          {(m) => (
+            <span class="mark-state" role="status">
+              Marked: {m().method} {m().path}. Open another request to compare the two.{" "}
+              <button type="button" class="btn small" onClick={() => setMarked(null)}>
+                Clear
+              </button>
+            </span>
+          )}
+        </Show>
       </div>
       <Show when={error()}>
         <p class="note bad" role="alert">
@@ -321,7 +353,8 @@ export function RequestList() {
                   id={`request-${row.id}`}
                   role="option"
                   class="row"
-                  classList={{ threw: row.exception !== null }}
+                  classList={{ threw: row.exception !== null, marked: isMarked(row) }}
+                  aria-description={isMarked(row) ? "Marked to compare" : undefined}
                   aria-selected={selected() === row.id ? "true" : "false"}
                   aria-posinset={at() + 1}
                   aria-setsize={setSize()}

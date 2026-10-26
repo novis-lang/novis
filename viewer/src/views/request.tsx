@@ -8,15 +8,22 @@
 // when several do, because an inbound `traceparent` can give two requests one trace id. The records are
 // fetched once the link names one request.
 //
-// What it spends: the one request's records, which the service already limited, for as long as the
-// view is open.
+// Once the records load, a bar offers to compare the request with the previous request to the same
+// route (`c`), with the request marked in the list, and to replay it (`r`, `replay.tsx`). The previous
+// request is the nearest older row with the same method and route on one page of `before`, so the
+// lookup is one bounded `GET /api/requests`.
+//
+// What it spends: the one request's records, which the service already limited, and one page of older
+// rows while the previous request is looked up, for as long as the view is open.
 
 import { createEffect, createResource, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { profileDownload, request, requests, type Json, type RequestDetail, type RequestFilter, type RequestRow, type TraceKey } from "../api.ts";
 import { profileLink } from "../editor-link.ts";
 import { ignored } from "../keys.ts";
-import { navigate, requestLink } from "../router.ts";
+import { compareLink, navigate, requestLink } from "../router.ts";
 import { Site } from "../site.tsx";
+import { isMarked, marked, setMarked } from "./compare.tsx";
+import { ReplayAction } from "./replay.tsx";
 import { saved } from "./saved.tsx";
 import { duration, statusClass } from "./requests.tsx";
 import { Coverage } from "./coverage.tsx";
@@ -55,11 +62,36 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
     },
     (key) => request(key),
   );
+  const loaded = () => (detail.error ? undefined : detail());
+
+  // The previous request to the same route: the nearest older row on one page with the same method
+  // and route, or the same path when the request has no route.
+  const [previous] = createResource(
+    () => {
+      const row = loaded()?.request;
+      return row?.span ? row : false;
+    },
+    async (row) => {
+      const page = await requests({ before: row.id, limit: PREVIOUS_PAGE });
+      const where = (r: RequestRow) => r.route ?? r.path;
+      return page.requests.find((r) => r.id < row.id && r.span && r.method === row.method && where(r) === where(row)) ?? null;
+    },
+  );
+  /** The link that compares the previous request, on the left, with this one. */
+  const previousLink = (): string | null => {
+    const row = loaded()?.request;
+    const before = previous.error ? null : previous();
+    return row?.span && before?.span ? compareLink({ trace: before.trace, span: before.span }, { trace: row.trace, span: row.span }) : null;
+  };
+  let openReplay: (() => void) | undefined;
 
   const onKey = (e: KeyboardEvent) => {
-    if (ignored(e) || e.key !== "Escape") return;
+    if (ignored(e)) return;
+    if (e.key === "Escape") navigate("/");
+    else if (e.key === "c" && previousLink()) navigate(previousLink()!);
+    else if (e.key === "r" && openReplay) openReplay();
+    else return;
     e.preventDefault();
-    navigate("/");
   };
   onMount(() => document.addEventListener("keydown", onKey));
   onCleanup(() => document.removeEventListener("keydown", onKey));
@@ -92,7 +124,39 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
             <Match when={detail.loading}>
               <p class="note">Loading the timeline.</p>
             </Match>
-            <Match when={detail()}>{(d) => <Records detail={d()} />}</Match>
+            <Match when={detail()}>
+              {(d) => (
+                <>
+                  <div class="actions" role="group" aria-label="Actions">
+                    <Switch>
+                      <Match when={previousLink()}>
+                        {(to) => (
+                          <a href={to()} class="btn compare-previous" aria-keyshortcuts="c">
+                            Compare with the previous request to this route
+                          </a>
+                        )}
+                      </Match>
+                      <Match when={!previous.loading && d().request.span}>
+                        <span class="note">No earlier request to this route was found.</span>
+                      </Match>
+                    </Switch>
+                    <Show when={marked() && d().request.span && !isMarked(d().request) ? marked() : null}>
+                      {(m) => (
+                        <a
+                          href={compareLink(m(), { trace: d().request.trace, span: d().request.span! })}
+                          class="btn compare-marked"
+                          onClick={() => setMarked(null)}
+                        >
+                          Compare with the marked request, {m().method} {m().path}
+                        </a>
+                      )}
+                    </Show>
+                    <ReplayAction detail={d()} ref={(open) => (openReplay = open)} />
+                  </div>
+                  <Records detail={d()} />
+                </>
+              )}
+            </Match>
           </Switch>
         </Match>
         <Match when={rows().length > 1}>
@@ -113,6 +177,9 @@ export function RequestView(props: { trace: string; span: string | undefined }) 
     </section>
   );
 }
+
+/** How many older rows the previous-request lookup reads: one page of the most the service sends. */
+const PREVIOUS_PAGE = 500;
 
 function Details(props: { row: RequestRow }) {
   const row = () => props.row;

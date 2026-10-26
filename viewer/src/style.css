@@ -769,6 +769,96 @@ mark {
   margin: 0.75rem 1rem;
 }
 
+/* The marked request in the list, and the actions of one request. */
+.row.marked {
+  box-shadow: inset 3px 0 var(--warn);
+}
+
+.mark-state {
+  color: var(--warn);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 0 0;
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+/* Two requests side by side. */
+.cmp {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.cmp th,
+.cmp td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.cmp thead th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.cmp th[scope="row"] {
+  width: 14rem;
+  font-weight: normal;
+}
+
+.cmp-differs > th {
+  box-shadow: inset 3px 0 var(--warn);
+}
+
+.cmp-badge,
+.cmp-count {
+  color: var(--warn);
+}
+
+.cmp-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.cmp-redacted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* The dialog that asks before a request is sent again. */
+dialog.ask.replay {
+  max-width: 36rem;
+}
+
+.replay code {
+  overflow-wrap: anywhere;
+}
+
+.replay-headers {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin: 0.75rem 0 0;
+}
+
+.replay-headers label {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
 /* The dialogs that ask for a name or ask before deleting. */
 dialog.ask {
   color: var(--fg);
