@@ -104,39 +104,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `d6f131752`, `debugger-adapter`'s goal end. Its Website run 40249167966 is
-green. Its CI run 40249168095 ended red in three jobs, all fixed and not pushed:
+`origin/main` is at `d6f131752`, `debugger-adapter`'s goal end. Its Website run is green. Its CI
+run 40249168095 was red in three jobs, each fixed and not pushed: `supply chain` by `97ccf66c2`
+(crypto-bigint 0.7.9), the macOS counted-batch test by `a60965625` (the answer slot is locked on
+the core), and the Windows counted-run test by `9c8b0fe16` (one folder for all three runs). Every
+other job was green. Miri and overload run only in the nightly lane, so the fixes for runs
+40158642410 and 40174915924 are not checked yet.
 
-- `supply chain`: crypto-bigint 0.7.6 was yanked. The main loop's `97ccf66c2` takes 0.7.9.
-- `test / macos-aarch64 (tests)`: `calls_one_after_another_use_one_thread_and_allocate_the_same`
-  counted batches `[1500, 1500, 1499, 1500]`. The main loop's `a60965625` locks the answer slot on
-  the core before it submits, since a pthread mutex allocates on its first lock.
-- `test / windows-x86_64 (tests)`: `two_counted_runs_with_a_collection_print_the_same_line` printed
-  `bytes=` 63 apart for its two cold runs. Under the test's 2M ceiling the project folder's path
-  length moves the collections. Measured here: with no ceiling the counts match for every path, and
-  at 2M a folder name of 51 bytes against 50 changed `allocations=` too. `9c8b0fe16` runs all three
-  runs in one folder, each cold run with its own data folder. Whether the macOS red of
-  `94245fd46` had the same cause is not known.
+No push since: three `--watch --next` runs exited 3, about six hours, while `debug-service` stays
+open with 28 unpushed commits. At `cfee6562b` the proofs gate owes perf figures for `request.rs`,
+`uri.rs`, `queue.rs`, `debug.rs`, `script.rs` and `json.rs`, the four `debug.*` directive proofs
+and `Core\Server::traceId`'s `about.md` (206 words). Its site page's questions are stale. All of
+it is `debug-service`'s, handed over with `loop say`. A refused push names these first.
 
-Every other job is green, `five-driver matrix` and the Windows idle-stack test among them, so
-`947d5b7b3` and `a78076b26` hold. `cargo fmt --all --check` passed on CI with the dap files in.
-
-The push lane skipped the Miri and overload jobs, so the fixes for runs 40158642410 and
-40174915924 are not checked yet. They run in the nightly deep lane.
-
-No push has gone out since. Three `--watch --next` runs in a row exited 3, about six hours with no
-new run, while `debug-service` stayed open with 28 unpushed commits. At `cfee6562b`,
-`bun nv proofs --gate --limit 0` owes perf figures for `request.rs`, `uri.rs`, `queue.rs`,
-`debug.rs`, `script.rs` and `json.rs`, the four `debug.*` directive proofs, and
-`Core\Server::traceId`'s `about.md`, which has 206 words. `bun nv site --check questions` names
-`/reference/core/server/traceid/` as stale. All of these come from `debug-service`'s commits or the
-root's open edits, so they were handed to the main loop with `loop say`. Its goal end's pre-push
-check refuses the push until they are paid. If `--watch` reports a refused push, check first whether
-the main loop is still paying them.
-
-`.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders with a `.looper` directory that
-Windows keeps while looper runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three
-when looper is stopped.
+`.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders that Windows keeps while looper
+runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three when looper is stopped.
 
 ### Next
 
