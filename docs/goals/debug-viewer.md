@@ -6,7 +6,7 @@ context: [docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-art
 stages:
   - id: 1
     title: "the viewer's front end is built from `viewer/` and embedded in `nvs`"
-    status: open
+    status: done
     context: [package.json, tsconfig.json, CONTRIBUTING.md, tools/nv/main.ts, tools/nv/cmd/verify.ts, tools/nv/cmd/ci-changes.ts, tools/nv/cmd/gen-attribution.ts, crates/nvs-cli/src/info.rs, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md, docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md]
     extra:
       context:
@@ -19,7 +19,7 @@ stages:
       context:
         rules: [testing/the-viewer-shows-the-stream-and-hands-off-every-artifact, testing/the-ingester-runs-whether-or-not-anyone-is-looking, concurrency/one-scheduler, config/ownership-is-the-trust-boundary]
   - id: 3
-    title: the request list follows live, with the baseline every view reuses
+    title: "the request list follows live, with the baseline every view reuses"
     status: open
     context: [crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/index.rs, crates/nvs-server/src/trace.rs, viewer/src/app.tsx, viewer/src/api.ts, tools/nv/test/chromium.ts, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md]
     extra:
@@ -33,42 +33,42 @@ stages:
       context:
         rules: [testing/the-viewer-shows-the-stream-and-hands-off-every-artifact, errors/record-transformations, observability/trace-events-carry-a-kind]
   - id: 4
-    title: the stream, the log and full-text search with saved filters
+    title: "the stream, the log and full-text search with saved filters"
     status: open
     context: [crates/nvs-cli/src/debug/api.rs, crates/nvs-cli/src/debug/settings.rs, crates/nvs-config/src/data.rs, viewer/src/views/stream.tsx, viewer/src/views/search.tsx, docs/rules/testing/the-viewer-searches-every-record-and-saves-a-filter.md, docs/rules/testing/a-bad-line-degrades-and-a-bad-file-is-quarantined.md]
     extra:
       context:
         rules: [testing/the-viewer-searches-every-record-and-saves-a-filter, testing/a-bad-line-degrades-and-a-bad-file-is-quarantined, testing/the-ingester-runs-whether-or-not-anyone-is-looking]
   - id: 5
-    title: grouped exceptions, and every site is a link into the editor
+    title: "grouped exceptions, and every site is a link into the editor"
     status: open
     context: [crates/nvs-cli/src/debug/api.rs, viewer/src/views/exceptions.tsx, viewer/src/editor-link.ts, docs/rules/testing/an-exception-is-one-row-per-class-and-site.md, docs/rules/testing/a-site-in-the-viewer-opens-in-the-editor.md]
     extra:
       context:
         rules: [testing/an-exception-is-one-row-per-class-and-site, testing/a-site-in-the-viewer-opens-in-the-editor]
   - id: 9
-    title: a profile is handed to VS Code, and a request's coverage is a heatmap over its source
+    title: "a profile is handed to VS Code, and a request's coverage is a heatmap over its source"
     status: open
     context: [editors/vscode/src/extension.ts, editors/vscode/package.json, editors/vscode/src/tests.ts, crates/nvs-cli/src/debug/source.rs, viewer/src/views/coverage.tsx, docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md]
     extra:
       context:
         rules: [ide/the-extension-builds-no-ui-the-editor-already-has, observability/speedscope-timeline-export, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
   - id: 6
-    title: two requests compare, and one replays after the developer confirms
+    title: "two requests compare, and one replays after the developer confirms"
     status: open
     context: [crates/nvs-cli/src/debug/replay.rs, crates/nvs-cli/src/debug/api.rs, viewer/src/views/compare.tsx, docs/rules/testing/two-requests-compare-and-a-replay-asks-first.md, docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md]
     extra:
       context:
         rules: [testing/two-requests-compare-and-a-replay-asks-first, testing/the-debug-stream-reaches-the-service-through-the-disk, testing/writing-a-debug-record-to-disk-is-its-own-gate]
   - id: 7
-    title: the viewer has its feature proofs, and its rules are shipped
+    title: "the viewer has its feature proofs, and its rules are shipped"
     status: open
     context: [docs/reference/tools/10-cli.md, data/proofs/skip/tools/cli/nvs-info.json, docs/rules/testing/feature-proofs.md]
     extra:
       context:
         rules: [testing/feature-proofs, testing/hostile-case-contract, testing/examples-live-in-the-repository]
   - id: 10
-    title: the goal is verified once, and every failure is fixed
+    title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
 checks:
@@ -197,6 +197,14 @@ fixture is then a lane of its own. Those stages share `crates/nvs-cli/src/debug/
 `viewer/src/app.tsx`, so they run in the listed order. Stage 9's extension part (`editors/vscode/`) is
 its own lane, disjoint from every other stage. Stage 7 runs last.
 
+**The page's shape is stage 1's call, and stage 2 serves it.** The page is one `<div id="app">`,
+`/viewer.css` and `/viewer.js` loaded as a module, served for every view path; the JSON API and the
+event stream are under `/api/`. `bun nv viewer --dev` serves that same shape on `127.0.0.1:8138` and
+passes every `/api/` request to `nvs debug` with `Origin` rewritten to the service's own, so stage 2's
+allowlist admits nothing for it. `crates/nvs-cli/src/viewer.rs` holds the two files as `JS` and
+`CSS`. `bunfig.toml` keeps Bun's hoisted `node_modules`, since a workspace otherwise switches the
+whole install to one `node_modules` per package and the tools import from the root.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -211,12 +219,12 @@ dependency, a committed bundle with a freshness check, and one new `nv verify` s
 **Does:** a Solid app that builds to two committed files, checked for freshness, embedded in the binary,
 with its licence in the notice.
 
-- [ ] `viewer/` as a workspace of the root package: `solid-js` its one runtime dependency, Babel and Solid's JSX preset at build time, the root `bun.lock` updated, its own `tsconfig.json` with the DOM library, `"workspaces": ["viewer"]` in the root `package.json`, and its row after `editors/` in `CONTRIBUTING.md`'s layout block, in the commit that creates the folder because `bun nv layout --check` fails on a row with no folder (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). `package.json:11`, `CONTRIBUTING.md:183`, `viewer/package.json:1`, `viewer/tsconfig.json:1`, `viewer/src/main.tsx:1`
-- [ ] `bun nv viewer` builds `viewer/dist/viewer.js` and `viewer/dist/viewer.css`, `--check` rebuilds and fails on a byte difference, and `--dev` serves the source with reload against a running `nvs debug`. A test that two builds give the same bytes. `tools/nv/main.ts:43`, `tools/nv/cmd/viewer.ts:1`, `tools/nv/test/viewer.test.ts:1`
-- [ ] `nv verify` gains a `viewer` step, run when a file under `viewer/` changed: `tsc`, the bundle check and the viewer's unit tests. `tools/nv/cmd/verify.ts:162`
-- [ ] CI's `browser` job gains the viewer's browser suite, and `ci-changes.ts`'s `browser` paths gain `viewer/`. `tools/nv/cmd/ci-changes.ts:106`, `.github/workflows/ci.yml:494`
-- [ ] `bun nv gen-attribution` reads the viewer's runtime dependencies from `viewer/package.json`'s `dependencies` at the versions `bun.lock` resolves, each licence file from its installed package, and no build-time package. In the same commit the packaging rule's paragraph on what the notice is generated from says so, and its `guardedBy` gains `viewer/package.json` (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). `tools/nv/cmd/gen-attribution.ts:288`, `docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md:5`
-- [ ] `nvs-cli` embeds the two files with `include_bytes!` in a module of their own, as `nvs info` embeds its notice, with a test that the embedded bytes are the committed files. `crates/nvs-cli/src/viewer.rs:1`, `crates/nvs-cli/src/info.rs:34`
+- [x] `viewer/` as a workspace of the root package: `solid-js` its one runtime dependency, Babel and Solid's JSX preset at build time, the root `bun.lock` updated, its own `tsconfig.json` with the DOM library, `"workspaces": ["viewer"]` in the root `package.json`, and its row after `editors/` in `CONTRIBUTING.md`'s layout block, in the commit that creates the folder because `bun nv layout --check` fails on a row with no folder (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). `package.json:11`, `CONTRIBUTING.md:183`, `viewer/package.json:1`, `viewer/tsconfig.json:1`, `viewer/src/main.tsx:1`
+- [x] `bun nv viewer` builds `viewer/dist/viewer.js` and `viewer/dist/viewer.css`, `--check` rebuilds and fails on a byte difference, and `--dev` serves the source with reload against a running `nvs debug`. A test that two builds give the same bytes. `tools/nv/main.ts:43`, `tools/nv/cmd/viewer.ts:1`, `tools/nv/test/viewer.test.ts:1`
+- [x] `nv verify` gains a `viewer` step, run when a file under `viewer/` changed: `tsc`, the bundle check and the viewer's unit tests. `tools/nv/cmd/verify.ts:162`
+- [x] CI's `browser` job gains the viewer's browser suite, and `ci-changes.ts`'s `browser` paths gain `viewer/`. `tools/nv/cmd/ci-changes.ts:106`, `.github/workflows/ci.yml:494`
+- [x] `bun nv gen-attribution` reads the viewer's runtime dependencies from `viewer/package.json`'s `dependencies` at the versions `bun.lock` resolves, each licence file from its installed package, and no build-time package. In the same commit the packaging rule's paragraph on what the notice is generated from says so, and its `guardedBy` gains `viewer/package.json` (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). `tools/nv/cmd/gen-attribution.ts:288`, `docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md:5`
+- [x] `nvs-cli` embeds the two files with `include_bytes!` in a module of their own, as `nvs info` embeds its notice, with a test that the embedded bytes are the committed files. `crates/nvs-cli/src/viewer.rs:1`, `crates/nvs-cli/src/info.rs:34`
 
 ### 2. `nvs debug` serves the viewer, and only to its own page
 
@@ -332,22 +340,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. There is no `viewer/` folder, no `bun nv viewer` and no `crates/nvs-cli/src/debug.rs`.
-`debug-service` and `trace-timeline` are not reached, so only stages 1 and 2 can start, and stage 2
-only once `crates/nvs-cli/src/debug.rs` exists.
+Stage 1 is done. `viewer/` is a Bun workspace (`solid-js` at runtime, Babel 7 with Solid's and
+TypeScript's presets at build time) with its own `tsconfig.json`. `viewer/build.ts` bundles it.
+`bun nv viewer` writes the committed `viewer/dist/` with `--check`, `--verify` and `--dev`. `nv verify`
+has a `viewer` step. CI's `browser` job runs `bun nv viewer --verify` and
+`viewer/test/*.browser.test.ts`. The notice carries `solid-js` and its three dependencies.
+`crates/nvs-cli/src/viewer.rs` embeds the two files as `JS` and `CSS`, under an `expect(dead_code)` in
+`main.rs` that stage 2 removes. `debug-service` and `trace-timeline` are both reached, so every stage's
+gate is open.
+
+The sweep's reds: `env-secret-proofs` is green at HEAD (`bun nv proofs --gate --only 'Core\Env::secret'`
+exits 0). The nightly's `supply chain` failure was the yanked `crypto-bigint 0.7.6`, fixed by
+`97ccf66c2`. Its Windows failure was `two_counted_runs_with_a_collection_print_the_same_line`'s 63-byte
+path difference, fixed by `9c8b0fe16`. Its macOS failure is that test's *warm* run, one allocation and
+64 bytes fewer than the cold run in the same folder. The test passes on Windows and in WSL Linux, and
+macOS passed it in the nightly before. If the next nightly at HEAD repeats it on macOS, the cause is a
+warm load counting one allocation fewer than a cold compile (`crates/nvs-cli/tests/check_command.rs:334`).
+
+No test is expected to go red.
 
 ### Next
 
-**Stage 1, the front end's build**, on `package.json`, `viewer/`, `tools/nv/main.ts`,
-`tools/nv/cmd/verify.ts`, `tools/nv/cmd/ci-changes.ts`, `tools/nv/cmd/gen-attribution.ts` and
-`crates/nvs-cli/src/viewer.rs`. Gate: none.
+**Stage 2, `nvs debug` serves the viewer**, on `crates/nvs-cli/src/debug.rs`,
+`crates/nvs-cli/src/debug/listen.rs`, `crates/nvs-cli/src/viewer.rs`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-config/src/default.toml`, `crates/nvs-config/src/data.rs` and
+`docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md`. Gate: open. The page
+is one `<div id="app">` with `/viewer.css` and `/viewer.js`, served for every view path, and the API is
+under `/api/` (Standing decisions).
 
-- [ ] `viewer/` as a workspace with `solid-js` and the Babel preset, its `tsconfig.json`, and its layout row (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). `package.json:11`, `CONTRIBUTING.md:183`, `viewer/package.json:1`, `viewer/src/main.tsx:1`
-- [ ] `bun nv viewer` with `--check` and `--dev`, and a test that two builds give the same bytes. `tools/nv/main.ts:43`, `tools/nv/cmd/viewer.ts:1`, `tools/nv/test/viewer.test.ts:1`
-- [ ] The `viewer` step in `nv verify`. `tools/nv/cmd/verify.ts:162`
-- [ ] CI's `browser` job and `ci-changes.ts`'s `browser` paths gain `viewer/`. `tools/nv/cmd/ci-changes.ts:106`, `.github/workflows/ci.yml:494`
-- [ ] Solid's licence in the notice, with the packaging rule's paragraph and `guardedBy` (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). `tools/nv/cmd/gen-attribution.ts:288`, `docs/rules/packaging/the-third-party-notice-is-generated-never-written-by-hand.md:5`
-- [ ] The two files embedded with `include_bytes!`, and the test that they are the committed bytes. `crates/nvs-cli/src/viewer.rs:1`, `crates/nvs-cli/src/info.rs:34`
+- [ ] The rule names `127.0.0.1:8137`; `[debug] listen` and `--listen`; the page for every view path; `main.rs`'s `expect(dead_code)` on `mod viewer` removed. `crates/nvs-cli/src/debug.rs:84`, `crates/nvs-cli/src/debug.rs:232`, `crates/nvs-config/src/default.toml:359`, `crates/nvs-cli/src/main.rs:192`
+- [ ] `Host` and `Origin` allowlists, a JSON body on a changing request, and the rule's headers. `crates/nvs-cli/src/debug/listen.rs:1`
+- [ ] Off loopback: the `rcgen` certificate, the token, the cookie and the overrides, kept in `debug/`. `crates/nvs-config/src/data.rs:200`, `crates/nvs-cli/Cargo.toml:139`
+- [ ] The watermark as server-sent events under `/api/`. `crates/nvs-cli/src/debug/listen.rs:1`
+- [ ] The attack as Rust tests. `crates/nvs-cli/tests/debug_viewer.rs:1`
 
 ### Backlog
 
@@ -355,3 +380,4 @@ only once `crates/nvs-cli/src/debug.rs` exists.
 - The development error page links to the request's timeline when `nvs serve` started the service (`docs/rules/errors/renderings.md`).
 - Compare aligns queries by call site once each query carries its site id (`docs/goals/request-aware-editor.md`).
 - Viewer screenshots for the website come from `tools-website` (`docs/goals/tools-website.md`).
+- `bun nv ci-changes --files -` is refused by its own argument parser; `--files=-` works (`tools/nv/cmd/ci-changes.ts:6`).

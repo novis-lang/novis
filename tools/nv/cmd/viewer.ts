@@ -17,8 +17,8 @@
 // `--dev` serves the page the way `nvs debug` does: one `#app` element, `/viewer.js` and
 // `/viewer.css`. The bundle there is not minified, and a change under `viewer/src/` rebuilds it and
 // reloads every open tab through a server-sent event. A path under `/api/` goes to the `nvs debug`
-// named by `--debug`, the service's fixed default when it is not given; any other path is the page,
-// so a link to a request opens in the dev server too.
+// named by `--debug`, the service's fixed default when it is not given, with `Origin` rewritten to the
+// service's own. Any other path is the page, so a link to a request opens in the dev server too.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -156,6 +156,8 @@ async function dev(port: number, debug: string): Promise<number> {
       if (url.pathname.startsWith("/api/")) {
         const headers = new Headers(req.headers);
         headers.delete("host");
+        // The service admits only its own origin, and this server is a stand-in for its page.
+        if (headers.has("origin")) headers.set("origin", new URL(debug).origin);
         try {
           return await fetch(new URL(url.pathname + url.search, debug), { method: req.method, headers, body: req.body, redirect: "manual" });
         } catch (e) {
