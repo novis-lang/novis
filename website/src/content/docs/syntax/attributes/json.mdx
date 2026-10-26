@@ -16,3 +16,5 @@ the class `T` from JSON text.
 - Do write a constructor that takes every property, with the same names and types.
 - Do catch `ParseError` around `decodeAs` when the text comes from a user.
 - Do use `#[Core\Json\Field(skip: true)]` for a value that is only a cache.
+- Do declare a password that a request sends as `secret tainted string`. The decoder fills it, and
+  encoding the class does not compile.

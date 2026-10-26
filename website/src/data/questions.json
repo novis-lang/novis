@@ -1167,13 +1167,14 @@
   },
   "/reference/cli/nvs-debug/": {
     "feature": "tools:cli/nvs-debug",
-    "hash": "7160f2a6b522a9bb",
+    "hash": "f4ab1cd73fa7bd52",
     "questions": [
       "How do I look at the requests my development server recorded?",
       "Read the saved request records into a database I can search",
       "Read a JSON log file into the same database as the requests",
       "Collect request records on a production host",
-      "Why does a second nvs debug exit with status 1?"
+      "Why does a second nvs debug exit with status 1?",
+      "Is a password from a login form saved in the request record?"
     ]
   },
   "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
@@ -17070,13 +17071,14 @@
   },
   "/syntax/attributes/json/": {
     "feature": "syntax/attributes/json.mdx",
-    "hash": "a1916b84e5fc2218",
+    "hash": "6314d7d6214d5d58",
     "questions": [
       "How do I let a class be converted to and from JSON?",
       "Use a different JSON key name for one property",
       "How do I leave a property out of the JSON output?",
       "Why does decoding JSON into my class throw an error?",
-      "Which property types work when I build an object from JSON?"
+      "Which property types work when I build an object from JSON?",
+      "Can a class with a password property be decoded from JSON?"
     ]
   },
   "/syntax/attributes/routes/": {
