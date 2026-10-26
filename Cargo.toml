@@ -349,7 +349,37 @@ rcgen = { version = "0.14", default-features = false, features = [
 # HOLD (revisit 2026-11-16): wasmtime 50 is only 50.0.0-rc.1. The minimum is
 # 49.0.4, with cranelift's 0.136.4: the first releases with RUSTSEC-2026-0379's
 # fix, so a `cargo update` cannot resolve back to a vulnerable patch release.
-wasmtime = "49.0.4"
+# Every default feature but `cache`: Novis keeps a compiled module in its own
+# artifact cache (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`)
+# and never configures wasmtime's, and `cache` is the one path to `zstd` 0.13,
+# whose RUSTSEC-2026-0391, -0398, -0403 and -0410 are fixed only in 0.14.
+wasmtime = { version = "49.0.4", default-features = false, features = [
+    "addr2line",
+    "anyhow",
+    "async",
+    "backtrace",
+    "compile-time-builtins",
+    "component-model",
+    "component-model-async",
+    "coredump",
+    "cranelift",
+    "debug",
+    "debug-builtins",
+    "demangle",
+    "gc",
+    "gc-copying",
+    "gc-drc",
+    "gc-null",
+    "parallel-compilation",
+    "pooling-allocator",
+    "profiling",
+    "runtime",
+    "stack-switching",
+    "std",
+    "threads",
+    "wat",
+    "wit-parser",
+] }
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
 # version wasmtime itself parses component types with, so it adds no crate
 # the lock file did not already hold. Only `std`: the test reads text, and
