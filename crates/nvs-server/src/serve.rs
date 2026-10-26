@@ -174,6 +174,9 @@ pub enum Answer {
         /// chunked body. A writer that ends before this is zero ends the body
         /// in [`BodyCut::StreamEndedEarly`].
         left: Option<u64>,
+        /// The debug spool's recording of the chunks sent, where the
+        /// `request` line records the response body (`crate::spooled`).
+        tail: Option<crate::spooled::Tail>,
     },
 }
 
@@ -325,6 +328,7 @@ impl Answer {
                 alive: None,
                 cut: None,
                 left: None,
+                tail: None,
             },
         )
     }
@@ -356,13 +360,14 @@ impl Answer {
         due_at: crate::bounds::NextBeat,
     ) -> Self {
         match self {
-            Self::Streaming { drain, .. } => Self::Streaming {
+            Self::Streaming { drain, tail, .. } => Self::Streaming {
                 drain,
                 alive: Some(crate::bounds::EventStream::opened(
                     bounds, draining, write_idle, due_at,
                 )),
                 cut: None,
                 left: None,
+                tail,
             },
             whole => whole,
         }
@@ -452,6 +457,7 @@ impl Body for Answer {
                 alive,
                 cut,
                 left,
+                tail,
             } => {
                 if cut.as_ref().is_some_and(DrainCut::reached) {
                     return Poll::Ready(Some(Err(BodyCut::DrainPeriodEnded)));
@@ -484,6 +490,9 @@ impl Body for Answer {
                             };
                             *left = rest;
                         }
+                        if let Some(tail) = tail {
+                            tail.push(&chunk);
+                        }
                         Poll::Ready(Some(Ok(Frame::data(Bytes::from(chunk)))))
                     }
                     stream::Drained::Pending => {
@@ -504,6 +513,9 @@ impl Body for Answer {
                     stream::Drained::Ended => {
                         if let Some(alive) = alive {
                             alive.ended();
+                        }
+                        if let Some(tail) = tail {
+                            tail.ended();
                         }
                         if left.is_some_and(|left| left > 0) {
                             *left = Some(0);
@@ -1775,10 +1787,20 @@ where
                 }
             };
             // In `development`, the response as it goes out: its headers and
-            // the bytes of a whole body.
-            let recorded = store.filter(|store| store.development).map(|store| {
+            // the bytes of a whole body. A streamed body is recorded as it is
+            // sent, and its line waits for it.
+            let developed = store.filter(|store| store.development);
+            let recorded = developed.map(|store| {
                 crate::spooled::response(response.headers(), response.body(), store, trace)
             });
+            let tail = developed
+                .filter(|_| later)
+                .and_then(|store| match response.body_mut() {
+                    Answer::Streaming { tail, .. } => {
+                        Some(&*tail.insert(crate::spooled::Tail::new(store, trace)))
+                    }
+                    Answer::Whole(_) | Answer::File { .. } => None,
+                });
             let answered = crate::spooled::Answered {
                 method: verb.as_str(),
                 path: &target,
@@ -1791,7 +1813,8 @@ where
             };
             if later {
                 if let Some(streamed) = writing.borrow_mut().as_mut() {
-                    streamed.line = crate::spooled::Pending::of(answered, began, trace, store);
+                    streamed.line =
+                        crate::spooled::Pending::of(answered, began, trace, store, tail);
                 }
                 return;
             }
@@ -2926,6 +2949,7 @@ fn streamed(head: stream::Opened, cut: DrainCut) -> Response<Answer> {
         alive: None,
         cut: Some(cut),
         left: head.length,
+        tail: None,
     });
     if let Some(code) = head.status {
         *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
@@ -13413,6 +13437,93 @@ pub(crate) mod tests {
     }
 
     /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// a streamed response body past `spool::BODY_INLINE` reaches the spool as
+    /// `body` lines, recorded as `hyper` takes each chunk, whose offsets join
+    /// to the bytes the client read.
+    #[test]
+    fn a_spool_request_line_records_a_streamed_body_as_body_lines() {
+        const SENT: usize = (3 << 20) / 2;
+        const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying_traced(request);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                let cell = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::response_stream_slot)
+                    .cloned()
+                    .expect("a served request was offered no response-stream cell");
+                let emit = cell
+                    .open("text/plain", None, Vec::new())
+                    .expect("the first stream on a request opens");
+                child.set_body_stream(emit);
+                let body: Vec<u8> = ALPHABET.iter().copied().cycle().take(SENT).collect();
+                child
+                    .body_stream()
+                    .expect("the writing half was just set")
+                    .send_all(body)
+                    .expect("the connection takes every chunk");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-streamed",
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n\n\
+             [limits]\nrequest_body = \"4M\"\n",
+            b"GET /export HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            &handler,
+        );
+        let sent: String = ALPHABET
+            .iter()
+            .copied()
+            .map(char::from)
+            .cycle()
+            .take(SENT)
+            .collect();
+        assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+        let response = request.response.expect("development records the response");
+        assert!(
+            response.body.read,
+            "a streamed body was recorded as not read"
+        );
+        assert!(!response.body.cut, "a body under the cap says it was cut");
+        let mut parts: Vec<nvs_runtime::spool::BodyPart> = std::str::from_utf8(&raw)
+            .expect("a spool file is UTF-8")
+            .lines()
+            .filter_map(|line| {
+                match nvs_runtime::spool::Line::parse(line)
+                    .expect("a line")
+                    .record
+                {
+                    nvs_runtime::spool::Record::Body(part)
+                        if part.of == nvs_runtime::spool::BodyOf::Response =>
+                    {
+                        Some(part)
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        parts.sort_by_key(|part| part.offset);
+        assert_eq!(response.body.chunks, Some(2), "{parts:?}");
+        let mut joined = String::new();
+        for part in &parts {
+            assert_eq!(part.offset, joined.len() as u64, "the offsets leave a gap");
+            joined.push_str(part.text.as_deref().expect("the bytes are text"));
+        }
+        assert_eq!(joined.len(), SENT);
+        assert!(joined == sent, "the recorded bytes are not the bytes sent");
+        assert!(
+            answer.contains(&sent[SENT - 64..]),
+            "the client did not read the whole body"
+        );
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
     /// in `production` the `request` line records the outcome alone, with no
     /// input and no response, so no header value and no body reaches the
     /// spool.
@@ -13708,6 +13819,7 @@ pub(crate) mod tests {
             alive: None,
             cut: None,
             left: Some(10),
+            tail: None,
         };
         assert_eq!(
             short.size_hint().exact(),

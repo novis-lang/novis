@@ -20,13 +20,18 @@
 //! (`crate::body::Supply::record`), so a body the program never read is recorded as not read. The
 //! response is read off the answer the door counts ([`response`]): its headers and the bytes of a
 //! whole body. A file it sent is not read again. The four credential headers are replaced in both.
+//! A streamed body is recorded as `hyper` takes each chunk ([`Tail`]). The isolate can be joined
+//! before `hyper` has taken the last one, so the line is written by whichever of the join and the
+//! body's end comes second.
 //!
 //! **What it spends:** with `[debug] store` off, one read of the resolved configuration per request
 //! where the door copies the head, and one more per answer the door wrote alone. With it on, one `request` line built
 //! and written per answer, and per streamed answer its method, path and route held until its body
 //! ends. In `development`, per request, a copy of its head and the recorded body bytes, at most
-//! `spool::BODY_CHUNK` of them held at once.
+//! `spool::BODY_CHUNK` of them held at once for each of the request and the response.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -120,8 +125,8 @@ pub fn read_into(input: Option<&mut spool::Input>, recorded: Option<Recorder>) {
 }
 
 /// The response `headers` and `body` as a `request` line records them, under `store` in `trace`.
-/// A body longer than `spool::BODY_INLINE` is written as `body` lines here. A file and a streamed
-/// body are recorded as not read.
+/// A body longer than `spool::BODY_INLINE` is written as `body` lines here. A file is recorded as
+/// not read, and a streamed body is filled in by its [`Tail`].
 #[must_use]
 pub fn response(
     headers: &HeaderMap,
@@ -189,17 +194,19 @@ pub struct Pending {
     under: Store,
     input: Option<spool::Input>,
     response: Option<spool::Response>,
+    tail: Option<Rc<RefCell<Tailing>>>,
 }
 
 impl Pending {
     /// The line for an answer whose head went out with `status`, or `None` where `under` has the
-    /// store off.
+    /// store off. `tail` records the response body, where the line records one.
     #[must_use]
     pub fn of(
         answered: Answered<'_>,
         began: Instant,
         trace: nvs_runtime::TraceContext,
         under: Option<Store>,
+        tail: Option<&Tail>,
     ) -> Option<Self> {
         Some(Self {
             method: answered.method.into(),
@@ -211,18 +218,48 @@ impl Pending {
             under: under?,
             input: answered.input,
             response: answered.response,
+            tail: tail.map(|tail| Rc::clone(&tail.0)),
         })
     }
 
-    /// Writes the line once the body has ended, under the gate `done` ended with, or the
-    /// snapshot's where the completion never came back, with the request body `recorded` holds.
-    /// The duration runs to the body's end, which is where the program ended.
+    /// Writes the line under the gate `done` ended with, or the snapshot's where the completion
+    /// never came back, with the request body `recorded` holds. Where `hyper` has not taken the
+    /// whole response body yet, its [`Tail`] writes the line when the body ends.
     pub fn written(mut self, done: Option<&Completion>, recorded: Option<Recorder>) {
         read_into(self.input.as_mut(), recorded);
         let (store, exception) = match done.map(Ending::of) {
             Some(Ending::Ran(store, exception)) => (store, exception),
             _ => (Some(self.under), None),
         };
+        let Some(tail) = self.tail.take() else {
+            self.write(store, exception);
+            return;
+        };
+        let mut tailing = tail.borrow_mut();
+        match tailing.body.take() {
+            Some(body) => {
+                drop(tailing);
+                self.write_with(body, store, exception);
+            }
+            None => tailing.line = Some((self, store, exception)),
+        }
+    }
+
+    /// Writes the line with `body` as the response body.
+    fn write_with(
+        mut self,
+        body: spool::Body,
+        store: Option<Store>,
+        exception: Option<spool::Exception>,
+    ) {
+        if let Some(response) = self.response.as_mut() {
+            response.body = body;
+        }
+        self.write(store, exception);
+    }
+
+    /// Writes the line under `store`, with `exception`. The duration runs to now.
+    fn write(self, store: Option<Store>, exception: Option<spool::Exception>) {
         request(
             store,
             &self.trace,
@@ -237,6 +274,64 @@ impl Pending {
                 response: self.response,
             },
         );
+    }
+}
+
+/// A streamed response's body, recorded as `hyper` takes each chunk. It is on the
+/// `Answer::Streaming` it records, so the body has ended once that answer is dropped.
+#[derive(Debug)]
+pub struct Tail(Rc<RefCell<Tailing>>);
+
+/// What a streamed body's [`Tail`] and its [`Pending`] line share.
+#[derive(Debug)]
+struct Tailing {
+    /// The body's bytes so far, until the body ends.
+    recorder: Option<Recorder>,
+    /// The body as the line records it, from its end until the join.
+    body: Option<spool::Body>,
+    /// The line and the gate it is written under, from the join until the body ends.
+    line: Option<(Pending, Option<Store>, Option<spool::Exception>)>,
+}
+
+impl Tail {
+    /// A recording of a response body sent under `store` in `trace`.
+    #[must_use]
+    pub fn new(store: Store, trace: nvs_runtime::TraceContext) -> Self {
+        Self(Rc::new(RefCell::new(Tailing {
+            recorder: Some(Recorder::new(BodyOf::Response, store, trace)),
+            body: None,
+            line: None,
+        })))
+    }
+
+    /// Records `bytes`, the next chunk `hyper` takes.
+    pub fn push(&self, bytes: &[u8]) {
+        if let Some(recorder) = self.0.borrow_mut().recorder.as_mut() {
+            recorder.push(bytes);
+        }
+    }
+
+    /// Ends the body, and writes the line where the join has already happened. A second call does
+    /// nothing.
+    pub fn ended(&self) {
+        let mut tailing = self.0.borrow_mut();
+        let Some(recorder) = tailing.recorder.take() else {
+            return;
+        };
+        let body = recorder.finish(None);
+        match tailing.line.take() {
+            Some((line, store, exception)) => {
+                drop(tailing);
+                line.write_with(body, store, exception);
+            }
+            None => tailing.body = Some(body),
+        }
+    }
+}
+
+impl Drop for Tail {
+    fn drop(&mut self) {
+        self.ended();
     }
 }
 
