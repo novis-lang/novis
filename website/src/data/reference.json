@@ -995,6 +995,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-debug-to-test",
+      "url": "/reference/cli/nvs-debug-to-test/",
+      "title": "nvs debug to-test",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-debug-to-test",
+        "title": "nvs debug to-test",
+        "examples": "tools/cli/nvs-debug-to-test"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "profiling",
       "url": "/reference/cli/profiling/",
       "title": "Profiling",

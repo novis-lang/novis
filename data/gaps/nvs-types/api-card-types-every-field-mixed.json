@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-types/src/derive.rs",
-  "title": "`#[Api]`'s card types every field `mixed`.",
-  "text": "Hover and completion show each `#[Core\\Api]` field as `mixed (optional)`, because the card gives every field that type. `tags` and `security` are `array<string>`. Changing the card changes the rendered attributes reference, so the slice that changes it runs `bun nv render --website` too.",
-  "goal": "request-aware-editor"
-}

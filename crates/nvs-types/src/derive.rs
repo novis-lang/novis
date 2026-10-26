@@ -547,22 +547,22 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
         fields: &[
             AttributeField {
                 name: "tags",
-                ty: "mixed",
+                ty: "array<string>",
                 required: false,
             },
             AttributeField {
                 name: "errors",
-                ty: "mixed",
+                ty: "array<{status: int, type: string}>",
                 required: false,
             },
             AttributeField {
                 name: "security",
-                ty: "mixed",
+                ty: "array<string>",
                 required: false,
             },
             AttributeField {
                 name: "example",
-                ty: "mixed",
+                ty: "object",
                 required: false,
             },
         ],

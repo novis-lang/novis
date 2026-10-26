@@ -56160,7 +56160,7 @@ compared with it. `c` compares a request with the previous request to the same r
 
 `r` replays a request: it sends the recorded request to your development server again. The handler
 runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
-started `nvs debug`.
+started `nvs debug`. `t` makes a test from a request, the same test `nvs debug to-test` prints.
 
 Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor in
 the **Editor** dialog. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
@@ -56178,6 +56178,32 @@ site cannot read it. When `listen` is not a loopback address, for example in a c
 `nvs debug` serves the viewer over HTTPS. It creates a certificate and a token, and prints a link
 that contains the token. Your browser warns about the certificate once. `[debug] tls_cert_file`,
 `tls_key_file` and `token_file` name your own files instead.
+
+### nvs debug to-test
+
+    nvs debug to-test <trace id> [--span <span id>] [--write <file>]
+
+`nvs debug to-test` prints a test made from one recorded request. The test sends the same request
+to your program with `Core\Test::request`, and checks that the response is the same. Save it in your
+project and run it with `nvs test .`.
+
+The test checks the status, the `Content-Type` header, the `Location` header of a redirect, and the
+body. A JSON body is read with `json()` and compared with the recorded JSON as data, so spaces do
+not matter. The keys must be in the same order. Any other body is compared byte for byte. Headers
+such as `Date` change with every request, so the test does not check them.
+
+| Option | What it does |
+|---|---|
+| `--span <span id>` | choose one request when several requests have the same trace id |
+| `--write <file>` | write the test to a new file; if the file exists, nothing is written |
+
+A header the record has as `[redacted]`, such as `Authorization`, gets the value `'redacted'`, with a
+comment above it. Put a test credential there. If the recorded request body is not complete, no
+test is printed, because part of a body is a different request. If the recorded response body is
+not complete, the test checks the status and the headers only.
+
+The request needs its input in the index, so it must come from a development server with
+`[debug] store = true`. The viewer's `t` key shows the same test, with a button that copies it.
 
 ### Profiling
 
@@ -58533,6 +58559,42 @@ After you run a program's tests with **Run with Coverage**, the test count comes
 counts the tests that ran a line of the method. Until then, the count is read from the code, and the
 lens shows `(static)`. A count that starts with `at least` may be too low. A call through a
 `callable` value or a `mixed` value may also reach the method.
+
+#### The grants of a route's program
+
+Hover a `#[Route]` attribute, or the name of the method it is on, to see the program's grants. The
+first line names the `nvs.toml` file that the grants come from. Each grant has one line with its
+scope, for example the folders `fs.read` allows or the hosts `net.connect` allows. A grant that the
+file does not write shows its default, marked `(default)`.
+
+The grants belong to the whole program. Every route of the program has the same grants. The editor
+reads `nvs.toml` again for each hover, so a change to the file shows at once. If there is no
+`nvs.toml`, the hover says so and lists the default policy.
+
+#### Where a tainted or secret value came from
+
+Hover a value whose type is `tainted` or `secret` to see where that came from. A `tainted` value comes
+from outside the program, such as request data. A `secret` value is a password or a key. The hover
+lists each step with its line. The first step is where the value entered the method: a call that
+returns it, a value of type `mixed`, or a declared parameter. The next steps are each assignment,
+each `.` and each string that inserts the value.
+
+If a call removes `tainted` or `secret`, the hover shows that call in bold. An example is
+`Core\Html::escape`. You can also hover an argument of a call, to see the path of the value that the
+call receives. The path covers one method only. A parameter declared `tainted string` is where the
+value entered that method.
+
+#### What a recorded request ran at a query
+
+With `[debug] store` on, `nvs serve` records each request, and `nvs debug` keeps the records. Above
+each `Core\Db` call that sends a statement, a lens then shows what the newest recorded request ran
+there. An example is `1000 queries, 102.3 ms in total, slowest 2.4 ms, one statement repeated 1000
+times`. A statement that repeats is often a query inside a loop. One query for the whole list is
+usually much faster.
+
+Click the lens to open that request in the debug viewer. The lens shows only records of the text
+you see. After you edit the file, the lens comes back when a request runs the new text. The editor
+reads the records and changes nothing in them.
 
 #### What it does not answer
 

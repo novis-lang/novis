@@ -17,7 +17,7 @@ class Orders
 --REQUEST--
 completion
 --EXPECT--
-errors  field     mixed (optional)
-example field     mixed (optional)
-security field     mixed (optional)
-tags    field     mixed (optional)
+errors  field     array<{status: int, type: string}> (optional)
+example field     object (optional)
+security field     array<string> (optional)
+tags    field     array<string> (optional)
