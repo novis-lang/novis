@@ -19,6 +19,9 @@ nvs-diagnostics.workspace = true
 nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-stdlib.workspace = true
+# Already linked through `nvs-stdlib`, and named because `crossing` builds the
+# runtime's route table.
+nvs-runtime.workspace = true
 # A lookup of a `Core` class's seeded signatures or enum cases is recorded when
 # `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true

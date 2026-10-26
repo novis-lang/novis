@@ -1459,7 +1459,7 @@ impl Compiler {
                 });
                 Arc::new(Compiled {
                     unit: Arc::new(unit),
-                    routes: Arc::new(crate::runtime_routes(&checked.exprs)),
+                    routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
                     id,
                     debug,
                     coverage,

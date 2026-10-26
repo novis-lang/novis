@@ -171,6 +171,7 @@ pub mod condition;
 pub(crate) mod conformance;
 pub mod consts;
 pub mod core_lib;
+pub mod crossing;
 pub mod ctor_init;
 pub mod defaults;
 pub mod deprecated;

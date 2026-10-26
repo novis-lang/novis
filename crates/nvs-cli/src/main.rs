@@ -1585,7 +1585,7 @@ fn runtime_commands(
                                     class: class.clone(),
                                     cases: cases
                                         .iter()
-                                        .map(|(case, value)| (case.clone(), case_value(*value)))
+                                        .map(|(case, value)| (case.clone(), nvs_types::crossing::case_value(*value)))
                                         .collect(),
                                 }
                             }
@@ -1601,160 +1601,6 @@ fn runtime_commands(
             })
             .collect(),
     )
-}
-
-/// `rule:routing/matched-once-before-the-handler`'s table, as the runtime carries it.
-///
-/// A copy rather than a borrow, for [`runtime_commands`]' reason exactly: the
-/// context outlives the front end's own tables in every caller, and a request
-/// owns the table it was matched against. It is a handful of `String`s per
-/// declared route, taken once per compiled unit and shared by every request
-/// that unit answers.
-///
-/// **The OpenAPI half of a row does not cross** — summary, tags, security,
-/// errors and example are `rule:routing/api-document-is-generated-from-the-route-table`'s document, generated from the compiler's
-/// own table, and nothing a request asks reads them.
-///
-/// The one thing here that is a reading rather than a copy is the conversion:
-/// `nvs_types::routes::RouteParam` carries the declared type as
-/// `TypeInterner::describe` rendered it, and `nvs_runtime::routes::CaptureConv`
-/// is the closed set a matcher needs instead. That enum's `Unconverted` doc
-/// owns what is left under it.
-pub(crate) fn runtime_routes(exprs: &nvs_types::ExprTypeTable) -> nvs_runtime::routes::Routes {
-    let table = exprs.routes();
-    let crossed = nvs_runtime::routes::Routes::new(
-        table
-            .rows()
-            .iter()
-            .map(|row| {
-                let route = nvs_runtime::routes::Route::new(
-                    row.verb.clone(),
-                    row.path.clone(),
-                    row.name.as_ref().map(|(name, _)| name.clone()),
-                    row.handler.clone(),
-                    row.access.clone(),
-                    row.params
-                        .iter()
-                        // `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters are declared on
-                        // the same signature and are not part of the path, so
-                        // they are not what a segment fills.
-                        .filter(|param| param.source == nvs_types::ParamIn::Path)
-                        .map(|param| nvs_runtime::routes::Capture {
-                            name: param.name.clone(),
-                            conv: capture_conv(param),
-                        })
-                        .collect(),
-                );
-                // `rule:attributes/access-payload`'s opt-out, carried across rather than derived a
-                // second time: the verb's half of § 4 is `Route::new`'s and the
-                // declaration's half is the compiler's, so this is the one
-                // place the two meet.
-                let route = if row.csrf {
-                    route
-                } else {
-                    route.without_csrf()
-                };
-                let route = if row.static_handler {
-                    route.with_static_handler()
-                } else {
-                    route
-                };
-                let route = if row.returns_value {
-                    route.with_returned_value()
-                } else {
-                    route
-                };
-                if row.slotted {
-                    route.with_slotted()
-                } else {
-                    route
-                }
-            })
-            .collect(),
-    );
-    // The link half of the same crossing, off the call sites the checker
-    // resolved rather than off the rows above: a mount's boot check asks
-    // whether the unit *builds* an absolute link, which no declaration says.
-    // Taken here so that every program this binary runs carries the same
-    // answer, since a table marked in one builder and not in another is a
-    // check that passes on which path compiled it.
-    let crossed = if exprs.links_absolutely() {
-        crossed.linking_absolutely()
-    } else {
-        crossed
-    };
-    // And the dispatch half, for the same reason: whether the unit calls
-    // `Core\Router::dispatch` is a call the checker saw, and the door reads it
-    // off this table to choose refusal mode.
-    if table.dispatches() {
-        crossed.dispatching()
-    } else {
-        crossed
-    }
-}
-
-/// Which conversion § 5's declared type is, as the matcher spells it.
-///
-/// A closed set of *values* takes precedence over the type that describes it —
-/// a union of string literals renders as a type nothing would convert, and its
-/// admitted set is the whole of what § 5 narrows with. Everything the runtime
-/// has no arm for is `Unconverted` rather than silently `Text`, so the gap is
-/// one an arm closes rather than a behaviour somebody has to notice. A class
-/// implementing `Parses` is its own arm and carries its own name, so the
-/// crossing can reach the `parse` this walk may not —
-/// `nvs_runtime::routes::CaptureConv::Parses` is the home of that split.
-fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureConv {
-    use nvs_runtime::routes::CaptureConv;
-
-    // Above the closed set because an enum subset is both: its spellings are a
-    // set a link is checked against, and only this arm carries what each one
-    // converts to, which is the difference between handing a program its case
-    // and handing it the segment.
-    if let Some(narrowed) = &param.cases {
-        return CaptureConv::Enum {
-            class: narrowed.class.clone(),
-            cases: narrowed
-                .cases
-                .iter()
-                .map(|(spelling, value)| (spelling.clone(), case_value(*value)))
-                .collect(),
-        };
-    }
-    if let Some(allowed) = &param.allowed {
-        return CaptureConv::OneOf(allowed.clone());
-    }
-    if let Some(conv) = param
-        .ty
-        .as_deref()
-        .and_then(nvs_stdlib::router::native_conv)
-    {
-        return conv;
-    }
-    match param.ty.as_deref() {
-        // A capture is always `tainted`, and both spellings render for one
-        // declared `string` depending on where the qualifier was written.
-        Some("string" | "tainted string") | None => CaptureConv::Text,
-        // Below the `Core\Uuid` arm of `native_conv` on purpose: that class
-        // implements `Parses` too, so a rule reading the interface alone would
-        // take the one type the engine ships off the match and defer it to the
-        // crossing.
-        Some(class) if param.parses => CaptureConv::Parses(class.to_owned()),
-        Some(_) => CaptureConv::Unconverted,
-    }
-}
-
-/// One enum case's constant, narrowed to the two integer types a running
-/// program holds it in.
-///
-/// Both tables that carry an enum's cases cross here — a command's argument and
-/// a route's capture — because the narrowing is one decision:
-/// `nvs_runtime::commands::CaseValue` owns why the value does not travel widened
-/// to the `i128` a membership test wants.
-fn case_value(value: nvs_types::enums::EnumValue) -> nvs_runtime::commands::CaseValue {
-    match value {
-        nvs_types::enums::EnumValue::Int(number) => nvs_runtime::commands::CaseValue::Int(number),
-        nvs_types::enums::EnumValue::Uint(number) => nvs_runtime::commands::CaseValue::Uint(number),
-    }
 }
 
 /// Writes the file `Core\Response::sendFile` named into the run's output, a
@@ -2047,7 +1893,7 @@ fn run_run(
     // `rule:routing/matched-once-before-the-handler`'s table, crossed into the
     // runtime's shape once: a `--request` below is matched against it, and the
     // context is handed it further down.
-    let routes = std::sync::Arc::new(runtime_routes(&checked.exprs));
+    let routes = std::sync::Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs));
     // `--request`: the request is read off a file rather than off a socket,
     // and that is the whole of the difference. From here down a program
     // answering one is in the state `nvs serve` puts it in, which is what lets

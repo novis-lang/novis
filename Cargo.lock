@@ -3786,6 +3786,7 @@ dependencies = [
  "nvs-footprint",
  "nvs-hir",
  "nvs-repo",
+ "nvs-runtime",
  "nvs-stdlib",
  "nvs-syntax",
  "rustc-hash",

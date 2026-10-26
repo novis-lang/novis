@@ -1332,7 +1332,7 @@ impl UnderTest {
     pub(crate) fn new(unit: &Arc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
         Self {
             unit: Arc::clone(unit),
-            routes: std::sync::Arc::new(crate::runtime_routes(&checked.exprs)),
+            routes: std::sync::Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
         }
     }
 }
@@ -1681,7 +1681,7 @@ fn run_suite(
         // [`TestServer`] is the only thing that reads it — a run whose tests declare
         // no `server:` pays one walk of the program's `#[Route]` rows and nothing
         // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism.
-        routes: Arc::new(crate::runtime_routes(&checked.exprs)),
+        routes: Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
         config: ctx.config().map(|config| Arc::clone(config.snapshot())),
         folder: ctx
             .config()
