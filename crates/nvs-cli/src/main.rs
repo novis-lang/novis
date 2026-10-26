@@ -657,6 +657,13 @@ fn unaccepted(argv: &[String]) -> Option<String> {
     )
 }
 
+/// Seals this thread's open debug spool file, once the run that wrote it has ended, and returns
+/// `code`.
+fn sealed(code: ExitCode) -> ExitCode {
+    nvs_runtime::spool::seal_now();
+    code
+}
+
 fn main() -> ExitCode {
     // First of all: this binary is also the process that ends this one's
     // children when this one is killed, and that copy runs nothing else.
@@ -751,9 +758,11 @@ fn main() -> ExitCode {
     match command {
         Command::Ast(args) => args.run(),
         Command::Check(args) => args.run(&cli.config, init),
-        Command::Run(args) => args.run(&cli.config, init),
+        // The main thread's local values are not dropped at exit, so its debug spool file is
+        // sealed here.
+        Command::Run(args) => sealed(args.run(&cli.config, init)),
         Command::Serve(args) => args.run(&cli.config, init),
-        Command::Test(args) => args.run(&cli.config, init),
+        Command::Test(args) => sealed(args.run(&cli.config, init)),
         Command::Build(args) => args.run(&cli.config),
         Command::Api(args) => args.run(),
         Command::Ext(args) => args.run(&cli.config),

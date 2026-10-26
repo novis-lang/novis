@@ -22,8 +22,10 @@
 //!
 //! **The writer arms no timer.** [`Writer::deadline`] is when its open file is due, every append
 //! seals a file past it first, and the caller that owns the thread's loop calls [`seal_due`] when
-//! that time comes. An idle writer has no open file and no deadline. A file nobody sealed is read by
-//! the ingester once it is a minute old ([`UNSEALED_AFTER`]).
+//! that time comes. That caller names a wake with [`on_open`], which runs each time the thread's
+//! writer opens a file, so the caller parks with no deadline while the writer is idle. An idle writer
+//! has no open file and no deadline. A file nobody sealed is read by the ingester once it is a minute
+//! old ([`UNSEALED_AFTER`]).
 //!
 //! **Its share of `[debug] spool_max` is kept before each write.** The cap is split evenly between
 //! the process's writers ([`set_writers`]), and a writer past its share deletes its own oldest sealed
@@ -649,6 +651,8 @@ impl Drop for Writer {
 thread_local! {
     /// This thread's writer, made on its first record.
     static WRITER: RefCell<Option<Writer>> = const { RefCell::new(None) };
+    /// What runs when this thread's writer opens a file: the wake of the task that seals it.
+    static ON_OPEN: RefCell<Option<Box<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
 /// How many writers share `[debug] spool_max`: one per core under `nvs serve`, set before the cores
@@ -662,6 +666,13 @@ static REPORTED: AtomicBool = AtomicBool::new(false);
 /// Sets how many writers split `[debug] spool_max` evenly.
 pub fn set_writers(count: usize) {
     WRITERS.store(u64::try_from(count.max(1)).unwrap_or(1), Ordering::Relaxed);
+}
+
+/// Names what runs each time this thread's writer opens a file, and returns the one it replaces. The
+/// task that calls [`seal_due`] on this thread names its own wake here, so it can park with no
+/// deadline while no file is open.
+pub fn on_open(wake: Option<Box<dyn Fn()>>) -> Option<Box<dyn Fn()>> {
+    ON_OPEN.replace(wake)
 }
 
 /// Makes `writer` this thread's writer, for a caller that names its own directory, and answers the
@@ -713,19 +724,31 @@ pub fn seal_now() {
 }
 
 fn with_writer(write: impl FnOnce(&mut Writer) -> std::io::Result<()>) {
-    WRITER.with_borrow_mut(|slot| {
+    let opened = WRITER.with_borrow_mut(|slot| {
         if slot.is_none() {
             let Some(dir) = spool_dir() else {
-                return;
+                return false;
             };
             *slot = Some(Writer::new(dir.to_path_buf(), writer_id(), u64::MAX));
         }
-        if let Some(writer) = slot.as_mut()
-            && let Err(err) = write(writer)
-        {
+        let Some(writer) = slot.as_mut() else {
+            return false;
+        };
+        let was_open = writer.deadline();
+        if let Err(err) = write(writer) {
             report(&err);
         }
+        let now_open = writer.deadline();
+        now_open.is_some() && now_open != was_open
     });
+    // Run once the writer is no longer borrowed, so the wake may call [`seal_due`] at once.
+    if opened {
+        ON_OPEN.with_borrow(|wake| {
+            if let Some(wake) = wake {
+                wake();
+            }
+        });
+    }
 }
 
 /// The process's spool directory, prepared and checked on first use; `None` when the data folder is
@@ -1023,6 +1046,35 @@ mod tests {
         super::record(&ctx, log("store on"));
         super::seal_now();
         assert_eq!(files(&dir).len(), 1);
+        drop(super::WRITER.with_borrow_mut(Option::take));
+    }
+
+    /// The sealing task parks with no deadline, so the wake it names runs each time a file opens,
+    /// and only then.
+    #[test]
+    fn the_wake_runs_when_a_file_opens_and_not_on_each_record() {
+        let dir = nvs_repo::scratch("spool-wake");
+        super::install(Writer::new(dir.to_path_buf(), "1-2-0".to_owned(), u64::MAX));
+        let woken = std::rc::Rc::new(std::cell::Cell::new(0));
+        let previous = super::on_open(Some(Box::new({
+            let woken = std::rc::Rc::clone(&woken);
+            move || woken.set(woken.get() + 1)
+        })));
+
+        let mut ctx = crate::Ctx::buffered();
+        ctx.set_config(snapshot_of("[debug]\nstore = true\n"));
+        super::record(&ctx, log("first"));
+        super::record(&ctx, log("second"));
+        assert_eq!(woken.get(), 1);
+        assert!(super::seal_due().is_some(), "a file is open");
+
+        super::seal_now();
+        assert_eq!(super::seal_due(), None);
+        super::record(&ctx, log("third"));
+        assert_eq!(woken.get(), 2);
+
+        super::seal_now();
+        super::on_open(previous);
         drop(super::WRITER.with_borrow_mut(Option::take));
     }
 

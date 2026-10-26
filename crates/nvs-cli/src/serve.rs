@@ -714,6 +714,8 @@ pub(crate) fn run(
         eprintln!("{note}");
     }
     let cpus = nvs_host::cpus();
+    // Each core writes its own debug spool files, so the cores split `[debug] spool_max`.
+    nvs_runtime::spool::set_writers(if cpus.is_empty() { 1 } else { workers });
     if cpus.is_empty() {
         // A host that enumerates no CPU offers no `CpuId` to pin to, and that
         // is the one shape this fan-out cannot take. Every listener is then
@@ -1560,6 +1562,13 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
     }
 
+    // The task that seals this core's debug spool file when it is due. It parks with no deadline
+    // while the core writes no debug record.
+    sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, {
+        let draining = draining.clone();
+        move |_ctx| seal_the_spool(&draining)
+    });
+
     // This core offers itself as a placement destination, beside the accept
     // loops above and on the same scheduler. The guard is held to the end of
     // this function because withdrawing is not optional: an inbox left in the
@@ -1587,11 +1596,52 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     });
     drop(calling);
     drop(installed);
+    // A request answered during the drain may have written a record after the sealing task ended.
+    nvs_runtime::spool::seal_now();
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");
         return false;
     }
     !stopped.get()
+}
+
+/// Seals this core's debug spool file at the deadline `nvs_runtime::spool::seal_due` names, until
+/// the server drains (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
+///
+/// While no file is open it parks with no deadline, and the spool's `on_open` wake starts it again.
+/// What it spends is one parked task per core.
+fn seal_the_spool(draining: &nvs_server::Draining) {
+    /// Takes this task's wake back out of the spool however the task ends.
+    struct Named(Option<Option<Box<dyn Fn()>>>);
+    impl Drop for Named {
+        fn drop(&mut self) {
+            if let Some(previous) = self.0.take() {
+                nvs_runtime::spool::on_open(previous);
+            }
+        }
+    }
+    let Some(me) = nvs_host::Wake::current() else {
+        return;
+    };
+    let _named = Named(Some(nvs_runtime::spool::on_open(Some(Box::new(move || {
+        me.wake();
+    })))));
+    let _woken_at_drain = nvs_host::wake_at_drain(draining.bit());
+    while !draining.is_draining() {
+        if let Some(at) = nvs_runtime::spool::seal_due() {
+            if matches!(
+                nvs_host::park_until(at),
+                nvs_runtime::host::Woken::Cancelled
+            ) {
+                break;
+            }
+            continue;
+        }
+        let resumed = nvs_host::suspend_current(nvs_host::Waiting::Parked);
+        if resumed.cancelled() || !resumed.suspended() {
+            break;
+        }
+    }
 }
 
 /// This core, offered to the process as a placement destination for as long as

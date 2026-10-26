@@ -68,9 +68,9 @@ directory, and the same property makes the service a viewer for a copied-down sp
   anywhere. **Disk:** at most `spool_max` per process.
 
 **Not on disk.** `nvs_runtime::spool` is the writer, and nothing calls it yet: no request writes a
-record, and nothing reads a spool file. `nvs_runtime::spool::seal_due` is not yet called from a core's
-loop, so until it is, an open file is sealed by its writer's next record or read by the ingester
-once it is a minute old.
+record, and nothing reads a spool file. Under `nvs serve` each core runs one task that seals its file
+at the deadline (`crates/nvs-cli/src/serve.rs`, `seal_the_spool`), and `nvs run` and `nvs test` seal
+theirs at exit.
 
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background
