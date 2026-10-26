@@ -110,6 +110,20 @@ impl Client {
         }
     }
 
+    /// Reads messages into `seen` until its `output` events of `category` add up to at least
+    /// `text`. A pump thread forwards what the program wrote, so that output may reach the
+    /// client after a `stopped` event the program wrote it before.
+    fn until_output(&mut self, seen: &mut Vec<Value>, category: &str, text: &str) {
+        while output(seen, category).len() < text.len() {
+            let frame = self.pending.pop_front().unwrap_or_else(|| {
+                self.frames
+                    .recv()
+                    .unwrap_or_else(|_| panic!("stdout ended before {text:?}: {seen:#?}"))
+            });
+            seen.push(frame);
+        }
+    }
+
     /// Sends one request and gives its response's body. Every message before the response is
     /// kept for [`Client::until_event`]. Fails if the request failed.
     fn ask(&mut self, command: &str, arguments: Value) -> Value {
@@ -837,7 +851,8 @@ fn a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping() {
     client.request("launch", json!({ "mode": "run", "program": main }));
     client.request("configurationDone", json!({}));
 
-    let ran = client.until_event("stopped");
+    let mut ran = client.until_event("stopped");
+    client.until_output(&mut ran, "stdout", "1\n2\n");
     assert!(
         ran.iter().any(|frame| frame["event"] == "breakpoint"
             && frame["body"]["breakpoint"]["id"] == call
@@ -936,7 +951,8 @@ fn the_uncaught_filter_stops_once_at_a_throw_no_frame_catches() {
     let dir = nvs_repo::scratch_private("dap-uncaught");
     fs::write(dir.join("main.nvs"), THROWS).unwrap();
 
-    let (mut client, ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    let (mut client, mut ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    client.until_output(&mut ran, "stdout", "caught\n");
     assert_eq!(output(&ran, "stdout"), "caught\n", "{ran:#?}");
     assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "3");
 
@@ -960,7 +976,8 @@ fn the_thrown_filter_stops_once_at_every_throw() {
     assert_exception_stop(&mut client, &ran, "Thrown RuntimeError", 5, "2");
 
     client.ask("continue", json!({}));
-    let ran = until_stop_or_end(&mut client);
+    let mut ran = until_stop_or_end(&mut client);
+    client.until_output(&mut ran, "stdout", "caught\n");
     assert_eq!(output(&ran, "stdout"), "caught\n", "{ran:#?}");
     assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "3");
 
@@ -1224,7 +1241,8 @@ fn a_catch_expression_catches_for_the_uncaught_filter() {
     )
     .unwrap();
 
-    let (mut client, ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    let (mut client, mut ran) = launch_with_filters(&dir, json!(["uncaught"]), json!({}));
+    client.until_output(&mut ran, "stdout", "0\n");
     assert_eq!(output(&ran, "stdout"), "0\n", "{ran:#?}");
     assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "4");
     client.ask("continue", json!({}));
