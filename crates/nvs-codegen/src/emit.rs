@@ -929,7 +929,9 @@ impl Emitter<'_, '_> {
                     Some(_) => inst
                         .result
                         .and_then(|result| self.query_ids.get(&result.index()).copied())
-                        .ok_or_else(|| internal("a query site the function's walk did not count"))?,
+                        .ok_or_else(|| {
+                            internal("a query site the function's walk did not count")
+                        })?,
                     None => 0,
                 };
                 let id = self.b.ins().iconst(types::I64, id);

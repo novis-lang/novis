@@ -145,7 +145,9 @@ impl Program {
                     let (line, _) = file.line_col(span.start);
                     let text_hash = hashes
                         .entry(span.file)
-                        .or_insert_with(|| blake3::hash(file.text().as_bytes()).to_hex().to_string())
+                        .or_insert_with(|| {
+                            blake3::hash(file.text().as_bytes()).to_hex().to_string()
+                        })
                         .clone();
                     QuerySite {
                         file: file.name().to_owned(),

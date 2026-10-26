@@ -5173,7 +5173,9 @@ mod tests {
                 let member = class
                     .members()
                     .find(|member| member.name == *name)
-                    .unwrap_or_else(|| panic!("`{owner}::{name}` takes a query site and is no row"));
+                    .unwrap_or_else(|| {
+                        panic!("`{owner}::{name}` takes a query site and is no row")
+                    });
                 assert!(
                     member.variadic().is_none(),
                     "`{owner}::{name}` is variadic, so its last argument is its own tail"

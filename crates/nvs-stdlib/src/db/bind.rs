@@ -1002,7 +1002,7 @@ mod tests {
             Value::int(0),
         )
         .err()
-                .expect("a transaction whose call has returned refuses every statement");
+        .expect("a transaction whose call has returned refuses every statement");
         match refused {
             Fault::Thrown(ThrownClass::Logic, message) => assert_eq!(
                 message,
@@ -1024,7 +1024,7 @@ mod tests {
             Value::int(0),
         )
         .err()
-            .expect("no connection is filed under the key this fixture wrote");
+        .expect("no connection is filed under the key this fixture wrote");
         assert!(
             !matches!(past, Fault::Thrown(ThrownClass::Logic, _)),
             "an open transaction reaches the connection lookup: {past:?}"

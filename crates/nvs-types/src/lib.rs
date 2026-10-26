@@ -266,8 +266,8 @@ pub use nvs_stdlib::regex::{
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;
 pub use nvs_stdlib::registry::takes_path_graph as core_takes_path_graph;
-pub use nvs_stdlib::registry::takes_query_site as core_takes_query_site;
 pub use nvs_stdlib::registry::takes_prepared as core_takes_prepared;
+pub use nvs_stdlib::registry::takes_query_site as core_takes_query_site;
 pub use nvs_stdlib::registry::takes_route_attributes as core_takes_route_attributes;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;

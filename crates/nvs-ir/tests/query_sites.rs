@@ -57,9 +57,17 @@ fn site_constants(program: &Program) -> Vec<bool> {
 fn last_arguments_are_sites(program: &Program, symbol: &str) -> usize {
     let mut calls = 0;
     for function in &program.functions {
-        let insts: Vec<_> = function.blocks.iter().flat_map(|block| &block.insts).collect();
+        let insts: Vec<_> = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.insts)
+            .collect();
         for inst in &insts {
-            let InstKind::CoreCall { symbol: called, args } = &inst.kind else {
+            let InstKind::CoreCall {
+                symbol: called,
+                args,
+            } = &inst.kind
+            else {
                 continue;
             };
             if *called != symbol {
@@ -96,7 +104,11 @@ fn two_calls_with_the_same_sql_are_two_sites() {
     );
     let sites = program.query_site_table(&map);
     let lines: Vec<u32> = sites.iter().map(|site| site.line).collect();
-    assert_eq!(lines, [3, 4], "one row per call, in the order codegen numbers them");
+    assert_eq!(
+        lines,
+        [3, 4],
+        "one row per call, in the order codegen numbers them"
+    );
     assert!(sites.iter().all(|site| site.file == "t.nvs"));
     assert_eq!(
         sites[0].text_hash,
