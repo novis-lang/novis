@@ -104,17 +104,17 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `8a2e1ab7f`. Its Website run is green. Its CI run 40377783680 ended red
-on two jobs only, and both are fixed, committed and not yet pushed:
+`origin/main` is at `07916606a`. Its Website run is green. Its CI run 40412025147 ended red
+on one job only, which is fixed, committed and not yet pushed:
 
-- `third-party attribution`: `--check-c-deps` refused the ledger's `zstd-sys` entry, which
-  left the graph with `b4ba20386`. Fixed in `55d4ce2f2`.
-- `test / linux-x86_64 (tests)`: `dap.rs`'s `a_next_over_an_await_stops_at_the_same_frame_s_next_statement`
-  got a `stopped` event with reason `pause`. A child's `Tree` stop of the round the `next`
-  resumed reached the adapter after `clear()`, and was filed as a new round. Fixed in `d44a2343e`:
-  `crates/nvs-cli/src/dap/stopped.rs:Stopped::file` drops a stop of a resumed round.
+- `test / linux-x86_64 (tests)`: `dap.rs`'s `a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`
+  read no stdout before its `stopped` event. The program had written `1` and `2` into the pipe,
+  but the pump thread forwarded them after the stop thread wrote `stopped`. The adapter promises
+  order only before `exited` and `terminated`. Fixed in `0288e849d`: `Client::until_output`
+  reads on until the stdout written before a stop has arrived, in that test and in the three
+  exception filter tests that assert stdout at a stop.
 
-Every other job of that run was green, so `536782207` (aarch64) and `f7ff2dc7f` (macOS) held.
+The two fixes of `8a2e1ab7f`'s red run went out in this push, and both jobs were green.
 
 `.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci` and `wt-cig` are stray folders that Windows
 keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write. `wt-csv`
@@ -125,8 +125,8 @@ has a `target/` warm at `031acda63`. Delete them all once looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  The red run of `8a2e1ab7f` is fixed, and `--next` passes over it. If the dap test goes red
-  again on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
+  The red run of `07916606a` is fixed, and `--next` passes over it. If a dap test reads stdout
+  late at a stop again, give it `Client::until_output`. If a dap test goes red on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
   `crates/nvs-host/src/debug.rs:Shared::stop`'s `Break` arms. A stamp taken in the root hashes the working tree. If another
   session has uncommitted edits in the page's chapter, take the stamp in a scratch worktree at
   `HEAD`. Point `--nvs` at a binary built there, and copy the root's `tests/db/ca.crt` in first. Watch with no `--past`, and without a pipe into `tail`, which
