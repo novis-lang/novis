@@ -48,7 +48,7 @@ stages:
         rules: [testing/a-bad-line-degrades-and-a-bad-file-is-quarantined, testing/the-ingester-runs-whether-or-not-anyone-is-looking, errors/log-write]
   - id: 6
     title: a development `nvs serve` starts `nvs debug`, and a fixture's requests reach the index
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/debug.rs, crates/nvs-config/src/data.rs, docs/rules/testing/nvs-debug-is-the-service-and-a-development-server-starts-it.md, docs/reference/tools/10-cli.md]
     extra:
       context:
@@ -252,6 +252,17 @@ cannot be deleted after its batch committed is quarantined too. A file's identit
 `crate::reload::file_identity`, shared with the configuration watcher. Trade-offs: one 64 KiB buffer
 and one line of at most 4 MiB while a file is read, one entry per failing file, and schema 2.
 
+**A server's `nvs debug` watches a pipe, and a held lock ends it quietly.** This session's call in
+stage 6, written into `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`.
+The server starts `nvs debug --parent` (hidden) before it binds a socket, with its `--data` (unless
+the default folder) and `--config`, and a pipe as standard input. Dropping `debug::Child` closes the
+pipe and waits; a killed server closes it too, and the child's wait wakes on it. A `--parent` child
+that finds the lock held exits `0` with nothing printed, so the server does not check the lock
+itself. The server prints one line saying the service reads into the index. A polled
+`--parent <pid>` was declined: a liveness check per platform, and a reused id. Trade-offs: one
+blocked thread in the child, the child's handle and pipe in the server, and one process start per
+development server boot.
+
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
 ingester's with `cargo test --test debug_ingest`; stage 6's end-to-end test with `cargo test --test
@@ -357,12 +368,12 @@ bad-file fixtures under `crates/nvs-cli/tests/fixtures/debug/` and their tests a
 **Does:** the server starts the service as a child when it should, and the milestone's acceptance for the
 debug service holds.
 
-- [ ] A development `nvs serve` with `store` on starts `nvs debug` unless the lock is held, stops its own child on exit, and the child exits within one pass of its parent being gone (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`). `crates/nvs-cli/src/serve.rs:227`, `crates/nvs-cli/src/debug.rs:1`
-- [ ] A production `nvs serve` never starts it. `crates/nvs-cli/src/serve.rs:227`
-- [ ] A test: a fixture served with `store` on has its requests in the index, joined by trace id, from sealed spool files only. With `store` off, the same run writes no spool file and its probe counts match a run with no `[debug]` block (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`, `rule:testing/debug-probes`). `crates/nvs-cli/tests/debug_service.rs:1`
-- [ ] The help text for `nvs debug` and `--tail`, and the four keys' comments in the default file. `crates/nvs-cli/src/main.rs:395`, `crates/nvs-config/src/default.toml:327`
-- [ ] A `# nvs debug` section in the CLI chapter for the ingester half, after `# nvs test`, which says what a recorded body keeps: a body read other than through `jsonAs<X>()` or `postAs<X>()` is stored as read. `docs/reference/tools/10-cli.md:302`
-- [ ] `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it` and `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate` `shipped`, and `bun nv owners --closes debug-service` passes. `data/rules/testing/nvs-debug-is-the-service-and-a-development-server-starts-it.json:3`, `data/rules/testing/writing-a-debug-record-to-disk-is-its-own-gate.json:3`
+- [x] A development `nvs serve` with `store` on starts `nvs debug` unless the lock is held, stops its own child on exit, and the child exits within one pass of its parent being gone (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`). `crates/nvs-cli/src/serve.rs:227`, `crates/nvs-cli/src/debug.rs:1`
+- [x] A production `nvs serve` never starts it. `crates/nvs-cli/src/serve.rs:227`
+- [x] A test: a fixture served with `store` on has its requests in the index, joined by trace id, from sealed spool files only. With `store` off, the same run writes no spool file and its probe counts match a run with no `[debug]` block (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`, `rule:testing/debug-probes`). `crates/nvs-cli/tests/debug_service.rs:1`
+- [x] The help text for `nvs debug` and `--tail`, and the four keys' comments in the default file. `crates/nvs-cli/src/main.rs:395`, `crates/nvs-config/src/default.toml:327`
+- [x] A `# nvs debug` section in the CLI chapter for the ingester half, after `# nvs test`, which says what a recorded body keeps: a body read other than through `jsonAs<X>()` or `postAs<X>()` is stored as read. `docs/reference/tools/10-cli.md:302`
+- [x] `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it` and `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate` `shipped`, and `bun nv owners --closes debug-service` passes. `data/rules/testing/nvs-debug-is-the-service-and-a-development-server-starts-it.json:3`, `data/rules/testing/writing-a-debug-record-to-disk-is-its-own-gate.json:3`
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -383,44 +394,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 4 and 5 are done. The writer side records every kind of line, and `nvs debug`
-ingests it. Every ingester rule is `shipped`. Decision `d9` is still open; the work is built on
-"no" (Standing decisions).
+Stages 1 to 7 are done; stage 8, the gate, is next. Every rule this goal owns is `shipped`, and
+`bun nv owners --closes debug-service` passes. Decision `d9` is still open; the work is built on
+"no" (Standing decisions), and DONE waits on it.
 
-Stage 5 landed the degrade, quarantine and tail code. `ingest::Lines`
-(`crates/nvs-cli/src/debug/ingest.rs`) reads a file line by line, keeping at most 4 MiB of a line,
-and `ingest::file` takes a start offset and a budget. `debug.rs`'s `Service` gives the spool and
-each `--tail` file 16 MiB a pass in turn, quarantines a failing path under `ingest::Backoff`, stalls
-every source on an index error, and seeds its failures from the `quarantine` table at start, so a
-row from an earlier run is released too. `debug/tail.rs` reads a `json` log file from its
-`checkpoints` row (path, identity plus first-line hash, offset), and reads the rest of `<file>.1`
-after a rotation. The index schema is 2. `crate::reload::file_identity` is the file identity, shared
-with the configuration watcher.
+Stage 6 landed the server's child. `debug::Child` (`crates/nvs-cli/src/debug.rs`) starts
+`nvs debug --parent` with a pipe as standard input, and its drop closes the pipe and waits.
+`serve::run` starts it before `bind_all` when `started_in` is `development` and `debug_store()` is
+on. Under `--parent` the loop's wait is a `recv_timeout` on a channel a stdin-reading thread
+disconnects at end of input, and a held lock exits `0` quietly. `tests/request.rs`'s `Served` holds
+`debug/service.lock`, so its spool-reading cases are not raced by the service. The help text, the
+four `[debug]` keys' comments, the CLI chapter's `# nvs debug` section and the website data are
+current.
 
-New tests, each passing once by name: five in `crates/nvs-cli/tests/debug_ingest.rs` (one enormous
-line, a bad line between two good, an unreadable file quarantined, a tailed file, a rotation and a
-truncation), with fixtures `a-bad-line-between-two-good.spool` and `a-json-log.log` timed in 2100
-so `index_age` keeps them; four unit tests in `ingest.rs` and one in `tail.rs`. The sweep's reds
-were stale again: `env-secret-proofs` exits 0, and run 40174915924's failed jobs have their fixes on
+New tests, passing once by name: three in `crates/nvs-cli/tests/debug_service.rs` (a development
+server's requests reach the index under each answer's trace id with input and dump, the spool
+drains and the lock frees once the server is killed; production starts no service; `store` off
+writes nothing and answers as a run with no `[debug]` block). The sweep's reds were stale again:
+`env-secret-proofs`'s log exits 0, and run 40174915924 built `9be30356e`, older than
 `origin/main`.
 
-Tests expected to go red: none known.
+Tests expected to go red: none known. A test that compares a development `nvs serve`'s standard
+error exactly would see the new "`nvs debug` reads this server's recorded requests" line, but only
+with `store` on.
 
 ### Next
 
-**Stage 6: a development `nvs serve` starts `nvs debug`, and a fixture's requests reach the index.**
-`run` in `crates/nvs-cli/src/serve.rs:233` starts the child after the snapshot is read
-(`crates/nvs-cli/src/serve.rs:271`), when the mode is `development` and `[debug] store` is on, and
-stops it on exit. `nvs debug` needs a way to see its parent gone within one pass (a `--parent <pid>`
-flag, or its standard input closing); the Standing decisions do not settle which, so pick by the
-priorities and record it. The end-to-end test goes in a new `crates/nvs-cli/tests/debug_service.rs`.
-Mind the backlog item about `a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld`.
+**Stage 8: the goal is verified once, and every failure is fixed.** Start `bun nv affected --run`
+with `run_in_background` and end the turn to wait. Then the proofs gate items the user named.
 
-- [ ] The child started and stopped, never in production, and a parent gone ends it. `crates/nvs-cli/src/serve.rs:233`, `crates/nvs-cli/src/debug.rs:1`
-- [ ] The end-to-end test, then the help text, the CLI chapter's `# nvs debug` section (the `--tail` file must be `json`), and the two rules `shipped`. `crates/nvs-cli/tests/debug_service.rs:1`, `docs/reference/tools/10-cli.md:302`
-
-Stage 8 now also owes the proofs gate the user named: perf figures, the `debug.*` directive proofs,
-`Core\Server::traceId`'s `about.md` length and its stale site page (stage 8's last two items).
+- [ ] The first `bun nv affected --run`, its failures grouped by cause, each fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv proofs --gate --limit 0`: perf figures, the `debug.*` directive proofs, `Core\Server::traceId`'s `about.md` under its length. `docs/examples/core/Server/traceId/about.md:1`
+- [ ] `bun nv site --check questions`, then the goal-end gates: `bun nv verify --doc`, `bun nv ci --check`. `docs/examples/core/Server/traceId/about.md:1`
 
 ### Backlog
 
@@ -428,5 +433,4 @@ Stage 8 now also owes the proofs gate the user named: perf figures, the `debug.*
 - The feature proofs of `nvs debug` land with the viewer, the part a developer sees (`docs/rules/testing/feature-proofs.md`).
 - The query call site id is passed by `request-aware-editor`; until then a `query` event has none (`docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md`).
 - A recorded request becoming a `Core\Test::request` case is `request-aware-editor`'s (`docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md`).
-- Once stage 6 starts `nvs debug` from a development `nvs serve`, the service ingests and deletes spool files, so `a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld` races it; that test then holds the service lock or keeps the service from starting (`crates/nvs-cli/tests/request.rs:544`).
 - If `d9` is answered "yes", a new stage lets a derived decoder fill a `secret` property, amends `rule:security/derived-codec-qualifiers` and the recording rule, and adds a served test that a whole JSON document keeps no byte of that value (`crates/nvs-types/src/derive.rs:2493`).
