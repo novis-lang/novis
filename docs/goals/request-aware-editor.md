@@ -55,7 +55,7 @@ stages:
         rules: [ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site, observability/a-query-span-names-its-call-site, testing/the-ingester-runs-whether-or-not-anyone-is-looking, testing/debug-surface]
   - id: 7
     title: a recorded request becomes a test that asserts its response
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug.rs, crates/nvs-stdlib/src/test.rs, crates/nvs-fmt/src/lib.rs, viewer/src/views/request.tsx, docs/rules/testing/a-recorded-request-becomes-a-test.md]
     extra:
       context:
@@ -320,8 +320,8 @@ examples under `docs/examples/tools/cli/nvs-debug-to-test/`; the session writes 
 - [x] `--write <file>` writes a new file and never replaces one. `crates/nvs-cli/src/debug/to_test.rs:1`
 - [x] The viewer's request view gains the button that shows the printed test with a copy button. `viewer/src/views/request.tsx:1`
 - [x] A served fixture: the generated test passes against the unchanged program, and fails when its handler's status, its `Content-Type` or one JSON field of its body changes. `crates/nvs-cli/tests/debug_to_test.rs:1`
-- [ ] The help text and a `# nvs debug to-test` section, so `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` prints nothing owed (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:302`, `docs/examples/tools/cli/nvs-debug-to-test/about.md:1`
-- [ ] `rule:testing/a-recorded-request-becomes-a-test` `shipped`, and `bun nv owners --closes request-aware-editor` passes. `data/rules/testing/a-recorded-request-becomes-a-test.json:3`
+- [x] The help text and a `# nvs debug to-test` section, so `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` prints nothing owed (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:302`, `docs/examples/tools/cli/nvs-debug-to-test/about.md:1`
+- [x] `rule:testing/a-recorded-request-becomes-a-test` `shipped`, and `bun nv owners --closes request-aware-editor` passes. `data/rules/testing/a-recorded-request-becomes-a-test.json:3`
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -340,20 +340,17 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 and 8 are done, and stage 7 has two items left. `nvs debug to-test` is
-`crates/nvs-cli/src/debug/to_test.rs`: `read` (one request with its input and response, refused
-when the request body is cut or withheld), `print` (the test, through `nvs_fmt::format`), `Args`
-(a clap subcommand of `debug::Args`, `--span` and `--write`) and `api` (`GET /api/to-test`, routed in
-`crates/nvs-cli/src/debug/listen.rs`). The viewer's `t` key and Make a test button are
-`viewer/src/views/to-test.tsx`, and `viewer/dist/` is rebuilt. The `# nvs debug to-test` section is in
-`docs/reference/tools/10-cli.md`, the attack is under `tests/hostile/tools/cli/nvs-debug-to-test/`,
-and the rule is `shipped`.
+Stages 1 to 8 are done, and stage 9, the gate, has started: `bun nv affected --run` was started
+once over the whole goal and has not reported yet. Nothing is uncommitted.
 
-Green once by name: the `debug::to_test` unit tests and both tests of `debug_to_test.rs`. Clippy,
-rustfmt and the viewer's checks are clean. The sweep's reds were stale (nightly `d6f13175`).
-
-**Uncommitted and unchecked:** `docs/examples/tools/cli/nvs-debug-to-test/`, which a subagent wrote
-and was stopped in while it wrote example 03.
+This session: the examples under `docs/examples/tools/cli/nvs-debug-to-test/` match the printer,
+both test classes pass under `nvs test <file>`, and `bun nv proofs --id
+'tools:cli/nvs-debug-to-test'` says complete. `#[Core\Api]`'s card types `tags` and `security` as
+`array<string>`, `errors` as `array<{status: int, type: string}>` and `example` as `object`
+(`crates/nvs-types/src/derive.rs:546`). The gap record is deleted, and `bun nv owners --closes
+request-aware-editor` passes. The sweep's reds: `env-secret-proofs` is green on a rerun; nightly
+`d6f13175`'s `check_command.rs` failure was fixed by `9c8b0fe16` after it; the yanked
+`crypto-bigint` 0.7.9 is now 0.7.10, and `cargo deny check advisories` is ok.
 
 May go red in the gate: `crates/nvs-cli/tests/debug_viewer.rs` or a help snapshot over `nvs debug`'s
 new subcommand and `/api/to-test`, `viewer/test/replay.browser.test.ts` over the request bar's new
@@ -366,21 +363,16 @@ the proofs gate's perf records, and the LSP latency bound in `crates/nvs-lsp/tes
 
 ### Next
 
-**Stage 7's last two items, then stage 9.**
+**Stage 9.**
 
-1. Check the subagent's files under `docs/examples/tools/cli/nvs-debug-to-test/`. Read each against
-   AGENTS.md § *Text an end user reads*, finish or rewrite example 03, and make each `.out` what the
-   binary prints (`docs/examples/README.md` § *Creating the `.out`*). Each test class in 02 and 03
-   should pass under `nvs test <file>`. Run `bun nv proofs --comments` on the `.nvs` files. Then
-   `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` should print nothing owed, and the directory is
-   one commit.
-2. `bun nv owners --closes request-aware-editor` names one gap this goal owns:
-   `data/gaps/nvs-types/api-card-types-every-field-mixed.json`. `#[Core\Api]`'s card in
-   `crates/nvs-types/src/derive.rs:546` types `tags`, `errors`, `security` and `example` as `mixed`.
-   The record says `tags` and `security` are `array<string>`. Read what `crate::routes` accepts for
-   `errors` and `example` before typing them. Then delete the record, and run
-   `bun nv render --website`, because the card renders into the attributes reference.
-3. Tick stage 7's last two items, set its status to `done`, and start stage 9.
+1. Read the report of the `bun nv affected --run` this session started. If no report reached the
+   next session, start it once more with `run_in_background` and end the turn to wait.
+2. Group its failures by cause, and fix every group in one pass (the stage's `**Split:**` line).
+   Tick the stage's first two items.
+3. Run `bun nv affected --run` once more. When it is green, run the goal-end gates of AGENTS.md
+   § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes request-aware-editor` and
+   `bun nv ci --check`. Then move each decision only this file holds to its rule or module doc,
+   delete the goal file, and write `DONE`.
 
 ### Backlog
 
