@@ -362,8 +362,9 @@ nvs_runtime::nvs_helper! {
     /// order the *statement* asks for them, which is why nothing here counts
     /// placeholders itself and why an `inList`'s expansion needs no second
     /// pass.
-    fn nvs_core_db_connection_query(ctx, args: [4]) {
-        let answered = queried_rows(ctx, args, "query", QUERY)?;
+    fn nvs_core_db_connection_query(ctx, args: [5]) {
+        // `crate::registry::QUERY_SITE_MEMBERS`' call site id is the last argument.
+        let answered = queried_rows(ctx, args, "query", QUERY, args[4])?;
         Ok(crate::instance::build(
             &ROWS,
             [
@@ -412,11 +413,15 @@ pub(super) struct Answered {
 /// send path yet, [`statement_failure`] for anything the server refused, and
 /// [`column_value`]'s or [`mysql_column_value`]'s for a column whose value has
 /// no Novis representation.
+///
+/// `site` is the call's query site id, which the span records when it is
+/// traced, and the zero id for a statement no call of the program wrote.
 pub(super) fn queried_rows(
     ctx: &mut nvs_runtime::Ctx,
     args: &[Value],
     member: &str,
     named: &str,
+    site: Value,
 ) -> Result<Answered, Fault> {
     let statement = statement_of(ctx, args, member, named)?;
     // Read before the connection is in hand, because the refusal for a
@@ -431,7 +436,7 @@ pub(super) fn queried_rows(
     let sending: Vec<Option<&[u8]>> = statement.binds.wire();
     // Read before the statement takes the context, because it holds it for as
     // long as the rows do — see [`QueryWatch`] for the rest.
-    let watch = QueryWatch::of(ctx, &statement.block);
+    let watch = QueryWatch::of(ctx, &statement.block).at(site);
     // The event is filed after the match and not inside it, because a driver's
     // rows borrow the connection and the connection borrows the context — so
     // the arm that read the span is still holding the thing the span is filed
@@ -1415,7 +1420,7 @@ nvs_runtime::nvs_helper! {
     /// when `all`, `first` or a `foreach` asks for a row — so this body's own
     /// refusals are the two that are about the *call site* rather than about a
     /// row, and they are raised before the statement goes out.
-    fn nvs_core_db_connection_query_as(ctx, args: [7]) {
+    fn nvs_core_db_connection_query_as(ctx, args: [8]) {
         // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
         // reading of these two slots is: `nvs_ir::lower` writes the descriptor
         // and the flag out of the type argument at the call site, and a call
@@ -1446,8 +1451,9 @@ nvs_runtime::nvs_helper! {
             ));
         }
         // The receiver and the two value parameters, past the block of three
-        // `WRITTEN_CLASS_MEMBERS` puts ahead of everything.
-        let answered = queried_rows(ctx, &args[3..], "queryAs", QUERY_AS)?;
+        // `WRITTEN_CLASS_MEMBERS` puts ahead of everything, and the call site id
+        // `QUERY_SITE_MEMBERS` puts last.
+        let answered = queried_rows(ctx, &args[3..], "queryAs", QUERY_AS, args[7])?;
         // `args[0]` carries no reference — a descriptor rides in the payload
         // half of an otherwise-`null` value — so the slot takes it as it is.
         Ok(crate::instance::build(
@@ -1484,7 +1490,7 @@ nvs_runtime::nvs_helper! {
     /// whose tag carries no count at all — a `create table` — to `0`, and
     /// `changed` keeps the absence, which is the only thing the two say
     /// differently on this driver.
-    fn nvs_core_db_connection_execute(ctx, args: [4]) {
+    fn nvs_core_db_connection_execute(ctx, args: [5]) {
         let statement = statement_of(ctx, args, "execute", EXECUTE)?;
         // As `query`'s, and read at the same point for the same reason.
         let deadline = statement_deadline(args, EXECUTE)?;
@@ -1492,8 +1498,9 @@ nvs_runtime::nvs_helper! {
         // caller's own text rather than the rewrite of it that reached the wire.
         let source = args[1].as_text();
         let sending: Vec<Option<&[u8]>> = statement.binds.wire();
-        // As `query`, and for the reason [`QueryWatch`] gives.
-        let watch = QueryWatch::of(ctx, &statement.block);
+        // As `query`, and for the reason [`QueryWatch`] gives. The call site id
+        // is the last argument, as `query`'s is.
+        let watch = QueryWatch::of(ctx, &statement.block).at(args[4]);
         // Branched as [`queried_rows`] is, and the arms hand the event back for
         // the same borrow reason: the rows hold the connection, which holds the
         // context the span is filed on.
@@ -1563,7 +1570,7 @@ nvs_runtime::nvs_helper! {
     /// on PostgreSQL, a command per execution on MySQL, an `sp_execute` per set
     /// against one `sp_prepexec` on SQL Server — and each `execute_many`'s own
     /// doc argues its half.
-    fn nvs_core_db_connection_execute_many(ctx, args: [4]) {
+    fn nvs_core_db_connection_execute_many(ctx, args: [5]) {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
         // § 4's `timeout` bounds the *batch*, which is what a caller asked to
         // bound: the sets are one statement run N times over one connection, and
@@ -1574,8 +1581,9 @@ nvs_runtime::nvs_helper! {
         let sending: Vec<Vec<Option<&[u8]>>> = batch.binds.iter().map(Binds::wire).collect();
         let sets: Vec<&[Option<&[u8]>]> = sending.iter().map(Vec::as_slice).collect();
 
-        // As `execute`, and for the reason [`QueryWatch`] gives.
-        let watch = QueryWatch::of(ctx, &batch.block);
+        // As `execute`, and for the reason [`QueryWatch`] gives, with the call
+        // site id from the last argument.
+        let watch = QueryWatch::of(ctx, &batch.block).at(args[4]);
         let connection = bound_connection(ctx, batch.key, EXECUTE_MANY, deadline)?;
         let driver = connection.driver();
         // § 11's span, opened where the driver opens `execute`'s: after the

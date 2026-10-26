@@ -216,6 +216,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             Some(crate::ir::Prepared::SecretDirective) => "prepared config.secret".to_owned(),
             None => "prepared none".to_owned(),
         },
+        InstKind::QuerySiteConst { site } => match site {
+            Some(span) => format!("query.site @{}", fmt_span(*span, src)),
+            None => "query.site none".to_owned(),
+        },
         InstKind::SourceConst { source } => match source {
             Some(source) => match &source.member {
                 Some(member) => format!("source {}:{} {member}", source.file, source.line),

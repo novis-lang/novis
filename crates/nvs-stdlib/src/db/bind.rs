@@ -994,9 +994,14 @@ mod tests {
             "the options this case carries have to be refusable, or the order below proves nothing"
         );
 
-        let refused =
-            crate::db::execute::queried_rows(&mut ctx, &args(handle(false)), "query", QUERY)
-                .err()
+        let refused = crate::db::execute::queried_rows(
+            &mut ctx,
+            &args(handle(false)),
+            "query",
+            QUERY,
+            Value::int(0),
+        )
+        .err()
                 .expect("a transaction whose call has returned refuses every statement");
         match refused {
             Fault::Thrown(ThrownClass::Logic, message) => assert_eq!(
@@ -1011,8 +1016,14 @@ mod tests {
         // And the other side of the bound: the same arguments with the scope
         // still open are past the guard, so what stops them is the missing
         // connection rather than anything this member decided.
-        let past = crate::db::execute::queried_rows(&mut ctx, &args(handle(true)), "query", QUERY)
-            .err()
+        let past = crate::db::execute::queried_rows(
+            &mut ctx,
+            &args(handle(true)),
+            "query",
+            QUERY,
+            Value::int(0),
+        )
+        .err()
             .expect("no connection is filed under the key this fixture wrote");
         assert!(
             !matches!(past, Fault::Thrown(ThrownClass::Logic, _)),

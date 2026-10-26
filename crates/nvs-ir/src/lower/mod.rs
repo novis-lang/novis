@@ -3077,6 +3077,19 @@ impl<'a> Lowering<'a> {
         self.producer_source(b)
     }
 
+    /// The id a member on `nvs_stdlib::registry::QUERY_SITE_MEMBERS` takes as
+    /// its **last** argument: the call at `span`, as
+    /// [`InstKind::QuerySiteConst`] carries it.
+    ///
+    /// The IR records the span and `nvs-codegen` turns it into the program-wide
+    /// number, so a function lowered alone needs no count of the sites before
+    /// it. Not refcounted, and emitted before the receiver is opened, for
+    /// [`Self::producer_source`]'s reasons exactly.
+    pub(crate) fn query_site_constant(&mut self, b: BlockId, span: nvs_diagnostics::Span) -> ValueId {
+        self.emit(b, Ty::Int, InstKind::QuerySiteConst { site: Some(span) })
+            .0
+    }
+
     /// The constant a member on `nvs_stdlib::registry::PREPARED_MEMBERS` takes
     /// as its argument 0: what the checker prepared out of the literal the call
     /// at `span` was written with, as [`InstKind::PreparedConst`] carries it.

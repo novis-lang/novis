@@ -556,6 +556,14 @@ const STREAM_CLASS_SLOT: &str = "class";
 /// Where [`STREAM_CLASS_SLOT`] sits. See [`HANDLE_AT`].
 const STREAM_CLASS_AT: usize = 3;
 
+/// The call site id the `stream` or `streamAs` call passed
+/// (`crate::registry::QUERY_SITE_MEMBERS`), kept for the steps that file the
+/// walk's span. An integer, so this slot holds no reference.
+const STREAM_SITE_SLOT: &str = "site";
+
+/// Where [`STREAM_SITE_SLOT`] sits. See [`HANDLE_AT`].
+const STREAM_SITE_AT: usize = 4;
+
 /// `Core\Db\Write`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 const WRITE_NAME: &str = r"Core\Db\Write";
 

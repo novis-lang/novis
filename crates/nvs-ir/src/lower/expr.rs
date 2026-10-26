@@ -4436,6 +4436,11 @@ impl<'a> Lowering<'a> {
             // is opened, and pushed last below.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
                 .then(|| self.call_site(*cur));
+            // A `Core\Db` member that sends a statement is handed its call
+            // site's id as its last argument — `nvs_stdlib::registry::QUERY_SITE_MEMBERS`
+            // owns the position and `Lowering::query_site_constant` the constant.
+            let query_site = nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+                .then(|| self.query_site_constant(*cur, expr.span));
             // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` is handed
             // what the checker prepared out of its written literal, as argument
             // 0 — `Lowering::prepared_constant` owns the position, the lookup
@@ -4480,6 +4485,7 @@ impl<'a> Lowering<'a> {
             arg_values.push(object_v);
             arg_values.extend(values);
             arg_values.extend(site);
+            arg_values.extend(query_site);
             let (v, ty) = self.emit_fallible(
                 *cur,
                 return_ty,
@@ -4767,6 +4773,10 @@ impl<'a> Lowering<'a> {
             // decided about which of the two paths reached it.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
                 .then(|| self.call_site(*cur));
+            // `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' trailing id, which
+            // that roster owns, emitted the way the instance path emits it.
+            let query_site = nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+                .then(|| self.query_site_constant(*cur, expr.span));
             // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
             // that roster owns — `Core\Regex::compile("…")` is the shape it is
             // here for, and `Lowering::prepared_constant` owns the lookup.
@@ -4793,6 +4803,7 @@ impl<'a> Lowering<'a> {
                 .chain(lowered.values)
                 .chain(path_graph)
                 .chain(site)
+                .chain(query_site)
                 .collect::<Vec<_>>();
             let result = self.emit_fallible(
                 *cur,

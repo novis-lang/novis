@@ -155,6 +155,10 @@ pub(crate) struct UnitTables<'a> {
     /// which every branch probe in it adds to its own `EdgeId` — see
     /// `nvs_ir::Program::edge_spans`.
     pub edge_base: u32,
+    /// The count of query sites in every function before this one, so this
+    /// function's first site is number `query_base + 1` — see
+    /// `nvs_ir::Program::query_sites`.
+    pub query_base: u32,
     /// This function's index in `nvs_ir::Program::functions`, which its frame
     /// record carries under the debug switch.
     pub function_index: u32,
@@ -162,6 +166,22 @@ pub(crate) struct UnitTables<'a> {
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
 /// signature.
+/// The program-wide id of each query site in `f`: `query_base` plus its rank
+/// in [`Function::query_sites`] plus one, because the zero id names no site
+/// (`rule:observability/a-query-span-names-its-call-site`). Keyed by the value
+/// the instruction defines, so the arm that emits it is one lookup.
+fn query_ids(f: &Function, query_base: u32) -> Result<FxHashMap<u32, i64>, CodegenError> {
+    let mut ids = FxHashMap::default();
+    for (rank, (result, _)) in (1_u32..).zip(f.query_sites()) {
+        let result = result.ok_or_else(|| internal("a query site that defines no value"))?;
+        let id = query_base
+            .checked_add(rank)
+            .ok_or_else(|| internal("a unit with more than 2^32 query sites"))?;
+        ids.insert(result.index(), i64::from(id));
+    }
+    Ok(ids)
+}
+
 pub(crate) fn emit_function(
     module: &mut dyn Module,
     ctx: &mut codegen::Context,
@@ -177,6 +197,7 @@ pub(crate) fn emit_function(
         literals,
         stmt_base,
         edge_base,
+        query_base,
         function_index,
     } = tables;
     let target_config = module.target_config();
@@ -282,6 +303,7 @@ pub(crate) fn emit_function(
         literals,
         stmt_base,
         edge_base,
+        query_ids: query_ids(f, query_base)?,
         f,
         values: FxHashMap::default(),
         blocks,
@@ -593,6 +615,9 @@ struct Emitter<'a, 'f> {
     stmt_base: u32,
     /// See [`UnitTables::edge_base`].
     edge_base: u32,
+    /// The program-wide id of each [`InstKind::QuerySiteConst`] that names a
+    /// site, keyed by the value it defines — see [`query_ids`].
+    query_ids: FxHashMap<u32, i64>,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
     /// at — the IR carries that on the defining instruction, and an operand
@@ -895,6 +920,20 @@ impl Emitter<'_, '_> {
                 let word = nvs_ir::ir::prepared_code(*fact);
                 let word = self.b.ins().iconst(types::I64, word);
                 self.define(inst, word)?;
+            }
+            InstKind::QuerySiteConst { site } => {
+                // The id is the site's number in the program, read from the
+                // map built before the body; the zero id is a call with no
+                // site, which a callable reference's thunk makes.
+                let id = match site {
+                    Some(_) => inst
+                        .result
+                        .and_then(|result| self.query_ids.get(&result.index()).copied())
+                        .ok_or_else(|| internal("a query site the function's walk did not count"))?,
+                    None => 0,
+                };
+                let id = self.b.ins().iconst(types::I64, id);
+                self.define(inst, id)?;
             }
             InstKind::SourceConst { source } => {
                 // One address and no length beside it: the blob

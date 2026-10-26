@@ -2451,10 +2451,15 @@ impl<M: Module> UnitBuilder<M> {
         self.publish_debug_sites(program);
         let mut stmt_base = 0_u32;
         let mut edge_base = 0_u32;
+        let mut query_base = 0_u32;
         for (index, function) in program.functions.iter().enumerate() {
             let index = u32::try_from(index)
                 .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
-            self.compile_function(function, index, stmt_base, edge_base)?;
+            self.compile_function(function, index, stmt_base, edge_base, query_base)?;
+            query_base = u32::try_from(function.query_sites().count())
+                .ok()
+                .and_then(|count| query_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 query sites"))?;
             stmt_base = u32::try_from(function.stmt_spans.len())
                 .ok()
                 .and_then(|count| stmt_base.checked_add(count))
@@ -2493,13 +2498,15 @@ impl<M: Module> UnitBuilder<M> {
     /// program-wide number of the function's first statement: the count of
     /// statements in every function before it in `program.functions`, which is
     /// the order `nvs_ir::Program::stmt_spans` lists them in. `edge_base` is
-    /// the same count for conditional edges and `nvs_ir::Program::edge_spans`.
+    /// the same count for conditional edges and `nvs_ir::Program::edge_spans`,
+    /// and `query_base` for query sites and `nvs_ir::Program::query_sites`.
     fn compile_function(
         &mut self,
         function: &nvs_ir::Function,
         index: u32,
         stmt_base: u32,
         edge_base: u32,
+        query_base: u32,
     ) -> Result<(), CodegenError> {
         let id =
             *self
@@ -2526,6 +2533,7 @@ impl<M: Module> UnitBuilder<M> {
                 literals: &mut self.literals,
                 stmt_base,
                 edge_base,
+                query_base,
                 function_index: index,
             },
             function,

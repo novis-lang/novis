@@ -16,6 +16,10 @@ doctest = false
 
 [dependencies]
 nvs-diagnostics.workspace = true
+# `rule:observability/a-query-span-names-its-call-site`'s site table carries the
+# hash of each file's text, so a record made from another text is not shown.
+# `nvs-config`'s cache key is the same BLAKE3 over the same bytes.
+blake3.workspace = true
 # `rule:errors/a-record-names-where-it-was-produced`'s three parts are
 # `nvs_render::Source`, built once in `lower::Lowering::source` so the record a
 # producer carries and the backtrace frame beside it read one datum rather than

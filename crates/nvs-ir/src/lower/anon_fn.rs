@@ -832,6 +832,14 @@ pub(crate) fn lower_callable(
                 low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
                     .0
             });
+        // A `Core\Db` member reached through a callable reference is handed the
+        // zero id, which names no site: the statement goes out wherever the
+        // callable is later invoked (`nvs_stdlib::registry::QUERY_SITE_MEMBERS`).
+        let query_site = nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+            .then(|| {
+                low.emit(cur, Ty::Int, InstKind::QuerySiteConst { site: None })
+                    .0
+            });
         // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` reached through a
         // callable reference prepared nothing: the thunk's own arguments arrive
         // when the callable is later invoked, so there is no written literal
@@ -858,6 +866,7 @@ pub(crate) fn lower_callable(
             .chain(args)
             .chain(path_graph)
             .chain(site)
+            .chain(query_site)
             .collect::<Vec<_>>();
         let (v, _) = low.emit_fallible(cur, ret, InstKind::CoreCall { symbol, args }, &env);
         low.release_temporaries_since(mark, cur);

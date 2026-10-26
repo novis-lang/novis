@@ -95,6 +95,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
         CONNECTION_NAME_SLOT,
         STREAM_ROW_SLOT,
         STREAM_CLASS_SLOT,
+        STREAM_SITE_SLOT,
     ],
     constants: &[],
 };
@@ -209,8 +210,9 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
     // receiver's own slot.
     let class = crate::instance::slot(receiver, STREAM_CLASS_AT).as_class_desc();
     // Read before the connection is borrowed, for [`QueryWatch`]'s reason: the
-    // arm below holds the thing the span is filed on.
-    let watch = QueryWatch::of(ctx, &block);
+    // arm below holds the thing the span is filed on. The call site id is the
+    // one the `stream` call passed, which the walk keeps in its own slot.
+    let watch = QueryWatch::of(ctx, &block).at(crate::instance::slot(receiver, STREAM_SITE_AT));
     let stepped = match filed_connection(ctx, key, STREAM_MEMBER)? {
         nvs_db::Connection::Postgres(postgres) => postgres_step(postgres, &block, &watch),
         nvs_db::Connection::MySql(mysql) => mysql_step(Framed::MySql(mysql), &block, &watch),
@@ -571,6 +573,9 @@ fn open_stream(
     // `class` carries no reference — a descriptor rides in the payload half of
     // an otherwise-`null` value — so the slot takes it as it is, exactly as
     // [`nvs_core_db_connection_query_as`]'s does.
+    // `args[4]` is the call site id `crate::registry::QUERY_SITE_MEMBERS` puts
+    // last, for both members, since `streamAs` hands over the slice past its
+    // three leading constants. An integer, so it carries no reference either.
     Ok(crate::instance::build(
         &STREAM,
         [
@@ -578,6 +583,7 @@ fn open_stream(
             statement.block,
             Value::null(),
             class,
+            args[4],
         ],
     ))
 }
@@ -602,7 +608,7 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// [`open_stream`]'s, which are this member's whole refusal set.
-    fn nvs_core_db_connection_stream(ctx, args: [4]) {
+    fn nvs_core_db_connection_stream(ctx, args: [5]) {
         open_stream(ctx, args, "stream", STREAM_MEMBER, Value::null())
     }
 }
@@ -633,7 +639,7 @@ nvs_runtime::nvs_helper! {
     /// [`open_stream`]'s, and a `LogicError` for an `array<...>` type argument.
     /// Per row, [`park_row`]'s `ParseError` for a row that does not match `T`
     /// and its `LogicError` for a `T` carrying no mapping at all.
-    fn nvs_core_db_connection_stream_as(ctx, args: [7]) {
+    fn nvs_core_db_connection_stream_as(ctx, args: [8]) {
         // Unreachable from source, exactly as
         // [`nvs_core_db_connection_query_as`]'s reading of the same two slots
         // is: `nvs_ir::lower` writes the descriptor and the flag out of the

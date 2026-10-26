@@ -112,6 +112,79 @@ impl Program {
             .flat_map(|function| function.edge_spans.iter().copied())
             .collect()
     }
+
+    /// The span of every `Core\Db` call that sends a statement, in the order
+    /// `nvs-codegen` numbers them: the id a call passes is its index here plus
+    /// one, and the zero id names no site
+    /// (`rule:observability/a-query-span-names-its-call-site`). Each function's
+    /// [`Function::query_sites`], in [`Self::functions`] order. It reads only
+    /// the IR, so it holds for a unit loaded from the compile cache too.
+    #[must_use]
+    pub fn query_sites(&self) -> Vec<Span> {
+        self.functions
+            .iter()
+            .flat_map(|function| function.query_sites().map(|(_, span)| span))
+            .collect()
+    }
+
+    /// The program's query site table: the file, the 1-based line and the
+    /// file's text hash of each [`Self::query_sites`] entry, indexed the same
+    /// way. A site whose file is not in `map` has an empty name, line 0 and an
+    /// empty hash, which no file matches.
+    ///
+    /// **What it spends:** one row per call site, and one BLAKE3 pass over each
+    /// file that has a site, made when the table is asked for and not on the
+    /// request path.
+    #[must_use]
+    pub fn query_site_table(&self, map: &nvs_diagnostics::SourceMap) -> Vec<QuerySite> {
+        let mut hashes = rustc_hash::FxHashMap::default();
+        self.query_sites()
+            .into_iter()
+            .map(|span| {
+                map.get(span.file).map_or_else(QuerySite::default, |file| {
+                    let (line, _) = file.line_col(span.start);
+                    let text_hash = hashes
+                        .entry(span.file)
+                        .or_insert_with(|| blake3::hash(file.text().as_bytes()).to_hex().to_string())
+                        .clone();
+                    QuerySite {
+                        file: file.name().to_owned(),
+                        line: u32::try_from(line).map_or(u32::MAX, |line| line.saturating_add(1)),
+                        text_hash,
+                    }
+                })
+            })
+            .collect()
+    }
+}
+
+/// One row of [`Program::query_site_table`]: where one `Core\Db` call that
+/// sends a statement is written.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct QuerySite {
+    /// The file the call is in, as the program named it.
+    pub file: String,
+    /// The 1-based line the call's statement starts on.
+    pub line: u32,
+    /// The BLAKE3 hash of the file's text when the program was compiled, in
+    /// lowercase hex. A record whose hash differs from the file on disk was
+    /// made from another text of it.
+    pub text_hash: String,
+}
+
+impl Function {
+    /// Every [`InstKind::QuerySiteConst`] in this function that names a site,
+    /// with the value it defines, in block order and then instruction order.
+    /// Its position in this walk is the site's rank inside the function, which
+    /// [`Program::query_sites`] and `nvs-codegen` both count the same way.
+    pub fn query_sites(&self) -> impl Iterator<Item = (Option<ValueId>, Span)> + '_ {
+        self.blocks.iter().flat_map(|block| {
+            block.insts.iter().filter_map(|inst| match inst.kind {
+                InstKind::QuerySiteConst { site: Some(span) } => Some((inst.result, span)),
+                _ => None,
+            })
+        })
+    }
 }
 
 /// One declared `enum`'s whole shape, on its way to
@@ -1017,6 +1090,19 @@ pub enum InstKind {
     PreparedConst {
         /// The fact, or `None` for the zero word.
         fact: Option<Prepared>,
+    },
+    /// The id of one `Core\Db` call that sends a statement, carried to the
+    /// member as `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' last argument
+    /// (`rule:observability/a-query-span-names-its-call-site`).
+    ///
+    /// One `iconst` at [`crate::ty::Ty::Int`]. The IR keeps the call's span and
+    /// no number: `nvs-codegen` numbers the sites from one, in
+    /// [`Program::query_sites`]' order, so a number names one call in the whole
+    /// program. `None` is the callable-reference thunk, which emits the zero id
+    /// because its statement goes out wherever the callable is invoked.
+    QuerySiteConst {
+        /// The span of the call, or `None` for the zero id.
+        site: Option<Span>,
     },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
     /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a

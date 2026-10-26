@@ -3201,6 +3201,53 @@ pub fn takes_path_graph(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The members handed **the id of their call site in the program's query site
+/// table**, as their **last** argument — `rule:observability/a-query-span-names-its-call-site`.
+///
+/// Each sends a statement its call wrote, so the site names the line a trace
+/// reader would change. `transaction` is not here: its `BEGIN` and `COMMIT` are
+/// the library's text, and the statements inside it are sites of their own. The
+/// schema members are not here for the same reason.
+///
+/// The id is one integer constant, `nvs_ir::ir::InstKind::QuerySiteConst`,
+/// which `nvs-codegen` numbers across the program from one. The zero id names
+/// no site, which is what the callable-reference thunk passes, because the
+/// statement goes out wherever the callable is invoked. A helper reads the slot
+/// only when its span is recorded (`crate::db::QueryWatch`), so a call nobody
+/// traces reads nothing. Every owner shares one symbol per member, so the
+/// helper's `args: [N]` counts one more than [`CoreMethod::params`] does on all
+/// three.
+///
+/// **The last slot**, as [`CALL_SITE_MEMBERS`]' is, because no member here is
+/// variadic and none is on that roster, which
+/// `every_query_site_member_takes_a_fixed_argument_list` holds.
+///
+/// **What it spends:** one constant per call site in the compiled code, in
+/// every mode, so a program's code does not depend on whether tracing is on.
+pub const QUERY_SITE_MEMBERS: &[&str] = &[
+    "query",
+    "queryAs",
+    "execute",
+    "executeMany",
+    "stream",
+    "streamAs",
+];
+
+/// The classes whose [`QUERY_SITE_MEMBERS`] take the site id: the connection,
+/// the transaction it hands a callable, and the interface both implement.
+pub const QUERY_SITE_OWNERS: &[&str] = &[
+    crate::db::CONNECTION_NAME,
+    crate::db::TRANSACTION_NAME,
+    crate::db::QUERYABLE_NAME,
+];
+
+/// Whether `class::method` takes a query site id: a [`QUERY_SITE_MEMBERS`]
+/// name on one of the [`QUERY_SITE_OWNERS`].
+#[must_use]
+pub fn takes_query_site(class: &str, method: &str) -> bool {
+    QUERY_SITE_OWNERS.contains(&class) && QUERY_SITE_MEMBERS.contains(&method)
+}
+
 /// The closed roster of members whose result a program must use, each with
 /// the help line its diagnostic prints. A call to one written as a statement
 /// of its own does not compile (`E_RESULT_NOT_USED`), and
@@ -5111,6 +5158,31 @@ mod tests {
                 member.variadic().is_none(),
                 "`{owner}::{name}` is variadic, so its last argument is its own tail"
             );
+        }
+    }
+
+    /// Every [`QUERY_SITE_MEMBERS`] name is a fixed-length row on every
+    /// [`QUERY_SITE_OWNERS`] class that registers rows, and none is on
+    /// [`CALL_SITE_MEMBERS`], so the site id is the last slot alone.
+    #[test]
+    fn every_query_site_member_takes_a_fixed_argument_list() {
+        for owner in [crate::db::CONNECTION_NAME, crate::db::TRANSACTION_NAME] {
+            let class = self::class(owner)
+                .unwrap_or_else(|| panic!("`{owner}` takes a query site and is no class"));
+            for name in QUERY_SITE_MEMBERS {
+                let member = class
+                    .members()
+                    .find(|member| member.name == *name)
+                    .unwrap_or_else(|| panic!("`{owner}::{name}` takes a query site and is no row"));
+                assert!(
+                    member.variadic().is_none(),
+                    "`{owner}::{name}` is variadic, so its last argument is its own tail"
+                );
+                assert!(
+                    !takes_call_site(owner, name),
+                    "`{owner}::{name}` is on two rosters that each claim the last slot"
+                );
+            }
         }
     }
 

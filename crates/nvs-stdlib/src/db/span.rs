@@ -36,6 +36,10 @@ pub(crate) struct QueryWatch {
     /// `DebugFlags::TRACE` is on and the span is not traced, because the `debug.trace` grant is
     /// missing: [`QueryWatch::file`] says so once per process.
     ungranted: bool,
+    /// The call site id the compiler passed, read by [`QueryWatch::at`] only
+    /// when the span is traced (`rule:observability/a-query-span-names-its-call-site`).
+    /// `None` for an untraced statement and for the zero id.
+    site: Option<u32>,
 }
 
 /// Whether [`QueryWatch::file`] has already said that `trace` is on without its grant.
@@ -89,7 +93,24 @@ impl QueryWatch {
             traced,
             slow: block.and_then(|name| slow_query_of(ctx, name)),
             ungranted,
+            site: None,
         }
+    }
+
+    /// The same watch, for the call whose site id is `site`: the last
+    /// argument of a `crate::registry::QUERY_SITE_MEMBERS` member.
+    ///
+    /// The id is read only when the span is traced, so a call nobody traces
+    /// reads nothing. The zero id names no site, and reads as none.
+    #[must_use]
+    pub(crate) fn at(mut self, site: Value) -> QueryWatch {
+        if self.traced {
+            self.site = site
+                .as_int()
+                .and_then(|id| u32::try_from(id).ok())
+                .filter(|&id| id != 0);
+        }
+        self
     }
 
     /// The span's facts, taken while the statement still lends them out.
@@ -101,7 +122,10 @@ impl QueryWatch {
         (self.traced || self.slow.is_some()).then(|| Taken {
             line: span.to_string(),
             took: span.duration(),
-            query: span.spooled(),
+            query: nvs_runtime::spool::Query {
+                site: self.site,
+                ..span.spooled()
+            },
         })
     }
 
@@ -279,6 +303,30 @@ mod tests {
             !QueryWatch::named(&off, None).traced,
             "an unsampled run renders none"
         );
+    }
+
+    /// A traced span records the call site id its call passed, and an untraced call reads none
+    /// (`rule:observability/a-query-span-names-its-call-site`). The zero id names no site.
+    #[test]
+    fn a_traced_span_records_its_call_site_and_an_untraced_call_reads_none() {
+        let site = nvs_runtime::Value::int(7);
+        let span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, "select 1");
+        let traced = configured("[capabilities.debug]\ntrace = true\n");
+        let watch = QueryWatch::named(&traced, None).at(site);
+        assert_eq!(watch.site, Some(7));
+        let taken = watch.taken(&span).expect("a traced span is taken");
+        assert_eq!(taken.query.site, Some(7), "the spooled event carries the site");
+        assert_eq!(
+            QueryWatch::named(&traced, None).at(nvs_runtime::Value::int(0)).site,
+            None,
+            "the zero id names no site"
+        );
+
+        let mut off = configured("[capabilities.debug]\ntrace = true\n");
+        off.set_debug_flags(nvs_runtime::DebugFlags::empty());
+        let untraced = QueryWatch::named(&off, None).at(site);
+        assert_eq!(untraced.site, None, "an untraced call reads no site");
+        assert!(untraced.taken(&span).is_none());
     }
 
     /// `trace` on without `debug.trace` is said, with the line to add; with the grant, or with
