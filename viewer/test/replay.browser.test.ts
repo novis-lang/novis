@@ -213,7 +213,8 @@ describe.skipIf(!EXE)("replay and compare in Chromium", () => {
       differs: false,
       cells: ["Binary data, so it is not compared as text.", "Binary data, so it is not compared as text."],
     });
-    expect((await tab.eval(PART("queries")))["1"]).toEqual({ differs: false, cells: ["SELECT * FROM items WHERE id = ?", "SELECT * FROM items WHERE id = ?"] });
+    // The queries are aligned by the call that sent them.
+    expect((await tab.eval(PART("queries")))["src/Shop/Items.nvs:12"]).toEqual({ differs: false, cells: ["SELECT * FROM items WHERE id = ?", "SELECT * FROM items WHERE id = ?"] });
     expect((await tab.eval(PART("logs")))["1"].differs).toBe(false);
     // Quantity and status differ, and nothing else does.
     expect(await tab.eval(`document.querySelector(".cmp-count").textContent`)).toBe("2 rows differ.");

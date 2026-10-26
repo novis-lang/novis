@@ -3,7 +3,8 @@ development server only after the developer confirms it in a dialog that names w
 
 **Compare** sets the recorded input of each — method, path, query, headers and body — against the
 other, then the response — its status, headers and body, a JSON body compared structurally — the
-duration, the queries in the order they ran with their text aligned, the dumps and the log lines. A second request is picked by marking it in any list, and a request's own
+duration, the queries aligned by the call that sent them, one row per call site with each statement
+and how many times it ran there, the dumps and the log lines. A second request is picked by marking it in any list, and a request's own
 view offers the previous request to the same route. A redacted header shows as redacted on both
 sides, never as a difference.
 

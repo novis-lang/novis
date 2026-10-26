@@ -3,7 +3,7 @@
 // What it spends: the records of the two requests, for as long as the view is open.
 
 import { createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { REDACTED, request, type Json, type RecordedBody, type RequestDetail, type RequestRow } from "../api.ts";
+import { REDACTED, request, type Json, type RecordedBody, type RequestDetail, type TraceEvent, type RequestRow } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { compareLink, navigate, requestLink, type SpanKey } from "../router.ts";
 import { duration, statusClass } from "./requests.tsx";
@@ -184,6 +184,43 @@ function aligned<T>(left: T[], right: T[], show: (item: T) => Cell, compare: (it
   });
 }
 
+/** What one call site ran in one request: each statement once, with how many times it ran, in the
+ *  order it first ran. */
+function ranAt(events: TraceEvent[]): Cell {
+  const counts = new Map<string, number>();
+  for (const event of events) {
+    const sql = event.query?.sql ?? event.label;
+    counts.set(sql, (counts.get(sql) ?? 0) + 1);
+  }
+  return code([...counts].map(([sql, n]) => (n === 1 ? sql : `${sql} (${n} times)`)).join("; "));
+}
+
+/** The queries of two requests aligned by the call that sent them: one row per call site, in the
+ *  order the left request and then the right one first reached it. A query with no recorded site
+ *  is in the row "No call site". */
+function bySite(left: TraceEvent[], right: TraceEvent[]): Row[] {
+  const label = (event: TraceEvent) => (event.query?.site ? `${event.query.site.file}:${event.query.site.line}` : "No call site");
+  const sites: string[] = [];
+  const group = (events: TraceEvent[]) => {
+    const at = new Map<string, TraceEvent[]>();
+    for (const event of events) {
+      const site = label(event);
+      if (!sites.includes(site)) sites.push(site);
+      const ran = at.get(site);
+      if (ran) ran.push(event);
+      else at.set(site, [event]);
+    }
+    return at;
+  };
+  const l = group(left);
+  const r = group(right);
+  return sites.map((site) => {
+    const a = l.get(site);
+    const b = r.get(site);
+    return row(site, a ? ranAt(a) : note("Not reached"), b ? ranAt(b) : note("Not reached"));
+  });
+}
+
 /** Every part of the comparison of `l` and `r`, in the order the view shows them. */
 function parts(l: RequestDetail, r: RequestDetail): Part[] {
   const query = (d: RequestDetail) => (d.input === null ? note(NOT_RECORDED) : d.input.query ? code(d.input.query) : note("None"));
@@ -236,14 +273,8 @@ function parts(l: RequestDetail, r: RequestDetail): Part[] {
     {
       id: "queries",
       title: "Queries",
-      head: "Order",
-      rows: aligned(
-        queries(l),
-        queries(r),
-        (event) => code(event.query?.sql ?? event.label),
-        (event) => event.query?.sql ?? event.label,
-        "No query",
-      ),
+      head: "Call",
+      rows: bySite(queries(l), queries(r)),
       empty: "Neither request ran a query.",
     },
     {
