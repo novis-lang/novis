@@ -62,7 +62,7 @@ stages:
         rules: [testing/a-recorded-request-becomes-a-test, testing/in-process-request, testing/a-recorded-request-keeps-its-input-with-credentials-replaced, testing/feature-proofs]
   - id: 9
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -332,67 +332,40 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 8 are done, and stage 9, the gate, has started: `bun nv affected --run` was started
-once over the whole goal and has not reported yet. Nothing is uncommitted.
+Every stage is done, and the goal is reached once the driver's acceptance run is green. Nothing is
+uncommitted.
 
-This session: the examples under `docs/examples/tools/cli/nvs-debug-to-test/` match the printer,
-both test classes pass under `nvs test <file>`, and `bun nv proofs --id
-'tools:cli/nvs-debug-to-test'` says complete. `#[Core\Api]`'s card types `tags` and `security` as
-`array<string>`, `errors` as `array<{status: int, type: string}>` and `example` as `object`
-(`crates/nvs-types/src/derive.rs:546`). The gap record is deleted, and `bun nv owners --closes
-request-aware-editor` passes. The sweep's reds: `env-secret-proofs` is green on a rerun; nightly
-`d6f13175`'s `check_command.rs` failure was fixed by `9c8b0fe16` after it; the yanked
-`crypto-bigint` 0.7.9 is now 0.7.10, and `cargo deny check advisories` is ok.
+The gate: `bun nv affected --run` is green (23 of 23). It was red over three shipped rules that
+still named this goal, the stale rule chapters, a `Core\Db\Stream` unit test without the site slot,
+`queries_in` missing from the index test's code-lens reader, and two handshake tests that expected
+no debug index. Nine LDAP, HTTP transport and `serve` tests failed on socket deadlines while the
+`side-ci-green` loop ran in the same tree, and pass alone. `bun nv verify --doc`, `bun nv owners
+--closes request-aware-editor` and `bun nv ci --check` are green. The backlog's limits are stated in
+their module docs, and two became gap records: a callable reference to a `Core` member with an
+options bag panics the lowering (`query-binding`), and the grants hover's two limits
+(`namespace-grants`). The nightly's supply-chain red was a yanked `crypto-bigint`, now 0.7.10.
 
-May go red in the gate: `crates/nvs-cli/tests/debug_viewer.rs` or a help snapshot over `nvs debug`'s
-new subcommand and `/api/to-test`, `viewer/test/replay.browser.test.ts` over the request bar's new
-button, `viewer/test/replay.browser.test.ts` (its queries row is now keyed
-`src/Shop/Items.nvs:12`), `crates/nvs-cli/tests/debug_api.rs`, `debug_ingest.rs` and
-`debug_viewer.rs` over schema 7 or the fixture line, `crates/nvs-lsp/tests/stdout_policy.rs` over the
-new `rusqlite` dependency, `crates/nvs-lsp/tests/handshake.rs`, the VS Code client test that reads
-`EDITOR_COMMANDS`, any test that counts a `Core\Db` helper's arguments or prints a query call's IR,
-the proofs gate's perf records, and the LSP latency bound in `crates/nvs-lsp/tests/latency.rs`.
+May go red in the driver's acceptance: `floor-debt`, which pays every atom the gate left owed,
+including the proofs and nvtests verify does not run, and the deadline tests above if the tree is
+loaded again.
 
 ### Next
 
-**Stage 9.**
-
-1. Read the report of the `bun nv affected --run` this session started. If no report reached the
-   next session, start it once more with `run_in_background` and end the turn to wait.
-2. Group its failures by cause, and fix every group in one pass (the stage's `**Split:**` line).
-   Tick the stage's first two items.
-3. Run `bun nv affected --run` once more. When it is green, run the goal-end gates of AGENTS.md
-   § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes request-aware-editor` and
-   `bun nv ci --check`. Then move each decision only this file holds to its rule or module doc,
-   delete the goal file, and write `DONE`.
+**The goal is reached.** The driver runs the acceptance and the floor, and then retires this file.
+If an acceptance check is red, fix what it names and claim `DONE` again.
 
 ### Backlog
 
-- A printed test sends every recorded request header but the ones a replay leaves out, `Host` and `Accept-Encoding` included, and an empty request body is sent as no body (`crates/nvs-cli/src/debug/to_test.rs`, `sent_headers`, `print`).
 - The viewer's Make a test dialog has no browser test yet (`viewer/src/views/to-test.tsx`, `viewer/test/`).
-- A query lens's newest request is the newest by `requests.id`, and its figures count every `query` event of that request's trace at the site, so two recorded requests that share one trace id are counted together (`crates/nvs-lsp/src/recorded.rs`, `at_site`).
-- The lens's viewer address is the program tree's `[debug] listen`, and `nvs debug` reads its working directory's tree, so a service started elsewhere with another address gives a click that opens the wrong page (`crates/nvs-lsp/src/server.rs`, `viewer_of`).
-- `$db->query(...)`, a callable reference to a `Core` member with an options bag, panics the lowering: `CheckedTy::CoreShape` is erased as one value (`crates/nvs-ir/src/lower/mod.rs:5161`, reached from `anon_fn::lower_callable`). Every query member has a bag, so the thunk's zero site id has no test yet (`crates/nvs-ir/tests/query_sites.rs`).
-- A query site's line is where the call expression starts, so `$db\n->query(...)` names the receiver's line (`Lowering::query_site_constant`).
-- A taint path does not join branches: after an `if` that assigns in one arm, a read shows the last write the walk reached (`crates/nvs-types/src/provenance.rs`, `assign`).
-- A taint path does not follow a property write, so a later read of the property starts at its declared type. A captured variable in an anonymous function records no path (`crates/nvs-types/src/provenance.rs`, `read`).
-- The grants hover resolves the tree for the hovered file. A handler in a file the program autoloads from another directory reads that directory's `nvs.toml`, not the entry's (`crates/nvs-lsp/src/grants.rs`, `of_program`).
-- The grants hover lists the `[capabilities]` roster only. `net.internal`'s exceptions and an extension's own `grants` are not shown (`crates/nvs-lsp/src/grants.rs`, `list`).
-
-- A filtered coverage run replaces its program's kept report, so the lens counts only the tests that run covered until a whole-program coverage run (`editors/vscode/src/tests.ts`, `keep`).
-- The client does not ask the server to refresh its lenses after a coverage run, so a new count shows at the next edit or editor switch (`editors/vscode/src/tests.ts`, `keep`).
-- A graph count with "at least" reads "at least 0 tests" where no test reaches the method. The rule words it so, and a later change may drop the prefix on a zero (`crates/nvs-lsp/src/server.rs`, `used_by`).
-- A test count read from a coverage report is as old as that run; the next coverage run refreshes it (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
-- `nvs dap` answers no `evaluate` for watch and hover expressions, and no rule asks for it. A goal that wants it writes it into the rule first (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
-- A breakpoint condition that calls a pure `Core` function needs a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
-- An `inout` by-reference variable has no debug slot, so a stopped frame does not list it. The adapter can read it through its staged cell (`crates/nvs-ir/src/lower/mod.rs:2602`).
 - No test checks the name the call stack gives an anonymous function's frame (`crates/nvs-cli/tests/debugger.rs:241`).
-- `nvs dap` sends `exited` once every holder of the program's pipes closes them, so a child process the program left running delays it (`crates/nvs-cli/src/dap/mod.rs:223`).
+- A graph count with "at least" reads "at least 0 tests" where no test reaches the method (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
+- `nvs dap` answers no `evaluate`, and a breakpoint condition cannot call a pure `Core` function; no rule asks for either (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
+- Nine socket-deadline tests fail while another loop loads the tree: five in `crates/nvs-stdlib/tests/ldap.rs`, three in `crates/nvs-stdlib/src/http/transport.rs`, and `serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core` (`docs/agent/testing.md`).
