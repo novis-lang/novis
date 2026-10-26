@@ -569,8 +569,9 @@ pub(crate) fn run(
 
     // `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`: a development
     // server that records starts the debug service, and dropping the handle stops it. A production
-    // server never does. Started before any socket is bound, so the child inherits no listener.
-    let _debug = (started_in == nvs_config::mode::DEVELOPMENT
+    // server never does. Started before any socket is bound, so the child inherits no listener,
+    // and told the address it may replay to once they are.
+    let mut debug = (started_in == nvs_config::mode::DEVELOPMENT
         && nvs_config::Request::new(Arc::clone(&snapshot)).debug_store())
     .then(|| crate::debug::Child::start(config))
     .flatten();
@@ -586,6 +587,11 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    if let (Some(debug), Some(addr)) =
+        (debug.as_mut(), bound.iter().find_map(Socket::replay_target))
+    {
+        debug.target(addr);
+    }
     // What stops this process, armed before anything is serving: from here a
     // `SIGTERM`, a Ctrl-C or a console closing is
     // `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain rather
@@ -2685,6 +2691,25 @@ impl Socket {
                     || "an unnamed Unix-domain socket".to_owned(),
                     |path| format!("unix:{}", path.display()),
                 ),
+        }
+    }
+
+    /// The address a replay from the debug viewer is sent to: a bound port, with an unspecified
+    /// address replaced by the loopback address of its family. `None` for a Unix-domain socket.
+    fn replay_target(&self) -> Option<std::net::SocketAddr> {
+        match self {
+            Self::Tcp(socket) => {
+                let mut addr = socket.local_addr().ok()?;
+                if addr.ip().is_unspecified() {
+                    addr.set_ip(match addr {
+                        std::net::SocketAddr::V4(_) => std::net::Ipv4Addr::LOCALHOST.into(),
+                        std::net::SocketAddr::V6(_) => std::net::Ipv6Addr::LOCALHOST.into(),
+                    });
+                }
+                Some(addr)
+            }
+            #[cfg(unix)]
+            Self::Unix(_) => None,
         }
     }
 

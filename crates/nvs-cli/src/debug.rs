@@ -35,6 +35,11 @@
 //! reused. A child that finds the lock held exits quietly: the server then uses the service that
 //! is already running.
 //!
+//! **A server's child knows where to replay.** Once its sockets are bound, the server writes the
+//! first TCP address it answers on as one line on that same pipe ([`Child::target`]), and the
+//! service keeps it as its [`Target`], the one address `POST /api/replay` sends to. A service
+//! started by hand, or a server that binds only a Unix-domain socket, has none.
+//!
 //! **The loop waits on one channel.** Between two passes the loop waits on a channel of
 //! [`Signal`]s, so the parent's end and the viewer's discard of the index each wake it at once. A
 //! discard drops the loop's connection, deletes the file and creates it again
@@ -50,6 +55,7 @@ pub(crate) mod exceptions;
 pub(crate) mod index;
 pub(crate) mod ingest;
 pub(crate) mod listen;
+pub(crate) mod replay;
 pub(crate) mod search;
 pub(crate) mod secure;
 pub(crate) mod settings;
@@ -59,9 +65,11 @@ pub(crate) mod tail;
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions, TryLockError};
+use std::io::{BufRead as _, Write as _};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::process::{ExitCode, Stdio};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, OnceLock, mpsc};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use nvs_config::{Quantity, Reading, Unit};
@@ -181,8 +189,15 @@ impl Args {
             }
         };
         let (signal, signals) = mpsc::channel();
+        let target = Target::default();
         if !self.once {
-            match listen::start(&listen, folder, Arc::clone(&watermark), signal.clone()) {
+            match listen::start(
+                &listen,
+                folder,
+                Arc::clone(&watermark),
+                signal.clone(),
+                Arc::clone(&target),
+            ) {
                 Ok(link) => eprintln!("the debug viewer is at {link}"),
                 Err(message) if self.parent => eprintln!("warning: {message}"),
                 Err(message) => {
@@ -192,7 +207,7 @@ impl Args {
             }
         }
         if self.parent {
-            parent_gone(signal.clone());
+            parent_gone(signal.clone(), target);
         }
         let mut service = Service {
             index,
@@ -210,11 +225,23 @@ impl Args {
     }
 }
 
-/// Sends [`Signal::Gone`] once standard input reaches its end, which is the parent closing the
-/// pipe or ending.
-fn parent_gone(signal: mpsc::Sender<Signal>) {
+/// The address a development server gave its child, the one place a replay is sent
+/// (`rule:testing/two-requests-compare-and-a-replay-asks-first`). Empty for a service started by
+/// hand.
+pub(crate) type Target = Arc<OnceLock<SocketAddr>>;
+
+/// Keeps the parent's first line as `target`, then sends [`Signal::Gone`] once standard input
+/// reaches its end, which is the parent closing the pipe or ending.
+fn parent_gone(signal: mpsc::Sender<Signal>, target: Target) {
     std::thread::spawn(move || {
-        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+        let mut stdin = std::io::stdin().lock();
+        let mut line = String::new();
+        if stdin.read_line(&mut line).is_ok_and(|read| read > 0) {
+            if let Ok(addr) = line.trim().parse() {
+                let _ = target.set(addr);
+            }
+            let _ = std::io::copy(&mut stdin, &mut std::io::sink());
+        }
         let _ = signal.send(Signal::Gone);
     });
 }
@@ -262,6 +289,15 @@ impl Child {
                 eprintln!("warning: cannot start `nvs debug`: {err}");
                 None
             }
+        }
+    }
+
+    /// Tells the service the address this server answers on, its one replay target. A child that
+    /// found another service running has ended, and the write fails without a word.
+    pub(crate) fn target(&mut self, addr: SocketAddr) {
+        if let Some(stdin) = self.0.stdin.as_mut() {
+            let _ = writeln!(stdin, "{addr}");
+            let _ = stdin.flush();
         }
     }
 }

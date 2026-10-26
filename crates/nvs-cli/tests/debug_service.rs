@@ -44,6 +44,8 @@ struct Served {
     data: nvs_repo::Scratch,
     /// Everything the server and its child write to standard error, once both have closed it.
     stderr: mpsc::Receiver<String>,
+    /// Each link the service prints to its viewer.
+    viewer: mpsc::Receiver<String>,
 }
 
 impl Served {
@@ -76,11 +78,18 @@ impl Served {
                 }
             }
         });
-        let mut err = child.stderr.take().expect("standard error is piped");
+        let err = child.stderr.take().expect("standard error is piped");
         let (said, stderr) = mpsc::channel();
+        let (linked, viewer) = mpsc::channel();
         thread::spawn(move || {
             let mut text = String::new();
-            let _ = err.read_to_string(&mut text);
+            for line in BufReader::new(err).lines().map_while(Result::ok) {
+                if let Some(link) = line.strip_prefix("the debug viewer is at ") {
+                    let _ = linked.send(link.to_owned());
+                }
+                text.push_str(&line);
+                text.push('\n');
+            }
             let _ = said.send(text);
         });
         let Ok(addr) = bound.recv_timeout(PATIENCE) else {
@@ -94,23 +103,28 @@ impl Served {
             dir,
             data,
             stderr,
+            viewer,
         }
     }
 
     /// The whole answer to `GET path`, which closes the connection.
     fn get(&self, path: &str) -> String {
-        let mut stream = TcpStream::connect(self.addr).expect("the server answers");
-        stream
-            .set_read_timeout(Some(PATIENCE))
-            .expect("a read timeout is set");
-        let request =
-            format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
-        stream
-            .write_all(request.as_bytes())
-            .expect("the request is sent");
-        let mut answer = Vec::new();
-        stream.read_to_end(&mut answer).expect("an answer arrives");
-        String::from_utf8_lossy(&answer).into_owned()
+        exchange(
+            self.addr,
+            &format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
+        )
+    }
+
+    /// The address of the viewer the server's service printed.
+    fn viewer(&self) -> SocketAddr {
+        let link = self
+            .viewer
+            .recv_timeout(PATIENCE)
+            .expect("the service prints its viewer's link");
+        link.trim_start_matches("http://")
+            .trim_end_matches('/')
+            .parse()
+            .expect("the link names an address")
     }
 
     fn debug(&self) -> PathBuf {
@@ -136,6 +150,39 @@ impl Drop for Served {
     }
 }
 
+/// The whole answer to `request`, sent as written to `addr`, which closes the connection.
+fn exchange(addr: SocketAddr, request: &str) -> String {
+    let mut stream = TcpStream::connect(addr).expect("the address answers");
+    stream
+        .set_read_timeout(Some(PATIENCE))
+        .expect("a read timeout is set");
+    stream
+        .write_all(request.as_bytes())
+        .expect("the request is sent");
+    let mut answer = Vec::new();
+    stream.read_to_end(&mut answer).expect("an answer arrives");
+    String::from_utf8_lossy(&answer).into_owned()
+}
+
+/// Whether any file under `dir` has `needle` in its bytes.
+fn found_under(dir: &Path, needle: &[u8]) -> Option<PathBuf> {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        let hit = if path.is_dir() {
+            found_under(&path, needle)
+        } else {
+            std::fs::read(&path)
+                .ok()
+                .filter(|bytes| bytes.windows(needle.len()).any(|w| w == needle))
+                .map(|_| path)
+        };
+        if hit.is_some() {
+            return hit;
+        }
+    }
+    None
+}
+
 /// What the program echoed, before the dump `development` renders into the page.
 fn echoed(answer: &str) -> &str {
     let (_, body) = answer.split_once("\r\n\r\n").expect("an answer has a head");
@@ -144,13 +191,20 @@ fn echoed(answer: &str) -> &str {
 
 /// The trace id in an answer's `traceresponse` header.
 fn trace_of(answer: &str) -> String {
+    traced(answer).0
+}
+
+/// The trace id and span id in an answer's `traceresponse` header.
+fn traced(answer: &str) -> (String, String) {
     answer
         .lines()
         .find_map(|line| {
             let (name, value) = line.split_once(':')?;
-            name.eq_ignore_ascii_case("traceresponse")
-                .then(|| value.trim().split('-').nth(1).map(str::to_owned))
-                .flatten()
+            if !name.eq_ignore_ascii_case("traceresponse") {
+                return None;
+            }
+            let mut parts = value.trim().split('-');
+            Some((parts.nth(1)?.to_owned(), parts.next()?.to_owned()))
         })
         .unwrap_or_else(|| panic!("no traceresponse header: {answer}"))
 }
@@ -245,6 +299,70 @@ fn a_development_server_starts_the_service_and_its_requests_reach_the_index() {
     let stderr = served.stop();
     assert!(stderr.contains(STARTED), "{stderr}");
     drop(locked(&served.debug().join("service.lock")));
+}
+
+/// A replay from the viewer reaches the server that started the service, as a request of its own
+/// trace, and the value typed for a redacted header is in no file of the data folder or the
+/// program's directory once that request is in the index
+/// (`rule:testing/two-requests-compare-and-a-replay-asks-first`).
+#[test]
+fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
+    const TYPED: &str = "typed-only-in-the-dialog";
+    let served = Served::start(
+        "replay",
+        &format!("{DEVELOPMENT}\n[debug]\nstore = true\nlisten = \"127.0.0.1:0\"\n"),
+    );
+    let viewer = served.viewer();
+    let answer = exchange(
+        served.addr,
+        "GET /orders?page=2 HTTP/1.1\r\nHost: localhost\r\n\
+         Authorization: Bearer recorded-value\r\nConnection: close\r\n\r\n",
+    );
+    assert_eq!(echoed(&answer), "/orders", "{answer}");
+    let (trace, span) = traced(&answer);
+    let index = served.debug().join("index.sqlite");
+    index_answers(
+        &index,
+        &format!(
+            "SELECT count(*) FROM requests r JOIN inputs i ON i.request = r.id \
+             WHERE r.trace = '{trace}' AND r.span = '{span}'"
+        ),
+        1,
+    );
+
+    let body = format!(
+        "{{\"trace\":\"{trace}\",\"span\":\"{span}\",\
+         \"headers\":{{\"Authorization\":\"Bearer {TYPED}\"}}}}"
+    );
+    let replayed = exchange(
+        viewer,
+        &format!(
+            "POST /api/replay HTTP/1.1\r\nHost: {viewer}\r\nOrigin: http://{viewer}\r\n\
+             Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n\
+             {body}",
+            body.len()
+        ),
+    );
+    let (head, json) = replayed
+        .split_once("\r\n\r\n")
+        .expect("an answer has a head");
+    assert!(head.starts_with("HTTP/1.1 200"), "{replayed}");
+    let json: serde_json::Value = serde_json::from_str(json).expect("the answer is JSON");
+    assert_eq!(json["status"], 200, "{json}");
+    let again = json["trace"].as_str().expect("the replay names its trace");
+    assert_ne!(again, trace, "a replay has a trace id of its own");
+    index_answers(
+        &index,
+        &format!(
+            "SELECT count(*) FROM requests r JOIN inputs i ON i.request = r.id \
+             WHERE r.trace = '{again}' AND r.path = '/orders' AND i.query = 'page=2' \
+             AND i.headers LIKE '%[redacted]%'"
+        ),
+        1,
+    );
+    for dir in [&*served.data, served.dir.as_path()] {
+        assert_eq!(found_under(dir, TYPED.as_bytes()), None);
+    }
 }
 
 /// A production server never starts the service, though `store` on records its requests.

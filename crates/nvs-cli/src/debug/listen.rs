@@ -23,9 +23,10 @@
 //! read blocks its own thread's write and nothing else, and a number it missed is replaced by the
 //! next one, so nothing buffers.
 //!
-//! **A body is read only once the checks pass.** `PUT /api/settings` is the one route with a body,
-//! and it is read up to [`settings::BODY_MAX`] after the host, the origin and the token are
-//! admitted. A longer body is a `413`.
+//! **A body is read only once the checks pass.** A `PUT` or `POST` body is read up to
+//! [`settings::BODY_MAX`] after the host, the origin and the token are admitted. A longer body is a
+//! `413`. `POST /api/replay` sends to the [`super::Target`] the service was given, never to an
+//! address in its body ([`replay`]).
 //!
 //! **What it spends:** a thread per open connection, at most [`MAX_CONNECTIONS`], each with its
 //! connection's buffers and the stack `std` gives a thread, and while a settings body is read, that
@@ -48,11 +49,11 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 
-use super::Signal;
 use super::api::Api;
 use super::secure::Secure;
 use super::settings::{self, Store};
-use super::{exceptions, search, source, stream};
+use super::{Signal, Target};
+use super::{exceptions, replay, search, source, stream};
 use crate::viewer;
 
 /// The most connections served at once. A browser opens at most six to one address, so this covers
@@ -98,12 +99,14 @@ pub(crate) struct Listen {
 }
 
 /// Binds `listen`, starts the thread that accepts on it, and answers the link to print. The error
-/// is the message to print. `signal` reaches the ingest loop, for `POST /api/index/discard`.
+/// is the message to print. `signal` reaches the ingest loop, for `POST /api/index/discard`, and
+/// `target` is where `POST /api/replay` sends.
 pub(crate) fn start(
     listen: &Listen,
     folder: &nvs_config::data::Folder,
     watermark: Arc<Watermark>,
     signal: mpsc::Sender<Signal>,
+    target: Target,
 ) -> Result<String, String> {
     let wanted: SocketAddr = listen.addr.parse().map_err(|_| {
         format!(
@@ -144,6 +147,7 @@ pub(crate) fn start(
         watermark,
         api,
         settings: Store::new(folder.viewer_settings()),
+        target,
     });
     std::thread::Builder::new()
         .name("nvs-debug-accept".to_owned())
@@ -218,13 +222,14 @@ fn connection(stream: TcpStream, site: &Site) {
 }
 
 /// What every connection shares: the bound address, the off-loopback secrets, the watermark, the
-/// index's read connection and the settings file.
+/// index's read connection, the settings file and the replay target.
 struct Site {
     addr: SocketAddr,
     secure: Option<Secure>,
     watermark: Arc<Watermark>,
     api: Api,
     settings: Store,
+    target: Target,
 }
 
 impl Site {
@@ -234,7 +239,7 @@ impl Site {
         let request = Request::from_parts(parts, ());
         let mut response = match self.refused(&request) {
             Some(refused) => refused,
-            None if *request.method() == Method::PUT => {
+            None if matches!(*request.method(), Method::PUT | Method::POST) => {
                 match read_body(incoming, settings::BODY_MAX).await {
                     Some(body) => self.route(&request, &body),
                     None => text(
@@ -339,6 +344,9 @@ impl Site {
             "/api/settings" if reads => api(self.settings.get()),
             "/api/settings" if *method == Method::PUT => api(self.settings.put(body)),
             "/api/index/discard" if *method == Method::POST => api(self.api.discard()),
+            "/api/replay" if *method == Method::POST => {
+                api(replay::replay(&self.api, self.target.get().copied(), body))
+            }
             _ if path.starts_with("/api/") => json(
                 StatusCode::NOT_FOUND,
                 "{\"error\":\"There is no such API path.\"}",

@@ -242,9 +242,10 @@ fn a_changing_request_needs_the_own_origin_and_a_json_body() {
     assert_eq!(form.status, 415);
     let allowed = service.plain(&post(&host, &format!("{own}{json}")));
     assert_eq!(
-        allowed.status, 404,
-        "every check passed, and the path is not one the API has"
+        allowed.status, 409,
+        "every check passed, and a service started by hand has no replay target"
     );
+    assert!(allowed.body.contains("started by hand"), "{}", allowed.body);
     let read = service.plain(&get("/", &host, "Origin: http://attacker.example\r\n"));
     assert_eq!(
         read.status, 403,
