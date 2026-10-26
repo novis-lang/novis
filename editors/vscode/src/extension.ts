@@ -67,7 +67,7 @@ import { changeParams, reaction, SECTION } from "./settings";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
 import { Shadow, Stamp, Watch, stamp } from "./shadow";
-import { stubsDirectory, withStubs } from "./stubs";
+import { coverageDirectory, stubsDirectory, withCoverage, withStubs } from "./stubs";
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
@@ -82,10 +82,16 @@ import { refusal } from "./version";
 // The commands the server may put on a completion item or a lens. An accepted class writes `Name::`
 // and the list of its static members opens at once, and an accepted class after `new` writes
 // `Name()` and signature help opens between the parentheses. A lens runs `nvs.showLocations` with
-// the places it counts. The first two are this editor's commands, and the third is registered
-// below. The server names one only to a client that listed it here: another editor would answer an
-// id it does not know with an error on every accepted item and every click.
-const EDITOR_COMMANDS = ["editor.action.triggerSuggest", "editor.action.triggerParameterHints", "nvs.showLocations"];
+// the places it counts, and a "used by" lens runs `nvs.runTests` with the tests that reach its
+// method. The first two are this editor's commands, `nvs.showLocations` is registered below and
+// `nvs.runTests` in `tests.ts`. The server names one only to a client that listed it here: another
+// editor would answer an id it does not know with an error on every accepted item and every click.
+const EDITOR_COMMANDS = [
+  "editor.action.triggerSuggest",
+  "editor.action.triggerParameterHints",
+  "nvs.showLocations",
+  "nvs.runTests",
+];
 
 const editorCommands: StaticFeature = {
   fillClientCapabilities(capabilities: ClientCapabilities): void {
@@ -501,7 +507,9 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
   // One key is filled in on the way: `nvs.stubs.dir`, where the server writes the `Core` stub tree
   // a jump opens. A user who named none gets a directory of this extension's own storage, per
   // server version, which is `stubs.ts`'s reasoning; the server takes whatever arrives and falls
-  // back to a cache directory only for a client that sent nothing at all.
+  // back to a cache directory only for a client that sent nothing at all. A second key is always
+  // filled, because it is no user setting: `coverage.dir`, where `tests.ts` keeps each program's last
+  // coverage report for the "used by" lens to read.
   //
   // Two middlewares. The first is an ordering: `redactions.opened` asks what a document conceals,
   // and it is called from behind the `didOpen` it belongs to because the server answers nothing for
@@ -512,9 +520,12 @@ async function launch(context: ExtensionContext, command: string): Promise<Langu
   const options: LanguageClientOptions = {
     documentSelector: SELECTOR,
     outputChannel: channel,
-    initializationOptions: withStubs(
-      workspace.getConfiguration().get<object>(SECTION),
-      stubsDirectory(context.globalStorageUri.fsPath, version(context)),
+    initializationOptions: withCoverage(
+      withStubs(
+        workspace.getConfiguration().get<object>(SECTION),
+        stubsDirectory(context.globalStorageUri.fsPath, version(context)),
+      ),
+      coverageDirectory((context.storageUri ?? context.globalStorageUri).fsPath),
     ),
     middleware: {
       didOpen: async (document, next) => {

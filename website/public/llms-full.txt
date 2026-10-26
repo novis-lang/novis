@@ -58524,6 +58524,16 @@ caller of the route's handler. This works when the method and the path are writt
 Some calls are not shown. A call through a `callable` value is not shown. A call on a `mixed` value is
 not shown either. The editor cannot know which method such a call runs.
 
+#### The routes and tests that use a method
+
+Above a method, a lens shows how many routes and tests use it, for example `used by 2 routes, 3 tests`.
+Click the lens to run those tests. In VS Code, the results appear in the Test Results view.
+
+After you run a program's tests with **Run with Coverage**, the test count comes from that run. It
+counts the tests that ran a line of the method. Until then, the count is read from the code, and the
+lens shows `(static)`. A count that starts with `at least` may be too low. A call through a
+`callable` value or a `mixed` value may also reach the method.
+
 #### What it does not answer
 
 The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,

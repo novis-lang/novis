@@ -23,16 +23,28 @@
 // case file and the exit status is the verdict. Nothing here parses a human rendering to recover a
 // field the JSON should have carried.
 //
+// **A coverage run's report is kept for the server.** The same run prints its JSON report, whose
+// records list the lines each test reached. It is written to the coverage directory the server is
+// named in `initializationOptions` (`src/stubs.ts`), one file per program, and the next coverage run
+// of that program replaces it. Its file names are made absolute first, and it is written beside the
+// tracefile and renamed into place, so the server never reads half of one. That is where the
+// "used by" lens above a method counts the tests that reached it.
+//
+// **A lens click runs tests through the Run profile.** `nvs.runTests` takes the tests a "used by"
+// lens names, as `Class::method`, and starts the Run profile over the leaves they match, so the
+// result is the editor's own filtered run in the Test Results view.
+//
 // What a document *means* is `src/report.ts`, which imports no `vscode` and is where the headless
 // suite tests it. What is left here is the controller, the processes and the editor's run object.
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import {
   BranchCoverage,
   CancellationToken,
+  CancellationTokenSource,
   DeclarationCoverage,
   ExtensionContext,
   FileCoverage,
@@ -44,20 +56,25 @@ import {
   TestItem,
   TestMessage,
   TestRun,
+  TestRunProfile,
   TestRunProfileKind,
   TestRunRequest,
   Uri,
+  commands,
   tests,
   workspace,
 } from "vscode";
 
 import { binary, runnable } from "./binary";
+import { coverageDirectory } from "./stubs";
 import {
   Listed,
   Reported,
   Traced,
   cases,
   filter,
+  kept,
+  keptName,
   listed,
   messages,
   name,
@@ -93,11 +110,15 @@ const details = new WeakMap<FileCoverage, FileCoverageDetail[]>();
 // The extension's own storage directory, where each coverage run writes its tracefile and deletes it.
 let storage = "";
 
+// Where each program's last coverage report is kept for the server, under `storage`.
+let reports = "";
+
 /** Create the controller, and let the editor decide when to fill it. */
 export function install(context: ExtensionContext): void {
   const controller = tests.createTestController(CONTROLLER, "Novis");
   context.subscriptions.push(controller);
   storage = (context.storageUri ?? context.globalStorageUri).fsPath;
+  reports = coverageDirectory(storage);
   // Both are the same pass: the editor calls the first when the view opens with nothing resolved,
   // and the second when the user presses refresh.
   controller.resolveHandler = async (item?: TestItem): Promise<void> => {
@@ -106,21 +127,64 @@ export function install(context: ExtensionContext): void {
     }
   };
   controller.refreshHandler = (): Promise<void> => discover(controller);
-  controller.createRunProfile(
+  const running = controller.createRunProfile(
     "Run",
     TestRunProfileKind.Run,
     (request: TestRunRequest, token: CancellationToken) =>
-      void perform(controller, request, token, false),
+      perform(controller, request, token, false),
     true,
   );
   const coverage = controller.createRunProfile(
     "Run with Coverage",
     TestRunProfileKind.Coverage,
     (request: TestRunRequest, token: CancellationToken) =>
-      void perform(controller, request, token, true),
+      perform(controller, request, token, true),
     true,
   );
   coverage.loadDetailedCoverage = async (_run, file) => details.get(file) ?? [];
+  context.subscriptions.push(
+    commands.registerCommand("nvs.runTests", (wanted: unknown) =>
+      runTests(controller, running, wanted),
+    ),
+  );
+}
+
+/**
+ * Run the tests a "used by" lens names, each as `Class::method`, through the Run profile.
+ *
+ * The tree is discovered first when it was never filled. A name that matches no leaf is skipped,
+ * and a click that matches none starts no run.
+ */
+async function runTests(
+  controller: TestController,
+  profile: TestRunProfile,
+  wanted: unknown,
+): Promise<void> {
+  if (!Array.isArray(wanted)) {
+    return;
+  }
+  const names = wanted.filter((test): test is string => typeof test === "string");
+  if (known.size === 0) {
+    await discover(controller);
+  }
+  const matched: TestItem[] = [];
+  const walk = (item: TestItem): void => {
+    if (item.children.size > 0) {
+      item.children.forEach(walk);
+    } else if (names.some((test) => item.id.endsWith(`::${test}`))) {
+      matched.push(item);
+    }
+  };
+  controller.items.forEach(walk);
+  if (matched.length === 0) {
+    return;
+  }
+  const source = new CancellationTokenSource();
+  try {
+    await profile.runHandler(new TestRunRequest(matched, undefined, profile), source.token);
+  } finally {
+    source.dispose();
+  }
 }
 
 /**
@@ -244,13 +308,36 @@ async function program(run: TestRun, uri: Uri, items: TestItem[], coverage: bool
   const scratch = await mkdtemp(join(storage, "coverage-"));
   try {
     const tracefile = join(scratch, "coverage.lcov");
-    answer(run, items, await cli([...asked, "--coverage-lcov", tracefile], folder));
+    const document = await cli([...asked, "--coverage-lcov", tracefile], folder);
+    answer(run, items, document);
+    await keep(uri, folder, scratch, document?.stdout);
     const files = traced(await readFile(tracefile, "utf8").catch(() => ""));
     for (const trace of files ?? []) {
       run.addCoverage(covered(Uri.file(resolve(folder, trace.file)), trace));
     }
   } finally {
     await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Keep a coverage run's JSON report for the server: its file names resolved against `folder`,
+ * written into `scratch` and renamed over the program's previous report. A document that is not a
+ * coverage report is not kept, and a report that cannot be written leaves the previous one.
+ */
+async function keep(uri: Uri, folder: string, scratch: string, stdout?: string): Promise<void> {
+  const report = stdout === undefined ? undefined : kept(stdout, folder);
+  if (report === undefined) {
+    return;
+  }
+  const name = keptName(uri.fsPath);
+  const partial = join(scratch, name);
+  try {
+    await mkdir(reports, { recursive: true });
+    await writeFile(partial, report, "utf8");
+    await rename(partial, join(reports, name));
+  } catch {
+    // The run's verdicts and coverage are already shown, and the lens counts from the code.
   }
 }
 

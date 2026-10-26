@@ -15,6 +15,13 @@
 // Nothing here imports `vscode`, for the reason `src/nodes.ts` gives: the headless tier runs it in
 // plain Node, and a decision whose test needs a display is a decision nobody tests. What is left in
 // `src/tests.ts` is the controller, the processes and the editor's own run object.
+//
+// A coverage run's JSON report is also kept for the server's "used by" lens
+// (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`): `kept` makes its file names
+// absolute and `keptName` is the one file per program it is written to. Neither reads the disk.
+
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 
 /** Where a test is written, as version 2 of the schema reports it — `null` in all three when the compiler could not place it. */
 export interface Located {
@@ -332,6 +339,55 @@ export function statements(trace: Traced): Covered[] {
     held.branches.push({ count: branch.count, label });
   }
   return [...covered.values()].sort((a, b) => a.line - b.line);
+}
+
+/**
+ * The report a coverage run keeps for the server's "used by" lens, or nothing when `text` is not a
+ * run of `schemaVersion` 3 or later.
+ *
+ * Each record's `coverage` names files relative to the directory the run started in, and the
+ * server resolves a relative name against its workspace root, which is not always that directory.
+ * So every key is resolved against `folder` here, and the lines under it are kept as they are.
+ */
+export function kept(text: string, folder: string): string | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const document = value as Record<string, unknown>;
+  const version = document.schemaVersion;
+  if (typeof version !== "number" || version < COVERED || !Array.isArray(document.tests)) {
+    return undefined;
+  }
+  const tests = document.tests.map((test: unknown) => {
+    if (typeof test !== "object" || test === null) {
+      return test;
+    }
+    const record = test as Record<string, unknown>;
+    const reached = record.coverage;
+    if (typeof reached !== "object" || reached === null || Array.isArray(reached)) {
+      return record;
+    }
+    const absolute = Object.fromEntries(
+      Object.entries(reached).map(([file, lines]) => [resolve(folder, file), lines]),
+    );
+    return { ...record, coverage: absolute };
+  });
+  return JSON.stringify({ ...document, tests });
+}
+
+/**
+ * The file name a program's kept report is written under: the first 16 hex digits of the sha256 of
+ * its path, then `.json`. The same program always gets the same name, so its next coverage run
+ * replaces the report and the directory holds one report per program.
+ */
+export function keptName(program: string): string {
+  return `${createHash("sha256").update(program).digest("hex").slice(0, 16)}.json`;
 }
 
 /** A field that is a whole number of zero or more, or nothing when it is not one. */
