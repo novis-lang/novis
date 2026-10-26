@@ -1,0 +1,5 @@
+assets bce30ba45c4d2fad
+
+timeline main.nvs
+  Fibonacci::square	10 calls
+  Fibonacci::at	1973 calls

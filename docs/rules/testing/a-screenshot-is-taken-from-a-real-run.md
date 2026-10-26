@@ -1,8 +1,9 @@
 A screenshot on a website page is taken from a real run by `bun nv site --shoot`, and nothing else
 writes one. A hand-written `.shot` names an app under `apps/`, the requests to send it, and the steps
 to take in the browser: open an address, click, type and wait. The command serves the app in
-development with `[debug] store` on, sends the requests, starts `nvs debug`, takes the steps with
-Playwright, and writes the picture beside the `.shot` with a `.shot.out`.
+development with `[debug] store` on, so the server starts `nvs debug`, sends the requests, and takes
+the steps in the Chromium headless shell Playwright pins, over the DevTools protocol. It writes the
+picture beside the `.shot` as a `.png`, with a `.shot.out`.
 
 The `.shot.out` is what the picture shows, as text: the page's visible text with every duration, date,
 trace id and port masked, and the hash of the viewer's built assets. `bun nv site --check shots` runs

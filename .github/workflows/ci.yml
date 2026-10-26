@@ -488,6 +488,32 @@ jobs:
       - name: Website stale guard
         run: bun nv site --check structure snippets stale questions prose --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
+      # Every website screenshot taken again from a real run against the same binary, and its
+      # `.shot.out` compared (`rule:testing/a-screenshot-is-taken-from-a-real-run`). Linux only, like
+      # the `browser` job: the text a page shows is the same on every host. A profile shot opens
+      # speedscope from the extension's packages, so those are installed, and `NV_BROWSER` turns a
+      # missing browser into a failure.
+      - name: Install Chromium
+        if: runner.os == 'Linux'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: "0"
+        run: node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        if: runner.os == 'Linux'
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install the extension's packages
+        if: runner.os == 'Linux'
+        working-directory: editors/vscode
+        run: npm ci --ignore-scripts
+      - name: Website screenshots
+        if: runner.os == 'Linux'
+        env:
+          NV_BROWSER: "1"
+        run: bun nv site --check shots --nvs target/proof/nvs
+
   # ---------------------------------------------------------------------------
   # The database matrix, against real servers rather than mocks, which is what
   # `rule:core-classes/db-one-api`'s *Verification* section asks for.

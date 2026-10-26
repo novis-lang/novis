@@ -13,6 +13,8 @@
 //                                          write each example app's copies under `website/public/
 //                                          example-apps/` from what its server returns now, and add each
 //                                          named `APP/FILE`
+//     bun nv site --shoot [SHOT...]        take each named `.shot`'s screenshot, or every one, and write
+//                                          its picture and its `.shot.out`
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
 //     bun nv site --roadmap                write README.md's roadmap list from website/src/data/roadmap.json
 //     bun nv site --roadmap --retired      drop the retired goals from roadmap.json, then write and commit
@@ -195,6 +197,36 @@
 // missing or that a new run does not match, a `.term.out` with no `.term`, and a `.term` no page
 // shows. `Terminal.astro` shows the block, and its copy button copies the commands alone.
 //
+// **A screenshot** is a `.shot` under `website/snippets/`, and only `--shoot` takes its picture
+// (`rule:testing/a-screenshot-is-taken-from-a-real-run`). It is hand-written, one step per line. A
+// viewer shot names an app under `apps/`, the requests sent to it, and the steps taken in the viewer:
+//
+//     app notes
+//     request GET /api/notes
+//     request POST /notes title=First
+//     open /
+//     wait .requests .route
+//     click .requests .route
+//     type input[type=search] home
+//
+// `request METHOD PATH [BODY]` sends BODY as a form. The first step is `open PATH`, a path of the
+// viewer; `wait`, `click` and `type` take a CSS selector, and `type` the text after it. The app is
+// copied without its database, served in development with `[debug] store` on, so the server starts
+// `nvs debug`, and the steps are taken once the viewer lists every request (`lib/shoot.ts`). A profile
+// shot is one line, `profile main.nvs`: the program in the directory beside the `.shot` with its name
+// and no extension, run with `--profile=speedscope` in a copy of it and opened in the speedscope build
+// the VS Code extension bundles. A `.nvs` in that directory is what the shot runs, and is not a
+// snippet. Every shot is taken in a 1280 by 800 window.
+//
+// The picture is the `.png` beside the `.shot` with its name. The `.shot.out` is `assets HASH`, a blank
+// line and what the picture shows as text. HASH is over the files the page draws with: `viewer/dist/`
+// or the speedscope release. A viewer shot's text is the page's visible text with `lib/term.ts`'s masks
+// and a spaced duration and an age masked too. A profile shot's text is one `timeline NAME` block per
+// timeline of the export, with each frame and its number of calls and no time. `--check shots` takes
+// every shot again and fails on a `.shot.out` that is missing or differs, a missing picture, and a
+// `.shot.out` or `.png` with no `.shot`. The pixels are never compared. With no Chromium installed the
+// part prints a `skip` line, and with `NV_BROWSER` set that is a failure, as the browser suites do.
+//
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
 // roster's feature ids (`Core\Str::length`, `lang:statements/match`, `directive:server.dispatch`), and
@@ -236,8 +268,9 @@
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
-// (see `inDepthProblems`), `apps` (see `appsProblems`), `roadmap` (the roadmap is in step with the goal
-// chain and the README: `lib/site-roadmap.ts`) and `prose` (the countable bounds of AGENTS.md
+// (see `inDepthProblems`), `apps` (see `appsProblems`), `shots` (§ *A screenshot*), `roadmap` (the
+// roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`) and `prose` (the
+// countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
 // joining two sentences, and no paragraph over six sentences). The legal pages are kept out of `prose`,
 // since their wording is the law's.
@@ -255,6 +288,7 @@ import { rel, ROOT } from "../lib/paths.ts";
 import { parseDap, recordDap } from "../lib/dap-replay.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
+import { canShoot, recordShot, SHOT, SHOT_OUT, SHOT_PNG, shotFixture, shotPng } from "../lib/shoot.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { styleProblems } from "../lib/site-css.ts";
@@ -266,7 +300,7 @@ import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -276,7 +310,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "roadmap", "prose"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "shots", "roadmap", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -888,8 +922,8 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
   for (const p of files.filter((f) => f.endsWith(`.${TERM_OUT}`))) {
     if (!terms.includes(p.slice(0, -".out".length))) problems.push(`${p}: a .${TERM_OUT} and no .${TERM} beside it`);
   }
-  // A program inside a terminal block's fixture is what the commands run on, not a snippet.
-  const fixtures = terms.map((t) => `${termFixture(t)}/`);
+  // A program inside a terminal block's or a shot's fixture is what it runs, not a snippet.
+  const fixtures = [...terms.map((t) => `${termFixture(t)}/`), ...files.filter((p) => p.endsWith(`.${SHOT}`)).map((s) => `${shotFixture(s)}/`)];
   const snippets = files.filter((p) => p.endsWith(".nvs") && !fixtures.some((f) => p.startsWith(f)));
   for (const p of snippets) {
     if (!used.has(p.slice(SNIPPETS.length + 1))) problems.push(`${p}: no page shows it`);
@@ -1444,6 +1478,80 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
   return failed ? 1 : 0;
 }
 
+/** Every `.shot` under `root`'s snippets, and the problems with the files beside them that need no run:
+ * a `.shot.out` or a `.png` with no `.shot`. */
+export function shotShape(root: string = ROOT): { shots: string[]; problems: string[] } {
+  const files = filesUnder(root, SNIPPETS);
+  const shots = files.filter((p) => p.endsWith(`.${SHOT}`));
+  const problems: string[] = [];
+  for (const p of files.filter((f) => f.endsWith(`.${SHOT_OUT}`))) {
+    if (!shots.includes(p.slice(0, -".out".length))) problems.push(`${p}: a .${SHOT_OUT} and no .${SHOT} beside it`);
+  }
+  for (const p of files.filter((f) => f.endsWith(`.${SHOT_PNG}`))) {
+    if (!shots.some((s) => shotPng(s) === p)) problems.push(`${p}: a picture and no .${SHOT} beside it`);
+  }
+  return { shots, problems };
+}
+
+/** The problems with one shot, given the `.shot.out` a new run records, the one on disk or null, and
+ * whether its picture exists. */
+export function shotVerdict(p: string, recording: string, onDisk: string | null, picture: boolean): string[] {
+  const shoot = `run \`bun nv site --shoot ${p}\``;
+  if (onDisk === null) return [`${p}: no .${SHOT_OUT} beside it; ${shoot}`];
+  const problems: string[] = [];
+  if (!same(recording, onDisk)) problems.push(`${p}: its .${SHOT_OUT} is not what the run shows now; ${shoot}`);
+  if (!picture) problems.push(`${p}: no ${shotPng(p).slice(p.lastIndexOf("/") + 1)} beside it; ${shoot}`);
+  return problems;
+}
+
+/** The `shots` part: § *A screenshot*. The shots run one after another, since each starts a server and a
+ * browser. */
+async function shotsProblems(nvs: string, root: string = ROOT): Promise<string[]> {
+  const { shots, problems } = shotShape(root);
+  if (shots.length && !canShoot()) {
+    console.log(`  skip  shots: no Chromium headless shell is installed, so ${shots.length} shot(s) are not taken`);
+    return problems;
+  }
+  for (const p of shots) {
+    const got = await recordShot(p, nvs, root);
+    if ("failure" in got) problems.push(got.failure);
+    else {
+      const out = `${p}.out`;
+      problems.push(...shotVerdict(p, got.recording, existsSync(join(root, out)) ? readAt(root, out) : null, existsSync(join(root, shotPng(p)))));
+    }
+  }
+  return problems;
+}
+
+/** `--shoot [SHOT...]`: each named shot, or every one, taken again, with its picture and its `.shot.out`
+ * written. */
+async function shoot(nvs: string, named: string[]): Promise<number> {
+  const { shots } = shotShape();
+  const bad = named.filter((p) => !shots.includes(p));
+  if (bad.length) {
+    console.error(`nv site: ${bad.join(", ")}: not a .${SHOT} under ${SNIPPETS}/`);
+    return 2;
+  }
+  if (!canShoot()) {
+    console.error("nv site: no Chromium headless shell is installed; tools/nv/test/chromium.ts says how to install it");
+    return 1;
+  }
+  let failed = 0;
+  for (const p of named.length ? named : shots) {
+    const got = await recordShot(p, nvs);
+    if ("failure" in got) {
+      console.log(`  FAIL  ${got.failure}`);
+      failed++;
+      continue;
+    }
+    writeFileSync(join(ROOT, shotPng(p)), got.png);
+    console.log(`  wrote  ${shotPng(p)} (${got.png.length} bytes)`);
+    blessWrite(`${p}.out`, got.recording);
+  }
+  if (!failed) console.log("nv site: look at each picture; a shot is a claim about what the tool shows.");
+  return failed ? 1 : 0;
+}
+
 /** The paragraphs of a page's prose: no front matter, code, imports, components, comments, tables or headings. */
 export function paragraphs(body: string): { line: number; text: string }[] {
   const out: { line: number; text: string }[] = [];
@@ -1835,6 +1943,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     } else if (nvs === null) problems = ["no `nvs` binary: build one, or pass --nvs"];
     else if (part === "snippets") problems = await snippetProblems(nvs);
     else if (part === "apps") problems = await appsProblems(nvs);
+    else if (part === "shots") problems = await shotsProblems(nvs);
     else if (part === "reference") {
       w ??= await world(nvs);
       problems = await referenceProblems(w, nvs);
@@ -1944,6 +2053,13 @@ export async function run(args: string[]): Promise<number> {
         return 1;
       }
       return await blessApps(nvs, operands);
+    }
+    if (mode === "--shoot") {
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return await shoot(nvs, operands.map((p) => rel(resolve(p))));
     }
     if (mode === "--check") {
       const unknown = operands.filter((p) => !(PARTS as readonly string[]).includes(p));

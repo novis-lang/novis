@@ -1,0 +1,49 @@
+assets 65665b32676c1cdb
+
+Novis debug
+Theme
+System
+Dark
+Light
+Editor
+Keys
+Requests
+Stream
+Log
+Search
+Exceptions
+Following new requests.
+Pause
+Mark to compare
+Method
+Route
+Status
+Duration
+Queries
+Dumps
+Exception
+Thrown at
+GET
+App::apiShow
+404
+<duration>
+2
+0
+GET
+App::show
+404
+<duration>
+2
+0
+GET
+App::apiList
+200
+<duration>
+2
+0
+GET
+App::home
+200
+<duration>
+2
+0

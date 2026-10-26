@@ -1,0 +1,7 @@
+app notes
+request GET /
+request GET /api/notes
+request GET /notes/1
+request GET /api/notes/99
+open /
+wait .requests .route

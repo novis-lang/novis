@@ -27,7 +27,7 @@ stages:
         rules: [testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/a-replay-plays-what-the-language-server-returned]
   - id: 8
     title: a screenshot is taken from a real run
-    status: open
+    status: done
     context: [tools/nv/cmd/site.ts, tools/nv/lib/shoot.ts, tools/nv/test/chromium.ts, package.json, docs/rules/testing/a-screenshot-is-taken-from-a-real-run.md]
     extra:
       context:
@@ -217,10 +217,10 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 
 **Does:** the viewer's and the profiler's pictures are screenshots of real runs, checked through text.
 
-- [ ] `bun nv site --shoot` serves an app under `apps/` in development with `[debug] store` on, sends the fixed requests, starts `nvs debug`, and takes each `.shot`'s screenshot with the Chromium driver beside its `.shot.out` (`rule:testing/a-screenshot-is-taken-from-a-real-run`). `tools/nv/lib/shoot.ts:1`, `tools/nv/cmd/site.ts:1739`, `tools/nv/cmd/site.ts:1567`, `tools/nv/test/chromium.ts:31`
-- [ ] A profile shot opens a real `--profile=speedscope` export in the speedscope build the extension bundles, and its `.shot.out` holds the frames and call counts without times. `tools/nv/lib/shoot.ts:1`
-- [ ] A `shots` part of `--check` fails a stale or missing `.shot.out`, and tests for it. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`, `tools/nv/test/site-shots.test.ts:1`
-- [ ] `rule:testing/a-screenshot-is-taken-from-a-real-run` `shipped`. `data/rules/testing/a-screenshot-is-taken-from-a-real-run.json:3`
+- [x] `bun nv site --shoot` serves an app under `apps/` in development with `[debug] store` on, sends the fixed requests, starts `nvs debug`, and takes each `.shot`'s screenshot with the Chromium driver beside its `.shot.out` (`rule:testing/a-screenshot-is-taken-from-a-real-run`). `tools/nv/lib/shoot.ts:1`, `tools/nv/cmd/site.ts:1739`, `tools/nv/cmd/site.ts:1567`, `tools/nv/test/chromium.ts:31`
+- [x] A profile shot opens a real `--profile=speedscope` export in the speedscope build the extension bundles, and its `.shot.out` holds the frames and call counts without times. `tools/nv/lib/shoot.ts:1`
+- [x] A `shots` part of `--check` fails a stale or missing `.shot.out`, and tests for it. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`, `tools/nv/test/site-shots.test.ts:1`
+- [x] `rule:testing/a-screenshot-is-taken-from-a-real-run` `shipped`. `data/rules/testing/a-screenshot-is-taken-from-a-real-run.json:3`
 
 ### 3. the Tools area, its overview, and the three pages that move into it
 
@@ -271,6 +271,7 @@ session alone edits the sidebar and `questions.json`.
 - [ ] Debug viewer: starting it, the request list, a request's timeline, search, grouped exceptions, compare with two responses' diff, replay, and a request made into a test that asserts its response, as screenshots and a terminal block. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
 - [ ] Profiler: `--profile=callgrind` and `--profile=speedscope` as terminal blocks, the speedscope screenshot, and the sentence that the probe per call makes call-heavy code look slower. `website/src/content/docs/tools/profiler/index.mdx:1`
 - [ ] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
+- [ ] A `<Shot src="tools/debug-viewer/requests.shot"/>` component shows the `.png` beside a `.shot`, and `shotShape` names a `.shot` no page shows, the way `snippetShape` names a `.term`. `website/src/components/Terminal.astro:1`, `tools/nv/cmd/site.ts:1483`
 
 ### 6. the home page points at the Tools area, and every page is stamped
 
@@ -298,40 +299,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7 and 2 are done. Stage 1's terminal block (`<Terminal src="...term"/>`) is still unrendered by
-any page; stage 4's CLI page is its first render. Watch for a Windows-blessed `.term.out` whose relative
-paths use `\`.
+Stages 1, 7, 2 and 8 are done, and no page shows any of their pictures yet. Stage 4's CLI page is
+the first `<Terminal>` (watch for a `.term.out` with `\` paths) and its editor page the first of stage
+7's replay steps. Stage 5's debugger page is the first debugger replay (`site.ts` § *A snippet*,
+`lib/dap-replay.ts`, `website/config/replay-dap.mjs`), whose look no browser has shown yet.
 
-Stage 2: a snippet with a `.dap` and no `.replay` is a debugger replay, shown by the same
-`<Replay src="..."/>`. `site.ts` § *A snippet* is the home of the `.dap` and `.dap.out` formats.
-`tools/nv/lib/dap-replay.ts` holds a conversation with `nvs dap`, because the adapter answers
-`stackTrace` only while the program is stopped; `proc.run` has `talk` (write to stdin as the run goes)
-and `onText` for it. `website/config/replay-dap.mjs` owns `parseDap`, `parseDapRecording` and
-`dapData`, which returns `replayData`'s shape plus `breaks`. `replay-frames.mjs` has `dapOf`,
-`dapMarkup`, `frameDebug`, a `stop` and an `end` panel, and `codeHtml`'s `debug` argument (red dot,
-stopped line). The top-level frame's name is `<script>`. No page shows a debugger replay yet; stage
-5's debugger page is the first, and its look has not been seen in a browser.
-
-Stage 7's new replay steps (`card`, `rename`, `action`, `lens`, `calls`) are shown by no page yet;
-stage 4's editor page is the first.
+Stage 8: `site.ts` § *A screenshot* is the home of the `.shot` and `.shot.out` formats, and
+`tools/nv/lib/shoot.ts` takes the run. A viewer shot serves a copy of the app under `.cache/nv-shot/`
+with a second `--config` (development, `[debug] store`, a free viewer port) and drives Chromium over
+CDP with `tools/nv/test/chromium.ts`. A profile shot opens speedscope from
+`editors/vscode/node_modules/speedscope/dist/release`. `tools/debug-viewer/requests.shot` and
+`tools/profiler/fibonacci.shot` are taken, and both pictures were looked at. No `<Shot>` component
+exists yet: stage 9's last item adds it. CI's proofs job runs `--check shots` on Linux.
 
 The sweep's reds were stale again: `env-secret-proofs` exits 0 in its own log, and nightly run
-40291801939 is the same run that tested `d6f131752`, before the fixes.
+40291801939 tested `d6f131752`. Uncommitted changes to `tools/nv/cmd/disk.ts` and its test belong to
+another session, and this one left them alone.
 ### Next
 
-**Stage 8, a screenshot is taken from a real run**, on a new `tools/nv/lib/shoot.ts`,
-`tools/nv/cmd/site.ts` and `tools/nv/test/chromium.ts`. Gate: `debug-viewer` and `trace-timeline` are
-gone from `docs/goals/`, so both shots can be built.
+**Stage 3, the Tools area, its overview, and the three pages that move into it.** It needs no other
+goal. Check with `bun nv site --check structure questions guides`, and `--build` for the links.
 
-- [ ] `bun nv site --shoot` and each `.shot` beside its `.shot.out`, as stage 8's first item says. `tools/nv/lib/shoot.ts:1`, `tools/nv/test/chromium.ts:31`, `tools/nv/cmd/site.ts:1370`
-- [ ] The profile shot over a real `--profile=speedscope` export. `tools/nv/lib/shoot.ts:1`
-- [ ] A `shots` part in `PARTS`, its check, and `tools/nv/test/site-shots.test.ts`. `tools/nv/cmd/site.ts:279`, `tools/nv/cmd/site.ts:1332`
-- [ ] The rule `shipped`. `data/rules/testing/a-screenshot-is-taken-from-a-real-run.json:3`
+- [ ] Tools joins `AREAS` after Reference, and the sidebar gains its group before In-Depth. `website/config/site.mjs:42`, `website/astro.config.ts:665`, `website/astro.config.ts:687`, `tools/nv/cmd/site.ts:739`
+- [ ] `install/editor.mdx`, `guides/testing/run-tests.mdx` and `guides/testing/coverage.mdx` move with their snippets and questions, and their old sidebar entries go. `website/astro.config.ts:449`, `website/astro.config.ts:464`, `website/astro.config.ts:721`, `website/src/data/questions.json:416`
+- [ ] The testing guide's two entries removed, every other old link repointed, and the replay rule's notice sentence names the editor page. `website/src/content/docs/guides/testing/index.mdx:10`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
+- [ ] `tools/index.mdx` and the `tools` part of `--check`. `website/src/content/docs/tools/index.mdx:1`, `tools/nv/cmd/site.ts:279`
 
-No test is expected to go red from stage 2. `site-dap.test.ts` (5 pass), `site-replay.test.ts` (15
-pass) and `tsc` ran green. The browser test (`NV_BROWSER=1`) was not run. It reads `replay-player.mjs`,
-whose `show` now passes `frameDebug`, which is null for an editor replay.
+No test is expected to go red. `site-shots.test.ts` (9 pass), `bun nv site --check shots` (ok, twice)
+and `tsc` ran green. `--check snippets` was not run; its only change is that a shot's fixture
+directory is not a snippet, which `site-shots.test.ts` covers.
 
 ### Backlog
 
-- Stage 3 needs no other goal and can run beside 8 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
+- Stages 4, 5 and 9 follow 3 in order. Each page item needs its tool's goals gone from `docs/goals/` (§ *Gates*).
