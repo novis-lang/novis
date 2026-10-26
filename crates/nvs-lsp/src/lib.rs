@@ -121,6 +121,7 @@ pub mod narrow;
 pub mod organize;
 mod position;
 pub mod query;
+pub mod reach;
 pub mod redactions;
 pub mod regions;
 pub mod rename;

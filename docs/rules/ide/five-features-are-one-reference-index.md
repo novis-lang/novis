@@ -21,10 +21,16 @@ An unused `use` line is not dimmed here: it is the `W1026` warning of
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
 silent under the default of `rule:ide/check-scope-defaults-to-the-workspace` rather than wrong.
 
-Call hierarchy is not in this list yet. `textDocument/callHierarchy` reads call-site edges, and an
-occurrence does not record the function it is written in, so the index has none.
-`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds that record, and call hierarchy
-then reads the same index rather than a second one (`rule:ide/the-request-set-is-closed`).
+The index is also the **call graph**. Each occurrence records the method whose body it is written in,
+so an occurrence that resolved to a method is an edge from that method to it. Beside the occurrences,
+each file records two more lists. One holds each `Core\Test::request` whose literal method and path
+the route table matched, as an edge to the route's handler. The other holds each call the graph does
+not follow: a method taken as a callable value, and a call by name the checker did not resolve. A
+method's declaration records the routes it handles and whether it is a `#[Test]` method.
+`nvs_lsp::reach` walks these edges backwards for
+`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`, and `textDocument/callHierarchy`
+reads the same edges rather than a second index (`rule:ide/the-request-set-is-closed`). The graph
+costs one method name per occurrence and two short lists per file, for as long as the file is indexed.
 
 One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
 (`rule:ide/a-file-shows-what-it-declares`) lists the files that declare one type, from the kind the index

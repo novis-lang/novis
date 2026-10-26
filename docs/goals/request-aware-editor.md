@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/server.rs, crates/nvs-
 stages:
   - id: 1
     title: the call graph, and the routes and tests that reach a method
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-types/src/routes.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/test.rs, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md, docs/rules/ide/five-features-are-one-reference-index.md]
     extra:
       context:
@@ -182,10 +182,10 @@ standard request, one new client command, `nvs.runTests`, and one new subcommand
 **Does:** each reference knows its enclosing function, and a walk from a method finds the routes and
 the `#[Test]` methods that reach it.
 
-- [ ] Each `Occurrence` records the function or method it is written in, as the index builds it (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`). `crates/nvs-lsp/src/index.rs:277`, `crates/nvs-lsp/src/index.rs:1200`
-- [ ] Reach walks callers backwards from a method, each function once, to the route rows' handlers and the `#[Test]` methods, and matches a literal `Core\Test::request` path with the server's matcher. `crates/nvs-types/src/routes.rs:324`, `crates/nvs-types/src/expr_table.rs:1460`, `crates/nvs-runtime/src/routes.rs:846`, `crates/nvs-stdlib/src/test.rs:743`
-- [ ] Rust tests of the walk: a direct, a transitive, a recursive and an "at least" reach, and a static test count. `crates/nvs-lsp/tests/index.rs:1`
-- [ ] `rule:ide/five-features-are-one-reference-index` rewritten where it says no call-site edges exist. `docs/rules/ide/five-features-are-one-reference-index.md:18`
+- [x] Each `Occurrence` records the function or method it is written in, as the index builds it (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`). `crates/nvs-lsp/src/index.rs:277`, `crates/nvs-lsp/src/index.rs:1200`
+- [x] Reach walks callers backwards from a method, each function once, to the route rows' handlers and the `#[Test]` methods, and matches a literal `Core\Test::request` path with the server's matcher. `crates/nvs-types/src/routes.rs:324`, `crates/nvs-types/src/expr_table.rs:1460`, `crates/nvs-runtime/src/routes.rs:846`, `crates/nvs-stdlib/src/test.rs:743`
+- [x] Rust tests of the walk: a direct, a transitive, a recursive and an "at least" reach, and a static test count. `crates/nvs-lsp/tests/index.rs:1`
+- [x] `rule:ide/five-features-are-one-reference-index` rewritten where it says no call-site edges exist. `docs/rules/ide/five-features-are-one-reference-index.md:18`
 
 ### 8. a "used by" lens reads the coverage report and runs its tests
 
@@ -300,18 +300,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. `Occurrence` records no enclosing function, the lens has only the reference
-count, and no query call passes a site id. `editor-fixes` stage 4 (the lens command) and
-`debug-service` are not reached, so stages 8, 6 and 7 are gated.
+Stage 1 is done. Each `Occurrence` carries `caller`, the method whose body it is written in, and
+`None` for a callable value and for code outside a method. Each indexed file also keeps `requests`
+(a `Core\Test::request` with a literal method and path, matched to its handler by
+`nvs_types::crossing::runtime_routes` and the server's `match_request`) and `unfollowed` (a method
+taken as a callable value, and a by-name call that resolved to nothing, as `::name`). A method's
+`Declaration` carries `routes` (`GET /items/{id}`) and `test`. `nvs_lsp::reach::reach` walks the
+edges backwards and answers `Reach { routes, tests, at_least }`. A call to a method the reached
+method overrides is not followed and sets `at_least`, and a closure's calls count for the method that
+writes it; both are written into `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`.
+`tests/index.rs` counts the call graph as the eighth reader, and its five new tests pass.
+
+The route-table crossing moved from `nvs-cli` into `crates/nvs-types/src/crossing.rs`, and `nvs-lsp`
+names `nvs-runtime`. The gates of stages 8, 6 and 7 hold: `editor-fixes`, `debug-service` and
+`debug-viewer` are all gone.
+
+No test is expected to go red. `call_hierarchy_is_not_answered` in `crates/nvs-lsp/tests/index.rs`
+must go in stage 2, which declares the capability.
 
 ### Next
 
-**Stage 1, the call graph**, on `crates/nvs-lsp/src/index.rs` and the route tables it reads. Gate: none.
+**Stage 2, call hierarchy**, on `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/capabilities.rs`
+and a new module beside `crates/nvs-lsp/src/reach.rs`. Gate: none.
 
-- [ ] Record each occurrence's enclosing function (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`). `crates/nvs-lsp/src/index.rs:277`, `crates/nvs-lsp/src/index.rs:1200`
-- [ ] Walk callers from a method to route handlers and tests, matching a literal `Core\Test::request` path. `crates/nvs-types/src/routes.rs:324`, `crates/nvs-runtime/src/routes.rs:846`, `crates/nvs-stdlib/src/test.rs:743`
-- [ ] Rust tests of the walk: direct, transitive, recursive, "at least", static test count. `crates/nvs-lsp/tests/index.rs:1`
-- [ ] `rule:ide/five-features-are-one-reference-index` rewritten where it says no call-site edges exist. `docs/rules/ide/five-features-are-one-reference-index.md:18`
+- [ ] Declare `callHierarchyProvider`, and the handshake list holds the new standard request. Delete `call_hierarchy_is_not_answered` and the playbook bullet whose `until:` names it. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/tests/handshake.rs:161`, `crates/nvs-lsp/tests/index.rs:300`
+- [ ] `prepare` reads the method under the cursor with `index::symbol_at`. `incomingCalls` groups `index.occurrences(m)` by `caller`, and adds `index.requests(m)` when that is the design chosen. `outgoingCalls` reads `index.occurrences_in(file)` where `caller == m` and the symbol is a method. `crates/nvs-lsp/src/index.rs:836`, `crates/nvs-lsp/src/reach.rs:1`
+- [ ] A callable value has `caller: None`, so it is never shown. A Rust test covers both directions over a recursive pair and a callable. `crates/nvs-lsp/tests/navigation.rs:1`
+- [ ] `rule:ide/the-request-set-is-closed` rewritten from "admitted" to served. `docs/rules/ide/the-request-set-is-closed.md:72`
+
+Stage 8 comes after it. Its lens reads `reach::reach`.
 
 ### Backlog
 

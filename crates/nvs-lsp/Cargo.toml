@@ -47,6 +47,10 @@ nvs-fmt.workspace = true
 nvs-hir.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true
+# The route table the server matches a request with, which `index` matches a
+# literal `Core\Test::request` path against for the call graph. Already linked
+# through `nvs-types`; named here because this crate names its type.
+nvs-runtime.workspace = true
 # A completion list, a namespace card and the stubs list every `Core` class,
 # which is recorded when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true

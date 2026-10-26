@@ -2,8 +2,8 @@
 //! changed.
 //!
 //! `rule:ide/five-features-are-one-reference-index` asks for four things a
-//! test can hold: exactly one construction site, the seven readers it names and
-//! no eighth, an invalidation that stops at the file that changed and the files
+//! test can hold: exactly one construction site, the eight readers it names and
+//! no ninth, an invalidation that stops at the file that changed and the files
 //! that read it, and a scope that selects which files are indexed rather than
 //! which code does the indexing. The bound the index has to stay under with
 //! all of that warm is `tests/latency.rs`'s, beside the cold one it already
@@ -19,6 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use lsp_types::PositionEncodingKind;
+use nvs_lsp::reach::{Reach, reach};
 use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of, uri_of};
 
 /// A scratch directory that cleans up after itself.
@@ -211,28 +212,30 @@ const BOOKKEEPING: [&str; 6] = [
     "readers",
 ];
 
-/// Seven features, and each one of them is a query against the one index.
+/// Eight readers, and each one of them is a query against the one index.
 ///
 /// The count is half of `rule:ide/five-features-are-one-reference-index`,
-/// which names the five reference features, the file-kind reader and the
-/// workspace symbol search, and excludes call hierarchy with a reason — so an
-/// eighth is a decision and not a slice. The other half is that each of the
-/// seven *reads* the index: a feature
+/// which names the five reference features, the file-kind reader, the
+/// workspace symbol search and the call graph
+/// (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`) — so a
+/// ninth is a decision and not a slice. The other half is that each of the
+/// eight *reads* the index: a feature
 /// that walks the front end for names of its own is what the rule refuses, and
 /// the construction-site test above cannot see one, because such a feature
 /// builds no index at all.
 ///
 /// The two sets have to match in both directions. A query nothing outside
 /// `index.rs` calls is a reader that was quietly dropped; a read-only method
-/// the table below does not name is an eighth reader that arrived without the
-/// decision. An eighth feature answered from a query one of these seven already
+/// the table below does not name is a ninth reader that arrived without the
+/// decision. A ninth feature answered from a query one of these eight already
 /// makes is the one case this cannot see, and `tests/handshake.rs`'s closed
 /// capability set is what catches that one.
 #[test]
 fn every_reader_queries_the_one_index() {
-    // Each reader, and what it answers from. Six of them answer a request and
-    // the dimming is published unasked, which is why it names no method.
-    let readers: [(&str, &[&str]); 7] = [
+    // Each reader, and what it answers from. Six of them answer a request, the
+    // dimming is published unasked, and the call graph is what the "used by"
+    // lens and call hierarchy will read.
+    let readers: [(&str, &[&str]); 8] = [
         (
             "textDocument/references",
             &["occurrences", "declaration", "imports_of"],
@@ -255,6 +258,16 @@ fn every_reader_queries_the_one_index() {
         ("unused-member dimming", &["unused_private"]),
         ("nvs/fileKinds", &["sole_kinds"]),
         ("workspace/symbol", &["matching"]),
+        (
+            "the call graph",
+            &[
+                "declaration",
+                "occurrences",
+                "requests",
+                "unfollowed",
+                "overridden",
+            ],
+        ),
     ];
 
     let mut queried: BTreeSet<&str> = BTreeSet::new();
@@ -292,22 +305,19 @@ fn every_reader_queries_the_one_index() {
 
     assert_eq!(
         offered, queried,
-        "the index's read side and the seven readers' queries are not the same \
-         set, so a reader was dropped or an eighth one was added"
+        "the index's read side and the eight readers' queries are not the same \
+         set, so a reader was dropped or a ninth one was added"
     );
 }
 
-/// Call hierarchy is not answered, and nothing here is keeping the edges that
-/// would answer it.
+/// Call hierarchy is not answered yet.
 ///
-/// `rule:ide/five-features-are-one-reference-index` names seven readers and
-/// excludes this one with a reason rather than by omission:
-/// `textDocument/callHierarchy` wants call-site edges kept incrementally, which
-/// is a different index from the one this crate builds, and nothing else needs
-/// them. The exclusion is therefore two facts, and this holds both — the
-/// capability is not declared, so a conforming client never asks, and nothing
-/// in the crate names the request, so a client that asks anyway reaches
-/// `answer`'s refusal arm like any other method outside the list.
+/// The index keeps the call graph's edges (`rule:ide/five-features-are-one-reference-index`),
+/// and `request-aware-editor`'s second stage answers the request from them.
+/// Until then the capability is not declared, so a conforming client never
+/// asks, and nothing in the crate names the request, so a client that asks
+/// anyway reaches `answer`'s refusal arm like any other method outside the
+/// list.
 #[test]
 fn call_hierarchy_is_not_answered() {
     let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
@@ -540,4 +550,183 @@ fn check_scope_selects_the_tree_and_never_the_construction_site() {
         open.occurrences_in(&dir.at("lib.nvs")),
         workspace.occurrences_in(&dir.at("lib.nvs")),
     );
+}
+
+/// Two routes and three tests over a chain of static calls: a direct caller,
+/// a chain of two, a method that calls itself, a test that reaches a handler
+/// through `Core\Test::request`, and a method only a callable value reaches.
+const SHOP: &str = r#"<?nvs
+use Core\Access;
+use Core\Audience;
+use Core\Http\Method;
+use Core\Route;
+use Core\Test;
+
+final class Shop
+{
+    #[Route(path: '/items/{id}', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function show(string $id): void
+    {
+        echo Shop::price($id);
+    }
+
+    #[Route(path: '/total', method: Method::Get)]
+    #[Access(allow: Audience::Public)]
+    public static function total(): void
+    {
+        echo Shop::sum(3);
+    }
+
+    public static function price(string $id): int
+    {
+        return Shop::tax(1);
+    }
+
+    public static function tax(int $amount): int
+    {
+        return $amount;
+    }
+
+    public static function sum(int $n): int
+    {
+        if ($n == 0) {
+            return 0;
+        }
+        return Shop::sum($n - 1) + Shop::tax($n);
+    }
+
+    public static function untouched(): int
+    {
+        return 1;
+    }
+}
+
+final class ShopTest
+{
+    #[Test]
+    public function showsAnItem(): void
+    {
+        var $response = Test::request(Method::Get, '/items/7');
+        Test::assertEquals($response->status(), 200);
+    }
+
+    #[Test]
+    public function addsTax(): void
+    {
+        Test::assertEquals(Shop::tax(2), 2);
+    }
+
+    #[Test]
+    public function takesACallable(): void
+    {
+        var $later = Shop::untouched(...);
+        Test::assertEquals($later(), 1);
+    }
+}
+"#;
+
+/// The index over [`SHOP`], opened as the one document.
+fn shop_index(dir: &TempDir) -> SymbolIndex {
+    dir.write("shop.nvs", SHOP);
+    let mut documents = Documents::new();
+    dir.open(&mut documents, "shop.nvs", SHOP);
+    SymbolIndex::build(&documents, CheckScope::Open, None)
+}
+
+/// The strings a test compares a [`Reach`] with.
+fn reached(routes: &[&str], tests: &[&str], at_least: bool) -> Reach {
+    Reach {
+        routes: routes.iter().map(|route| (*route).to_owned()).collect(),
+        tests: tests.iter().map(|test| (*test).to_owned()).collect(),
+        at_least,
+    }
+}
+
+/// Each use records the method it is written in, and a use outside every
+/// method records none.
+#[test]
+fn an_occurrence_records_the_method_it_is_written_in() {
+    let dir = TempDir::new("caller");
+    let index = shop_index(&dir);
+
+    let callers: BTreeSet<Option<String>> = index
+        .occurrences("Shop::tax")
+        .into_iter()
+        .map(|used| used.caller.clone())
+        .collect();
+    let want: BTreeSet<Option<String>> = ["Shop::price", "Shop::sum", "ShopTest::addsTax"]
+        .into_iter()
+        .map(|caller| Some(caller.to_owned()))
+        .collect();
+    assert_eq!(callers, want, "each call to tax names the method around it");
+
+    let route = index
+        .declaration("Shop::show")
+        .expect("the handler is declared");
+    assert_eq!(route.routes, vec!["GET /items/{id}".to_owned()]);
+    assert!(!route.test, "a handler is no test");
+    assert!(
+        index
+            .declaration("ShopTest::addsTax")
+            .is_some_and(|declared| declared.test),
+        "a #[Test] method is marked"
+    );
+
+    let sent = index.requests("Shop::show");
+    assert_eq!(
+        sent.iter()
+            .map(|request| request.caller.as_deref())
+            .collect::<Vec<_>>(),
+        vec![Some("ShopTest::showsAnItem")],
+        "the literal path matched the route, and the request is an edge to its handler"
+    );
+}
+
+/// A route handler and a test that call the method themselves reach it.
+#[test]
+fn a_direct_caller_reaches_the_method() {
+    let dir = TempDir::new("direct");
+    let index = shop_index(&dir);
+    assert_eq!(
+        reach(&index, "Shop::price"),
+        reached(&["GET /items/{id}"], &["ShopTest::showsAnItem"], false),
+        "show calls price, and the test requests show's path"
+    );
+}
+
+/// A route reaches the method through a chain of calls, and a test reaches it
+/// directly. The count is static, read off the call graph alone.
+#[test]
+fn a_chain_of_calls_reaches_the_method() {
+    let dir = TempDir::new("transitive");
+    let index = shop_index(&dir);
+    assert_eq!(
+        reach(&index, "Shop::tax"),
+        reached(
+            &["GET /items/{id}", "GET /total"],
+            &["ShopTest::addsTax", "ShopTest::showsAnItem"],
+            false
+        ),
+    );
+}
+
+/// A method that calls itself is visited once, so the walk ends.
+#[test]
+fn a_recursive_chain_ends() {
+    let dir = TempDir::new("recursive");
+    let index = shop_index(&dir);
+    assert_eq!(
+        reach(&index, "Shop::sum"),
+        reached(&["GET /total"], &[], false)
+    );
+}
+
+/// A method taken as a callable value is reached by nothing the graph
+/// follows, and the answer says the count is at least that.
+#[test]
+fn a_callable_value_makes_the_count_at_least() {
+    let dir = TempDir::new("at-least");
+    let index = shop_index(&dir);
+    assert_eq!(reach(&index, "Shop::untouched"), reached(&[], &[], true));
 }

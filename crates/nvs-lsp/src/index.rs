@@ -243,6 +243,16 @@ pub struct Declaration {
     /// attachment to a parameter the method does not have, or to one that
     /// takes no string, is reported on the file that wrote it.
     pub parameters: Vec<Parameter>,
+    /// The routes whose handler this method is, each as its verb in capitals
+    /// and its path as written (`GET /users/{id}`), and empty for everything
+    /// that is not a route handler.
+    ///
+    /// Read off the route table of the analysis that indexed the file, which
+    /// is the table the server answers with. [`crate::reach`] is the reader.
+    pub routes: Vec<String>,
+    /// Whether this is a `#[Test]` method, read off the checker's own test
+    /// table. [`crate::reach`] is the reader.
+    pub test: bool,
 }
 
 /// One parameter of a method, as a completion file names it.
@@ -279,6 +289,17 @@ pub struct Occurrence {
     pub symbol: String,
     /// Where it was written.
     pub site: Site,
+    /// The method whose body this use is written in, spelled as its
+    /// [`Declaration::symbol`] is, and `None` for a use outside every method
+    /// body: top-level code, a property's default, a class constant.
+    ///
+    /// An occurrence that resolved to a method is therefore one edge of the
+    /// call graph, from this method to that one
+    /// (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`).
+    /// A closure's body belongs to the method that writes it. A method taken
+    /// as a callable value is `None` here, because it calls nothing where it
+    /// is written; [`SymbolIndex::unfollowed`] counts it instead.
+    pub caller: Option<String>,
 }
 
 /// One `use` import a file writes.
@@ -299,6 +320,14 @@ struct Indexed {
     occurrences: Vec<Occurrence>,
     /// Every `use` import written here, in source order.
     imports: Vec<Import>,
+    /// Every `Core\Test::request` written here with a literal method and path
+    /// that the route table matched, in source order: the symbol is the
+    /// handler of the route it matched, and the site is the path's literal.
+    requests: Vec<Occurrence>,
+    /// Every call the call graph does not follow, in source order: a method
+    /// taken as a callable value, by its symbol, and a call by name that the
+    /// checker did not resolve to one method, as `::` and the name.
+    unfollowed: Vec<String>,
     /// The kind of the one type this file declares, when the file has the
     /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
     sole: Option<DeclKind>,
@@ -351,6 +380,10 @@ pub struct SymbolIndex {
     by_supertype: Postings,
     /// Every occurrence in `files`, by the name it resolved to.
     by_use: Postings,
+    /// Every entry of an indexed file's `requests`, by the handler it reached.
+    by_request: Postings,
+    /// Every entry of an indexed file's `unfollowed`, by what it names.
+    by_unfollowed: Postings,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -637,6 +670,34 @@ impl SymbolIndex {
             .collect()
     }
 
+    /// Every `Core\Test::request` whose literal method and path the route
+    /// table matched to a route `handler` answers, in file and then source
+    /// order. Each one's caller is the method that sends the request.
+    ///
+    /// Apart from [`Self::occurrences`] because the request names the handler
+    /// nowhere in its source: a reference list does not show it, and the call
+    /// graph does.
+    #[must_use]
+    pub fn requests(&self, handler: &str) -> Vec<&Occurrence> {
+        self.by_request
+            .get(handler)
+            .into_iter()
+            .flatten()
+            .filter_map(|(path, at)| self.files.get(&**path)?.requests.get(*at))
+            .collect()
+    }
+
+    /// Whether a call the call graph does not follow could reach `method`:
+    /// the method is taken as a callable value somewhere, or a call the
+    /// checker did not resolve names a method of the same name.
+    #[must_use]
+    pub fn unfollowed(&self, method: &str) -> bool {
+        let by_name = method
+            .rsplit_once("::")
+            .is_some_and(|(_, name)| self.by_unfollowed.contains_key(&format!("::{name}")));
+        by_name || self.by_unfollowed.contains_key(method)
+    }
+
     /// Every `use` import of `symbol`, in file and then source order.
     ///
     /// Apart from [`Self::occurrences`] because an import brings a name into
@@ -733,10 +794,13 @@ impl SymbolIndex {
                 continue;
             }
             let scope = FileScope::of(&analysed, loaded.id);
+            let uses = occurrences(&analysed, &scope, loaded, &key);
             let indexed = Indexed {
                 decls: declarations(&analysed, &scope, loaded, &key),
-                occurrences: occurrences(&analysed, &scope, loaded, &key),
+                occurrences: uses.occurrences,
                 imports: imports(&analysed, loaded, &key),
+                requests: uses.requests,
+                unfollowed: uses.unfollowed,
                 sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
                 errors: analysed.diags.iter().any(|diag| {
@@ -773,6 +837,12 @@ impl SymbolIndex {
         for (at, used) in indexed.occurrences.iter().enumerate() {
             add(&mut self.by_use, &used.symbol, (Arc::clone(&key), at));
         }
+        for (at, sent) in indexed.requests.iter().enumerate() {
+            add(&mut self.by_request, &sent.symbol, (Arc::clone(&key), at));
+        }
+        for (at, named) in indexed.unfollowed.iter().enumerate() {
+            add(&mut self.by_unfollowed, named, (Arc::clone(&key), at));
+        }
     }
 
     /// Removes from the three maps what [`SymbolIndex::post`] added for
@@ -788,6 +858,12 @@ impl SymbolIndex {
         }
         for (at, used) in indexed.occurrences.iter().enumerate() {
             remove(&mut self.by_use, &used.symbol, &(Arc::clone(&key), at));
+        }
+        for (at, sent) in indexed.requests.iter().enumerate() {
+            remove(&mut self.by_request, &sent.symbol, &(Arc::clone(&key), at));
+        }
+        for (at, named) in indexed.unfollowed.iter().enumerate() {
+            remove(&mut self.by_unfollowed, named, &(Arc::clone(&key), at));
         }
     }
 }
@@ -941,9 +1017,11 @@ fn declarations<'a>(
             supertypes: supertypes_of(analysed, &symbol.qname),
             construction: declared.and_then(|(stmt, file)| construction_of(stmt, file)),
             parameters: Vec::new(),
+            routes: Vec::new(),
+            test: false,
         });
         if let Some(body) = declared_body(analysed, scope, &symbol.qname) {
-            members(&body, &class, path, &mut found);
+            members(analysed, &body, &class, path, &mut found);
         }
     }
 
@@ -988,11 +1066,36 @@ fn declared_body<'a>(
 }
 
 /// The members `body` declares, appended to `found`.
-fn members(body: &Body<'_>, class: &str, path: &Path, found: &mut Vec<Declaration>) {
+///
+/// A method's routes and its `#[Test]` mark are read off the analysis's own
+/// tables, which name a method `Class::method` exactly as [`member_symbol`]
+/// spells it.
+fn members(
+    analysed: &Analysed,
+    body: &Body<'_>,
+    class: &str,
+    path: &Path,
+    found: &mut Vec<Declaration>,
+) {
+    let tests = analysed.exprs.tests(class).unwrap_or_default();
     for (name, kind, visibility) in member_names(body) {
         let Some(symbol) = member_symbol(class, body.file, name) else {
             continue;
         };
+        let method = kind == DeclKind::Method;
+        let routes = if method {
+            analysed
+                .exprs
+                .routes()
+                .rows()
+                .iter()
+                .filter(|row| row.handler == symbol)
+                .map(|row| format!("{} {}", row.verb.to_ascii_uppercase(), row.path))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let test = method && tests.iter().any(|case| case.span == name);
         found.push(Declaration {
             symbol,
             kind,
@@ -1003,11 +1106,13 @@ fn members(body: &Body<'_>, class: &str, path: &Path, found: &mut Vec<Declaratio
             // off the two ends of that.
             supertypes: Vec::new(),
             construction: None,
-            parameters: if kind == DeclKind::Method {
+            parameters: if method {
                 parameters_of(body, name)
             } else {
                 Vec::new()
             },
+            routes,
+            test,
         });
     }
 }
@@ -1206,28 +1311,74 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// than off the expression around it: a highlight box is drawn on exactly the
 /// span answered here, and `$u->greet()` highlighted from `$u` is a box around
 /// the wrong word.
-fn occurrences(
-    analysed: &Analysed,
-    scope: &FileScope<'_>,
+///
+/// **Each use records the method whose body it is written in**, which makes a
+/// use that resolved to a method an edge of the call graph
+/// (`rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`). The
+/// method is the innermost method declaration around the use, read off the
+/// same declarations [`declarations`] reads, so the caller is spelled the way
+/// a [`Declaration`] is. The walk also records the two things the call graph
+/// reads beside the uses: a `Core\Test::request` the route table matched, and
+/// a call the graph does not follow ([`Uses`]).
+fn occurrences<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
     loaded: &Loaded,
     path: &Path,
-) -> Vec<Occurrence> {
+) -> Uses {
     let mut found = Vec::new();
+    let mut requests = Vec::new();
+    let mut unfollowed = Vec::new();
+    let methods = method_bodies(analysed, scope, loaded);
+    let caller = |span: Span| caller_at(&methods, span);
+    let file = analysed.map.file(loaded.id);
+    let mut table = None;
 
     for root in walk::of_stmts(&loaded.stmts) {
         for node in std::iter::once(&root).chain(root.descendants()) {
-            found.extend(class_qualifier(analysed, scope, node, path));
-            let Some(info) = analysed.exprs.lookup(node.span) else {
+            found.extend(
+                class_qualifier(analysed, scope, node, path).map(|used| Occurrence {
+                    caller: caller(node.span),
+                    ..used
+                }),
+            );
+            let resolved = analysed
+                .exprs
+                .lookup(node.span)
+                .and_then(|info| Some((info, target_of(info)?)));
+            let Some((info, target)) = resolved else {
+                // A call by name that resolved to no one method: on a `mixed`
+                // receiver, or one the checker reported.
+                if matches!(node.kind, "MethodCall" | "StaticCall")
+                    && let Some(name) = node.name
+                {
+                    unfollowed.push(format!("::{}", text_of(file, name)));
+                }
                 continue;
             };
-            let Some(target) = target_of(info) else {
-                continue;
-            };
+            let symbol = symbol_of(&target);
+            let callable = matches!(info, ExprInfo::CallableRef(_));
+            if callable {
+                unfollowed.push(symbol.clone());
+            }
+            if let ExprInfo::Call(call) = info
+                && let Some(sent) = request_sent(analysed, file, call, node, &mut table)
+            {
+                requests.push(Occurrence {
+                    symbol: sent.0,
+                    site: site(path, sent.1),
+                    caller: caller(node.span),
+                });
+            }
             found.push(Occurrence {
-                symbol: symbol_of(&target),
+                symbol,
                 site: site(path, named(node)),
+                caller: if callable { None } else { caller(node.span) },
             });
-            found.extend(case_qualifier(info, node, path));
+            found.extend(case_qualifier(info, node, path).map(|used| Occurrence {
+                caller: caller(node.span),
+                ..used
+            }));
         }
     }
 
@@ -1255,6 +1406,7 @@ fn occurrences(
             found.push(Occurrence {
                 symbol,
                 site: site(path, name),
+                caller: caller(name),
             });
         }
     }
@@ -1264,8 +1416,105 @@ fn occurrences(
     // the two walks into the one order the index answers in.
     found.sort();
     found.dedup();
+    requests.sort();
+    requests.dedup();
+    Uses {
+        occurrences: found,
+        requests,
+        unfollowed,
+    }
+}
+
+/// What [`occurrences`] reads off one file.
+struct Uses {
+    /// Every resolved use, in source order.
+    occurrences: Vec<Occurrence>,
+    /// Every `Core\Test::request` the route table matched, against the
+    /// handler of the route it matched.
+    requests: Vec<Occurrence>,
+    /// Every call the call graph does not follow, spelled as
+    /// [`SymbolIndex::unfollowed`] looks one up.
+    unfollowed: Vec<String>,
+}
+
+/// Every method with a body that one file declares: the whole declaration's
+/// span, and the method's symbol.
+fn method_bodies<'a>(
+    analysed: &'a Analysed,
+    scope: &FileScope<'a>,
+    loaded: &Loaded,
+) -> Vec<(Span, String)> {
+    let mut found = Vec::new();
+    for symbol in analysed.module.symbols.iter() {
+        if symbol.decl_span.file != loaded.id {
+            continue;
+        }
+        let Some(body) = declared_body(analysed, scope, &symbol.qname) else {
+            continue;
+        };
+        let class = symbol.qname.to_string();
+        for member in body.members {
+            if let ClassMemberKind::Method(method) = &member.kind
+                && method.body.is_some()
+                && let Some(declared) = member_symbol(&class, body.file, method.name)
+            {
+                found.push((member.span, declared));
+            }
+        }
+    }
     found
 }
+
+/// The innermost method in `methods` whose declaration covers `span`.
+///
+/// Innermost, because a method of an anonymous class is written inside the
+/// body of another method.
+fn caller_at(methods: &[(Span, String)], span: Span) -> Option<String> {
+    methods
+        .iter()
+        .filter(|(body, _)| body.start <= span.start && span.end <= body.end)
+        .min_by_key(|(body, _)| body.end - body.start)
+        .map(|(_, declared)| declared.clone())
+}
+
+/// The handler a `Core\Test::request` call reaches, and the span of its path
+/// literal, when the call writes its method as a `Core\Http\Method` case and
+/// its path as a string literal, and the route table matches the two.
+///
+/// The match is `nvs_runtime::routes::Routes::match_request` over the table
+/// `nvs_types::crossing::runtime_routes` builds, which is the server's own
+/// matcher over the server's own table. `table` builds it once per file, at
+/// the first such call. A path built at run time matches nothing here.
+fn request_sent(
+    analysed: &Analysed,
+    file: &SourceFile,
+    call: &nvs_types::ResolvedCall,
+    node: &walk::Node,
+    table: &mut Option<nvs_runtime::routes::Routes>,
+) -> Option<(String, Span)> {
+    if call.class.to_string() != TEST_CLASS || call.method != "request" {
+        return None;
+    }
+    // The class written in front of `::` is the first child, and the
+    // arguments follow it in order.
+    let mut args = node.children.iter().skip(1);
+    let verb = match analysed.exprs.lookup(args.next()?.span)? {
+        ExprInfo::EnumCase { case, .. } => case,
+        _ => return None,
+    };
+    let path = args.next()?;
+    if path.kind != "Str" {
+        return None;
+    }
+    let text = nvs_syntax::string_lit::cook_string_literal(file, path.span);
+    let routes = table.get_or_insert_with(|| nvs_types::crossing::runtime_routes(&analysed.exprs));
+    let matched = routes.match_request(verb, &text)?;
+    Some((matched.route().handler().to_owned(), path.span))
+}
+
+/// The class whose `request` method sends a request through the routes in a
+/// test (`rule:testing/in-process-request`).
+const TEST_CLASS: &str = "Core\\Test";
 
 /// One occurrence per clause entry, at the name written and against the name it
 /// resolved to.
@@ -1279,6 +1528,7 @@ fn clause_uses(written: &[Span], resolved: &[QName], path: &Path, found: &mut Ve
         found.push(Occurrence {
             symbol: qname.to_string(),
             site: site(path, *name),
+            caller: None,
         });
     }
 }
@@ -1306,6 +1556,7 @@ fn case_qualifier(info: &ExprInfo, node: &walk::Node, path: &Path) -> Option<Occ
     Some(Occurrence {
         symbol: enum_.to_string(),
         site: site(path, written.name.unwrap_or(written.span)),
+        caller: None,
     })
 }
 
@@ -1337,6 +1588,7 @@ fn class_qualifier(
     Some(Occurrence {
         symbol: declared_name(analysed, scope, name)?,
         site: site(path, name),
+        caller: None,
     })
 }
 

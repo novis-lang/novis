@@ -24,7 +24,11 @@ A call the checker did not resolve to one method is not followed: a call through
 and a call by name on a `mixed` receiver. Where either could reach the method, the lens puts "at
 least" before a count read off the graph. That is the case when the method is taken as a callable
 value anywhere in the workspace, or when a call on a `mixed` receiver names a method of the same name.
-A count read off the graph is never too high: everything counted reaches the method.
+A call resolved to a method that the reached method overrides is not followed either, because which
+of the two runs is decided at run time; where such a call exists, the count is "at least" too.
+A count read off the graph is never too high: everything counted reaches the method. A call written
+in a closure counts as a call from the method that writes the closure, which is where a reader looks
+for it.
 
 The route count and a static test count are read from the index, so they are current after every edit.
 A test count from a report is as old as its run, and the next coverage run refreshes it. The lens is
