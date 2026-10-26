@@ -417,29 +417,7 @@ tests 20 pass, `tsc` clean, `editor-link` and `api` tests 21 pass, `exceptions.b
 current, `bun nv rules --check` clean. The sweep's reds were stale again: `env-secret-proofs`'
 log exits 0, and the nightly is still run 40291801939 on `d6f131752`.
 
-Earlier stages: the API is `crates/nvs-cli/src/debug/api.rs` (`/api/requests`,
-`/api/request`, `POST /api/index/discard`), `search.rs` (`/api/search`: one FTS5 `MATCH` joined to
-each record by primary key, prefix words, phrases, every field term of the rule, grouped by request,
-cursor `<time>.<key>`, `opens` for a pasted trace id), `stream.rs` (`/api/stream`, each table's newest
-page merged by time; `/api/quarantine`) and `settings.rs` (`GET`/`PUT /api/settings`,
-`debug/viewer.json`, written by rename). Routes are in `listen.rs`'s `Site::route`, after
-`Site::refused`; a `PUT` body is read only once the checks pass. The ingest loop in
-`crates/nvs-cli/src/debug.rs` waits on one `Signal` channel (parent gone, discard), and
-`Index::rebuild` keeps the watermark and the request ids rising across a discard.
-`crates/nvs-cli/tests/debug_api.rs` writes `stream.json`, `search.json` and `settings.json` too.
-
-The views (`viewer/src/views/stream.tsx`, `log.tsx`, `search.tsx`, `saved.tsx`) were written by a
-subagent and checked here. The header box is now the one search box: text that is not a trace id
-opens `/search?q=`, and the browser test builds the `dropped` and `unparseable` rows.
-
-Checked once: `cargo clippy --all-targets -- -D warnings` clean, `cargo fmt --check` clean,
-`cargo test --test debug_api` 2 pass, the 7 new unit tests pass, `bun x tsc -p viewer --noEmit` 0,
-`bun nv viewer --check` current, `NV_BROWSER=1 bun test viewer/test/stream.browser.test.ts` 11 pass
-(the subagent also ran `requests` 10 and `request` 5), `bun nv rules --check` clean. The sweep's
-reds were stale (`env-secret-proofs` exits 0; the nightly is `d6f131752`). CI's `proofs` job is red
-for the four `[debug]` keys until stage 7's new item lands.
-
-Expected red: CI `proofs` (`directive:debug.*`, stage 7).
+Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7.
 
 ### Next
 
