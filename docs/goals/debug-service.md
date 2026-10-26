@@ -55,7 +55,7 @@ stages:
         rules: [testing/nvs-debug-is-the-service-and-a-development-server-starts-it, testing/writing-a-debug-record-to-disk-is-its-own-gate, testing/debug-probes]
   - id: 8
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -288,6 +288,20 @@ call, which replaces the Backlog line that put `nvs debug`'s proofs with the vie
 a floor check, and the command and the keys ship now, so each gets its `about.md`, an example, an
 attack and a test case for what exists today. `debug-viewer` extends them with the viewer.
 
+**A `RuntimeTighten` flag takes `false` and nothing else.** The gate stage's call. The rules for
+`[debug] store` and `[debug] inline` said a request may turn each off, but `Core\Config::set`
+refused every `RuntimeTighten` key that is not a quantity, so no program reached that path. The rules
+were right and the code was wrong: `nvs_config::request::TIGHTEN_FLAGS` lists the two flags, and
+`set` takes exactly `false` for them and refuses `true`, even after `false`; `restore` turns one
+back on. `false` is off whatever is in force, so it always narrows. Trade-off: one comparison
+against two keys per `set` that reaches it.
+
+**A proof whose `nvs.toml` turns on `[debug] store` runs in its own data folder.** The gate stage's
+call. `spawnProof` (`tools/nv/proofs/run.ts`) hands such a run `--data` in a fresh folder under
+`.agent-tmp/proof-data/` and deletes it after the run, so spool files never add up beside the
+binary. Read off the configuration, because that file is what makes the run write there, so a new
+proof needs no directive.
+
 ## Stages
 
 ### 1. `[trace] response_header` turns the `traceresponse` header off
@@ -400,46 +414,45 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 - [x] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
-- [ ] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
+- [x] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. In stage 8, the verify half is done: `bun nv affected --run` is green
-(22 of 22 steps, 7775 tests, 3127 cases). Decision `d9` is still open; the work is built on "no"
-(Standing decisions), and DONE waits on it.
+Every stage is done, and every goal-end gate is green at `6bcb2df7d`. The goal waits only on
+decision `d9`, which is still open; the work is built on "no" (Standing decisions).
 
-The first two runs found four causes, each fixed and committed:
+The gate stage's last group:
 
-- The rulebook pages were stale, three files were not rustfmt-clean, and `fuzz/Cargo.lock` lacked
-  the spool's `serde` (`b3f42a366`).
-- `apps/telemetry/known.toml` lacked the `debug` command (`cfd989fa2`).
-- A waiting request kept 10 host stack pages, over 9, because the service future held the recorded
-  input and exception inline. Both are boxed (`71708db7b`, Standing decisions).
-- `cache::redis`'s lease renewal case expired under load, because it raced a 3-second lease. It now
-  takes a one-minute lease and reads `PTTL`, with no sleep (`82e2fe21a`). It is not this goal's
-  code; it failed beside the other binaries.
+- `Core\Config::set` takes `false` for `debug.store` and `debug.inline`, as both rules said, and
+  refuses `true` (`38a5730b2`, Standing decisions).
+- A proof whose `nvs.toml` turns on `[debug] store` runs in its own data folder, deleted after the
+  run (`d638ac59f`).
+- `index_max_deletes_the_oldest_requests_until_the_index_fits` in
+  `crates/nvs-cli/tests/debug_ingest.rs` drives `Index::forget` past one 1000-request batch
+  (`a9c47e908`).
+- `nvs debug`'s page has its search questions, and three changed pages are stamped again
+  (`76faee17d`, `6bcb2df7d`).
+- `verify --doc` found three links to `file` that also name a macro (`67c70aa23`). `ci --check`
+  found `THIRD-PARTY-LICENSES.txt` behind `Cargo.lock`'s `crypto-bigint` 0.7.9, and
+  `[debug] store`'s `about.md` at 217 words (`6bcb2df7d`).
 
-`Core\Server::traceId`'s `about.md` is under 160 words and owes nothing (`16444c4af`). The nightly reds in
-the sweep are fixed at HEAD: run 40174915924 built `9be30356e`, and each of its five jobs has a later
-fix (`0b7eadd2c`, `901f4855c`, `bd2e51f0a`, `d5aa2be18`, and `cache.rs`'s Miri ignore).
-`env-secret-proofs` exits 0 when run.
+`bun nv affected --run` is green (22 of 22, 7777 tests), then `bun nv verify --doc`,
+`bun nv owners --closes debug-service` and `bun nv ci --check` are each green. The sweep's reds
+were already fixed at HEAD: `env-secret-proofs` exits 0, and run 40174915924 built `9be30356e`,
+before the five later fixes.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 8's last item, after three findings from the proofs work.**
+**Nothing in this goal, once `d9` is answered.**
 
-`bun nv proofs --gate --limit 0` owes nothing in the whole roster: 85 perf figures are recorded
-(`1e8692f02`), and the four `[debug]` keys and `nvs debug` have their proofs (`00cedc1d9`). Those
-proofs came from `target/debug/nvs.exe`, because `target/release/nvs.exe` predates `index_age`.
-
-- [ ] `Core\Config::set('debug.store', 'false')` returns `false` under a file with `store = true`, so the `store` key's comment in `crates/nvs-config/src/default.toml` and the Standing decision "a request's own `Core\Config::set` turning `store` off is honoured" describe a path no program reaches. Find which is wrong (the key's class, or the claim), and fix the code or the comment and the rule. `crates/nvs-config/src/default.toml:1`
-- [ ] The `nvs-debug` attack leaves up to 1 MiB of spool files under `target/proof/.nvsdata/debug/spool` per run, and each run starts a new writer, so they add up. Make the attack's run clean up after itself or use its own data folder. `tests/hostile/tools/cli/nvs-debug/01-records-that-are-hard-to-read-back.nvs:1`
-- [ ] No test drives `Index::forget` with a small `index_max`; add one to `crates/nvs-cli/tests/debug_ingest.rs`, run once by name. `crates/nvs-cli/src/debug/ingest.rs:1`
-- [ ] `bun nv site --check questions`, then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, each red fixed; a change from the items above runs `bun nv affected --run` once more first. `docs/examples/core/Server/traceId/about.md:1`
+- If `d9` is answered "no", the goal is reached: delete this file after moving any decision only
+  its prose holds, as AGENTS.md § *In the loop* says. `docs/goals/debug-service.md:1`
+- If `d9` is answered "yes", the Backlog's last line becomes a new stage before the goal ends.
+  `crates/nvs-types/src/derive.rs:2493`
 
 ### Backlog
 
