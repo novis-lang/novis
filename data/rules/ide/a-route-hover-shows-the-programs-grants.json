@@ -1,6 +1,6 @@
 {
   "title": "Hovering a route shows what the program's grants allow, labelled as that program's and read from the `nvs.toml` that `nvs check` reads in that directory",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
     "ide/the-request-set-is-closed",

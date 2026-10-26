@@ -1,0 +1,21 @@
+--TEST--
+the name of a method with no `#[Core\Route]` answers no grants, even with an `nvs.toml` that gives some beside the file, `rule:ide/a-route-hover-shows-the-programs-grants`
+--FILE--
+<?nvs
+class BlogService {
+    public function ti<|>tle(): string {
+        return "";
+    }
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+
+[capabilities.net]
+connect = ["api.example.com"]
+--FILE data/x.txt--
+x
+--REQUEST--
+hover
+--EXPECT--
+none

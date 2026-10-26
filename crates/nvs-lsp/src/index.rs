@@ -926,7 +926,7 @@ fn remove(postings: &mut Postings, symbol: &str, posting: &At) {
 /// answer wins.
 #[must_use]
 pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
-    if let Some(declared) = declared_at(analysed, offset) {
+    if let Some((declared, _)) = declared_at(analysed, offset) {
         return Some(declared);
     }
     let (target, _) = named_at(analysed, offset)?;
@@ -942,21 +942,24 @@ pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
 /// `nvs_hir::SymbolTable`, the member from the declaration's own node — so a
 /// name answered here is a name the index is keyed on rather than a second
 /// spelling of one.
-fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+///
+/// The span is where the declaration writes the name, which is what a hover
+/// on it underlines.
+pub(crate) fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
     let scope = FileScope::of(analysed, analysed.entry);
     analysed.module.symbols.iter().find_map(|symbol| {
         if symbol.decl_span.file != analysed.entry {
             return None;
         }
         if covers(symbol.decl_span, offset) {
-            return Some(symbol.qname.to_string());
+            return Some((symbol.qname.to_string(), symbol.decl_span));
         }
         let body = declared_body(analysed, &scope, &symbol.qname)?;
         let class = symbol.qname.to_string();
         member_names(&body)
             .into_iter()
             .find(|(name, ..)| covers(*name, offset))
-            .and_then(|(name, ..)| member_symbol(&class, body.file, name))
+            .and_then(|(name, ..)| Some((member_symbol(&class, body.file, name)?, name)))
     })
 }
 

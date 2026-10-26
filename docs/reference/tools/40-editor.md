@@ -154,6 +154,17 @@ counts the tests that ran a line of the method. Until then, the count is read fr
 lens shows `(static)`. A count that starts with `at least` may be too low. A call through a
 `callable` value or a `mixed` value may also reach the method.
 
+## The grants of a route's program
+
+Hover a `#[Route]` attribute, or the name of the method it is on, to see the program's grants. The
+first line names the `nvs.toml` file that the grants come from. Each grant has one line with its
+scope, for example the folders `fs.read` allows or the hosts `net.connect` allows. A grant that the
+file does not write shows its default, marked `(default)`.
+
+The grants belong to the whole program. Every route of the program has the same grants. The editor
+reads `nvs.toml` again for each hover, so a change to the file shows at once. If there is no
+`nvs.toml`, the hover says so and lists the default policy.
+
 ## What it does not answer
 
 The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,

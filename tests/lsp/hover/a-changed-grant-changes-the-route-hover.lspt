@@ -1,0 +1,40 @@
+--TEST--
+the same `#[Core\Route]` source under a different `nvs.toml` answers the other grants, so the hover is read from the configuration and not from the source, `rule:ide/a-route-hover-shows-the-programs-grants`
+--FILE--
+<?nvs
+class ShopController {
+    #[Core\Ro<|>ute(method: Core\Http\Method::Get, path: "/items")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function items(): string {
+        return "";
+    }
+}
+--FILE nvs.toml--
+[capabilities.net]
+connect = true
+
+[capabilities.fs]
+write = ["./uploads"]
+--FILE uploads/x.txt--
+x
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]
+```
+
+Declares the HTTP path and method this method handles. Write it twice to handle two methods.
+
+Written above a method.
+
+---
+
+These are the grants of the whole program, from `nvs.toml`. Every route of the program has the same grants.
+
+- `fs.read`: files in this file's directory, except `nvs.toml` and names that start with `.` (default)
+- `fs.write`: `uploads`
+- `script.spawn`: files in this file's directory, outside its temporary directories (default)
+- `net.connect`: every host (`true`)
+
+No other grant is given.

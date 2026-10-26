@@ -1,5 +1,5 @@
 --TEST--
-a compiler attribute's name is no expression and no declaration, so hovering it answers the card the checker's roster carries for it — the attribute as it is written, what it does and what it is written above, `rule:core-classes/derive-attribute`
+a compiler attribute's name is no expression and no declaration, so hovering it answers the card the checker's roster carries for it — the attribute as it is written, what it does and what it is written above, then a `#[Route]`'s grants with no `nvs.toml` beside it, `rule:core-classes/derive-attribute`, `rule:ide/a-route-hover-shows-the-programs-grants`
 --FILE--
 <?nvs
 class Blog
@@ -21,3 +21,14 @@ hover
 Declares the HTTP path and method this method handles. Write it twice to handle two methods.
 
 Written above a method.
+
+---
+
+No `nvs.toml` was found for this program. It runs under the default policy:
+
+- `fs.read`: files in this file's directory, except `nvs.toml` and names that start with `.` (default)
+- `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+- `script.spawn`: files in this file's directory, outside its temporary directories (default)
+- `net.connect`: every host (default)
+
+No other grant is given.

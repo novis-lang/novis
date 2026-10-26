@@ -1,0 +1,44 @@
+--TEST--
+a `#[Core\Route]` attribute answers its card and then every grant the `nvs.toml` beside the file gives the whole program, `rule:ide/a-route-hover-shows-the-programs-grants`
+--FILE--
+<?nvs
+class ShopController {
+    #[Core\Ro<|>ute(method: Core\Http\Method::Get, path: "/items")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function items(): string {
+        return "";
+    }
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+
+[capabilities.net]
+connect = ["api.example.com"]
+
+[capabilities.db]
+connect = ["main"]
+--FILE data/x.txt--
+x
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]
+```
+
+Declares the HTTP path and method this method handles. Write it twice to handle two methods.
+
+Written above a method.
+
+---
+
+These are the grants of the whole program, from `nvs.toml`. Every route of the program has the same grants.
+
+- `fs.read`: `data`
+- `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+- `script.spawn`: files in this file's directory, outside its temporary directories (default)
+- `net.connect`: `api.example.com`
+- `db.connect`: `main`
+
+No other grant is given.

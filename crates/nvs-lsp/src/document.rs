@@ -813,21 +813,11 @@ fn analyse_over(
 /// each `.nvsx` it pins, because a cached set would be a second answer that outlives an edit to
 /// `nvs.toml`.
 fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
-    use nvs_config::resolve::{Unowned, resolve, roots};
-    let Some(dir) = path.parent() else {
-        return Vec::new();
-    };
     let data = nvs_config::data::config_file();
-    let roots = roots(&[], dir, data.as_deref(), &Unowned);
-    if !matches!(roots, nvs_config::Roots::Files(_)) {
-        return Vec::new();
-    }
-    let Ok(resolved) = resolve(&roots, &mut SourceMap::new(), &Unowned) else {
-        return Vec::new();
-    };
-    let snapshot = nvs_config::Snapshot::build(&resolved, path, &Unowned)
-        .or_else(|_| nvs_config::Snapshot::host(&resolved, &Unowned));
-    let Ok(snapshot) = snapshot else {
+    let Tree::Read {
+        resolved, snapshot, ..
+    } = program_tree(path, data.as_deref())
+    else {
         return Vec::new();
     };
     let entries: Vec<nvs_ext::load::Entry> = snapshot
@@ -847,6 +837,53 @@ fn extension_set(path: &Path) -> Vec<nvs_ext::manifest::Manifest> {
         })
         .collect();
     nvs_ext::load::read_manifests(&entries).unwrap_or_default()
+}
+
+/// What [`program_tree`] found for a document.
+pub(crate) enum Tree {
+    /// No `nvs.toml` beside the document, and none in the data folder.
+    None,
+    /// These configuration files were found, and they do not resolve.
+    Unread(Vec<PathBuf>),
+    /// These configuration files were read, in order, into this tree and this snapshot.
+    Read {
+        files: Vec<PathBuf>,
+        resolved: Box<nvs_config::Resolved>,
+        snapshot: std::sync::Arc<nvs_config::Snapshot>,
+    },
+}
+
+/// The configuration snapshot for `path`, as `nvs check` resolves it when run in `path`'s
+/// directory, with `data` as the data folder's `nvs.toml`.
+///
+/// The one reader behind [`extension_set`] and the grants a route's hover lists
+/// (`rule:ide/a-route-hover-shows-the-programs-grants`), so the two never read two trees. It
+/// reads the files again on every call and caches nothing: an edit to `nvs.toml` changes the
+/// next answer with no edit to the source. A document that is not on disk yet takes the host's
+/// snapshot. No ownership check is made, because the server only reads.
+pub(crate) fn program_tree(path: &Path, data: Option<&Path>) -> Tree {
+    use nvs_config::resolve::{Unowned, resolve, roots};
+    let Some(dir) = path.parent() else {
+        return Tree::None;
+    };
+    let roots = roots(&[], dir, data, &Unowned);
+    let nvs_config::Roots::Files(files) = &roots else {
+        return Tree::None;
+    };
+    let files = files.clone();
+    let Ok(resolved) = resolve(&roots, &mut SourceMap::new(), &Unowned) else {
+        return Tree::Unread(files);
+    };
+    let snapshot = nvs_config::Snapshot::build(&resolved, path, &Unowned)
+        .or_else(|_| nvs_config::Snapshot::host(&resolved, &Unowned));
+    match snapshot {
+        Ok(snapshot) => Tree::Read {
+            files,
+            resolved: Box::new(resolved),
+            snapshot,
+        },
+        Err(_) => Tree::Unread(files),
+    }
 }
 
 /// [`analyse`], unless `version` has already been superseded.

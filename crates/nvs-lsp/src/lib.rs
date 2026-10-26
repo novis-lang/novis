@@ -112,6 +112,7 @@ pub mod extract;
 pub mod file_kinds;
 pub mod folding;
 pub mod generate;
+pub mod grants;
 pub mod hints;
 pub mod hover;
 pub mod html_template;

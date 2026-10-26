@@ -583,13 +583,16 @@ fn completion(
 /// The rendering is the Markdown verbatim, so a case's `--EXPECT--` is the doc
 /// comment's own prose with its markers off — which is the point of freezing it
 /// here rather than in a Rust test: the run is read the way a reader will see
-/// it. [`crate::hover::at`] is the same call the server makes.
+/// it. [`crate::hover::answer`] is the call the server makes, with no data
+/// folder: a case's configuration is the `nvs.toml` it writes, or none, and
+/// never the file beside the binary that runs it.
 fn hover(analysed: &Analysed, offset: BytePos) -> Response {
-    Response::Hover(hover::at(
+    Response::Hover(hover::answer(
         analysed,
         &crate::completion_files::CompletionFiles::default(),
         offset,
         COLUMNS,
+        None,
     ))
 }
 

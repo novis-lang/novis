@@ -128,12 +128,30 @@ use crate::position::range_at;
 /// `None` when the cursor is inside no node, and when nothing it is inside was
 /// documented or typed: no `///` run above the declaration its name reached, no
 /// registry row behind it, and no type recorded for the node itself.
+///
+/// A route's grants read the data folder's `nvs.toml` where the document's
+/// directory has none, as `nvs check` does.
 #[must_use]
 pub fn at(
     analysed: &Analysed,
     files: &CompletionFiles,
     offset: BytePos,
     encoding: PositionEncoding,
+) -> Option<Hover> {
+    let data = nvs_config::data::config_file();
+    answer(analysed, files, offset, encoding, data.as_deref())
+}
+
+/// [`at`], with `data` as the data folder's `nvs.toml`. The `.lspt` suite
+/// passes `None`, so a case reads the files it writes and none beside the
+/// binary that runs it.
+#[must_use]
+pub fn answer(
+    analysed: &Analysed,
+    files: &CompletionFiles,
+    offset: BytePos,
+    encoding: PositionEncoding,
+    data: Option<&std::path::Path>,
 ) -> Option<Hover> {
     let nodes: Vec<Span> = analysed
         .index
@@ -142,7 +160,8 @@ pub fn at(
         .iter()
         .map(|node| node.span)
         .collect();
-    let (value, node) = autoload_prefix(analysed, offset)
+    let (value, node) = route(analysed, offset, data)
+        .or_else(|| autoload_prefix(analysed, offset))
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| property_segment(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
@@ -169,6 +188,39 @@ pub fn at(
         // written in.
         range: Some(range_at(analysed.map.file(analysed.entry), node, encoding)),
     })
+}
+
+/// A `#[Route]` attribute, or the name of a method one is on, answered with the
+/// program's grants (`rule:ide/a-route-hover-shows-the-programs-grants`).
+///
+/// The attribute keeps its own card above the grants, so hovering it still
+/// says what `#[Route]` is. A handler's name answers the grants alone, because
+/// a declaration's own name answers nothing else. The grants are
+/// [`crate::grants::of_program`]'s, read again for each hover.
+fn route(
+    analysed: &Analysed,
+    offset: BytePos,
+    data: Option<&std::path::Path>,
+) -> Option<(String, Span)> {
+    let path = analysed.map.file(analysed.entry).path()?;
+    if let Some((target, span)) = attribute_at(analysed, offset)
+        && matches!(&target, Target::Type(name) if name.to_string() == nvs_types::derive::ROUTE)
+    {
+        let grants = crate::grants::of_program(path, data);
+        let value = match name(analysed, (target, span), offset) {
+            Some((card, _)) => format!("{}\n\n---\n\n{grants}", card.trim_end()),
+            None => grants,
+        };
+        return Some((value, span));
+    }
+    let (symbol, span) = crate::index::declared_at(analysed, offset)?;
+    analysed
+        .exprs
+        .routes()
+        .rows()
+        .iter()
+        .any(|row| row.handler == symbol)
+        .then(|| (crate::grants::of_program(path, data), span))
 }
 
 /// The row of the call at `offset`, and which of its parameters the cursor is
