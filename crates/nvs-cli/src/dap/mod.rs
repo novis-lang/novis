@@ -371,8 +371,11 @@ impl Session {
             }
             "continue" => {
                 lock(&self.stopped).clear();
-                self.debugger.resume();
+                // The response goes out before the program runs on, so it is
+                // written before the `stopped` or `terminated` event the run
+                // sends next.
                 self.succeed(request, Some(json!({ "allThreadsContinued": true })));
+                self.debugger.resume();
             }
             "pause" => {
                 self.debugger.pause();
@@ -389,8 +392,10 @@ impl Session {
                     Ok(stop) => {
                         stopped.clear();
                         drop(stopped);
-                        self.debugger.step(stop, kind);
+                        // Answered first, as `continue` is, so the response is
+                        // written before the step's `stopped` event.
                         self.succeed(request, None);
+                        self.debugger.step(stop, kind);
                     }
                     Err(message) => {
                         drop(stopped);

@@ -6,6 +6,7 @@
 //! adapter, and what it writes to "standard output" must reach the client as text and never as a
 //! frame.
 
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -23,6 +24,10 @@ struct Client {
     child: Child,
     stdin: Option<ChildStdin>,
     frames: Receiver<Value>,
+    /// The frames [`Client::ask`] read before the response it waited for. An event can arrive
+    /// there, and [`Client::until_event`] reads these first, so it never waits for an event that
+    /// has already arrived.
+    pending: VecDeque<Value>,
     reader: JoinHandle<Result<usize, String>>,
     seq: i64,
     /// Every frame the adapter wrote so far, as its JSON text, in the order it arrived.
@@ -69,6 +74,7 @@ impl Client {
             child,
             stdin,
             frames,
+            pending: VecDeque::new(),
             reader,
             seq: 1,
             transcript,
@@ -86,14 +92,16 @@ impl Client {
         stdin.flush().expect("the adapter reads stdin");
     }
 
-    /// Every message up to and including the first event named `event`.
-    fn until_event(&self, event: &str) -> Vec<Value> {
+    /// Every message up to and including the first event named `event`, the ones
+    /// [`Client::ask`] already read included.
+    fn until_event(&mut self, event: &str) -> Vec<Value> {
         let mut seen = Vec::new();
         loop {
-            let frame = self
-                .frames
-                .recv()
-                .unwrap_or_else(|_| panic!("stdout ended before a `{event}` event: {seen:#?}"));
+            let frame = self.pending.pop_front().unwrap_or_else(|| {
+                self.frames
+                    .recv()
+                    .unwrap_or_else(|_| panic!("stdout ended before a `{event}` event: {seen:#?}"))
+            });
             let done = frame["type"] == "event" && frame["event"] == event;
             seen.push(frame);
             if done {
@@ -102,20 +110,22 @@ impl Client {
         }
     }
 
-    /// Sends one request and gives its response's body, with every message before the response.
-    /// Fails if the request failed.
-    fn ask(&mut self, command: &str, arguments: Value) -> (Value, Vec<Value>) {
+    /// Sends one request and gives its response's body. Every message before the response is
+    /// kept for [`Client::until_event`]. Fails if the request failed.
+    fn ask(&mut self, command: &str, arguments: Value) -> Value {
         self.request(command, arguments);
-        let mut seen = Vec::new();
         loop {
             let frame = self.frames.recv().unwrap_or_else(|_| {
-                panic!("stdout ended before the `{command}` response: {seen:#?}")
+                panic!(
+                    "stdout ended before the `{command}` response: {:#?}",
+                    self.pending
+                )
             });
             if frame["type"] == "response" && frame["command"] == command {
                 assert_eq!(frame["success"], true, "`{command}` failed: {frame:#?}");
-                return (frame["body"].clone(), seen);
+                return frame["body"].clone();
             }
-            seen.push(frame);
+            self.pending.push_back(frame);
         }
     }
 
@@ -128,7 +138,11 @@ impl Client {
         if let Err(stray) = read {
             panic!("stdout carried bytes outside a frame: {stray}");
         }
-        (self.frames.try_iter().collect(), status.success())
+        let pending = std::mem::take(&mut self.pending);
+        (
+            pending.into_iter().chain(self.frames.try_iter()).collect(),
+            status.success(),
+        )
     }
 }
 
@@ -241,7 +255,7 @@ fn a_breakpoint_stops_a_launched_script_with_its_variables_and_continue_ends_it(
     let mut client = Client::start(&dir);
     client.request("initialize", json!({ "adapterID": "novis" }));
     client.until_event("initialized");
-    let (set, _) = client.ask(
+    let set = client.ask(
         "setBreakpoints",
         json!({ "source": { "path": main }, "breakpoints": [{ "line": 4 }] }),
     );
@@ -265,9 +279,9 @@ fn a_breakpoint_stops_a_launched_script_with_its_variables_and_continue_ends_it(
         "the program ran past its breakpoint"
     );
 
-    let (threads, _) = client.ask("threads", json!({}));
+    let threads = client.ask("threads", json!({}));
     let thread = threads["threads"][0]["id"].clone();
-    let (trace, _) = client.ask("stackTrace", json!({ "threadId": thread }));
+    let trace = client.ask("stackTrace", json!({ "threadId": thread }));
     let frame = &trace["stackFrames"][0];
     assert_eq!(frame["line"], 4, "{trace:#?}");
     assert!(
@@ -276,9 +290,9 @@ fn a_breakpoint_stops_a_launched_script_with_its_variables_and_continue_ends_it(
             .is_some_and(|path| path.ends_with("main.nvs")),
         "{trace:#?}"
     );
-    let (scopes, _) = client.ask("scopes", json!({ "frameId": frame["id"] }));
+    let scopes = client.ask("scopes", json!({ "frameId": frame["id"] }));
     let reference = scopes["scopes"][0]["variablesReference"].clone();
-    let (variables, _) = client.ask("variables", json!({ "variablesReference": reference }));
+    let variables = client.ask("variables", json!({ "variablesReference": reference }));
     let value = |name: &str| {
         variables["variables"]
             .as_array()
@@ -316,13 +330,13 @@ fn a_program_that_does_not_compile_reports_on_stderr_and_exits_1() {
 
 /// The first thread's innermost frame while the program is stopped, and its variables by name.
 fn top_frame(client: &mut Client) -> (Value, Value) {
-    let (threads, _) = client.ask("threads", json!({}));
+    let threads = client.ask("threads", json!({}));
     let thread = threads["threads"][0]["id"].clone();
-    let (trace, _) = client.ask("stackTrace", json!({ "threadId": thread }));
+    let trace = client.ask("stackTrace", json!({ "threadId": thread }));
     let frame = trace["stackFrames"][0].clone();
-    let (scopes, _) = client.ask("scopes", json!({ "frameId": frame["id"] }));
+    let scopes = client.ask("scopes", json!({ "frameId": frame["id"] }));
     let reference = scopes["scopes"][0]["variablesReference"].clone();
-    let (variables, _) = client.ask("variables", json!({ "variablesReference": reference }));
+    let variables = client.ask("variables", json!({ "variablesReference": reference }));
     let by_name = variables["variables"]
         .as_array()
         .map(|all| {
@@ -566,7 +580,7 @@ fn a_breakpoint_stops_one_served_request_while_another_is_answered() {
 /// Sends `command` for the first thread, and reads up to the `stopped` event it ends in. Fails
 /// unless the stop's reason is `step`.
 fn step(client: &mut Client, command: &str) {
-    let (threads, _) = client.ask("threads", json!({}));
+    let threads = client.ask("threads", json!({}));
     let thread = threads["threads"][0]["id"].clone();
     client.ask(command, json!({ "threadId": thread }));
     let ran = client.until_event("stopped");
@@ -613,7 +627,7 @@ fn a_step_in_over_and_out_moves_one_statement_and_shows_the_returned_value() {
     assert_eq!(frame["line"], 10, "{frame:#?}");
     assert_eq!(variables["Shop::total() returned"], "14", "{variables:#?}");
 
-    let (threads, _) = client.ask("threads", json!({}));
+    let threads = client.ask("threads", json!({}));
     let thread = threads["threads"][0]["id"].clone();
     client.ask("next", json!({ "threadId": thread }));
     let ran = client.until_event("terminated");
@@ -807,11 +821,11 @@ fn a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping() {
     let main = dir.join("main.nvs");
 
     let mut client = Client::start(&dir);
-    let (initialized, _) = client.ask("initialize", json!({ "adapterID": "novis" }));
+    let initialized = client.ask("initialize", json!({ "adapterID": "novis" }));
     assert_eq!(initialized["supportsConditionalBreakpoints"], true);
     assert_eq!(initialized["supportsHitConditionalBreakpoints"], true);
     assert_eq!(initialized["supportsLogPoints"], true);
-    let (set, _) = client.ask(
+    let set = client.ask(
         "setBreakpoints",
         json!({ "source": { "path": main }, "breakpoints": [
             { "line": 2, "condition": "$i->size() > 1" },
@@ -870,18 +884,20 @@ fn launch_with_filters(dir: &Path, filters: Value, launch: Value) -> (Client, Ve
     }
     client.request("launch", arguments);
     client.request("configurationDone", json!({}));
-    let ran = until_stop_or_end(&client);
+    let ran = until_stop_or_end(&mut client);
     (client, ran)
 }
 
 /// Every message up to and including the first `stopped` or `terminated` event.
-fn until_stop_or_end(client: &Client) -> Vec<Value> {
+fn until_stop_or_end(client: &mut Client) -> Vec<Value> {
     let mut seen = Vec::new();
     loop {
-        let frame = client
-            .frames
-            .recv()
-            .unwrap_or_else(|_| panic!("stdout ended before a stop or the end: {seen:#?}"));
+        let frame = client.pending.pop_front().unwrap_or_else(|| {
+            client
+                .frames
+                .recv()
+                .unwrap_or_else(|_| panic!("stdout ended before a stop or the end: {seen:#?}"))
+        });
         let done = frame["type"] == "event"
             && (frame["event"] == "stopped" || frame["event"] == "terminated");
         seen.push(frame);
@@ -905,7 +921,7 @@ fn assert_exception_stop(
     assert_eq!(stopped["body"]["reason"], "exception", "{ran:#?}");
     assert_eq!(stopped["body"]["description"], description, "{ran:#?}");
     assert_eq!(stopped["body"]["text"], "too many", "{ran:#?}");
-    let (info, _) = client.ask("exceptionInfo", json!({ "threadId": 1 }));
+    let info = client.ask("exceptionInfo", json!({ "threadId": 1 }));
     assert_eq!(info["exceptionId"], "RuntimeError", "{info:#?}");
     assert_eq!(info["description"], "too many", "{info:#?}");
     let (frame, variables) = top_frame(client);
@@ -944,7 +960,7 @@ fn the_thrown_filter_stops_once_at_every_throw() {
     assert_exception_stop(&mut client, &ran, "Thrown RuntimeError", 5, "2");
 
     client.ask("continue", json!({}));
-    let ran = until_stop_or_end(&client);
+    let ran = until_stop_or_end(&mut client);
     assert_eq!(output(&ran, "stdout"), "caught\n", "{ran:#?}");
     assert_exception_stop(&mut client, &ran, "Uncaught RuntimeError", 5, "3");
 
@@ -965,7 +981,7 @@ fn launch_with_breakpoints(dir: &Path, breakpoints: Value, launch: Value) -> (Cl
     let mut client = Client::start(dir);
     client.request("initialize", json!({ "adapterID": "novis" }));
     client.until_event("initialized");
-    let (set, _) = client.ask(
+    let set = client.ask(
         "setBreakpoints",
         json!({ "source": { "path": main }, "breakpoints": breakpoints }),
     );
@@ -984,7 +1000,7 @@ fn every_stop(mut client: Client) -> (Vec<(u64, String)>, Vec<Value>) {
     let mut stops = Vec::new();
     let mut all = Vec::new();
     loop {
-        let ran = until_stop_or_end(&client);
+        let ran = until_stop_or_end(&mut client);
         let end = ran
             .last()
             .is_some_and(|frame| frame["event"] == "terminated");
@@ -1245,7 +1261,7 @@ fn path_mappings_map_every_path_in_and_out_of_the_adapter() {
     let mut client = Client::start(&dir);
     client.request("initialize", json!({ "adapterID": "novis" }));
     client.until_event("initialized");
-    let (set, _) = client.ask(
+    let set = client.ask(
         "setBreakpoints",
         json!({ "source": { "path": main }, "breakpoints": [{ "line": 3 }] }),
     );
