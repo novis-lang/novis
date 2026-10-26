@@ -129,15 +129,17 @@ toml.workspace = true
 # place, symbols to resolve and relocations to apply. `read` only — nothing in
 # this crate writes an object, that is `nvs-codegen`'s side.
 object.workspace = true
+# `nvs debug`'s viewer listener (`src/debug/listen.rs`): `hyper` frames HTTP/1.1,
+# `rustls` serves it off loopback, and `rcgen` makes the certificate it serves
+# when nobody supplied one. All three are already in this binary through
+# `nvs-server` and `nvs-host`, so the listener adds no crate.
+hyper.workspace = true
+rustls.workspace = true
+rcgen.workspace = true
 
 [dev-dependencies]
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
-# `tests/live_config.rs`'s loopback TLS peer, which a reloaded `[http.client.tls]`
-# is judged against: `rcgen` issues its certificate and `rustls` serves it. Both
-# are already in this binary through `nvs-host`.
-rustls.workspace = true
-rcgen.workspace = true
 # `tests/live_config.rs`'s test extensions: component text compiled by `wat`,
 # with its two custom sections added by the packer.
 nvs-ext = { workspace = true, features = ["engine", "pack"] }

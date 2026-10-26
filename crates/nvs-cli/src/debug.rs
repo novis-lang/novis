@@ -2,8 +2,14 @@
 //! (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`).
 //!
 //! This module owns the command: the lock, the configuration it reads, and the loop. [`index`] is
-//! the SQLite file and its deletion window, and [`ingest`] is what moves spool files into it. The
-//! viewer half of the service, with its listener, is `debug-viewer`'s and is not built here.
+//! the SQLite file and its deletion window, and [`ingest`] is what moves spool files into it.
+//! [`listen`] serves the viewer on `[debug] listen` from its own threads, and the loop publishes
+//! the index's watermark to it after every pass that read something.
+//!
+//! **A taken port.** A service started by hand stops with an error that names `[debug] listen` and
+//! `--listen`, and never moves to another port, because a link to the viewer must outlive a
+//! restart. A service a server started with `--parent` prints the same message as a warning and
+//! ingests on without the viewer, because that server's requests still need their records.
 //!
 //! **One service per data folder.** The service holds an exclusive lock on `debug/service.lock`
 //! for as long as it runs, because the index has one writer. A second `nvs debug` on the same
@@ -29,19 +35,21 @@
 //! reused. A child that finds the lock held exits quietly: the server then uses the service that
 //! is already running.
 //!
-//! **What it spends:** see [`index`], [`ingest`] and [`tail`]. Here, the lock's file handle, and one
+//! **What it spends:** see [`index`], [`ingest`], [`tail`] and [`listen`]. Here, the lock's file handle, and one
 //! entry per spool file stopped in or per file failing. Under `--parent`, one thread blocked on
 //! standard input. In the server, the child's handle and its pipe.
 
 pub(crate) mod index;
 pub(crate) mod ingest;
+pub(crate) mod listen;
+pub(crate) mod secure;
 pub(crate) mod tail;
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
 use std::process::{ExitCode, Stdio};
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use nvs_config::{Quantity, Reading, Unit};
@@ -50,12 +58,16 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use crate::config::Init;
 use crate::render_diagnostics;
 use index::{Index, Window};
+use listen::{Listen, Watermark};
 
-/// Run the debug service: read recorded requests into the debug index.
+/// Run the debug service: read recorded requests into the debug index, and serve the debug viewer.
 ///
 /// A program records its requests when `[debug] store = true` is set in `nvs.toml`. The records
 /// are written to files in the data folder. This command reads those files into one database,
 /// `debug/index.sqlite`, and then deletes them.
+///
+/// The debug viewer shows those requests in a browser. `nvs debug` prints its address, which is
+/// `http://127.0.0.1:8137/` unless `[debug] listen` or `--listen` sets another one.
 ///
 /// It runs until you stop it. Records older than `[debug] index_age` are deleted, and so are the
 /// oldest records when the database grows past `[debug] index_max`. Only one `nvs debug` runs for
@@ -73,6 +85,10 @@ pub(crate) struct Args {
     /// You can give this option more than once.
     #[arg(long, value_name = "FILE")]
     tail: Vec<PathBuf>,
+    /// Serve the debug viewer on this IP address and port, such as `127.0.0.1:8137`. This
+    /// replaces `[debug] listen` for this run.
+    #[arg(long, value_name = "ADDRESS")]
+    listen: Option<String>,
     /// Set by `nvs serve` for the service it starts: stop once standard input closes, and exit
     /// quietly when another service holds the lock.
     #[arg(long, hide = true)]
@@ -81,11 +97,14 @@ pub(crate) struct Args {
 
 impl Args {
     /// Runs `nvs debug` with the arguments clap parsed, over the run's `--config` list.
-    pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
-        let window = match window(config) {
-            Ok(window) => window,
+    pub(crate) fn run(mut self, config: &[PathBuf]) -> ExitCode {
+        let (window, mut listen) = match settings(config) {
+            Ok(settings) => settings,
             Err(code) => return code,
         };
+        if let Some(addr) = self.listen.take() {
+            listen.addr = addr;
+        }
         let Some(folder) = nvs_config::data::current() else {
             eprintln!("error: `nvs debug` needs a data folder, and Novis cannot use one");
             return ExitCode::FAILURE;
@@ -133,6 +152,23 @@ impl Args {
                 return ExitCode::FAILURE;
             }
         };
+        let watermark = match index.watermark() {
+            Ok(batch) => Watermark::new(batch),
+            Err(err) => {
+                eprintln!("error: cannot read `{}`: {err}", index_path.display());
+                return ExitCode::FAILURE;
+            }
+        };
+        if !self.once {
+            match listen::start(&listen, folder, Arc::clone(&watermark)) {
+                Ok(link) => eprintln!("the debug viewer is at {link}"),
+                Err(message) if self.parent => eprintln!("warning: {message}"),
+                Err(message) => {
+                    eprintln!("error: {message}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
         let mut service = Service {
             index,
             spool,
@@ -140,6 +176,7 @@ impl Args {
             resume: HashMap::new(),
             failed,
             stalled: None,
+            watermark,
         };
         let parent = self.parent.then(parent_gone);
         service.serve(window, self.once, parent.as_ref())
@@ -223,6 +260,8 @@ struct Service {
     failed: HashMap<PathBuf, ingest::Backoff>,
     /// The index's own failure, which stops every source.
     stalled: Option<ingest::Backoff>,
+    /// What the viewer's event streams are sent.
+    watermark: Arc<Watermark>,
 }
 
 impl Service {
@@ -241,6 +280,9 @@ impl Service {
             if self.pass(Instant::now()) > 0 {
                 last_arrival = Instant::now();
                 forget = true;
+                if let Ok(batch) = self.index.watermark() {
+                    self.watermark.publish(batch);
+                }
             }
             if forget && self.stalled.is_none() {
                 if let Err(err) = self.index.forget(window, now_us()) {
@@ -428,8 +470,9 @@ fn lock(path: &Path) -> std::io::Result<Option<File>> {
     }
 }
 
-/// `[debug] index_age` and `[debug] index_max` from the working directory's configuration.
-fn window(config: &[PathBuf]) -> Result<Window, ExitCode> {
+/// `[debug] index_age` and `index_max`, then `listen` and the three files it serves with off
+/// loopback, from the working directory's configuration.
+fn settings(config: &[PathBuf]) -> Result<(Window, Listen), ExitCode> {
     let mut sources = SourceMap::new();
     let snapshot = match crate::config::boot_origins(config, None, &mut sources, Init::Never) {
         Ok((snapshot, _)) => snapshot,
@@ -453,7 +496,16 @@ fn window(config: &[PathBuf]) -> Result<Window, ExitCode> {
         Reading::Read(Quantity::Unbounded) => u64::MAX,
         _ => nvs_config::defaults::DEBUG_INDEX_MAX,
     };
-    Ok(Window { age_us, max_bytes })
+    let path = |key: &str| request.get(key).map(PathBuf::from);
+    let listen = Listen {
+        addr: request
+            .get("debug.listen")
+            .unwrap_or_else(|| nvs_config::defaults::DEBUG_LISTEN.to_owned()),
+        cert: path("debug.tls_cert_file"),
+        key: path("debug.tls_key_file"),
+        token: path("debug.token_file"),
+    };
+    Ok((Window { age_us, max_bytes }, listen))
 }
 
 fn duration_us(duration: std::time::Duration) -> u64 {

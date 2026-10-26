@@ -60,11 +60,19 @@ The browser talks to one JSON API on the same listener. The Rust side owns its s
 fixture from a real index, the TypeScript types are checked against that fixture by `tsc`, and the
 browser tests run against it, so the two halves cannot drift without a failing build.
 
-**The listener is the service's own.** The viewer is a subcommand, `nvs debug`, binds loopback by
-default on a fixed port so a link outlives a restart, and is never mounted on the application's
-listener: there every path-normalization bug and proxy misconfiguration would become disclosure, and a
-reserved path prefix would collide with the compile-time route table. It is `hyper` over the host's
-own sockets and `rustls`, the transport the server already uses, so it adds no HTTP or TLS crate.
+**The listener is the service's own.** The viewer is a subcommand, `nvs debug`, binds
+`127.0.0.1:8137` by default, a fixed port so a link outlives a restart, and is never mounted on the
+application's listener: there every path-normalization bug and proxy misconfiguration would become
+disclosure, and a reserved path prefix would collide with the compile-time route table. `[debug]
+listen` and `nvs debug --listen` move it. A taken port stops a service started by hand with a message
+naming both; a service a development server started with `--parent` says the same as a warning and
+ingests on without the viewer, because the server's records still need it. It is `hyper` and
+`rustls`, both already in the binary, so it adds no HTTP or TLS crate. `nvs debug` has no core, so each
+connection has a thread of its own whose reads and writes block, bounded in count, in read time and in
+write time, and `hyper` is driven by `nvs_host::block_on`. `half_close` keeps `hyper` from reading
+while it writes, so an event stream waits on the watermark alone. The page is one `<div id="app">`
+with `/viewer.css` and `/viewer.js`, served for every path outside `/api/`.
+`crates/nvs-cli/src/debug/listen.rs` is the listener.
 
 **Off loopback, `nvs debug` secures itself.** `[debug] listen` is the one key a container needs. With
 an address off loopback, `nvs debug` generates a self-signed certificate with `rcgen`, already in the
@@ -74,16 +82,22 @@ once. `[debug] tls_cert_file`, `tls_key_file` and `token_file` are optional over
 brings their own, and boot does not fail when they are absent. The token is accepted once from the
 printed URL and then lives in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie, and a request without
 that cookie is refused. A bind off loopback never serves plain HTTP and never serves without a token.
+`crates/nvs-cli/src/debug/secure.rs` makes and loads the certificate and the token.
 
 Because it is a browser-facing local listener, `Host` and `Origin` are
-allowlisted against DNS rebinding, a request that changes anything needs an allowed `Origin` and a
+allowlisted against DNS rebinding. On loopback a `Host` names `localhost` or a loopback address with
+the bound port. Off loopback a published port and a container's name change the host a browser uses,
+so any well-formed `Host` passes and the token cookie decides, which a rebound name never carries. An
+`Origin` that is sent must be the page's own, a request that changes anything needs one and a
 JSON body, and every page is sent with a `Content-Security-Policy` that admits no inline script, no
 inline style, no `eval` and no other origin. Its renderer builds DOM rather than assigning markup: no
 value from a record reaches `innerHTML`, and Solid's compiled templates are constant strings fixed at
 build time. It runs no Novis code.
 
-The viewer is pushed a watermark as server-sent events
-(`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`), and every list is a page keyed on
+The viewer is pushed a watermark as server-sent events on `/api/events`
+(`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`): the ingest loop publishes the
+last committed batch after every pass that read something, and a stream sends the newest number it
+has not sent, or a comment every 15 seconds so a closed tab is found. Every list is a page keyed on
 that sequence, so reading the newest page costs the same with a hundred requests in the index as with
 a million.
 
@@ -93,11 +107,13 @@ them, and a restart on the same port finds them.
 
 - **Memory:** the two bundled files are read-only data in every binary, and a server process never
   pages them in, because only `nvs debug` reaches them. `nvs debug` holds one read connection to the
-  index and one sequence number per open tab. The browser holds one page of rows and the request it
-  shows.
+  index, one thread per open connection up to 64, and one sequence number per open tab. The browser
+  holds one page of rows and the request it shows.
 
-**Not on disk.** There is no viewer and no `viewer/` folder. The one hand-off built is the editor's:
-the VS Code extension reads the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
+**Not on disk.** The listener serves the page, the two files and `/api/events`, and every other
+`/api/` path is a `404`: the JSON API, its fixture, the views, search, grouping, compare, replay and
+the settings file are not built. The one hand-off built is the editor's: the VS Code extension reads
+the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
 
 **Declined:**
 - **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it

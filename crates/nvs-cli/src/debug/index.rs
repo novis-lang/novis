@@ -354,6 +354,16 @@ impl Index {
         }
     }
 
+    /// The number of the last committed batch, which the viewer is pushed
+    /// (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`).
+    pub(crate) fn watermark(&self) -> rusqlite::Result<i64> {
+        self.db.query_row(
+            "SELECT value FROM meta WHERE key = 'watermark'",
+            [],
+            |row| row.get(0),
+        )
+    }
+
     /// Deletes what is past `window` at `now_us`, in transactions of [`FORGET_BATCH`] requests.
     pub(crate) fn forget(&mut self, window: Window, now_us: u64) -> rusqlite::Result<Forgotten> {
         let cutoff = i64::try_from(now_us.saturating_sub(window.age_us)).unwrap_or(i64::MAX);

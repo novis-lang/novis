@@ -258,6 +258,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // operator's to decide. `Reload` because `nvs debug` reads them at each deletion pass.
     Directive { key: "debug.index_age", class: Class::System, apply: Apply::Reload },
     Directive { key: "debug.index_max", class: Class::System, apply: Apply::Reload },
+    // `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`'s listener. `System`
+    // because the address and its certificate and token decide who can read recorded requests.
+    // `Boot` because `nvs debug` binds the address and loads the files once, when it starts.
+    Directive { key: "debug.listen", class: Class::System, apply: Apply::Boot },
+    Directive { key: "debug.tls_cert_file", class: Class::System, apply: Apply::Boot },
+    Directive { key: "debug.tls_key_file", class: Class::System, apply: Apply::Boot },
+    Directive { key: "debug.token_file", class: Class::System, apply: Apply::Boot },
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
     // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and

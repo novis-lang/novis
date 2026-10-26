@@ -120,6 +120,8 @@ pub const DEBUG_SPOOL_MAX: u64 = 256 * MIB;
 pub const DEBUG_INDEX_AGE: Duration = Duration::from_secs(7 * DAY);
 /// `[debug] index_max`.
 pub const DEBUG_INDEX_MAX: u64 = 1024 * MIB;
+/// `[debug] listen`: fixed, so a link to the viewer still works after a restart.
+pub const DEBUG_LISTEN: &str = "127.0.0.1:8137";
 
 /// `[http.headers] content_type_options`.
 pub const HTTP_HEADERS_CONTENT_TYPE_OPTIONS: bool = true;
@@ -508,6 +510,7 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("debug.spool_max", Value::Size(DEBUG_SPOOL_MAX)),
     row!("debug.index_age", Value::Time(DEBUG_INDEX_AGE)),
     row!("debug.index_max", Value::Size(DEBUG_INDEX_MAX)),
+    row!("debug.listen", Value::Text(DEBUG_LISTEN)),
     row!("http.errors.detail", Value::ByMode),
     row!("http.headers.content_type_options", Value::Flag(HTTP_HEADERS_CONTENT_TYPE_OPTIONS)),
     row!("http.headers.frame_ancestors", Value::Text(HTTP_HEADERS_FRAME_ANCESTORS)),

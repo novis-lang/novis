@@ -189,13 +189,6 @@ mod telemetry;
 mod testing;
 mod tmp;
 mod update_check;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "embedded now and served by `nvs debug`'s listener, which docs/goals/debug-viewer.md stage 2 adds"
-    )
-)]
 mod viewer;
 mod wall;
 mod worker;

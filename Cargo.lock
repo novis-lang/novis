@@ -3390,6 +3390,7 @@ dependencies = [
  "blake3",
  "clap",
  "globset",
+ "hyper",
  "jiff",
  "jsonschema",
  "libc",

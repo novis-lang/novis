@@ -555,6 +555,17 @@ pub struct Debug {
     pub index_age: Option<Setting>,
     /// The largest the index file may grow before `nvs debug` deletes the oldest requests. `System`.
     pub index_max: Option<Setting>,
+    /// The address `nvs debug` serves the viewer on, an IP address and a port
+    /// (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). `System`.
+    pub listen: Option<String>,
+    /// A certificate to serve the viewer with off loopback, in place of the generated one.
+    /// `System`.
+    pub tls_cert_file: Option<String>,
+    /// The key that pairs with [`Debug::tls_cert_file`]. `System`.
+    pub tls_key_file: Option<String>,
+    /// A token to admit the viewer's page with off loopback, in place of the generated one.
+    /// `System`.
+    pub token_file: Option<String>,
 }
 
 /// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::temporaryDir` creates under.
