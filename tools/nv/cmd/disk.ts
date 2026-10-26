@@ -21,9 +21,10 @@
 // fresh, so a superseded generation and a live one can carry the same date. The live set is asked for
 // instead: the cargo commands in `LIVE_QUERIES` over `target/debug`, which a person builds by hand, and
 // in `COVWS_QUERIES` over `target/covws`, which the pipeline builds, each with
-// `--message-format=json`, name every file those graphs use. Only a warm query answers: one that would
-// compile a unit or wait for another build is killed at once (`NOT_WARM`), and `deps/` is left alone
-// until a later sweep finds the build up to date. Age is only ever a reason to keep: nothing
+// `--message-format=json`, name every file those graphs use. A query may rebuild the workspace's own
+// packages, which keep their names, and one that would build a dependency or wait for another build is
+// killed at once (`mintsGeneration`), and `deps/` is left alone until a later sweep finds the
+// dependencies up to date. Age is only ever a reason to keep: nothing
 // written in the last `GRACE_HOURS` is swept whatever the list says, which covers a build still under
 // way and a `--test <name>` run that resolves a dev-dependency its own way. `incremental/` has no
 // artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule,
@@ -474,25 +475,53 @@ function queryArgv(query: string[], covws: { wrapped: boolean } | null): { argv:
   return { argv: ["cargo", head[0]!, "--message-format=json", ...head.slice(1), ...args, ...tail], env: own };
 }
 
-/** A cargo line on stderr that means the query would build or wait: a unit it starts to compile or
- * check, or another build holding the target directory. */
-export const NOT_WARM = /^\s*(Compiling|Checking|Blocking) /;
+/** A cargo line on stderr that starts a unit, with the package's source in parentheses unless it is a
+ * registry crate. */
+const STARTS = /^\s*(?:Compiling|Checking) \S+ v\S+(?: \((.+)\))?\s*$/;
+
+/**
+ * Whether a cargo line on stderr means the query would write a new generation or wait: another build
+ * holding the target directory, or a unit it starts that is not one of the workspace's own packages,
+ * whose directories are `members` as `key` names them. A workspace package is rebuilt under the name it
+ * already has, since source and git state are not in the metadata hash, and `nvs-cli`'s build script
+ * reruns on every commit, so refusing those would leave the query cold after every session.
+ */
+export function mintsGeneration(line: string, members: Set<string>): boolean {
+  if (/^\s*Blocking /.test(line)) return true;
+  const unit = STARTS.exec(line);
+  if (!unit) return false;
+  return unit[1] === undefined || !members.has(key(unit[1]));
+}
+
+/** The directory of each workspace package, as `key` names it, or null when cargo cannot say. */
+async function workspaceMembers(root: string = ROOT): Promise<Set<string> | null> {
+  const meta = await runProgram(["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"], { cwd: root, timeoutMs: 60_000 }).catch(() => null);
+  if (!meta || meta.code !== 0) return null;
+  try {
+    const parsed = JSON.parse(meta.stdout);
+    return new Set<string>(parsed.packages.map((p: { manifest_path: string }) => key(dirname(p.manifest_path))));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Every file the graph `LIVE_QUERIES` and `COVWS_QUERIES` build uses, as cargo reports it. A warm call
- * is a no-op build that still emits a `compiler-artifact` line per unit. A query that would compile
- * anything, or wait for another build, is killed at its first `NOT_WARM` line: a sweep never builds, and
- * on a tree the loop edits all the time a cold query is seven full builds written onto a full disk. Null
- * if any query is stopped or fails, and the caller then leaves `deps/` untouched rather than deleting on
- * a partial answer.
+ * is a no-op build that still emits a `compiler-artifact` line per unit. A query may rebuild the
+ * workspace's own packages, which costs the time of that build and no new disk, and is killed at the
+ * first line `mintsGeneration` names: on a tree the loop edits all the time, a query that rebuilt
+ * dependencies would be seven full builds written onto a full disk. Null if any query is stopped or
+ * fails, and the caller then leaves `deps/` untouched rather than deleting on a partial answer.
  */
 async function liveArtifacts(): Promise<Set<string> | null> {
   const live = new Set<string>();
+  const members = await workspaceMembers();
+  if (members === null) return null;
   const queries = [...LIVE_QUERIES.map((q) => queryArgv(q, null)), ...COVWS_QUERIES.map((q) => queryArgv(q.args, q))];
   for (const { argv, env } of queries) {
     const stop = new AbortController();
     const onLine = (line: string, stream: "stdout" | "stderr") => {
-      if (stream === "stderr" && NOT_WARM.test(line)) stop.abort();
+      if (stream === "stderr" && mintsGeneration(line, members)) stop.abort();
     };
     let out;
     try {
@@ -856,7 +885,7 @@ export function total(freed: Record<string, number | null>): number {
 export function freedLines(freed: Record<string, number | null>, verb = "freed"): string[] {
   return Object.entries(freed).map(([name, n]) =>
     n === null
-      ? `${name.padEnd(19)} left alone -- cargo could not name the live set: the build is not up to date, another build is running, or the tree does not build`
+      ? `${name.padEnd(19)} left alone -- cargo could not name the live set: a dependency is not built yet, another build is running, or the tree does not build`
       : `${name.padEnd(19)} ${verb} ${human(n)}`,
   );
 }

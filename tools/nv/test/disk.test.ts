@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { liveKey, liveSet, retiredCovwsProof, staleExtensions, staleOptimized, staleScratch, strayProfiles } from "../cmd/disk.ts";
+import { liveKey, liveSet, mintsGeneration, retiredCovwsProof, staleExtensions, staleOptimized, staleScratch, strayProfiles } from "../cmd/disk.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -152,6 +152,17 @@ describe("disk live set", () => {
     tmp.put("Cargo.lock", "version = 4\n# edited\n");
     expect([...(await liveSet({ root: tmp.root, file, ask }))!]).toEqual(["artifact-2"]);
     expect(asks).toBe(2);
+  });
+
+  test("a query may rebuild a workspace package, and stops at a dependency or another build", () => {
+    const member = join(process.cwd(), "crates", "nvs-cli");
+    const members = new Set([process.platform === "win32" ? member.toLowerCase() : member]);
+    expect(mintsGeneration(`   Compiling nvs-cli v0.0.1 (${member})`, members)).toBe(false);
+    expect(mintsGeneration(`    Checking nvs-cli v0.0.1 (${member})`, members)).toBe(false);
+    expect(mintsGeneration("   Compiling tokio v1.48.0", members)).toBe(true);
+    expect(mintsGeneration(`   Compiling patched v0.1.0 (${join(process.cwd(), "vendor", "patched")})`, members)).toBe(true);
+    expect(mintsGeneration("    Blocking waiting for file lock on build directory", members)).toBe(true);
+    expect(mintsGeneration("    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.52s", members)).toBe(false);
   });
 
   test("an answer cargo could not give is never remembered", async () => {
