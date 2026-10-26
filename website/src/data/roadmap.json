@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Editor",
-      "text": "The editor can rename, find, import and generate code, and it has more quick fixes. It can also show what your program did for a recorded request.",
-      "goals": [
-        "request-aware-editor"
-      ]
-    },
-    {
       "title": "Web APIs",
       "text": "The API document that Novis writes for your server passes a strict OpenAPI check. A parameter can read its value from the query string. A wrong value gives a `400` error.",
       "goals": [

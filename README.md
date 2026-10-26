@@ -119,12 +119,11 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Editor.** *Working on it now.* The editor can rename, find, import and generate code, and it has more quick fixes. It can also show what your program did for a recorded request.
-2. **Web APIs.** The API document that Novis writes for your server passes a strict OpenAPI check. A parameter can read its value from the query string. A wrong value gives a `400` error.
-3. **Debugging and profiling.** A debugger stops your program at a line and shows its variables, in VS Code too. Novis records requests, and a viewer shows each one with its timeline, logs and errors. The profiler shows where the time goes.
-4. **Images.** AVIF and JPEG XL images open the right way up and with the right colours. `Image::info` reads EXIF data, and an animated image keeps every frame.
-5. **Packages and the registry.** `nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.
-6. **Passkeys and Web Push.** `Core\Passkey` lets a user sign in with a passkey. `Core\WebPush` sends a notification to a browser.
+1. **Web APIs.** *Working on it now.* The API document that Novis writes for your server passes a strict OpenAPI check. A parameter can read its value from the query string. A wrong value gives a `400` error.
+2. **Debugging and profiling.** A debugger stops your program at a line and shows its variables, in VS Code too. Novis records requests, and a viewer shows each one with its timeline, logs and errors. The profiler shows where the time goes.
+3. **Images.** AVIF and JPEG XL images open the right way up and with the right colours. `Image::info` reads EXIF data, and an animated image keeps every frame.
+4. **Packages and the registry.** `nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.
+5. **Passkeys and Web Push.** `Core\Passkey` lets a user sign in with a passkey. `Core\WebPush` sends a notification to a browser.
 <!-- roadmap:end -->
 
 ## Contributing
