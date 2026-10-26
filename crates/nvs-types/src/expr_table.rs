@@ -1596,6 +1596,10 @@ pub struct ExprTypeTable {
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
     promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
     literal_types: FxHashMap<Span, TypeId>,
+    /// Set only by [`Self::record_provenance`], which `nvs-lsp` alone calls
+    /// (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`).
+    /// `None` for every compile that runs or checks a program.
+    provenance: Option<Box<crate::provenance::Provenance>>,
 }
 
 /// The guard and observer a promoted constructor parameter's store runs,
@@ -1702,6 +1706,36 @@ impl ExprTypeTable {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Makes the checker record where each `tainted` or `secret` value came
+    /// from inside its method ([`crate::provenance`]). The editor calls this
+    /// before the check, and nothing else does.
+    pub fn record_provenance(&mut self) {
+        self.provenance.get_or_insert_with(Box::default);
+    }
+
+    /// Whether [`Self::record_provenance`] was called on this table.
+    #[must_use]
+    pub fn records_provenance(&self) -> bool {
+        self.provenance.is_some()
+    }
+
+    /// The path the checker recorded for the value at `span`, or `None`
+    /// where it recorded none or the table records no provenance.
+    #[must_use]
+    pub fn taint_path(&self, span: Span) -> Option<&[crate::provenance::TaintStep]> {
+        self.provenance.as_ref()?.path(span)
+    }
+
+    /// Every recorded path with the span of its value, empty where the table
+    /// records no provenance.
+    pub fn taint_paths(&self) -> impl Iterator<Item = (Span, &[crate::provenance::TaintStep])> {
+        self.provenance.iter().flat_map(|prov| prov.paths())
+    }
+
+    pub(crate) fn provenance_mut(&mut self) -> Option<&mut crate::provenance::Provenance> {
+        self.provenance.as_deref_mut()
     }
 
     /// How many expressions the checker typed — one per [`Self::record`],

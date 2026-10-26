@@ -735,6 +735,9 @@ fn analyse_over(
 
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
+    // The editor is the one reader of a tainted value's path, so it is the
+    // one caller that asks the checker to record it.
+    exprs.record_provenance();
     let deprecated;
     {
         // The type phase, continued into exactly the way `nvs-cli`'s

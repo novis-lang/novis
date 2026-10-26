@@ -246,6 +246,17 @@ impl LocalScope {
         self.by_name.insert(name, LocalInfo { ty, declared_span });
     }
 
+    /// The span of the declaration `name` is bound by in this body, and the
+    /// type it was declared at, with no narrowing. `None` for a captured
+    /// variable, whose declaration is in the enclosing body.
+    pub(crate) fn binding(&self, name: &str) -> Option<(Span, TypeId)> {
+        if let Some(info) = self.arm_bound.borrow().get(name) {
+            return Some((info.declared_span, info.ty));
+        }
+        let info = self.by_name.get(name)?;
+        Some((info.declared_span, info.ty))
+    }
+
     /// For a local of this body declared with `var`, its type, the span of its
     /// name and the span of the initializer the type was taken from; `None`
     /// for every other binding, a captured one included.
@@ -1849,6 +1860,7 @@ pub(crate) fn check_stmt(
                         // a `void` call there is the error already reported.
                         let expected = (declared_ty == written).then_some(declared_ty);
                         check_expr(value, expected, live, scope, ctx, env);
+                        crate::provenance::declared(*name, value.span, scope, env);
                         live.insert(name_str);
                     }
                 }
@@ -1878,6 +1890,7 @@ pub(crate) fn check_stmt(
                     {
                         scope.var_initializers.insert(name_str.clone(), value.span);
                     }
+                    crate::provenance::declared(*name, value.span, scope, env);
                     live.insert(name_str);
                 }
             }

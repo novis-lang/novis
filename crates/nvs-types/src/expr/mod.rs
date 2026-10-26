@@ -308,11 +308,27 @@ fn reject_unused_result(inner: &Expr, env: &mut Env<'_>) {
 /// the *placing* walk rather than [`check_expr`]'s conforming one, so a numeric
 /// literal written directly under an `as` takes the target as its expectation
 /// (`rule:types/numeric-literal-placement`).
+///
+/// Every expression is noted for [`crate::provenance`] once its type is
+/// known, which records nothing unless the editor asked for it.
+pub(crate) fn infer(
+    expr: &Expr,
+    expected: Option<TypeId>,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let ty = infer_kind(expr, expected, live, scope, ctx, env);
+    crate::provenance::note(expr, ty, scope, env);
+    ty
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
 )]
-pub(crate) fn infer(
+fn infer_kind(
     expr: &Expr,
     expected: Option<TypeId>,
     live: &mut Live,

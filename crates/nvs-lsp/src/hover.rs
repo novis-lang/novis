@@ -68,6 +68,11 @@
 //! on the read — so it answers nothing instead of being guessed at, and closing
 //! that is a change to what the type phase keeps rather than an arm here.
 //!
+//! **A `tainted` or `secret` value answers the path its qualifier took**
+//! ([`crate::taint`]). That path is on the innermost value under the cursor,
+//! so it replaces an answer about a node around the value and is added under
+//! an answer about the value itself.
+//!
 //! **A declaration with no run answers nothing**, rather than an empty popup.
 //! `None` is what LSP has for "there is nothing to say here", and an editor
 //! shows it as no popup at all; a `Hover` carrying an empty string is a box
@@ -160,7 +165,7 @@ pub fn answer(
         .iter()
         .map(|node| node.span)
         .collect();
-    let (value, node) = route(analysed, offset, data)
+    let answered = route(analysed, offset, data)
         .or_else(|| autoload_prefix(analysed, offset))
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| property_segment(analysed, offset))
@@ -171,7 +176,23 @@ pub fn answer(
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| name(analysed, clause_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, attribute_at(analysed, offset)?, offset))
-        .or_else(|| name(analysed, import_at(analysed, offset)?, offset))?;
+        .or_else(|| name(analysed, import_at(analysed, offset)?, offset));
+    // A tainted or secret value's path (`crate::taint`): alone where it is on
+    // a node inside the one answered, under that answer where it is on the
+    // same node, and not at all where the answer is the narrower one.
+    let (value, node) = match (answered, crate::taint::at(analysed, offset)) {
+        (Some((value, node)), Some((path, span))) if span == node => {
+            (format!("{}\n\n---\n\n{path}", value.trim_end()), node)
+        }
+        (Some((value, node)), Some((path, span))) => {
+            if node.start <= span.start && span.end <= node.end {
+                (path, span)
+            } else {
+                (value, node)
+            }
+        }
+        (answered, path) => answered.or(path)?,
+    };
     // A run of bare `///` markers is a run with nothing in it, and it takes the
     // same answer as no run at all rather than opening a popup on whitespace.
     if value.trim().is_empty() {

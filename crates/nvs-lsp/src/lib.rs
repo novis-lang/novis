@@ -137,6 +137,7 @@ pub mod split_join;
 pub mod stubs;
 pub mod suite;
 pub mod symbols;
+mod taint;
 
 pub use capabilities::{
     CODE_ACTION_KINDS, SERVER_NAME, TOKEN_MODIFIERS, TOKEN_TYPES, declared_capabilities,
