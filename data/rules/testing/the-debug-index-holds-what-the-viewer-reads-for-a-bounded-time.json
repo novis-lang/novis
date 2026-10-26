@@ -1,12 +1,14 @@
 {
   "title": "The debug index is one SQLite file whose tables hold every query the viewer makes, full-text search and exception groups included, and it forgets a request past `[debug] index_age` or `[debug] index_max`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/a-recorded-request-keeps-its-input-with-credentials-replaced",
     "security/redaction-reaches-the-tools-own-renderings"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/index.rs",
+    "crates/nvs-cli/tests/debug_ingest.rs"
+  ]
 }

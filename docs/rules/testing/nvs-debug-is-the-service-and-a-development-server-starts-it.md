@@ -1,7 +1,7 @@
 `nvs debug` runs the debug service — the ingester and the viewer — for one data folder, and a
 development `nvs serve` with `[debug] store` on starts it as a child process and stops it when the
 server exits. It also runs by hand, for a spool that `nvs run`, `nvs test` or a copied-down directory
-filled.
+filled, and `nvs debug --once` reads what is ready, applies the deletion window and exits.
 
 One service per data folder, because the index has one writer
 (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). The service holds

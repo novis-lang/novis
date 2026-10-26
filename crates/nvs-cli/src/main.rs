@@ -96,6 +96,9 @@
 //!   (`rule:tooling/fmt-is-never-a-diagnostic`); see [`fmt`].
 //! * `nvs dap` — the debug adapter on stdio, which launches a program in its own process and
 //!   never attaches (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`); see [`dap`].
+//! * `nvs debug` — the debug service for one data folder, which ingests the spool a run with
+//!   `[debug] store` on wrote into `debug/index.sqlite`
+//!   (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`); see [`debug`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -146,6 +149,7 @@ mod code;
 mod config;
 mod coverage;
 mod dap;
+mod debug;
 #[cfg_attr(
     all(not(test), not(windows)),
     expect(
@@ -334,11 +338,12 @@ fn set_data_folder(flag: Option<&std::path::Path>) {
 }
 
 /// The commands that use the data folder, and so create it on startup: the
-/// project commands in [`initializes`], and `lsp`, which keeps its editor
-/// files there. Every other command only reads what is already there, so an
-/// audit or a status query never creates a folder.
+/// project commands in [`initializes`], `lsp`, which keeps its editor
+/// files there, and `debug`, which keeps its index there. Every other command
+/// only reads what is already there, so an audit or a status query never
+/// creates a folder.
 fn prepares(command: &Command) -> bool {
-    initializes(command) || matches!(command, Command::Lsp(_))
+    initializes(command) || matches!(command, Command::Lsp(_) | Command::Debug(_))
 }
 
 /// Creates the data folder for a command in [`prepares`], or prints the one
@@ -435,6 +440,7 @@ fn carries_upload(command: &Command) -> bool {
         | Command::Lsp(_)
         | Command::LspTest(_)
         | Command::Dap(_)
+        | Command::Debug(_)
         | Command::Info(_)
         | Command::Meta(_)
         | Command::Doc(_)
@@ -473,6 +479,7 @@ enum Command {
     Lsp(lsp::Args),
     LspTest(lsp_test::Args),
     Dap(dap::Args),
+    Debug(debug::Args),
     Info(info::Args),
     Meta(meta::Args),
     Doc(doc::Args),
@@ -484,7 +491,7 @@ enum Command {
 /// Every subcommand's name as clap writes it: the closed set a telemetry counter names
 /// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
 /// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
-const COMMAND_NAMES: [&str; 28] = [
+const COMMAND_NAMES: [&str; 29] = [
     "ast",
     "check",
     "run",
@@ -507,6 +514,7 @@ const COMMAND_NAMES: [&str; 28] = [
     "lsp",
     "lsp-test",
     "dap",
+    "debug",
     "info",
     "meta",
     "doc",
@@ -780,6 +788,7 @@ fn main() -> ExitCode {
         Command::Lsp(args) => args.run(),
         Command::LspTest(args) => args.run(&cli.config),
         Command::Dap(args) => args.run(&cli.config, init),
+        Command::Debug(args) => args.run(&cli.config),
         Command::Info(args) => args.run(),
         Command::Meta(args) => args.run(),
         Command::Doc(args) => args.run(),
@@ -3640,6 +3649,8 @@ mod tests {
         }
 
         assert!(creates(&["nvs", "lsp"]));
+        assert!(creates(&["nvs", "debug"]));
+        assert!(!writes(&["nvs", "debug"]));
         for read_only in [
             &["nvs", "config", "check"][..],
             &["nvs", "config", "dump"],

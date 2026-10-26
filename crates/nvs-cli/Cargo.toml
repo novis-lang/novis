@@ -81,6 +81,10 @@ nvs-test.workspace = true
 # outside a request, and `queue.rs`'s module doc owns why that needs a driver
 # here rather than a task borrowed from `run`.
 nvs-db.workspace = true
+# `nvs debug`'s index (`src/debug/index.rs`): the same bundled SQLite `nvs-db`
+# already compiles, so the binary gains no C dependency, and FTS5, which that
+# build compiles in, is the index's search.
+rusqlite.workspace = true
 # `nvs meta --json` prints the `Core` registry, which is `nvs-stdlib`'s data
 # read directly — `rule:tooling/meta-json` makes this binary the owner of that contract.
 nvs-stdlib.workspace = true

@@ -34,7 +34,7 @@ stages:
         rules: [testing/a-recorded-request-keeps-its-input-with-credentials-replaced, testing/the-debug-stream-reaches-the-service-through-the-disk, observability/a-query-is-a-trace-event, errors/record-transformations, security/secret-qualifier]
   - id: 4
     title: "`nvs debug` ingests sealed spool files into the index"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/Cargo.toml, crates/nvs-cli/src/debug.rs, crates/nvs-cli/src/debug/index.rs, crates/nvs-runtime/src/spool.rs, crates/nvs-config/src/data.rs, docs/rules/testing/the-ingester-runs-whether-or-not-anyone-is-looking.md, docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md]
     extra:
       context:
@@ -230,6 +230,18 @@ files no `spawn` event, because no program spawned it and its trace is the conne
 Trade-offs: with `store` off, one configuration read per filed event on a run that already records
 spans; with it on, one buffered append per event, dump and log record.
 
+**The index keeps two tables the planning table left out, and a search row names its source in its
+rowid.** This session's calls in stage 4. `body_parts` holds each `body` line (trace id, request or
+response, offset, bytes), because a body's `body` lines arrive before its `request` line and an
+`inputs` row cannot exist yet. `dropped` holds each `dropped` line, so the viewer can say what was
+lost. A `search` rowid is the source row's id times eight plus the table's code, so a trigger
+deletes it by rowid and never scans the FTS5 table; triggers also write it and keep a request's
+query, dump and log counts. `index_age` is measured from a request's start, and a row that names no
+recorded request goes by its own `at_us`. `index_max` is pages in use, since a freed page is reused.
+`nvs debug --once` does one pass and its deletion and exits, which is what the tests run and what a
+copied-down spool wants. Trade-offs: two tables and one flag more; a deletion is one indexed lookup
+per row.
+
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
 ingester's with `cargo test --test debug_ingest`; stage 6's end-to-end test with `cargo test --test
@@ -307,13 +319,13 @@ property's value never reaches the disk.
 **Does:** the command creates the index, reads each sealed file, inserts its records, commits, and
 deletes the file.
 
-- [ ] `nvs debug` beside `nvs lsp` in a new `debug` module, holding `debug/service.lock` in the data folder, and `rusqlite` added to `nvs-cli` from the workspace (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`, `crates/nvs-cli/src/debug.rs:1`, `crates/nvs-cli/Cargo.toml:81`, `Cargo.toml:1046`
-- [ ] The schema the rule's table names, in write-ahead mode with synchronous writes off, and a schema version that a newer binary treats as a cache miss (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`). `crates/nvs-cli/src/debug/index.rs:1`
-- [ ] Read, insert under the dedupe key, commit, then delete, with an exception group's count and first and last seen updated in the same batch, and the FTS5 rows beside their records (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). `crates/nvs-cli/src/debug/ingest.rs:1`
-- [ ] The watermark in `meta` after each batch, the directory listed every 250 ms while files arrive and every two seconds after a quiet minute, and an unsealed file untouched for a minute read as sealed. `crates/nvs-cli/src/debug/ingest.rs:1`
-- [ ] Deletion past `index_age` or `index_max` in batches. `crates/nvs-cli/src/debug/index.rs:1`
-- [ ] Tests over the sample spool: a crash between commit and delete re-ingests nothing twice, a search finds a dump's text, ten throws from one site make one group of ten, and the deletion window removes every row of a request. `crates/nvs-cli/tests/debug_ingest.rs:1`
-- [ ] `rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time` `shipped`. `data/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.json:3`
+- [x] `nvs debug` beside `nvs lsp` in a new `debug` module, holding `debug/service.lock` in the data folder, and `rusqlite` added to `nvs-cli` from the workspace (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`). `crates/nvs-cli/src/main.rs:395`, `crates/nvs-cli/src/main.rs:582`, `crates/nvs-cli/src/debug.rs:1`, `crates/nvs-cli/Cargo.toml:81`, `Cargo.toml:1046`
+- [x] The schema the rule's table names, in write-ahead mode with synchronous writes off, and a schema version that a newer binary treats as a cache miss (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`). `crates/nvs-cli/src/debug/index.rs:1`
+- [x] Read, insert under the dedupe key, commit, then delete, with an exception group's count and first and last seen updated in the same batch, and the FTS5 rows beside their records (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). `crates/nvs-cli/src/debug/ingest.rs:1`
+- [x] The watermark in `meta` after each batch, the directory listed every 250 ms while files arrive and every two seconds after a quiet minute, and an unsealed file untouched for a minute read as sealed. `crates/nvs-cli/src/debug/ingest.rs:1`
+- [x] Deletion past `index_age` or `index_max` in batches. `crates/nvs-cli/src/debug/index.rs:1`
+- [x] Tests over the sample spool: a crash between commit and delete re-ingests nothing twice, a search finds a dump's text, ten throws from one site make one group of ten, and the deletion window removes every row of a request. `crates/nvs-cli/tests/debug_ingest.rs:1`
+- [x] `rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time` `shipped`. `data/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.json:3`
 
 ### 5. a bad line and a bad file never stop the ingester, and a log file is tailed
 
@@ -361,40 +373,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done: every record kind the writer side owns reaches the spool. A `request`
-line is written at the door (`crates/nvs-server/src/spooled.rs`). `event` lines come from
-`Ctx::file_event` (`crates/nvs-runtime/src/ctx/trace.rs:530`), a query's with
-`QuerySpan::spooled`'s fields (`crates/nvs-db/src/span.rs:213`). `dump` lines come from
-`Ctx::spool_dump` and `log` lines from `Ctx::write_log_record`'s `spool_log`
-(`crates/nvs-runtime/src/ctx/output.rs:434`). A root isolate no longer files a `spawn` event
-(`crates/nvs-host/src/isolate.rs:851`), which had put a line under the connection's trace.
+Stages 1, 2, 3, 7 and 4 are done. The writer side records every kind of line, and both writer
+rules are `shipped`. Decision `d9` is still open; the work is built on "no" (Standing decisions).
 
-Both writer rules are `shipped`. The recording rule now says that a derived codec refuses a `secret`
-property (`E0462`), so a decoded body has no `secret` field to replace. Decision `d9` asks whether a
-derived decoder may fill one; the work is built on "no" and recommends "yes" (Standing decisions).
+Stage 4 landed `nvs debug` (`crates/nvs-cli/src/debug.rs`): it holds `debug/service.lock` with
+`File::try_lock`, reads `index_age` and `index_max` off the working directory's tree, opens the
+index (`crates/nvs-cli/src/debug/index.rs:322`, schema 1, WAL, `synchronous = OFF`, a file with
+another schema or unreadable is discarded), and loops `pass` then `forget` then `ingest::wait`.
+`ingest::file` (`crates/nvs-cli/src/debug/ingest.rs:112`) reads a file whole, inserts each line in
+one transaction that raises the watermark, commits and deletes. A line that does not parse, or a
+kind missing its trace id, goes to `unparseable` with its offset and first 256 bytes. The index
+rule is `shipped`, with `body_parts` and `dropped` added to its table.
 
-New tests, each passing once by name:
-`a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld` (`crates/nvs-cli/tests/request.rs:544`),
-`a_production_request_records_its_events_and_dumps_but_no_input` (`crates/nvs-server/src/serve.rs:13580`),
-`a_dump_is_one_spool_dump_line_with_no_byte_of_a_secret` (`crates/nvs-stdlib/src/debug.rs:1103`),
-`a_written_log_record_is_one_log_line_under_the_requests_trace` and
-`a_filed_query_event_is_an_event_line_with_its_driver_sql_and_rows` (`crates/nvs-runtime/src/spool.rs:1626`),
-and `a_query_span_contains_no_parameter_value_anywhere` now reads the spool line too.
-The sweep's reds were stale: `env-secret-proofs` exits 0, and run 40174915924 predates the fixes.
+New tests, each passing once by name: five in `crates/nvs-cli/tests/debug_ingest.rs` (the lock, a
+re-read after a crash, search, ten throws in one group, the deletion window), two unit tests in
+`ingest.rs`, and `config_check_and_dump_and_lsp_never_write` now also asserts `nvs debug`.
+The sweep's reds were stale again: `env-secret-proofs` exits 0, and each of run 40174915924's five
+failed jobs has its fix on `origin/main` (`0b7eadd2c`, `bd2e51f0a`, `901f4855c`, `c7e5bd3c3`,
+`d5aa2be18`).
 
-Tests expected to go red: none known. Watch `crates/nvs-host` tests that assert a door-started
-isolate's `wall`, which is now `None` (none found).
+Tests expected to go red: none known.
 
 ### Next
 
-**Stage 4: `nvs debug` ingests sealed spool files into the index**, in a new
-`crates/nvs-cli/src/debug.rs` with `debug/index.rs` and `debug/ingest.rs`, and
-`crates/nvs-cli/tests/debug_ingest.rs`. It tests against
-`crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` alone, reading lines with
-`nvs_runtime::spool::Line::parse` (`crates/nvs-runtime/src/spool.rs:121`). No gate.
+**Stage 5: a bad line and a bad file never stop the ingester, and a log file is tailed**, in
+`crates/nvs-cli/src/debug/ingest.rs`, a new `debug/tail.rs`, and `debug.rs`'s `pass`. Follow the
+stage's `**Split:**` line. The `unparseable`, `quarantine` and `checkpoints` tables already exist
+(`crates/nvs-cli/src/debug/index.rs:196`); change their columns freely and raise `SCHEMA`.
 
-- [ ] The command and the lock, then the schema, from the rule's table. `crates/nvs-cli/src/main.rs:395`, `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:1`
-- [ ] Read, insert under the dedupe key `(writer, seq)`, commit, delete; then the watermark and the listing cadence. `crates/nvs-cli/src/debug/ingest.rs:1`
+- [ ] A line past 4 MiB skipped to the next newline, the excerpt raised to 4 KiB, invalid UTF-8 converted with a flag, and a read or index error quarantined with its backoff and no delete. `crates/nvs-cli/src/debug/ingest.rs:112`, `crates/nvs-cli/src/debug.rs:124`
+- [ ] 16 MiB per source per pass, then `--tail <file>` from a checkpoint into `logs`' `source` and `offset` columns. `crates/nvs-cli/src/debug.rs:124`, `crates/nvs-cli/src/debug/tail.rs:1`
 
 Stage 8 now also owes the proofs gate the user named: perf figures, the `debug.*` directive proofs,
 `Core\Server::traceId`'s `about.md` length and its stale site page (stage 8's last two items).
