@@ -1,0 +1,4 @@
+{
+  "feature": "tools:cli/the-debug-viewer",
+  "perf": "The viewer runs no Novis code, so a bench under `benches/members/` would measure nothing of it. Its figure is a count: `crates/nvs-cli/src/debug/api.rs`'s `the_newest_page_reads_the_same_steps_at_any_index_size` fails when the newest page's SQLite steps grow between an index of 1000 requests and one of 20000."
+}

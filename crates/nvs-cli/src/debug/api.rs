@@ -967,4 +967,61 @@ mod tests {
         assert!(Key::parse("span=00f067aa0ba902b7").is_err());
         assert!(Key::parse("trace=4bf92f3577b34da6a3ce929d0e0e4736&limit=3").is_err());
     }
+
+    /// The SQLite virtual-machine steps of reading the newest page of an index of `requests` rows,
+    /// one in ten of which threw.
+    fn newest_page_steps(requests: i64) -> u64 {
+        let dir = nvs_repo::scratch(&format!("debug-page-{requests}"));
+        let path = dir.join("index.sqlite");
+        drop(super::super::index::Index::open(&path).expect("the index is created"));
+        let mut writer = Connection::open(&path).expect("the index opens for writing");
+        let tx = writer.transaction().expect("a write transaction");
+        tx.execute(
+            "INSERT INTO exception_groups (id, class, file, line, count, first_us, last_us) \
+             VALUES (1, 'RuntimeError', '/app/main.nvs', 7, 1, 0, 0)",
+            [],
+        )
+        .expect("the group is written");
+        for n in 0..requests {
+            tx.execute(
+                "INSERT INTO requests (writer, seq, batch, trace, span, start_us, duration_us, \
+                 method, route, path, status, exception_group) \
+                 VALUES ('w', ?1, ?1, printf('%032x', ?1), printf('%016x', ?1), ?1, 10, 'GET', \
+                 '/items', '/items', 200, ?2)",
+                params![n, (n % 10 == 0).then_some(1)],
+            )
+            .expect("the request is written");
+        }
+        tx.commit().expect("the requests are committed");
+        drop(writer);
+
+        let mut db = connect(&path).expect("the index opens for reading");
+        let steps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let counted = std::sync::Arc::clone(&steps);
+        db.progress_handler(
+            1,
+            Some(move || {
+                counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                false
+            }),
+        )
+        .expect("the progress handler is set");
+        let filter = Filter::parse("").expect("an empty filter");
+        let read = page(&mut db, &filter).expect("the newest page is read");
+        assert_eq!(read.requests.len(), 100);
+        steps.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`: the viewer is fast
+    /// at any size of index. The newest page reads the same number of SQLite steps from an index
+    /// of 1000 requests as from one of 20000, so its cost does not grow with the index. This is
+    /// the viewer's perf proof (`data/proofs/skip/tools/cli/the-debug-viewer.json`).
+    // covers: tools:cli/the-debug-viewer
+    #[test]
+    fn the_newest_page_reads_the_same_steps_at_any_index_size() {
+        let small = newest_page_steps(1_000);
+        let large = newest_page_steps(20_000);
+        assert!(small > 0, "the progress handler counted no step");
+        assert_eq!(small, large, "the newest page's SQLite steps grew with the index");
+    }
 }
