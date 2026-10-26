@@ -320,6 +320,21 @@ export function envLines(text: string): Record<string, string> {
 /** Where a `.cmd` example runs: a directory of its own under this one, made for the run and deleted after it. */
 const COMMAND_SCRATCH = join(ROOT, ".agent-tmp", "proof-cmd");
 
+/** Where a proof that turns on `[debug] store` keeps its data folder: one of its own under this one,
+ * made for the run and deleted after it. */
+const DATA_SCRATCH = join(ROOT, ".agent-tmp", "proof-data");
+
+/** Whether the `nvs.toml` at `config` turns on `[debug] store`, which writes spool files into the data
+ * folder. A file that does not parse is left to `nvs` to refuse. */
+export function storesDebug(config: string): boolean {
+  try {
+    const table = Bun.TOML.parse(readFileSync(config, "utf8")) as { debug?: { store?: unknown } };
+    return table.debug?.store === true;
+  } catch {
+    return false;
+  }
+}
+
 /** A word before `nvs` that sets a variable for the command, as a shell reads `NAME=value`. */
 const ASSIGNMENT_RE = /^([A-Z_][A-Z0-9_]*)=(.*)$/s;
 
@@ -404,7 +419,10 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * that file's `NAME=value` lines added to its environment (`envLines`), so a `Core\Env` member has
  * variables of the proof's own to read. A proof whose directory holds an `nvs.toml` runs
  * under that file alone, handed over as `--config` after `run`, so a feature that needs a grant carries
- * it where its reader sees it; every other proof runs under the repository root's. `record` names the
+ * it where its reader sees it; every other proof runs under the repository root's. When that file turns
+ * on `[debug] store` (`storesDebug`), the run also gets a data folder of its own under `DATA_SCRATCH`,
+ * handed over as `--data` and deleted after the run, so its spool files never add up in the data folder
+ * beside the binary. `record` names the
  * directory the run is recorded into, which defaults to `NV_PROOF_RECORD`, and variables its processes
  * get beside the recording's. With `unlogged` and no record directory, the run writes no footprint log,
  * not even the one this process inherited. A proof marked `requires: <service>` runs once that service
@@ -435,6 +453,12 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (at >= 0 && existsSync(abs(peer))) argv = [...argv.slice(0, at + 1), "--peer", peer, ...argv.slice(at + 1)];
   if (at >= 0 && existsSync(abs(events))) argv = [...argv.slice(0, at + 1), "--events", events, ...argv.slice(at + 1)];
   if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
+  let data: string | null = null;
+  if (at >= 0 && existsSync(abs(config)) && storesDebug(abs(config))) {
+    mkdirSync(DATA_SCRATCH, { recursive: true });
+    data = mkdtempSync(join(DATA_SCRATCH, "run-"));
+    argv = [argv[0]!, "--data", data, ...argv.slice(1)];
+  }
   const recording = proofRecording(proof, record?.dir ?? process.env[RECORD_ENV]);
   if (recording.NVS_FOOTPRINT_LOG) mkdirSync(dirname(recording.NVS_FOOTPRINT_LOG), { recursive: true });
   const vars = abs(sibling(proof, ".env"));
@@ -451,6 +475,7 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   } finally {
     release();
     if (scratch) rmSync(scratch, { recursive: true, force: true });
+    if (data) rmSync(data, { recursive: true, force: true });
   }
 }
 
