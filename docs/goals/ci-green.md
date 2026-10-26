@@ -124,6 +124,16 @@ Every other job is green, `five-driver matrix` and the Windows idle-stack test a
 The push lane skipped the Miri and overload jobs, so the fixes for runs 40158642410 and
 40174915924 are not checked yet. They run in the nightly deep lane.
 
+No push has gone out since. Three `--watch --next` runs in a row exited 3, about six hours with no
+new run, while `debug-service` stayed open with 28 unpushed commits. At `cfee6562b`,
+`bun nv proofs --gate --limit 0` owes perf figures for `request.rs`, `uri.rs`, `queue.rs`,
+`debug.rs`, `script.rs` and `json.rs`, the four `debug.*` directive proofs, and
+`Core\Server::traceId`'s `about.md`, which has 206 words. `bun nv site --check questions` names
+`/reference/core/server/traceid/` as stale. All of these come from `debug-service`'s commits or the
+root's open edits, so they were handed to the main loop with `loop say`. Its goal end's pre-push
+check refuses the push until they are paid. If `--watch` reports a refused push, check first whether
+the main loop is still paying them.
+
 `.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders with a `.looper` directory that
 Windows keeps while looper runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three
 when looper is stopped.
