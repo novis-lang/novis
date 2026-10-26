@@ -1,6 +1,6 @@
 {
   "title": "The ingester owns every write to the index and runs without a browser, and the viewer only ever reads",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-debug-stream-reaches-the-service-through-the-disk",
     "testing/a-bad-line-degrades-and-a-bad-file-is-quarantined",
@@ -8,6 +8,9 @@
     "testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time",
     "testing/nvs-debug-is-the-service-and-a-development-server-starts-it"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/ingest.rs",
+    "crates/nvs-cli/src/debug/tail.rs",
+    "crates/nvs-cli/tests/debug_ingest.rs"
+  ]
 }

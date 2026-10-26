@@ -8,12 +8,19 @@ an effect of somebody having a tab open. Putting the ingester inside the applica
 refused: it would put directory scanning and index writes on the request path, in every deployment,
 to save a hop that costs nothing.
 
-**Two ingest modes.** A spool file is read whole, inserted, and deleted. A log file named with
+**Two ingest modes.** A spool file is read to its end, inserted, and deleted. A log file named with
 `nvs debug --tail <file>` is read from a checkpoint, inserted, and never touched — the checkpoint keyed
 on the file's identity plus its offset plus a hash of its first line, because a path misses a rotation
 and an identity alone misses identity reuse and truncation in place. Every record carries a **dedupe
 key** under a unique index and inserts ignoring conflicts, so re-ingesting anything is harmless: the
 writer's id and sequence for a spool record, the file identity and byte offset for a tailed one.
+
+A tailed file is read in the `json` log format, and a line in any other is an `unparseable` record.
+Its last line is read once it has a newline, since the writer may be partway through it. The
+checkpoint and the rows it moves past are committed in one transaction. When the file at the path is
+no longer the checkpoint's, the rest of `<file>.1`, the name a Novis log is rotated to, is read
+first if that file is the checkpoint's, so the lines written just before a rotation are kept; the
+new file is then read from its start. `crates/nvs-cli/src/debug/tail.rs` is the tailer.
 
 The ingester lists the spool directory every 250 milliseconds, the seal age, while files arrive, and
 every two seconds once none has arrived for a minute. A listing of an empty directory is the whole cost
@@ -34,7 +41,9 @@ the ingester buffer, and a browser that was closed needs no replay buffer. That 
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
 
-- **Memory:** one batch of parsed records per pass, bounded by
+- **Memory:** one line at a time, of at most 4 MiB, and one open transaction per file, bounded by
   `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`'s work per source.
 
-**Not on disk.** There is no ingester.
+The ingester is `nvs debug` (`crates/nvs-cli/src/debug.rs`): it raises the watermark in the index's
+`meta` table with each batch. The viewer, its push of the watermark and its action that discards the
+index are `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`'s.

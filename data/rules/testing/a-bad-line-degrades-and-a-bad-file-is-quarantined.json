@@ -1,9 +1,11 @@
 {
   "title": "A malformed line becomes a visible record and an unreadable file is quarantined under a backoff, so ingestion never stops",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/ingest.rs",
+    "crates/nvs-cli/tests/debug_ingest.rs"
+  ]
 }

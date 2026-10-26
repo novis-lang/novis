@@ -41,7 +41,7 @@ stages:
         rules: [testing/the-ingester-runs-whether-or-not-anyone-is-looking, testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
   - id: 5
     title: a bad line and a bad file never stop the ingester, and a log file is tailed
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug.rs, crates/nvs-cli/src/debug/ingest.rs, crates/nvs-cli/src/debug/tail.rs, docs/rules/testing/a-bad-line-degrades-and-a-bad-file-is-quarantined.md, docs/rules/testing/the-ingester-runs-whether-or-not-anyone-is-looking.md]
     extra:
       context:
@@ -242,6 +242,16 @@ recorded request goes by its own `at_us`. `index_max` is pages in use, since a f
 copied-down spool wants. Trade-offs: two tables and one flag more; a deletion is one indexed lookup
 per row.
 
+**A spool line that is not UTF-8 is unparseable, a tailed one is a record, and `--tail` reads the
+`json` format.** This session's calls in stage 5, written into the two ingester rules. The writer
+writes UTF-8 alone, so a damaged spool line is never inserted as a record; a log line another
+program wrote is converted and flagged `lossy`. A tailed line in the `text` format is an
+`unparseable` row. After a rotation, the rest of `<file>.1` is read first when its key is the
+checkpoint's. A `quarantine` row goes once its file is read or gone, never by age, and a file that
+cannot be deleted after its batch committed is quarantined too. A file's identity is
+`crate::reload::file_identity`, shared with the configuration watcher. Trade-offs: one 64 KiB buffer
+and one line of at most 4 MiB while a file is read, one entry per failing file, and schema 2.
+
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
 ingester's with `cargo test --test debug_ingest`; stage 6's end-to-end test with `cargo test --test
@@ -335,12 +345,12 @@ log file from a checkpoint.
 **Split:** after the session lands the degrade, quarantine and tail code, a writing subagent writes the
 bad-file fixtures under `crates/nvs-cli/tests/fixtures/debug/` and their tests as one batch.
 
-- [ ] A line past 4 MiB is truncated and skipped to the next newline, a line that does not parse is an `unparseable` record with its file, offset and first 4 KiB, and invalid UTF-8 is converted with a flag (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`). `crates/nvs-cli/src/debug/ingest.rs:1`
-- [ ] A file that fails to open or read is quarantined with its error and a retry after one second, doubling up to five minutes, and a full disk or an index error backs off the same way and deletes no file. `crates/nvs-cli/src/debug/ingest.rs:1`
-- [ ] Work per source per pass is at most 16 MiB, and sources are taken in turn. `crates/nvs-cli/src/debug.rs:1`
-- [ ] `nvs debug --tail <file>` reads a log file from a checkpoint of its identity, offset and first-line hash, and never writes it (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). `crates/nvs-cli/src/debug/tail.rs:1`
-- [ ] Tests and their fixtures: a file that is one enormous line, a file with a bad line between two good ones, an unreadable file listed in `quarantine` while the spool keeps flowing, and a tailed file rotated and truncated in place. `crates/nvs-cli/tests/debug_ingest.rs:1`, `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool:1`
-- [ ] `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined` and `rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking` `shipped`. `data/rules/testing/a-bad-line-degrades-and-a-bad-file-is-quarantined.json:3`, `data/rules/testing/the-ingester-runs-whether-or-not-anyone-is-looking.json:3`
+- [x] A line past 4 MiB is truncated and skipped to the next newline, a line that does not parse is an `unparseable` record with its file, offset and first 4 KiB, and invalid UTF-8 is converted with a flag (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`). `crates/nvs-cli/src/debug/ingest.rs:1`
+- [x] A file that fails to open or read is quarantined with its error and a retry after one second, doubling up to five minutes, and a full disk or an index error backs off the same way and deletes no file. `crates/nvs-cli/src/debug/ingest.rs:1`
+- [x] Work per source per pass is at most 16 MiB, and sources are taken in turn. `crates/nvs-cli/src/debug.rs:1`
+- [x] `nvs debug --tail <file>` reads a log file from a checkpoint of its identity, offset and first-line hash, and never writes it (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`). `crates/nvs-cli/src/debug/tail.rs:1`
+- [x] Tests and their fixtures: a file that is one enormous line, a file with a bad line between two good ones, an unreadable file listed in `quarantine` while the spool keeps flowing, and a tailed file rotated and truncated in place. `crates/nvs-cli/tests/debug_ingest.rs:1`, `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool:1`
+- [x] `rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined` and `rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking` `shipped`. `data/rules/testing/a-bad-line-degrades-and-a-bad-file-is-quarantined.json:3`, `data/rules/testing/the-ingester-runs-whether-or-not-anyone-is-looking.json:3`
 
 ### 6. a development `nvs serve` starts `nvs debug`, and a fixture's requests reach the index
 
@@ -373,36 +383,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7 and 4 are done. The writer side records every kind of line, and both writer
-rules are `shipped`. Decision `d9` is still open; the work is built on "no" (Standing decisions).
+Stages 1, 2, 3, 7, 4 and 5 are done. The writer side records every kind of line, and `nvs debug`
+ingests it. Every ingester rule is `shipped`. Decision `d9` is still open; the work is built on
+"no" (Standing decisions).
 
-Stage 4 landed `nvs debug` (`crates/nvs-cli/src/debug.rs`): it holds `debug/service.lock` with
-`File::try_lock`, reads `index_age` and `index_max` off the working directory's tree, opens the
-index (`crates/nvs-cli/src/debug/index.rs:322`, schema 1, WAL, `synchronous = OFF`, a file with
-another schema or unreadable is discarded), and loops `pass` then `forget` then `ingest::wait`.
-`ingest::file` (`crates/nvs-cli/src/debug/ingest.rs:112`) reads a file whole, inserts each line in
-one transaction that raises the watermark, commits and deletes. A line that does not parse, or a
-kind missing its trace id, goes to `unparseable` with its offset and first 256 bytes. The index
-rule is `shipped`, with `body_parts` and `dropped` added to its table.
+Stage 5 landed the degrade, quarantine and tail code. `ingest::Lines`
+(`crates/nvs-cli/src/debug/ingest.rs`) reads a file line by line, keeping at most 4 MiB of a line,
+and `ingest::file` takes a start offset and a budget. `debug.rs`'s `Service` gives the spool and
+each `--tail` file 16 MiB a pass in turn, quarantines a failing path under `ingest::Backoff`, stalls
+every source on an index error, and seeds its failures from the `quarantine` table at start, so a
+row from an earlier run is released too. `debug/tail.rs` reads a `json` log file from its
+`checkpoints` row (path, identity plus first-line hash, offset), and reads the rest of `<file>.1`
+after a rotation. The index schema is 2. `crate::reload::file_identity` is the file identity, shared
+with the configuration watcher.
 
-New tests, each passing once by name: five in `crates/nvs-cli/tests/debug_ingest.rs` (the lock, a
-re-read after a crash, search, ten throws in one group, the deletion window), two unit tests in
-`ingest.rs`, and `config_check_and_dump_and_lsp_never_write` now also asserts `nvs debug`.
-The sweep's reds were stale again: `env-secret-proofs` exits 0, and each of run 40174915924's five
-failed jobs has its fix on `origin/main` (`0b7eadd2c`, `bd2e51f0a`, `901f4855c`, `c7e5bd3c3`,
-`d5aa2be18`).
+New tests, each passing once by name: five in `crates/nvs-cli/tests/debug_ingest.rs` (one enormous
+line, a bad line between two good, an unreadable file quarantined, a tailed file, a rotation and a
+truncation), with fixtures `a-bad-line-between-two-good.spool` and `a-json-log.log` timed in 2100
+so `index_age` keeps them; four unit tests in `ingest.rs` and one in `tail.rs`. The sweep's reds
+were stale again: `env-secret-proofs` exits 0, and run 40174915924's failed jobs have their fixes on
+`origin/main`.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 5: a bad line and a bad file never stop the ingester, and a log file is tailed**, in
-`crates/nvs-cli/src/debug/ingest.rs`, a new `debug/tail.rs`, and `debug.rs`'s `pass`. Follow the
-stage's `**Split:**` line. The `unparseable`, `quarantine` and `checkpoints` tables already exist
-(`crates/nvs-cli/src/debug/index.rs:196`); change their columns freely and raise `SCHEMA`.
+**Stage 6: a development `nvs serve` starts `nvs debug`, and a fixture's requests reach the index.**
+`run` in `crates/nvs-cli/src/serve.rs:233` starts the child after the snapshot is read
+(`crates/nvs-cli/src/serve.rs:271`), when the mode is `development` and `[debug] store` is on, and
+stops it on exit. `nvs debug` needs a way to see its parent gone within one pass (a `--parent <pid>`
+flag, or its standard input closing); the Standing decisions do not settle which, so pick by the
+priorities and record it. The end-to-end test goes in a new `crates/nvs-cli/tests/debug_service.rs`.
+Mind the backlog item about `a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld`.
 
-- [ ] A line past 4 MiB skipped to the next newline, the excerpt raised to 4 KiB, invalid UTF-8 converted with a flag, and a read or index error quarantined with its backoff and no delete. `crates/nvs-cli/src/debug/ingest.rs:112`, `crates/nvs-cli/src/debug.rs:124`
-- [ ] 16 MiB per source per pass, then `--tail <file>` from a checkpoint into `logs`' `source` and `offset` columns. `crates/nvs-cli/src/debug.rs:124`, `crates/nvs-cli/src/debug/tail.rs:1`
+- [ ] The child started and stopped, never in production, and a parent gone ends it. `crates/nvs-cli/src/serve.rs:233`, `crates/nvs-cli/src/debug.rs:1`
+- [ ] The end-to-end test, then the help text, the CLI chapter's `# nvs debug` section (the `--tail` file must be `json`), and the two rules `shipped`. `crates/nvs-cli/tests/debug_service.rs:1`, `docs/reference/tools/10-cli.md:302`
 
 Stage 8 now also owes the proofs gate the user named: perf figures, the `debug.*` directive proofs,
 `Core\Server::traceId`'s `about.md` length and its stale site page (stage 8's last two items).

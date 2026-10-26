@@ -108,12 +108,19 @@ impl Args {
             .iter()
             .map(|path| std::path::absolute(path).unwrap_or_else(|_| path.clone()))
             .collect();
+        let failed = match quarantined(&index, Instant::now()) {
+            Ok(failed) => failed,
+            Err(err) => {
+                eprintln!("error: cannot read `{}`: {err}", index_path.display());
+                return ExitCode::FAILURE;
+            }
+        };
         let mut service = Service {
             index,
             spool,
             tails,
             resume: HashMap::new(),
-            failed: HashMap::new(),
+            failed,
             stalled: None,
         };
         service.serve(window, self.once)
@@ -287,6 +294,25 @@ impl Service {
         }
         Ok(())
     }
+}
+
+/// Each file an earlier run left in `quarantine`, due at `now`, so this run releases it once it
+/// is read or gone and counts its failures on.
+fn quarantined(index: &Index, now: Instant) -> rusqlite::Result<HashMap<PathBuf, ingest::Backoff>> {
+    let mut rows = index.db.prepare("SELECT path, failures FROM quarantine")?;
+    let rows = rows.query_map([], |row| {
+        let path: String = row.get(0)?;
+        let failures: u32 = row.get(1)?;
+        Ok((
+            PathBuf::from(path),
+            ingest::Backoff {
+                failures,
+                delay: std::time::Duration::ZERO,
+                until: now,
+            },
+        ))
+    })?;
+    rows.collect()
 }
 
 /// The lock on `path`, or `None` when another process holds it.

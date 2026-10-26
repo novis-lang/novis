@@ -1,0 +1,3 @@
+{"ts":"2100-01-01T00:00:01Z","level":"info","msg":"Shop started on example.com","fields":{"port":8080}}
+{"ts":"2100-01-01T00:00:02Z","level":"warn","msg":"stock is low","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","fields":{"item":7}}
+{"ts":"2100-01-01T00:00:03Z","level":"error","msg":"payment failed","fields":{"order":7}}

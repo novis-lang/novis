@@ -78,10 +78,9 @@ directory, and the same property makes the service a viewer for a copied-down sp
 - **Memory:** one write buffer per writer, held while the writer has an open file, and no queue
   anywhere. **Disk:** at most `spool_max` per process.
 
-**Not on disk.** `nvs_runtime::spool` is the writer, and nothing calls it yet: no request writes a
-record, and nothing reads a spool file. Under `nvs serve` each core runs one task that seals its file
-at the deadline (`crates/nvs-cli/src/serve.rs`, `seal_the_spool`), and `nvs run` and `nvs test` seal
-theirs at exit.
+`nvs_runtime::spool` is the writer, and `nvs debug` the reader (`crates/nvs-cli/src/debug/ingest.rs`).
+Under `nvs serve` each core runs one task that seals its file at the deadline
+(`crates/nvs-cli/src/serve.rs`, `seal_the_spool`), and `nvs run` and `nvs test` seal theirs at exit.
 
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background
