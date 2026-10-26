@@ -391,6 +391,82 @@ fn ten_throws_from_one_site_make_one_group_of_ten() {
     );
 }
 
+/// The bytes of the pages `db` has in use, as `Index::forget` measures them.
+fn bytes_in_use(db: &Connection) -> i64 {
+    (count(db, "PRAGMA page_count") - count(db, "PRAGMA freelist_count"))
+        * count(db, "PRAGMA page_size")
+}
+
+/// `[debug] index_max` deletes the oldest requests first, each with every row that names it, until
+/// the pages in use fit, and a bound smaller than the empty schema deletes every request and still
+/// ends. A deletion transaction takes 1000 requests, so the index holds 2500, which needs more than
+/// one.
+#[test]
+fn index_max_deletes_the_oldest_requests_until_the_index_fits() {
+    let folder = Folder::new();
+    let now = now_us();
+    let start = |n: u64| now - 2_500_000_000 + n * 1_000_000;
+    let mut lines = Vec::new();
+    for n in 0..2500 {
+        let mut one = copy("6-1-0", &format!("{n:032x}"), start(n));
+        for line in &mut one {
+            line.seq += n * 100;
+        }
+        lines.extend(one);
+    }
+    folder.write("6-1-0.0.spool", &lines);
+    folder.ingest();
+    let full = bytes_in_use(&folder.index());
+    assert_eq!(
+        count(&folder.index(), "SELECT count(*) FROM requests"),
+        2500
+    );
+
+    let config = folder.data.join("small.toml");
+    let bound = full / 4 * 3;
+    std::fs::write(&config, format!("[debug]\nindex_max = \"{bound}\"\n"))
+        .expect("the data folder is writable");
+    folder.ingest_with(&[OsStr::new("--config"), config.as_os_str()]);
+    let db = folder.index();
+    let left = count(&db, "SELECT count(*) FROM requests");
+    assert!(
+        left > 0 && left < 2500,
+        "some requests are deleted and some kept: {left} left"
+    );
+    assert!(
+        bytes_in_use(&db) <= bound,
+        "the pages in use fit under `index_max`"
+    );
+    let kept_from = 2500 - u64::try_from(left).expect("a count");
+    assert_eq!(
+        count(&db, "SELECT min(start_us) FROM requests"),
+        i64::try_from(start(kept_from)).expect("the time fits"),
+        "the requests kept are the newest"
+    );
+    for table in TRACED {
+        assert_eq!(
+            count(
+                &db,
+                &format!(
+                    "SELECT count(*) FROM {table} \
+                     WHERE trace IS NOT NULL AND trace NOT IN (SELECT trace FROM requests)"
+                )
+            ),
+            0,
+            "`{table}` keeps no row of a deleted request"
+        );
+    }
+    drop(db);
+
+    std::fs::write(&config, "[debug]\nindex_max = \"1K\"\n").expect("the data folder is writable");
+    folder.ingest_with(&[OsStr::new("--config"), config.as_os_str()]);
+    assert_eq!(
+        count(&folder.index(), "SELECT count(*) FROM requests"),
+        0,
+        "a bound under the empty schema deletes every request"
+    );
+}
+
 #[test]
 fn the_deletion_window_removes_every_row_of_a_request() {
     let folder = Folder::new();
