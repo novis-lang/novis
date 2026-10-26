@@ -13,7 +13,7 @@ stages:
         rules: [ide/used-by-counts-the-routes-and-tests-that-reach-a-method, ide/five-features-are-one-reference-index, testing/in-process-request]
   - id: 8
     title: a "used by" lens reads the coverage report and runs its tests
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, editors/vscode/src/tests.ts, editors/vscode/package.json, docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md, docs/rules/ide/the-request-set-is-closed.md, docs/rules/testing/report-formats.md]
     extra:
       context:
@@ -192,6 +192,16 @@ the `#[Test]` methods that reach it.
 
 ### 8. a "used by" lens reads the coverage report and runs its tests
 
+**Built on (stage 8's session):** the client keeps one report per program, not one for the
+workspace, so a coverage run of one program leaves another program's counts alone. It writes the
+reports, with absolute file names, into a directory of its storage and names it in
+`initializationOptions` as `coverage.dir`, beside `stubs.dir`. That is no contributed setting and no
+request of Novis's own. A report applies to a file one of its tests reached, and the count is
+"static" elsewhere. A method no route and no test reaches has no "used by" lens, as with the
+hierarchy lenses, so the existing lens cases are unchanged. `nvs.runTests` is registered and named in
+`capabilities.experimental.commands`, like `nvs.showLocations`, and not contributed to the palette,
+because it needs the lens's arguments. `nvs_lsp::reports` and the rule hold it.
+
 **Does:** a method's lens counts the routes that reach it and the tests that ran it, and runs those
 tests.
 
@@ -199,12 +209,12 @@ tests.
 cases under `tests/lsp/lens/` as one batch; the client half in `editors/vscode/` may go to a second
 writing subagent after that.
 
-- [ ] The lens above a method says "used by N routes, M tests", with "at least" where a `callable` or a `mixed` call may reach it. Its command carries the tests. `crates/nvs-lsp/src/server.rs:1173`, `crates/nvs-lsp/src/server.rs:1200`
-- [ ] The Coverage run profile also keeps the run's JSON report with its per-test lines, and the server reads the tests that reached a method from the newest one. With no report, the test count comes from the call graph and the lens marks it "static" (`rule:testing/report-formats`). `editors/vscode/src/tests.ts:92`, `editors/vscode/src/tests.ts:115`
-- [ ] The client's `nvs.runTests` command runs exactly those tests through the Test Explorer's filtered run (`rule:ide/contributions-are-frozen-and-only-ever-added`). `editors/vscode/src/tests.ts:218`, `editors/vscode/package.json:202`
-- [ ] `.lspt` cases for a direct, a transitive, a recursive and an "at least" count, a test count read from a report and a "static" one (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). `tests/lsp/lens/a-method-counts-the-routes-that-reach-it.lspt:1`
-- [ ] A client test for the click. `editors/vscode/scripts/headless.mjs:1`
-- [ ] `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` `shipped`. `data/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.json:3`
+- [x] The lens above a method says "used by N routes, M tests", with "at least" where a `callable` or a `mixed` call may reach it. Its command carries the tests. `crates/nvs-lsp/src/server.rs:1173`, `crates/nvs-lsp/src/server.rs:1200`
+- [x] The Coverage run profile also keeps the run's JSON report with its per-test lines, and the server reads the tests that reached a method from the newest one. With no report, the test count comes from the call graph and the lens marks it "static" (`rule:testing/report-formats`). `editors/vscode/src/tests.ts:92`, `editors/vscode/src/tests.ts:115`
+- [x] The client's `nvs.runTests` command runs exactly those tests through the Test Explorer's filtered run (`rule:ide/contributions-are-frozen-and-only-ever-added`). `editors/vscode/src/tests.ts:218`, `editors/vscode/package.json:202`
+- [x] `.lspt` cases for a direct, a transitive, a recursive and an "at least" count, a test count read from a report and a "static" one (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`). `tests/lsp/lens/a-method-counts-the-routes-that-reach-it.lspt:1`
+- [x] A client test for the click. `editors/vscode/scripts/headless.mjs:1`
+- [x] `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` `shipped`. `data/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.json:3`
 
 ### 2. call hierarchy walks the call graph both ways
 
@@ -303,38 +313,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs_lsp::reach::reach` walks the call graph backwards, and
-`nvs_lsp::calls::{incoming, outgoing}` read it one step each way for `textDocument/callHierarchy`,
-which the server declares. A matched `Core\Test::request` is an edge in both. The new
-`SymbolIndex::requests_in` belongs to the call graph reader. `navigation.rs`'s
-`call_hierarchy_walks_the_call_graph_both_ways` passes.
+Stages 1, 2 and 8 are done. A method a route or a test reaches carries "used by N routes, M tests"
+(`crates/nvs-lsp/src/server.rs`, `used_by`). The tests come from `nvs_lsp::reports`, which reads every
+report in the directory `initializationOptions` names as `coverage.dir`, and from the call graph,
+marked "(static)", where no report reached the method's file. The VS Code client keeps one report per
+program there after a coverage run, and `nvs.runTests` starts the Run profile over the lens's tests
+(`editors/vscode/src/tests.ts`). Six `.lspt` cases under `tests/lsp/lens/` and the headless
+`coverage` suite pass. The rule is `shipped`.
 
-CI, from the sweep: the yanked `crypto-bigint`, the Windows count mismatch and the linux-aarch64 stack
-bound were already fixed on main (`Cargo.lock`, `9c8b0fe16`, `536782207`). The macOS count mismatch
-was real: a longer project folder changed the counts on Windows too. `Ctx::rebase_memory`
-(`crates/nvs-cli/src/main.rs:2141`) now measures from the spawn, and every `--count` total moved.
-The cancelled Linux jobs hung in `crates/nvs-cli/tests/dap.rs`. An event that arrived before a
-step's response was dropped. Both ends are fixed, but the last fix, to `until_stop_or_end`, has not
-run on Linux yet. `env-secret-proofs` exits 0 when run now, and no check by that name is in the
-tree.
+The sweep's findings were the same nightly run the last session closed. `bun nv linux-test --test
+dap` now passes on Linux (21 tests), and `env-secret-proofs` exits 0.
 
-May go red: the proofs gate's perf records, because the counted baseline moved. Rerun
-`bun nv linux-test --test dap` first.
+May go red in the gate: `crates/nvs-lsp/tests/handshake.rs` if it pins `Client` or the
+initialization options further, and the proofs gate's perf records, because the counted baseline
+moved last session.
 
 ### Next
 
-**Stage 8, the "used by" lens**, on `crates/nvs-lsp/src/server.rs` and `editors/vscode/src/tests.ts`.
-Its gate holds. It follows the stage's **Split:** line.
+**Stage 3, a route's hover shows the program's grants**, on `crates/nvs-lsp/src/hover.rs` and
+`crates/nvs-lsp/src/document.rs`. It needs no gate, and it follows the stage's **Split:** line.
 
-- [ ] The method lens says "used by N routes, M tests" off `reach::reach`, with "at least" from `Reach::at_least`, and its command carries the tests. `crates/nvs-lsp/src/server.rs:1725`, `crates/nvs-lsp/src/reach.rs:51`
-- [ ] The Coverage profile keeps its JSON report (`schemaVersion: 3`, per-test `coverage`), and the server reads the newest one; with none, the lens says "static". `editors/vscode/src/tests.ts:5`, `docs/rules/testing/report-formats.md:1`
-- [ ] `nvs.runTests` runs those tests through the Test Explorer's filtered run. `editors/vscode/package.json:202`
-- [ ] `.lspt` cases (writing subagent), then the client test (second subagent). `tests/lsp/README.md:8`, `editors/vscode/scripts/headless.mjs:1`
+- [ ] Resolve the snapshot for the program's entry file once per hover. `crates/nvs-lsp/src/document.rs:809`, `crates/nvs-config/src/snapshot.rs:149`
+- [ ] List the grants by kind with their scopes, under a first line that names the file. `crates/nvs-config/src/tree.rs:501`, `crates/nvs-lsp/src/hover.rs:132`
+- [ ] With no `nvs.toml`, say so and name the default policy. `crates/nvs-lsp/src/hover.rs:132`
+- [ ] `.lspt` cases (writing subagent). `tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt:1`
 
-Stages 3 and 4 (hovers) and 5 (query site id) need no gate and can follow.
+Stage 4 (the taint path hover) shares `hover.rs` and follows. Stage 5 is disjoint.
 
 ### Backlog
 
+- A filtered coverage run replaces its program's kept report, so the lens counts only the tests that run covered until a whole-program coverage run (`editors/vscode/src/tests.ts`, `keep`).
+- The client does not ask the server to refresh its lenses after a coverage run, so a new count shows at the next edit or editor switch (`editors/vscode/src/tests.ts`, `keep`).
+- A graph count with "at least" reads "at least 0 tests" where no test reaches the method. The rule words it so, and a later change may drop the prefix on a zero (`crates/nvs-lsp/src/server.rs`, `used_by`).
 - Stage 5 is disjoint and can run as a side goal now (`docs/rules/observability/a-query-span-names-its-call-site.md`).
 - A test count read from a coverage report is as old as that run; the next coverage run refreshes it (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
 - `nvs dap` answers no `evaluate` for watch and hover expressions, and no rule asks for it. A goal that wants it writes it into the rule first (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).

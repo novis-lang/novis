@@ -1,6 +1,6 @@
 {
   "title": "A method's \"used by\" lens counts the routes whose handlers reach it through resolved calls and the tests the last coverage run saw reach it, and a click runs exactly those tests",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/five-features-are-one-reference-index",
     "routing/routes-are-compiled-not-registered",
@@ -10,6 +10,10 @@
     "ide/the-test-tree-is-discovered-and-run-through-the-cli",
     "ide/the-request-set-is-closed"
   ],
-  "guardedBy": [],
-  "goal": "request-aware-editor"
+  "guardedBy": [
+    "tests/lsp/lens/a-method-counts-the-routes-that-reach-it.lspt",
+    "tests/lsp/lens/a-coverage-report-gives-the-exact-tests-that-ran-a-method.lspt",
+    "tests/lsp/lens/without-a-report-the-call-graph-gives-the-static-tests-that-reach-a-method.lspt",
+    "editors/vscode/test/coverage/kept.test.ts"
+  ]
 }

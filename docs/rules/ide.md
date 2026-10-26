@@ -3,7 +3,7 @@
 
 # The editor
 
-*4 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1510,7 +1510,7 @@ warm index is what keeps references and highlight inside [`ide/a-full-reanalysis
 
 <a id="ide-used-by-counts-the-routes-and-tests-that-reach-a-method"></a>
 
-## A method's "used by" lens counts the routes whose handlers reach it through resolved calls and the tests the last coverage run saw reach it, and a click runs exactly those tests  *(designed — owned by goal request-aware-editor)*
+## A method's "used by" lens counts the routes whose handlers reach it through resolved calls and the tests the last coverage run saw reach it, and a click runs exactly those tests
 
 `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
 
@@ -1549,6 +1549,14 @@ for it.
 The route count and a static test count are read from the index, so they are current after every edit.
 A test count from a report is as old as its run, and the next coverage run refreshes it. The lens is
 gated on `nvs.codeLens.enable` with the other lenses.
+
+**The client keeps the reports, one per program.** The VS Code client writes the JSON report of each
+program's last coverage run into a directory of its own storage, with every file name made absolute,
+and names that directory in `initialize`'s `coverage.dir`, as it names `stubs.dir`. A report applies
+to a file one of its tests reached. Where none did, the count is the call graph's and says "static". A
+test the index no longer declares is not counted. **A method that no route and no test reaches has no
+"used by" lens**, for the reason a hierarchy lens is written only where it has something to say. A
+click carries `nvs.runTests` with the tests as `Class::method`, for a client that names that command.
 
 - **Memory:** one function name per occurrence in the index, held in the editor process for the
   index's life, and the newest report's per-test lines while the server holds it. Each lens request
