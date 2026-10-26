@@ -1,6 +1,6 @@
 //! `nvs debug to-test <trace-id>`: a recorded request printed as a test that asserts its recorded
 //! response (`rule:testing/a-recorded-request-becomes-a-test`). `GET /api/to-test` is the viewer's
-//! button, and it calls the same [`read`] and [`print`].
+//! button, and it calls the same [`read`] and [`print()`].
 //!
 //! **What the test sends.** The recorded method, path, query and headers, and the body when the
 //! program read it, through `Core\Test::request` (`rule:testing/in-process-request`). The headers

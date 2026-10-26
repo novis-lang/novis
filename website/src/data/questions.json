@@ -1177,6 +1177,17 @@
       "Is a password from a login form saved in the request record?"
     ]
   },
+  "/reference/cli/nvs-debug-to-test/": {
+    "feature": "tools:cli/nvs-debug-to-test",
+    "hash": "92843f226f81dbce",
+    "questions": [
+      "How do I turn a request my server recorded into a test?",
+      "Write a test that checks the status and JSON body of a real request",
+      "Why does the printed test send the value redacted in the Authorization header?",
+      "Why is no test printed for a request with a large body?",
+      "Save the generated test to a file without replacing my own"
+    ]
+  },
   "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
     "feature": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
     "hash": "4dbbbca14ffb4393",
@@ -1222,14 +1233,14 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "5ade1ab4e1e19151",
+    "hash": "938fd49e0a732137",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
-      "Set up a language server for Novis in Vim or Neovim",
       "Why does the editor command hang with no output in my terminal?",
-      "Jump to where a class or function is declared from my editor",
-      "Why does my editor show only the syntax error while I type?",
-      "See every method that calls this method in my editor"
+      "See every method that calls this method in my editor",
+      "Which routes and tests use this method, and how do I run those tests?",
+      "Where did this tainted value in my code come from?",
+      "How many queries did my last request run at this line?"
     ]
   },
   "/reference/cli/nvs-lsp-test/": {
@@ -1376,13 +1387,13 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "4296c3f2079d22ed",
+    "hash": "4f8a552a766d4115",
     "questions": [
       "How do I look at the requests my development server recorded?",
       "See the queries, dumps and log lines of one request on a timeline",
       "Which errors does my application throw most often?",
       "Compare two requests to the same route side by side",
-      "Open a file and line from the debug viewer in my editor",
+      "Send a recorded request to my server again, or make a test from it",
       "Use the debug viewer when my server runs in a Docker container"
     ]
   },
