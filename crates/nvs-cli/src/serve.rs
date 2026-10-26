@@ -1623,9 +1623,11 @@ fn seal_the_spool(draining: &nvs_server::Draining) {
     let Some(me) = nvs_host::Wake::current() else {
         return;
     };
-    let _named = Named(Some(nvs_runtime::spool::on_open(Some(Box::new(move || {
-        me.wake();
-    })))));
+    let _named = Named(Some(nvs_runtime::spool::on_open(Some(Box::new(
+        move || {
+            me.wake();
+        },
+    )))));
     let _woken_at_drain = nvs_host::wake_at_drain(draining.bit());
     while !draining.is_draining() {
         if let Some(at) = nvs_runtime::spool::seal_due() {
