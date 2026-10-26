@@ -488,6 +488,7 @@ locks under the main checkout's `target/test-turns/`, and both Samba binaries ta
 
 Green: the second `bun tools/looper/main.ts verify`, `bun nv verify --doc`, `bun nv owners
 --closes debug-viewer` and `bun nv ci --check`. The sweep's `env-secret-proofs` passes when run.
+`floor-debt` is green since `3bb6e5358` fixed the `nvs debug --help` example's first line.
 Nightly 40291801939 built `d6f131752`, and each of its reds has a later local fix: `crypto-bigint`
 in `97ccf66c2`, and `check_command`'s counted run in `9c8b0fe16`. Its two Linux jobs were cancelled
 mid-test, not failed. None of this is pushed yet. No test is expected to go red.
