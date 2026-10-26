@@ -353,7 +353,7 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [debug] — the probe set, the inline-dump switch and the temporary-file switch.
+# [debug] — the probe set, the inline-dump switch, the temporary-file switch and the debug spool.
 # ----------------------------------------------------------------------------------------------
 
 [debug]
@@ -374,6 +374,15 @@
 # deliberately no in-language setter, because a program that could exempt its own files from cleanup
 # is a program that can be made to hoard them.
 #keep_temporary = false               # default
+
+# `true` and each request's debug records are written to the spool in the data folder, where
+# `nvs debug` reads them. A request can turn its own recording off and cannot turn it on.
+# `spool_max` is the most disk one process's spool may use. Past it, the oldest files are deleted.
+# `index_age` and `index_max` are the oldest record and the largest file the `nvs debug` index keeps.
+#store = false                        # default
+#spool_max = "256M"                   # default
+#index_age = "7d"                     # default
+#index_max = "1G"                     # default
 
 
 # ----------------------------------------------------------------------------------------------

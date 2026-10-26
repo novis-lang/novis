@@ -244,6 +244,20 @@ pub const DIRECTIVES: &[Directive] = &[
     // configuration is handed to reads it, and a server refuses any value at boot and at reload
     // (`crate::debug::refuse_serving`).
     Directive { key: "debug.mode", class: Class::RuntimeTighten, apply: Apply::Reload },
+    // `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`. `RuntimeTighten` because that
+    // rule gives the key one direction: a request may turn its own recording off and no code can
+    // turn it on, so a request talked into setting it cannot start persisting request data. `Reload`
+    // because the next request reads it and applying it re-creates nothing.
+    Directive { key: "debug.store", class: Class::RuntimeTighten, apply: Apply::Reload },
+    // `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`. `System` because the
+    // bound is the disk's and a request that could raise it could fill that disk. `Reload` because
+    // a writer reads its share when it next seals a file.
+    Directive { key: "debug.spool_max", class: Class::System, apply: Apply::Reload },
+    // `rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`, both bounds.
+    // `System` because recorded bodies are request data and how long they stay on disk is the
+    // operator's to decide. `Reload` because `nvs debug` reads them at each deletion pass.
+    Directive { key: "debug.index_age", class: Class::System, apply: Apply::Reload },
+    Directive { key: "debug.index_max", class: Class::System, apply: Apply::Reload },
     // `rule:http-server/the-server-block-is-boot-class`. `System` because every key in the block is
     // the deployment's. The block row is `Reload`, and governs the keys a request reads from the
     // snapshot it cloned (`dispatch`, `static`, `health_path`, `trusted_proxies` and

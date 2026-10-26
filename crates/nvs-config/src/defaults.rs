@@ -112,6 +112,14 @@ pub const ERRORS_DEPRECATED: &str = "ignore";
 pub const IMAGE_MAX_PIXELS: u64 = 24 * MIB;
 /// `[debug] keep_temporary`.
 pub const DEBUG_KEEP_TEMPORARY: bool = false;
+/// `[debug] store`.
+pub const DEBUG_STORE: bool = false;
+/// `[debug] spool_max`.
+pub const DEBUG_SPOOL_MAX: u64 = 256 * MIB;
+/// `[debug] index_age`.
+pub const DEBUG_INDEX_AGE: Duration = Duration::from_secs(7 * DAY);
+/// `[debug] index_max`.
+pub const DEBUG_INDEX_MAX: u64 = 1024 * MIB;
 
 /// `[http.headers] content_type_options`.
 pub const HTTP_HEADERS_CONTENT_TYPE_OPTIONS: bool = true;
@@ -496,6 +504,10 @@ pub const DEFAULTS: &[Builtin] = &[
     row!("image.max_pixels", Value::Size(IMAGE_MAX_PIXELS)),
     row!("debug.inline", Value::ByMode),
     row!("debug.keep_temporary", Value::Flag(DEBUG_KEEP_TEMPORARY)),
+    row!("debug.store", Value::Flag(DEBUG_STORE)),
+    row!("debug.spool_max", Value::Size(DEBUG_SPOOL_MAX)),
+    row!("debug.index_age", Value::Time(DEBUG_INDEX_AGE)),
+    row!("debug.index_max", Value::Size(DEBUG_INDEX_MAX)),
     row!("http.errors.detail", Value::ByMode),
     row!("http.headers.content_type_options", Value::Flag(HTTP_HEADERS_CONTENT_TYPE_OPTIONS)),
     row!("http.headers.frame_ancestors", Value::Text(HTTP_HEADERS_FRAME_ANCESTORS)),

@@ -542,6 +542,19 @@ pub struct Debug {
     /// in-language setter and no per-call persist, because a program that could exempt its own
     /// files from cleanup is a program that can be made to hoard them.
     pub keep_temporary: Option<bool>,
+    /// `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate` — `true` and each request's
+    /// debug records are appended to the spool in the data folder
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). Off by default and
+    /// `RuntimeTighten`, so a request may turn its own recording off and no code can turn it on.
+    pub store: Option<bool>,
+    /// The most disk one process's spool may take, split evenly between its writers, each deleting
+    /// its own oldest sealed file past its share. `System`.
+    pub spool_max: Option<Setting>,
+    /// The oldest record `nvs debug` keeps in its index
+    /// (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`). `System`.
+    pub index_age: Option<Setting>,
+    /// The largest the index file may grow before `nvs debug` deletes the oldest requests. `System`.
+    pub index_max: Option<Setting>,
 }
 
 /// `[io]` — `rule:core-classes/temporary-dir-sweep`'s owned root: the one directory `Core\IO::temporaryDir` creates under.

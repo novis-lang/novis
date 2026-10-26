@@ -24,5 +24,6 @@ the sampling decision, because the spool is where they go. The unbounded `call` 
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch `rule:testing/debug-probes` already pays and nothing further.
 
-**Not on disk.** `[debug]` has no `store` key (`crates/nvs-config/src/default.toml:326` is the block),
-and nothing writes a debug record to disk.
+**Not on disk.** `[debug] store` is parsed, `RuntimeTighten` and off by default
+(`crates/nvs-config/src/directive.rs`'s `debug.store` row), and nothing reads it yet: no code writes
+a debug record to disk.

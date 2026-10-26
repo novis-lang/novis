@@ -293,6 +293,26 @@ const APPLY_PROOFS: &[(&str, &str, &str)] = &[
         "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
     ),
     (
+        "debug.store",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "debug.spool_max",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "debug.index_age",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
+        "debug.index_max",
+        LIVE,
+        "every_request_read_directive_takes_the_reloaded_value_in_the_next_request",
+    ),
+    (
         "server",
         LIVE,
         "a_changed_server_block_reaches_the_next_request",
@@ -876,7 +896,15 @@ fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload(
     let keys = keys_in("debug");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
-        ["mode", "inline", "keep_temporary"],
+        [
+            "mode",
+            "inline",
+            "keep_temporary",
+            "store",
+            "spool_max",
+            "index_age",
+            "index_max"
+        ],
         "`[debug]` accepts {keys:?}, and a key added to the block joins this census in the commit \
          that adds it — the two the registry governs are named below and the third is stated as \
          ungoverned rather than left to be discovered",
