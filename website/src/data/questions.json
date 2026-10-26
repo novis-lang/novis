@@ -1185,6 +1185,17 @@
       "Call my WebAssembly class from test methods"
     ]
   },
+  "/reference/cli/nvs-fmt/": {
+    "feature": "tools:cli/nvs-fmt",
+    "hash": "938dea536a25bec4",
+    "questions": [
+      "Which options does nvs fmt have?",
+      "What exit code does the formatter return when a file is not formatted?",
+      "Format code from standard input in an editor or a script",
+      "What does the formatter do with a file that has a syntax error?",
+      "Format every file in a folder at once"
+    ]
+  },
   "/reference/cli/nvs-info/": {
     "feature": "tools:cli/nvs-info",
     "hash": "5b51f594ffd0fd7c",
@@ -1316,7 +1327,7 @@
   },
   "/reference/cli/one-binary/": {
     "feature": "tools:cli/one-binary",
-    "hash": "3a0d99f4f460d242",
+    "hash": "990450b05d9aca43",
     "questions": [
       "What commands does the Novis command-line tool have?",
       "Overview of every command and its options",
@@ -17746,7 +17757,7 @@
   },
   "/tools/": {
     "feature": "tools/index.mdx",
-    "hash": "7a64bddc7f31b1b1",
+    "hash": "a28fb063a436ecd6",
     "questions": [
       "Which developer tools come with Novis?",
       "Is there a debugger and a profiler for Novis?",
@@ -17765,6 +17776,17 @@
       "Which extension version works with my nvs version?",
       "Show a sign next to tainted values in the editor",
       "Run a file or its tests from the VS Code command palette"
+    ]
+  },
+  "/tools/formatter/": {
+    "feature": "tools/formatter/index.mdx",
+    "hash": "cc6a30979dc27c7d",
+    "questions": [
+      "How do I format my Novis code?",
+      "Is there an automatic code formatter like gofmt or prettier?",
+      "Check in CI that every file is formatted",
+      "See what the formatter would change before it writes",
+      "Can I change the indentation or the code style?"
     ]
   },
   "/tools/test-runner/": {

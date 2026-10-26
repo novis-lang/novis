@@ -1,0 +1,31 @@
+<?nvs
+// Attack: this file is laid out badly, and its strings and comments look like code.
+// `nvs fmt` should format it once, change nothing on a second run, and keep every comment and string.
+
+// 1. Twelve blocks inside each other, each one on the same line as the one before.
+int $depth = 0;
+if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { if (true) { $depth = 12; } } } } } } } } } } } }
+echo $depth, "\n";
+
+// 2. Strings that contain braces, semicolons, a closing tag and comment syntax.
+echo '{ } ; ?> // not a comment', "\n";
+echo "  {\n    ; }", "\n";
+echo '/* not a comment */', "\n";
+
+// 3. Comments between the parts of one expression, and an expression on two lines.
+int $sum = 1 /* one */ + /* two */ 2 // three
+        + 3;
+echo $sum, "\n";
+
+// 4. Text that is not ASCII, in a string and in a comment: café 日本 😀
+string $text = 'café 日本 😀';
+echo Core\Str::length($text), "\n";
+
+// 5. Several statements on one line, with uneven indentation and tabs.
+	   int $a = 1; int $b = 2;    int $c = 3;
+		echo $a + $b + $c, "\n";
+
+// 6. A class and its method on one line, with a comment after the closing brace.
+class Box { public int $size = 0; public function grow(int $by): int { $this->size = $this->size + $by; return $this->size; } } // the end of the class
+Box $box = new Box();
+echo $box->grow(5), "\n";

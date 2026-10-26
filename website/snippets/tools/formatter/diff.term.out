@@ -1,0 +1,25 @@
+$ nvs fmt --diff cart.nvs
+--- cart.nvs
++++ cart.nvs
+@@ -1,11 +1,15 @@
+ <?nvs
+-class Cart {
+-  public int $total = 0;
+-      public function add(int $price): void {
+-        $this->total = $this->total + $price; }
++class Cart
++{
++    public int $total = 0;
++    public function add(int $price): void
++    {
++        $this->total = $this->total + $price;
++    }
+ }
+
+ Cart $cart = new Cart();
+-$cart->add(1200); $cart->add(350);
+-   echo $cart->total, "\n", "done";
++$cart->add(1200);
++$cart->add(350);
++echo $cart->total, "\n", 'done';
+exit 1

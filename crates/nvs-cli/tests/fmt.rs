@@ -119,6 +119,7 @@ fn text(path: &Path) -> String {
 
 /// The default mode: the named files, rewritten where they sit, and a file the
 /// parse reported an error in left exactly as its author last saved it.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_rewrites_each_named_file_in_place() {
     let (_dir, paths) = fixture(
@@ -161,6 +162,7 @@ fn fmt_rewrites_each_named_file_in_place() {
 
 /// `--check`: the file list on standard output, exit `1`, and a disk nothing
 /// touched.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
     let (_dir, paths) = fixture("check", &[("ragged.nvs", MANGLED), ("tidy.nvs", CANONICAL)]);
@@ -193,6 +195,7 @@ fn fmt_check_writes_nothing_and_exits_non_zero_naming_each_file() {
 /// `rule:tooling/fmt-exit-status-says-what-it-found`: `2` for a refused file
 /// outranks `1` for one that would change, in whichever order the walk meets
 /// them, and the file after the refusal is still named.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_check_exits_two_when_a_file_is_refused_beside_one_that_would_change() {
     let (dir, paths) = fixture(
@@ -218,6 +221,7 @@ fn fmt_check_exits_two_when_a_file_is_refused_beside_one_that_would_change() {
 /// `rule:tooling/fmt-check-writes-nothing`: a walk leaves a directory named
 /// `vendor` alone, and the same directory named on the command line is
 /// formatted.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_walk_skips_vendor_and_a_named_vendor_is_formatted() {
     let (dir, paths) = fixture("vendor", &[("own.nvs", MANGLED)]);
@@ -249,6 +253,7 @@ fn fmt_walk_skips_vendor_and_a_named_vendor_is_formatted() {
 }
 
 /// `--diff`: the same verdict as `--check`, rendered as the change itself.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_diff_prints_the_diff_and_writes_nothing() {
     let (_dir, paths) = fixture("diff", &[("ragged.nvs", MANGLED)]);
@@ -276,6 +281,7 @@ fn fmt_diff_prints_the_diff_and_writes_nothing() {
 }
 
 /// `--stdin`: the buffer an editor holds, formatted onto standard output.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_stdin_writes_the_formatted_file_to_stdout() {
     let (out, err, code) = stdin(MANGLED, &[]);
@@ -285,6 +291,7 @@ fn fmt_stdin_writes_the_formatted_file_to_stdout() {
 
 /// `--check --stdin`: the buffer is never written back, and the exit code is
 /// the one a file would get.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_check_stdin_writes_nothing_and_exits_by_what_it_found() {
     let (out, err, code) = stdin(MANGLED, &["--check"]);
@@ -302,6 +309,7 @@ fn fmt_check_stdin_writes_nothing_and_exits_by_what_it_found() {
 
 /// The safe direction: a half-written buffer comes back to its editor
 /// unchanged, because nothing at all was written for it.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn fmt_stdin_writes_nothing_to_stdout_for_a_file_with_a_syntax_error() {
     let (out, err, code) = stdin(BROKEN, &[]);
@@ -316,6 +324,7 @@ fn fmt_stdin_writes_nothing_to_stdout_for_a_file_with_a_syntax_error() {
 /// `rule:tooling/fmt-is-never-a-diagnostic`: layout is outside the compiler's
 /// diagnostic surface entirely, so a file no formatter has ever touched checks
 /// clean and is never so much as mentioned.
+// covers: tools:cli/nvs-fmt
 #[test]
 fn nvs_check_never_reports_an_unformatted_file() {
     let (dir, paths) = fixture("never-a-diagnostic", &[("ragged.nvs", UNFORMATTED)]);
@@ -353,4 +362,39 @@ fn nvs_check_never_reports_an_unformatted_file() {
         !reported.to_lowercase().contains("format"),
         "and `nvs check` says nothing about its layout: {reported}"
     );
+}
+
+/// The attack under `tests/hostile/tools/cli/nvs-fmt/`: twelve blocks on one
+/// line, strings and comments that look like code, tabs, and text that is not
+/// ASCII. `--stdin` formats it, a second run over the result changes nothing
+/// (`rule:tooling/fmt-is-idempotent`), and every comment and string is kept.
+// covers: tools:cli/nvs-fmt
+#[test]
+fn fmt_formats_a_file_that_is_hard_to_format_to_a_fixed_point() {
+    let path = nvs_repo::path("tests")
+        .join("hostile")
+        .join("tools")
+        .join("cli")
+        .join("nvs-fmt")
+        .join("01-a-file-that-is-hard-to-format.nvs");
+    let source = std::fs::read_to_string(&path).expect("the attack is on disk");
+
+    let (once, err, code) = stdin(&source, &[]);
+    assert_eq!(code, Some(0), "the attack is formatted: {err}");
+    assert_ne!(once, source, "the attack is not in the canonical layout");
+
+    let (twice, err, code) = stdin(&once, &[]);
+    assert_eq!(code, Some(0), "the formatted attack is formatted again: {err}");
+    assert_eq!(twice, once, "a second run changes nothing");
+
+    for kept in [
+        "/* one */",
+        "// three",
+        "'café 日本 😀'",
+        "'{ } ; ?> // not a comment'",
+        "'/* not a comment */'",
+        "} // the end of the class",
+    ] {
+        assert!(once.contains(kept), "`{kept}` is kept: {once}");
+    }
 }

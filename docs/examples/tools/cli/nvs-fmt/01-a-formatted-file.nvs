@@ -1,0 +1,22 @@
+<?nvs
+// Shows a file in the layout that `nvs fmt` writes.
+// `nvs fmt --check 01-a-formatted-file.nvs` prints nothing and exits with status 0.
+
+// A body is indented by four spaces, and each brace is on its own line.
+class Cart
+{
+    public int $total = 0;
+
+    public function add(int $price): void
+    {
+        $this->total = $this->total + $price;
+    }
+}
+
+Cart $cart = new Cart();
+// Each statement is on its own line.
+// If both calls were on one line, `nvs fmt` would move the second call to a new line.
+$cart->add(1200);
+$cart->add(350);
+// A plain string uses single quotes. This prints `Total: 1550`.
+echo 'Total: ', $cart->total, "\n";

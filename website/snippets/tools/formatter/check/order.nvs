@@ -1,0 +1,6 @@
+<?nvs
+class Order
+{
+  public string $id = '';
+     public int $count   = 0;
+}

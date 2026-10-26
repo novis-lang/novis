@@ -1,0 +1,3 @@
+nvs fmt --check cart.nvs order.nvs
+nvs fmt order.nvs
+nvs fmt --check cart.nvs order.nvs

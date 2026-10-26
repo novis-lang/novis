@@ -1,0 +1,66 @@
+---
+title: Formatting code
+covers: ['tools:cli/nvs-fmt']
+description: Format Novis files with nvs fmt, see the changes first, and check the layout on a build server.
+---
+
+import Terminal from '@components/Terminal.astro'
+
+`nvs fmt` rewrites Novis files in one fixed layout. A body is indented by four spaces. Each statement
+and each closing brace is on its own line. A plain string uses single quotes.
+
+The command has no style options, so every project gets the same layout. It does not move a line break
+that you wrote, and it has no line width. Running it on a formatted file changes nothing.
+
+## Format a file or a folder
+
+Give `nvs fmt` a file to format it in place:
+
+```sh
+nvs fmt app.nvs
+```
+
+Give it a folder to format every `.nvs` file in that folder and in its subfolders:
+
+```sh
+nvs fmt src
+```
+
+A file with a syntax error is not changed. `nvs fmt` prints the error and continues with the next file.
+
+## See the changes first
+
+`--diff` prints the changes and writes nothing. This file has a brace at the end of a line, two
+statements on one line and uneven indentation:
+
+<Terminal src="tools/formatter/diff.term" />
+
+Lines that start with `-` are removed, and lines that start with `+` are added. The exit code is `1`,
+because the file would change.
+
+## Check the layout
+
+`--check` writes nothing. It prints the name of each file that would change:
+
+<Terminal src="tools/formatter/check.term" />
+
+The exit code tells you what `nvs fmt --check` found:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Every file is formatted. |
+| `1` | A file would change. |
+| `2` | A file has a syntax error. |
+
+A file with a syntax error gives the exit code `2`, and `nvs fmt` prints the error:
+
+<Terminal src="tools/formatter/parse-error.term" />
+
+On a build server, run `nvs fmt --check .` in the root of your project. Most build servers stop the
+build when a command exits with a code that is not `0`. The build then fails when a file is not
+formatted.
+
+The [editor extension](/tools/editor/) formats a file with the same `nvs fmt`, so the editor and the
+command line always give the same result.
+
+Read more in [Reference: nvs fmt](/reference/cli/nvs-fmt/).

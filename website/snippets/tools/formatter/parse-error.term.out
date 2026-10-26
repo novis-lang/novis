@@ -1,0 +1,11 @@
+$ nvs fmt --check draft.nvs
+error: draft.nvs: not formatted, because it does not parse (1 error(s))
+error[E0102]: expected an expression
+  --> draft.nvs:2:14
+  |
+2 | int $count = ;
+  |              ^ not found here
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+exit 2

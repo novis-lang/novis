@@ -1,8 +1,8 @@
 ---
 id: cli
 title: The nvs command
-summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
+summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 ---
 
 # One binary
@@ -30,6 +30,7 @@ usually one file:
 | `nvs meta --json` | the whole `Core` registry as JSON |
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
+| `nvs fmt [paths]...` | rewrite files in the one standard layout, or with `--check` list the files that would change |
 | `nvs debug` | read recorded requests into the debug index, and keep reading |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
@@ -41,7 +42,7 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
 
-**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt`, `nvs doc` and
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and
 `nvs stubs` are in the binary and answer `--help`, but their sections here are unwritten.
 `nvs --help` lists every subcommand this build carries.
 
@@ -969,6 +970,50 @@ methods is a child of the class. A consumer wanting only the grammar's own nodes
 `--resilient` is the default: the tree the parser recovered into is printed whatever it reported,
 which is what makes the output useful on the file that does not compile. `--strict` prints no tree
 at all once an error is reported. The two are refused together.
+
+# nvs fmt
+
+    nvs fmt [--check | --diff | --stdin] [paths]...
+
+`nvs fmt` rewrites each file in one fixed layout. A body is indented by four spaces. Each statement
+and each closing brace is on its own line. A plain string uses single quotes. The command has no style
+options and reads no setting, so every project gets the same layout. Running it on a formatted file
+changes nothing.
+
+`nvs fmt` never moves a line break that you wrote. A list or a chain of calls stays on one line, or
+it gets one item per line. There is no line width.
+
+A path can be a file or a directory. In a directory, `nvs fmt` formats every `.nvs` file under it. It
+skips what `.gitignore` names, every folder named `vendor` or `target`, and every folder whose name
+starts with a dot. A file or folder that you name yourself is always formatted.
+
+By default, each file is written back in place. A file that is already formatted is not written, so its
+modification time stays the same. Two options write nothing and only report:
+
+- `--check` prints the name of each file that would change.
+- `--diff` prints a unified diff for each file that would change.
+
+```text
+$ nvs fmt --check cart.nvs order.nvs
+order.nvs
+```
+
+`--stdin` formats what it reads from standard input and prints the result. An editor uses it to format
+a file that is not saved yet. With `--check`, the name it prints is `<stdin>`.
+
+A file with a syntax error is not formatted. `nvs fmt` prints its name and the errors on standard
+error, leaves the file as it was, and goes on with the next file. With `--stdin`, it prints nothing on
+standard output.
+
+The exit status says what the run found:
+
+| Status | Meaning |
+|---|---|
+| `0` | Nothing to change, or every file was formatted. |
+| `1` | With `--check` or `--diff`: a file would change. |
+| `2` | A file has a syntax error, or could not be read or written. |
+
+When one run finds both, the status is `2`.
 
 # nvs code
 

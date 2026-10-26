@@ -36,3 +36,5 @@ skip crates/nvs-cli/tests/fixtures/check/secret-in-snippet.nvs  --  its two stat
 skip tests/fmt/input  --  each file is wrong about a layout rule on purpose; `crates/nvs-fmt/tests/fixtures.rs` formats it and compares it with its frozen half
 skip editors/vscode/test/coverage/recorded  --  `branches.lcov` and `report.json` beside it are what one run of it recorded, line by line
 skip editors/vscode/test/surfaces/recorded  --  the JSON and text beside it are what one run of it recorded, with positions
+skip tests/hostile/tools/cli/nvs-fmt  --  the attack on `nvs fmt` is badly laid out on purpose; `crates/nvs-cli/tests/fmt.rs` formats it twice
+skip website/snippets/tools/formatter  --  the fixtures the formatter page runs `nvs fmt --diff` and `--check` on are badly laid out on purpose

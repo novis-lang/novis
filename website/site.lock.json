@@ -317,5 +317,8 @@
     "lang:types/a-member-every-class-of-a-union-declares": "8ca381330c3d017f",
     "lang:types/mixed": "058379b28ccf00d6",
     "lang:types/type-aliases": "13f50e47f7b1b7b7"
+  },
+  "tools/formatter/index.mdx": {
+    "tools:cli/nvs-fmt": "938dea536a25bec4"
   }
 }

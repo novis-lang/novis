@@ -1,0 +1,10 @@
+<?nvs
+class Cart
+{
+    public int $total = 0;
+
+    public function add(int $price): void
+    {
+        $this->total = $this->total + $price;
+    }
+}

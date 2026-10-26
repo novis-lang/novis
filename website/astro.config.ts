@@ -680,6 +680,7 @@ export default defineConfig({
           items: [
             { label: 'Overview', link: '/tools/' },
             { label: 'The editor extension', link: '/tools/editor/' },
+            { label: 'The formatter', link: '/tools/formatter/' },
             {
               label: 'The test runner',
               items: [

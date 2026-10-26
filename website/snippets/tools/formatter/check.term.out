@@ -1,0 +1,9 @@
+$ nvs fmt --check cart.nvs order.nvs
+order.nvs
+exit 1
+
+$ nvs fmt order.nvs
+exit 0
+
+$ nvs fmt --check cart.nvs order.nvs
+exit 0

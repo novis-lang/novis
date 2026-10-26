@@ -264,7 +264,7 @@ Conventions the whole file uses:
 
 ### Part C — The toolchain
 
-- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor)*
+- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, nvs serve, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
@@ -55720,7 +55720,7 @@ The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM
 <a id="tools-cli"></a>
 ## C.1 The nvs command
 
-Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
+Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 
 ### One binary
 
@@ -55747,6 +55747,7 @@ usually one file:
 | `nvs meta --json` | the whole `Core` registry as JSON |
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
+| `nvs fmt [paths]...` | rewrite files in the one standard layout, or with `--check` list the files that would change |
 | `nvs debug` | read recorded requests into the debug index, and keep reading |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
@@ -55758,7 +55759,7 @@ Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` a
 [the server chapter](#tools-server); `nvs lsp` and `nvs lsp-test` are in
 [the editor chapter](#tools-editor).
 
-**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs fmt`, `nvs doc` and
+**Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and
 `nvs stubs` are in the binary and answer `--help`, but their sections here are unwritten.
 `nvs --help` lists every subcommand this build carries.
 
@@ -56686,6 +56687,50 @@ methods is a child of the class. A consumer wanting only the grammar's own nodes
 `--resilient` is the default: the tree the parser recovered into is printed whatever it reported,
 which is what makes the output useful on the file that does not compile. `--strict` prints no tree
 at all once an error is reported. The two are refused together.
+
+### nvs fmt
+
+    nvs fmt [--check | --diff | --stdin] [paths]...
+
+`nvs fmt` rewrites each file in one fixed layout. A body is indented by four spaces. Each statement
+and each closing brace is on its own line. A plain string uses single quotes. The command has no style
+options and reads no setting, so every project gets the same layout. Running it on a formatted file
+changes nothing.
+
+`nvs fmt` never moves a line break that you wrote. A list or a chain of calls stays on one line, or
+it gets one item per line. There is no line width.
+
+A path can be a file or a directory. In a directory, `nvs fmt` formats every `.nvs` file under it. It
+skips what `.gitignore` names, every folder named `vendor` or `target`, and every folder whose name
+starts with a dot. A file or folder that you name yourself is always formatted.
+
+By default, each file is written back in place. A file that is already formatted is not written, so its
+modification time stays the same. Two options write nothing and only report:
+
+- `--check` prints the name of each file that would change.
+- `--diff` prints a unified diff for each file that would change.
+
+```text
+$ nvs fmt --check cart.nvs order.nvs
+order.nvs
+```
+
+`--stdin` formats what it reads from standard input and prints the result. An editor uses it to format
+a file that is not saved yet. With `--check`, the name it prints is `<stdin>`.
+
+A file with a syntax error is not formatted. `nvs fmt` prints its name and the errors on standard
+error, leaves the file as it was, and goes on with the next file. With `--stdin`, it prints nothing on
+standard output.
+
+The exit status says what the run found:
+
+| Status | Meaning |
+|---|---|
+| `0` | Nothing to change, or every file was formatted. |
+| `1` | With `--check` or `--diff`: a file would change. |
+| `2` | A file has a syntax error, or could not be read or written. |
+
+When one run finds both, the status is `2`.
 
 ### nvs code
 

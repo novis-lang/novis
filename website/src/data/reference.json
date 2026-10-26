@@ -1177,6 +1177,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-fmt",
+      "url": "/reference/cli/nvs-fmt/",
+      "title": "nvs fmt",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-fmt",
+        "title": "nvs fmt",
+        "examples": "tools/cli/nvs-fmt"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-code",
       "url": "/reference/cli/nvs-code/",
       "title": "nvs code",
