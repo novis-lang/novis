@@ -1585,7 +1585,9 @@ fn runtime_commands(
                                     class: class.clone(),
                                     cases: cases
                                         .iter()
-                                        .map(|(case, value)| (case.clone(), nvs_types::crossing::case_value(*value)))
+                                        .map(|(case, value)| {
+                                            (case.clone(), nvs_types::crossing::case_value(*value))
+                                        })
                                         .collect(),
                                 }
                             }
