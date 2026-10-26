@@ -189,7 +189,7 @@ jobs:
   #
   # `optional: true` marks a target whose dependency tree is not yet proven to build for it —
   # `wasmtime` and `corosensei` both carry assembly and neither lists Windows on ARM64 as a
-  # supported platform, and the musl leg has to satisfy `ring` and `zstd-sys`'s C with `musl-gcc`.
+  # supported platform, and the musl leg has to satisfy `ring` and `libsqlite3-sys`'s C with `musl-gcc`.
   # Those legs may fail without failing the release; `publish` reports which arrived. Promote one
   # to required (drop its `optional`) once a run has proved it.
   # ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: rustup target add "$TARGET"
 
-      # `ring` and `zstd-sys` compile C, and the musl target has no C toolchain on the image.
+      # `ring` and `libsqlite3-sys` compile C, and the musl target has no C toolchain on the image.
       - name: musl C toolchain
         if: matrix.musl
         run: |

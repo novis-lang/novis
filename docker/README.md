@@ -49,7 +49,7 @@ A ~15 MB static image is tempting and would break three things, each quietly:
   everything else works.
 - **DNS goes through `std::net::ToSocketAddrs`**, which is `getaddrinfo`. A musl build resolves
   with musl's own resolver instead, which is not the one this project tests against.
-- **The musl build leg is `optional: true`** in the release matrix, because `ring` and `zstd-sys`
+- **The musl build leg is `optional: true`** in the release matrix, because `ring` and `libsqlite3-sys`
   compile C that needs `musl-gcc`. Shipping an image from a leg that is allowed to fail would
   make the image the least reliable artifact of the release.
 

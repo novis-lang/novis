@@ -243,16 +243,6 @@ const C_DEPENDENCIES: Record<string, Entry> = {
       "`Config` that sets the VTune profiling strategy calls it, and `nvs_ext::call`'s does not, so " +
       "nothing a request sends reaches it.",
   },
-  "zstd-sys": {
-    verdict: "unreachable",
-    requires: [],
-    record:
-      "zstd, behind wasmtime's default `cache` feature, which compresses wasmtime's own on-disk module " +
-      "cache. `nvs` never turns that cache on: a compiled component is stored through " +
-      "`nvs_ext::load::ModuleCache` in the artifact cache " +
-      "(`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`), so the library is linked and " +
-      "never called.",
-  },
 };
 
 // The built-in components: Rust crates outside the workspace, compiled for `wasm32-wasip2` and
