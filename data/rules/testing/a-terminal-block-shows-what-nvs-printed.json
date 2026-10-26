@@ -1,10 +1,14 @@
 {
   "title": "A terminal block on a website page shows commands run in a fixture and what `nvs` printed, and `bun nv site --check snippets` fails when the output changes",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/website-pages-are-stamped",
     "testing/the-tools-area-has-a-page-for-each-tool"
   ],
-  "guardedBy": [],
-  "goal": "tools-website"
+  "guardedBy": [
+    "tools/nv/lib/term.ts",
+    "tools/nv/cmd/site.ts",
+    "tools/nv/test/site-term.test.ts",
+    "website/src/components/Terminal.astro"
+  ]
 }

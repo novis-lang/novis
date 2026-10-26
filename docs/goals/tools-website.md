@@ -6,7 +6,7 @@ context: [tools/nv/cmd/site.ts, website/astro.config.ts, website/config/site.mjs
 stages:
   - id: 1
     title: a terminal block shows what `nvs` printed
-    status: open
+    status: done
     context: [tools/nv/cmd/site.ts, tools/nv/lib/term.ts, website/src/components/Terminal.astro, website/src/components/Snippet.astro, docs/rules/testing/a-terminal-block-shows-what-nvs-printed.md]
     extra:
       context:
@@ -188,10 +188,10 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 
 **Does:** a checked picture of the text a tool prints.
 
-- [ ] A `.term` beside a fixture lists commands, `--bless` writes `.term.out` from what `nvs` printed, and `--check snippets` fails when it changed (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/lib/term.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
-- [ ] A `<Terminal>` component shows the block, with its masked values shown as written. `website/src/components/Terminal.astro:1`
-- [ ] Tests over a fixture for a fresh and a stale `.term.out`. `tools/nv/test/site-term.test.ts:1`
-- [ ] `rule:testing/a-terminal-block-shows-what-nvs-printed` `shipped`. `data/rules/testing/a-terminal-block-shows-what-nvs-printed.json:3`
+- [x] A `.term` beside a fixture lists commands, `--bless` writes `.term.out` from what `nvs` printed, and `--check snippets` fails when it changed (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/lib/term.ts:1`, `tools/nv/cmd/site.ts:1211`, `tools/nv/cmd/site.ts:1287`
+- [x] A `<Terminal>` component shows the block, with its masked values shown as written. `website/src/components/Terminal.astro:1`
+- [x] Tests over a fixture for a fresh and a stale `.term.out`. `tools/nv/test/site-term.test.ts:1`
+- [x] `rule:testing/a-terminal-block-shows-what-nvs-printed` `shipped`. `data/rules/testing/a-terminal-block-shows-what-nvs-printed.json:3`
 
 ### 7. a replay renames, applies an action, shows a lens and walks calls
 
@@ -298,21 +298,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-No stage is started. `tools/nv/cmd/site.ts` has no `.term`, `.dap` or `.shot` handling, and the replay
-has the `type`, `accept` and `hover` steps only. The Tools area does not exist. Most tool goals are not
-reached, so stages 1, 3 and the ungated half of 7 are the work that can start.
+Stage 1 is done. A `.term` under `website/snippets/` lists `nvs` commands, its fixture is the directory
+beside it with its name, and `lib/term.ts` runs the commands in a copy under `.cache/nv-term/`.
+`--bless <x>.term` writes `<x>.term.out`, and `--check snippets` compares the two with durations,
+dates, times, hex ids, ports and `/tmp` paths masked. The copy's path is recorded as `~/project` and the
+temp directory as `/tmp`, so no page names the blessing machine (`site.ts` § *A terminal block*).
+`<Terminal src="...term"/>` (`website/src/components/Terminal.astro`) is written, but no page uses it
+yet, so the site build has not rendered it. The first page that shows one (stage 4's CLI page) is its
+first render. Watch for a Windows-blessed `.term.out` whose relative paths use `\`: only the paths
+under the copy and the temp directory are turned to `/`.
+
+The sweep's reds were all stale: `env-secret-proofs` passes now, and nightly run 40291801939 tested
+`d6f131752`, before `97ccf66c2` (crypto-bigint off the yanked 0.7.6) and `9c8b0fe16` (the counted-run
+test in one folder). Its two Linux jobs were cancelled by hand.
+
+Every gate in `### Standing decisions` § *Gates* holds now: `editor-refactors`, `request-aware-editor`,
+`debugger-adapter`, `debug-viewer` and `trace-timeline` are all gone from `docs/goals/`, and
+`crates/nvs-lsp/tests/handshake.rs:165` and `:169` list `callHierarchyProvider` and `renameProvider`.
 
 ### Next
 
-**Stage 1, terminal blocks**, on `tools/nv/cmd/site.ts`, `tools/nv/lib/term.ts` and
-`website/src/components/Terminal.astro`. Gate: none.
+**Stage 7, the replay's new steps**, on `tools/nv/lib/replay.ts`, `website/config/replay-frames.mjs`
+and `website/config/replay-player.mjs`. Gate: none now, so `rename` and `calls` are taken too.
 
-- [ ] The `.term` format, `--bless` and the `--check snippets` branch (`rule:testing/a-terminal-block-shows-what-nvs-printed`). `tools/nv/lib/term.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
-- [ ] The `<Terminal>` component. `website/src/components/Terminal.astro:1`
-- [ ] Tests for a fresh and a stale `.term.out`. `tools/nv/test/site-term.test.ts:1`
-- [ ] `rule:testing/a-terminal-block-shows-what-nvs-printed` `shipped`. `data/rules/testing/a-terminal-block-shows-what-nvs-printed.json:3`
+- [ ] `action` and `lens` steps and a hover card (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/lib/replay.ts:16`, `tools/nv/lib/replay.ts:223`, `website/config/replay-frames.mjs:29`, `tools/nv/cmd/site.ts:1170`
+- [ ] The `rename` and `calls` steps. `tools/nv/lib/replay.ts:16`
+- [ ] The player draws them. `website/config/replay-player.mjs:140`, `website/src/components/Replay.astro:63`
+- [ ] Tests per step and the browser test. `tools/nv/test/site-replay.test.ts:1`, `tools/nv/test/replay-browser.test.ts:32`
+- [ ] The hover-card declined bullet rewritten, and the rule `shipped`. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:56`
+
+No test is expected to go red from stage 1: `site --check snippets` passed with it.
 
 ### Backlog
 
-- Stage 3 needs no other goal and can run next or as a side goal (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
-- Stage 7's `action` and `lens` steps need no other goal (`docs/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.md`).
+- Stage 3 needs no other goal and can run beside 7 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
+- Stage 2 follows 7 in `website/config/replay-player.mjs`; stage 8 follows 2 in `site.ts`.

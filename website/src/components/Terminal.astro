@@ -1,0 +1,157 @@
+---
+/**
+ * Commands run in a terminal, and what `nvs` printed for each. `src` names a
+ * `.term` under website/snippets/:
+ *
+ *   <Terminal src="tools/cli/check.term" />
+ *
+ * The `.term` lists the commands, and the directory beside it with the same
+ * name is the project they run in. The `.term.out` beside it is what `nvs`
+ * printed for each command, with its exit code. `tools/nv/cmd/site.ts`
+ * § *A terminal block* is the home of both formats, and `bun nv site --check
+ * snippets` fails when the binary prints something else. A value that differs
+ * from run to run, such as a duration or a date, is shown as it was printed on
+ * the run that was recorded.
+ *
+ * The block looks like a terminal window. Each command line starts with a `$`
+ * that cannot be selected, and the exit code of a command that failed is shown
+ * under its output. The copy button copies the commands alone, one per line.
+ */
+
+interface Props {
+  /** The `.term`'s path under website/snippets/. */
+  src: string
+}
+
+// The globs below are relative to this file, so their keys start with this prefix.
+const ROOT = '../../snippets/'
+
+const terms = import.meta.glob('../../snippets/**/*.term', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const recordings = import.meta.glob('../../snippets/**/*.term.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const { src } = Astro.props
+const term = terms[`${ROOT}${src}`]
+if (term === undefined) throw new Error(`Terminal: no file website/snippets/${src}`)
+const recording = recordings[`${ROOT}${src}.out`]
+if (recording === undefined) throw new Error(`Terminal ${src}: there is no .term.out beside it; run \`bun nv site --bless\` on it`)
+
+const commands = term
+  .replace(/\r\n?/g, '\n')
+  .split('\n')
+  .map((line) => line.trim())
+  .filter((line) => line !== '')
+
+type Line = { kind: 'command' | 'output' | 'exit'; text: string }
+const lines: Line[] = []
+let next = 0
+for (const text of recording.replace(/\r\n?/g, '\n').trimEnd().split('\n')) {
+  if (next < commands.length && text === `$ ${commands[next]}`) {
+    lines.push({ kind: 'command', text: commands[next++]! })
+  } else if (/^exit \d+$/.test(text)) {
+    lines.push({ kind: 'exit', text })
+  } else if (text !== '' || lines.at(-1)?.kind !== 'exit') {
+    lines.push({ kind: 'output', text })
+  }
+}
+if (next !== commands.length) throw new Error(`Terminal ${src}: its .term.out does not have a block for every command; run \`bun nv site --bless\` on it`)
+// The exit code of a command that succeeded is not shown.
+const shown = lines.filter((line) => !(line.kind === 'exit' && line.text === 'exit 0'))
+const title = src.split('/').at(-1)!.replace(/\.term$/, '')
+---
+
+<figure class="nv-term">
+  <figcaption class="nv-term-bar">
+    <span class="nv-term-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+    <span class="nv-term-title">Terminal: {title}</span>
+    <button type="button" class="nv-term-copy" data-copy={commands.join('\n')}>Copy commands</button>
+  </figcaption>
+  <pre class="nv-term-body"><code>{shown.map((line) => (
+    line.kind === 'command' ? <span class="nv-term-line nv-term-command"><span class="nv-term-prompt" aria-hidden="true">$ </span>{line.text}</span>
+    : line.kind === 'exit' ? <span class="nv-term-line nv-term-exit">{line.text}</span>
+    : <span class="nv-term-line">{line.text}</span>
+  ))}</code></pre>
+</figure>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.nv-term-copy')) {
+    button.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(button.dataset.copy ?? '')
+      const label = button.textContent
+      button.textContent = 'Copied'
+      setTimeout(() => (button.textContent = label), 1500)
+    })
+  }
+</script>
+
+<style is:global>
+  .nv-term {
+    margin: 1.5rem 0 0;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: var(--nv-radius, 0.625rem);
+    overflow: hidden;
+    background: var(--sl-color-black);
+  }
+  .nv-term-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-gray-6);
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+  }
+  .nv-term-dots {
+    display: inline-flex;
+    gap: 0.35rem;
+  }
+  .nv-term-dots span {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: var(--sl-color-gray-4);
+  }
+  .nv-term-title {
+    flex: 1;
+    font-family: var(--__sl-font-mono);
+  }
+  .nv-term-copy {
+    padding: 0.15rem 0.6rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    font: inherit;
+    cursor: pointer;
+  }
+  .nv-term-copy:hover {
+    color: var(--sl-color-white);
+    border-color: var(--sl-color-gray-2);
+  }
+  .nv-term-body {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    background: transparent;
+    font-size: var(--sl-text-code-sm, 0.875em);
+    line-height: 1.55;
+  }
+  .nv-term-line {
+    display: block;
+    white-space: pre;
+  }
+  .nv-term-command {
+    color: var(--sl-color-white);
+    font-weight: 600;
+  }
+  .nv-term-command:not(:first-child) {
+    margin-top: 0.75rem;
+  }
+  .nv-term-prompt {
+    color: var(--sl-color-text-accent);
+    user-select: none;
+  }
+  .nv-term-exit {
+    color: var(--sl-color-orange-high, var(--sl-color-gray-3));
+  }
+</style>

@@ -7,7 +7,8 @@
 //                                          part that passes, its problems and exit 1 for one that fails
 //     bun nv site --bless SNIPPET...       write each snippet's `.out`, `.http.out` or `.err` from what the
 //                                          binary does, and its `.tainted` from what `nvs lsp` reports,
-//                                          show them, and delete a file it no longer needs
+//                                          show them, and delete a file it no longer needs; a `.term`'s
+//                                          `.term.out` from what its commands print
 //     bun nv site --bless-apps [APP/FILE...]
 //                                          write each example app's copies under `website/public/
 //                                          example-apps/` from what its server returns now, and add each
@@ -119,6 +120,29 @@
 // that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`. A page
 // that shows a replay shows its snippet too, because the replay ends on the snippet's text.
 //
+// **A terminal block** is a `.term` under `website/snippets/` that a page shows with `<Terminal
+// src="tools/cli/check.term"/>`. It lists commands, one per non-blank line, each starting with `nvs`; a
+// word is a run without white space, or a run inside `"` or `'`. Its fixture is the directory beside it
+// with its name and no extension (`tools/cli/check/`), and a `.term` with no such directory runs in an
+// empty one. A `.nvs` inside a fixture is what the commands run on, and is not a snippet. Each check and
+// each bless copies the fixture under `.cache/nv-term/`, runs every command in that copy in order with
+// `NO_COLOR=1`, and deletes it (`lib/term.ts`). The `.term.out` beside the `.term` is one block per
+// command, a blank line between two:
+//
+//     $ nvs check main.nvs
+//     main.nvs:3:5: error: ...
+//     exit 1
+//
+// The block is `$ ` and the command's line, what it printed to standard output and then to standard
+// error, and `exit` with its exit code. The copy's own path is written as `~/project` and the machine's
+// temporary directory as `/tmp`, each with `/` after it, because the real paths name the machine. The
+// file has every other value as `nvs` printed it on the blessed run. The comparison masks the values
+// that differ from run to run on both sides: a path under `/tmp`, a date, a time, a 16 or 32 digit hex
+// id, a port and a duration (`MASKS` in `lib/term.ts`). `--bless` writes the file from a new run, and
+// `--check snippets` fails on a `.term` whose commands do not parse or end, a `.term.out` that is
+// missing or that a new run does not match, a `.term.out` with no `.term`, and a `.term` no page
+// shows. `Terminal.astro` shows the block, and its copy button copies the commands alone.
+//
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
 // is every page outside `reference/core/`. Its front matter carries `covers:`, a list of the proofs
 // roster's feature ids (`Core\Str::length`, `lang:statements/match`, `directive:server.dispatch`), and
@@ -177,6 +201,7 @@ import { newestNvs } from "../lib/nvs-binary.ts";
 import { lspFrame, lspMessages } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
+import { recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { styleProblems } from "../lib/site-css.ts";
@@ -751,6 +776,7 @@ const FENCE_RE = /^\s*(?:```|~~~)\s*(?:novis|nvs)\b/;
 /** A `<Snippet>` tag: its `src`, which is always its first attribute, and the rest of the tag. */
 const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']([^>]*)>/g;
 const REPLAY_RE = /<Replay\s+src=["']([^"']+)["']/g;
+const TERMINAL_RE = /<Terminal\s+src=["']([^"']+)["']/g;
 /** The front page, under `DOCS`, which shows only what the server sends. */
 export const FRONT_PAGE = "index.mdx";
 
@@ -766,9 +792,11 @@ export const snippetFile = (p: string, kind: SnippetKind) => beside(p, EXT[kind]
 const hasFile = (root: string, p: string, kind: SnippetKind) => existsSync(join(root, snippetFile(p, kind)));
 
 /** The problems `snippets` finds without running anything. */
-export function snippetShape(root: string = ROOT): { problems: string[]; snippets: string[] } {
+export function snippetShape(root: string = ROOT): { problems: string[]; snippets: string[]; terms: string[] } {
   const problems: string[] = [];
   const used = new Set<string>();
+  const files = filesUnder(root, SNIPPETS);
+  const terms = files.filter((p) => p.endsWith(`.${TERM}`));
   for (const page of pages(root)) {
     page.text.split("\n").forEach((line, i) => {
       if (FENCE_RE.test(line)) problems.push(`${DOCS}/${page.key}:${i + 1}: an inline Novis code fence; use <Snippet src="..."/>`);
@@ -795,8 +823,21 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
       if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
       else if (!existsSync(join(root, SNIPPETS, beside(src, "replay")))) problems.push(`${at}: the snippet has no .replay beside it`);
     }
+    for (const m of page.text.matchAll(TERMINAL_RE)) {
+      const src = m[1]!;
+      used.add(src);
+      const at = `${DOCS}/${page.key}: <Terminal src="${src}"/>`;
+      if (!src.endsWith(`.${TERM}`)) problems.push(`${at} names no .${TERM} file`);
+      else if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
+    }
   }
-  const snippets = filesUnder(root, SNIPPETS).filter((p) => p.endsWith(".nvs"));
+  for (const t of terms) if (!used.has(t.slice(SNIPPETS.length + 1))) problems.push(`${t}: no page shows it`);
+  for (const p of files.filter((f) => f.endsWith(`.${TERM_OUT}`))) {
+    if (!terms.includes(p.slice(0, -".out".length))) problems.push(`${p}: a .${TERM_OUT} and no .${TERM} beside it`);
+  }
+  // A program inside a terminal block's fixture is what the commands run on, not a snippet.
+  const fixtures = terms.map((t) => `${termFixture(t)}/`);
+  const snippets = files.filter((p) => p.endsWith(".nvs") && !fixtures.some((f) => p.startsWith(f)));
   for (const p of snippets) {
     if (!used.has(p.slice(SNIPPETS.length + 1))) problems.push(`${p}: no page shows it`);
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(root, p, k));
@@ -804,8 +845,11 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
     else if (err && http) problems.push(`${p}: both a .http.out and a .err beside it; keep one`);
     else if (!out && !http && !err) problems.push(`${p}: no .out, .http.out or .err beside it`);
   }
-  return { problems, snippets };
+  return { problems, snippets, terms };
 }
+
+/** The fixture directory of a terminal block: its `.term`'s path without the extension. */
+export const termFixture = (t: string) => t.slice(0, -`.${TERM}`.length);
 
 /** How one snippet is run on the command line, `out`, or checked, `err`: the header's § *A snippet*. */
 export function snippetRun(p: string, kind: "out" | "err", nvs: string, root: string = ROOT): { argv: string[]; cwd: string; env?: Record<string, string> } {
@@ -1147,6 +1191,31 @@ export async function replayProblems(p: string, nvs: string, root: string = ROOT
   return problems;
 }
 
+/** What a `.term`'s commands record now, run with `nvs` in a copy of its fixture with `NO_COLOR=1`. */
+export async function termRecording(t: string, nvs: string, root: string = ROOT): Promise<{ recording: string } | { failure: string }> {
+  const play = async (argv: string[], cwd: string) => {
+    const ran = await runProc([nvs, ...argv], { cwd, env: { NO_COLOR: "1" }, timeoutMs: SNIPPET_MS });
+    if (ran.timedOut) throw new Error(`\`nvs ${argv.join(" ")}\` did not end within ${SNIPPET_MS / 1000}s${ran.hung ? " (hung)" : ""}`);
+    return ran;
+  };
+  try {
+    const got = await recordTerm(readAt(root, t), join(root, termFixture(t)), play);
+    return "failure" in got ? { failure: `${t}: ${got.failure}` } : got;
+  } catch (e) {
+    return { failure: `${t}: ${(e as Error).message}` };
+  }
+}
+
+/** The problems with a `.term` under `root`: commands that do not run, and a `.term.out` that is missing
+ * or is not what `nvs` prints now, once both are masked. */
+export async function termProblems(t: string, nvs: string, root: string = ROOT): Promise<string[]> {
+  const got = await termRecording(t, nvs, root);
+  if ("failure" in got) return [got.failure];
+  const out = `${t}.out`;
+  if (!existsSync(join(root, out))) return [`${t}: no .${TERM_OUT} beside it; run \`bun nv site --bless ${t}\``];
+  return sameTerm(got.recording, readAt(root, out)) ? [] : [`${t}: its .${TERM_OUT} is not what \`nvs\` prints for its commands now`];
+}
+
 /** A snippet that compiles, run in both contexts: `nvs run`, and `nvs serve` sent its `.nvsr` or
  * `PLAIN_GET`. A command-line snippet whose `nvs run` fails is not served. */
 async function bothContexts(p: string, nvs: string): Promise<{ web: boolean; cli: Ran; served: Served | null } | string> {
@@ -1179,7 +1248,8 @@ const SNIPPET_WIDTH = Math.max(1, Math.min(8, availableParallelism() >> 1));
 /** Every snippet's problems. A snippet whose server this host does not start prints a `skip` line
  * with the reason, the way the proofs print one. */
 async function snippetProblems(nvs: string): Promise<string[]> {
-  const { problems, snippets } = snippetShape();
+  const { problems, snippets, terms } = snippetShape();
+  const perTerm = await inParallel(terms, SNIPPET_WIDTH, (t) => termProblems(t, nvs));
   const skips: string[] = [];
   const perSnippet = await inParallel(snippets, SNIPPET_WIDTH, async (p): Promise<string[]> => {
     const found = commentProblems(p).map((c) => `${p}:${c}`);
@@ -1201,7 +1271,7 @@ async function snippetProblems(nvs: string): Promise<string[]> {
     return [...found, ...verdict.problems];
   });
   for (const skip of skips.sort()) console.log(`  skip  ${skip}`);
-  return [...problems, ...perSnippet.flat()];
+  return [...problems, ...perTerm.flat(), ...perSnippet.flat()];
 }
 
 /** Writes `text` to `dest` and shows it. */
@@ -1221,8 +1291,14 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
     failed = true;
   };
   for (const p of paths) {
+    if (p.startsWith(`${SNIPPETS}/`) && p.endsWith(`.${TERM}`) && existsSync(join(ROOT, p))) {
+      const got = await termRecording(p, nvs);
+      if ("failure" in got) fail(got.failure);
+      else blessWrite(`${p}.out`, got.recording);
+      continue;
+    }
     if (!p.startsWith(`${SNIPPETS}/`) || !p.endsWith(".nvs") || !existsSync(join(ROOT, p))) {
-      fail(`${p}: not a .nvs file under ${SNIPPETS}/`);
+      fail(`${p}: not a .nvs or .${TERM} file under ${SNIPPETS}/`);
       continue;
     }
     const taint = await snippetTaint(p, nvs);
