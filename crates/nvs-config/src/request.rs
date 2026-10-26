@@ -196,6 +196,27 @@ impl Request {
             .unwrap_or_default()
     }
 
+    /// Whether `[debug] store` is in force for this request
+    /// (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). The key is
+    /// `RuntimeTighten`, so an overlay can only have turned it off, and a request whose overlay does
+    /// not hold it reads the resolved table, which allocates nothing.
+    #[must_use]
+    pub fn debug_store(&self) -> bool {
+        let key = crate::limits::STORE;
+        if !self.overlay.contains_key(key) {
+            return crate::limits::resolved(&self.base).debug_store;
+        }
+        self.get(key).is_some_and(|written| written == "true")
+    }
+
+    /// `[debug] spool_max` in bytes, the cap on this process's spool
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). `System`, so no
+    /// overlay holds it, and it is read off the resolved table.
+    #[must_use]
+    pub fn debug_spool_max(&self) -> u64 {
+        crate::limits::resolved(&self.base).spool_max
+    }
+
     /// The built-in default in force for the canonical `key` on this run, rendered as `get`
     /// renders it.
     fn default_of(&self, key: &str) -> Option<String> {

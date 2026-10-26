@@ -20,9 +20,10 @@
 //! would be stale. The one change made in place, a publish carrying a `Boot` key back
 //! (`Current::carry_boot`), empties the cell too.
 //!
-//! What it spends: per snapshot, two rows of [`LIMITS`] readings and three flags, under a kilobyte,
-//! built once and shared by every request that clones the snapshot. Nothing in it is keyed by what
-//! a request supplies, so nothing crosses requests (`rule:security/no-cross-request-state`).
+//! What it spends: per snapshot, two rows of [`LIMITS`] readings, four flags and a size, under a
+//! kilobyte, built once and shared by every request that clones the snapshot. Nothing in it is
+//! keyed by what a request supplies, so nothing crosses requests
+//! (`rule:security/no-cross-request-state`).
 
 use std::sync::{Arc, OnceLock};
 
@@ -31,6 +32,11 @@ use crate::request::Request;
 use crate::snapshot::Snapshot;
 use crate::tree::Setting;
 use crate::value::{LIMITS, Quantity, Unit};
+
+/// `[debug] store`, which [`Request::debug_store`] reads in force.
+pub(crate) const STORE: &str = "debug.store";
+/// `[debug] spool_max`, a `System` key, so read off the snapshot alone.
+const SPOOL_MAX: &str = "debug.spool_max";
 
 /// One limit as a run reads it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -84,6 +90,10 @@ pub(crate) struct Resolved {
     pub(crate) client_ip: bool,
     /// Whether `[trace] response_header` is anything but `false`.
     pub(crate) trace_response: bool,
+    /// Whether `[debug] store` is `true`.
+    pub(crate) debug_store: bool,
+    /// `[debug] spool_max` in bytes, [`u64::MAX`] for `false`.
+    pub(crate) spool_max: u64,
 }
 
 impl Resolved {
@@ -114,6 +124,12 @@ impl Resolved {
             trace_response: cli
                 .get("trace.response_header")
                 .is_none_or(|written| written != "false"),
+            debug_store: cli.get(STORE).is_some_and(|written| written == "true"),
+            spool_max: match Reading::of(SPOOL_MAX, Unit::Bytes, cli.get(SPOOL_MAX)) {
+                Reading::Read(Quantity::Bytes(bytes)) => bytes,
+                Reading::Read(Quantity::Unbounded) => u64::MAX,
+                _ => crate::defaults::DEBUG_SPOOL_MAX,
+            },
         }
     }
 

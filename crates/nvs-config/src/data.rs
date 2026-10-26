@@ -9,6 +9,8 @@
 //! is a fact about one machine's last test run. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
+//! [`Folder::spool`] and [`Folder::debug_index`] are under `debug/`, which only a run with
+//! `[debug] store` on creates ([`Folder::prepare_spool`]).
 //!
 //! **One value per process.** The CLI names the folder once at startup through [`set`], and every
 //! reader asks [`current`]. A process that never set one — an in-process test, a library caller —
@@ -193,6 +195,53 @@ impl Folder {
     #[must_use]
     pub fn service_log(&self) -> PathBuf {
         self.logs().join("nvs.log")
+    }
+
+    /// `debug/`: the debug service's directory, holding [`Folder::spool`] and
+    /// [`Folder::debug_index`].
+    #[must_use]
+    pub fn debug(&self) -> PathBuf {
+        self.root.join("debug")
+    }
+
+    /// `debug/spool/`: one file per writer of debug records, which `nvs debug` ingests and deletes
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
+    #[must_use]
+    pub fn spool(&self) -> PathBuf {
+        self.debug().join("spool")
+    }
+
+    /// `debug/index.sqlite`: what `nvs debug` ingested from the spool
+    /// (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`).
+    #[must_use]
+    pub fn debug_index(&self) -> PathBuf {
+        self.debug().join("index.sqlite")
+    }
+
+    /// Creates [`Folder::debug`] and [`Folder::spool`] privately, checks the folder, `debug/` and
+    /// `debug/spool/` as [`Folder::prepare`] checks the folder, and answers the spool's canonical
+    /// path. [`Folder::prepare`] does not create them, because only a run with `[debug] store` on
+    /// writes a spool, and it asks for this once.
+    ///
+    /// The records in the spool are request data at rest, so a spool directory another account can
+    /// change is refused and nothing is written into it
+    /// (`rule:config/ownership-is-the-trust-boundary`).
+    ///
+    /// # Errors
+    ///
+    /// [`Unusable`] naming this folder, when a create failed or a check did.
+    pub fn prepare_spool(&self) -> Result<PathBuf, Unusable> {
+        let unusable = |reason: String| Unusable {
+            folder: Some(self.root.clone()),
+            reason,
+        };
+        let spool = self.spool();
+        create_private_root(&spool)
+            .map_err(|err| unusable(format!("{}: {err}", spool.display())))?;
+        self.check()
+            .map_err(|why| unusable(why.message().to_owned()))?;
+        // `trust::check` reads the directory and the one containing it, so this covers `debug/`.
+        trust::check(&spool).map_err(|why| unusable(why.message().to_owned()))
     }
 
     /// `rule:config/ownership-is-the-trust-boundary`'s check on the folder, and its canonical path:
@@ -694,6 +743,53 @@ mod tests {
         assert_eq!(folder.lsp("1.2.3"), root.join("lsp").join("1.2.3"));
         assert_eq!(folder.logs(), root.join("logs"));
         assert_eq!(folder.service_log(), root.join("logs").join("nvs.log"));
+        assert_eq!(folder.spool(), root.join("debug").join("spool"));
+        assert_eq!(
+            folder.debug_index(),
+            root.join("debug").join("index.sqlite")
+        );
+    }
+
+    /// The spool is created private beside a prepared folder, and a spool directory other accounts
+    /// can change is refused.
+    #[test]
+    fn the_spool_is_created_private_and_one_others_can_write_is_refused() {
+        let dir = scratch("spool");
+        let folder = Folder::new(dir.join("bin").join(NAME));
+        folder.prepare().expect("a fresh folder is usable");
+        let spool = folder.prepare_spool().expect("a fresh spool is usable");
+        assert_eq!(spool, trust::canonical(&folder.spool()).unwrap());
+        #[cfg(unix)]
+        for path in [folder.debug(), folder.spool()] {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o700, "{} is private", path.display());
+        }
+        #[cfg(windows)]
+        for path in [folder.debug(), folder.spool()] {
+            assert_eq!(
+                trust::exposure(&path),
+                None,
+                "{} is private",
+                path.display()
+            );
+        }
+
+        open_to_others(&folder.spool());
+        let unusable = folder
+            .prepare_spool()
+            .expect_err("a spool other accounts can change is refused");
+        assert!(
+            unusable.reason().contains(
+                &trust::canonical(&folder.spool())
+                    .unwrap()
+                    .display()
+                    .to_string()
+            ),
+            "the reason names the spool: {}",
+            unusable.reason()
+        );
     }
 
     /// The folder and the directory above it are both created here, because the trust check reads
