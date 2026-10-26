@@ -119,12 +119,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 The push run cancelled nightly run 40291801939, so the Miri and overload fixes are still unchecked.
 
-The main loop has a new goal (the debug viewer, from `41c6efd0c`). At `HEAD`,
-`crates/nvs-cli/src/viewer.rs` from `c61559248` fails `cargo fmt --all --check`, and the proofs
-gate owes 11 perf figures from `9b06d8cee`: `Core\Json::*` (`json.rs`) and seven
-`lang:attributes/*` (`90-attributes.md`). `bun nv site --check` names `syntax/attributes/json.mdx`
-and `/reference/cli/nvs-debug/`'s questions as stale. All of these were handed to the main loop
-with `loop say`, and a refused push names them first.
+The main loop's live goal is `debug-viewer`, its proofs in stage 7. Nothing went out since
+`1f93a1275`. At `HEAD`, `bun nv site --check stale questions` is green. `cargo fmt --all --check` fails on the committed
+`crates/nvs-cli/src/debug/api.rs:830` and `crates/nvs-cli/tests/debug_api.rs:923`. The proofs gate
+owes 9 `Core\Debug::*` perf figures (`debug.rs`, from `e894e74a1`) and the proofs of the four
+`directive:debug.*` settings. All of these were handed to the main loop with `loop say`, and a
+refused push names them first.
 
 `.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders that Windows keeps while looper
 runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three when looper is stopped.
