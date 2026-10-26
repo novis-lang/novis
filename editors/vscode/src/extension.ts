@@ -91,6 +91,7 @@ const EDITOR_COMMANDS = [
   "editor.action.triggerParameterHints",
   "nvs.showLocations",
   "nvs.runTests",
+  "vscode.open",
 ];
 
 const editorCommands: StaticFeature = {

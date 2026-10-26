@@ -83,6 +83,11 @@ matched. An outgoing call is each method the body calls and each handler a reque
 A call through a `callable` value or a `mixed` receiver is not shown, because the checker resolved no
 single target for it, and neither is a method taken as a callable value.
 
+`codeLens` reads two structures beside the index, and neither is a request of its own: a coverage
+report's per-test lines for a "used by" count, and `nvs debug`'s index, read-only, for the query lens
+of `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`. The query calls the lens
+sits on are the index's, the calls the checker resolved to a member that takes a query site id.
+
 The second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the
 eight do: the lexer already knows where a mode ends, so the boundary list is a projection of a walk the

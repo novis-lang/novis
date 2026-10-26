@@ -101,6 +101,11 @@ pub struct Settings {
     /// storage, as it fills `stubs.dir`. `None` is a client that named none,
     /// and every test count is then read off the call graph.
     pub coverage: Option<PathBuf>,
+    /// The debug index the query lens reads
+    /// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`):
+    /// `nvs_config::data::Folder::debug_index` of the data folder, and `None`
+    /// where the process has none. Not a setting a client writes.
+    pub debug_index: Option<PathBuf>,
 }
 
 /// What a client does with a completion item beyond inserting its text, and
@@ -129,6 +134,9 @@ pub struct Client {
     /// The client runs [`Client::RUN_TESTS`], so a "used by" lens may run
     /// the tests it counts.
     pub run_tests: bool,
+    /// The client runs [`Client::OPEN`], so a query lens may open the
+    /// request it describes in the debug viewer.
+    pub open: bool,
     /// `workspace.codeLens.refreshSupport`: the server may ask the client to
     /// fetch its lenses again, which a changed setting does.
     pub refresh_lenses: bool,
@@ -151,6 +159,10 @@ impl Client {
     /// The command that runs tests in the editor's own test view. A "used by"
     /// lens carries it with the tests it counts, each as `Class::method`.
     pub const RUN_TESTS: &'static str = "nvs.runTests";
+    /// The editor's own command that opens a URI, which a query lens carries
+    /// with the viewer's page for the request it describes. VS Code opens an
+    /// `http` URI in the browser.
+    pub const OPEN: &'static str = "vscode.open";
 
     /// What `params` declared.
     fn from_initialize(params: &InitializeParams) -> Self {
@@ -172,6 +184,7 @@ impl Client {
             parameter_hints: names(Self::PARAMETER_HINTS),
             show_locations: names(Self::SHOW_LOCATIONS),
             run_tests: names(Self::RUN_TESTS),
+            open: names(Self::OPEN),
             refresh_lenses: capabilities
                 .workspace
                 .as_ref()
@@ -208,6 +221,7 @@ impl Default for Settings {
             root: None,
             stubs: None,
             coverage: None,
+            debug_index: None,
         }
     }
 }
@@ -229,6 +243,7 @@ impl Settings {
                 .and_then(Value::as_str)
                 .filter(|dir| !dir.trim().is_empty())
                 .map(PathBuf::from),
+            debug_index: nvs_config::data::current().map(|folder| folder.debug_index()),
             ..Self::default()
         };
         settings.read(options);

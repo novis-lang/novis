@@ -126,6 +126,7 @@ use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
 use crate::query;
 use crate::reach::{Reach, reach};
+use crate::recorded;
 use crate::redactions;
 use crate::regions;
 use crate::rename::{self, Rewrite};
@@ -1740,6 +1741,9 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// words. A click runs the tests it counts, with [`Client::RUN_TESTS`] for a
 /// client that named it. A method nothing reaches gets no such lens, for the
 /// hierarchy lens's reason.
+///
+/// **A `Core\Db` call a recorded request reached says what it ran there**,
+/// after the declarations' lenses ([`query_lenses`]).
 fn code_lens(
     documents: &Documents,
     index: &SymbolIndex,
@@ -1804,6 +1808,7 @@ fn code_lens(
                 .flat_map(|(_, _, sites, _)| sites.iter().map(|site| site.path.as_path())),
         )
     });
+    let queries = query_lenses(index, settings, &path, file, encoding);
     Some(
         lenses
             .into_iter()
@@ -1846,7 +1851,90 @@ fn code_lens(
                     data: None,
                 }
             })
+            .chain(queries)
             .collect(),
+    )
+}
+
+/// One lens above each `Core\Db` call in `path` that the newest recorded
+/// request reached, titled with what it ran there
+/// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
+///
+/// The calls are the index's ([`SymbolIndex::queries_in`]) and the figures the
+/// debug index's ([`recorded::at_site`]), matched on the line a call starts on
+/// and the BLAKE3 of `file`'s text, so an edited buffer gets no lens until a
+/// request ran its text. No call, no index and an index that cannot answer
+/// each give no lens.
+///
+/// A click opens the request in the viewer, with [`Client::OPEN`] for a client
+/// that named it, at the `[debug] listen` of the program's configuration tree
+/// ([`viewer_of`]), which is read once per answer and only when a lens has a
+/// request to open.
+fn query_lenses(
+    index: &SymbolIndex,
+    settings: &Settings,
+    path: &Path,
+    file: &nvs_diagnostics::SourceFile,
+    encoding: PositionEncoding,
+) -> Vec<CodeLens> {
+    let calls = index.queries_in(path);
+    if calls.is_empty() {
+        return Vec::new();
+    }
+    let Some(db) = settings.debug_index.as_deref().and_then(recorded::open) else {
+        return Vec::new();
+    };
+    let hash = blake3::hash(file.text().as_bytes()).to_hex().to_string();
+    let mut viewer = None;
+    calls
+        .iter()
+        .filter_map(|&(start, end)| {
+            // A site's line is one-based, as `nvs_ir::Program::query_site_table` writes it.
+            let line = file.line_col(start).0 + 1;
+            let ran = recorded::at_site(&db, settings.root.as_deref(), path, line, &hash)?;
+            let title = recorded::title(&ran);
+            let command = if settings.client.open {
+                let (listen, tls) = viewer.get_or_insert_with(|| viewer_of(path));
+                Command {
+                    title,
+                    command: Client::OPEN.to_owned(),
+                    arguments: Some(vec![serde_json::json!(recorded::viewer_url(
+                        listen, *tls, &ran
+                    ))]),
+                }
+            } else {
+                Command {
+                    title,
+                    command: String::new(),
+                    arguments: None,
+                }
+            };
+            Some(CodeLens {
+                range: range_of(file, start, end, encoding),
+                command: Some(command),
+                data: None,
+            })
+        })
+        .collect()
+}
+
+/// The address `nvs debug` serves the viewer on for the program `path` is in,
+/// and whether it serves it over TLS: the tree's `[debug] listen` and
+/// `tls_cert_file`, or the default address.
+fn viewer_of(path: &Path) -> (String, bool) {
+    let data = nvs_config::data::config_file();
+    let written = match crate::document::program_tree(path, data.as_deref()) {
+        crate::document::Tree::Read { snapshot, .. } => snapshot
+            .config
+            .debug
+            .as_ref()
+            .map(|debug| (debug.listen.clone(), debug.tls_cert_file.is_some())),
+        _ => None,
+    };
+    let (listen, tls) = written.unwrap_or((None, false));
+    (
+        listen.unwrap_or_else(|| nvs_config::defaults::DEBUG_LISTEN.to_owned()),
+        tls,
     )
 }
 
@@ -2016,9 +2104,19 @@ fn case_settings(root: &Path) -> Settings {
             ..Client::default()
         },
         coverage: Some(root.join(CASE_REPORTS)),
+        debug_index: Some(root.join(CASE_INDEX)),
         ..Settings::default()
     }
 }
+
+/// The debug index of a `.lspt` case, which the runner builds from the SQL a
+/// case writes as `--FILE debug/index.sql--` ([`lenses_of_case`]).
+const CASE_INDEX: &str = "debug/index.sqlite";
+
+/// The SQL text a `.lspt` case writes its debug index as. Each `{{hash}}` in
+/// it is replaced with the BLAKE3 of the case's document as it was written to
+/// disk, so a frozen case does not depend on the line endings of a checkout.
+const CASE_INDEX_SQL: &str = "debug/index.sql";
 
 /// The directory of a `.lspt` case a coverage report is written into, as
 /// `--FILE coverage/<name>.json--`. A file name in it that is relative is
@@ -2040,6 +2138,18 @@ pub(crate) fn lenses_of_case(
     encoding: PositionEncoding,
 ) -> Option<Vec<CodeLens>> {
     let settings = case_settings(root);
+    // A debug index is a binary file, so a case writes it as SQL, and it is
+    // built here, once per answer, before the lenses read it.
+    if let Ok(sql) = std::fs::read_to_string(root.join(CASE_INDEX_SQL)) {
+        let document = path_of(uri).and_then(|path| std::fs::read(path).ok())?;
+        let sql = sql.replace("{{hash}}", blake3::hash(&document).to_hex().as_str());
+        let _ = std::fs::remove_file(root.join(CASE_INDEX));
+        let built =
+            rusqlite::Connection::open(root.join(CASE_INDEX)).and_then(|db| db.execute_batch(&sql));
+        if built.is_err() {
+            return None;
+        }
+    }
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
     let mut reports = Reports::new(settings.coverage.clone(), settings.root.clone());
     reports.refresh();

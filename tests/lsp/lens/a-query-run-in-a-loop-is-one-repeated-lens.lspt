@@ -1,0 +1,28 @@
+--TEST--
+a query run in a loop is one lens at its call that counts every run of the newest recorded request and says the statement repeated, a call whose record was made from another text of the file gets no lens, and two statements at one call are not a repeat, `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`
+--FILE--
+<?nvs
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table customer (id integer primary key, name text not null)', []);
+foreach ([1, 2, 3] as int $id) {
+    $db->query('select name from customer where id = ?', [$id]);
+}
+$db->execute('delete from customer', []);
+--FILE debug/index.sql--
+CREATE TABLE requests (id INTEGER PRIMARY KEY, trace TEXT NOT NULL, span TEXT);
+CREATE TABLE events (trace TEXT NOT NULL, kind TEXT NOT NULL, start_us INTEGER NOT NULL, end_us INTEGER NOT NULL, sql TEXT, site_file TEXT, site_line INTEGER, site_hash TEXT);
+INSERT INTO requests VALUES (1, '0123456789abcdef0123456789abcdef', '0123456789abcdef');
+INSERT INTO requests VALUES (2, 'fedcba9876543210fedcba9876543210', 'fedcba9876543210');
+INSERT INTO events VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 5000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
+INSERT INTO events VALUES ('0123456789abcdef0123456789abcdef', 'query', 0, 7000, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}');
+WITH RECURSIVE run(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM run WHERE i < 1000)
+INSERT INTO events SELECT 'fedcba9876543210fedcba9876543210', 'query', i * 1000, i * 1000 + CASE WHEN i = 500 THEN 2400 ELSE 100 END, 'select name from customer where id = ?', 'case.nvs', 5, '{{hash}}' FROM run;
+INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'create table customer (id integer primary key, name text not null)', 'case.nvs', 3, 'a hash of another text of the file');
+INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 300, 'delete from customer', 'case.nvs', 7, '{{hash}}');
+INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 1200, 'delete from orders', 'case.nvs', 7, '{{hash}}');
+INSERT INTO events VALUES ('fedcba9876543210fedcba9876543210', 'query', 0, 900, 'delete from customer', 'other.nvs', 3, '{{hash}}');
+--REQUEST--
+codeLens
+--EXPECT--
+5:5 1000 queries, 102.3 ms in total, slowest 2.4 ms, one statement repeated 1000 times
+7:1 2 queries, 1.5 ms in total, slowest 1.2 ms

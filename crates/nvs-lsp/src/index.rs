@@ -335,6 +335,10 @@ struct Indexed {
     /// taken as a callable value, by its symbol, and a call by name that the
     /// checker did not resolve to one method, as `::` and the name.
     unfollowed: Vec<String>,
+    /// Every `Core\Db` call that sends a statement, as the start and end of
+    /// the call expression, in source order: the sites the query lens reads
+    /// (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`).
+    queries: Vec<(BytePos, BytePos)>,
     /// The kind of the one type this file declares, when the file has the
     /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
     sole: Option<DeclKind>,
@@ -737,6 +741,16 @@ impl SymbolIndex {
             .map_or(&[], |indexed| indexed.occurrences.as_slice())
     }
 
+    /// Every `Core\Db` call `path` writes that sends a statement, as the start
+    /// and end of the call, in source order, or nothing for a file the index
+    /// does not hold.
+    #[must_use]
+    pub fn queries_in(&self, path: &Path) -> &[(BytePos, BytePos)] {
+        self.files
+            .get(&canonical_key(path))
+            .map_or(&[], |indexed| indexed.queries.as_slice())
+    }
+
     /// Every `Core\Test::request` `path` sends that the route table matched,
     /// in source order, or nothing for a file the index does not hold.
     #[must_use]
@@ -817,6 +831,7 @@ impl SymbolIndex {
                 imports: imports(&analysed, loaded, &key),
                 requests: uses.requests,
                 unfollowed: uses.unfollowed,
+                queries: uses.queries,
                 sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
                 errors: analysed.diags.iter().any(|diag| {
@@ -1360,6 +1375,7 @@ fn occurrences<'a>(
     let mut found = Vec::new();
     let mut requests = Vec::new();
     let mut unfollowed = Vec::new();
+    let mut queries = Vec::new();
     let methods = method_bodies(analysed, scope, loaded);
     let caller = |span: Span| caller_at(&methods, span);
     let file = analysed.map.file(loaded.id);
@@ -1373,10 +1389,15 @@ fn occurrences<'a>(
                     ..used
                 }),
             );
-            let resolved = analysed
-                .exprs
-                .lookup(node.span)
-                .and_then(|info| Some((info, target_of(info)?)));
+            let info = analysed.exprs.lookup(node.span);
+            // The test the lowering applies before it passes a call its query
+            // site id, so a lens sits on exactly the calls a span can name.
+            if let Some(ExprInfo::Call(call)) = info
+                && nvs_types::core_takes_query_site(&call.class.to_string(), &call.method)
+            {
+                queries.push((node.span.start, node.span.end));
+            }
+            let resolved = info.and_then(|info| Some((info, target_of(info)?)));
             let Some((info, target)) = resolved else {
                 // A call by name that resolved to no one method: on a `mixed`
                 // receiver, or one the checker reported.
@@ -1449,10 +1470,13 @@ fn occurrences<'a>(
     found.dedup();
     requests.sort();
     requests.dedup();
+    queries.sort();
+    queries.dedup();
     Uses {
         occurrences: found,
         requests,
         unfollowed,
+        queries,
     }
 }
 
@@ -1466,6 +1490,8 @@ struct Uses {
     /// Every call the call graph does not follow, spelled as
     /// [`SymbolIndex::unfollowed`] looks one up.
     unfollowed: Vec<String>,
+    /// Every `Core\Db` call that sends a statement, as the call's start and end.
+    queries: Vec<(BytePos, BytePos)>,
 }
 
 /// Every method with a body that one file declares: the whole declaration's

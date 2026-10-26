@@ -77,6 +77,11 @@ serde_json.workspace = true
 # `deny_unknown_fields` at every level so an unknown field is a finding that
 # names it. `serde_json` already links it; this names the derive.
 serde.workspace = true
+# The query lens reads `nvs debug`'s index read-only (`crate::recorded`), and
+# matches a recorded site by the BLAKE3 of the file's text, the hash the
+# compiler gave it. Both are already linked into the `nvs` binary.
+rusqlite.workspace = true
+blake3.workspace = true
 
 [dev-dependencies]
 # How this crate's tests reach files outside the package.

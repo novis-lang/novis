@@ -1,6 +1,6 @@
 {
   "title": "Above each query call, a lens shows what the newest recorded request that reached it ran there: the count, the total and the slowest time, and whether one statement repeated",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "observability/a-query-span-names-its-call-site",
     "observability/a-query-is-a-trace-event",
@@ -8,6 +8,8 @@
     "testing/debug-surface",
     "ide/the-extension-builds-no-ui-the-editor-already-has"
   ],
-  "guardedBy": [],
-  "goal": "request-aware-editor"
+  "guardedBy": [
+    "tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt",
+    "crates/nvs-lsp/src/recorded.rs"
+  ]
 }

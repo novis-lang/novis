@@ -178,6 +178,18 @@ If a call removes `tainted` or `secret`, the hover shows that call in bold. An e
 call receives. The path covers one method only. A parameter declared `tainted string` is where the
 value entered that method.
 
+## What a recorded request ran at a query
+
+With `[debug] store` on, `nvs serve` records each request, and `nvs debug` keeps the records. Above
+each `Core\Db` call that sends a statement, a lens then shows what the newest recorded request ran
+there. An example is `1000 queries, 102.3 ms in total, slowest 2.4 ms, one statement repeated 1000
+times`. A statement that repeats is often a query inside a loop. One query for the whole list is
+usually much faster.
+
+Click the lens to open that request in the debug viewer. The lens shows only records of the text
+you see. After you edit the file, the lens comes back when a request runs the new text. The editor
+reads the records and changes nothing in them.
+
 ## What it does not answer
 
 The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,
