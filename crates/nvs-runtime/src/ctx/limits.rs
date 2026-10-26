@@ -250,6 +250,26 @@ impl Ctx {
         self.arm_memory_ceiling();
     }
 
+    /// Reads this request's baseline again at the thread's balance now, starts
+    /// its memory peak there, and arms its ceiling against it.
+    ///
+    /// `nvs run` calls it once the context is wired, just before the program's
+    /// task is spawned. What the run's setup made after the context — the
+    /// command line, the program's name and id, the route table — is the
+    /// host's, and its size follows the paths the run was started with. Charged
+    /// to the program, it would move the allocation at which the ceiling is
+    /// crossed, and with it every collection, by the length of a folder's name
+    /// (`rule:testing/bench-counters`).
+    ///
+    /// **What it spends:** those setup bytes, a few kilobytes per run, are not
+    /// charged against `[limits] memory`. They are bounded by the run's own
+    /// arguments and configuration, not by anything the program does.
+    pub fn rebase_memory(&mut self) {
+        self.memory_base = crate::budget::live_bytes();
+        crate::budget::restart_peak();
+        self.arm_memory_ceiling();
+    }
+
     /// Arms the allocator with this request's ceiling as an absolute balance,
     /// so a growing allocation is measured against it where it happens rather
     /// than at the next poll.

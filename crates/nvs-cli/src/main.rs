@@ -2138,6 +2138,11 @@ fn run_run(
     // tree root's — this is the root — so one store through it reaches every
     // isolate and task the program goes on to build.
     let tree = ctx.safepoint_view();
+    // The setup above is the host's, and its size follows the paths this run
+    // was started with. The program is measured from here, so its ceiling is
+    // crossed at the same allocation whatever folder it runs in
+    // (`Ctx::rebase_memory`).
+    ctx.rebase_memory();
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
         let workers = workers.clone();

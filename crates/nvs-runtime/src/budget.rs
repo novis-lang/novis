@@ -1024,6 +1024,16 @@ pub(crate) fn rebase_peak() -> isize {
         .wrapping_sub(FOREIGN.with(Cell::get))
 }
 
+/// Starts the mark again at the current balance, keeping the one
+/// [`rebase_peak`] displaced where its caller holds it.
+///
+/// [`Ctx::rebase_memory`](crate::Ctx::rebase_memory)'s half: the context's
+/// baseline moves, so the mark it measures from moves with it.
+pub(crate) fn restart_peak() {
+    let base = LIVE.with(Cell::get);
+    PEAK.with(|peak| peak.set(base));
+}
+
 /// Restores `enclosing` as the mark, keeping whichever of the two is higher.
 ///
 /// The other half, run as a context drops: publishing `max(enclosing, reached)`
