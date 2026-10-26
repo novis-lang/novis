@@ -11,7 +11,9 @@
 //! `GET /api/source?coverage=<id>&file=<path>` reads a file only when the coverage row names it,
 //! so the page never names a path of its own choosing, and only when the file, with its links
 //! resolved, is under the project root: the working directory `nvs debug` started in, which the
-//! service a development server starts inherits from it. A file outside it is a `403`. `changed`
+//! service a development server starts inherits from it. A file outside it is a `403`, and a file
+//! the row does not name a `404`. A service two projects share through one data folder therefore
+//! shows the source of the project it started in alone. `changed`
 //! says the file was modified after the request started, because a development server compiles an
 //! edited file again before its next request, so the counts may no longer match the lines.
 //!

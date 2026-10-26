@@ -23,7 +23,9 @@
 //!
 //! A request's id is `AUTOINCREMENT`, so it only rises, and in the order the batches were
 //! committed: [`super::api`] pages the list on it, and an id the viewer holds never names a newer
-//! request after the deletion window emptied the table.
+//! request after the deletion window emptied the table. It costs one `sqlite_sequence` update per
+//! ingested request, off the request path. The viewer reads through one connection behind a mutex,
+//! which each page's bounded query holds briefly.
 //!
 //! # The deletion window
 //!

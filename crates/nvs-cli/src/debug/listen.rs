@@ -6,7 +6,9 @@
 //! over a transport whose every poll is a blocking call. `half_close` is on, so `hyper` never reads
 //! while it writes a response: an event stream waits on the watermark and never on the browser.
 //! A read waits at most [`IDLE`] and a write at most [`STALLED`], so a tab that went away ends its
-//! thread. Past [`MAX_CONNECTIONS`] a new connection is closed at once.
+//! thread. Past [`MAX_CONNECTIONS`] a new connection is closed at once. A thread per open
+//! connection is the price, bought for no scheduler in `nvs debug` and no `Pending` path to get
+//! right.
 //!
 //! **Who is served.** On loopback, a `Host` must name a loopback address or `localhost` with the
 //! bound port, which turns away a page that rebinds its own name to this address. Off loopback the

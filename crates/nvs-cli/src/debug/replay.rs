@@ -8,8 +8,9 @@
 //! is a `409` that says so. `GET /api/replay` gives the target, or `null`, so the viewer names it
 //! in the dialog and says before it is opened when there is none.
 //!
-//! **What is sent.** The recorded method, path, query and headers, and the body when the program
-//! read it. A header the spool redacted is sent only when the body gives its value, and is left out
+//! **What is sent.** HTTP/1.1 written by hand over a `std` socket, with `Connection: close`, and
+//! of the answer only its head is read. The recorded method, path, query and headers, and the
+//! body when the program read it. A header the spool redacted is sent only when the body gives its value, and is left out
 //! otherwise; a value for any other header is a `400`. `traceparent` and `tracestate` are left out,
 //! so the replay gets its own trace id, and so are the headers that belong to one connection. A
 //! typed value is in this request's memory alone and is written nowhere, and the server that

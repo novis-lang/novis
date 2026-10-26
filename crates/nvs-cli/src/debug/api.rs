@@ -17,8 +17,10 @@
 //! its uncaught exception, and its trace events, dumps and log lines in time order. The records
 //! are keyed by trace id alone, so when an inbound `traceparent` gives several requests one trace
 //! id, a request's records are those its writer wrote between the previous request of that trace
-//! and its own `request` line. Two such requests in flight at once on one thread cannot be told
-//! apart, and each shows both.
+//! and its own `request` line, and a tailed log line is the request's when it falls inside the
+//! request's time. Two such requests in flight at once on one thread cannot be told apart, and
+//! each shows both: that is the price of needing no schema change and no new spool field. A value
+//! tree is passed through as the index stores it, as a `RawValue`.
 //!
 //! **A request's answer carries its recorded input**, so compare diffs two answers in the browser
 //! and needs no route of its own. `input` is the query, the headers, and the request and response
@@ -29,7 +31,9 @@
 //! **A profile is downloaded by its row.** A request's answer lists the files its
 //! `Core\Debug::startProfile` calls named, and `GET /api/profile?id=` sends the file one row names,
 //! as an attachment of at most [`PROFILE_MAX`] bytes. The page names a row and never a path, so it
-//! reads only a file a program wrote under its `debug.profile` grant.
+//! reads only a file a program wrote under its `debug.profile` grant. It costs one spool line per
+//! started profile, written off the request's answer, and the file in this process's memory while
+//! it is sent.
 //!
 //! **A request's coverage is its own path.** A request's answer says whether its server counted
 //! the lines it ran, and [`super::source`] serves those counts and the files they name.

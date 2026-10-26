@@ -6,6 +6,10 @@
 //! [`listen`] serves the viewer on `[debug] listen` from its own threads, and the loop publishes
 //! the index's watermark to it after every pass that read something.
 //!
+//! **It lives in `nvs-cli`, and grows as files under `debug/`, never as a crate.** The
+//! application server's crate never links a line of the service or the viewer, so the request
+//! path is untouched, and no crate is added for it.
+//!
 //! **A taken port.** A service started by hand stops with an error that names `[debug] listen` and
 //! `--listen`, and never moves to another port, because a link to the viewer must outlive a
 //! restart. A service a server started with `--parent` prints the same message as a warning and
