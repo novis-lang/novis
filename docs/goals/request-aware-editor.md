@@ -303,35 +303,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Each `Occurrence` carries `caller`, the method whose body it is written in, and
-`None` for a callable value and for code outside a method. Each indexed file also keeps `requests`
-(a `Core\Test::request` with a literal method and path, matched to its handler by
-`nvs_types::crossing::runtime_routes` and the server's `match_request`) and `unfollowed` (a method
-taken as a callable value, and a by-name call that resolved to nothing, as `::name`). A method's
-`Declaration` carries `routes` (`GET /items/{id}`) and `test`. `nvs_lsp::reach::reach` walks the
-edges backwards and answers `Reach { routes, tests, at_least }`. A call to a method the reached
-method overrides is not followed and sets `at_least`, and a closure's calls count for the method that
-writes it; both are written into `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`.
-`tests/index.rs` counts the call graph as the eighth reader, and its five new tests pass.
+Stages 1 and 2 are done. `nvs_lsp::reach::reach` walks the call graph backwards, and
+`nvs_lsp::calls::{incoming, outgoing}` read it one step each way for `textDocument/callHierarchy`,
+which the server declares. A matched `Core\Test::request` is an edge in both. The new
+`SymbolIndex::requests_in` belongs to the call graph reader. `navigation.rs`'s
+`call_hierarchy_walks_the_call_graph_both_ways` passes.
 
-The route-table crossing moved from `nvs-cli` into `crates/nvs-types/src/crossing.rs`, and `nvs-lsp`
-names `nvs-runtime`. The gates of stages 8, 6 and 7 hold: `editor-fixes`, `debug-service` and
-`debug-viewer` are all gone.
+CI, from the sweep: the yanked `crypto-bigint`, the Windows count mismatch and the linux-aarch64 stack
+bound were already fixed on main (`Cargo.lock`, `9c8b0fe16`, `536782207`). The macOS count mismatch
+was real: a longer project folder changed the counts on Windows too. `Ctx::rebase_memory`
+(`crates/nvs-cli/src/main.rs:2141`) now measures from the spawn, and every `--count` total moved.
+The cancelled Linux jobs hung in `crates/nvs-cli/tests/dap.rs`. An event that arrived before a
+step's response was dropped. Both ends are fixed, but the last fix, to `until_stop_or_end`, has not
+run on Linux yet. `env-secret-proofs` exits 0 when run now, and no check by that name is in the
+tree.
 
-No test is expected to go red. `call_hierarchy_is_not_answered` in `crates/nvs-lsp/tests/index.rs`
-must go in stage 2, which declares the capability.
+May go red: the proofs gate's perf records, because the counted baseline moved. Rerun
+`bun nv linux-test --test dap` first.
 
 ### Next
 
-**Stage 2, call hierarchy**, on `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/capabilities.rs`
-and a new module beside `crates/nvs-lsp/src/reach.rs`. Gate: none.
+**Stage 8, the "used by" lens**, on `crates/nvs-lsp/src/server.rs` and `editors/vscode/src/tests.ts`.
+Its gate holds. It follows the stage's **Split:** line.
 
-- [ ] Declare `callHierarchyProvider`, and the handshake list holds the new standard request. Delete `call_hierarchy_is_not_answered` and the playbook bullet whose `until:` names it. `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/tests/handshake.rs:161`, `crates/nvs-lsp/tests/index.rs:300`
-- [ ] `prepare` reads the method under the cursor with `index::symbol_at`. `incomingCalls` groups `index.occurrences(m)` by `caller`, and adds `index.requests(m)` when that is the design chosen. `outgoingCalls` reads `index.occurrences_in(file)` where `caller == m` and the symbol is a method. `crates/nvs-lsp/src/index.rs:836`, `crates/nvs-lsp/src/reach.rs:1`
-- [ ] A callable value has `caller: None`, so it is never shown. A Rust test covers both directions over a recursive pair and a callable. `crates/nvs-lsp/tests/navigation.rs:1`
-- [ ] `rule:ide/the-request-set-is-closed` rewritten from "admitted" to served. `docs/rules/ide/the-request-set-is-closed.md:72`
+- [ ] The method lens says "used by N routes, M tests" off `reach::reach`, with "at least" from `Reach::at_least`, and its command carries the tests. `crates/nvs-lsp/src/server.rs:1725`, `crates/nvs-lsp/src/reach.rs:51`
+- [ ] The Coverage profile keeps its JSON report (`schemaVersion: 3`, per-test `coverage`), and the server reads the newest one; with none, the lens says "static". `editors/vscode/src/tests.ts:5`, `docs/rules/testing/report-formats.md:1`
+- [ ] `nvs.runTests` runs those tests through the Test Explorer's filtered run. `editors/vscode/package.json:202`
+- [ ] `.lspt` cases (writing subagent), then the client test (second subagent). `tests/lsp/README.md:8`, `editors/vscode/scripts/headless.mjs:1`
 
-Stage 8 comes after it. Its lens reads `reach::reach`.
+Stages 3 and 4 (hovers) and 5 (query site id) need no gate and can follow.
 
 ### Backlog
 
