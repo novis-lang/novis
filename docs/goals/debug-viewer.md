@@ -459,39 +459,45 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+  - [x] the rendered chapters, the config census, the extension's `onUri`, the `viewer/dist` literal and the TLS park test
+  - [x] the doc links, the `zstd` advisories, the attribution and the website questions
+  - [ ] `nvs-stdlib test ldap` times out beside the other binaries
 - [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done. Stage 7 landed in four commits: `fff44d3ac` adds `# The debug viewer`
-to the CLI chapter (`nvs agent find` reaches `cli#the-debug-viewer`), `c9b07fe14` the SQLite-steps
-unit test and the `perf` skip, `0aead1d51` `about.md` and three examples, and `755805047` the
-attack, `viewer/test/hostile.browser.test.ts` and the last rule `shipped`.
-`bun nv proofs --id 'tools:cli/the-debug-viewer'` is complete, `bun nv proofs --gate --limit 0`
-owes nothing, and `bun nv owners --closes debug-viewer` passes.
+Stages 1 to 9 are done. Stage 10's verify ran three times, and every failure but one is fixed,
+in seven commits from `a57e9d7a5` to `8c02b6d5e`: the rendered testing chapter and ground rules;
+`[debug] listen` and the three `_file` keys marked `; restart required` and in the `_file`
+census (`crates/nvs-config/tests/directives.rs:1490`); the extension's `onUri` in its chapter
+and test; `viewer.rs`'s test through `nvs_repo::path`; the TLS park test gated on a child task
+instead of a 20 ms sleep (`crates/nvs-host/src/tls.rs:1993`); two ambiguous doc links; wasmtime
+without its `cache` feature, which drops `zstd` 0.13 and its four advisories (`Cargo.toml:352`);
+the attribution, `llms-full.txt` and the four debug pages' questions.
 
-Checked once: build and clippy clean; the steps test by name; `NV_BROWSER=1 bun test
-viewer/test/hostile.browser.test.ts` (9 pass); the subagents ran the three examples and the
-hostile case through `bun nv proofs --run --id`, and `tsc` over `viewer/`. The sweep's reds were
-stale: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`, before
-`97ccf66c2` (the yanked `crypto-bigint`) and `9c8b0fe16` (the counted-run test's folder).
+Green now: `bun nv verify --doc`, `bun nv owners --closes debug-viewer` and `bun nv ci --check`
+(every pre-push check, advisories included). The sweep's `env-secret-proofs` passes when run, and
+nightly 40291801939 built `d6f131752`, before the `crypto-bigint` and test-folder fixes.
 
-Expected red: possibly `crates/nvs-cli/tests/live_config.rs:670` (`refuse_switch`'s message for
-`coverage`), `crates/nvs-cli/tests/debug_ingest.rs`'s `counts` and `debug_viewer.rs`'s ingest case.
+Still red: `nvs-stdlib test ldap` times out beside the other binaries and passes alone, both
+times. The first run lost 13 of 36 cases, the last run 2 (`a_filetime_of_zero_or_max_reads_as_null`,
+`a_filter_encodes_to_ber_with_no_text_step`), each with `Timeout: the search: the deadline passed
+before the socket was ready`. `docker logs novis-db-samba-ad-1` shows no crash. Nothing this goal
+changed reaches LDAP.
 
 ### Next
 
-**Stage 10, the gate.** Start `looper verify` with `run_in_background`, end the turn, and group
-its failures by cause. Then the goal-end gates of AGENTS.md § *In the loop*.
+**Stage 10, the `ldap` timeout, then the second green run.** Over 120k, so this session handed
+it off.
 
-- [ ] `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] `bun nv verify --doc`, `bun nv owners --closes debug-viewer` and `bun nv ci --check` green. `tools/nv/cmd/ci.ts:1`
+- [ ] Find why a Samba search waits past its deadline under a full verify, and fix that cause. Check that the deadline the search uses is the block's `30s` (`crates/nvs-stdlib/tests/ldap.rs:172`). Check whether `SAMBA_AT_ONCE` should span processes (`nvs-ldap`'s `samba` test reaches the same server). Do not raise the bound to make it pass. `crates/nvs-stdlib/tests/ldap.rs:43`
+- [ ] The second `looper verify` (`bun tools/looper/main.ts verify` when `looper` has no `verify`) is green. `tools/nv/cmd/verify.ts:1`
 - [ ] Each decision only this file's prose holds moved to a rule or module doc before the file is deleted. `docs/goals/debug-viewer.md:102`
+- [ ] `bun nv verify --doc` and `bun nv ci --check` green again, then `DONE`. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
