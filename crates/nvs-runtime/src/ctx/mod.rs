@@ -1423,6 +1423,9 @@ pub struct Ctx {
     /// The host's run table, which a joined isolate's table is added into
     /// ([`Ctx::join_coverage`]). Every child context gets a clone of the handle.
     run_hits: Option<std::sync::Arc<StmtHits>>,
+    /// The query site table of the program this context runs ([`Ctx::set_query_sites`]). A task
+    /// gets a clone of the handle. `None` unless the host installed one.
+    query_sites: Option<std::sync::Arc<QuerySites>>,
     /// The host's profiler ([`Ctx::set_run_profile`]). Every child context gets a clone of the
     /// handle and a track of its own in it.
     run_profile: Option<std::sync::Arc<Profiler>>,

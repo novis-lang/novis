@@ -50,7 +50,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 5;
+pub(crate) const SCHEMA: i64 = 6;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -143,7 +143,9 @@ CREATE TABLE events (
     driver TEXT,
     sql TEXT,
     rows INTEGER,
-    site INTEGER
+    site_file TEXT,
+    site_line INTEGER,
+    site_hash TEXT
 );
 CREATE UNIQUE INDEX events_key ON events (writer, seq);
 CREATE INDEX events_trace ON events (trace);

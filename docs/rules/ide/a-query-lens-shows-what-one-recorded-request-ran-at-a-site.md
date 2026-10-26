@@ -19,7 +19,8 @@ The server opens the index read-only, from the data folder, and makes no network
 that is absent, or that the service holds locked, gives no lens and no error.
 
 - **Memory:** in the editor process, a few numbers per query site per lens request, freed with the
-  answer. In the spool and the index, one site id per traced query, under the service's byte cap.
+  answer. In the spool and the index, one file, line and hash per traced query, under the service's
+  byte cap.
 
 **Declined:**
 - **One parameter set kept per site.** No query span holds a parameter value, and a parameter is

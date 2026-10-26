@@ -585,9 +585,23 @@ pub struct Query {
     /// The rows returned or affected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rows: Option<u64>,
-    /// The call site id the compiler passed, when it passed one.
+    /// The call that sent the statement, when the compiler numbered it and the host gave the context
+    /// the program's site table (`rule:observability/a-query-span-names-its-call-site`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub site: Option<u32>,
+    pub site: Option<QuerySite>,
+}
+
+/// Where a `query` event's statement was sent from: one row of the program's query site table
+/// ([`crate::QuerySites`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuerySite {
+    /// The file the call is in, as the program named it.
+    pub file: String,
+    /// The 1-based line the call starts on.
+    pub line: u32,
+    /// The BLAKE3 hash of the file's text when the program was compiled, in lowercase hex. A
+    /// reader whose file on disk hashes otherwise is reading another text of it.
+    pub hash: String,
 }
 
 /// `kind: "dump"`: one `Core\Debug::dump` record.
@@ -1496,7 +1510,12 @@ mod tests {
                 driver: "sqlite".to_owned(),
                 sql: "SELECT * FROM items WHERE id = ?".to_owned(),
                 rows: Some(1),
-                site: Some(12),
+                site: Some(super::QuerySite {
+                    file: "src/Shop/Orders.nvs".to_owned(),
+                    line: 12,
+                    hash: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+                        .to_owned(),
+                }),
             }),
         });
         let dump = Record::Dump(Dump {

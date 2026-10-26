@@ -2072,6 +2072,9 @@ fn run_run(
         .to_string()
         .into(),
     );
+    // `rule:observability/a-query-span-names-its-call-site`: the table a traced query reads the
+    // file and line of its call from.
+    ctx.set_query_sites(script::query_sites(&program, &checked.map));
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.

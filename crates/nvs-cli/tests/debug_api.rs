@@ -298,7 +298,7 @@ fn spool() -> String {
                 json!({
                     "kind": "event", "event": "query", "label": "sqlite main SELECT * FROM items WHERE id = ?",
                     "start_us": start_us + 100, "end_us": start_us + 900,
-                    "query": { "driver": "sqlite", "sql": "SELECT * FROM items WHERE id = ?", "rows": 1, "site": 12 }
+                    "query": { "driver": "sqlite", "sql": "SELECT * FROM items WHERE id = ?", "rows": 1, "site": { "file": "src/Shop/Items.nvs", "line": 12, "hash": "ab12" } }
                 }),
             );
             line(
@@ -915,7 +915,10 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
         .map(|event| event["kind"].as_str().expect("a kind"))
         .collect();
     assert_eq!(kinds, ["call", "query", "gc", "spawn"], "in order of start");
-    assert_eq!(detail["events"][1]["query"]["site"], 12);
+    assert_eq!(
+        detail["events"][1]["query"]["site"],
+        json!({ "file": "src/Shop/Items.nvs", "line": 12, "hash": "ab12" })
+    );
     assert_eq!(detail["dumps"].as_array().map(Vec::len), Some(2));
     assert_eq!(
         detail["dumps"][1]["tree"]["$properties"]["card"],

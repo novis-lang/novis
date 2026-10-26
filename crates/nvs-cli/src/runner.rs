@@ -852,7 +852,7 @@ pub(crate) fn run(
     let cache = crate::cache::from_config(&snapshot.config);
     // `--mutate` runs the suite with coverage first, to find the tests each mutant needs.
     let measured = coverage.any() || mutate;
-    let (unit, probes, sites_of) =
+    let (unit, probes, sites_of, query_sites) =
         match compile(&checked, cache.as_ref(), measured, debug.is_some()) {
             Ok(compiled) => compiled,
             Err(error) => {
@@ -874,6 +874,7 @@ pub(crate) fn run(
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
+    ctx.set_query_sites(Arc::clone(&query_sites));
     // The class hooks and fixtures run on the suite's context, so it stops at a breakpoint too.
     // The session keeps the unit only while something holds it, and the run holds it here.
     let debug: Option<Attached> = debug.zip(sites_of).map(|(debugger, sites)| {
@@ -1413,11 +1414,13 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// With `coverage`, it also returns the program's [`crate::coverage::Probes`],
 /// which a unit loaded from the cache numbers the same way; without it, they
 /// are empty and nothing is read for them.
-/// What [`compile`] gives: the unit, its coverage probes, and its debug sites under the switch.
+/// What [`compile`] gives: the unit, its coverage probes, its debug sites under the switch, and
+/// its query site table.
 type Compiled = (
     Arc<nvs_codegen::Unit>,
     crate::coverage::Probes,
     Option<Arc<nvs_host::debug::DebugUnit>>,
+    Arc<nvs_runtime::QuerySites>,
 );
 
 /// The suite's unit and its coverage probes. Under `debug`, the unit is compiled under the debug
@@ -1451,7 +1454,8 @@ fn compile(
         crate::cache::unit_for(&program, crate::cache::test_program_digest(&files), cache)
             .map_err(|error| error.to_string())?;
     let sites = crate::script::debug_unit(&unit, &program, &checked.map, crate::dap::file_key);
-    Ok((Arc::new(unit), probes, sites))
+    let query_sites = crate::script::query_sites(&program, &checked.map);
+    Ok((Arc::new(unit), probes, sites, query_sites))
 }
 
 /// `hit` as a percentage of `of`, and `100` for a report with no lines.
@@ -1695,6 +1699,7 @@ fn run_suite(
             )
         }),
         profile: ctx.run_profile().cloned(),
+        query_sites: ctx.query_sites().cloned(),
         format: shape.format,
         show_output: shape.show_output,
         wall: shape.wall,
@@ -1988,6 +1993,9 @@ struct Shared {
     coverage: Option<(usize, usize, Option<Arc<nvs_runtime::StmtLines>>)>,
     /// The run's profiler under `--profile`, which each test's context times its calls into.
     profile: Option<Arc<nvs_runtime::Profiler>>,
+    /// The suite's query site table, which each test's context is given, so a traced query names
+    /// the line of its call.
+    query_sites: Option<Arc<nvs_runtime::QuerySites>>,
     format: Format,
     show_output: bool,
     /// [`Shape::wall`].
@@ -2129,6 +2137,9 @@ impl Job {
         };
         let mut ctx = nvs_runtime::Ctx::new(sink);
         unit.install_in(&mut ctx);
+        if let Some(sites) = &shared.query_sites {
+            ctx.set_query_sites(Arc::clone(sites));
+        }
         if let Some((debugger, sites)) = &shared.debug {
             debugger.attach(&mut ctx, sites);
         }
@@ -5115,7 +5126,7 @@ mod tests {
         // No cache: a fixture's verdicts are about the runner, and a suite that
         // read one would be asserting against whatever a previous test run left
         // in this account's cache directory.
-        let (unit, _, _) = compile(&checked, None, false, false).expect("the fixture compiles");
+        let (unit, ..) = compile(&checked, None, false, false).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
@@ -5168,7 +5179,7 @@ mod tests {
     fn ran_shaped(name: &str, select: &Selection, shape: Shape) -> super::Suite {
         let path = fixture(name);
         let checked = crate::front_end(&path).expect("the fixture is a program");
-        let (unit, _, _) = compile(&checked, None, false, false).expect("the fixture compiles");
+        let (unit, ..) = compile(&checked, None, false, false).expect("the fixture compiles");
         let mut ctx = crate::script::granting_ctx();
         unit.install_in(&mut ctx);
         let (suite, _ctx) = run_suite_in_a_task(
@@ -6571,7 +6582,7 @@ mod tests {
             coverage: Option<&mut Option<crate::coverage::Sites>>,
         ) -> (Suite, String, std::time::Duration) {
             let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
-            let (unit, probes, _) =
+            let (unit, probes, ..) =
                 compile(&checked, None, coverage.is_some(), false).expect("the fixture compiles");
             let mut ctx = crate::script::granting_ctx();
             unit.install_in(&mut ctx);

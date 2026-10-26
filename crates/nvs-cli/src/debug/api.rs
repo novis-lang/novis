@@ -229,7 +229,16 @@ struct EventQuery {
     driver: String,
     sql: String,
     rows: Option<i64>,
-    site: Option<i64>,
+    site: Option<QuerySite>,
+}
+
+/// The call that sent a `query` event's statement: its file, its line, and the hash of the file's
+/// text when the program was compiled.
+#[derive(Serialize)]
+struct QuerySite {
+    file: String,
+    line: i64,
+    hash: String,
 }
 
 /// One `Core\Debug::dump`: its site and its value tree in the JSON rendering.
@@ -680,7 +689,8 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     let mut cut = Cut::default();
     let events = {
         let mut statement = tx.prepare_cached(
-            "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site FROM events \
+            "SELECT id, kind, label, start_us, end_us, status, driver, sql, rows, site_file, \
+             site_line, site_hash FROM events \
              WHERE trace = ?1 AND (?2 IS NULL OR (writer = ?2 AND seq > ?3 AND seq < ?4)) \
              ORDER BY start_us, id LIMIT ?5",
         )?;
@@ -689,6 +699,14 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
                 params![key.trace, writer, after, before, EVENTS_MAX + 1],
                 |row| {
                     let driver: Option<String> = row.get(6)?;
+                    let site = match row.get::<_, Option<String>>(9)? {
+                        Some(file) => Some(QuerySite {
+                            file,
+                            line: row.get::<_, Option<i64>>(10)?.unwrap_or_default(),
+                            hash: row.get::<_, Option<String>>(11)?.unwrap_or_default(),
+                        }),
+                        None => None,
+                    };
                     Ok(Event {
                         id: row.get(0)?,
                         kind: row.get(1)?,
@@ -701,7 +719,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
                                 driver,
                                 sql: row.get::<_, Option<String>>(7)?.unwrap_or_default(),
                                 rows: row.get(8)?,
-                                site: row.get(9)?,
+                                site,
                             }),
                             None => None,
                         },

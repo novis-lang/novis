@@ -217,9 +217,9 @@ impl QuerySpan {
     /// as cut here, and the affected count where the server gave one, else the rows returned.
     ///
     /// Built from the fields and never from a parameter, for § 11's reason, so
-    /// `a_query_span_contains_no_parameter_value_anywhere` covers it too. The call site id is
-    /// `None` here: the driver never sees the call, and `Core\Db`'s `QueryWatch` fills it in when
-    /// the span is traced (`rule:observability/a-query-span-names-its-call-site`).
+    /// `a_query_span_contains_no_parameter_value_anywhere` covers it too. The call site is
+    /// `None` here: the driver never sees the call, and `Core\Db`'s `QueryWatch` fills it in from
+    /// the program's site table when the span is traced (`rule:observability/a-query-span-names-its-call-site`).
     #[must_use]
     pub fn spooled(&self) -> nvs_runtime::spool::Query {
         nvs_runtime::spool::Query {

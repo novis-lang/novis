@@ -90,7 +90,11 @@
       "query": {
         "driver": "sqlite",
         "rows": 1,
-        "site": 12,
+        "site": {
+          "file": "src/Shop/Items.nvs",
+          "hash": "ab12",
+          "line": 12
+        },
         "sql": "SELECT * FROM items WHERE id = ?"
       },
       "start_us": 1700000002000100,

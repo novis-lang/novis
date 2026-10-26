@@ -288,6 +288,32 @@ impl Served {
     /// When the files do not hold that many within a minute. The server seals a file a quarter
     /// of a second after its first line.
     fn spooled(&self, requests: usize) -> (Vec<u8>, Vec<nvs_runtime::spool::Request>) {
+        self.spooled_as(requests, "request", |record| match record {
+            nvs_runtime::spool::Record::Request(request) => Some(*request),
+            _ => None,
+        })
+    }
+
+    /// The `query` of every `query` event in the sealed spool files, once there are `queries`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Self::spooled`] does.
+    fn spooled_queries(&self, queries: usize) -> Vec<nvs_runtime::spool::Query> {
+        self.spooled_as(queries, "query", |record| match record {
+            nvs_runtime::spool::Record::Event(event) => event.query,
+            _ => None,
+        })
+        .1
+    }
+
+    /// The raw bytes of every sealed spool file, once `pick` takes `count` of their lines.
+    fn spooled_as<T>(
+        &self,
+        count: usize,
+        what: &str,
+        pick: impl Fn(nvs_runtime::spool::Record) -> Option<T>,
+    ) -> (Vec<u8>, Vec<T>) {
         let spool = self.data.join("debug").join("spool");
         let until = std::time::Instant::now() + Duration::from_secs(60);
         loop {
@@ -298,22 +324,17 @@ impl Served {
                     raw.extend(std::fs::read(&path).unwrap_or_default());
                 }
             }
-            let found: Vec<nvs_runtime::spool::Request> = String::from_utf8_lossy(&raw)
+            let found: Vec<T> = String::from_utf8_lossy(&raw)
                 .lines()
-                .filter_map(|line| match nvs_runtime::spool::Line::parse(line) {
-                    Ok(nvs_runtime::spool::Line {
-                        record: nvs_runtime::spool::Record::Request(request),
-                        ..
-                    }) => Some(*request),
-                    _ => None,
-                })
+                .filter_map(|line| nvs_runtime::spool::Line::parse(line).ok())
+                .filter_map(|line| pick(line.record))
                 .collect();
-            if found.len() >= requests {
+            if found.len() >= count {
                 return (raw, found);
             }
             assert!(
                 std::time::Instant::now() < until,
-                "the spool holds {} of {requests} request lines",
+                "the spool holds {} of {count} {what} lines",
                 found.len()
             );
             thread::sleep(Duration::from_millis(20));
@@ -639,4 +660,57 @@ fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
             "`{value}` reached a spool file"
         );
     }
+}
+
+/// A served program whose statements go out through `execute` on lines 3 and 4, `stream` on
+/// line 5 and `query` on line 8.
+const QUERIES: &str = "<?nvs
+var $db = Core\\Db::open({ driver: Core\\Db\\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table t (id integer primary key)', []);
+$db->execute('create table t2 (id integer primary key)', []);
+foreach ($db->stream('select 1 as id', []) as Core\\Db\\Row $row) {
+    echo $row->int('id') ?? 0;
+}
+echo $db->query('select 2 as id', [])->first()?->int('id') ?? 0;
+$db->close();
+";
+
+/// `rule:observability/a-query-span-names-its-call-site`: each recorded `query` event of a served
+/// request names the file and line of the call that sent it, and the hash of that file's text.
+/// Two `execute` calls on two lines are two sites, and `stream` and `query` are sites too.
+#[test]
+fn a_served_query_event_names_the_line_of_its_call() {
+    let served = Served::serving(
+        "spool-query-site",
+        QUERIES,
+        Some("[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n"),
+    );
+    let answer =
+        served.answer_to(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    assert!(answer.ends_with("12"), "{answer}");
+
+    let queries = served.spooled_queries(4);
+    let hash = blake3::hash(QUERIES.as_bytes()).to_hex().to_string();
+    let mut sites: Vec<(String, u32)> = queries
+        .iter()
+        .map(|query| {
+            let site = query
+                .site
+                .as_ref()
+                .unwrap_or_else(|| panic!("a traced query names its site: {query:?}"));
+            assert!(site.file.ends_with("app.nvs"), "{site:?}");
+            assert_eq!(site.hash, hash, "the hash is the file's text: {site:?}");
+            (query.sql.clone(), site.line)
+        })
+        .collect();
+    sites.sort_by_key(|(_, line)| *line);
+    assert_eq!(
+        sites,
+        [
+            ("create table t (id integer primary key)".to_owned(), 3),
+            ("create table t2 (id integer primary key)".to_owned(), 4),
+            ("select 1 as id".to_owned(), 5),
+            ("select 2 as id".to_owned(), 8),
+        ]
+    );
 }

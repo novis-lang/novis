@@ -122,10 +122,7 @@ impl QueryWatch {
         (self.traced || self.slow.is_some()).then(|| Taken {
             line: span.to_string(),
             took: span.duration(),
-            query: nvs_runtime::spool::Query {
-                site: self.site,
-                ..span.spooled()
-            },
+            query: span.spooled(),
         })
     }
 
@@ -136,10 +133,16 @@ impl QueryWatch {
         {
             trace_ungranted_record(ctx);
         }
-        let Some(Taken { line, took, query }) = taken else {
+        let Some(Taken {
+            line,
+            took,
+            mut query,
+        }) = taken
+        else {
             return;
         };
         if self.traced {
+            query.site = self.site.and_then(|id| ctx.query_site(id));
             ctx.record_query(&line, query, took);
         }
         if self.slow.is_some_and(|threshold| took >= threshold) {
@@ -305,19 +308,40 @@ mod tests {
         );
     }
 
-    /// A traced span records the call site id its call passed, and an untraced call reads none
+    /// A traced span records the call site id its call passed, and the file and line the
+    /// program's site table gives that id. An untraced call reads none
     /// (`rule:observability/a-query-span-names-its-call-site`). The zero id names no site.
     #[test]
     fn a_traced_span_records_its_call_site_and_an_untraced_call_reads_none() {
-        let site = nvs_runtime::Value::int(7);
+        let site = nvs_runtime::Value::int(2);
         let span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, "select 1");
-        let traced = configured("[capabilities.debug]\ntrace = true\n");
+        let mut traced = configured("[capabilities.debug]\ntrace = true\n");
+        let mut sites = nvs_runtime::QuerySites::new();
+        sites.push("shop.nvs", 4, "aa");
+        sites.push("shop.nvs", 9, "aa");
+        traced.set_query_sites(std::sync::Arc::new(sites));
         let watch = QueryWatch::named(&traced, None).at(site);
-        assert_eq!(watch.site, Some(7));
-        let taken = watch.taken(&span).expect("a traced span is taken");
-        assert_eq!(taken.query.site, Some(7), "the spooled event carries the site");
+        assert_eq!(watch.site, Some(2));
+        let resolved = traced.query_site(2).expect("the table names id 2");
         assert_eq!(
-            QueryWatch::named(&traced, None).at(nvs_runtime::Value::int(0)).site,
+            (
+                resolved.file.as_str(),
+                resolved.line,
+                resolved.hash.as_str()
+            ),
+            ("shop.nvs", 9, "aa"),
+            "the id is one past its row"
+        );
+        assert_eq!(
+            traced.query_site(3),
+            None,
+            "an id past the table names no site"
+        );
+        assert!(watch.taken(&span).is_some(), "a traced span is taken");
+        assert_eq!(
+            QueryWatch::named(&traced, None)
+                .at(nvs_runtime::Value::int(0))
+                .site,
             None,
             "the zero id names no site"
         );

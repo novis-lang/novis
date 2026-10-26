@@ -29,7 +29,7 @@ a dedupe key (`rule:testing/the-ingester-runs-whether-or-not-anyone-is-looking`)
 in `development`, its input and its response,
 `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`),
 `event` (a trace event, `rule:observability/trace-events-carry-a-kind`, with a `query` event's call
-site id where the compiler passed one), `dump` (a `Core\Debug::dump` record's bounded tree,
+site where the compiler numbered one, `rule:observability/a-query-span-names-its-call-site`), `dump` (a `Core\Debug::dump` record's bounded tree,
 `rule:errors/record-transformations`), `log` (a log record of the request, because a development
 server logs to its terminal and the viewer has no file to read), `body` (a part of a recorded body too
 long to be written inside its `request` line) and `dropped` (how many records the cap evicted). Every
@@ -45,7 +45,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `kind` | Fields |
 |---|---|
 | `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
-| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`) |
+| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`, whose fields are `file`, `line` and `hash`) |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
 | `body` | `of` (`request` or `response`), `offset` (where its bytes start in the body); optional `text` and `base64`, as in a `body` |

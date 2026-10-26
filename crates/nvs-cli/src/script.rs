@@ -210,6 +210,26 @@ pub(crate) struct Compiled {
     /// [`program_over`] copies for each development request it runs. `None` for a compiler that
     /// does not count ([`Compiler::counting`]).
     coverage: Option<nvs_runtime::StmtHits>,
+    /// The unit's query site table, which every context [`program_over`] arms shares, so a traced
+    /// query names the file and line of its call.
+    query_sites: Arc<nvs_runtime::QuerySites>,
+}
+
+/// The query site table of `program`, whose files `map` has
+/// (`rule:observability/a-query-span-names-its-call-site`). Built once per compiled program and
+/// shared by every context that runs it.
+///
+/// **What it spends:** one row per `Core\Db` call that sends a statement, and one BLAKE3 pass over
+/// each file that has one, at compile time and never on the request path.
+pub(crate) fn query_sites(
+    program: &nvs_ir::Program,
+    map: &nvs_diagnostics::SourceMap,
+) -> Arc<nvs_runtime::QuerySites> {
+    let mut sites = nvs_runtime::QuerySites::new();
+    for site in program.query_site_table(map) {
+        sites.push(&site.file, site.line, &site.text_hash);
+    }
+    Arc::new(sites)
 }
 
 /// What one written path resolved to last, and when that was checked: the
@@ -1463,6 +1483,7 @@ impl Compiler {
                     id,
                     debug,
                     coverage,
+                    query_sites: query_sites(&lowered, &checked.map),
                 })
             })
             .map_err(|error| {
@@ -2036,6 +2057,8 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
         // program of its own, so it reads its own unit's id and not its
         // parent's.
         ctx.set_program_id(Arc::clone(&compiled.id));
+        // And its query site table, so a traced query names the line of its call in this unit.
+        ctx.set_query_sites(Arc::clone(&compiled.query_sites));
         // And the debug session, on the unit this context runs. A served
         // request's context is set up for its request by now, so the stop
         // handler is set on the request's own tree.

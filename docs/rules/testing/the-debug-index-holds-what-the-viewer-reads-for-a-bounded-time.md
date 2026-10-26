@@ -7,7 +7,7 @@ index_max`, the oldest request first.
 | `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group | the request list and its filters |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
-| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows and call site id | a request's timeline |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, and its call site's file, line and file hash | a request's timeline |
 | `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
 | `exceptions` | uncaught exception: trace id, class, message, file, line, group | a request's error |

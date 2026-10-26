@@ -65,7 +65,8 @@ export interface EventQuery {
   driver: string;
   sql: string;
   rows: number | null;
-  site: number | null;
+  /** The call that sent the statement, and the hash of its file's text when the program was compiled. */
+  site: { file: string; line: number; hash: string } | null;
 }
 
 /** One trace event of a request. Its times are Unix microseconds. */

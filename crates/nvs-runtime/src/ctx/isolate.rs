@@ -408,6 +408,7 @@ impl Ctx {
         child.debug_ceiling = self.debug;
         child.stmt_hits = self.stmt_hits.clone();
         child.run_hits = self.run_hits.clone();
+        child.query_sites = self.query_sites.clone();
         child.run_profile = self.run_profile.clone();
         child.debug_sinks = self.child_sinks();
         child.origin = self.origin.clone();

@@ -368,6 +368,25 @@ impl Ctx {
         self.stmt_hits.as_ref()
     }
 
+    /// Gives this context the query site table of the program it runs. Every task made from this
+    /// one afterwards shares it, and an isolate is given its own program's.
+    pub fn set_query_sites(&mut self, sites: Arc<QuerySites>) {
+        self.query_sites = Some(sites);
+    }
+
+    /// The query site table the host gave this context, when it gave one.
+    #[must_use]
+    pub fn query_sites(&self) -> Option<&Arc<QuerySites>> {
+        self.query_sites.as_ref()
+    }
+
+    /// The query call site that `id` names, or `None` where the host gave this context no
+    /// table, and for the zero id.
+    #[must_use]
+    pub fn query_site(&self, id: u32) -> Option<crate::spool::QuerySite> {
+        self.query_sites.as_ref()?.at(id)
+    }
+
     /// The statements executed, the compiled call sites entered and the
     /// collections run while [`DebugFlags::COUNT`] was on — [`nvs_probe_stmt`]'s
     /// and [`nvs_probe_call_enter`]'s whole effect under that bit, and one
@@ -871,6 +890,53 @@ impl StmtLines {
     /// that is not on disk.
     pub fn skip(&mut self) {
         self.sites.push((u32::MAX, 0));
+    }
+}
+
+/// The program's query site table: the file, line and file text hash of each `Core\Db` call that
+/// sends a statement, by the id the compiler passes the call
+/// (`rule:observability/a-query-span-names-its-call-site`). A traced `query` event records the
+/// row its id names ([`Ctx::query_site`]), so a reader of the spool needs no table of its own.
+///
+/// **What it spends:** one pair of `u32`s per call site and one name and hash per file, once per
+/// compiled program whose host gave its contexts the table. A context holds a pointer to it.
+#[derive(Debug, Default)]
+pub struct QuerySites {
+    files: Vec<(Box<str>, Box<str>)>,
+    sites: Vec<(u32, u32)>,
+}
+
+impl QuerySites {
+    /// No sites yet.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Says where the next site id is written, and the hash of that file's text. The ids are
+    /// given in order, from 1.
+    pub fn push(&mut self, file: &str, line: u32, hash: &str) {
+        let index = match self.files.iter().rposition(|(known, _)| &**known == file) {
+            Some(index) => index,
+            None => {
+                self.files.push((file.into(), hash.into()));
+                self.files.len() - 1
+            }
+        };
+        self.sites
+            .push((u32::try_from(index).unwrap_or(u32::MAX), line));
+    }
+
+    /// The site `id` names, or `None` for the zero id and an id past the table.
+    #[must_use]
+    pub fn at(&self, id: u32) -> Option<crate::spool::QuerySite> {
+        let &(file, line) = self.sites.get(usize::try_from(id.checked_sub(1)?).ok()?)?;
+        let (name, hash) = self.files.get(usize::try_from(file).ok()?)?;
+        Some(crate::spool::QuerySite {
+            file: name.to_string(),
+            line,
+            hash: hash.to_string(),
+        })
     }
 }
 

@@ -515,10 +515,11 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
         Record::Event(event) => {
             let trace = trace.ok_or(Insert::Bad("an event line has no trace id"))?;
             let query = event.query.as_ref();
+            let site = query.and_then(|query| query.site.as_ref());
             tx.execute(
                 "INSERT OR IGNORE INTO events (writer, seq, batch, trace, at_us, kind, label, \
-                 start_us, end_us, status, driver, sql, rows, site) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                 start_us, end_us, status, driver, sql, rows, site_file, site_line, site_hash) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 params![
                     key.0,
                     key.1,
@@ -533,7 +534,9 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                     query.map(|query| query.driver.as_str()),
                     query.map(|query| query.sql.as_str()),
                     query.and_then(|query| query.rows).map(int),
-                    query.and_then(|query| query.site),
+                    site.map(|site| site.file.as_str()),
+                    site.map(|site| site.line),
+                    site.map(|site| site.hash.as_str()),
                 ],
             )?;
         }
