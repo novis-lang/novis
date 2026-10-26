@@ -799,6 +799,10 @@ impl Isolate {
         // — [`Isolate::recording`] is the way in for the runs that answer no
         // request, and `rule:config/a-scheduled-run-is-a-root-isolate`'s fire
         // is the one that takes it.
+        //
+        // Either one makes this the root isolate of its own tree, which the
+        // door or the scheduler starts and no program spawned.
+        let root = recording.is_some() || inbound.is_some();
         if let Some(trace) = recording {
             isolate_ctx.set_trace_context(trace);
         }
@@ -843,7 +847,16 @@ impl Isolate {
         // all. The `Option` is the gate and the timing question at once: with
         // both debug bits off nothing is recorded here and nothing on the
         // child's side reads a clock for a split nobody asked for.
-        let open = ctx.open_spawn(SpawnForm::Script);
+        //
+        // A root isolate files no event: no program wrote that `spawn`, and the
+        // context starting it is the connection's or the scheduler's, whose
+        // trace is not the request's. Its event, and its debug spool `event`
+        // line, would sit under a trace no request has.
+        let open = if root {
+            None
+        } else {
+            ctx.open_spawn(SpawnForm::Script)
+        };
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
                 isolate_ctx,
