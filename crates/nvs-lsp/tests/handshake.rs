@@ -374,6 +374,7 @@ fn a_command_is_sent_only_to_a_client_that_named_it() {
             suggest: true,
             parameter_hints: false,
             show_locations: false,
+            run_tests: false,
             refresh_lenses: false,
             rename_files: false,
         }

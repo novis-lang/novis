@@ -127,6 +127,7 @@ pub mod redactions;
 pub mod regions;
 pub mod rename;
 mod render;
+pub mod reports;
 pub mod selection;
 pub mod semantic;
 mod server;

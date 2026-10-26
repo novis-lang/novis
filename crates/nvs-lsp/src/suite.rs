@@ -737,7 +737,9 @@ fn inlay_hints(analysed: &Analysed) -> Response {
 /// a `-p nvs-lsp` test of its own.
 ///
 /// The places a click lists are the command's third argument, spelled the way
-/// [`references`] spells a hit. A lens with any other command lists nothing.
+/// [`references`] spells a hit. The tests a click runs are the first argument
+/// of [`crate::settings::Client::RUN_TESTS`]. A lens with any other command
+/// lists nothing.
 fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Response {
     let lenses =
         crate::server::lenses_of_case(documents, &files.dir, entry, COLUMNS).unwrap_or_default();
@@ -752,6 +754,13 @@ fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Respon
                     .and_then(|command| command.arguments.as_ref()?.get(2).cloned())
                     .and_then(|places| serde_json::from_value::<Vec<Location>>(places).ok())
                     .unwrap_or_default();
+                let runs = item
+                    .command
+                    .as_ref()
+                    .filter(|command| command.command == crate::settings::Client::RUN_TESTS)
+                    .and_then(|command| command.arguments.as_ref()?.first().cloned())
+                    .and_then(|tests| serde_json::from_value::<Vec<String>>(tests).ok())
+                    .unwrap_or_default();
                 Lens {
                     range: item.range,
                     title: item.command.map(|command| command.title),
@@ -764,6 +773,7 @@ fn code_lens(documents: &Documents, files: &Materialised, entry: &Uri) -> Respon
                             })
                         })
                         .collect(),
+                    runs,
                 }
             })
             .collect(),

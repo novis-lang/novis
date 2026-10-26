@@ -125,9 +125,11 @@ use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
 use crate::query;
+use crate::reach::{Reach, reach};
 use crate::redactions;
 use crate::regions;
 use crate::rename::{self, Rewrite};
+use crate::reports::Reports;
 use crate::selection;
 use crate::semantic;
 use crate::settings::{Client, Settings};
@@ -237,6 +239,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     completion_files.check(&index);
     publish_completion_files(connection, &completion_files, encoding)?;
 
+    // The coverage reports the client keeps, read when a lens is asked for.
+    let mut reports = Reports::new(settings.coverage.clone(), settings.root.clone());
+
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
     // moment it runs if nothing gets there first. `None` is a server at rest,
     // which is what it is between one burst of typing and the next.
@@ -342,10 +347,16 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                     connection.sender.send(answered.into())?;
                     continue;
                 }
+                // A coverage run may have written a report since the last
+                // lens, and only a lens reads one.
+                if request.method == CodeLensRequest::METHOD {
+                    reports.refresh();
+                }
                 let answered = answer(
                     &documents,
                     &index,
                     &completion_files,
+                    &reports,
                     &settings,
                     encoding,
                     request,
@@ -681,6 +692,7 @@ fn answer(
     documents: &Documents,
     index: &SymbolIndex,
     completion_files: &CompletionFiles,
+    reports: &Reports,
     settings: &Settings,
     encoding: PositionEncoding,
     request: Request,
@@ -845,6 +857,7 @@ fn answer(
                 code_lens(
                     documents,
                     index,
+                    reports,
                     settings,
                     encoding,
                     &params.text_document.uri,
@@ -1722,9 +1735,15 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// answer everywhere else, and a "no subclasses" above every class would be a
 /// second line of nothing on most declarations of a file. Each follows the
 /// reference count over the same name, in [`hierarchy_lenses`]'s order.
+///
+/// **A method that a route or a test reaches says so**, last, in [`used_by`]'s
+/// words. A click runs the tests it counts, with [`Client::RUN_TESTS`] for a
+/// client that named it. A method nothing reaches gets no such lens, for the
+/// hierarchy lens's reason.
 fn code_lens(
     documents: &Documents,
     index: &SymbolIndex,
+    reports: &Reports,
     settings: &Settings,
     encoding: PositionEncoding,
     uri: &Uri,
@@ -1741,7 +1760,9 @@ fn code_lens(
     let id = map.load(&path).ok()?;
     let file = map.file(id);
 
-    let lenses: Vec<(Range, String, Vec<&Site>)> = index
+    // A report names a file by its canonical path, and a URI's path is not one.
+    let key = nvs_diagnostics::canonical_key(&path);
+    let lenses: Vec<(Range, String, Vec<&Site>, Vec<String>)> = index
         .declarations_in(&path)
         .iter()
         .flat_map(|declared| {
@@ -1751,9 +1772,26 @@ fn code_lens(
                 .into_iter()
                 .map(|occurrence| &occurrence.site)
                 .collect();
+            let reached = declared.extent.map(|(start, end)| {
+                let lines = range_of(file, start, end, encoding);
+                let tests = reports
+                    .tests_reaching(&key, lines.start.line + 1, lines.end.line + 1)
+                    .map(|tests| {
+                        tests
+                            .into_iter()
+                            .filter(|test| index.declaration(test).is_some_and(|it| it.test))
+                            .collect()
+                    });
+                used_by(&reach(index, &declared.symbol), tests)
+            });
             std::iter::once((reference_count(uses.len()), uses))
                 .chain(hierarchy_lenses(index, declared))
-                .map(move |(title, sites)| (range, title, sites))
+                .map(move |(title, sites)| (range, title, sites, Vec::new()))
+                .chain(
+                    reached
+                        .flatten()
+                        .map(|(title, tests)| (range, title, Vec::new(), tests)),
+                )
         })
         .collect();
 
@@ -1763,13 +1801,24 @@ fn code_lens(
             documents,
             lenses
                 .iter()
-                .flat_map(|(_, _, sites)| sites.iter().map(|site| site.path.as_path())),
+                .flat_map(|(_, _, sites, _)| sites.iter().map(|site| site.path.as_path())),
         )
     });
     Some(
         lenses
             .into_iter()
-            .map(|(range, title, sites)| {
+            .map(|(range, title, sites, tests)| {
+                if settings.client.run_tests && !tests.is_empty() {
+                    return CodeLens {
+                        range,
+                        command: Some(Command {
+                            title,
+                            command: Client::RUN_TESTS.to_owned(),
+                            arguments: Some(vec![serde_json::json!(tests)]),
+                        }),
+                        data: None,
+                    };
+                }
                 let listed = places.as_ref().and_then(|(map, loaded)| {
                     let found: Vec<Location> = sites
                         .iter()
@@ -1799,6 +1848,39 @@ fn code_lens(
             })
             .collect(),
     )
+}
+
+/// The "used by" lens of a method `reached` describes, as its title and the
+/// tests a click runs, or nothing when no route and no test reaches it.
+///
+/// `reported` is the tests a coverage report saw reach the method, and `None`
+/// where no report reached its file. Those are counted exactly. Otherwise the
+/// tests are the call graph's, and the count says "static". A count off the
+/// graph says "at least" where a call the graph does not follow may reach the
+/// method ([`Reach::at_least`]).
+fn used_by(reached: &Reach, reported: Option<Vec<String>>) -> Option<(String, Vec<String>)> {
+    let counted = |count: usize, one: &str, many: &str, at_least: bool| {
+        let prefix = if at_least { "at least " } else { "" };
+        match count {
+            1 => format!("{prefix}1 {one}"),
+            _ => format!("{prefix}{count} {many}"),
+        }
+    };
+    let (tests, exact) = match reported {
+        Some(tests) => (tests, true),
+        None => (reached.tests.clone(), false),
+    };
+    if reached.routes.is_empty() && tests.is_empty() {
+        return None;
+    }
+    let routes = counted(reached.routes.len(), "route", "routes", reached.at_least);
+    let counted_tests = counted(tests.len(), "test", "tests", reached.at_least && !exact);
+    let title = if exact {
+        format!("used by {routes}, {counted_tests}")
+    } else {
+        format!("used by {routes}, {counted_tests} (static)")
+    };
+    Some((title, tests))
 }
 
 /// The hierarchy lenses above `declared`, as their titles and the places each
@@ -1930,11 +2012,18 @@ fn case_settings(root: &Path) -> Settings {
         root: Some(root.to_owned()),
         client: Client {
             show_locations: true,
+            run_tests: true,
             ..Client::default()
         },
+        coverage: Some(root.join(CASE_REPORTS)),
         ..Settings::default()
     }
 }
+
+/// The directory of a `.lspt` case a coverage report is written into, as
+/// `--FILE coverage/<name>.json--`. A file name in it that is relative is
+/// relative to the case.
+const CASE_REPORTS: &str = "coverage";
 
 /// [`code_lens`] for one `.lspt` case, over an index built for that case alone.
 ///
@@ -1952,7 +2041,9 @@ pub(crate) fn lenses_of_case(
 ) -> Option<Vec<CodeLens>> {
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
-    code_lens(documents, &index, &settings, encoding, uri)
+    let mut reports = Reports::new(settings.coverage.clone(), settings.root.clone());
+    reports.refresh();
+    code_lens(documents, &index, &reports, &settings, encoding, uri)
 }
 
 /// [`dimming`] for one `.lspt` case, over an index built for that case alone

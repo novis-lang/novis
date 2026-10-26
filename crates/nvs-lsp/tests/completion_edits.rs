@@ -40,6 +40,7 @@ const EDITOR: Client = Client {
     suggest: true,
     parameter_hints: true,
     show_locations: false,
+    run_tests: false,
     refresh_lenses: false,
     rename_files: false,
 };

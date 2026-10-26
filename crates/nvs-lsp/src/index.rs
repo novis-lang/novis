@@ -253,6 +253,13 @@ pub struct Declaration {
     /// Whether this is a `#[Test]` method, read off the checker's own test
     /// table. [`crate::reach`] is the reader.
     pub test: bool,
+    /// The bytes of the whole method, its attributes and its body included,
+    /// and `None` for everything that is not a method.
+    ///
+    /// The "used by" lens is the only reader: a test counts when a coverage
+    /// report saw it reach a line inside these bytes
+    /// ([`crate::reports::Reports`]).
+    pub extent: Option<(BytePos, BytePos)>,
 }
 
 /// One parameter of a method, as a completion file names it.
@@ -1028,6 +1035,7 @@ fn declarations<'a>(
             parameters: Vec::new(),
             routes: Vec::new(),
             test: false,
+            extent: None,
         });
         if let Some(body) = declared_body(analysed, scope, &symbol.qname) {
             members(analysed, &body, &class, path, &mut found);
@@ -1122,8 +1130,19 @@ fn members(
             },
             routes,
             test,
+            extent: if method { extent_of(body, name) } else { None },
         });
     }
+}
+
+/// The bytes of the whole method `body` declares at `name`.
+fn extent_of(body: &Body<'_>, name: Span) -> Option<(BytePos, BytePos)> {
+    body.members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Method(method) if method.name == name => {
+            Some((member.span.start, member.span.end))
+        }
+        _ => None,
+    })
 }
 
 /// The parameters of the method `body` declares at `name`.

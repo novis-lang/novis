@@ -34,6 +34,14 @@ The route count and a static test count are read from the index, so they are cur
 A test count from a report is as old as its run, and the next coverage run refreshes it. The lens is
 gated on `nvs.codeLens.enable` with the other lenses.
 
+**The client keeps the reports, one per program.** The VS Code client writes the JSON report of each
+program's last coverage run into a directory of its own storage, with every file name made absolute,
+and names that directory in `initialize`'s `coverage.dir`, as it names `stubs.dir`. A report applies
+to a file one of its tests reached. Where none did, the count is the call graph's and says "static". A
+test the index no longer declares is not counted. **A method that no route and no test reaches has no
+"used by" lens**, for the reason a hierarchy lens is written only where it has something to say. A
+click carries `nvs.runTests` with the tests as `Class::method`, for a client that names that command.
+
 - **Memory:** one function name per occurrence in the index, held in the editor process for the
   index's life, and the newest report's per-test lines while the server holds it. Each lens request
   allocates its visited set and frees it with the answer. Nothing at compile time for running, and

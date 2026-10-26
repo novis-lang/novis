@@ -128,6 +128,8 @@ pub struct Lens {
     pub title: Option<String>,
     /// What the lens's command lists.
     pub places: Vec<Place>,
+    /// The tests the lens's command runs, each as `Class::method`.
+    pub runs: Vec<String>,
 }
 
 /// One fix an editor may offer, with the edits it would apply.
@@ -711,12 +713,17 @@ fn hint(item: &InlayHint) -> ((u32, u32), String) {
 ///
 /// A lens a click opens a list from is followed by ` -> ` and the places, in
 /// [`reference`]'s order and spelling, so a case freezes what the click lists.
+/// A lens a click runs tests from is followed by ` -> runs ` and the tests, in
+/// the order the command carries them.
 fn lens(item: &Lens) -> ((u32, u32, u32, u32), String) {
     let title = or_absent(item.title.as_ref(), Clone::clone);
     let mut line = format!("{} {title}", position(item.range.start));
     if !item.places.is_empty() {
         let places = sorted(item.places.iter().map(reference));
         line = format!("{line} -> {}", places.join(", "));
+    }
+    if !item.runs.is_empty() {
+        line = format!("{line} -> runs {}", item.runs.join(", "));
     }
     (span_key(item.range), line)
 }
@@ -892,6 +899,7 @@ mod tests {
                 range: span(1, 6, 10),
                 title: Some("2 references".to_owned()),
                 places: Vec::new(),
+                runs: Vec::new(),
             }]),
             // Out of order and across two files, so the sort the rendering
             // applies is visible in what it produces.

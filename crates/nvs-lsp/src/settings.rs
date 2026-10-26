@@ -14,9 +14,10 @@
 //! A new `nvs.check.scope` rebuilds the symbol index over the new tree and
 //! publishes every open document again, since the unused-member dimming
 //! depends on it. A new `nvs.codeLens.enable` asks the client to fetch its
-//! lenses again. `nvs.lsp.debounce` applies to the next edit. `nvs.stubs.dir`
-//! and the workspace root keep the values `initialize` gave them: the client
-//! fills in the first itself, and the second is not a setting. Keeping the
+//! lenses again. `nvs.lsp.debounce` applies to the next edit. `nvs.stubs.dir`,
+//! `coverage.dir` and the workspace root keep the values `initialize` gave
+//! them: the client fills in the first two itself, and the last is not a
+//! setting. Keeping the
 //! server running keeps its index warm, which a restart would throw away.
 //!
 //! **The shape on the wire is the `nvs` section as the client already holds
@@ -94,6 +95,12 @@ pub struct Settings {
     /// directory of its own storage, per server version, and a bare `nvs lsp`
     /// names nothing.
     pub stubs: Option<PathBuf>,
+    /// `coverage.dir`: where the client keeps the JSON report of each
+    /// program's last coverage run ([`crate::reports`]). Not a setting a user
+    /// writes: the VS Code client fills it with a directory of its own
+    /// storage, as it fills `stubs.dir`. `None` is a client that named none,
+    /// and every test count is then read off the call graph.
+    pub coverage: Option<PathBuf>,
 }
 
 /// What a client does with a completion item beyond inserting its text, and
@@ -119,6 +126,9 @@ pub struct Client {
     pub parameter_hints: bool,
     /// The client runs [`Client::SHOW_LOCATIONS`], so a lens may be clicked.
     pub show_locations: bool,
+    /// The client runs [`Client::RUN_TESTS`], so a "used by" lens may run
+    /// the tests it counts.
+    pub run_tests: bool,
     /// `workspace.codeLens.refreshSupport`: the server may ask the client to
     /// fetch its lenses again, which a changed setting does.
     pub refresh_lenses: bool,
@@ -138,6 +148,9 @@ impl Client {
     /// `editor.action.showReferences`, which takes editor objects rather than
     /// the JSON a lens can carry.
     pub const SHOW_LOCATIONS: &'static str = "nvs.showLocations";
+    /// The command that runs tests in the editor's own test view. A "used by"
+    /// lens carries it with the tests it counts, each as `Class::method`.
+    pub const RUN_TESTS: &'static str = "nvs.runTests";
 
     /// What `params` declared.
     fn from_initialize(params: &InitializeParams) -> Self {
@@ -158,6 +171,7 @@ impl Client {
             suggest: names(Self::SUGGEST),
             parameter_hints: names(Self::PARAMETER_HINTS),
             show_locations: names(Self::SHOW_LOCATIONS),
+            run_tests: names(Self::RUN_TESTS),
             refresh_lenses: capabilities
                 .workspace
                 .as_ref()
@@ -193,6 +207,7 @@ impl Default for Settings {
             client: Client::default(),
             root: None,
             stubs: None,
+            coverage: None,
         }
     }
 }
@@ -207,6 +222,10 @@ impl Settings {
             client: Client::from_initialize(params),
             root: root_of(params),
             stubs: at(options, &["stubs", "dir"])
+                .and_then(Value::as_str)
+                .filter(|dir| !dir.trim().is_empty())
+                .map(PathBuf::from),
+            coverage: at(options, &["coverage", "dir"])
                 .and_then(Value::as_str)
                 .filter(|dir| !dir.trim().is_empty())
                 .map(PathBuf::from),
