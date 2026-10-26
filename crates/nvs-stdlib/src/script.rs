@@ -1327,6 +1327,7 @@ fn result_of(ctx: &nvs_runtime::Ctx, completion: Completion) -> Result<Value, Fa
         // the trace's events are in its file (`rule:testing/debug-surface`).
         coverage: _,
         trace_sink: _,
+        store: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

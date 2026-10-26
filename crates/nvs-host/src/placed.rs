@@ -369,6 +369,9 @@ fn received(crossed: Crossed, receiving: Option<&ErrorClass>) -> Completion {
         trace: Vec::new(),
         coverage: crossed.coverage,
         trace_sink: crossed.trace_sink,
+        // A `spawn worker` child answers no request, so no door writes a
+        // `request` line from it.
+        store: None,
     }
 }
 

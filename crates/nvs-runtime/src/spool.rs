@@ -96,6 +96,17 @@ pub struct Line {
     pub record: Record,
 }
 
+impl Line {
+    /// Reads one line of a spool file, without its newline.
+    ///
+    /// # Errors
+    ///
+    /// When `text` is not JSON, or not a line of a kind this build knows.
+    pub fn parse(text: &str) -> serde_json::Result<Self> {
+        serde_json::from_str(text)
+    }
+}
+
 /// What a line records, tagged by its `kind`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -681,17 +692,46 @@ pub fn install(writer: Writer) -> Option<Writer> {
     WRITER.with_borrow_mut(|slot| slot.replace(writer))
 }
 
+/// `[debug] store` as one request has it, read where its configuration is and carried to a caller
+/// that holds no request context, such as the server's door on a
+/// [`Completion`](crate::host::Completion).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Store {
+    /// `[debug] spool_max`, the cap the process's writers split.
+    pub spool_max: u64,
+    /// Whether the request ran in `development`, which is when its input and its response are
+    /// recorded (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
+    pub development: bool,
+}
+
+impl Store {
+    /// The gate `config` is under, or `None` when `[debug] store` is off for it. Off costs the one
+    /// read [`nvs_config::Request::debug_store`] makes.
+    #[must_use]
+    pub fn of(config: &nvs_config::Request) -> Option<Self> {
+        if !config.debug_store() {
+            return None;
+        }
+        Some(Self {
+            spool_max: config.debug_spool_max(),
+            development: config.mode() == nvs_config::mode::DEVELOPMENT,
+        })
+    }
+}
+
 /// Writes `record` for the request `ctx` runs, when `[debug] store` is in force for it. A failure
 /// is printed once per process and never reaches the request.
 pub fn record(ctx: &Ctx, record: Record) {
-    let Some(config) = ctx.config() else {
-        return;
-    };
-    if !config.debug_store() {
-        return;
+    if let Some(store) = ctx.config().and_then(Store::of) {
+        record_under(store, ctx.trace_context(), record);
     }
-    let share = config.debug_spool_max() / WRITERS.load(Ordering::Relaxed).max(1);
-    let trace = ctx.trace_context().trace_id_hex();
+}
+
+/// Writes `record` for the request in `trace`, under the gate [`Store::of`] read for it, for a
+/// caller that holds no request context. A failure is printed once per process.
+pub fn record_under(store: Store, trace: &crate::TraceContext, record: Record) {
+    let share = store.spool_max / WRITERS.load(Ordering::Relaxed).max(1);
+    let trace = trace.trace_id_hex();
     with_writer(|writer| {
         writer.set_share(share);
         writer.append(Some(&trace), record, Now::read())
@@ -1083,7 +1123,10 @@ mod tests {
     #[test]
     fn with_the_gate_on_a_request_records_its_spans_unsampled() {
         let mut ctx = crate::Ctx::buffered();
-        assert!(!ctx.trace_context().sampled(), "a fresh context is not sampled");
+        assert!(
+            !ctx.trace_context().sampled(),
+            "a fresh context is not sampled"
+        );
         ctx.set_config(snapshot_of("[debug]\nstore = false\n"));
         assert!(!ctx.records_spans());
         ctx.set_config(snapshot_of("[debug]\nstore = true\n"));

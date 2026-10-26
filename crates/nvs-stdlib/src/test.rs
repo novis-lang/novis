@@ -6479,6 +6479,7 @@ mod tests {
                     trace: Vec::new(),
                     coverage: None,
                     trace_sink: None,
+                    store: None,
                 })
             }
         }
@@ -6628,6 +6629,7 @@ mod tests {
                     trace: Vec::new(),
                     coverage: None,
                     trace_sink: None,
+                    store: None,
                 })
             }
         }
@@ -6722,6 +6724,7 @@ mod tests {
                     trace: Vec::new(),
                     coverage: None,
                     trace_sink: None,
+                    store: None,
                 })
             }
         }
@@ -6873,6 +6876,7 @@ mod tests {
                 trace: Vec::new(),
                 coverage: None,
                 trace_sink: None,
+                store: None,
             })
         }
     }

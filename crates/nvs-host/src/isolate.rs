@@ -1448,6 +1448,10 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // nobody is recording pays a load and a branch for the whole of it
     // (`Ctx::take_sampled_trace`).
     let trace = isolate_ctx.take_sampled_trace();
+    // `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`'s gate, read
+    // here for the same reason: the door that writes the `request` line holds no
+    // context, and the configuration as it ended is the one the request chose.
+    let store = isolate_ctx.config().and_then(nvs_runtime::spool::Store::of);
     // `rule:testing/debug-surface`'s copy-out, on every ending for the same
     // reason: the child's own coverage table and the trace it left running,
     // closed here so its last lines are on disk before the parent reads them.
@@ -1483,6 +1487,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             trace,
             coverage,
             trace_sink,
+            store,
         };
     }
     if cancelled {
@@ -1498,6 +1503,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         completion.trace = trace;
         completion.coverage = coverage;
         completion.trace_sink = trace_sink;
+        completion.store = store;
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
@@ -1523,6 +1529,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             trace,
             coverage,
             trace_sink,
+            store,
         },
         Err(refused) => Completion {
             ok: false,
@@ -1543,6 +1550,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             trace,
             coverage,
             trace_sink,
+            store,
         },
     }
 }
@@ -1611,6 +1619,7 @@ pub(crate) fn refused_completion(message: &str) -> Completion {
         trace: Vec::new(),
         coverage: None,
         trace_sink: None,
+        store: None,
     }
 }
 
@@ -1640,6 +1649,7 @@ pub(crate) fn cancelled_completion() -> Completion {
         trace: Vec::new(),
         coverage: None,
         trace_sink: None,
+        store: None,
     }
 }
 

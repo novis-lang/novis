@@ -551,6 +551,12 @@ pub struct Completion {
     /// The trace the child left running, closed at its end: the file's path and
     /// whether a write failed. The events stay in the file.
     pub trace_sink: Option<crate::ClosedSink>,
+    /// `[debug] store` as the child's configuration had it when it ended, or `None` where it was
+    /// off or the child never ran. Read where the child finishes, so a request that turned the
+    /// key off with `Core\Config::set` is not recorded, and carried here for
+    /// [`Self::content_type`]'s reason: the door that writes the request's `request` line never
+    /// holds its context (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
+    pub store: Option<crate::spool::Store>,
 }
 
 impl Completion {
@@ -952,6 +958,7 @@ mod tests {
                 trace: Vec::new(),
                 coverage: None,
                 trace_sink: None,
+                store: None,
             }
         }
 

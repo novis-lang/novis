@@ -1356,6 +1356,10 @@ struct Streamed<'a> {
     /// The third is the root span's start, as a trace clock reading. `None` for
     /// every request nobody is recording.
     recording: Option<(String, nvs_runtime::TraceContext, std::time::Duration)>,
+    /// The `request` line this answer owes the debug spool, filled where the
+    /// head is counted and written once the body has ended. `None` where
+    /// `[debug] store` is off.
+    line: Option<crate::spooled::Pending>,
 }
 
 /// Joins a streaming request's isolate once the body it was writing has ended,
@@ -1383,7 +1387,11 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
     let Some(mut streamed) = writing.borrow_mut().take() else {
         return;
     };
-    if let Some(mut done) = streamed.peer.collect(ctx) {
+    let done = streamed.peer.collect(ctx);
+    if let Some(line) = streamed.line.take() {
+        line.written(done.as_ref());
+    }
+    if let Some(mut done) = done {
         // The spans first, because the discharge below is the end of this
         // completion: a streamed request files its events like any other, and
         // the head having gone out early is no reason for its trace to be the
@@ -1698,6 +1706,11 @@ where
         // (`nvs_host::Isolate::answering_request`), while the status it is
         // counted beside does not exist until that context has ended.
         let mut labelled: Option<Box<str>> = None;
+        // How the program this request ran ended, for the debug spool's
+        // `request` line: its completion's gate and failure, or that the line
+        // waits for a streamed body. `Door` for every answer the door wrote
+        // alone (`crate::spooled`).
+        let mut ending = crate::spooled::Ending::Door;
         // One place, and every answer below reaches it: a request the forwarded
         // walk refused, one the ceiling refused, a preflight § 2 answered, and
         // the one the handler ran. All four are responses this server wrote, so
@@ -1716,7 +1729,8 @@ where
                        route: Option<&str>,
                        client: Option<std::net::IpAddr>,
                        trace: Option<nvs_runtime::TraceContext>,
-                       under: &Arc<nvs_config::Snapshot>| {
+                       under: &Arc<nvs_config::Snapshot>,
+                       ending: crate::spooled::Ending| {
             let trace = trace.unwrap_or_else(nvs_runtime::TraceContext::started);
             crate::trace::respond(
                 response.headers_mut(),
@@ -1746,6 +1760,33 @@ where
                     trace: Some(trace),
                 },
             );
+            // `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`'s
+            // `request` line, for every answer the access line is written for.
+            if probe {
+                return;
+            }
+            let later = matches!(ending, crate::spooled::Ending::Later);
+            let (store, exception) = match ending {
+                crate::spooled::Ending::Ran(store, exception) => (store, exception),
+                crate::spooled::Ending::Door | crate::spooled::Ending::Later => {
+                    (crate::spooled::door_store(under), None)
+                }
+            };
+            let answered = crate::spooled::Answered {
+                method: verb.as_str(),
+                path: &target,
+                route,
+                status,
+                took,
+                exception,
+            };
+            if later {
+                if let Some(streamed) = writing.borrow_mut().as_mut() {
+                    streamed.line = crate::spooled::Pending::of(&answered, began, trace, store);
+                }
+                return;
+            }
+            crate::spooled::request(store, &trace, answered);
         };
         // `rule:config/the-config-is-an-immutable-snapshot`'s one clone, taken
         // at the request's start and not when this connection was accepted: a
@@ -1772,7 +1813,14 @@ where
             phase.set(Phase::Write);
             let mut refused = malformed_head();
             policy.secure.fill(refused.headers_mut(), Scheme::Http);
-            counted(&mut refused, None, None, None, &snapshot);
+            counted(
+                &mut refused,
+                None,
+                None,
+                None,
+                &snapshot,
+                crate::spooled::Ending::Door,
+            );
             return Ok::<_, Infallible>(refused);
         }
         // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
@@ -1794,7 +1842,14 @@ where
                 phase.set(Phase::Write);
                 let mut refused = unusable_forward();
                 policy.secure.fill(refused.headers_mut(), Scheme::Http);
-                counted(&mut refused, None, None, None, &snapshot);
+                counted(
+                    &mut refused,
+                    None,
+                    None,
+                    None,
+                    &snapshot,
+                    crate::spooled::Ending::Door,
+                );
                 return Ok::<_, Infallible>(refused);
             }
         };
@@ -1824,7 +1879,14 @@ where
             phase.set(Phase::Write);
             let mut refused = crate::admit::over_capacity();
             policy.secure.fill(refused.headers_mut(), scheme);
-            counted(&mut refused, None, origin.client(), None, &snapshot);
+            counted(
+                &mut refused,
+                None,
+                origin.client(),
+                None,
+                &snapshot,
+                crate::spooled::Ending::Door,
+            );
             return Ok::<_, Infallible>(refused);
         };
         // A streamed answer moves the place onto `writing`, and a whole one
@@ -1845,7 +1907,14 @@ where
             *permitted.status_mut() = preflight.status();
             policy.secure.fill(permitted.headers_mut(), scheme);
             preflight.fill(permitted.headers_mut());
-            counted(&mut permitted, None, origin.client(), None, &snapshot);
+            counted(
+                &mut permitted,
+                None,
+                origin.client(),
+                None,
+                &snapshot,
+                crate::spooled::Ending::Door,
+            );
             return Ok::<_, Infallible>(permitted);
         }
         // § 2's other half, decided here because the handler below takes the
@@ -1965,6 +2034,7 @@ where
                         break failed();
                     };
                     let rerunning = !std::mem::replace(&mut first_run, false);
+                    ending = crate::spooled::Ending::Door;
                     let mut by_limit = false;
                     // The label, off the match `crate::route::take` already wrote
                     // onto the carrier — a name out of the compile-time table, which
@@ -2184,7 +2254,9 @@ where
                                         peer,
                                         _place: place.take(),
                                         recording,
+                                        line: None,
                                     });
+                                    ending = crate::spooled::Ending::Later;
                                     break head;
                                 }
                                 // The drain period ended with the program still
@@ -2216,6 +2288,7 @@ where
                                                 );
                                             }
                                             let ok = done.ok;
+                                            ending = crate::spooled::Ending::of(&done);
                                             // Memory and CPU time are the limits
                                             // the gate's `failed` answers. A run
                                             // the door refused keeps its own
@@ -2407,6 +2480,7 @@ where
             origin.client(),
             traced,
             ran_under.as_ref().unwrap_or(&snapshot),
+            ending,
         );
         // The bytes of a whole answer are still this request's until they are
         // written, so its place stays in the count until then.
@@ -3529,6 +3603,7 @@ pub(crate) mod tests {
             trace: Vec::new(),
             coverage: None,
             trace_sink: None,
+            store: None,
         }
     }
 
@@ -6731,6 +6806,7 @@ pub(crate) mod tests {
                 trace: Vec::new(),
                 coverage: None,
                 trace_sink: None,
+                store: None,
             }
         }
 
@@ -6783,6 +6859,7 @@ pub(crate) mod tests {
             // graph derived from a fixture's empty completion would be a second
             // claim in a case about one.
             recording: None,
+            line: None,
         }));
         let mut ctx = Ctx::buffered();
 
@@ -12987,6 +13064,63 @@ pub(crate) mod tests {
             off.starts_with("http/1.1 200"),
             "the header is off and the answer changed: {off}"
         );
+    }
+
+    /// `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`:
+    /// an answer the door wrote alone, under `[debug] store = true`, leaves one
+    /// `request` line naming its method, path, status and the trace id its
+    /// `traceresponse` names. In `production` it records no input and no
+    /// response.
+    #[test]
+    fn a_door_written_answer_writes_a_spool_request_line() {
+        let dir = nvs_repo::scratch("serve-spool-door");
+        nvs_runtime::spool::install(nvs_runtime::spool::Writer::new(
+            dir.to_path_buf(),
+            "1-2-0".to_owned(),
+            u64::MAX,
+        ));
+        let (listener, client) = one_get("/door");
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            Reply::Done(Response::new(Answer::empty()))
+        });
+        let answer = served_under(
+            listener,
+            &handler,
+            client,
+            booted_on("[debug]\nstore = true\n"),
+        )
+        .to_ascii_lowercase();
+        nvs_runtime::spool::seal_now();
+
+        let trace = answer
+            .lines()
+            .find_map(|line| line.strip_prefix("traceresponse: "))
+            .and_then(|value| value.split('-').nth(1))
+            .unwrap_or_else(|| panic!("the answer has no traceresponse: {answer}"))
+            .to_owned();
+        let mut lines = Vec::new();
+        for entry in std::fs::read_dir(&dir).expect("the spool directory") {
+            let text = std::fs::read_to_string(entry.expect("an entry").path()).expect("a file");
+            lines.extend(
+                text.lines()
+                    .map(|line| nvs_runtime::spool::Line::parse(line).expect("a line")),
+            );
+        }
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert_eq!(lines[0].trace.as_deref(), Some(trace.as_str()));
+        let nvs_runtime::spool::Record::Request(request) = &lines[0].record else {
+            panic!("not a request line: {lines:?}");
+        };
+        assert_eq!(
+            (
+                request.method.as_str(),
+                request.path.as_str(),
+                request.status
+            ),
+            ("GET", "/door", 200)
+        );
+        assert!(request.route.is_none() && request.exception.is_none());
+        assert!(request.input.is_none() && request.response.is_none());
     }
 
     /// The bytes [`served_ranged`]'s program streams from, ten of them so a

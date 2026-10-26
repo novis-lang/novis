@@ -154,6 +154,7 @@ pub mod secure;
 pub mod serve;
 pub mod slotted;
 pub mod socket;
+pub mod spooled;
 pub mod statics;
 pub mod trace;
 
