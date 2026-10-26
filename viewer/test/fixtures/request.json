@@ -121,6 +121,43 @@
     "line": 42,
     "message": "item 7 is out of stock"
   },
+  "input": {
+    "body": {
+      "base64": null,
+      "cut": false,
+      "read": true,
+      "text": "{\"item\":7,\"quantity\":2}",
+      "withheld": false
+    },
+    "headers": [
+      [
+        "content-type",
+        "application/json"
+      ],
+      [
+        "authorization",
+        "[redacted]"
+      ]
+    ],
+    "query": "coupon=SPRING",
+    "response_body": {
+      "base64": "T3V0IG9mIP9zdG9jaw==",
+      "cut": false,
+      "read": true,
+      "text": null,
+      "withheld": false
+    },
+    "response_headers": [
+      [
+        "content-type",
+        "text/plain"
+      ],
+      [
+        "set-cookie",
+        "[redacted]"
+      ]
+    ]
+  },
   "logs": [
     {
       "at_us": 1700000002001200,

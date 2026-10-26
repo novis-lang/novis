@@ -20,6 +20,12 @@
 //! and its own `request` line. Two such requests in flight at once on one thread cannot be told
 //! apart, and each shows both.
 //!
+//! **A request's answer carries its recorded input**, so compare diffs two answers in the browser
+//! and needs no route of its own. `input` is the query, the headers, and the request and response
+//! bodies with their `read`, `cut` and `withheld` flags, a body as text when it is UTF-8 and as
+//! base64 otherwise. A body too long for its `request` line is put together from its `body` parts
+//! with the same writer-and-sequence split, and a missing part makes it `cut`.
+//!
 //! **A profile is downloaded by its row.** A request's answer lists the files its
 //! `Core\Debug::startProfile` calls named, and `GET /api/profile?id=` sends the file one row names,
 //! as an attachment of at most [`PROFILE_MAX`] bytes. The page names a row and never a path, so it
@@ -142,8 +148,35 @@ struct Detail {
     profiles: Vec<ProfileFile>,
     /// The lines it ran, when its server counted them: `GET /api/coverage?id=` reads them.
     coverage: Option<Covered>,
+    /// What it was sent and what it answered, when a development server recorded them.
+    input: Option<Input>,
     /// Which lists stopped at their most rows.
     cut: Cut,
+}
+
+/// A request's recorded input and response, as compare sets them side by side.
+#[derive(Serialize)]
+struct Input {
+    query: String,
+    /// `[name, value]` pairs in the order they arrived, a redacted value replaced.
+    headers: Box<RawValue>,
+    body: Recorded,
+    /// The response's headers, or `None` when the line has no response.
+    response_headers: Option<Box<RawValue>>,
+    response_body: Option<Recorded>,
+}
+
+/// A recorded body: its bytes as text when they are UTF-8, as base64 otherwise.
+#[derive(Default, Serialize)]
+struct Recorded {
+    text: Option<String>,
+    base64: Option<String>,
+    /// Whether the program read it. A body nobody read has no bytes.
+    read: bool,
+    /// Whether it stopped at the spool's body cap, or a part of it is not in the index.
+    cut: bool,
+    /// Whether it was not recorded because it has a secret.
+    withheld: bool,
 }
 
 /// A profile file the request's `Core\Debug::startProfile` named.
@@ -602,6 +635,7 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         return Ok(Err(Missing::Several));
     }
     let (request, writer, seq) = found.swap_remove(0);
+    let input = input(&tx, request.id, &key.trace, &writer, seq)?;
     let exception = tx
         .query_row(
             "SELECT class, message, file, line FROM exceptions WHERE request = ?1",
@@ -757,7 +791,8 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     // line, so it is found by span rather than by the writer's sequence.
     let coverage = tx
         .query_row(
-            "SELECT id, (SELECT count(*) FROM json_each(files)), elided FROM coverage              WHERE trace = ?1 AND (?2 IS NULL OR span = ?2) ORDER BY id LIMIT 1",
+            "SELECT id, (SELECT count(*) FROM json_each(files)), elided FROM coverage \
+             WHERE trace = ?1 AND (?2 IS NULL OR span = ?2) ORDER BY id LIMIT 1",
             params![key.trace, request.span],
             |row| {
                 Ok(Covered {
@@ -778,7 +813,98 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         logs,
         profiles,
         coverage,
+        input,
         cut,
+    }))
+}
+
+/// The input and response the request with row `id` recorded, or `None` when its line had no
+/// input. A body longer than the line holds is put together from the parts its `writer` wrote
+/// after the previous request of `trace` and before this one's line at `seq`.
+fn input(
+    tx: &rusqlite::Transaction<'_>,
+    id: i64,
+    trace: &str,
+    writer: &str,
+    seq: i64,
+) -> rusqlite::Result<Option<Input>> {
+    type Flags = (Option<bool>, Option<bool>, Option<i64>, Option<bool>);
+    let flags = |row: &rusqlite::Row<'_>, at: usize| -> rusqlite::Result<Flags> {
+        Ok((row.get(at)?, row.get(at + 1)?, row.get(at + 2)?, row.get(at + 3)?))
+    };
+    let found = tx
+        .query_row(
+            "SELECT query, headers, body, body_read, body_cut, body_chunks, body_withheld, \
+             response_headers, response_body, response_read, response_cut, response_chunks, \
+             response_withheld FROM inputs WHERE request = ?1",
+            [id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<Vec<u8>>>(2)?,
+                    flags(row, 3)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<Vec<u8>>>(8)?,
+                    flags(row, 9)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((query, headers, body, flags, response_headers, response_body, response_flags)) =
+        found
+    else {
+        return Ok(None);
+    };
+    let mut parts = tx.prepare_cached(
+        "SELECT bytes FROM body_parts WHERE trace = ?1 AND of = ?2 AND writer = ?3 AND seq < ?4 \
+         AND seq > coalesce((SELECT max(seq) FROM requests WHERE trace = ?1 AND writer = ?3 \
+         AND seq < ?4), -1) ORDER BY offset",
+    )?;
+    let mut recorded = |of: &str, inline: Option<Vec<u8>>, flags: Flags| {
+        let (read, cut, chunks, withheld) = flags;
+        let mut body = Recorded {
+            read: read == Some(true),
+            cut: cut == Some(true),
+            withheld: withheld == Some(true),
+            ..Recorded::default()
+        };
+        if !body.read || body.withheld {
+            return Ok::<_, rusqlite::Error>(body);
+        }
+        let bytes = match chunks {
+            Some(chunks) => {
+                let found = parts
+                    .query_map(params![trace, of, writer, seq], |row| {
+                        row.get::<_, Vec<u8>>(0)
+                    })?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                body.cut |= i64::try_from(found.len()).ok() != Some(chunks);
+                found.concat()
+            }
+            None => inline.unwrap_or_default(),
+        };
+        match String::from_utf8(bytes) {
+            Ok(text) => body.text = Some(text),
+            Err(err) => {
+                use base64::Engine as _;
+                body.base64 =
+                    Some(base64::engine::general_purpose::STANDARD.encode(err.as_bytes()));
+            }
+        }
+        Ok(body)
+    };
+    let body = recorded("request", body, flags)?;
+    let response_body = match response_flags.0 {
+        Some(_) => Some(recorded("response", response_body, response_flags)?),
+        None => None,
+    };
+    Ok(Some(Input {
+        query,
+        headers: tree(&headers),
+        body,
+        response_headers: response_headers.as_deref().map(tree),
+        response_body,
     }))
 }
 

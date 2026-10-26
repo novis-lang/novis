@@ -246,6 +246,12 @@ fn a_changing_request_needs_the_own_origin_and_a_json_body() {
         "every check passed, and a service started by hand has no replay target"
     );
     assert!(allowed.body.contains("started by hand"), "{}", allowed.body);
+    let target = service.plain(&get("/api/replay", &host, ""));
+    assert_eq!(
+        (target.status, target.body.as_str()),
+        (200, r#"{"target":null}"#),
+        "the dialog learns there is no target before it opens"
+    );
     let read = service.plain(&get("/", &host, "Origin: http://attacker.example\r\n"));
     assert_eq!(
         read.status, 403,

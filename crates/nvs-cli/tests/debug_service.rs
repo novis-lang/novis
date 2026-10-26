@@ -330,6 +330,15 @@ fn a_replay_reaches_the_server_and_its_typed_header_is_written_nowhere() {
         1,
     );
 
+    let target = exchange(
+        viewer,
+        &format!("GET /api/replay HTTP/1.1\r\nHost: {viewer}\r\nConnection: close\r\n\r\n"),
+    );
+    assert!(
+        target.contains("{\"target\":\"127.0.0.1:"),
+        "the service names the server that started it: {target}"
+    );
+
     let body = format!(
         "{{\"trace\":\"{trace}\",\"span\":\"{span}\",\
          \"headers\":{{\"Authorization\":\"Bearer {TYPED}\"}}}}"

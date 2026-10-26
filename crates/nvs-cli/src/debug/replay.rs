@@ -5,7 +5,8 @@
 //! wrote on its child's standard input once it was bound ([`super::Target`]). The body names a
 //! request by its trace id and span id and nothing about where it goes, so this route cannot be
 //! turned into a request to another host. A service started by hand has no target, and the answer
-//! is a `409` that says so.
+//! is a `409` that says so. `GET /api/replay` gives the target, or `null`, so the viewer names it
+//! in the dialog and says before it is opened when there is none.
 //!
 //! **What is sent.** The recorded method, path, query and headers, and the body when the program
 //! read it. A header the spool redacted is sent only when the body gives its value, and is left out
@@ -92,6 +93,13 @@ enum Unsendable {
     NoInput,
     Cut,
     Withheld,
+}
+
+/// `GET /api/replay`: `{"target": "<address>"}`, or a `null` target when this service was started
+/// by hand. The dialog names it before it is opened, and says when there is none.
+pub(crate) fn target(target: Option<SocketAddr>) -> (StatusCode, Vec<u8>) {
+    let body = serde_json::json!({ "target": target.map(|target| target.to_string()) });
+    (StatusCode::OK, body.to_string().into_bytes())
 }
 
 /// `POST /api/replay` with `body`, sent to `target`: the status and the JSON body.

@@ -148,8 +148,47 @@ export interface RequestDetail {
   logs: LogLine[];
   profiles: ProfileFile[];
   coverage: CoverageRef | null;
+  /** What it was sent and what it answered, when a development server recorded them. */
+  input: RecordedInput | null;
   /** Which lists stopped at the most rows the service sends. */
   cut: { events: boolean; dumps: boolean; logs: boolean; profiles: boolean };
+}
+
+/** The value a recorded header has when the server replaced it. */
+export const REDACTED = "[redacted]";
+
+/** A recorded body: its bytes as text when they are UTF-8, as base64 otherwise. */
+export interface RecordedBody {
+  text: string | null;
+  base64: string | null;
+  /** The program read it. A body nobody read has no bytes. */
+  read: boolean;
+  /** It stopped at the recording limit, or a part of it is not in the index. */
+  cut: boolean;
+  /** It was not recorded because it has a secret. */
+  withheld: boolean;
+}
+
+/** A request's recorded input and response. */
+export interface RecordedInput {
+  query: string;
+  /** `[name, value]` pairs in the order they arrived. A redacted value is `REDACTED`. */
+  headers: [string, string][];
+  body: RecordedBody;
+  response_headers: [string, string][] | null;
+  response_body: RecordedBody | null;
+}
+
+/** `GET /api/replay`: where a replay is sent, or `null` when this service was started by hand. */
+export interface ReplayTarget {
+  target: string | null;
+}
+
+/** `POST /api/replay`: the replay's status, and its request when the server named it. */
+export interface Replayed {
+  status: number;
+  trace: string | null;
+  span: string | null;
 }
 
 /** Every kind of record the stream has. `dropped` and `unparseable` belong to no request. */
@@ -480,6 +519,16 @@ export function coverage(id: number, signal?: AbortSignal): Promise<CoverageMap>
 /** The text of `file`, which the coverage record `id` names. */
 export function source(id: number, file: string, signal?: AbortSignal): Promise<SourceFile> {
   return get<SourceFile>(`/api/source?coverage=${id}&file=${encodeURIComponent(file)}`, signal);
+}
+
+/** Where a replay is sent, or a `null` target when there is nowhere to send one. */
+export function replayTarget(signal?: AbortSignal): Promise<ReplayTarget> {
+  return get<ReplayTarget>("/api/replay", signal);
+}
+
+/** Sends the request `key` names again. `headers` has a value for each redacted header the developer typed. */
+export function replay(key: { trace: string; span: string }, headers: Record<string, string>): Promise<Replayed> {
+  return send<Replayed>("POST", "/api/replay", { trace: key.trace, span: key.span, headers });
 }
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */

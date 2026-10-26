@@ -344,6 +344,7 @@ impl Site {
             "/api/settings" if reads => api(self.settings.get()),
             "/api/settings" if *method == Method::PUT => api(self.settings.put(body)),
             "/api/index/discard" if *method == Method::POST => api(self.api.discard()),
+            "/api/replay" if reads => api(replay::target(self.target.get().copied())),
             "/api/replay" if *method == Method::POST => {
                 api(replay::replay(&self.api, self.target.get().copied(), body))
             }

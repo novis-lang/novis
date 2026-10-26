@@ -365,8 +365,36 @@ fn spool() -> String {
                 }),
             );
         }
+        // A `body` part of the earlier request of the shared trace is not the later one's.
+        if *span == "53995c3f42cd8ad8" {
+            line(
+                trace,
+                start_us + 70,
+                json!({ "kind": "body", "of": "request", "offset": 0, "text": "not the PUT's" }),
+            );
+        }
         if *span == "a3ce929d0e0e4736" {
             line(trace, start_us + 2_000, dump(17, &json!(7)));
+            for (offset, text) in [(0, "{\"stock\":"), (9, "3}")] {
+                line(
+                    trace,
+                    start_us + 2_100,
+                    json!({ "kind": "body", "of": "request", "offset": offset, "text": text }),
+                );
+            }
+        }
+        // The thrown request's response body is two parts, and one is not UTF-8.
+        if *status == 500 {
+            line(
+                trace,
+                start_us + 15_000,
+                json!({ "kind": "body", "of": "response", "offset": 0, "text": "Out of " }),
+            );
+            line(
+                trace,
+                start_us + 15_100,
+                json!({ "kind": "body", "of": "response", "offset": 7, "base64": "/3N0b2Nr" }),
+            );
         }
         let mut request = json!({
             "kind": "request", "span": span, "start_us": start_us, "duration_us": duration_us,
@@ -379,6 +407,22 @@ fn spool() -> String {
             request["exception"] = json!({
                 "class": "Shop\\OutOfStock", "message": "item 7 is out of stock",
                 "file": "src/Shop/Orders.nvs", "line": 42
+            });
+            request["input"] = json!({
+                "query": "coupon=SPRING",
+                "headers": [["content-type", "application/json"], ["authorization", "[redacted]"]],
+                "body": { "read": true, "text": "{\"item\":7,\"quantity\":2}" }
+            });
+            request["response"] = json!({
+                "headers": [["content-type", "text/plain"], ["set-cookie", "[redacted]"]],
+                "body": { "read": true, "chunks": 2 }
+            });
+        }
+        if *span == "a3ce929d0e0e4736" {
+            request["input"] = json!({
+                "query": "",
+                "headers": [["content-type", "application/json"]],
+                "body": { "read": true, "chunks": 2 }
             });
         }
         line(trace, start_us + duration_us, request);
@@ -878,6 +922,14 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
         json!({ "$redacted": true })
     );
     assert_eq!(detail["logs"][0]["message"], "stock is empty");
+    assert_eq!(detail["input"]["query"], "coupon=SPRING");
+    assert_eq!(detail["input"]["headers"][1], json!(["authorization", "[redacted]"]));
+    assert_eq!(detail["input"]["body"]["text"], "{\"item\":7,\"quantity\":2}");
+    assert_eq!(
+        detail["input"]["response_body"]["base64"],
+        "T3V0IG9mIP9zdG9jaw==",
+        "the parts are joined, and bytes that are not UTF-8 are base64"
+    );
     assert_eq!(
         detail["cut"],
         json!({ "events": false, "dumps": false, "logs": false, "profiles": false })
@@ -906,6 +958,12 @@ fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
     assert_eq!(put["dumps"][0]["tree"], 7);
     assert_eq!(put["profiles"], json!([]));
     assert_eq!(put["logs"], json!([]));
+    assert_eq!(
+        put["input"]["body"],
+        json!({ "text": "{\"stock\":3}", "base64": null, "read": true, "cut": false, "withheld": false }),
+        "its body is its own two parts"
+    );
+    assert_eq!(missing["input"], Value::Null, "it recorded no input");
     let (status, body) = service.get(&format!("/api/request?trace={SHARED}"));
     assert_eq!(status, 400, "{body}");
     assert!(body.contains("`span`"), "{body}");

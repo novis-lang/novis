@@ -136,6 +136,9 @@ object.workspace = true
 hyper.workspace = true
 rustls.workspace = true
 rcgen.workspace = true
+# `GET /api/request` gives a recorded body that is not UTF-8 as base64
+# (`src/debug/api.rs`). `nvs-stdlib` already links it with the same features.
+base64.workspace = true
 
 [dev-dependencies]
 # How this crate's tests reach files outside the package.
