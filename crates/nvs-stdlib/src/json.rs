@@ -3465,7 +3465,11 @@ fn secret_values(
                         continue;
                     }
                     if contract.desc.field_is_secret(field.slot) {
-                        let start = value.get().as_ptr().addr().checked_sub(text.as_ptr().addr())?;
+                        let start = value
+                            .get()
+                            .as_ptr()
+                            .addr()
+                            .checked_sub(text.as_ptr().addr())?;
                         spans.push(start..start + value.get().len());
                     } else if let Some(nested) = nested(contract, index) {
                         secret_values(nested, value, text, depth + 1, spans)?;
@@ -3511,7 +3515,9 @@ fn lands_secret<'s>(
 /// Skips the steps that index a list: `[]` and a number.
 fn skip_indexes<'s>(steps: &mut std::iter::Peekable<impl Iterator<Item = Option<&'s [u8]>>>) {
     while steps
-        .next_if(|step| step.is_none_or(|key| !key.is_empty() && key.iter().all(u8::is_ascii_digit)))
+        .next_if(|step| {
+            step.is_none_or(|key| !key.is_empty() && key.iter().all(u8::is_ascii_digit))
+        })
         .is_some()
     {}
 }
@@ -3561,7 +3567,9 @@ impl<'de> serde::Deserialize<'de> for Entries<'de> {
 
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Entries<'de>, A::Error> {
                 let mut entries = Vec::new();
-                while let Some(entry) = map.next_entry::<String, &'de serde_json::value::RawValue>()? {
+                while let Some(entry) =
+                    map.next_entry::<String, &'de serde_json::value::RawValue>()?
+                {
                     entries.push(entry);
                 }
                 Ok(Entries(entries))
@@ -6787,7 +6795,12 @@ mod tests {
                 secret_field("profiles", 3, CodecTy::List, Some("Profile")),
             ],
             4,
-            vec![std::ptr::null(), std::ptr::null(), profile_desc, profile_desc],
+            vec![
+                std::ptr::null(),
+                std::ptr::null(),
+                profile_desc,
+                profile_desc,
+            ],
             vec![std::ptr::null(); 4],
         );
         table.set_secret_fields(login, vec![false, true, false, false]);
@@ -6825,10 +6838,20 @@ mod tests {
             .into_iter()
             .map(|span| &text[span])
             .collect();
-        assert_eq!(found, [r#""pw-1""#, r#""tk-2""#, r#""tk-3""#, r#"{"x":[1]}"#]);
-        assert_eq!(broken, None, "a body that is not a document is not withheld");
+        assert_eq!(
+            found,
+            [r#""pw-1""#, r#""tk-2""#, r#""tk-3""#, r#"{"x":[1]}"#]
+        );
+        assert_eq!(
+            broken, None,
+            "a body that is not a document is not withheld"
+        );
         assert_eq!(empty, Some(Vec::new()));
-        assert_eq!(none, Some(Vec::new()), "a class with no secret withholds nothing");
+        assert_eq!(
+            none,
+            Some(Vec::new()),
+            "a class with no secret withholds nothing"
+        );
     }
 
     /// [`secret_spans`]' twin for a urlencoded form: each value whose name lands in a `secret`
@@ -6861,7 +6884,10 @@ mod tests {
             .map(|span| &named[span])
             .collect();
         assert_eq!(found, ["pw-4"]);
-        assert_eq!(multipart, None, "a multipart body with a secret is not withheld");
+        assert_eq!(
+            multipart, None,
+            "a multipart body with a secret is not withheld"
+        );
         assert_eq!(plain_multipart, Some(Vec::new()));
     }
 }

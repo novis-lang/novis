@@ -510,7 +510,9 @@ impl Ctx {
             .envelope
             .source
             .as_ref()
-            .map_or((String::new(), 0), |source| (source.file.clone(), source.line));
+            .map_or((String::new(), 0), |source| {
+                (source.file.clone(), source.line)
+            });
         crate::spool::record(
             self,
             crate::spool::Record::Dump(crate::spool::Dump {

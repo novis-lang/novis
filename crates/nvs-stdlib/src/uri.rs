@@ -3295,7 +3295,9 @@ pub(crate) fn parse_query(
 ///
 /// `crate::json::secret_form_spans` reads it, to find each value a `postAs` puts in a `secret`
 /// property, and [`name_steps`] splits the name as [`parse_query`] does.
-pub(crate) fn form_pairs(form: &str) -> impl Iterator<Item = (std::ops::Range<usize>, Vec<u8>)> + '_ {
+pub(crate) fn form_pairs(
+    form: &str,
+) -> impl Iterator<Item = (std::ops::Range<usize>, Vec<u8>)> + '_ {
     let mut start = 0;
     form.split('&').filter_map(move |pair| {
         let at = start;

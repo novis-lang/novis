@@ -107,11 +107,7 @@ impl QueryWatch {
 
     /// Files what [`QueryWatch::taken`] took, once the statement has let the
     /// context go.
-    pub(crate) fn file(
-        self,
-        ctx: &mut nvs_runtime::Ctx,
-        taken: Option<Taken>,
-    ) {
+    pub(crate) fn file(self, ctx: &mut nvs_runtime::Ctx, taken: Option<Taken>) {
         if self.ungranted && !TRACE_UNGRANTED_SAID.swap(true, std::sync::atomic::Ordering::Relaxed)
         {
             trace_ungranted_record(ctx);
