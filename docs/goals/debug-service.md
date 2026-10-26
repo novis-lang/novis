@@ -276,6 +276,18 @@ flight. Disk: at most `spool_max` per process and `index_max` for the index. Usa
 development request is recorded and searchable with no setup beyond `store = true`. Simplicity: four
 new `[debug]` keys and one new `[trace]` key, a command, and no socket anywhere.
 
+**A waiting request's recorded input and exception are boxed.** The gate stage's call. The service
+future runs on the connection's stack and holds `input` and `ending` across the handler's wait, so
+inline they took a waiting request's host stack from 8 to 10 debug pages, over the bound of 9 in
+`crates/nvs-cli/src/serve.rs`'s stack test. Boxed, it passes again. Trade-off: one allocation per
+recorded development request, and one per request whose program threw, against two resident stack
+pages per waiting request.
+
+**`nvs debug` and the four `[debug]` keys get their feature proofs in this goal.** The gate stage's
+call, which replaces the Backlog line that put `nvs debug`'s proofs with the viewer. The proofs gate is
+a floor check, and the command and the keys ship now, so each gets its `about.md`, an example, an
+attack and a test case for what exists today. `debug-viewer` extends them with the viewer.
+
 ## Stages
 
 ### 1. `[trace] response_header` turns the `traceresponse` header off
@@ -384,9 +396,9 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 - [ ] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
 - [ ] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
 
@@ -394,43 +406,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 7 are done; stage 8, the gate, is next. Every rule this goal owns is `shipped`, and
-`bun nv owners --closes debug-service` passes. Decision `d9` is still open; the work is built on
-"no" (Standing decisions), and DONE waits on it.
+Stages 1 to 7 are done. In stage 8, the verify half is done: `bun nv affected --run` is green
+(22 of 22 steps, 7775 tests, 3127 cases). Decision `d9` is still open; the work is built on "no"
+(Standing decisions), and DONE waits on it.
 
-Stage 6 landed the server's child. `debug::Child` (`crates/nvs-cli/src/debug.rs`) starts
-`nvs debug --parent` with a pipe as standard input, and its drop closes the pipe and waits.
-`serve::run` starts it before `bind_all` when `started_in` is `development` and `debug_store()` is
-on. Under `--parent` the loop's wait is a `recv_timeout` on a channel a stdin-reading thread
-disconnects at end of input, and a held lock exits `0` quietly. `tests/request.rs`'s `Served` holds
-`debug/service.lock`, so its spool-reading cases are not raced by the service. The help text, the
-four `[debug]` keys' comments, the CLI chapter's `# nvs debug` section and the website data are
-current.
+The first two runs found four causes, each fixed and committed:
 
-New tests, passing once by name: three in `crates/nvs-cli/tests/debug_service.rs` (a development
-server's requests reach the index under each answer's trace id with input and dump, the spool
-drains and the lock frees once the server is killed; production starts no service; `store` off
-writes nothing and answers as a run with no `[debug]` block). The sweep's reds were stale again:
-`env-secret-proofs`'s log exits 0, and run 40174915924 built `9be30356e`, older than
-`origin/main`.
+- The rulebook pages were stale, three files were not rustfmt-clean, and `fuzz/Cargo.lock` lacked
+  the spool's `serde` (`b3f42a366`).
+- `apps/telemetry/known.toml` lacked the `debug` command (`cfd989fa2`).
+- A waiting request kept 10 host stack pages, over 9, because the service future held the recorded
+  input and exception inline. Both are boxed (`71708db7b`, Standing decisions).
+- `cache::redis`'s lease renewal case expired under load, because it raced a 3-second lease. It now
+  takes a one-minute lease and reads `PTTL`, with no sleep (`82e2fe21a`). It is not this goal's
+  code; it failed beside the other binaries.
 
-Tests expected to go red: none known. A test that compares a development `nvs serve`'s standard
-error exactly would see the new "`nvs debug` reads this server's recorded requests" line, but only
-with `store` on.
+`Core\Server::traceId`'s `about.md` is under 160 words and owes nothing (`16444c4af`). The nightly reds in
+the sweep are fixed at HEAD: run 40174915924 built `9be30356e`, and each of its five jobs has a later
+fix (`0b7eadd2c`, `901f4855c`, `bd2e51f0a`, `d5aa2be18`, and `cache.rs`'s Miri ignore).
+`env-secret-proofs` exits 0 when run.
+
+Tests expected to go red: none known.
 
 ### Next
 
-**Stage 8: the goal is verified once, and every failure is fixed.** Start `bun nv affected --run`
-with `run_in_background` and end the turn to wait. Then the proofs gate items the user named.
+**Stage 8's last two items.** The proofs gate's two open parts, then the goal-end gates.
 
-- [ ] The first `bun nv affected --run`, its failures grouped by cause, each fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] `bun nv proofs --gate --limit 0`: perf figures, the `debug.*` directive proofs, `Core\Server::traceId`'s `about.md` under its length. `docs/examples/core/Server/traceId/about.md:1`
-- [ ] `bun nv site --check questions`, then the goal-end gates: `bun nv verify --doc`, `bun nv ci --check`. `docs/examples/core/Server/traceId/about.md:1`
+- [ ] Perf figures: `bun nv proofs --record-perf` was started for the 86 stale `Core\Request`, `Uri`, `Queue`, `Debug`, `Script` and `Json` figures; check `bun nv proofs --gate --limit 0` names none, and commit the ledger it appends to. `crates/nvs-stdlib/src/request.rs:1`
+- [ ] The `debug.store`, `debug.spool_max`, `debug.index_age`, `debug.index_max` and `tools:cli/nvs-debug` proofs: `bun nv proofs --gate --only` each owes nothing, and every `.nvs` and `about.md` is read against AGENTS.md § *Text an end user reads*. `docs/examples/config/debug-inline/about.md:1`
+- [ ] `bun nv site --check questions`, then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, each red fixed. `docs/examples/core/Server/traceId/about.md:1`
 
 ### Backlog
 
 - The listener, its port, the token and the browser UI are `debug-viewer`'s (`docs/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.md`).
-- The feature proofs of `nvs debug` land with the viewer, the part a developer sees (`docs/rules/testing/feature-proofs.md`).
+- The viewer's part of `nvs debug`'s feature proofs is `debug-viewer`'s, on top of the ones this goal writes (`docs/rules/testing/feature-proofs.md`).
 - The query call site id is passed by `request-aware-editor`; until then a `query` event has none (`docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md`).
 - A recorded request becoming a `Core\Test::request` case is `request-aware-editor`'s (`docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md`).
 - If `d9` is answered "yes", a new stage lets a derived decoder fill a `secret` property, amends `rule:security/derived-codec-qualifiers` and the recording rule, and adds a served test that a whole JSON document keeps no byte of that value (`crates/nvs-types/src/derive.rs:2493`).
