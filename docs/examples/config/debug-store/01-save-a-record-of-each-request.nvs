@@ -1,0 +1,16 @@
+<?nvs
+// `[debug] store` saves a record of each request to files in the data folder.
+// `nvs debug` reads these files into a database. This file does not set `store`,
+// so the default is used, and this prints `false`. To turn it on, write:
+//
+//     [debug]
+//     store = true
+echo 'store:      ', Core\Config::get('debug.store') ?? '(no value)', "\n";
+
+// A program cannot turn recording on, so this prints `no`.
+// Only the person who runs the server can turn it on, in `nvs.toml`.
+echo 'turn it on: ', Core\Config::set('debug.store', 'true') ? 'yes' : 'no', "\n";
+
+// With `store` on, this dump is saved in the record too. It also goes to the error output.
+Core\Debug::dump(['order' => 1042, 'total' => '19.90']);
+echo "done\n";

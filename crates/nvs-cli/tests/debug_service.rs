@@ -203,6 +203,7 @@ fn sealed(spool: &Path) -> usize {
 /// A development server with `store` on starts the service. Each request reaches the index under
 /// the trace id its answer carried, with its input and its dump, and every sealed spool file is
 /// read and deleted. Once the server is killed, the service ends and frees its lock.
+// covers: tools:cli/nvs-debug
 #[test]
 fn a_development_server_starts_the_service_and_its_requests_reach_the_index() {
     let mut served = Served::start(

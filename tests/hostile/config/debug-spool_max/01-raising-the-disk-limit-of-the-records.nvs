@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program tries to raise `[debug] spool_max`, so its debug records could fill the disk.
+// It uses huge sizes, sizes that are not numbers and keys that are almost the real key.
+// Every change should fail, and the limit should keep the value from the file.
+
+// 1. Set `debug.spool_max` to huge sizes, to zero and to negative sizes. Each change should fail.
+array<string> $sizes = [
+    '1T',
+    '100G',
+    '18446744073709551615',
+    '18446744073709551616',
+    '99999999999999999999999999G',
+    '0',
+    '0M',
+    '-1',
+    '-256M',
+    '1M',
+    '256M',
+];
+foreach ($sizes as string $size) {
+    Core\Config::set('debug.spool_max', $size);
+}
+Core\Config::restore('debug.spool_max');
+
+// 2. Set values that are not sizes. Each change should fail.
+array<string> $words = ['', ' ', 'NaN', 'inf', '1e30', '0x7fffffff', 'unlimited', 'off', "256M\n1T", '256M; 1T'];
+foreach ($words as string $word) {
+    Core\Config::set('debug.spool_max', $word);
+}
+Core\Config::restore('debug.spool_max');
+
+// 3. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.spool_max.',
+    '.debug.spool_max',
+    'debug..spool_max',
+    'debugspool_max',
+    'DEBUG.SPOOL_MAX',
+    'Debug.Spool_Max',
+    'debug.spool-max',
+    'debug.spool',
+    'spool_max',
+    'debug',
+    'limits.spool_max',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '1T');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'debug.spool_max.' . Core\Str::repeat('scope.', 10000) . 'bytes';
+Core\Config::set($deep, '1T');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.spool_max', '1T');
+    Core\Config::restore('debug.spool_max');
+    $i = $i + 1;
+}
+
+// 6. The limit should still be the value from the file.
+echo 'debug.spool_max: ', Core\Config::get('debug.spool_max') ?? '(nothing)', "\n";

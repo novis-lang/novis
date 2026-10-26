@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program tries to turn on `[debug] store`, so that its requests are saved to disk.
+// It also tries to switch to development mode, where a record has the headers and the body.
+// Every change should fail, and both settings should keep the values from the file.
+
+// 1. Set `debug.store` to values that could mean "on". Each change should fail.
+array<string> $values = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', 'store', ' true', 'true '];
+foreach ($values as string $value) {
+    Core\Config::set('debug.store', $value);
+}
+Core\Config::restore('debug.store');
+
+// 2. Change the run mode to development. Each change should fail.
+array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'dev', 'debug'];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode.default', $mode);
+    Core\Config::set('mode', $mode);
+}
+Core\Config::restore('mode.default');
+Core\Config::restore('mode');
+
+// 3. Set keys that are almost the real key: extra dots, capital letters and other names.
+array<string> $nearby = [
+    'debug.store.',
+    '.debug.store',
+    'debug..store',
+    'debugstore',
+    'debug.store.headers',
+    'DEBUG.STORE',
+    'Debug.Store',
+    'debug.Store',
+    'store',
+    'debug',
+    'app.debug.store',
+    'debug.spool',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Use a key with 10,000 parts. A slow key lookup or a stack overflow would show here.
+string $deep = 'debug.store.' . Core\Str::repeat('scope.', 10000) . 'on';
+Core\Config::set($deep, 'true');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.store', 'true');
+    Core\Config::restore('debug.store');
+    $i = $i + 1;
+}
+
+// 6. Both settings should still be the values from the file.
+echo 'debug.store: ', Core\Config::get('debug.store') ?? '(nothing)', "\n";
+echo 'mode:        ', Core\Config::get('mode.default') ?? '(nothing)', "\n";

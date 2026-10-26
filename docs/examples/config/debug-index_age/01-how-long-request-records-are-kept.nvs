@@ -1,0 +1,9 @@
+<?nvs
+// `[debug] index_age` is how long `nvs debug` keeps the record of a request.
+// When a record is older, `nvs debug` deletes it from its database.
+// This file does not set it, so the default is used, and this prints `7d` (seven days).
+echo 'index_age: ', Core\Config::get('debug.index_age') ?? '(no value)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+// The records contain request data, so only the person who runs the server decides how long they stay.
+echo 'change it: ', Core\Config::set('debug.index_age', '1d') ? 'yes' : 'no', "\n";

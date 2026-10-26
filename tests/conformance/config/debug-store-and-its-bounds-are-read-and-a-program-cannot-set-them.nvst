@@ -1,0 +1,35 @@
+--TEST--
+`[debug] store` reads its default and a program can neither turn it on nor off, and `spool_max`, `index_age` and `index_max` read the file's values and refuse every program write, in range or not — `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`, `rule:testing/the-debug-stream-reaches-the-service-through-the-disk` and `rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`
+--FILE--
+<?nvs
+// covers: directive:debug.store, directive:debug.spool_max, directive:debug.index_age, directive:debug.index_max
+// The file does not write `store`, so its default reads back.
+echo 'store=', Core\Config::get('debug.store') ?? 'null', "\n";
+// `RuntimeTighten`, and a flag is no quantity to lower, so both writes are refused.
+echo Core\Config::set('debug.store', 'true') ? 'set' : 'refused', "\n";
+echo Core\Config::set('debug.store', 'false') ? 'set' : 'refused', "\n";
+// The three bounds are `System`: every program write is refused, above or below the file's value.
+array<string> $keys = ['debug.spool_max', 'debug.index_age', 'debug.index_max'];
+array<string> $up = ['1T', '3650d', '1T'];
+array<string> $down = ['1M', '1s', '1M'];
+uint $i = 0;
+while ($i < 3) {
+    echo $keys[$i], '=', Core\Config::get($keys[$i]) ?? 'null', ' ';
+    echo Core\Config::set($keys[$i], $up[$i]) ? 'set' : 'refused', ' ';
+    echo Core\Config::set($keys[$i], $down[$i]) ? 'set' : 'refused', ' ';
+    Core\Config::restore($keys[$i]);
+    echo Core\Config::get($keys[$i]) ?? 'null', "\n";
+    $i = $i + 1;
+}
+--FILE nvs.toml--
+[debug]
+spool_max = "64M"
+index_age = "3d"
+index_max = "512M"
+--EXPECT--
+store=false
+refused
+refused
+debug.spool_max=64M refused refused 64M
+debug.index_age=3d refused refused 3d
+debug.index_max=512M refused refused 512M

@@ -1,0 +1,8 @@
+<?nvs
+// `[debug] index_max` is the largest size of the database that `nvs debug` writes.
+// When the database is larger, `nvs debug` deletes the oldest requests first.
+// This file does not set it, so the default is used, and this prints `1G`.
+echo 'index_max: ', Core\Config::get('debug.index_max') ?? '(no value)', "\n";
+
+// A program cannot change this setting, so this prints `no`.
+echo 'raise it:  ', Core\Config::set('debug.index_max', '100G') ? 'yes' : 'no', "\n";

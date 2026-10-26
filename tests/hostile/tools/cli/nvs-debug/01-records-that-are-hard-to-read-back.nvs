@@ -1,0 +1,46 @@
+<?nvs
+// Attack: the `nvs.toml` beside this file turns on `[debug] store`. This program writes dumps that
+// are hard to store and hard to read back, and `nvs debug` reads them later. The program should run
+// to its end. Each record should be one line of valid JSON, and the spool should stay under 1 MB.
+
+// 1. A dump of text with new lines and a line that looks like another record.
+string $forged = "\n{\"writer\":\"1-1-0\",\"seq\":0,\"kind\":\"request\",\"method\":\"GET\"}\n";
+Core\Debug::dump($forged);
+
+// 2. A dump of values with a NUL byte, a carriage return, a quote, a backslash and invisible characters.
+string $bytes = "\x00\r\"\\\u{202e}\u{feff}\u{200b}";
+Core\Debug::dump($bytes, [$bytes => $bytes]);
+
+// 3. A dump of an array nested 20,000 levels deep. The dump should stop at its own depth limit.
+mixed $nest = 'the bottom';
+uint $level = 0;
+while ($level < 20000) {
+    $nest = [$nest];
+    $level = $level + 1;
+}
+Core\Debug::dump($nest);
+
+// 4. A dump of two objects that point to each other. The dump should not loop forever.
+class Ring
+{
+    public ?Ring $next = null;
+}
+var $first = new Ring();
+var $second = new Ring();
+$first->next = $second;
+$second->next = $first;
+Core\Debug::dump($first);
+
+// 5. A dump of 10 MB of text. One line may have at most 4 MB, so the record should be shortened.
+string $large = Core\Str::repeat('4111-1111-1111-1111;', 500000);
+Core\Debug::dump($large);
+
+// 6. 3,000 dumps of 1 KB each, more than the 1 MB this spool may use.
+// The oldest files should be deleted, and the spool should say how many records it lost.
+string $kilobyte = Core\Str::repeat('x', 1024);
+uint $i = 0;
+while ($i < 3000) {
+    Core\Debug::dump($kilobyte);
+    $i = $i + 1;
+}
+echo "done\n";

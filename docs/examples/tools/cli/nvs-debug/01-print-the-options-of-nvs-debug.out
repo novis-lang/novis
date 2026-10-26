@@ -1,0 +1,11 @@
+Run the debug service: read recorded requests into the debug index.
+...
+Options:
+      --once
+          Read the files that are ready once, then exit
+
+      --tail <FILE>
+          Also read the log file at this path, and every line that is added to it later. The file
+          must use the `json` log format. `nvs debug` never changes the file. You can give this
+          option more than once
+...

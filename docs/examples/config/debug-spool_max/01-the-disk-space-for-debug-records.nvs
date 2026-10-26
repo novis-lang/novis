@@ -1,0 +1,10 @@
+<?nvs
+// `[debug] spool_max` is the most disk space that the debug records of one process may use.
+// When the records need more, the oldest file of records is deleted.
+// This file does not set it, so the default is used, and this prints `256M`.
+echo 'spool_max: ', Core\Config::get('debug.spool_max') ?? '(no value)', "\n";
+
+// A program cannot change this setting, so both lines print `no`.
+// A program that could raise it could fill the disk.
+echo 'raise it:  ', Core\Config::set('debug.spool_max', '100G') ? 'yes' : 'no', "\n";
+echo 'lower it:  ', Core\Config::set('debug.spool_max', '1M') ? 'yes' : 'no', "\n";

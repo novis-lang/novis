@@ -1,0 +1,3 @@
+spool_max: 256M
+raise it:  no
+lower it:  no
