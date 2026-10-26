@@ -48,7 +48,7 @@ stages:
         rules: [observability/a-query-span-names-its-call-site, observability/a-query-is-a-trace-event, core-classes/db-compile-time-query-checking, security/reflection-enforces-visibility]
   - id: 6
     title: each query call shows what the newest recorded request ran there
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-config/src/data.rs, viewer/src/views/compare.tsx, docs/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.md]
     extra:
       context:
@@ -127,6 +127,18 @@ narrowing. The user decided this. `rule:ide/a-route-hover-shows-the-programs-gra
 **The taint path is recorded only where `nvs-lsp` asks.** The planning session's call, as the plan
 already said. A switch only `nvs-lsp` sets makes the checker record a qualified value's provenance, so a
 compile for running pays nothing. `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`.
+
+**A query lens's click is the editor's own `vscode.open`, at the program's `[debug] listen`.** This
+session's call, by simplicity: the client names `vscode.open` in `capabilities.experimental.commands`
+as it names `editor.action.triggerSuggest`, and the lens carries the viewer's
+`http(s)://<listen>/requests/<trace>/<span>`. The declined options were a client command of Novis's
+own, which the trade-offs keep to `nvs.runTests`, and a server-side `workspace/executeCommand` that
+sends `window/showDocument`, which adds a request to the closed set. The address is the program
+tree's `[debug] listen`, with TLS where it names `tls_cert_file`; `nvs debug` reads its working
+directory's tree, which is the same tree in the common layout. A lens matches the hash of the text
+the editor holds, so an unsaved edit hides it. A `.lspt` case writes its index as
+`--FILE debug/index.sql--`, and the runner replaces `{{hash}}` with the BLAKE3 of the case's
+document, so the case does not depend on a checkout's line endings.
 
 **The query lens reads the newest recorded request that reached the site, and keeps no parameter.**
 The planning session's call. No query span holds a bound parameter
@@ -280,12 +292,12 @@ the file and line it names.
 **Does:** with `[debug] store` on, a lens above each query call reads the debug index for the newest
 recorded request that reached the site.
 
-- [ ] The server opens the debug index read-only from the data folder, and an index that is absent or locked gives no lens (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`). `crates/nvs-config/src/data.rs:119`
-- [ ] The lens shows the count, the total and the slowest time at the site, and "repeated" with the count when one statement ran there more than once. Its click opens the request in the viewer. `crates/nvs-lsp/src/server.rs:1173`
-- [ ] A record whose file hash is not the file on disk is not shown. `crates/nvs-lsp/src/server.rs:1173`
-- [ ] The viewer's compare aligns two requests' queries by site, which `debug-viewer` leaves to this goal. `viewer/src/views/compare.tsx:1`
-- [ ] A served fixture that runs one query in a loop of many iterations shows one lens at that site with the right count, flagged as repeated, and its record does not grow with the iteration count. `tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt:1`
-- [ ] `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` `shipped`. `data/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.json:3`
+- [x] The server opens the debug index read-only from the data folder, and an index that is absent or locked gives no lens (`rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`). `crates/nvs-config/src/data.rs:119`
+- [x] The lens shows the count, the total and the slowest time at the site, and "repeated" with the count when one statement ran there more than once. Its click opens the request in the viewer. `crates/nvs-lsp/src/server.rs:1173`
+- [x] A record whose file hash is not the file on disk is not shown. `crates/nvs-lsp/src/server.rs:1173`
+- [x] The viewer's compare aligns two requests' queries by site, which `debug-viewer` leaves to this goal. `viewer/src/views/compare.tsx:1`
+- [x] A served fixture that runs one query in a loop of many iterations shows one lens at that site with the right count, flagged as repeated, and its record does not grow with the iteration count. `tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt:1`
+- [x] `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site` `shipped`. `data/rules/ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site.json:3`
 
 ### 7. a recorded request becomes a test that asserts its response
 
@@ -321,47 +333,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 5 and 8 are done. A traced `query` event now records its call's row of the
-query site table, not the id: `spool::Query::site` is `spool::QuerySite { file, line, hash }`
-(`crates/nvs-runtime/src/spool.rs`). `nvs_runtime::QuerySites` (`crates/nvs-runtime/src/ctx/trace.rs:904`)
-is built once per compiled program by `script::query_sites` (`crates/nvs-cli/src/script.rs:224`) and
-set on the context by `nvs serve`'s `program_over`, `nvs run` and each `nvs test` case; a task copies
-it. `QueryWatch::file` resolves the id through `Ctx::query_site` (`ctx/trace.rs:386`). The debug index
-is schema 6, with `site_file`, `site_line` and `site_hash` on `events`
-(`crates/nvs-cli/src/debug/index.rs:146`), and `/api/request` serves `query.site` as that object.
-The standing decision *A traced span records the site's row* says why.
+Stages 1 to 6 and 8 are done. The query lens is `query_lenses` (`crates/nvs-lsp/src/server.rs:1873`)
+over the index's `queries_in` (`crates/nvs-lsp/src/index.rs:748`) and `nvs_lsp::recorded::at_site`
+(`crates/nvs-lsp/src/recorded.rs:70`), a read-only SQLite read of `Settings::debug_index` matched on
+the one-based line and the buffer's BLAKE3. The debug index is schema 7 with `events_site`. The
+click is `vscode.open`, as the standing decision *A query lens's click* says. The compare view aligns
+queries by call site (`bySite`, `viewer/src/views/compare.tsx:201`). The rule is `shipped`.
 
-Green once by name: `a_served_query_event_names_the_line_of_its_call` (`crates/nvs-cli/tests/request.rs:682`,
-a served SQLite program over the new ABI: two `execute`, one `stream`, one `query`, each its own line
-and the file's BLAKE3), `the_sample_spool_is_what_the_writer_writes`, and
-`a_traced_span_records_its_call_site_and_an_untraced_call_reads_none`. The viewer's `tsc` is clean.
-The sweep was stale: the nightly ran `d6f13175`, and `env-secret-proofs`' Oct 22 log shows exit 0.
+Green once by name: `tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt`, whose index is
+SQL in the shape a served request records; `a_served_query_event_names_the_line_of_its_call` is the
+served half. Clippy and the viewer's `tsc` are clean. The sweep's reds are stale: `env-secret-proofs`
+reran green, and the nightly's `d6f13175` predates `97ccf66c2` and `9c8b0fe16`, which fix both.
 
-May go red in the gate: `crates/nvs-cli/tests/debug_api.rs` (its `query.site` is now an object, and
-it rewrites `viewer/test/fixtures/request.json` if the hand edit differs by a byte),
-`crates/nvs-cli/tests/debug_ingest.rs` and `debug_viewer.rs` over the new fixture line, any test
-that counts a `Core\Db` helper's arguments or prints a query call's IR (`query.site @l:c-l:c`), the
-`Core\Db\Stream` slot count, `crates/nvs-lsp/tests/handshake.rs`, the proofs gate's perf records, and
-the LSP latency bound in `crates/nvs-lsp/tests/latency.rs`.
+May go red in the gate: `viewer/test/replay.browser.test.ts` (its queries row is now keyed
+`src/Shop/Items.nvs:12`), `crates/nvs-cli/tests/debug_api.rs`, `debug_ingest.rs` and
+`debug_viewer.rs` over schema 7 or the fixture line, `crates/nvs-lsp/tests/stdout_policy.rs` over the
+new `rusqlite` dependency, `crates/nvs-lsp/tests/handshake.rs`, the VS Code client test that reads
+`EDITOR_COMMANDS`, any test that counts a `Core\Db` helper's arguments or prints a query call's IR,
+the proofs gate's perf records, and the LSP latency bound in `crates/nvs-lsp/tests/latency.rs`.
 
 ### Next
 
-**Stage 6: the query lens.** Its gate holds, because `debug-service` and `debug-viewer` are gone.
-The server opens `debug/index.sqlite` read-only from the data folder (`crates/nvs-config/src/data.rs:119`)
-and gives no lens for an absent or locked index. For each query call in the document, the lens
-finds the newest request whose `events` row has `site_file`, `site_line` and `site_hash` equal to
-that call's file, line and the file's BLAKE3 on disk. It then counts that request's events at the
-site, totals their time, and takes the slowest. A statement text that ran more than once there is
-"repeated". The click opens the request in the viewer. The query calls of a document are
-`nvs_ir::Program::query_sites` of the LSP's own lowering, or a walk of the checker's resolved calls
-against `QUERY_SITE_MEMBERS`; pick the one that needs no lowering in `nvs-lsp`. `site_file` is the
-name the program gave the file, so compare it after the same path normalisation the coverage lens
-uses (`crates/nvs-lsp/src/server.rs:1173`). The compare view aligns queries by site
-(`viewer/src/views/compare.tsx:1`). Freeze the loop case as
-`tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt`. Stage 7 follows.
+**Stage 7: `nvs debug to-test <trace-id>`.** Its gate holds, because `debug-service` and
+`debug-viewer` are gone. The new module is `crates/nvs-cli/src/debug/to_test.rs`, beside the
+other subcommands of `crates/nvs-cli/src/debug.rs`. It reads the request and its recorded input
+and response from the `requests` and `inputs` tables of the index
+(`crates/nvs-cli/src/debug/index.rs:74`, `:97`: `response_headers`, `response_body`,
+`response_cut`, `body_cut`). It prints one class with one `#[Test]` method through the
+formatter's printer (`crates/nvs-fmt/src/lib.rs:134`) that sends the request with
+`Core\Test::request` (`crates/nvs-stdlib/src/test.rs:743`) and asserts the status,
+`Content-Type`, `Location` on a redirect, and the body, a JSON body through `json()`. The
+recorded request's redacted headers are placeholders with a comment. Then the viewer's button in
+`viewer/src/views/request.tsx`, the served fixture `crates/nvs-cli/tests/debug_to_test.rs`, and the
+proofs for `tools:cli/nvs-debug-to-test` by the stage's `**Split:**` line. Stage 9 follows.
 
 ### Backlog
 
+- A query lens's newest request is the newest by `requests.id`, and its figures count every `query` event of that request's trace at the site, so two recorded requests that share one trace id are counted together (`crates/nvs-lsp/src/recorded.rs`, `at_site`).
+- The lens's viewer address is the program tree's `[debug] listen`, and `nvs debug` reads its working directory's tree, so a service started elsewhere with another address gives a click that opens the wrong page (`crates/nvs-lsp/src/server.rs`, `viewer_of`).
 - `$db->query(...)`, a callable reference to a `Core` member with an options bag, panics the lowering: `CheckedTy::CoreShape` is erased as one value (`crates/nvs-ir/src/lower/mod.rs:5161`, reached from `anon_fn::lower_callable`). Every query member has a bag, so the thunk's zero site id has no test yet (`crates/nvs-ir/tests/query_sites.rs`).
 - A query site's line is where the call expression starts, so `$db\n->query(...)` names the receiver's line (`Lowering::query_site_constant`).
 - A taint path does not join branches: after an `if` that assigns in one arm, a read shows the last write the walk reached (`crates/nvs-types/src/provenance.rs`, `assign`).
