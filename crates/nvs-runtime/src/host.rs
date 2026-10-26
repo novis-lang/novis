@@ -405,6 +405,22 @@ pub struct Failure {
     /// `failed` in a fresh isolate
     /// (`rule:routing/a-gate-answers-around-every-handler`).
     pub limit: Option<crate::Limit>,
+    /// Where the throw was raised, as `file:line`: the exception's `location`
+    /// property. Empty where the failure was not a throw, or where the raise
+    /// named no site. A recorded request names its uncaught exception's throw
+    /// site with it
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
+    pub location: String,
+}
+
+impl Failure {
+    /// [`Failure::location`] as its file and its line, or `None` where it is
+    /// empty or names no line.
+    #[must_use]
+    pub fn site(&self) -> Option<(&str, u32)> {
+        let (file, line) = self.location.rsplit_once(':')?;
+        Some((file, line.parse().ok()?))
+    }
 }
 
 /// The media type of an answer whose [`Completion::content_type`] is `None` —

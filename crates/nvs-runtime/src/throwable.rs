@@ -719,6 +719,20 @@ impl Thrown {
             .unwrap_or_default()
     }
 
+    /// The exception's `location` property, `file:line`, as an owned string.
+    ///
+    /// Empty where the raise named no site, and for the reasons
+    /// [`Self::message`] is empty.
+    #[must_use]
+    pub fn location(&self) -> String {
+        self.field(LOCATION_SLOT)
+            .and_then(|slot| {
+                slot.as_str_bytes()
+                    .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+            })
+            .unwrap_or_default()
+    }
+
     /// Field slot `slot` of this exception, or `None` where there is nothing
     /// to read it from — the borrow-shaped read of a property beyond the four
     /// [`SLOT_COUNT`] every `Throwable` has.
