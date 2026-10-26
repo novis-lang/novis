@@ -394,15 +394,15 @@
 # The address `nvs debug` serves the debug viewer on: an IP address and a port. Open it in a
 # browser. `nvs debug --listen` changes it for one run. If the port is in use, `nvs debug` stops
 # with an error.
-#listen = "127.0.0.1:8137"            # default
+#listen = "127.0.0.1:8137"            # default; restart required
 
 # With `listen` on an address that is not loopback, `nvs debug` serves the viewer over HTTPS and
 # needs a token. It creates a certificate, a key and a token in `debug/` in the data folder. Then it
 # prints a link that contains the token. These three keys name your own files instead. If a file
 # does not exist, `nvs debug` prints a warning and uses the file it created.
-#tls_cert_file = "/etc/novis/debug.crt" # example
-#tls_key_file = "/etc/novis/debug.key"  # example
-#token_file = "/etc/novis/debug.token"  # example
+#tls_cert_file = "/etc/novis/debug.crt" # example; restart required
+#tls_key_file = "/etc/novis/debug.key"  # example; restart required
+#token_file = "/etc/novis/debug.token"  # example; restart required
 
 
 # ----------------------------------------------------------------------------------------------

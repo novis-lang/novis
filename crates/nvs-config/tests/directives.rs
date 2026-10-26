@@ -1474,7 +1474,9 @@ fn the_door_key_is_carved_out_of_a_block_a_request_may_otherwise_write() {
 /// registry holds rather than this one alone, so a credential that gains a file half later answers as
 /// its inline half in the commit that adds it. A secret in an operator-named block — `db.main.password`
 /// — is governed by that block's row and audited in `tests/secret.rs`, which is why this sweep is
-/// over the registry and not over the secret table.
+/// over the registry and not over the secret table. `[debug]`'s `tls_cert_file`, `tls_key_file` and
+/// `token_file` are in the census with no inline half: `nvs debug` generates each value itself, so
+/// the file is the only spelling, and the sweep pins that no inline row has appeared beside them.
 // covers: directive:http.csrf_key_file
 #[test]
 fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
@@ -1496,11 +1498,24 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
     siblings.sort_unstable_by_key(|(key, _, _)| *key);
     assert_eq!(
         siblings,
-        [("http.csrf_key_file", Class::System, Apply::Reload)],
+        [
+            ("debug.tls_cert_file", Class::System, Apply::Boot),
+            ("debug.tls_key_file", Class::System, Apply::Boot),
+            ("debug.token_file", Class::System, Apply::Boot),
+            ("http.csrf_key_file", Class::System, Apply::Reload),
+        ],
         "a `_file` row added to the registry joins this census in the commit that adds it, and the \
          one it has to match is its own inline half",
     );
     for (key, class, apply) in siblings {
+        let stem = lookup(key.trim_end_matches("_file"));
+        if key.starts_with("debug.") {
+            assert!(
+                stem.is_none_or(|row| row.key != key.trim_end_matches("_file")),
+                "`{key}` names a file `nvs debug` would otherwise generate, and has no inline half",
+            );
+            continue;
+        }
         let stem = governing(key.trim_end_matches("_file"));
         assert_eq!(
             (class, apply),
