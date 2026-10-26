@@ -40,6 +40,8 @@
 //! rows have ended, and what crosses is [`QuerySpan`]'s `Display` — `nvs-db`
 //! depends on `nvs-runtime`, so the alternative is this field set written a
 //! second time in that crate, and `Ctx::record_query` is where that is argued.
+//! The debug spool's `query` event is the one exception: it records the fields,
+//! as [`QuerySpan::spooled`] fills `nvs_runtime::spool::Query` with them.
 //! The gate that rendering waits on is `Core\Db`'s `QueryWatch::named`: this
 //! request's trace is recorded, which needs no grant, or `DebugFlags::TRACE` is
 //! on and the `debug.trace` grant is held (`rule:testing/debug-mode-directive`).
@@ -208,6 +210,23 @@ impl QuerySpan {
     #[must_use]
     pub fn duration(&self) -> Duration {
         self.elapsed.unwrap_or_else(|| self.opened.elapsed())
+    }
+
+    /// The span as the debug spool's `query` event records it
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`): the driver, the SQL
+    /// as cut here, and the affected count where the server gave one, else the rows returned.
+    ///
+    /// Built from the fields and never from a parameter, for § 11's reason, so
+    /// `a_query_span_contains_no_parameter_value_anywhere` covers it too. The call site id stays
+    /// `None` until the compiler passes one.
+    #[must_use]
+    pub fn spooled(&self) -> nvs_runtime::spool::Query {
+        nvs_runtime::spool::Query {
+            driver: self.driver.matrix_name().to_owned(),
+            sql: self.sql.clone(),
+            rows: Some(self.affected.unwrap_or(self.rows)),
+            site: None,
+        }
     }
 }
 

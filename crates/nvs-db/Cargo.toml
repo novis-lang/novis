@@ -93,6 +93,8 @@ sha2.workspace = true
 # Test-only: the socket cases in `src/pg.rs` and `src/mysql.rs` bind under `target/` through
 # `nvs_repo::socket`.
 nvs-repo.workspace = true
+# Test-only: `src/pg.rs` reads a span's debug spool line as the file holds it.
+serde_json.workspace = true
 
 [lints]
 workspace = true

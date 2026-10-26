@@ -560,7 +560,7 @@ pub(super) fn postgres_rows(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
     // Read before the statement borrows the connection, and once for the whole
     // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
     // connection declared, and that is a property of the connection rather
@@ -805,7 +805,7 @@ pub(super) fn mysql_rows(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
     // As [`postgres_rows`], and § 9's zone rule is the connection's on both
     // drivers.
     let zone = framed.time_zone();
@@ -888,7 +888,7 @@ pub(super) fn tds_rows(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
     // As the other two drivers, and § 9's zone is a property of the connection
     // on all three. What is this driver's own is that no server was told:
     // `nvs_db::tds::TdsTarget::time_zone` owns why SQL Server has nowhere to be.
@@ -958,7 +958,7 @@ pub(super) fn postgres_write(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
     let mut answered = postgres
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
@@ -1000,7 +1000,7 @@ pub(super) fn mysql_write(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
     let mut answered = framed
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
@@ -1063,7 +1063,7 @@ pub(super) fn sqlite_rows(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Answered, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
     let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, &statement.sql);
     if let Some(name) = statement.block.as_text() {
         span.name(name);
@@ -1153,7 +1153,7 @@ pub(super) fn sqlite_write(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
     let mut span = nvs_db::QuerySpan::opened(nvs_db::Driver::Sqlite, &statement.sql);
     if let Some(name) = statement.block.as_text() {
         span.name(name);
@@ -1377,7 +1377,7 @@ pub(super) fn tds_write(
     source: Option<&str>,
     watch: QueryWatch,
     named: &str,
-) -> Result<(Written, Option<(String, std::time::Duration)>), Fault> {
+) -> Result<(Written, Option<crate::db::span::Taken>), Fault> {
     let mut answered = tds
         .query(&statement.sql, sending)
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;

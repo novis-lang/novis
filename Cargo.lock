@@ -3485,6 +3485,7 @@ dependencies = [
  "nvs-runtime",
  "postgres-protocol",
  "rusqlite",
+ "serde_json",
  "sha2 0.11.1",
 ]
 

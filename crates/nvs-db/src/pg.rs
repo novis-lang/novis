@@ -6733,6 +6733,14 @@ mod tests {
         let traced = format!("{span:?}");
         assert!(!traced.contains(BOUND), "{traced}");
 
+        // The debug spool's `query` line, as it is written to disk.
+        let spooled = span.spooled();
+        assert_eq!(spooled.driver, "postgres");
+        assert_eq!(spooled.sql, SQL);
+        assert_eq!(spooled.rows, Some(2));
+        let line = serde_json::to_string(&spooled).expect("the query serializes");
+        assert!(!line.contains(BOUND), "{line}");
+
         // The one field the driver does not fill, filled: a named connection
         // adds the block's name and still no value.
         let mut named = span.clone();

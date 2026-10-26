@@ -45,6 +45,16 @@ pub(crate) struct QueryWatch {
 static TRACE_UNGRANTED_SAID: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// What [`QueryWatch::taken`] takes off a span while the statement still lends it out.
+pub(crate) struct Taken {
+    /// The span's rendering, which the trace and the `slow_query` line read.
+    line: String,
+    /// The statement's duration.
+    took: std::time::Duration,
+    /// The span's fields, which the debug spool's `query` event records.
+    query: nvs_runtime::spool::Query,
+}
+
 impl QueryWatch {
     /// What the context and the connection's block say, before the statement
     /// goes out.
@@ -87,8 +97,12 @@ impl QueryWatch {
     /// `None` when nothing is reading, and then the rendering and the clock are
     /// not paid for at all — which is every request on a deployment that has
     /// asked for neither.
-    pub(crate) fn taken(self, span: &nvs_db::QuerySpan) -> Option<(String, std::time::Duration)> {
-        (self.traced || self.slow.is_some()).then(|| (span.to_string(), span.duration()))
+    pub(crate) fn taken(self, span: &nvs_db::QuerySpan) -> Option<Taken> {
+        (self.traced || self.slow.is_some()).then(|| Taken {
+            line: span.to_string(),
+            took: span.duration(),
+            query: span.spooled(),
+        })
     }
 
     /// Files what [`QueryWatch::taken`] took, once the statement has let the
@@ -96,17 +110,17 @@ impl QueryWatch {
     pub(crate) fn file(
         self,
         ctx: &mut nvs_runtime::Ctx,
-        taken: Option<(String, std::time::Duration)>,
+        taken: Option<Taken>,
     ) {
         if self.ungranted && !TRACE_UNGRANTED_SAID.swap(true, std::sync::atomic::Ordering::Relaxed)
         {
             trace_ungranted_record(ctx);
         }
-        let Some((line, took)) = taken else {
+        let Some(Taken { line, took, query }) = taken else {
             return;
         };
         if self.traced {
-            ctx.record_query(&line, took);
+            ctx.record_query(&line, query, took);
         }
         if self.slow.is_some_and(|threshold| took >= threshold) {
             slow_query_record(ctx, &line);

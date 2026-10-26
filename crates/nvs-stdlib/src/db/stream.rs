@@ -277,7 +277,7 @@ fn postgres_step(
 ///
 /// A name because the pair is what every arm of [`stream_step`] answers with,
 /// where the buffered members spell their own twin of it out at each signature.
-type Stepped = (Option<NvsArray>, Option<(String, std::time::Duration)>);
+type Stepped = (Option<NvsArray>, Option<crate::db::span::Taken>);
 
 /// One step of a walk over either of the two drivers [`Framed`] covers, for
 /// [`stream_step`]'s arms.

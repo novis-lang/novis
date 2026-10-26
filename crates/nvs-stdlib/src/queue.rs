@@ -4222,7 +4222,7 @@ struct Spans {
     /// [`crate::db::QueryWatch`] owns why it cannot be read at the point the event is filed.
     watch: crate::db::QueryWatch,
     /// One entry per statement that ran, in the order they ran.
-    taken: Vec<(String, std::time::Duration)>,
+    taken: Vec<crate::db::Taken>,
 }
 
 impl Spans {

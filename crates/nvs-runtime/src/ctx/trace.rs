@@ -484,15 +484,13 @@ impl Ctx {
     /// decides whether the span is rendered at all: a site that filed here
     /// unasked would have paid for the rendering of an event nothing reads.
     ///
-    /// **The span arrives already rendered, and that is the crate boundary
-    /// rather than laziness.** `rule:observability/a-query-is-a-trace-event`
-    /// 's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
-    /// this one; a struct here holding the same facts would be that field
-    /// set's second home, and the one nobody edits when a driver adds to it.
-    /// What it costs is that a consumer reads text where it will later read
-    /// fields — which is what the `trace` field's own doc comment already says
-    /// this vector is, a stand-in until `rule:testing/debug-probes`'s sink gives every kind its
-    /// payload.
+    /// **The span arrives rendered and as the spool's fields.**
+    /// `rule:observability/a-query-is-a-trace-event`'s field set lives in
+    /// `nvs_db::QuerySpan`, in a crate that depends on this one, so the trace
+    /// vector reads text — a stand-in until `rule:testing/debug-probes`'s sink
+    /// gives every kind its payload. The debug spool's `event` line needs the
+    /// fields, and [`crate::spool::Query`] is the one type the writer and the
+    /// ingester share, so `nvs_db::QuerySpan::spooled` fills it there.
     ///
     /// The rendering is `QuerySpan`'s `Display`, so § 11's "never parameters"
     /// is held where the span is built and
@@ -501,16 +499,41 @@ impl Ctx {
     ///
     /// `took` is the statement's own duration, which the span already measured,
     /// and the event's window is the `took` that ends here.
-    pub fn record_query(&mut self, span: &str, took: Duration) {
+    ///
+    /// `query` is the same span's fields as the debug spool records them
+    /// (`nvs_db::QuerySpan::spooled`), and they go to the spool's `event` line
+    /// beside the rendering. The trace vector keeps the rendering alone.
+    pub fn record_query(&mut self, span: &str, query: crate::spool::Query, took: Duration) {
         let (start, end) = Self::ended_after(took);
         self.profile_window("query", start, end);
-        self.trace.push(TraceEvent {
-            kind: TraceKind::Query,
-            callee: span.to_owned(),
-            status: None,
-            start,
-            end,
-        });
+        self.file_event(
+            TraceEvent {
+                kind: TraceKind::Query,
+                callee: span.to_owned(),
+                status: None,
+                start,
+                end,
+            },
+            Some(query),
+        );
+    }
+
+    /// Files `event` in the trace and writes it to the debug spool as an
+    /// `event` line when `[debug] store` is in force for this request
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`).
+    ///
+    /// With `store` off the spool costs one read of the resolved configuration,
+    /// and only on a run [`Ctx::records_spans`] already answered `true` for.
+    fn file_event(&mut self, event: TraceEvent, query: Option<crate::spool::Query>) {
+        self.spool_event(&event, query);
+        self.trace.push(event);
+    }
+
+    /// Writes `event` to the debug spool, with a `query` event's own fields.
+    fn spool_event(&self, event: &TraceEvent, query: Option<crate::spool::Query>) {
+        let mut line = crate::spool::Event::of(event);
+        line.query = query;
+        crate::spool::record(self, crate::spool::Record::Event(line));
     }
 
     /// Records one outbound call as
@@ -538,13 +561,16 @@ impl Ctx {
     pub fn record_http(&mut self, span: &str, took: Duration) {
         let (start, end) = Self::ended_after(took);
         self.profile_window("http", start, end);
-        self.trace.push(TraceEvent {
-            kind: TraceKind::Http,
-            callee: span.to_owned(),
-            status: None,
-            start,
-            end,
-        });
+        self.file_event(
+            TraceEvent {
+                kind: TraceKind::Http,
+                callee: span.to_owned(),
+                status: None,
+                start,
+                end,
+            },
+            None,
+        );
     }
 
     /// Opens `rule:observability/spawn-is-its-own-event`'s event where a child
@@ -595,6 +621,11 @@ impl Ctx {
             event.callee = payload;
             event.end = joined;
         }
+        // Written at the join, once the event is whole. A child that is never
+        // joined writes no spool line.
+        if let Some(event) = self.trace.get(open.index) {
+            self.spool_event(event, None);
+        }
     }
 
     /// Reads the clock a `rule:observability/gc-pause-is-its-own-event` event
@@ -623,13 +654,16 @@ impl Ctx {
         let ended = trace_clock();
         let took = ended.saturating_sub(started);
         self.profile_window("gc", started, ended);
-        self.trace.push(TraceEvent {
-            kind: TraceKind::Gc,
-            callee: format!("gc started={started:?} took={took:?} freed={freed}"),
-            status: None,
-            start: started,
-            end: ended,
-        });
+        self.file_event(
+            TraceEvent {
+                kind: TraceKind::Gc,
+                callee: format!("gc started={started:?} took={took:?} freed={freed}"),
+                status: None,
+                start: started,
+                end: ended,
+            },
+            None,
+        );
     }
 
     /// The span events filed so far, in the order they were filed — empty for
@@ -1328,6 +1362,16 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 mod tests {
     use super::*;
 
+    /// A `query` event's spool fields, for a test that files one.
+    fn a_query() -> crate::spool::Query {
+        crate::spool::Query {
+            driver: "postgres".to_owned(),
+            sql: "select 1".to_owned(),
+            rows: Some(1),
+            site: None,
+        }
+    }
+
     /// The event carries the rule's own spelling of the form, both timestamps
     /// and the split, and a request with both bits off does not pay for any of
     /// it.
@@ -1780,7 +1824,7 @@ mod tests {
         ctx.set_debug_flags(DebugFlags::TRACE);
         ctx.record_http("http method=GET", Duration::ZERO);
         let before = trace_clock();
-        ctx.record_query("sql=select 1", Duration::from_nanos(1));
+        ctx.record_query("sql=select 1", a_query(), Duration::from_nanos(1));
         let after = trace_clock();
         let [http, query] = ctx.trace() else {
             panic!("two events");
@@ -1804,6 +1848,7 @@ mod tests {
         // `rule:observability/a-query-is-a-trace-event`.
         ctx.record_query(
             "driver=postgres connection=main rows=2 sql=select 1",
+            a_query(),
             Duration::ZERO,
         );
         // And the transport's own span, which carries no query string, header
@@ -1937,6 +1982,7 @@ mod tests {
         ctx.close_spawn(open, None);
         ctx.record_query(
             "driver=postgres connection=main rows=1 sql=select 1",
+            a_query(),
             Duration::ZERO,
         );
         ctx.record_http(
@@ -1971,6 +2017,7 @@ mod tests {
             assert!(ctx.records_spans(), "the ceiling closed early");
             ctx.record_query(
                 "driver=postgres connection=main rows=1 sql=select 1",
+                a_query(),
                 Duration::ZERO,
             );
         }
