@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests
 ---
 
 # One binary
@@ -30,6 +30,7 @@ usually one file:
 | `nvs meta --json` | the whole `Core` registry as JSON |
 | `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs |
 | `nvs ast [--json] <file>` | parse one file and print its syntax tree |
+| `nvs debug` | read recorded requests into the debug index, and keep reading |
 
 Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
 `--data` names the data folder, where Novis keeps its own files (see
@@ -371,6 +372,45 @@ Each mutant compiles the program again, so a run costs one compile and a few tes
 mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
 program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
 tree are each an error beside it.
+
+# nvs debug
+
+    nvs debug [--once] [--tail <file>]...
+
+With `[debug] store = true` in `nvs.toml`, every request is recorded. The records are written to
+files in `debug/spool` in the data folder. `nvs debug` reads those files into one SQLite database,
+`debug/index.sqlite`, and deletes each file once it is read. Then it waits for new files.
+
+You usually do not start it yourself. A `nvs serve` in development starts `nvs debug` when
+`store` is on, and stops it when the server stops. A production server never starts it. On a
+production host, you run `nvs debug` yourself, when and where you choose.
+
+| Option | What it does |
+|---|---|
+| `--once` | read the files that are ready, delete old records, then exit |
+| `--tail <file>` | also read this log file, and each line added to it later; you can give it more than once |
+
+A `--tail` file must use the `json` log format (`[log] format = "json"`). `nvs debug` never changes
+that file. It remembers how far it read, so a restart goes on from there. When the file is rotated,
+it first reads the rest of `<file>.1`.
+
+Only one `nvs debug` runs for a data folder. A second one prints an error and exits with status
+`1`. A server that finds one running uses it.
+
+The index deletes a request's records once they are older than `[debug] index_age` (`7d`). When it
+grows past `[debug] index_max` (`1G`), the oldest requests are deleted first. A line that cannot be
+read is kept as an error record, and the lines after it are read as usual. A file that cannot be
+read is tried again later, and the other files are read in the meantime.
+
+**What a record contains.** In development, a record has the request's method, path, query,
+headers and body, and the response's status, headers and body. The values of `Authorization`,
+`Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
+as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
+program did not read is not stored. A program can read a body into a class with
+`Core\Request::jsonAs<X>()` or `postAs<X>()`. If `X` has a `secret` property and Novis cannot find
+its values in the body, the body is not stored. That is the case for a multipart form, for example.
+Every other body is stored as it was read, so a password in it is in the index. The files are in a
+folder that only your account can open. In production, a record has no headers and no body.
 
 # Profiling
 

@@ -60,6 +60,9 @@ use index::{Index, Window};
 /// It runs until you stop it. Records older than `[debug] index_age` are deleted, and so are the
 /// oldest records when the database grows past `[debug] index_max`. Only one `nvs debug` runs for
 /// a data folder at a time.
+///
+/// In development, `nvs serve` starts `nvs debug` and stops it when the server stops. If one is
+/// already running for the data folder, the server uses that one. In production, run it yourself.
 #[derive(clap::Args)]
 pub(crate) struct Args {
     /// Read the files that are ready once, then exit.

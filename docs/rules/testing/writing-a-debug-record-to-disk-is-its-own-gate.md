@@ -22,8 +22,6 @@ the sampling decision, because the spool is where they go. The unbounded `call` 
 `trace` probe bit (`rule:testing/debug-probes`).
 
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
-the predicted-not-taken branch `rule:testing/debug-probes` already pays and nothing further.
-
-**Not on disk.** `[debug] store` is read by `nvs_config::Request::debug_store`, which
-`nvs_runtime::spool::record` and `Ctx::records_spans` ask, but no request writes a record through
-`nvs_runtime::spool::record` yet, so nothing reaches the disk.
+the predicted-not-taken branch `rule:testing/debug-probes` already pays and nothing further. The gate
+sets no probe bit: `Ctx::records_spans` is the one reader besides the spool's writer, so a run with
+`store` off has the probes of a run that writes no `[debug]` block.

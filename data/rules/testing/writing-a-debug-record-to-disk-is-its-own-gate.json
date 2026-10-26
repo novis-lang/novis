@@ -1,6 +1,6 @@
 {
   "title": "`[debug] store` is off by default and can only subtract, so no run mode or log level ever turns debug records on",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/debug-mode-directive",
     "testing/debug-surface",
@@ -9,6 +9,8 @@
     "testing/the-debug-stream-reaches-the-service-through-the-disk",
     "testing/a-recorded-request-keeps-its-input-with-credentials-replaced"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-runtime/src/spool.rs",
+    "crates/nvs-cli/tests/debug_service.rs"
+  ]
 }

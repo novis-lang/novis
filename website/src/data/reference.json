@@ -101,6 +101,38 @@
           "key": "debug.mode",
           "class": "RuntimeTighten",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.store",
+          "title": "debug.store",
+          "examples": "config/debug-store",
+          "key": "debug.store",
+          "class": "RuntimeTighten",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.spool_max",
+          "title": "debug.spool_max",
+          "examples": "config/debug-spool_max",
+          "key": "debug.spool_max",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.index_age",
+          "title": "debug.index_age",
+          "examples": "config/debug-index_age",
+          "key": "debug.index_age",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:debug.index_max",
+          "title": "debug.index_max",
+          "examples": "config/debug-index_max",
+          "key": "debug.index_max",
+          "class": "System",
+          "apply": "Reload"
         }
       ]
     },
@@ -900,6 +932,19 @@
         "id": "tools:cli/nvs-test-mutate",
         "title": "nvs test --mutate",
         "examples": "tools/cli/nvs-test-mutate"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-debug",
+      "url": "/reference/cli/nvs-debug/",
+      "title": "nvs debug",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-debug",
+        "title": "nvs debug",
+        "examples": "tools/cli/nvs-debug"
       },
       "keys": []
     },

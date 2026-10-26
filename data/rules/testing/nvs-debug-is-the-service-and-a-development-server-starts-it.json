@@ -1,11 +1,13 @@
 {
   "title": "`nvs debug` runs the debug service for one data folder, and a development `nvs serve` with `[debug] store` on starts it and stops it on exit",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-ingester-runs-whether-or-not-anyone-is-looking",
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug.rs",
+    "crates/nvs-cli/tests/debug_service.rs"
+  ]
 }

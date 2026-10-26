@@ -11,6 +11,5 @@
     "crates/nvs-server/src/trace.rs",
     "crates/nvs-server/src/serve.rs",
     "crates/nvs-config/tests/directives.rs"
-  ],
-  "goal": "debug-service"
+  ]
 }
