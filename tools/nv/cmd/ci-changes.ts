@@ -74,7 +74,7 @@ export const LANES: Record<string, string[]> = {
   // none of these (`rule:packaging/a-dependency-move-proves-two-things`).
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
-    "tools/nv/cmd/gen-attribution.ts", ".github/workflows/",
+    "tools/nv/cmd/gen-attribution.ts", "viewer/package.json", "bun.lock", ".github/workflows/",
   ],
   // The website's `Core` pages and `/llms-full.txt` are rendered from the binary's registry and the
   // chapters, so either side moving can make a committed file stale. Gates `reference`.

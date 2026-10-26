@@ -26,7 +26,8 @@
 // dependency, and every package reachable the same way from each built-in component's crate
 // (`BUILT_IN_COMPONENTS`), which is compiled to wasm and embedded in the binary. The C libraries a
 // component carries prebuilt (`PREBUILT_C`) have no manifest, so their licence files are read from
-// beside the library, and so are the embedded fonts' (`FONT_DIRS`).
+// beside the library, and so are the embedded fonts' (`FONT_DIRS`). The debug viewer's runtime npm
+// packages are read from `viewer/package.json`, `bun.lock` and `node_modules` (`viewerPackages`).
 //
 // The C-dependency enumeration reads the binary's package set alone. A package counts when it
 // declares `links`, or when it build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either
@@ -286,6 +287,47 @@ const PREBUILT_C: Prebuilt[] = [
 // it came from and the licence it is under (`rule:core-classes/pdf-default-fonts`). Font data is
 // shipped and never linked, so it is not a C dependency and `deny.toml` does not see it.
 const FONT_DIRS = ["extensions/fonts"];
+
+// The debug viewer's bundle, which `nvs-cli` embeds, carries its runtime npm packages: each package this
+// manifest lists under `dependencies`, and each one those depend on, at the version `bun.lock`
+// resolves. A build-time package, such as Babel or Solid's JSX preset, is in no bundle and is not
+// listed. A package the bundler leaves out is still listed, which is the direction to err in.
+const VIEWER_MANIFEST = "viewer/package.json";
+
+interface NpmPackage {
+  name: string;
+  version: string;
+  license: string | undefined;
+  dir: string;
+}
+
+/** A `bun.lock` entry: `name@version`, its registry, its metadata, its integrity hash. */
+type LockEntry = [string, string, { dependencies?: Record<string, string> }?, string?];
+
+/** The viewer's runtime packages, from `bun.lock` and the installed `node_modules`. A package the lock
+ * does not resolve, or one whose installed version is not the lock's, stops the run. */
+function viewerPackages(): NpmPackage[] {
+  const manifest = JSON.parse(readText(join(ROOT, VIEWER_MANIFEST))) as { dependencies?: Record<string, string> };
+  // `bun.lock` is JSON with trailing commas.
+  const lock = JSON.parse(readText(join(ROOT, "bun.lock")).replace(/,(\s*[}\]])/g, "$1")) as { packages: Record<string, LockEntry> };
+  const found = new Map<string, NpmPackage>();
+  const queue = Object.keys(manifest.dependencies ?? {});
+  for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
+    if (found.has(name)) continue;
+    const entry = lock.packages[name];
+    if (!entry) throw new Fatal(`error: ${VIEWER_MANIFEST} needs ${name}, which bun.lock does not resolve. Run \`bun install\`.`);
+    const version = entry[0].slice(entry[0].lastIndexOf("@") + 1);
+    const dir = join(ROOT, "node_modules", name);
+    const meta = join(dir, "package.json");
+    const installed = isFile(meta) ? (JSON.parse(readText(meta)) as { version?: string; license?: string }) : null;
+    if (installed?.version !== version) {
+      throw new Fatal(`error: bun.lock resolves ${name} ${version}, and node_modules holds ${installed?.version ?? "nothing"}. Run \`bun install\`.`);
+    }
+    found.set(name, { name, version, license: installed.license, dir });
+    queue.push(...Object.keys(entry[2]?.dependencies ?? {}));
+  }
+  return [...found.values()];
+}
 
 interface FontRecord {
   name: string;
@@ -860,23 +902,23 @@ async function build(): Promise<string> {
     return byText.get(key)!.names;
   };
 
-  for (const pkg of packages) {
-    const label = `${pkg.name} ${pkg.version}`;
-    const expr = pkg.license;
+  // A crate or an npm package: its manifest's SPDX expression, and the license files in `dir`.
+  const addPackage = (name: string, version: string, expr: string | null | undefined, dir: string) => {
+    const label = `${name} ${version}`;
     if (!expr) {
-      // `license-file` instead of `license`: the crate's terms are not an SPDX expression at all.
+      // `license-file` instead of `license`: the package's terms are not an SPDX expression at all.
       problems.push(`${label}: no \`license\` field in its manifest`);
-      continue;
+      return;
     }
     const taken = choose(parseSpdx(expr), label);
-    components.push({ name: pkg.name, version: pkg.version, taken: taken.join(" AND "), offered: expr });
+    components.push({ name, version, taken: taken.join(" AND "), offered: expr });
 
     for (const ident of taken) {
       if (allowed.size > 0 && !allowed.has(ident)) problems.push(`${label}: ${ident} is not in deny.toml's allow list`);
     }
 
-    const [texts, crateNotices] = readLicenseFiles(dirname(pkg.manifest_path));
-    for (const [filename, text] of crateNotices) notices.push([label, filename, normalize(text)]);
+    const [texts, packageNotices] = readLicenseFiles(dir);
+    for (const [filename, text] of packageNotices) notices.push([label, filename, normalize(text)]);
 
     for (const ident of taken) {
       const text = texts.get(ident);
@@ -888,7 +930,10 @@ async function build(): Promise<string> {
       if (!knownText.has(ident)) knownText.set(ident, body);
       group(ident, body).push(label);
     }
-  }
+  };
+
+  for (const pkg of packages) addPackage(pkg.name, pkg.version, pkg.license, dirname(pkg.manifest_path));
+  for (const pkg of viewerPackages()) addPackage(pkg.name, pkg.version, pkg.license, pkg.dir);
 
   // A prebuilt C library has no manifest: its record names the licence, and its own files are the text.
   for (const lib of PREBUILT_C) {

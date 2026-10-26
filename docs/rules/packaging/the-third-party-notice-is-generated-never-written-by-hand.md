@@ -5,8 +5,11 @@ names is not attribution.
 
 The notice, `THIRD-PARTY-LICENSES.txt` at the repository root, is **generated** by
 `tools/nv/cmd/gen-attribution.ts` from the resolved dependency graph reachable from the package that ships,
-normal and build dependencies alike, reading each component's own license file from its source. Four
-properties are load-bearing:
+normal and build dependencies alike, reading each component's own license file from its source. The
+debug viewer's bundle, which the binary embeds, adds the npm packages `viewer/package.json` lists under
+`dependencies` and every package they depend on, at the versions `bun.lock` resolves, each license file
+read from the installed package. A package used only to build the bundle, such as Babel, ships in
+nothing and is not listed. Four properties are load-bearing:
 
 - **It fails closed.** An SPDX identifier with no policy, a component whose source is not fetched, a
   chosen license with no text anywhere in the tree, or an identifier missing from `deny.toml`'s allow
