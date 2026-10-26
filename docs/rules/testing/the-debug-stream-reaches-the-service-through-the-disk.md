@@ -32,8 +32,27 @@ in `development`, its input and its response,
 site id where the compiler passed one), `dump` (a `Core\Debug::dump` record's bounded tree,
 `rule:errors/record-transformations`), `log` (a log record of the request, because a development
 server logs to its terminal and the viewer has no file to read) and `dropped` (how many records the cap
-evicted). Every line carries the trace id, so the viewer joins them. A line is at most 4 MiB; a record
-that would be longer is written with its tree elided to fit, and the elision says so.
+evicted). Every line but `dropped` carries the trace id, so the viewer joins them. A line is at most
+4 MiB; a record that would be longer is written with its tree, its fields or its bodies elided to fit,
+and the elision says so. One that is still too long is counted in the next `dropped` line.
+
+Every line has `writer`, `seq` (its number among the writer's lines, from 0), `at_us` (when it was
+written, in Unix microseconds), `kind`, and `trace` (32 hex digits) on every kind but `dropped`. The
+rest is the kind's. A field marked optional is left out when it has no value, and a reader takes a
+missing optional field as absent, so a field added later still reads an older spool.
+
+| `kind` | Fields |
+|---|---|
+| `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
+| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`) |
+| `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
+| `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
+| `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
+
+A `body` has `read`, `cut`, and optional `declared` (the length the request declared), `text` (the
+bytes, when they are UTF-8) and `base64` (the bytes, when they are not). `nvs_runtime::spool::Line` is
+the one type that writes and reads a line, and `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`
+is one line of each kind as the writer writes it.
 
 **The records are at rest, so the spool is guarded like a secret.** The spool and its directory are
 created for the service's account alone, in a directory that must pass the same ownership check a
@@ -48,7 +67,10 @@ directory, and the same property makes the service a viewer for a copied-down sp
 - **Memory:** one write buffer per writer, held while the writer has an open file, and no queue
   anywhere. **Disk:** at most `spool_max` per process.
 
-**Not on disk.** Nothing writes a spool file and nothing reads one.
+**Not on disk.** `nvs_runtime::spool` is the writer, and nothing calls it yet: no request writes a
+record, and nothing reads a spool file. `nvs_runtime::spool::seal_due` is not yet called from a core's
+loop, so until it is, an open file is sealed by its writer's next record or read by the ingester
+once it is a minute old.
 
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background

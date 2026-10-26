@@ -316,15 +316,24 @@ impl Ctx {
     /// request never pays it, because the call probes read that bit and this
     /// answer is not it.
     ///
+    /// A third state answers `true` too. **The request is stored**: `[debug]
+    /// store` is in force, so its bounded span events go to the spool whatever
+    /// the head draw said
+    /// (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). It is
+    /// asked last, so a sampled or traced run never reads the configuration
+    /// for it.
+    ///
     /// The ceiling is asked here rather than beside each site, so that a filer
-    /// cannot skip it: past [`SPAN_EVENT_CEILING`] filed events both answer
-    /// `false`.
+    /// cannot skip it: past [`SPAN_EVENT_CEILING`] filed events every state
+    /// answers `false`.
     #[must_use]
     pub fn records_spans(&self) -> bool {
         // The vector holds nothing but these events — a call goes to the sink —
         // so its length is the filed-event count this ceiling is about, and no
         // second counter has to be kept true.
-        (self.trace_context.sampled() || self.debug.contains(DebugFlags::TRACE))
+        (self.trace_context.sampled()
+            || self.debug.contains(DebugFlags::TRACE)
+            || self.config().is_some_and(nvs_config::Request::debug_store))
             && self.trace.len() < SPAN_EVENT_CEILING
     }
 

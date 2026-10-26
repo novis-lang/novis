@@ -90,6 +90,14 @@ unicode-width.workspace = true
 # No new crate reaches the tree — `nvs-stdlib` already depends on this one and
 # on `uuid`.
 uuid.workspace = true
+# `src/spool.rs`'s `Line` is the one type the debug spool's writer serializes
+# and `nvs debug`'s ingester deserializes
+# (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`), so
+# the two sides cannot disagree about a field. No new crate reaches the tree:
+# `nvs-config` names `serde`, and `nvs-render` and `nvs-stdlib` name
+# `serde_json`.
+serde.workspace = true
+serde_json.workspace = true
 
 # The terminal profile (`rule:tooling/the-terminal-profile-resolves-once`): how wide the controlling terminal is has no
 # `std` spelling on either platform, and `rule:security/capability-check-at-the-door`

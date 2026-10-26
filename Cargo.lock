@@ -3681,6 +3681,8 @@ dependencies = [
  "nvs-render",
  "nvs-repo",
  "rand 0.10.3",
+ "serde",
+ "serde_json",
  "subtle",
  "toml",
  "unicode-segmentation",

@@ -241,6 +241,7 @@ pub mod routes;
 pub mod script;
 pub mod sequence;
 pub mod source;
+pub mod spool;
 pub mod sse;
 pub mod stream;
 mod string;
