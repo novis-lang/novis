@@ -1,0 +1,60 @@
+<?nvs
+// Shows a JSON page and the test that `nvs debug to-test` prints for one request to it.
+use Core\Http\Method;
+use Core\Test;
+
+class Orders
+{
+    #[Core\Route(path: '/orders/{id}', method: Method::Get, name: 'Orders::show')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): void
+    {
+        Core\Response::json({ id: $id, status: 'paid', total: 4500 });
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'Not found.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+// This class is the output of `nvs debug to-test 0af7651916cd43dd8448eb211c80319c`.
+// `nvs test` runs it. The recorded body had spaces, and the test still passes.
+class GetOrders70af76519Test
+{
+    #[Test]
+    public function givesTheRecordedResponse(): void
+    {
+        array<string> $headers = [
+            'host' => 'localhost:8080',
+            'user-agent' => 'curl/8.9.1',
+            'accept' => '*/*',
+        ];
+        var $response = Test::request(Method::Get, '/orders/7', { headers: $headers });
+
+        Test::assertEquals($response->status(), 200);
+        Test::assertEquals($response->header('content-type'), 'application/json');
+        Test::assertEquals($response->json(), Core\Json::decode('{ "id": 7, "status": "paid", "total": 4500 }'));
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `nvs run` sends the same request once and prints the response.
+    var $response = Test::request(Method::Get, '/orders/7');
+    echo $response->status(), ' ', $response->body(), "\n";
+}

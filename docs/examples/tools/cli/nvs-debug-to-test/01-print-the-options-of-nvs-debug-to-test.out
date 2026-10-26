@@ -1,0 +1,9 @@
+Print a test that sends a recorded request again and checks the response.
+...
+Options:
+      --span <SPAN_ID>
+          The span id of the request. You need it only when several requests have the same trace id
+
+      --write <FILE>
+          Write the test to this new file. If the file exists, nothing is written
+...

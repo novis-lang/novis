@@ -1,0 +1,64 @@
+<?nvs
+// Shows the test that `nvs debug to-test` prints for a request with an `Authorization` header.
+use Core\Http\Method;
+use Core\Test;
+
+class Orders
+{
+    #[Core\Route(path: '/orders', method: Method::Post, name: 'Orders::create')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): void
+    {
+        Core\Response::setStatus(201);
+        Core\Response::json({ id: 8, status: 'open' });
+    }
+}
+
+// This gate only checks that the request has an `Authorization` header.
+// A real gate also checks the token.
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return Core\Request::header('Authorization') != null;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'Not allowed.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+// This class is the output of `nvs debug to-test 4bf92f3577b34da6a3ce929d0e0e4736`.
+// The server did not record the token, so the test sends the text `redacted`.
+class PostOrders4bf92f35Test
+{
+    #[Test]
+    public function givesTheRecordedResponse(): void
+    {
+        array<string> $headers = [
+            'host' => 'localhost:8080',
+            // This value was removed when the request was recorded. Put a test credential here.
+            'authorization' => 'redacted',
+            'content-type' => 'application/json',
+        ];
+        var $response = Test::request(Method::Post, '/orders', { headers: $headers, body: '{"item":"tea","quantity":2}' });
+
+        Test::assertEquals($response->status(), 201);
+        Test::assertEquals($response->header('content-type'), 'application/json');
+        Test::assertEquals($response->json(), Core\Json::decode('{"id":8,"status":"open"}'));
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // Without the header, the gate stops the request. This prints `403 Not allowed.`.
+    var $response = Test::request(Method::Post, '/orders');
+    echo $response->status(), ' ', $response->body(), "\n";
+}
