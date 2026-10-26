@@ -55,7 +55,7 @@ stages:
         rules: [testing/nvs-debug-is-the-service-and-a-development-server-starts-it, testing/writing-a-debug-record-to-disk-is-its-own-gate, testing/debug-probes]
   - id: 9
     title: a derived JSON decoder fills a `secret` property, and the recorded body replaces it
-    status: open
+    status: done
     context: [crates/nvs-types/src/derive.rs, crates/nvs-diagnostics/src/code/types.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-cli/tests/request.rs, docs/rules/security/derived-codec-qualifiers.md, docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md]
     extra:
       context:
@@ -231,6 +231,19 @@ Trade-offs: a class with a `secret` property has a decoder and no usable encoder
 encode call site at compile time; nothing at run time beyond the replacement stage 7 built.
 `rule:security/derived-codec-qualifiers` and
 `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` are amended in stage 9.
+
+**The encode refusal is a compile error where the type is visible and a throw where it is not.**
+This session's call in stage 9, written into `rule:security/derived-codec-qualifiers`. The checker
+records the argument of `Core\Json::encode` and `Core\Response::json` (`ENCODERS` in
+`crates/nvs-types/src/derive.rs`) and, after the walk, reports `E0462` when its type reaches, through
+arrays, shapes, unions and fields, a `#[Json\Derive]` class whose `secret` property is a field. An
+array literal is typed `array<mixed>`, a bag field such as an outbound request's `json` is `mixed`, and
+the queue, the JWT, SSE and test encoders take one of those, so the encoder's class arm in
+`nvs_stdlib::json` also throws a `LogicError` naming the property, by the descriptor's `secret` bits.
+A `secret string` that a request decoder fills without `tainted` is `E0810`, as a plain `string` is,
+because `unqualified_text` now counts a `secret` atom without `tainted`. Trade-offs: one type
+walk per encode call at compile time; per object encoded, one scan of its slot bits when its class has
+a `secret` slot, and nothing otherwise beyond one predicted branch.
 
 **Each event is a spool line as it is filed, and a dump is one `dump` line and no `log` line.** This
 session's calls. `Ctx::file_event` writes the `query`, `http` and `gc` events as each is filed and a
@@ -421,11 +434,11 @@ does not compile. A recorded request body read through `jsonAs` or `postAs` keep
 **Split:** the session lands the checker change and the rule edits. A writing subagent then updates
 the conformance cases and the examples that pinned the old refusal, as one batch.
 
-- [ ] `codec_field` keeps a `secret` property of a `#[Json\Derive]` class as a field the decoder fills, and `#[Db\Derive]` still reports `E0462` at the declaration (`rule:security/derived-codec-qualifiers`). `crates/nvs-types/src/derive.rs:2493`
-- [ ] Every call that encodes such a class, or a value whose type reaches it, is `E0462` at the call, naming the property. Its card and message are rewritten for that site. `crates/nvs-diagnostics/src/code/types.rs:530`, `crates/nvs-stdlib/src/json.rs:1`
-- [ ] The conformance case that pinned the declaration refusal is split: a `#[Json\Derive]` class with a `secret` property decodes it, and encoding it does not compile. `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst:1`
-- [ ] `LOGIN` decodes `$password` instead of skipping it. A served test reads a whole JSON document through `jsonAs` and a form through `postAs`, and no spool file keeps a byte of the password. `crates/nvs-cli/tests/request.rs:531`
-- [ ] `rule:security/derived-codec-qualifiers` and `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` say what is now true, with the new tests in `guardedBy`. The `nvs debug` CLI section says a `secret` field is decoded and replaced. `docs/rules/security/derived-codec-qualifiers.md:24`, `docs/reference/tools/10-cli.md:410`
+- [x] `codec_field` keeps a `secret` property of a `#[Json\Derive]` class as a field the decoder fills, and `#[Db\Derive]` still reports `E0462` at the declaration (`rule:security/derived-codec-qualifiers`). `crates/nvs-types/src/derive.rs:2493`
+- [x] Every call that encodes such a class, or a value whose type reaches it, is `E0462` at the call, naming the property. Its card and message are rewritten for that site. `crates/nvs-diagnostics/src/code/types.rs:530`, `crates/nvs-stdlib/src/json.rs:1`
+- [x] The conformance case that pinned the declaration refusal is split: a `#[Json\Derive]` class with a `secret` property decodes it, and encoding it does not compile. `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst:1`
+- [x] `LOGIN` decodes `$password` instead of skipping it. A served test reads a whole JSON document through `jsonAs` and a form through `postAs`, and no spool file keeps a byte of the password. `crates/nvs-cli/tests/request.rs:531`
+- [x] `rule:security/derived-codec-qualifiers` and `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` say what is now true, with the new tests in `guardedBy`. The `nvs debug` CLI section says a `secret` field is decoded and replaced. `docs/rules/security/derived-codec-qualifiers.md:24`, `docs/reference/tools/10-cli.md:410`
 
 ### 8. the goal is verified once, and every failure is fixed
 

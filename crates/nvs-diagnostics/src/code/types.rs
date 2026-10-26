@@ -524,13 +524,14 @@ codes! {
         "The type of a property in a class with `#[Json\\Derive]` or `#[Db\\Derive]` must match \
          its constructor parameter. Give the property and the parameter the same type.",
     );
-    /// A `secret` property on a class carrying `#[Json\Derive]`. `rule:security/derived-codec-qualifiers`
-    /// moves `rule:security/secret-qualifier`'s refusal from wherever the value reached the encoder to
-    /// the declaration that put it on the wire contract.
+    /// `rule:security/derived-codec-qualifiers`'s `secret` property of a derived codec: a call
+    /// that encodes a `#[Json\Derive]` class reaching one, and the declaration of one on a
+    /// `#[Db\Derive]` class, whose row is read and written by the same derive.
     pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462").card(
-        "A class with `#[Json\\Derive]` or `#[Db\\Derive]` cannot have a `secret` property, \
-         because a secret value is never written out. Add `skip: true` to the property's \
-         `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute to leave it out.",
+        "A `secret` value is never written out. A `#[Json\\Derive]` class can have a `secret` \
+         property, and decoding fills it. Encoding that class does not compile. A \
+         `#[Db\\Derive]` class cannot have a `secret` property. To leave the property out, add \
+         `skip: true` to its `#[Json\\Field(...)]` or `#[Db\\Field(...)]` attribute.",
     );
     /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-property-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.

@@ -978,6 +978,7 @@ pub fn build_signatures(
     let mut placeholder_row_sites = Vec::new();
     let mut placeholder_json_sites = Vec::new();
     let mut placeholder_decode_sites = Vec::new();
+    let mut placeholder_encode_sites = Vec::new();
     // Same again: `rule:attributes/structural-retrieval`'s retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
@@ -1010,6 +1011,7 @@ pub fn build_signatures(
             row_sites: &mut placeholder_row_sites,
             json_sites: &mut placeholder_json_sites,
             decode_sites: &mut placeholder_decode_sites,
+            encode_sites: &mut placeholder_encode_sites,
             diags: &mut *diags,
             anon_fn_seq: 0,
             refused_exprs: 0,

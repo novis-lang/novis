@@ -1179,7 +1179,11 @@ fn codec_ty(
         Ty::Decimal => Erased::wire(CodecTy::Decimal),
         // A `tainted` string is still a string on the wire; `rule:security/derived-codec-qualifiers` makes
         // the qualifier a call-site question, not a decoder one.
-        Ty::String | Ty::TaintedString => Erased::wire(CodecTy::Str),
+        // `secret` does not exist at run time either: a decoder fills it as
+        // text, and the encoder refuses it by the class's own `secret` bits.
+        Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString => {
+            Erased::wire(CodecTy::Str)
+        }
         // `rule:types/bytes`, under the same call-site reading of the
         // qualifier. It reaches a wire through a column alone — [`db_reachable`]
         // admits it and [`json_reachable`] does not — so the erasure is shared
@@ -1920,6 +1924,131 @@ pub(crate) fn check_decode_sites(
     }
 }
 
+/// One call that writes its argument as a JSON document, held until every
+/// deriving class in the program has recorded its fields.
+///
+/// [`DecodeSite`]'s reason: the class the argument's type names may be declared
+/// in a file the walk has not reached yet.
+#[derive(Debug)]
+pub struct EncodeSite {
+    /// The member that encodes, as `Class::member`.
+    member: String,
+    /// The argument's static type, walked into every class it reaches.
+    ty: TypeId,
+    /// Where the argument is written.
+    span: Span,
+}
+
+/// The members whose argument at the position named is written as a JSON
+/// document. A value typed `mixed`, and every other encoder, is refused by the
+/// encoder itself at run time (`nvs_stdlib::json`'s class arm).
+const ENCODERS: &[(&str, &str, usize)] =
+    &[(r"Core\Json", "encode", 0), (r"Core\Response", "json", 0)];
+
+/// Records the argument of a call [`ENCODERS`] lists, from the static call
+/// path in `crate::expr::calls`.
+pub(crate) fn record_encode_site(
+    qname: &QName,
+    member: &str,
+    args: &nvs_syntax::ast::CallArgs,
+    arg_types: &[TypeId],
+    sites: &mut Vec<EncodeSite>,
+) {
+    let owner = qname.to_string();
+    let Some(&(_, _, at)) = ENCODERS
+        .iter()
+        .find(|(class, name, _)| *class == owner && *name == member)
+    else {
+        return;
+    };
+    let nvs_syntax::ast::CallArgs::List(list) = args else {
+        return;
+    };
+    if let (Some(arg), Some(&ty)) = (list.get(at), arg_types.get(at)) {
+        sites.push(EncodeSite {
+            member: format!("{owner}::{member}"),
+            ty,
+            span: arg.value.span,
+        });
+    }
+}
+
+/// `rule:security/derived-codec-qualifiers`'s encode half: a call that writes a
+/// value whose type reaches a `#[Json\Derive]` class with a `secret` property
+/// does not compile, and the report names the property.
+///
+/// The derived decoder fills that property, so the class has no usable
+/// encoder. A class that wrote its own encoder decides for itself and is not
+/// walked into. One report per call and property.
+pub(crate) fn check_encode_sites(
+    sites: &[EncodeSite],
+    fields: &[CodecFieldSite],
+    signatures: &crate::signatures::SignatureTable,
+    interner: &crate::ty::TypeInterner,
+    diags: &mut Diagnostics,
+) {
+    for site in sites {
+        let mut seen = std::collections::BTreeSet::<String>::new();
+        let mut classes = Vec::new();
+        classes_reached(site.ty, interner, &mut classes);
+        while let Some(name) = classes.pop() {
+            let class = name.to_string();
+            let writes_its_encoder = signatures
+                .get(&name)
+                .is_some_and(|sig| sig.methods.contains_key(ENCODE));
+            if !seen.insert(class.clone()) || writes_its_encoder {
+                continue;
+            }
+            for field in fields
+                .iter()
+                .filter(|field| field.format == Format::Json && field.class == class)
+            {
+                classes_reached(field.declared, interner, &mut classes);
+                if !crate::expr::quals::contains_secret(field.declared, interner) {
+                    continue;
+                }
+                let property = &field.property;
+                let member = &site.member;
+                diags.report(
+                    Diagnostic::error(
+                        code::E_DERIVE_SECRET_FIELD,
+                        format!(
+                            "`{member}` cannot encode `{class}`, because `{class}::${property}` \
+                             is `secret`"
+                        ),
+                    )
+                    .with_primary(site.span, "encoded here")
+                    .with_secondary(field.span, "declared `secret` here")
+                    .with_help(
+                        "a `secret` value is never written to a document. Encode a class \
+                         without the property, or write `#[Json\\Field(skip: true)]` on it",
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// Every class label a value of `ty` can hold: the class itself, an array's
+/// elements, a shape's fields, and each arm of a union.
+fn classes_reached(ty: TypeId, interner: &crate::ty::TypeInterner, out: &mut Vec<QName>) {
+    match interner.get(ty) {
+        Ty::Class(name, _) => out.push(name.clone()),
+        Ty::Array(element) => classes_reached(*element, interner, out),
+        Ty::Shape(fields) => {
+            for field in fields {
+                classes_reached(field.ty, interner, out);
+            }
+        }
+        Ty::Union(arms) => {
+            for &arm in arms {
+                classes_reached(arm, interner, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Whether a peer's octets — or, for `crate::expr::quals`, text out of
 /// `mixed` — can land in `declared` without the qualifier: a
 /// `string` or a `bytes`, or anything built out of one — an array of either,
@@ -1927,13 +2056,13 @@ pub(crate) fn check_decode_sites(
 /// union, since the value may arrive as that arm; or a field of a nested shape,
 /// which receives the same document one level down.
 ///
-/// `secret` never reaches here — [`codec_field`] refuses a `secret` property at
-/// its declaration — and the tainted forms are atoms of their own
+/// `secret` is the other qualifier bit, so a `secret string` without `tainted`
+/// answers `true` here too. The tainted forms are atoms of their own
 /// (`rule:security/tainted-qualifier`), so an `int`, a `decimal`, an enum or a
 /// nested class answers `false` and is walked instead.
 pub(crate) fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(declared) {
-        Ty::String | Ty::Bytes => true,
+        Ty::String | Ty::Bytes | Ty::SecretString | Ty::SecretBytes => true,
         Ty::Array(element) => unqualified_text(*element, interner),
         Ty::Union(arms) => arms.iter().any(|arm| unqualified_text(*arm, interner)),
         Ty::Shape(fields) => fields
@@ -2108,6 +2237,8 @@ fn json_reachable(
         | Ty::Decimal
         | Ty::String
         | Ty::TaintedString
+        | Ty::SecretString
+        | Ty::SecretTaintedString
         | Ty::Mixed
         | Ty::Error
         | Ty::True
@@ -2488,9 +2619,11 @@ fn codec_field(
         return FieldOutcome::Refused;
     }
     let declared = crate::lower::lower_optional_type(p.ty, ctx, env);
-    // `rule:security/derived-codec-qualifiers`: `rule:security/secret-qualifier`'s refusal, moved from wherever the value reached
-    // the encoder to the declaration that put it on the wire contract.
-    if is_secret(declared, env) {
+    // `rule:security/derived-codec-qualifiers`: a row is read and written by the
+    // same derive, so a `secret` property is refused where it is declared. A
+    // JSON field is kept: its decoder fills it, and [`check_encode_sites`]
+    // refuses every call that would encode it.
+    if format == Format::Db && is_secret(declared, env) {
         env.diags.report(
             Diagnostic::error(
                 code::E_DERIVE_SECRET_FIELD,
@@ -2498,7 +2631,8 @@ fn codec_field(
             )
             .with_primary(p.name, "a `secret` value has no wire form")
             .with_help(format!(
-                "a `secret` value is never encoded. Write `{skip}` to leave the property out"
+                "a `secret` value is never written to a row. Write `{skip}` to leave the \
+                 property out"
             )),
         );
         return FieldOutcome::Refused;

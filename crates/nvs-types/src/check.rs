@@ -182,6 +182,9 @@ pub fn check_program_loaded(
     // `jsonAs<T>` wrote, accumulated for the same reason — see
     // `crate::derive::check_decode_sites`.
     let mut decode_sites = Vec::new();
+    // The encode half of the same question: a call that writes a class whose
+    // decoder fills a `secret` property. See `crate::derive::check_encode_sites`.
+    let mut encode_sites = Vec::new();
     for file in files {
         let mut env = Env {
             symbols: &module.symbols,
@@ -206,6 +209,7 @@ pub fn check_program_loaded(
             row_sites: &mut row_sites,
             json_sites: &mut json_sites,
             decode_sites: &mut decode_sites,
+            encode_sites: &mut encode_sites,
             diags: &mut *diags,
             anon_fn_seq,
             refused_exprs: 0,
@@ -272,6 +276,9 @@ pub fn check_program_loaded(
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.
     crate::derive::check_decode_sites(&decode_sites, &codec_sites, interner, diags);
+    // And the call that writes such a class back out, which does not compile
+    // once its decoder fills a `secret` property.
+    crate::derive::check_encode_sites(&encode_sites, &codec_sites, &signatures, interner, diags);
     // `rule:types/type-test`'s `is callable(int): string` asks which of the
     // program's anonymous functions satisfy a written signature, which is the same
     // deferral one more time: the `is` and the literal it answers about need

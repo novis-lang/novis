@@ -1387,6 +1387,20 @@ impl Stack {
                 desc.name()
             )));
         }
+        // `rule:security/derived-codec-qualifiers`: a derived decoder fills a
+        // `secret` property, and no encoder writes one. The checker refuses the
+        // call it can see. This is the value it cannot: one typed `mixed`, or
+        // handed to an encoder that takes a bag. A class with no `secret` slot
+        // pays one scan of its slot bits.
+        if desc.has_secret_field()
+            && let Some(field) = desc.codec().iter().find(|f| desc.field_is_secret(f.slot))
+        {
+            return Err(refuse(format!(
+                "an instance of `{}` cannot be encoded, because its property `${}` is `secret`",
+                desc.name(),
+                desc.field_name(field.slot).unwrap_or(&field.key)
+            )));
+        }
         sink.open_object();
         self.frames.push(Frame {
             id,

@@ -1977,7 +1977,7 @@ matches nothing pays nothing.
 
 <a id="security-derived-codec-qualifiers"></a>
 
-## A derived codec adds no qualifier rule, and a `secret` field is refused at the declaration rather than silently omitted
+## A derived codec adds no qualifier rule, a JSON decoder fills a `secret` property, and a call that encodes one does not compile
 
 `rule:security/derived-codec-qualifiers`
 
@@ -2005,11 +2005,26 @@ document is admitted, and every text field it fills must be `tainted` (`E0810`),
 own `string` fills a plain field. Admitting the document launders nothing, because the class it
 answers carries the mark in each field that receives text.
 
-A `secret` property on a class carrying a derive attribute is a **compile error at the declaration**,
-with skipping the field as the stated fix. This adds no sink — encoding was already one
-([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)) — it moves the report from wherever the value happened to reach
-the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
-with a written one.
+A `secret` property on a `#[Json\Derive]` class is a field its decoder fills, so a login form read
+through `jsonAs` or `postAs` lands its password in a `secret tainted string` and the debug record
+replaces it ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)). Encoding
+was already a sink ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), and it stays one: a call of
+`Core\Json::encode` or `Core\Response::json` whose argument's type reaches such a class, through an
+array, a shape, a union or another field, is `E0462` at the call, naming the property. A value the
+checker cannot see through, one typed `mixed` or handed to an encoder in a bag, is refused by the
+encoder when it reaches the object, by the class's `secret` bits, with a `LogicError` naming the
+property. A class that writes its own encoder decides for itself, and skipping the property keeps the
+class encodable. So such a class has a decoder and no usable derived encoder.
+
+A `#[Db\Derive]` class keeps the refusal at the declaration: a row is read and written by the same
+derive, so a `secret` property there is `E0462` where it is written, with skipping it as the fix.
+
+Trade-offs: one walk of the argument's type per encode call at compile time, and at run time one scan
+of a class's slot bits per object encoded whose class has a `secret` property.
+
+**Declined:** keeping the declaration refusal for JSON. It made the replacement in a recorded body
+unreachable, because no derived decoder could fill a `secret` property, so a password decoded with
+`jsonAs` sat in a plain `tainted string`.
 
 <sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 

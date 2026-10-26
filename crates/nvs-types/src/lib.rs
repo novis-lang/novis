@@ -524,6 +524,9 @@ pub(crate) struct Env<'a> {
     /// class they name — so it can only be answered once all of them have
     /// recorded their fields. See [`crate::derive::check_decode_sites`].
     pub decode_sites: &'a mut Vec<crate::derive::DecodeSite>,
+    /// Every call that writes its argument as a JSON document, for
+    /// [`Self::decode_sites`]' reason. See [`crate::derive::check_encode_sites`].
+    pub encode_sites: &'a mut Vec<crate::derive::EncodeSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many `rule:types/anonymous-function` `fn` anonymous functions this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

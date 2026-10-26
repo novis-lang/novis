@@ -722,6 +722,10 @@ pub(crate) fn infer_static_call(
         // `Core\Json::encode` declares `mixed` too, and what it walks is the
         // whole value. See [`reject_secret_encoded_argument`].
         reject_secret_encoded_argument(owner, name, args, &arg_types, env);
+        // The same sink one class deeper: a `#[Json\Derive]` class whose decoder
+        // fills a `secret` property. Asked after the walk, once every class has
+        // recorded its fields. See [`crate::derive::check_encode_sites`].
+        crate::derive::record_encode_site(owner, name, args, &arg_types, env.encode_sites);
         // `rule:security/secret-sinks-refuse`'s log sink, the fourth — and the one whose open type is
         // that rule's own decision rather than a member's convenience, which is
         // why it takes the `scope` the others do not: `fields` stays

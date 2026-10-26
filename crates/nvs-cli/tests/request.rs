@@ -528,14 +528,13 @@ fn a_chunked_form_past_upload_total_fails_every_post() {
     );
 }
 
-/// A login handler whose class has a `secret` property. `#[Json\Derive]` cannot decode into a
-/// `secret` property (E0462), so the property is skipped and the class only reaches it.
+/// A login handler whose class has a `secret` property, which `jsonAs` and `postAs` fill.
 const LOGIN: &str = "<?nvs\n\
     #[Core\\Json\\Derive]\n\
     class Login\n{\n    public tainted string $user;\n\n    \
-    #[Core\\Json\\Field(skip: true)]\n    public secret string $password;\n\n    \
-    public function constructor(tainted string $user)\n    {\n        \
-    $this->user = $user;\n        $this->password = '';\n    }\n}\n\n\
+    public secret tainted string $password;\n\n    \
+    public function constructor(tainted string $user, secret tainted string $password)\n    {\n        \
+    $this->user = $user;\n        $this->password = $password;\n    }\n}\n\n\
     if (Core\\Request::path() == '/login/form') {\n    \
     var $form = Core\\Request::postAs<Login>();\n} else {\n    \
     var $json = Core\\Request::jsonAs<Login>();\n}\n\
@@ -555,9 +554,9 @@ fn post_to(path: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
 
 /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`: a served
 /// `jsonAs<X>()` and `postAs<X>()`, where `X` reaches a `secret` property, under `[debug] store`
-/// in `development`. A JSON body the decoder can walk is recorded as sent. A body whose values it
-/// cannot find, a document cut short or a multipart form, is recorded as withheld, and no byte of
-/// it reaches a spool file.
+/// in `development`. A JSON document and a urlencoded form the decoder reads whole are recorded
+/// with the password replaced. A body whose values it cannot find, a document cut short or a
+/// multipart form, is recorded as withheld. No byte of any password reaches a spool file.
 #[test]
 fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
     let served = Served::serving(
@@ -565,8 +564,15 @@ fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
         LOGIN,
         Some("[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n"),
     );
-    let sent = br#"{"user":"ada@example.com"}"#;
+    let sent = br#"{"user":"ada@example.com","password":"json-secret-5"}"#;
     let answer = served.answer_to(&post_to("/login/json", "application/json", sent));
+    assert!(answer.ends_with("signed in"), "{answer}");
+    let urlencoded = b"user=ada%40example.com&password=form-secret-6";
+    let answer = served.answer_to(&post_to(
+        "/login/form",
+        "application/x-www-form-urlencoded",
+        urlencoded,
+    ));
     assert!(answer.ends_with("signed in"), "{answer}");
     let cut = served.answer_to(&post_to(
         "/login/json",
@@ -584,7 +590,7 @@ fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
     ));
     assert!(form.ends_with("signed in"), "{form}");
 
-    let (raw, requests) = served.spooled(3);
+    let (raw, requests) = served.spooled(4);
     let body_of = |path: &str, withheld: bool| {
         requests
             .iter()
@@ -602,7 +608,15 @@ fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
     };
     let recorded = body_of("/login/json", false);
     assert!(recorded.read && !recorded.withheld, "{recorded:?}");
-    assert_eq!(recorded.bytes().as_deref(), Some(&sent[..]));
+    assert_eq!(
+        recorded.bytes().as_deref(),
+        Some(&br#"{"user":"ada@example.com","password":"[redacted]"}"#[..])
+    );
+    let recorded = body_of("/login/form", false);
+    assert_eq!(
+        recorded.bytes().as_deref(),
+        Some(&b"user=ada%40example.com&password=%5Bredacted%5D"[..])
+    );
     for path in ["/login/json", "/login/form"] {
         let withheld = body_of(path, true);
         assert!(withheld.read, "a body the program read is recorded as read");
@@ -611,7 +625,14 @@ fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
             "a withheld body has bytes: {withheld:?}"
         );
     }
-    for value in ["cut-user-1", "cut-secret-2", "form-user-3", "form-secret-4"] {
+    for value in [
+        "cut-user-1",
+        "cut-secret-2",
+        "form-user-3",
+        "form-secret-4",
+        "json-secret-5",
+        "form-secret-6",
+    ] {
         assert!(
             !raw.windows(value.len())
                 .any(|window| window == value.as_bytes()),

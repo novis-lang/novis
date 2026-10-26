@@ -8,8 +8,8 @@ A property may be a number, a `string`, a `bool`, an enum, an inline shape, an `
 is `E0756`. An enum case is written in JSON as its number. A `float` is written with a fraction, so
 `2` in a `float` property encodes as `2.0`.
 
-A `secret` property is not allowed in the document, and is `E0462`. A `lateinit` property is `E0463`.
-Both work with `#[Core\Json\Field(skip: true)]`. A property with no constructor parameter of the same name is
+A `secret` property is decoded like any other property. Encoding its class does not compile, and is
+`E0462`. A `lateinit` property is `E0463`. `#[Core\Json\Field(skip: true)]` leaves either one out. A property with no constructor parameter of the same name is
 `E0460`. A parameter of another type is `E0461`. `#[Core\Json\Field]` has the options `name` and
 `skip` only, and any other option is `E0464`. `skip: false` is the same as no `skip`.
 

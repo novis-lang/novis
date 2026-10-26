@@ -1219,6 +1219,7 @@ mod tests {
             row_sites: &mut Vec::new(),
             json_sites: &mut Vec::new(),
             decode_sites: &mut Vec::new(),
+            encode_sites: &mut Vec::new(),
             diags: &mut diags,
             anon_fn_seq: 0,
             refused_exprs: 0,

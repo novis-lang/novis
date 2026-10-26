@@ -1,5 +1,5 @@
 {
-  "title": "A derived codec adds no qualifier rule, and a `secret` field is refused at the declaration rather than silently omitted",
+  "title": "A derived codec adds no qualifier rule, a JSON decoder fills a `secret` property, and a call that encodes one does not compile",
   "status": "shipped",
   "seeAlso": [
     "security/secret-sinks-refuse",
@@ -8,6 +8,8 @@
   ],
   "guardedBy": [
     "tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst",
-    "crates/nvs-types/tests/derive.rs"
+    "tests/conformance/core/a-json-derive-decodes-a-secret-property-and-refuses-to-encode-it-at-run-time.nvst",
+    "crates/nvs-types/tests/derive.rs",
+    "crates/nvs-cli/tests/request.rs"
   ]
 }

@@ -407,9 +407,10 @@ headers and body, and the response's status, headers and body. The values of `Au
 `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
 as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
 program did not read is not stored. A program can read a body into a class with
-`Core\Request::jsonAs<X>()` or `postAs<X>()`. If `X` has a `secret` property and Novis cannot find
-its values in the body, the body is not stored. That is the case for a multipart form, for example.
-Every other body is stored as it was read, so a password in it is in the index. The files are in a
+`Core\Request::jsonAs<X>()` or `postAs<X>()`. The decoder fills each `secret` property of `X`, and
+the stored body has `[redacted]` in place of that value. If Novis cannot find those values in the
+body, the body is not stored. That is the case for a multipart form, for example. A body the program
+read another way is stored as it was read, so a password in it is in the index. The files are in a
 folder that only your account can open. In production, a record has no headers and no body.
 
 # Profiling
