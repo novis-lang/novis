@@ -21,13 +21,12 @@ pub(crate) const CSS: &[u8] = include_bytes!("../../../viewer/dist/viewer.css");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     /// The embedded bytes are the committed files, so a build carries the
     /// bundle `bun nv viewer --check` held to the source.
     #[test]
     fn the_embedded_files_are_the_committed_ones() {
-        let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../viewer/dist");
+        let dist = nvs_repo::path("viewer/dist");
         for (name, embedded) in [("viewer.js", JS), ("viewer.css", CSS)] {
             let committed =
                 std::fs::read(dist.join(name)).expect("the committed bundle is on disk");
