@@ -59,7 +59,7 @@ const PANELS = {
   ].join("\n"),
 };
 
-const markup = (o: { replay: string; recording: string }) => replayMarkup({ ...o, title: "01-name.nvs", install: "/install/editor/", where: "fixture" });
+const markup = (o: { replay: string; recording: string }) => replayMarkup({ ...o, title: "01-name.nvs", install: "/tools/editor/", where: "fixture" });
 const replay = () => markup({ replay: REPLAY, recording: RECORDING });
 
 // Two of Starlight's own rules, in its layers: every box is border-box, and the page's text adds a margin

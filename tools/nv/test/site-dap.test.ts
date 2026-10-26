@@ -88,7 +88,7 @@ describe("a .dap", () => {
     expect(data.steps[0]).toBe("Set a breakpoint on line 9 and start debugging. The program stops on line 9.");
     expect(data.steps[1]).toBe("Press F11 to step into the call. The program stops on line 4 in `Shop::total`. `$count` is `3` and `$price` is `4`.");
     expect(data.steps[4]).toBe("Press F5 to continue. The program runs to its end. It ends with exit code `0`.");
-    const html = frames.dapMarkup({ dap: SHOP_DAP, recording: SHOP_OUT, text: SHOP, title: "01-shop.nvs", install: "/install/editor/", where: P });
+    const html = frames.dapMarkup({ dap: SHOP_DAP, recording: SHOP_OUT, text: SHOP, title: "01-shop.nvs", install: "/tools/editor/", where: P });
     expect(html).toContain('<div class="nv-line nv-break"><span class="nv-ln">9</span>');
     expect(html).toContain("How it looks in your debugger");
     expect(() => frames.dapOf({ dap: `${SHOP_DAP}next\n`, recording: SHOP_OUT, text: SHOP, title: "01-shop.nvs", where: P })).toThrow("step 5: the program has already ended");

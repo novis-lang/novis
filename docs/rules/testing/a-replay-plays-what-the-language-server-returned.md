@@ -18,7 +18,7 @@ and which are imitated, and a page never presents the replay as VS Code's exact 
 
 A replay is one panel with a look of its own, tinted with the site's accent, that holds everything
 in order: a header "How it looks in your editor", a notice that says it was recorded from the editor
-extension, that the reader cannot type in it, and that links to the editor install page, then the
+extension, that the reader cannot type in it, and that links to the editor page under Tools, then the
 editor window, then one button, then a collapsed section that gives the same steps as text, for
 screen readers and search. The window has a title bar with the snippet's file name, and a bar along
 its bottom that shows how far the replay has played. The panel's root carries Starlight's

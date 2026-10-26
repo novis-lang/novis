@@ -1,7 +1,7 @@
 ---
 /**
  * Where to go next, in the order a reader learns: install, the tour, then the
- * four areas of the site (AREAS in config/site.mjs). Numbered cards, three
+ * five areas of the site (AREAS in config/site.mjs). Numbered cards, three
  * columns from 64rem, two from 40rem, one below.
  */
 import { Icon } from '@astrojs/starlight/components'
@@ -14,6 +14,7 @@ const text: Record<string, { icon: string; text: string }> = {
   '/guides/': { icon: 'puzzle', text: 'Example programs, and how to use each feature in real code.' },
   '/syntax/': { icon: 'pencil', text: 'How to write Novis: types, classes, errors and more.' },
   '/reference/': { icon: 'open-book', text: 'Every class and method of the standard library, and every command.' },
+  '/tools/': { icon: 'setting', text: 'The editor extension, the test runner, the debugger and the other tools.' },
   '/in-depth/': { icon: 'magnifier', text: 'The ideas behind the language, and the decisions that shaped it.' },
 }
 

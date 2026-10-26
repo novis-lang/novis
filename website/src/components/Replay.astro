@@ -3,7 +3,7 @@
  * A recorded editor session that ends on one snippet from website/snippets/,
  * played like the VS Code extension. `src` names the snippet:
  *
- *   <Replay src="install/property-key-completion.nvs" />
+ *   <Replay src="tools/editor/property-key-completion.nvs" />
  *
  * The `.replay` beside the snippet lists the steps, and the `.replay.out`
  * beside it is what `nvs lsp` returned for them. `tools/nv/cmd/site.ts`
@@ -67,7 +67,7 @@ const out = replay === undefined ? '.dap.out' : '.replay.out'
 if (recording === undefined) throw new Error(`Replay ${src}: there is no ${out} beside it; run \`bun nv site --bless\` on the snippet`)
 const where = `website/snippets/${src}`
 const title = src.split('/').at(-1)!
-const install = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/install/editor/`
+const install = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/tools/editor/`
 // Each frame's code is coloured by the engine that colours a <Snippet>, once per distinct text.
 const data = replay === undefined ? dapOf({ dap: dap!, recording, text, title, where }) : replayOf({ replay, recording, where })
 const texts = [...new Set(frameTexts(data))]

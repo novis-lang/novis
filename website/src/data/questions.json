@@ -258,7 +258,7 @@
   },
   "/guides/how-to-use/project-layout/": {
     "feature": "guides/how-to-use/project-layout.mdx",
-    "hash": "05d92c7351a258fe",
+    "hash": "d2207425e0d007f1",
     "questions": [
       "How should I organize the folders of a Novis web app?",
       "Where do I put the entry file, classes and tests?",
@@ -438,35 +438,12 @@
   },
   "/guides/testing/": {
     "feature": "guides/testing/index.mdx",
-    "hash": "8b83db8e471227f5",
+    "hash": "e52a093e8d490802",
     "questions": [
       "How do I test my Novis application?",
       "Which testing guide do I need for my task?",
-      "Guides for unit tests, fake services and page tests",
+      "Guides for fake services and page tests",
       "Where do I start with testing in Novis?"
-    ]
-  },
-  "/guides/testing/coverage/": {
-    "feature": "guides/testing/coverage.mdx",
-    "hash": "5a3ff50021e72907",
-    "questions": [
-      "How do I see which lines my tests do not run?",
-      "Send a test coverage report to my build server",
-      "Why do lines outside a class always show zero runs?",
-      "Which folder should I run the tests from for coverage?",
-      "What does a DA line in an lcov file mean?"
-    ]
-  },
-  "/guides/testing/run-tests/": {
-    "feature": "guides/testing/run-tests.mdx",
-    "hash": "0dae70df1be75974",
-    "questions": [
-      "How do I write my first test and run it?",
-      "What does the output look like when a test fails?",
-      "How do I run every test in my project at once?",
-      "Run only the tests whose name contains some text",
-      "Why does a test without any assertion fail?",
-      "Write test results as JUnit XML for a CI server"
     ]
   },
   "/guides/testing/test-a-route/": {
@@ -964,7 +941,7 @@
   },
   "/install/": {
     "feature": "install/index.mdx",
-    "hash": "fc2368d2313d2126",
+    "hash": "7df4216279efb84c",
     "questions": [
       "How do I install Novis?",
       "Download nvs for Windows, Linux or macOS",
@@ -972,18 +949,6 @@
       "Which Rust version and C compiler do I need to build Novis?",
       "How do I add nvs to my PATH?",
       "Check the checksum and signature of a release archive"
-    ]
-  },
-  "/install/editor/": {
-    "feature": "install/editor.mdx",
-    "hash": "f484286b5e48c1bf",
-    "questions": [
-      "How do I install the VS Code extension from a .vsix file?",
-      "How do I build the VS Code extension from source?",
-      "Why does the extension not find my nvs program?",
-      "Which extension version works with my nvs version?",
-      "Show a sign next to tainted values in the editor",
-      "Run a file or its tests from the VS Code command palette"
     ]
   },
   "/install/hello-world/": {
@@ -17777,6 +17742,52 @@
       "What is the mixed type and when should I use it?",
       "Why can I not pass a mixed value to a typed parameter?",
       "Call a method that every class in a union type has"
+    ]
+  },
+  "/tools/": {
+    "feature": "tools/index.mdx",
+    "hash": "7a64bddc7f31b1b1",
+    "questions": [
+      "Which developer tools come with Novis?",
+      "Is there a debugger and a profiler for Novis?",
+      "Does Novis have a code formatter and a test runner?",
+      "Which editor can I use to write Novis code?",
+      "Can I see the requests my server handled in a browser?"
+    ]
+  },
+  "/tools/editor/": {
+    "feature": "tools/editor/index.mdx",
+    "hash": "0bc45e1df3dde602",
+    "questions": [
+      "How do I install the VS Code extension from a .vsix file?",
+      "How do I build the VS Code extension from source?",
+      "Why does the extension not find my nvs program?",
+      "Which extension version works with my nvs version?",
+      "Show a sign next to tainted values in the editor",
+      "Run a file or its tests from the VS Code command palette"
+    ]
+  },
+  "/tools/test-runner/": {
+    "feature": "tools/test-runner/index.mdx",
+    "hash": "e5d02f02defdfb33",
+    "questions": [
+      "How do I write my first test and run it?",
+      "What does the output look like when a test fails?",
+      "How do I run every test in my project at once?",
+      "Run only the tests whose name contains some text",
+      "Why does a test without any assertion fail?",
+      "Write test results as JUnit XML for a CI server"
+    ]
+  },
+  "/tools/test-runner/coverage/": {
+    "feature": "tools/test-runner/coverage.mdx",
+    "hash": "7a660e32f4d8c4ac",
+    "questions": [
+      "How do I see which lines my tests do not run?",
+      "Send a test coverage report to my build server",
+      "Why do lines outside a class always show zero runs?",
+      "Which folder should I run the tests from for coverage?",
+      "What does a DA line in an lcov file mean?"
     ]
   }
 }

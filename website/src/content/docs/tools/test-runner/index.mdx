@@ -9,7 +9,7 @@ import Snippet from '@components/Snippet.astro'
 A test is a method with the `#[Test]` attribute. It must be `public`, return `void` and belong to a
 class. A test that checks nothing fails, so every test needs at least one assertion.
 
-<Snippet src="guides/testing/run-tests/prices.nvs" />
+<Snippet src="tools/test-runner/prices.nvs" />
 
 `nvs run prices.nvs` runs the program and skips the tests, so the output above is `1200`.
 `nvs test prices.nvs` runs only the tests:

@@ -258,7 +258,7 @@
 // in hidden page text. `/in-depth/questions/` (`website/src/components/QuestionIndex.astro`) lists them
 // all for a reader, outside the search index. The questions are not a feature proof.
 //
-// The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
+// The parts of `--check`: `structure` (the nav is the five areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
 // footer has no prev/next, the Astro config has no redirect, no page or sidebar entry links to a URL
 // `builtUrls` does not list, no style rule pairs `animation` with `animation-timeline`, which the
@@ -267,7 +267,8 @@
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
-// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
+// `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `tools` (see
+// `toolsProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`), `shots` (§ *A screenshot*), `roadmap` (the
 // roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`) and `prose` (the
 // countable bounds of AGENTS.md
@@ -310,7 +311,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "shots", "roadmap", "prose"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -733,6 +734,7 @@ const AREAS = [
   ["Guides", "/guides/"],
   ["Syntax", "/syntax/"],
   ["Reference", "/reference/"],
+  ["Tools", "/tools/"],
   ["In-Depth", "/in-depth/"],
 ];
 
@@ -838,6 +840,39 @@ export function inDepthProblems(root: string = ROOT): string[] {
     if (steps.length < least) problems.push(`${DOCS}/${prefix}: ${steps.length} page(s) beside its index, and the goal names ${least} at least`);
   }
   problems.push(...sidebarOrder(root, "In-Depth", "in-depth", IN_DEPTH_SECTIONS.map(([slug]) => slug)));
+  return problems;
+}
+
+/** The tools of the Tools area, in sidebar order: each is a directory under `tools/` whose page is its `index.mdx`. */
+export const TOOL_SECTIONS = ["editor", "formatter", "test-runner", "cli", "debugger", "debug-viewer", "profiler", "api-document"];
+
+/** A picture a tool page may show, each one checked against a real run. */
+const PICTURE_RE = /<(Terminal|Replay|Shot)\s+src=/;
+
+/**
+ * The `tools` part (`rule:testing/the-tools-area-has-a-page-for-each-tool`): each of `TOOL_SECTIONS` has its
+ * page, and each page covers a feature, shows a checked picture, and is linked from the overview and from
+ * the Tools sidebar in that order. A tool with no page yet is named as owed, and nothing else about it is.
+ */
+export function toolsProblems(root: string = ROOT): string[] {
+  const problems: string[] = [];
+  const all = new Map(pages(root).map((p) => [p.key, p]));
+  const overview = all.get("tools/index.mdx");
+  if (!overview) problems.push(`${DOCS}/tools/index.mdx: no overview page`);
+  const present: string[] = [];
+  for (const dir of TOOL_SECTIONS) {
+    const key = `tools/${dir}/index.mdx`;
+    const page = all.get(key);
+    if (!page) {
+      problems.push(`${DOCS}/${key}: owed, no page yet`);
+      continue;
+    }
+    present.push(dir);
+    if (!page.covers?.length) problems.push(`${DOCS}/${key}: covers no feature`);
+    if (!PICTURE_RE.test(page.body)) problems.push(`${DOCS}/${key}: shows no <Terminal>, <Replay> or <Shot>`);
+    if (overview && !overview.body.includes(`](/tools/${dir}/)`)) problems.push(`${DOCS}/tools/index.mdx: does not link /tools/${dir}/`);
+  }
+  problems.push(...sidebarOrder(root, "Tools", "tools", present));
   return problems;
 }
 
@@ -1930,6 +1965,7 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     let problems: string[];
     if (part === "structure") problems = structureProblems().concat(styleProblems(ROOT));
     else if (part === "guides") problems = guidesProblems();
+    else if (part === "tools") problems = toolsProblems();
     else if (part === "in-depth") problems = inDepthProblems();
     else if (part === "roadmap") problems = roadmapProblems(ROOT);
     else if (part === "prose") {

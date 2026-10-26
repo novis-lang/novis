@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join, relative } from "node:path";
-import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, type Served, type World } from "../cmd/site.ts";
+import { APP_FILES, appFileProblem, appFiles, binary, builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, TOOL_SECTIONS, toolsProblems, type Served, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -284,6 +284,44 @@ describe("nv site --check guides", () => {
       `${DOCS}/guides/testing/: no page`,
       "website/astro.config.ts: the Guides sidebar lists /guides/tour/ out of the goal's order",
       "website/astro.config.ts: the Guides sidebar has no link into /guides/testing/",
+    ]);
+  });
+});
+
+describe("nv site --check tools", () => {
+  const page = (covers: string, body: string) => `---\ntitle: A tool\ncovers: ${covers}\n---\n\n${body}\n`;
+  const sidebar = (dirs: string[]) =>
+    ["sidebar: [", "        {", "          label: 'Tools',", "          items: [", ...dirs.map((d) => `            { label: '${d}', link: '/tools/${d}/' },`), "          ],", "        },"].join("\n");
+
+  /** An overview that links every tool, and a page for each tool but the ones `leave` names. */
+  function tools(leave: string[] = []): Scratch {
+    s = site();
+    s.put(`${DOCS}/tools/index.mdx`, page("[]", TOOL_SECTIONS.map((d) => `- [${d}](/tools/${d}/)`).join("\n")));
+    for (const dir of TOOL_SECTIONS) if (!leave.includes(dir)) s.put(`${DOCS}/tools/${dir}/index.mdx`, page("['lang:statements/match']", `<Terminal src="tools/${dir}/a.term" />`));
+    s.put("website/astro.config.ts", sidebar(TOOL_SECTIONS.filter((d) => !leave.includes(d))));
+    return s;
+  }
+
+  test("an overview, every page with a picture and features, and the sidebar in order pass", () => {
+    expect(toolsProblems(tools().root)).toEqual([]);
+  });
+
+  test("an owed page, a page with no picture or features, a missing overview link and a sidebar out of order are named", () => {
+    const root = tools(["profiler"]).root;
+    s.put(`${DOCS}/tools/cli/index.mdx`, page("[]", "Text only."));
+    s.put(`${DOCS}/tools/index.mdx`, page("[]", "- [editor](/tools/editor/)"));
+    s.put("website/astro.config.ts", sidebar(["formatter", "editor", ...TOOL_SECTIONS.slice(2).filter((d) => d !== "profiler")]));
+    expect(toolsProblems(root)).toEqual([
+      `${DOCS}/tools/index.mdx: does not link /tools/formatter/`,
+      `${DOCS}/tools/index.mdx: does not link /tools/test-runner/`,
+      `${DOCS}/tools/cli/index.mdx: covers no feature`,
+      `${DOCS}/tools/cli/index.mdx: shows no <Terminal>, <Replay> or <Shot>`,
+      `${DOCS}/tools/index.mdx: does not link /tools/cli/`,
+      `${DOCS}/tools/index.mdx: does not link /tools/debugger/`,
+      `${DOCS}/tools/index.mdx: does not link /tools/debug-viewer/`,
+      `${DOCS}/tools/profiler/index.mdx: owed, no page yet`,
+      `${DOCS}/tools/index.mdx: does not link /tools/api-document/`,
+      "website/astro.config.ts: the Tools sidebar lists /tools/formatter/ out of the goal's order",
     ]);
   });
 });

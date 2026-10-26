@@ -444,11 +444,7 @@ export default defineConfig({
                   link: '/guides/testing/',
                   attrs: { 'data-subtext': 'Write, run and measure the tests of your app' },
                 },
-                {
-                  label: 'Running tests',
-                  link: '/guides/testing/run-tests/',
-                  attrs: { 'data-subtext': 'Write a test with #[Test] and run nvs test' },
-                },
+
                 {
                   label: 'Test doubles',
                   link: '/guides/testing/test-doubles/',
@@ -459,11 +455,7 @@ export default defineConfig({
                   link: '/guides/testing/test-a-route/',
                   attrs: { 'data-subtext': 'Check a response without starting a server' },
                 },
-                {
-                  label: 'Coverage reports',
-                  link: '/guides/testing/coverage/',
-                  attrs: { 'data-subtext': 'See which lines of your code the tests run' },
-                },
+
               ],
             },
             {
@@ -684,6 +676,20 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Tools',
+          items: [
+            { label: 'Overview', link: '/tools/' },
+            { label: 'The editor extension', link: '/tools/editor/' },
+            {
+              label: 'The test runner',
+              items: [
+                { label: 'Running tests', link: '/tools/test-runner/' },
+                { label: 'Coverage reports', link: '/tools/test-runner/coverage/' },
+              ],
+            },
+          ],
+        },
+        {
           label: 'In-Depth',
           items: [
             { label: 'Overview', link: '/in-depth/' },
@@ -718,7 +724,7 @@ export default defineConfig({
           items: [
             { label: 'Install Novis', link: INSTALL.href },
             { label: 'Hello, World!', link: '/install/hello-world/' },
-            { label: 'The editor extension', link: '/install/editor/' },
+
             { label: 'Install on a server', link: '/install/server/' },
           ],
         },

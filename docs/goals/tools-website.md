@@ -34,7 +34,7 @@ stages:
         rules: [testing/a-screenshot-is-taken-from-a-real-run, testing/the-viewer-shows-the-stream-and-hands-off-every-artifact]
   - id: 3
     title: the Tools area, its overview, and the three pages that move into it
-    status: open
+    status: done
     context: [website/config/site.mjs, website/astro.config.ts, tools/nv/cmd/site.ts, website/src/components/Replay.astro, website/src/data/questions.json, website/src/content/docs/install/editor.mdx, website/src/content/docs/guides/testing/run-tests.mdx, website/src/content/docs/guides/testing/coverage.mdx, docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md]
     extra:
       context:
@@ -227,13 +227,13 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 **Does:** Tools is an area with its sidebar, the three pages and their snippets move with no trace,
 and the overview page exists.
 
-- [ ] Tools joins `AREAS` after Reference, the sidebar gains its group before In-Depth, and the `structure` check names five areas (`rule:testing/the-tools-area-has-a-page-for-each-tool`). `website/config/site.mjs:42`, `website/astro.config.ts:669`, `tools/nv/cmd/site.ts:151`, `tools/nv/cmd/site.ts:612`
-- [ ] The three pages and their snippets move, with their entries in `questions.json` keyed to the new addresses and their sidebar entries gone. `website/astro.config.ts:447`, `website/astro.config.ts:462`, `website/astro.config.ts:702`, `website/src/data/questions.json:416`, `website/src/data/questions.json:427`, `website/src/data/questions.json:930`, `website/src/content/docs/guides/testing/run-tests.mdx:12`
-- [ ] The two entries for the moved pages in the testing guide's list are removed, not repointed, so the list names only pages that are still in Guides. `website/src/content/docs/guides/testing/index.mdx:10`, `website/src/content/docs/guides/testing/index.mdx:16`
-- [ ] Every other link to an old address points at the new one: the install page, the project layout page, the moved coverage page's own link, the replay component and its browser test. `website/src/content/docs/install/index.mdx:124`, `website/src/content/docs/guides/how-to-use/project-layout.mdx:48`, `website/src/content/docs/guides/testing/coverage.mdx:26`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
-- [ ] The replay rule's notice sentence names the editor page instead of the install page. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:19`
-- [ ] The overview page with a line per tool. `website/src/content/docs/tools/index.mdx:1`
-- [ ] A `tools` part of `--check`: each of the eight tool pages exists, shows a checked picture and covers its features. It names each page still owed until stages 4, 5 and 9 land. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`
+- [x] Tools joins `AREAS` after Reference, the sidebar gains its group before In-Depth, and the `structure` check names five areas (`rule:testing/the-tools-area-has-a-page-for-each-tool`). `website/config/site.mjs:42`, `website/astro.config.ts:669`, `tools/nv/cmd/site.ts:151`, `tools/nv/cmd/site.ts:612`
+- [x] The three pages and their snippets move, with their entries in `questions.json` keyed to the new addresses and their sidebar entries gone. `website/astro.config.ts:447`, `website/astro.config.ts:462`, `website/astro.config.ts:702`, `website/src/data/questions.json:416`, `website/src/data/questions.json:427`, `website/src/data/questions.json:930`, `website/src/content/docs/guides/testing/run-tests.mdx:12`
+- [x] The two entries for the moved pages in the testing guide's list are removed, not repointed, so the list names only pages that are still in Guides. `website/src/content/docs/guides/testing/index.mdx:10`, `website/src/content/docs/guides/testing/index.mdx:16`
+- [x] Every other link to an old address points at the new one: the install page, the project layout page, the moved coverage page's own link, the replay component and its browser test. `website/src/content/docs/install/index.mdx:124`, `website/src/content/docs/guides/how-to-use/project-layout.mdx:48`, `website/src/content/docs/guides/testing/coverage.mdx:26`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
+- [x] The replay rule's notice sentence names the editor page instead of the install page. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:19`
+- [x] The overview page with a line per tool. `website/src/content/docs/tools/index.mdx:1`
+- [x] A `tools` part of `--check`: each of the eight tool pages exists, shows a checked picture and covers its features. It names each page still owed until stages 4, 5 and 9 land. `tools/nv/cmd/site.ts:193`, `tools/nv/cmd/site.ts:1646`
 
 ### 4. the editor, formatter, test runner and CLI pages
 
@@ -299,36 +299,47 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2 and 8 are done, and no page shows any of their pictures yet. Stage 4's CLI page is
-the first `<Terminal>` (watch for a `.term.out` with `\` paths) and its editor page the first of stage
-7's replay steps. Stage 5's debugger page is the first debugger replay (`site.ts` § *A snippet*,
-`lib/dap-replay.ts`, `website/config/replay-dap.mjs`), whose look no browser has shown yet.
+Stages 1, 7, 2, 8 and 3 are done. Tools is the fourth of five areas (`website/config/site.mjs:42`),
+with its sidebar group before In-Depth (`website/astro.config.ts:679`): Overview, the editor
+extension, and the test runner with its coverage page. `install/editor.mdx`, `guides/testing/run-tests.mdx`
+and `guides/testing/coverage.mdx` are now `tools/editor/index.mdx`, `tools/test-runner/index.mdx` and
+`tools/test-runner/coverage.mdx`, and their snippets are under `website/snippets/tools/editor/` and
+`website/snippets/tools/test-runner/`. No old address is linked anywhere, and the home page's Tooling
+link points at `/tools/editor/`. The overview, `tools/index.mdx`, has one line per tool and links the
+two pages that exist. The home page has a Tools card (`home/Path.astro`).
 
-Stage 8: `site.ts` § *A screenshot* is the home of the `.shot` and `.shot.out` formats, and
-`tools/nv/lib/shoot.ts` takes the run. A viewer shot serves a copy of the app under `.cache/nv-shot/`
-with a second `--config` (development, `[debug] store`, a free viewer port) and drives Chromium over
-CDP with `tools/nv/test/chromium.ts`. A profile shot opens speedscope from
-`editors/vscode/node_modules/speedscope/dist/release`. `tools/debug-viewer/requests.shot` and
-`tools/profiler/fibonacci.shot` are taken, and both pictures were looked at. No `<Shot>` component
-exists yet: stage 9's last item adds it. CI's proofs job runs `--check shots` on Linux.
+`bun nv site --check tools` (`toolsProblems`, `tools/nv/cmd/site.ts:857`) fails by design until stage
+9: it names the six pages still owed, the editor and test runner pages' empty `covers:`, and the test
+runner page's missing picture. `TOOL_SECTIONS` (`site.ts:847`) is the sidebar order the later stages
+must keep: editor, formatter, test-runner, cli, debugger, debug-viewer, profiler, api-document. Each
+new page is also linked from the overview as `](/tools/<dir>/)`, or the part names it.
 
-The sweep's reds were stale again: `env-secret-proofs` exits 0 in its own log, and nightly run
-40291801939 tested `d6f131752`. Uncommitted changes to `tools/nv/cmd/disk.ts` and its test belong to
-another session, and this one left them alone.
+Stage 4's CLI page is the first `<Terminal>` (watch for a `.term.out` with `\` paths), and its editor
+page the first of stage 7's replay steps. Stage 5's debugger page is the first debugger replay
+(`site.ts` § *A snippet*, `lib/dap-replay.ts`, `website/config/replay-dap.mjs`), whose look no
+browser has shown yet. Stage 9's last item adds the `<Shot>` component. Every goal § *Gates* names
+is gone, so no page item is gated.
+
+The sweep's reds were stale (`env-secret-proofs` exits 0; nightly 40291801939 tested `d6f131752`).
+Uncommitted `tools/nv/cmd/disk.ts` changes belong to another session, and were left alone.
+
 ### Next
 
-**Stage 3, the Tools area, its overview, and the three pages that move into it.** It needs no other
-goal. Check with `bun nv site --check structure questions guides`, and `--build` for the links.
+**Stage 4, the editor, formatter, test runner and CLI pages.** Follow its `**Split:**` line. Check
+with `bun nv site --check tools snippets stale questions prose`; `tools` stays red only for the pages
+stages 5 and 9 owe.
 
-- [ ] Tools joins `AREAS` after Reference, and the sidebar gains its group before In-Depth. `website/config/site.mjs:42`, `website/astro.config.ts:665`, `website/astro.config.ts:687`, `tools/nv/cmd/site.ts:739`
-- [ ] `install/editor.mdx`, `guides/testing/run-tests.mdx` and `guides/testing/coverage.mdx` move with their snippets and questions, and their old sidebar entries go. `website/astro.config.ts:449`, `website/astro.config.ts:464`, `website/astro.config.ts:721`, `website/src/data/questions.json:416`
-- [ ] The testing guide's two entries removed, every other old link repointed, and the replay rule's notice sentence names the editor page. `website/src/content/docs/guides/testing/index.mdx:10`, `website/src/components/Replay.astro:63`, `tools/nv/test/replay-browser.test.ts:32`
-- [ ] `tools/index.mdx` and the `tools` part of `--check`. `website/src/content/docs/tools/index.mdx:1`, `tools/nv/cmd/site.ts:279`
+- [ ] Editor page: the replays stage 7 built, from `docs/examples/tools/editor/`, and its `covers:`. `website/src/content/docs/tools/editor/index.mdx:1`
+- [ ] Formatter page, `nvs fmt --diff` and `--check` as terminal blocks, its sidebar entry after the editor and its overview link. `website/src/content/docs/tools/formatter/index.mdx:1`, `website/astro.config.ts:679`, `website/src/content/docs/tools/index.mdx:11`
+- [ ] Test runner pages: their `txt` fences become `<Terminal>` blocks, then the options, `#[Property]`, mutation testing and benches. `website/src/content/docs/tools/test-runner/index.mdx:14`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`
+- [ ] CLI page, its sidebar entry and overview link. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/tools/index.mdx:14`
+- [ ] Each page's questions and stamp. `website/src/data/questions.json:17747`
 
-No test is expected to go red. `site-shots.test.ts` (9 pass), `bun nv site --check shots` (ok, twice)
-and `tsc` ran green. `--check snippets` was not run; its only change is that a shot's fixture
-directory is not a snippet, which `site-shots.test.ts` covers.
+No test is expected to go red. `site.test.ts`'s two new `--check tools` cases pass. `--check
+structure questions guides prose` is ok, `--build` built, and `tsc` is clean. `--check snippets` was
+not run: the moved snippets are the same files under new paths, and the build rendered both replays.
 
 ### Backlog
 
-- Stages 4, 5 and 9 follow 3 in order. Each page item needs its tool's goals gone from `docs/goals/` (§ *Gates*).
+- Stages 5 and 9 follow 4 in order, then 6 and 10. Stage 6 checks that five header areas fit the
+  header at mid widths, which no browser has shown yet.

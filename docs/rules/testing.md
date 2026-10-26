@@ -3,7 +3,7 @@
 
 # Testing
 
-*3 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1613,7 +1613,7 @@ and which are imitated, and a page never presents the replay as VS Code's exact 
 
 A replay is one panel with a look of its own, tinted with the site's accent, that holds everything
 in order: a header "How it looks in your editor", a notice that says it was recorded from the editor
-extension, that the reader cannot type in it, and that links to the editor install page, then the
+extension, that the reader cannot type in it, and that links to the editor page under Tools, then the
 editor window, then one button, then a collapsed section that gives the same steps as text, for
 screen readers and search. The window has a title bar with the snippet's file name, and a bar along
 its bottom that shows how far the replay has played. The panel's root carries Starlight's
@@ -1698,7 +1698,7 @@ answer the server does not give.
 
 <a id="testing-a-debugger-replay-plays-what-nvs-dap-returned"></a>
 
-## A website debugger replay plays what `nvs dap` returned for a session's breakpoints and steps, and `bun nv site --check snippets` fails when it now returns something else  *(designed — owned by goal tools-website)*
+## A website debugger replay plays what `nvs dap` returned for a session's breakpoints and steps, and `bun nv site --check snippets` fails when it now returns something else
 
 `rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`
 
@@ -1715,7 +1715,8 @@ left out of the recording, so two runs of the same session record the same file.
 
 The panel has the replay's look and its rules for play, pause and focus
 ([`testing/a-replay-plays-what-the-language-server-returned`](testing.md#testing-a-replay-plays-what-the-language-server-returned)). The editor window shows the
-breakpoint and the stopped line, and beside it are the call stack and the variables. A drawn debugger
+breakpoints and the stopped line, and a panel under the stopped line shows the call stack and the
+variables. A debugger replay is a `<Replay>` of a snippet with a `.dap` and no `.replay`. A drawn debugger
 would show values the program never had, and recording `nvs dap`'s answers is what keeps the page true.
 
 - **Memory:** nothing in the language or the binary. `--bless` and `--check snippets` start `nvs dap`
@@ -1729,15 +1730,16 @@ would show values the program never had, and recording `nvs dap`'s answers is wh
 
 <a id="testing-a-screenshot-is-taken-from-a-real-run"></a>
 
-## A website screenshot is taken by `bun nv site --shoot` from a real run, and the text beside it fails `bun nv site --check shots` when the run would now show something else  *(designed — owned by goal tools-website)*
+## A website screenshot is taken by `bun nv site --shoot` from a real run, and the text beside it fails `bun nv site --check shots` when the run would now show something else
 
 `rule:testing/a-screenshot-is-taken-from-a-real-run`
 
 A screenshot on a website page is taken from a real run by `bun nv site --shoot`, and nothing else
 writes one. A hand-written `.shot` names an app under `apps/`, the requests to send it, and the steps
 to take in the browser: open an address, click, type and wait. The command serves the app in
-development with `[debug] store` on, sends the requests, starts `nvs debug`, takes the steps with
-Playwright, and writes the picture beside the `.shot` with a `.shot.out`.
+development with `[debug] store` on, so the server starts `nvs debug`, sends the requests, and takes
+the steps in the Chromium headless shell Playwright pins, over the DevTools protocol. It writes the
+picture beside the `.shot` as a `.png`, with a `.shot.out`.
 
 The `.shot.out` is what the picture shows, as text: the page's visible text with every duration, date,
 trace id and port masked, and the hash of the viewer's built assets. `bun nv site --check shots` runs

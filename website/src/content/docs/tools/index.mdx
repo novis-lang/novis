@@ -1,0 +1,21 @@
+---
+title: Tools
+covers: []
+description: The tools that come with Novis, from the editor extension and the test runner to the debugger and the profiler.
+---
+
+Novis comes with its own tools for writing, testing and debugging a program. Most of them are
+commands of the `nvs` program, so you install them when you install Novis.
+
+- [The editor extension](/tools/editor/) adds Novis to VS Code. It colours your code, shows errors
+  while you type and completes names.
+- The formatter is `nvs fmt`. It changes the layout of your code to one fixed style.
+- [The test runner](/tools/test-runner/) is `nvs test`. It runs your tests and can write a
+  [coverage report](/tools/test-runner/coverage/).
+- The command line is the `nvs` program itself: `nvs run`, `nvs check`, `nvs serve` and the other
+  commands.
+- The debugger stops your program at a line, so you can look at its variables. Your editor connects
+  to it through `nvs dap`.
+- The debug viewer is `nvs debug`. It shows in your browser each request that your server handled.
+- The profiler shows where your program spends its time.
+- The API document is the OpenAPI description of your routes. `nvs build --openapi` writes it.
