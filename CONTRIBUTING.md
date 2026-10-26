@@ -179,6 +179,7 @@ vendor/             html5ever, patched and built in place of the crates.io relea
 docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
+viewer/             the debug viewer `nvs debug` serves: a Solid app, built into `viewer/dist/` and embedded in `nvs`
 tools/              how this repository is driven; docs/agent/commands.md is the full set
 data/               the JSON records `bun nv` reads and writes: gaps, rules, proofs, reference, spec
 docs/

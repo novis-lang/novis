@@ -1,0 +1,14 @@
+{
+  "name": "novis-viewer",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "solid-js": "^1.9.17"
+  },
+  "devDependencies": {
+    "@babel/core": "^7",
+    "@babel/preset-typescript": "^7",
+    "@types/babel__core": "^7.20.5",
+    "babel-preset-solid": "^1.9.16"
+  }
+}

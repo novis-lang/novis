@@ -2,6 +2,7 @@
   "name": "novis-tools",
   "private": true,
   "type": "module",
+  "workspaces": ["viewer"],
   "scripts": {
     "nv": "bun tools/nv/main.ts"
   },

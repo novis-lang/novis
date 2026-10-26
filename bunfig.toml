@@ -1,0 +1,4 @@
+# One `node_modules` at the root, as the tools had before `viewer/` became a workspace. Bun's
+# isolated layout gives each workspace its own, and the tools import packages from the root.
+[install]
+linker = "hoisted"
