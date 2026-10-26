@@ -1434,7 +1434,7 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "391315a0fe21295c",
+    "hash": "da2e094850173956",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show debug output in the browser page during development",

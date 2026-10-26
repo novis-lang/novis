@@ -140,7 +140,7 @@ platform Novis builds for, so one may appear that a given build omits.
   crossbeam-deque                            0.8.8                          MIT                             (MIT OR Apache-2.0)
   crossbeam-epoch                            0.9.21                         MIT                             (MIT OR Apache-2.0)
   crossbeam-utils                            0.8.23                         MIT                             (MIT OR Apache-2.0)
-  crypto-bigint                              0.7.6                          MIT                             (Apache-2.0 OR MIT)
+  crypto-bigint                              0.7.9                          MIT                             (Apache-2.0 OR MIT)
   crypto-common                              0.1.7                          MIT                             (MIT OR Apache-2.0)
   crypto-common                              0.2.2                          MIT                             (MIT OR Apache-2.0)
   cssparser                                  0.38.0                         MPL-2.0
@@ -1251,7 +1251,7 @@ SOFTWARE.
 
 Applies to:
   argon2 0.6.0
-  crypto-bigint 0.7.6
+  crypto-bigint 0.7.9
   phc 0.6.1
   sec1 0.8.1
   spki 0.8.1
