@@ -170,10 +170,16 @@ fn an_upgraded_event_stream_with_no_events_file_ends_at_its_first_wait() {
 
 /// A running `nvs serve app.nvs` in a directory named for the case. Dropping it
 /// stops the process and removes the directory.
+///
+/// It holds the data folder's `debug/service.lock`, so the `nvs debug` a
+/// development server with `[debug] store` on starts exits at once. These cases
+/// read the spool files themselves, and that service would read and delete them.
 struct Served {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
+    /// Dropped before `data`, which removes the folder the lock file is in.
+    _service: std::fs::File,
     data: nvs_repo::Scratch,
 }
 
@@ -199,6 +205,15 @@ impl Served {
             std::fs::write(dir.join("nvs.toml"), config).expect("the configuration is written");
         }
         let data = nvs_repo::scratch_private("nvsdata");
+        nvs_config::data::create_private_dir(&data.join("debug"))
+            .expect("the data folder's `debug` folder is created");
+        let service = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(data.join("debug").join("service.lock"))
+            .expect("the service lock opens");
+        service.lock().expect("no service runs for a fresh data folder");
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
             .arg(&*data)
@@ -232,6 +247,7 @@ impl Served {
             child,
             addr: addr.parse().expect("the server printed an address"),
             dir,
+            _service: service,
             data,
         }
     }

@@ -562,6 +562,14 @@ pub(crate) fn run(
     // is what moves the pointer (`crate::script::watch`). Held for the run.
     let _watching = crate::script::watch(&compiler, Some(rescan));
 
+    // `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`: a development
+    // server that records starts the debug service, and dropping the handle stops it. A production
+    // server never does. Started before any socket is bound, so the child inherits no listener.
+    let _debug = (started_in == nvs_config::mode::DEVELOPMENT
+        && nvs_config::Request::new(Arc::clone(&snapshot)).debug_store())
+    .then(|| crate::debug::Child::start(config))
+    .flatten();
+
     // Every address the set named, bound before any worker exists. A bind
     // taken by the core that reached the entry would report one wrong address
     // once per core, and would leave the process listening on whichever

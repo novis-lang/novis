@@ -21,8 +21,17 @@
 //! same backoff, and deletes no file
 //! (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`).
 //!
+//! **A server's child ends with its parent.** A development `nvs serve` starts the service through
+//! [`Child::start`] with the hidden `--parent` flag and a pipe as its standard input, and holds the
+//! pipe's other end. The pipe closes when the server drops the [`Child`] or ends in any other way,
+//! killed included, and the service then stops between two passes. A pipe is the signal because
+//! every platform closes it for a process that is gone, with no process id to poll and none to be
+//! reused. A child that finds the lock held exits quietly: the server then uses the service that
+//! is already running.
+//!
 //! **What it spends:** see [`index`], [`ingest`] and [`tail`]. Here, the lock's file handle, and one
-//! entry per spool file stopped in or per file failing.
+//! entry per spool file stopped in or per file failing. Under `--parent`, one thread blocked on
+//! standard input. In the server, the child's handle and its pipe.
 
 pub(crate) mod index;
 pub(crate) mod ingest;
@@ -31,7 +40,8 @@ pub(crate) mod tail;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{ExitCode, Stdio};
+use std::sync::mpsc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use nvs_config::{Quantity, Reading, Unit};
@@ -60,6 +70,10 @@ pub(crate) struct Args {
     /// You can give this option more than once.
     #[arg(long, value_name = "FILE")]
     tail: Vec<PathBuf>,
+    /// Set by `nvs serve` for the service it starts: stop once standard input closes, and exit
+    /// quietly when another service holds the lock.
+    #[arg(long, hide = true)]
+    parent: bool,
 }
 
 impl Args {
@@ -83,6 +97,7 @@ impl Args {
         let lock_path = folder.debug().join("service.lock");
         let _lock = match lock(&lock_path) {
             Ok(Some(lock)) => lock,
+            Ok(None) if self.parent => return ExitCode::SUCCESS,
             Ok(None) => {
                 eprintln!(
                     "error: another `nvs debug` is already running for the data folder `{}`",
@@ -123,7 +138,74 @@ impl Args {
             failed,
             stalled: None,
         };
-        service.serve(window, self.once)
+        let parent = self.parent.then(parent_gone);
+        service.serve(window, self.once, parent.as_ref())
+    }
+}
+
+/// A channel that disconnects once standard input reaches its end, which is the parent closing
+/// the pipe or ending.
+fn parent_gone() -> mpsc::Receiver<()> {
+    let (tx, rx) = mpsc::channel::<()>();
+    std::thread::spawn(move || {
+        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+        drop(tx);
+    });
+    rx
+}
+
+/// The `nvs debug` a development server started, stopped when this value is dropped
+/// (`rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`).
+pub(crate) struct Child(std::process::Child);
+
+impl Child {
+    /// Starts `nvs debug --parent` for this process's data folder, over the server's `config`
+    /// list. `None` when there is no data folder or the program cannot start: the server says so
+    /// and serves on, and its requests wait in the spool for the next service.
+    pub(crate) fn start(config: &[PathBuf]) -> Option<Self> {
+        let folder = nvs_config::data::current()?;
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(err) => {
+                eprintln!("warning: cannot start `nvs debug`: {err}");
+                return None;
+            }
+        };
+        let mut command = std::process::Command::new(exe);
+        // The child finds the default folder the same way, and naming it would check it as a
+        // named one (`nvs_config::data`'s module doc).
+        if !folder.is_default() {
+            command.arg("--data").arg(folder.root());
+        }
+        for path in config {
+            command.arg("--config").arg(path);
+        }
+        command
+            .args(["debug", "--parent"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        match command.spawn() {
+            Ok(child) => {
+                eprintln!(
+                    "`nvs debug` reads this server's recorded requests into `{}`",
+                    folder.debug_index().display()
+                );
+                Some(Self(child))
+            }
+            Err(err) => {
+                eprintln!("warning: cannot start `nvs debug`: {err}");
+                None
+            }
+        }
+    }
+}
+
+impl Drop for Child {
+    /// Closes the pipe and waits for the service to end its pass.
+    fn drop(&mut self) {
+        drop(self.0.stdin.take());
+        let _ = self.0.wait();
     }
 }
 
@@ -142,8 +224,14 @@ struct Service {
 
 impl Service {
     /// The ingest loop: a pass, the deletion window after any pass that read something, and the
-    /// wait [`ingest::wait`] names. With `once`, one pass and its deletion.
-    fn serve(&mut self, window: Window, once: bool) -> ExitCode {
+    /// wait [`ingest::wait`] names. With `once`, one pass and its deletion. With `parent`, the
+    /// loop ends once the parent is gone, which wakes the wait.
+    fn serve(
+        &mut self,
+        window: Window,
+        once: bool,
+        parent: Option<&mpsc::Receiver<()>>,
+    ) -> ExitCode {
         let mut last_arrival = Instant::now();
         let mut forget = true;
         loop {
@@ -160,7 +248,15 @@ impl Service {
             if once {
                 return ExitCode::SUCCESS;
             }
-            std::thread::sleep(ingest::wait(last_arrival, Instant::now()));
+            let wait = ingest::wait(last_arrival, Instant::now());
+            match parent {
+                Some(parent) => {
+                    if let Err(mpsc::RecvTimeoutError::Disconnected) = parent.recv_timeout(wait) {
+                        return ExitCode::SUCCESS;
+                    }
+                }
+                None => std::thread::sleep(wait),
+            }
         }
     }
 
