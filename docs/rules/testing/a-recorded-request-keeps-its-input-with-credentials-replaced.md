@@ -39,6 +39,12 @@ fields cannot be found, the record keeps no byte of the body and says `withheld`
 one JSON document or nests deeper than 128 levels, a multipart form, and a class that writes its own
 decoder, each where `X` can reach a `secret` property.
 
+A derived codec refuses a `secret` property (`rule:security/derived-codec-qualifiers`), so a class
+`jsonAs` or `postAs` decodes reaches one only as a skipped property, which takes no value from the
+body. A whole JSON document read that way is therefore stored as it arrived, and the replacement runs
+on no field of it. A class that reaches a skipped `secret` property still withholds a body whose
+fields cannot be found.
+
 - **Memory:** per recorded request, the bytes the program read, up to `request_body`, held until the
   request's record is written at its end. The response body is written through to the spool, so it
   adds one write's bytes at a time. A request with the gate off holds nothing more.

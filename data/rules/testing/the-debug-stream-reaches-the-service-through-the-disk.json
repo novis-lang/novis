@@ -1,6 +1,6 @@
 {
   "title": "A debug record reaches the service through a sealed spool file that one writer owns, never over a socket",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/debug-surface",
@@ -8,6 +8,10 @@
     "testing/a-recorded-request-keeps-its-input-with-credentials-replaced",
     "config/ownership-is-the-trust-boundary"
   ],
-  "guardedBy": [],
-  "goal": "debug-service"
+  "guardedBy": [
+    "crates/nvs-runtime/src/spool.rs",
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-stdlib/src/debug.rs",
+    "crates/nvs-db/src/pg.rs"
+  ]
 }

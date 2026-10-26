@@ -13573,6 +13573,104 @@ pub(crate) mod tests {
         }
     }
 
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`: a
+    /// `production` request records its trace events and its dumps as `event` and `dump` lines
+    /// under the request's trace id, while its `request` line has no input and no response.
+    #[test]
+    fn a_production_request_records_its_events_and_dumps_but_no_input() {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying_traced(request);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                child.record_query(
+                    "query sql=select id from orders",
+                    nvs_runtime::spool::Query {
+                        driver: "sqlite".to_owned(),
+                        sql: "select id from orders".to_owned(),
+                        rows: Some(2),
+                        site: None,
+                    },
+                    std::time::Duration::from_millis(1),
+                );
+                let mut dumped = nvs_render::Record::at(nvs_render::Level::Debug);
+                dumped
+                    .nodes
+                    .push(nvs_render::Node::Scalar(nvs_render::Scalar::Int(7)));
+                child.spool_dump(&dumped);
+                child.write_output(b"prod-answer").expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-production-events",
+            "[mode]\ndefault = \"production\"\n\n[debug]\nstore = true\n",
+            b"POST /orders HTTP/1.1\r\nHost: localhost\r\nContent-Length: 13\r\n\
+              X-Plain: prod-header-1\r\nConnection: close\r\n\r\nprod-body-2xx",
+            &handler,
+        );
+        assert!(answer.ends_with("prod-answer"), "{answer}");
+        assert!(request.input.is_none(), "production recorded the input");
+        assert!(
+            request.response.is_none(),
+            "production recorded the response"
+        );
+        let lines: Vec<nvs_runtime::spool::Line> = std::str::from_utf8(&raw)
+            .expect("a spool file is UTF-8")
+            .lines()
+            .map(|line| nvs_runtime::spool::Line::parse(line).expect("a line"))
+            .collect();
+        let trace = lines
+            .iter()
+            .find(|line| matches!(line.record, nvs_runtime::spool::Record::Request(_)))
+            .and_then(|line| line.trace.clone())
+            .expect("the request line has a trace");
+        let queries: Vec<&nvs_runtime::spool::Line> = lines
+            .iter()
+            .filter(|line| {
+                matches!(
+                    &line.record,
+                    nvs_runtime::spool::Record::Event(event)
+                        if event.event == nvs_runtime::spool::EventKind::Query
+                )
+            })
+            .collect();
+        let [query] = queries.as_slice() else {
+            panic!("one query, one `query` event line: {lines:?}");
+        };
+        let nvs_runtime::spool::Record::Event(event) = &query.record else {
+            unreachable!("the filter kept event lines alone");
+        };
+        assert_eq!(
+            event.query.as_ref().map(|query| query.sql.as_str()),
+            Some("select id from orders")
+        );
+        let dumps: Vec<&nvs_runtime::spool::Line> = lines
+            .iter()
+            .filter(|line| matches!(line.record, nvs_runtime::spool::Record::Dump(_)))
+            .collect();
+        assert_eq!(dumps.len(), 1, "one dump, one dump line: {lines:?}");
+        // Every line, so a line the connection's own context wrote, such as a
+        // `spawn` for the request's isolate, is caught here.
+        for line in &lines {
+            assert_eq!(
+                line.trace.as_deref(),
+                Some(trace.as_str()),
+                "a line is not under the request's trace: {line:?}"
+            );
+        }
+        for value in ["prod-header-1", "prod-body-2xx", "prod-answer"] {
+            assert!(
+                !raw.windows(value.len())
+                    .any(|window| window == value.as_bytes()),
+                "`{value}` reached a spool file in production"
+            );
+        }
+    }
+
     /// The bytes [`served_ranged`]'s program streams from, ten of them so a
     /// window is easy to read off the wire.
     const RANGED_BODY: &[u8] = b"0123456789";

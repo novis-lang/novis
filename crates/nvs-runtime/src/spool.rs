@@ -1596,4 +1596,96 @@ mod tests {
         assert_eq!(Body::of(&[0xff, 0], false).bytes(), Some(vec![0xff, 0]));
         assert_eq!(Body::default().bytes(), None, "a body never read");
     }
+
+    /// A context under `written`, carrying the trace [`TRACE`] names, with a writer of this
+    /// thread's own on a fresh scratch directory. The test keeps the directory until it ends.
+    fn storing(name: &str, written: &str) -> (crate::Ctx, nvs_repo::Scratch) {
+        let dir = nvs_repo::scratch(name);
+        super::install(Writer::new(dir.to_path_buf(), "1-2-0".to_owned(), u64::MAX));
+        let mut ctx = crate::Ctx::buffered();
+        ctx.set_config(snapshot_of(written));
+        ctx.set_trace_context(crate::trace_context::TraceContext::continuing(
+            Some(&format!("00-{TRACE}-00f067aa0ba902b7-01")),
+            1.0,
+        ));
+        (ctx, dir)
+    }
+
+    /// Every line this thread's writer wrote to `dir`, once its file is sealed. The writer is
+    /// taken out of the thread, so a later case on it starts with none.
+    fn sealed_lines(dir: &Path) -> Vec<Line> {
+        super::seal_now();
+        drop(super::WRITER.with_borrow_mut(Option::take));
+        files(dir).iter().flat_map(|path| lines(path)).collect()
+    }
+
+    /// `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`: a log record past
+    /// `[log] level` is one `log` line with its level, its message and its fields, under the trace
+    /// id of the request that wrote it. A record below the level writes no line.
+    #[test]
+    fn a_written_log_record_is_one_log_line_under_the_requests_trace() {
+        let (mut ctx, dir) = storing(
+            "spool-log-line",
+            "[debug]\nstore = true\n\n[log]\nlevel = \"Info\"\n",
+        );
+        let mut quiet = nvs_render::Record::at(nvs_render::Level::Debug);
+        quiet.envelope.message = Some(nvs_render::Rendered::new("below the level"));
+        ctx.write_log_record(&quiet, crate::LogChannel::Output)
+            .expect("a buffer never fails");
+        let mut record = nvs_render::Record::at(nvs_render::Level::Warn);
+        record.envelope.message = Some(nvs_render::Rendered::new("an order was paid twice"));
+        record.envelope.fields = vec![(
+            "order".to_owned(),
+            nvs_render::Node::Scalar(nvs_render::Scalar::Int(7)),
+        )];
+        ctx.write_log_record(&record, crate::LogChannel::Output)
+            .expect("a buffer never fails");
+
+        let all = sealed_lines(&dir);
+        let [line] = all.as_slice() else {
+            panic!("one record past the level, one line: {all:?}");
+        };
+        assert_eq!(line.trace.as_deref(), Some(TRACE));
+        let Record::Log(log) = &line.record else {
+            panic!("not a log line: {line:?}");
+        };
+        assert_eq!(
+            (log.level.as_str(), log.message.as_str()),
+            ("warn", "an order was paid twice")
+        );
+        assert_eq!(log.fields.get("order"), Some(&serde_json::json!(7)));
+        assert!(!log.elided);
+    }
+
+    /// `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`: a filed `query`
+    /// event is one `event` line whose `query` has the driver, the SQL and the rows the span
+    /// recorded, under the request's trace id.
+    #[test]
+    fn a_filed_query_event_is_an_event_line_with_its_driver_sql_and_rows() {
+        let (mut ctx, dir) = storing("spool-query-event", "[debug]\nstore = true\n");
+        let query = Query {
+            driver: "postgres".to_owned(),
+            sql: "select id from orders where shop = $1".to_owned(),
+            rows: Some(3),
+            site: None,
+        };
+        ctx.record_query(
+            "query sql=select id from orders where shop = $1",
+            query.clone(),
+            Duration::from_millis(2),
+        );
+
+        let all = sealed_lines(&dir);
+        let [line] = all.as_slice() else {
+            panic!("one filed event, one line: {all:?}");
+        };
+        assert_eq!(line.trace.as_deref(), Some(TRACE));
+        let Record::Event(event) = &line.record else {
+            panic!("not an event line: {line:?}");
+        };
+        assert_eq!(event.event, EventKind::Query);
+        assert_eq!(event.query.as_ref(), Some(&query));
+        assert!(event.start_us <= event.end_us);
+        assert_eq!(ctx.trace().len(), 1, "the event is in the trace as well");
+    }
 }

@@ -15,7 +15,8 @@
 //!
 //! The cases from `Served` on run `nvs serve` itself, because the `Host` a
 //! request arrives with and the size of its body are checked at the door,
-//! before a request file could describe them.
+//! before a request file could describe them, and because the debug spool's
+//! `request` line is written there too.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -173,7 +174,7 @@ struct Served {
     child: Child,
     addr: SocketAddr,
     dir: PathBuf,
-    _data: nvs_repo::Scratch,
+    data: nvs_repo::Scratch,
 }
 
 impl Served {
@@ -231,7 +232,7 @@ impl Served {
             child,
             addr: addr.parse().expect("the server printed an address"),
             dir,
-            _data: data,
+            data,
         }
     }
 
@@ -247,6 +248,58 @@ impl Served {
             .read_line(&mut line)
             .expect("an answer arrives");
         line.trim_end().to_owned()
+    }
+
+    /// The whole answer the server writes to `raw`, which closes the connection.
+    fn answer_to(&self, raw: &[u8]) -> String {
+        let mut stream = TcpStream::connect(self.addr).expect("the server answers");
+        stream
+            .set_read_timeout(Some(Duration::from_secs(30)))
+            .expect("a read timeout is set");
+        stream.write_all(raw).expect("the request is sent");
+        let mut answer = Vec::new();
+        std::io::Read::read_to_end(&mut stream, &mut answer).expect("an answer arrives");
+        String::from_utf8_lossy(&answer).into_owned()
+    }
+
+    /// The raw bytes of every sealed spool file in the data folder, once those files hold
+    /// `requests` `request` lines between them, and those lines.
+    ///
+    /// # Panics
+    ///
+    /// When the files do not hold that many within a minute. The server seals a file a quarter
+    /// of a second after its first line.
+    fn spooled(&self, requests: usize) -> (Vec<u8>, Vec<nvs_runtime::spool::Request>) {
+        let spool = self.data.join("debug").join("spool");
+        let until = std::time::Instant::now() + Duration::from_secs(60);
+        loop {
+            let mut raw = Vec::new();
+            for entry in std::fs::read_dir(&spool).into_iter().flatten().flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|ext| ext == "spool") {
+                    raw.extend(std::fs::read(&path).unwrap_or_default());
+                }
+            }
+            let found: Vec<nvs_runtime::spool::Request> = String::from_utf8_lossy(&raw)
+                .lines()
+                .filter_map(|line| match nvs_runtime::spool::Line::parse(line) {
+                    Ok(nvs_runtime::spool::Line {
+                        record: nvs_runtime::spool::Record::Request(request),
+                        ..
+                    }) => Some(*request),
+                    _ => None,
+                })
+                .collect();
+            if found.len() >= requests {
+                return (raw, found);
+            }
+            assert!(
+                std::time::Instant::now() < until,
+                "the spool holds {} of {requests} request lines",
+                found.len()
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
     }
 }
 
@@ -455,4 +508,96 @@ fn a_chunked_form_past_upload_total_fails_every_post() {
         "HTTP/1.1 500 Internal Server Error",
         "a chunked form past `upload_total` fails the caught read and the next one"
     );
+}
+
+/// A login handler whose class has a `secret` property. `#[Json\Derive]` cannot decode into a
+/// `secret` property (E0462), so the property is skipped and the class only reaches it.
+const LOGIN: &str = "<?nvs\n\
+    #[Core\\Json\\Derive]\n\
+    class Login\n{\n    public tainted string $user;\n\n    \
+    #[Core\\Json\\Field(skip: true)]\n    public secret string $password;\n\n    \
+    public function constructor(tainted string $user)\n    {\n        \
+    $this->user = $user;\n        $this->password = '';\n    }\n}\n\n\
+    if (Core\\Request::path() == '/login/form') {\n    \
+    var $form = Core\\Request::postAs<Login>();\n} else {\n    \
+    var $json = Core\\Request::jsonAs<Login>();\n}\n\
+    echo 'signed in';\n";
+
+/// A `POST` to `path` of `body` as `content_type`, with its length declared.
+fn post_to(path: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
+    let mut raw = format!(
+        "POST {path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: {content_type}\r\n\
+         Content-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    raw.extend_from_slice(body);
+    raw
+}
+
+/// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`: a served
+/// `jsonAs<X>()` and `postAs<X>()`, where `X` reaches a `secret` property, under `[debug] store`
+/// in `development`. A JSON body the decoder can walk is recorded as sent. A body whose values it
+/// cannot find, a document cut short or a multipart form, is recorded as withheld, and no byte of
+/// it reaches a spool file.
+#[test]
+fn a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld() {
+    let served = Served::serving(
+        "spool-login",
+        LOGIN,
+        Some("[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n"),
+    );
+    let sent = br#"{"user":"ada@example.com"}"#;
+    let answer = served.answer_to(&post_to("/login/json", "application/json", sent));
+    assert!(answer.ends_with("signed in"), "{answer}");
+    let cut = served.answer_to(&post_to(
+        "/login/json",
+        "application/json",
+        br#"{"user":"cut-user-1","password":"cut-secret-2""#,
+    ));
+    assert!(cut.starts_with("HTTP/1.1 500"), "{cut}");
+    let multipart = b"--b\r\nContent-Disposition: form-data; name=\"user\"\r\n\r\n\
+                      form-user-3\r\n--b\r\nContent-Disposition: form-data; name=\"password\"\
+                      \r\n\r\nform-secret-4\r\n--b--\r\n";
+    let form = served.answer_to(&post_to(
+        "/login/form",
+        "multipart/form-data; boundary=b",
+        multipart,
+    ));
+    assert!(form.ends_with("signed in"), "{form}");
+
+    let (raw, requests) = served.spooled(3);
+    let body_of = |path: &str, withheld: bool| {
+        requests
+            .iter()
+            .filter(|request| request.path == path)
+            .map(|request| {
+                request
+                    .input
+                    .as_ref()
+                    .expect("development records the input")
+                    .body
+                    .clone()
+            })
+            .find(|body| body.withheld == withheld)
+            .unwrap_or_else(|| panic!("no request line for {path}: {requests:?}"))
+    };
+    let recorded = body_of("/login/json", false);
+    assert!(recorded.read && !recorded.withheld, "{recorded:?}");
+    assert_eq!(recorded.bytes().as_deref(), Some(&sent[..]));
+    for path in ["/login/json", "/login/form"] {
+        let withheld = body_of(path, true);
+        assert!(withheld.read, "a body the program read is recorded as read");
+        assert!(
+            withheld.text.is_none() && withheld.base64.is_none(),
+            "a withheld body has bytes: {withheld:?}"
+        );
+    }
+    for value in ["cut-user-1", "cut-secret-2", "form-user-3", "form-secret-4"] {
+        assert!(
+            !raw.windows(value.len())
+                .any(|window| window == value.as_bytes()),
+            "`{value}` reached a spool file"
+        );
+    }
 }

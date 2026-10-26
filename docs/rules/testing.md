@@ -3,7 +3,7 @@
 
 # Testing
 
-*18 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2408,7 +2408,7 @@ the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
 
-## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket  *(designed — owned by goal debug-service)*
+## A debug record reaches the service through a sealed spool file that one writer owns, never over a socket
 
 `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`
 
@@ -2445,8 +2445,9 @@ in `development`, its input and its response,
 `event` (a trace event, [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), with a `query` event's call
 site id where the compiler passed one), `dump` (a `Core\Debug::dump` record's bounded tree,
 [`errors/record-transformations`](errors.md#errors-record-transformations)), `log` (a log record of the request, because a development
-server logs to its terminal and the viewer has no file to read) and `dropped` (how many records the cap
-evicted). Every line but `dropped` carries the trace id, so the viewer joins them. A line is at most
+server logs to its terminal and the viewer has no file to read), `body` (a part of a recorded body too
+long to be written inside its `request` line) and `dropped` (how many records the cap evicted). Every
+line but `dropped` carries the trace id, so the viewer joins them. A line is at most
 4 MiB; a record that would be longer is written with its tree, its fields or its bodies elided to fit,
 and the elision says so. One that is still too long is counted in the next `dropped` line.
 
@@ -2461,10 +2462,20 @@ missing optional field as absent, so a field added later still reads an older sp
 | `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`) |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
+| `body` | `of` (`request` or `response`), `offset` (where its bytes start in the body); optional `text` and `base64`, as in a `body` |
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 A `body` has `read`, `cut`, and optional `declared` (the length the request declared), `text` (the
-bytes, when they are UTF-8) and `base64` (the bytes, when they are not). `nvs_runtime::spool::Line` is
+bytes, when they are UTF-8), `base64` (the bytes, when they are not), `chunks` and `withheld` (the
+bytes were left out because a `secret` field in them could not be found). A recorded body of
+at most 64 KiB is written inside its `request` line. A longer one is written in `body` lines of at most
+1 MiB each, ahead of its `request` line; its `body` then carries no bytes and says in `chunks` how many
+lines do. A response body's lines are written while it is recorded, so it is never held whole. A
+request body's are written when the request ends, once each `secret` field is replaced. No line
+passes 4 MiB. A
+response body is recorded when it is the bytes the program wrote: a file it sent is on disk already,
+so its `body` has `read` false and the server reads the file once, to send it.
+`nvs_runtime::spool::Line` is
 the one type that writes and reads a line, and `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`
 is one line of each kind as the writer writes it.
 
@@ -2482,9 +2493,9 @@ directory, and the same property makes the service a viewer for a copied-down sp
   anywhere. **Disk:** at most `spool_max` per process.
 
 **Not on disk.** `nvs_runtime::spool` is the writer, and nothing calls it yet: no request writes a
-record, and nothing reads a spool file. `nvs_runtime::spool::seal_due` is not yet called from a core's
-loop, so until it is, an open file is sealed by its writer's next record or read by the ingester
-once it is a minute old.
+record, and nothing reads a spool file. Under `nvs serve` each core runs one task that seals its file
+at the deadline (`crates/nvs-cli/src/serve.rs`, `seal_the_spool`), and `nvs run` and `nvs test` seal
+theirs at exit.
 
 **Declined:**
 - **A socket collector with the application as its client.** It needs a bounded queue, a background
@@ -2501,7 +2512,7 @@ once it is a minute old.
 
 <a id="testing-a-recorded-request-keeps-its-input-with-credentials-replaced"></a>
 
-## A request recorded in development keeps its method, path, query, headers, the body it read and its response, with the four credential headers and every field decoded into a `secret` property replaced before anything is written  *(designed — owned by goal debug-service)*
+## A request recorded in development keeps its method, path, query, headers, the body it read and its response, with the four credential headers and every field decoded into a `secret` property replaced before anything is written
 
 `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`
 
@@ -2540,7 +2551,17 @@ in a `secret` property of `X` ([`security/secret-qualifier`](security.md#securit
 value with `[redacted]` in the stored body. A body the program read any other way is stored as it
 arrived, so a password in a development login form read as raw bytes is on disk until the index forgets
 it ([`testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`](testing.md#testing-the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time)), in a directory only
-the service's account can open. The `nvs debug` reference page says so.
+the service's account can open. The `nvs debug` reference page says so. A `jsonAs` or `postAs` that
+throws replaces the fields as well, because the bytes it read are recorded either way. Where those
+fields cannot be found, the record keeps no byte of the body and says `withheld`: a body that is not
+one JSON document or nests deeper than 128 levels, a multipart form, and a class that writes its own
+decoder, each where `X` can reach a `secret` property.
+
+A derived codec refuses a `secret` property ([`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers)), so a class
+`jsonAs` or `postAs` decodes reaches one only as a skipped property, which takes no value from the
+body. A whole JSON document read that way is therefore stored as it arrived, and the replacement runs
+on no field of it. A class that reaches a skipped `secret` property still withholds a body whose
+fields cannot be found.
 
 - **Memory:** per recorded request, the bytes the program read, up to `request_body`, held until the
   request's record is written at its end. The response body is written through to the spool, so it

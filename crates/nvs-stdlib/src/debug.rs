@@ -1094,6 +1094,86 @@ mod tests {
         }
     }
 
+    /// `rule:testing/the-debug-stream-reaches-the-service-through-the-disk`: a dump of an object
+    /// with a `secret` property is one `dump` line, inside a request and outside one, and no byte
+    /// of the secret reaches the spool. Inside the request its record also reaches the log, at
+    /// `[log] level = "Debug"`, and still writes no `log` line.
+    // covers: Core\Debug::dump
+    #[test]
+    fn a_dump_is_one_spool_dump_line_with_no_byte_of_a_secret() {
+        let mut table = nvs_runtime::ClassTable::new();
+        let login = table.define("Login", &["user", "password"], &[]);
+        table.set_secret_fields(login, vec![false, true]);
+        let dir = nvs_repo::scratch("debug-dump-spool");
+        nvs_runtime::spool::install(nvs_runtime::spool::Writer::new(
+            dir.to_path_buf(),
+            "1-2-0".to_owned(),
+            u64::MAX,
+        ));
+        let written = "[debug]\nstore = true\n\n[log]\nlevel = \"Debug\"\n";
+        let mut inside = requesting(written);
+        let mut outside = nvs_runtime::Ctx::buffered();
+        outside.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        outside.set_config(crate::tests::granting(written));
+        for ctx in [&mut inside, &mut outside] {
+            #[expect(
+                unsafe_code,
+                reason = "the table outlives every value built from it, and the one \
+                          reference the object is built with moves into the tail array"
+            )]
+            let object = unsafe { nvs_runtime::NvsObj::new(table.desc(login)) };
+            object.set_field(0, Value::text("ada@example.com"));
+            object.set_field(1, Value::text("hunter2-login-secret"));
+            let mut tail = nvs_runtime::NvsArray::new();
+            tail.append(Value::object(object));
+            let tail = Value::array(tail);
+            nvs_runtime::call(
+                nvs_core_debug_dump,
+                ctx,
+                &[Value::source_const(std::ptr::null()), tail],
+            )
+            .expect("a dump cannot fail");
+            #[expect(
+                unsafe_code,
+                reason = "this frame built the array and still owns the only \
+                          reference to it; the helper borrowed it"
+            )]
+            unsafe {
+                tail.release();
+            }
+        }
+        let logged = inside
+            .take_buffered_diagnostic()
+            .expect("the diagnostic channel buffers");
+        assert!(
+            String::from_utf8_lossy(&logged).contains(r#""level":"debug""#),
+            "the dump inside the request reached the log as a record"
+        );
+        nvs_runtime::spool::seal_now();
+
+        let mut raw = Vec::new();
+        for entry in std::fs::read_dir(&dir).expect("the spool directory") {
+            raw.extend(std::fs::read(entry.expect("an entry").path()).expect("a file"));
+        }
+        let lines: Vec<nvs_runtime::spool::Line> = std::str::from_utf8(&raw)
+            .expect("a spool file is UTF-8")
+            .lines()
+            .map(|line| nvs_runtime::spool::Line::parse(line).expect("a line"))
+            .collect();
+        assert_eq!(lines.len(), 2, "one line per dump: {lines:?}");
+        for line in &lines {
+            let nvs_runtime::spool::Record::Dump(dump) = &line.record else {
+                panic!("a dump wrote a line that is not a `dump` line: {line:?}");
+            };
+            let tree = dump.tree.to_string();
+            assert!(tree.contains("ada@example.com"), "{tree}");
+        }
+        assert!(
+            !raw.windows(7).any(|window| window == b"hunter2"),
+            "a byte of the secret reached a spool file"
+        );
+    }
+
     /// A command-line context under `written`, whose `[debug] mode` is the ceiling.
     fn probing(written: &str) -> nvs_runtime::Ctx {
         let mut ctx = nvs_runtime::Ctx::buffered();
