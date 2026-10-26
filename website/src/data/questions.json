@@ -1165,6 +1165,17 @@
       "Debug a program that runs inside a Docker container"
     ]
   },
+  "/reference/cli/nvs-debug/": {
+    "feature": "tools:cli/nvs-debug",
+    "hash": "7160f2a6b522a9bb",
+    "questions": [
+      "How do I look at the requests my development server recorded?",
+      "Read the saved request records into a database I can search",
+      "Read a JSON log file into the same database as the requests",
+      "Collect request records on a production host",
+      "Why does a second nvs debug exit with status 1?"
+    ]
+  },
   "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
     "feature": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
     "hash": "4dbbbca14ffb4393",
@@ -1328,7 +1339,7 @@
   },
   "/reference/cli/one-binary/": {
     "feature": "tools:cli/one-binary",
-    "hash": "5eee15100ec2fd98",
+    "hash": "3a0d99f4f460d242",
     "questions": [
       "What commands does the Novis command-line tool have?",
       "Overview of every command and its options",
@@ -1423,13 +1434,14 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "71790a638f061e3b",
+    "hash": "391315a0fe21295c",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Show debug output in the browser page during development",
       "Why does my debug dump not appear on the page?",
-      "Hide debug output from visitors on a production site",
-      "Where does debug output go on the command line?"
+      "Save a record of every request so I can look at it later",
+      "Limit the disk space and the age of saved request records",
+      "Hide debug output from visitors on a production site"
     ]
   },
   "/reference/config/deferred/": {
@@ -12824,13 +12836,14 @@
   },
   "/reference/core/server/traceid/": {
     "feature": "Core\\Server::traceId",
-    "hash": "c9416a053034bd7e",
+    "hash": "81ca60fd97dd7ddf",
     "questions": [
       "How do I get the id of the current request?",
       "Show a request id on an error page",
       "Find a request in the server logs",
       "Read the trace id from a traceparent header",
-      "Connect my logs with the logs of the calling service"
+      "Connect my logs with the logs of the calling service",
+      "Remove the traceresponse header from every response"
     ]
   },
   "/reference/core/session/": {
