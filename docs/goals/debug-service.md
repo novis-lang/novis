@@ -53,9 +53,16 @@ stages:
     extra:
       context:
         rules: [testing/nvs-debug-is-the-service-and-a-development-server-starts-it, testing/writing-a-debug-record-to-disk-is-its-own-gate, testing/debug-probes]
+  - id: 9
+    title: a derived JSON decoder fills a `secret` property, and the recorded body replaces it
+    status: open
+    context: [crates/nvs-types/src/derive.rs, crates/nvs-diagnostics/src/code/types.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-cli/tests/request.rs, docs/rules/security/derived-codec-qualifiers.md, docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md]
+    extra:
+      context:
+        rules: [security/derived-codec-qualifiers, security/secret-qualifier, security/secret-sinks-refuse, core-classes/derive-property-list, testing/a-recorded-request-keeps-its-input-with-credentials-replaced]
   - id: 8
     title: the goal is verified once, and every failure is fixed
-    status: done
+    status: open
     gate: true
 checks:
   - id: owners-closes
@@ -210,15 +217,20 @@ sent, so a replay sends the same JSON. Trade-offs: per recorded request in `deve
 `[limits] request_body` held; with no recording, one question of the body per call; with it, one more
 read of the document per level the walk descends.
 
-**A derived codec still refuses a `secret` property, so a decoded body has no `secret` field to
-replace.** This session's call, built on as option 1 of decision `d9`, which recommends option 2.
-`rule:security/derived-codec-qualifiers` makes a `secret` property on a derived class `E0462`, so
-`jsonAs` and `postAs` reach one only as a skipped property, which takes no value. A whole document
-read that way is stored as sent, and the replacement runs on no field; the withheld path still
-applies. The recording rule says so. If the user picks option 2, a new stage lets a derived decoder
-fill a `secret` property (encoding it still refused), and the replacement code already in place
-covers it. Trade-off: nothing new to build now; a password read with `jsonAs` is on disk in the
-owner-only folder until the index forgets it.
+**A derived JSON decoder fills a `secret` property, and encoding that class is still refused.** The
+user decided this (decision `d9`, option 2), so stage 9 builds it. A `secret` property on a
+`#[Json\Derive]` class compiles, and `jsonAs`, `postAs` and `Core\Json::decodeAs` fill it, so the
+replacement code `spool::Recorder::redact` already runs (stage 7) reaches a real field. The
+session's calls on how: the refusal moves from the declaration to every call that encodes the class
+or a value that reaches it, and that call is a compile error naming the property (`E0462`, its card
+and message rewritten for the encode site). A class whose encoder is written by hand still decides
+for itself. `#[Db\Derive]` keeps `E0462` at the declaration, because a row is both read and written
+by the same derive and the decision is about request bodies. A request decoder's text is `tainted`
+always, so the property is `secret tainted string`, which the qualifier rules already allow.
+Trade-offs: a class with a `secret` property has a decoder and no usable encoder; one more check per
+encode call site at compile time; nothing at run time beyond the replacement stage 7 built.
+`rule:security/derived-codec-qualifiers` and
+`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` are amended in stage 9.
 
 **Each event is a spool line as it is filed, and a dump is one `dump` line and no `log` line.** This
 session's calls. `Ctx::file_event` writes the `query`, `http` and `gc` events as each is filed and a
@@ -398,13 +410,27 @@ debug service holds.
 - [x] A production `nvs serve` never starts it. `crates/nvs-cli/src/serve.rs:227`
 - [x] A test: a fixture served with `store` on has its requests in the index, joined by trace id, from sealed spool files only. With `store` off, the same run writes no spool file and its probe counts match a run with no `[debug]` block (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`, `rule:testing/debug-probes`). `crates/nvs-cli/tests/debug_service.rs:1`
 - [x] The help text for `nvs debug` and `--tail`, and the four keys' comments in the default file. `crates/nvs-cli/src/main.rs:395`, `crates/nvs-config/src/default.toml:327`
-- [x] A `# nvs debug` section in the CLI chapter for the ingester half, after `# nvs test`, which says what a recorded body keeps: a body read other than through `jsonAs<X>()` or `postAs<X>()` is stored as read. `docs/reference/tools/10-cli.md:302`
+- [x] A `# nvs debug` section in the CLI chapter for the ingester half, after `# nvs test`, says what a recorded body keeps. A body read other than through `jsonAs<X>()` or `postAs<X>()` is stored as read. `docs/reference/tools/10-cli.md:302`
 - [x] `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it` and `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate` `shipped`, and `bun nv owners --closes debug-service` passes. `data/rules/testing/nvs-debug-is-the-service-and-a-development-server-starts-it.json:3`, `data/rules/testing/writing-a-debug-record-to-disk-is-its-own-gate.json:3`
+
+### 9. a derived JSON decoder fills a `secret` property, and the recorded body replaces it
+
+**Does:** a `secret` property on a `#[Json\Derive]` class is decoded, and an encode of that class
+does not compile. A recorded request body read through `jsonAs` or `postAs` keeps no byte of it.
+
+**Split:** the session lands the checker change and the rule edits. A writing subagent then updates
+the conformance cases and the examples that pinned the old refusal, as one batch.
+
+- [ ] `codec_field` keeps a `secret` property of a `#[Json\Derive]` class as a field the decoder fills, and `#[Db\Derive]` still reports `E0462` at the declaration (`rule:security/derived-codec-qualifiers`). `crates/nvs-types/src/derive.rs:2493`
+- [ ] Every call that encodes such a class, or a value whose type reaches it, is `E0462` at the call, naming the property. Its card and message are rewritten for that site. `crates/nvs-diagnostics/src/code/types.rs:530`, `crates/nvs-stdlib/src/json.rs:1`
+- [ ] The conformance case that pinned the declaration refusal is split: a `#[Json\Derive]` class with a `secret` property decodes it, and encoding it does not compile. `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst:1`
+- [ ] `LOGIN` decodes `$password` instead of skipping it. A served test reads a whole JSON document through `jsonAs` and a form through `postAs`, and no spool file keeps a byte of the password. `crates/nvs-cli/tests/request.rs:531`
+- [ ] `rule:security/derived-codec-qualifiers` and `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` say what is now true, with the new tests in `guardedBy`. The `nvs debug` CLI section says a `secret` field is decoded and replaced. `docs/rules/security/derived-codec-qualifiers.md:24`, `docs/reference/tools/10-cli.md:410`
 
 ### 8. the goal is verified once, and every failure is fixed
 
-**Does:** the stages before this one checked with a build alone, so this stage verifies the
-whole goal once and fixes every failure in one pass.
+**Does:** the stages before this one checked with a build alone. This stage verifies the whole
+goal once and fixes every failure in one pass.
 
 **Split:** start `bun nv affected --run` with `run_in_background` and end the turn to wait. Group
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
@@ -413,46 +439,52 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [x] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
+- [x] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added. The perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) are recorded. The `debug.*` directive proofs exist, and `Core\Server::traceId`'s `about.md` is cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
 - [x] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
+- [ ] Once stage 9 lands, `bun nv affected --run` runs again over stage 9's change, and every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check` are green again after stage 9. `tools/nv/cmd/ci.ts:1`
 
 ## Handoff
 
 ### State
 
-Every stage is done, and every goal-end gate is green at `6bcb2df7d`. The goal waits only on
-decision `d9`, which is still open; the work is built on "no" (Standing decisions).
+The user answered decision `d9` with option 2, and it is closed. Stage 9 is new: a derived JSON
+decoder fills a `secret` property, and encoding the class does not compile (Standing decisions).
+The gate stage is open again for stage 9's change. Stages 1 to 7 are done and stay done.
 
-The gate stage's last group:
+This session checked the sweep's reds against HEAD and changed no code. `env-secret-proofs` exits 0.
+Each failing job of run 40174915924 (built at `9be30356e`) has a later fix:
 
-- `Core\Config::set` takes `false` for `debug.store` and `debug.inline`, as both rules said, and
-  refuses `true` (`38a5730b2`, Standing decisions).
-- A proof whose `nvs.toml` turns on `[debug] store` runs in its own data folder, deleted after the
-  run (`d638ac59f`).
-- `index_max_deletes_the_oldest_requests_until_the_index_fits` in
-  `crates/nvs-cli/tests/debug_ingest.rs` drives `Index::forget` past one 1000-request batch
-  (`a9c47e908`).
-- `nvs debug`'s page has its search questions, and three changed pages are stamped again
-  (`76faee17d`, `6bcb2df7d`).
-- `verify --doc` found three links to `file` that also name a macro (`67c70aa23`). `ci --check`
-  found `THIRD-PARTY-LICENSES.txt` behind `Cargo.lock`'s `crypto-bigint` 0.7.9, and
-  `[debug] store`'s `about.md` at 217 words (`6bcb2df7d`).
+- the Windows stalled-peer test, by `0b7eadd2c`;
+- the Miri timeout of the traced-loop case, by `bd2e51f0a`;
+- the two Miri `getrusage` cases, ignored under Miri by `901f4855c`;
+- the `overload past capacity` null p99, by `d5aa2be18`.
 
-`bun nv affected --run` is green (22 of 22, 7777 tests), then `bun nv verify --doc`,
-`bun nv owners --closes debug-service` and `bun nv ci --check` are each green. The sweep's reds
-were already fixed at HEAD: `env-secret-proofs` exits 0, and run 40174915924 built `9be30356e`,
-before the five later fixes.
+`[debug] store`'s `about.md` is under 160 words since `6bcb2df7d`. At that commit, `bun nv affected --run` was green (22 of 22, 7777 tests), and so were
+`bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`.
 
-Tests expected to go red: none known.
+Tests expected to go red once stage 9's checker change lands:
+
+- `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst`;
+- the `E0462` cases in `crates/nvs-types/tests/derive.rs`;
+- every `.nvs` that skips a `secret` property only to get past `E0462`.
 
 ### Next
 
-**Nothing in this goal, once `d9` is answered.**
+**Stage 9, in `nvs-types`' derive check, then the rules and the tests.** Its files are
+`crates/nvs-types/src/derive.rs`, `crates/nvs-diagnostics/src/code/types.rs` and
+`crates/nvs-cli/tests/request.rs`.
 
-- If `d9` is answered "no", the goal is reached: delete this file after moving any decision only
-  its prose holds, as AGENTS.md § *In the loop* says. `docs/goals/debug-service.md:1`
-- If `d9` is answered "yes", the Backlog's last line becomes a new stage before the goal ends.
-  `crates/nvs-types/src/derive.rs:2493`
+- Drop the declaration refusal for `Format::Json` in `codec_field` and keep it for `#[Db\Derive]`.
+  `crates/nvs-types/src/derive.rs:2493`, `crates/nvs-types/src/derive.rs:2647`
+- Find where an encode call checks its argument's codec: `check_json_participation`, and the
+  encoder's class arm in `nvs_stdlib::json`. Report `E0462` there when the class reaches a
+  `secret` field. `crates/nvs-types/src/derive.rs:1777`, `crates/nvs-diagnostics/src/code/types.rs:530`
+- The record's replacement is already written: `json::secret_spans` finds the field once a decoder
+  fills it. `crates/nvs-stdlib/src/json.rs:3345`
+- `LOGIN` stops skipping `$password`, and its test asserts no byte of the password in the spool.
+  `crates/nvs-cli/tests/request.rs:531`
+- Then the gate stage: `bun nv affected --run`, then the goal-end gates again.
 
 ### Backlog
 
@@ -460,4 +492,3 @@ Tests expected to go red: none known.
 - The viewer's part of `nvs debug`'s feature proofs is `debug-viewer`'s, on top of the ones this goal writes (`docs/rules/testing/feature-proofs.md`).
 - The query call site id is passed by `request-aware-editor`; until then a `query` event has none (`docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md`).
 - A recorded request becoming a `Core\Test::request` case is `request-aware-editor`'s (`docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md`).
-- If `d9` is answered "yes", a new stage lets a derived decoder fill a `secret` property, amends `rule:security/derived-codec-qualifiers` and the recording rule, and adds a served test that a whole JSON document keeps no byte of that value (`crates/nvs-types/src/derive.rs:2493`).
