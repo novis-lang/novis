@@ -42,7 +42,10 @@
 //!
 //! **What it spends:** per writer with an open file, one write buffer and one descriptor; per writer,
 //! one entry per sealed file it has not evicted. On disk, at most `spool_max` per process. Nothing is
-//! queued. Per recorded body in flight, a [`Recorder`] holds at most [`BODY_CHUNK`] bytes.
+//! queued. Per recorded response body in flight, a [`Recorder`] holds at most [`BODY_CHUNK`]
+//! bytes. Per recorded request body in flight, it holds the bytes the program read, up to
+//! `[limits] request_body`, so a `secret` field the decoder found is replaced before any byte of
+//! the body is written ([`Recorder::redact`]).
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -86,7 +89,7 @@ pub const CREDENTIALS: [&str; 4] = [
 /// The longest recorded body written inside its `request` line. A longer one is written as `body`
 /// lines.
 pub const BODY_INLINE: usize = 64 << 10;
-/// The most bytes of a body one `body` line carries, and the most a [`Recorder`] holds.
+/// The most bytes of a body one `body` line carries, and the most a response's [`Recorder`] holds.
 pub const BODY_CHUNK: usize = 1 << 20;
 /// Room kept for the `dropped` line an eviction writes, so it never needs a second eviction.
 const DROPPED_ROOM: u64 = 256;
@@ -250,6 +253,10 @@ pub struct Body {
     /// has no [`Body::text`] and no [`Body::base64`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunks: Option<u64>,
+    /// Whether the bytes were left out, because a `secret` field in them could not be found to be
+    /// replaced (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub withheld: bool,
 }
 
 impl Body {
@@ -264,6 +271,7 @@ impl Body {
             base64,
             cut,
             chunks: None,
+            withheld: false,
         }
     }
 
@@ -324,11 +332,17 @@ pub struct BodyPart {
     pub base64: Option<String>,
 }
 
-/// One body as it is recorded: the bytes held up to [`BODY_CHUNK`], each full chunk written as a
-/// `body` line, and the whole cut at `[limits] request_body`
+/// One body as it is recorded, cut at `[limits] request_body`
 /// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`).
 ///
-/// **What it spends:** per recorded body in flight, at most [`BODY_CHUNK`] bytes.
+/// A response's bytes are held up to [`BODY_CHUNK`], and each full chunk is written as a `body`
+/// line. A request's bytes are held until [`Recorder::finish`], because `jsonAs` and `postAs`
+/// find a `secret` field only once the program has read the whole body. Each range
+/// [`Recorder::redact`] names is replaced there, before any byte is written.
+///
+/// **What it spends:** per recorded response body in flight, at most [`BODY_CHUNK`] bytes. Per
+/// recorded request body in flight, at most `[limits] request_body` bytes, and only in
+/// `development`. A buffering reader holds the same bytes on the request already.
 #[derive(Debug)]
 pub struct Recorder {
     of: BodyOf,
@@ -340,6 +354,10 @@ pub struct Recorder {
     chunks: u64,
     read: bool,
     cut: bool,
+    /// The byte ranges of a request body to replace, each with its replacement.
+    redactions: Vec<(std::ops::Range<usize>, &'static [u8])>,
+    /// Whether the bytes are left out of the record ([`Recorder::withhold`]).
+    withheld: bool,
 }
 
 impl Recorder {
@@ -355,6 +373,8 @@ impl Recorder {
             chunks: 0,
             read: false,
             cut: false,
+            redactions: Vec::new(),
+            withheld: false,
         }
     }
 
@@ -368,6 +388,10 @@ impl Recorder {
             self.cut = true;
         }
         let mut rest = &bytes[..bytes.len().min(room)];
+        if self.of == BodyOf::Request {
+            self.held.extend_from_slice(rest);
+            return;
+        }
         while !rest.is_empty() {
             let take = rest.len().min(BODY_CHUNK - self.held.len());
             self.held.extend_from_slice(&rest[..take]);
@@ -378,8 +402,21 @@ impl Recorder {
         }
     }
 
+    /// Replaces each of `spans`, byte ranges of the request body, with `with` when the body is
+    /// written. A range past the bytes recorded is cut to them, so a value the cap cut in two is
+    /// replaced as well. Ranges that overlap are replaced once.
+    pub fn redact(&mut self, spans: &[std::ops::Range<usize>], with: &'static [u8]) {
+        self.redactions
+            .extend(spans.iter().map(|span| (span.clone(), with)));
+    }
+
+    /// Leaves the bytes out of the record. The body is still recorded as read.
+    pub const fn withhold(&mut self) {
+        self.withheld = true;
+    }
+
     /// The body as its `request` line records it, with `declared` as the length the request
-    /// declared. A body longer than [`BODY_INLINE`] writes its last `body` line here.
+    /// declared. A body longer than [`BODY_INLINE`] writes its last `body` lines here.
     #[must_use]
     pub fn finish(mut self, declared: Option<u64>) -> Body {
         if !self.read {
@@ -388,6 +425,16 @@ impl Recorder {
                 ..Body::default()
             };
         }
+        if self.withheld {
+            return Body {
+                read: true,
+                declared,
+                cut: self.cut,
+                withheld: true,
+                ..Body::default()
+            };
+        }
+        self.replace_redactions();
         if self.chunks == 0 && self.held.len() <= BODY_INLINE {
             return Body {
                 declared,
@@ -402,24 +449,53 @@ impl Recorder {
             base64: None,
             cut: self.cut,
             chunks: Some(self.chunks),
+            withheld: false,
         }
     }
 
+    /// Writes the held bytes as `body` lines of at most [`BODY_CHUNK`] bytes each.
     fn flush(&mut self) {
-        if self.held.is_empty() {
+        let held = std::mem::take(&mut self.held);
+        for bytes in held.chunks(BODY_CHUNK) {
+            let (text, base64) = encoded(bytes);
+            let part = BodyPart {
+                of: self.of,
+                offset: self.written,
+                text,
+                base64,
+            };
+            record_under(self.store, &self.trace, Record::Body(part));
+            self.written += u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+            self.chunks += 1;
+        }
+    }
+
+    /// Replaces each range [`Recorder::redact`] named in the held bytes, in order.
+    fn replace_redactions(&mut self) {
+        if self.redactions.is_empty() {
             return;
         }
-        let bytes = std::mem::take(&mut self.held);
-        let (text, base64) = encoded(&bytes);
-        let part = BodyPart {
-            of: self.of,
-            offset: self.written,
-            text,
-            base64,
-        };
-        record_under(self.store, &self.trace, Record::Body(part));
-        self.written += u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-        self.chunks += 1;
+        let mut spans = std::mem::take(&mut self.redactions);
+        spans.sort_by_key(|(span, _)| span.start);
+        let held = std::mem::take(&mut self.held);
+        let mut out = Vec::with_capacity(held.len());
+        let mut at = 0;
+        for (span, with) in spans {
+            if span.start >= held.len() {
+                break;
+            }
+            let end = span.end.min(held.len());
+            if span.start < at {
+                // It overlaps a range already replaced, so its bytes are part of that one.
+                at = at.max(end);
+                continue;
+            }
+            out.extend_from_slice(&held[at..span.start]);
+            out.extend_from_slice(with);
+            at = end.max(span.start);
+        }
+        out.extend_from_slice(&held[at..]);
+        self.held = out;
     }
 }
 
@@ -1416,6 +1492,50 @@ mod tests {
             .map(|line| serde_json::from_str::<Line>(line).unwrap().record)
             .collect();
         assert_eq!(read, one_of_each());
+    }
+
+    /// A request body's redacted ranges are replaced once each when it is written, a range past
+    /// the cap is cut to it, and a withheld body is recorded as read with no bytes.
+    #[test]
+    fn a_request_recorder_replaces_each_redacted_range_or_withholds_the_bytes() {
+        let store = |body_max| Store {
+            spool_max: u64::MAX,
+            development: true,
+            body_max,
+        };
+        let trace = crate::TraceContext::started();
+        let sent = br#"{"a":"s1","b":"s2"}"#;
+
+        let mut whole = Recorder::new(BodyOf::Request, store(64), trace);
+        whole.push(sent);
+        whole.redact(&[5..9, 6..7], b"\"[redacted]\"");
+        whole.redact(&[14..18, 5..9, 6..8], b"\"[redacted]\"");
+        assert_eq!(
+            whole.finish(None),
+            Body::of(br#"{"a":"[redacted]","b":"[redacted]"}"#, false)
+        );
+
+        let mut cut = Recorder::new(BodyOf::Request, store(16), trace);
+        cut.push(sent);
+        cut.redact(&[14..18, 15..16], b"\"[redacted]\"");
+        assert_eq!(
+            cut.finish(None),
+            Body::of(br#"{"a":"s1","b":"[redacted]""#, true),
+            "a value the cap cut in two is replaced"
+        );
+
+        let mut withheld = Recorder::new(BodyOf::Request, store(64), trace);
+        withheld.push(sent);
+        withheld.withhold();
+        assert_eq!(
+            withheld.finish(Some(19)),
+            Body {
+                read: true,
+                declared: Some(19),
+                withheld: true,
+                ..Body::default()
+            }
+        );
     }
 
     /// A body up to [`BODY_INLINE`] stays in its `request` line. A longer one is written as `body`

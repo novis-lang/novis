@@ -2657,8 +2657,27 @@ nvs_runtime::nvs_helper! {
         unsafe {
             crate::json::check_codec(class, shape, "Core\\Request::postAs")?;
         }
-        let parsed = form_of(ctx, declared, "postAs")?;
-        let subject = shaped_subject(parsed, &args[3]);
+        let multipart = declared
+            .as_deref()
+            .is_some_and(crate::multipart::is_multipart);
+        let parsed = form_of(ctx, declared, "postAs");
+        // Before a failed read throws, so the recorded copy of a form this call refused loses
+        // its `secret` values too.
+        let name = args[3].as_text();
+        redact_recorded(ctx, |held| {
+            let form = held
+                .filter(|_| !multipart)
+                .and_then(|held| std::str::from_utf8(held).ok());
+            #[expect(
+                unsafe_code,
+                reason = "the same descriptor, still owned by the compiled unit"
+            )]
+            let spans = unsafe {
+                crate::json::secret_form_spans(class, shape, form, name.map(str::as_bytes), list)
+            };
+            spans.map(|spans| (spans, crate::json::REDACTED_FORM))
+        });
+        let subject = shaped_subject(parsed?, &args[3]);
         #[expect(
             unsafe_code,
             reason = "the same descriptor, still owned by the compiled unit"
@@ -3176,6 +3195,19 @@ nvs_runtime::nvs_helper! {
         // it holds them, so another buffering reader may follow it, and a
         // streaming reader ahead of it is refused.
         claim_body(ctx, "jsonAs", BodyNeed::Octets)?;
+        // Before the read can throw, so the recorded copy of a body this call refused loses its
+        // `secret` values too.
+        let held = held_octets(ctx, "jsonAs").map(|_| ());
+        redact_recorded(ctx, |held| {
+            let text = held.and_then(|held| std::str::from_utf8(held).ok());
+            #[expect(
+                unsafe_code,
+                reason = "the same descriptor, still owned by the compiled unit"
+            )]
+            let spans = unsafe { crate::json::secret_spans(class, shape, text) };
+            spans.map(|spans| (spans, crate::json::REDACTED_JSON))
+        });
+        held?;
         let lists = crate::json::Lists::default();
         #[expect(
             unsafe_code,
@@ -3249,6 +3281,33 @@ fn body_refused(member: &str, why: &str) -> Fault {
     let message = format!("Core\\Request::{member}(): {why}");
     let issues = crate::issue::list([("", message.as_str())]);
     Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+}
+
+/// Replaces, in the copy of this request's body the debug spool records, each byte range `find`
+/// names with the replacement it gives
+/// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `find` is given
+/// the held octets, and where it gives `None` the recorded bytes are left out whole.
+///
+/// `jsonAs` and `postAs` call it with the ranges a `secret` property's values take. With no
+/// recording, it costs one question of the body and `find` never runs.
+fn redact_recorded(
+    ctx: &mut Ctx,
+    find: impl FnOnce(Option<&[u8]>) -> Option<(Vec<std::ops::Range<usize>>, &'static [u8])>,
+) {
+    let Some(inbound) = ctx.inbound_mut() else {
+        return;
+    };
+    if !inbound.body().is_some_and(|body| body.records()) {
+        return;
+    }
+    let found = find(inbound.held_body());
+    let Some(body) = inbound.body() else {
+        return;
+    };
+    match found {
+        Some((spans, with)) => body.redact_recorded(&spans, with),
+        None => body.withhold_recorded(),
+    }
 }
 
 /// This request's octets, held on the carrier: pulled off the wire by the

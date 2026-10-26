@@ -3290,6 +3290,35 @@ pub(crate) fn parse_query(
     Ok(out)
 }
 
+/// Each `name=value` pair of a urlencoded `form`: the byte range its value takes in `form`, and
+/// its decoded name. A pair with no `=` has no value, and is skipped.
+///
+/// `crate::json::secret_form_spans` reads it, to find each value a `postAs` puts in a `secret`
+/// property, and [`name_steps`] splits the name as [`parse_query`] does.
+pub(crate) fn form_pairs(form: &str) -> impl Iterator<Item = (std::ops::Range<usize>, Vec<u8>)> + '_ {
+    let mut start = 0;
+    form.split('&').filter_map(move |pair| {
+        let at = start;
+        start += pair.len() + 1;
+        let (written_name, written_value) = pair.split_once('=')?;
+        let value = at + written_name.len() + 1;
+        Some((
+            value..value + written_value.len(),
+            decode(written_name, Form::FormValue),
+        ))
+    })
+}
+
+/// The keys a decoded parameter `name` places its value under, outermost first: the base, then
+/// each `[…]` group, `None` for an empty `[]`. A name that is not a bracket path is one key.
+pub(crate) fn name_steps(name: &[u8]) -> impl Iterator<Item = Option<&[u8]>> + '_ {
+    let (base, path) = path_of(name).map_or((name, None), |(base, path)| (base, Some(path)));
+    std::iter::once(Some(base)).chain(path.into_iter().flatten().map(|index| match index {
+        Index::At(key) => Some(key),
+        Index::Next => None,
+    }))
+}
+
 /// What [`parse_query`] makes of a value's decoded octets.
 ///
 /// The bracket walk is shared with [`crate::request`] because *the same code*

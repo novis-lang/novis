@@ -33,7 +33,11 @@ in a `secret` property of `X` (`rule:security/secret-qualifier`), and the record
 value with `[redacted]` in the stored body. A body the program read any other way is stored as it
 arrived, so a password in a development login form read as raw bytes is on disk until the index forgets
 it (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`), in a directory only
-the service's account can open. The `nvs debug` reference page says so.
+the service's account can open. The `nvs debug` reference page says so. A `jsonAs` or `postAs` that
+throws replaces the fields as well, because the bytes it read are recorded either way. Where those
+fields cannot be found, the record keeps no byte of the body and says `withheld`: a body that is not
+one JSON document or nests deeper than 128 levels, a multipart form, and a class that writes its own
+decoder, each where `X` can reach a `secret` property.
 
 - **Memory:** per recorded request, the bytes the program read, up to `request_body`, held until the
   request's record is written at its end. The response body is written through to the spool, so it

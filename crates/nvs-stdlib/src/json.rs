@@ -3329,6 +3329,248 @@ pub(crate) unsafe fn hydrate(
     decoded
 }
 
+// ============================================================================
+// The `secret` values of a recorded body
+// ============================================================================
+
+/// What replaces a `secret` value in a recorded JSON body: the JSON string `"[redacted]"`.
+pub(crate) const REDACTED_JSON: &[u8] = b"\"[redacted]\"";
+
+/// What replaces a `secret` value in a recorded urlencoded form: `[redacted]`, percent-encoded.
+pub(crate) const REDACTED_FORM: &[u8] = b"%5Bredacted%5D";
+
+/// How deep [`secret_spans`] walks a document. A deeper one is withheld whole.
+const SECRET_DEPTH: u32 = 128;
+
+/// The byte ranges of `text` whose values land in a `secret` property when `class` decodes it,
+/// for `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`.
+///
+/// `None` where they cannot be found and `class` can reach a `secret` property, and the caller
+/// then withholds the whole body: `text` is `None` because the body is not UTF-8 or was not read
+/// whole, it is not one JSON document, it nests deeper than [`SECRET_DEPTH`], or it reaches a class
+/// that writes its own decoder.
+///
+/// The walk follows the document and the field list together, as the decoder does, and it runs
+/// whether or not the decode succeeds, since the bytes are recorded either way. A value under a
+/// key written twice is replaced both times. **What it spends:** the document is read once more
+/// per level the walk descends, and only for a body the spool records, which is `development`.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s: `class` must be live, and `shape` where it is `Some`.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn secret_spans(
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    text: Option<&str>,
+) -> Option<Vec<std::ops::Range<usize>>> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let contract = unsafe { Contract::new(class, shape) };
+    let found = text.and_then(|text| {
+        if text.trim().is_empty() {
+            return Some(Vec::new());
+        }
+        // One native frame per level, as `read_with` takes, so a long text is walked on the
+        // spare stack. The walk calls no compiled code.
+        let walk = || {
+            let document: &serde_json::value::RawValue = serde_json::from_str(text).ok()?;
+            let mut spans = Vec::new();
+            secret_values(contract, document, text, 0, &mut spans)?;
+            Some(spans)
+        };
+        if text.len() <= IN_PLACE_BYTES {
+            walk()
+        } else {
+            nvs_host::on_spare_stack(walk)
+        }
+    });
+    found.or_else(|| (!reaches_secret(contract)).then(Vec::new))
+}
+
+/// The byte ranges of the urlencoded `form` whose values land in a `secret` property when
+/// `postAs` reads it as `class`, under the `{name}` option `name`. [`secret_spans`]'s twin for a
+/// form, and `None` for the same reason.
+///
+/// A multipart body passes no `form`, and neither does a form that is not UTF-8 or was not read
+/// whole: its values are not found here, so it is `None` where `class` can reach a `secret`
+/// property at all.
+///
+/// # Safety
+///
+/// As [`secret_spans`]'.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub(crate) unsafe fn secret_form_spans(
+    class: *const nvs_runtime::ClassDesc,
+    shape: Option<*const nvs_runtime::ShapeCodec>,
+    form: Option<&str>,
+    name: Option<&[u8]>,
+    list: bool,
+) -> Option<Vec<std::ops::Range<usize>>> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let contract = unsafe { Contract::new(class, shape) };
+    let Some(form) = form else {
+        return (!reaches_secret(contract)).then(Vec::new);
+    };
+    let mut spans = Vec::new();
+    for (span, decoded) in crate::uri::form_pairs(form) {
+        let mut steps = crate::uri::name_steps(&decoded).peekable();
+        if let Some(name) = name
+            && steps.next() != Some(Some(name))
+        {
+            continue;
+        }
+        if list {
+            skip_indexes(&mut steps);
+        }
+        if lands_secret(contract, steps) {
+            spans.push(span);
+        }
+    }
+    Some(spans)
+}
+
+/// [`secret_spans`]' walk over one `value` of the document `text`, read against `contract`.
+fn secret_values(
+    contract: Contract<'_>,
+    value: &serde_json::value::RawValue,
+    text: &str,
+    depth: u32,
+    spans: &mut Vec<std::ops::Range<usize>>,
+) -> Option<()> {
+    if depth > SECRET_DEPTH {
+        return None;
+    }
+    let json = value.get();
+    match json.trim_start().as_bytes().first() {
+        Some(b'[') => {
+            let items: Vec<&serde_json::value::RawValue> = serde_json::from_str(json).ok()?;
+            for item in items {
+                secret_values(contract, item, text, depth + 1, spans)?;
+            }
+        }
+        Some(b'{') => {
+            if contract.writes_decoder() {
+                return (!reaches_secret(contract)).then_some(());
+            }
+            let Entries(entries) = serde_json::from_str(json).ok()?;
+            for (key, value) in entries {
+                for (index, field) in contract.fields().iter().enumerate() {
+                    if field.key != key {
+                        continue;
+                    }
+                    if contract.desc.field_is_secret(field.slot) {
+                        let start = value.get().as_ptr().addr().checked_sub(text.as_ptr().addr())?;
+                        spans.push(start..start + value.get().len());
+                    } else if let Some(nested) = nested(contract, index) {
+                        secret_values(nested, value, text, depth + 1, spans)?;
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    Some(())
+}
+
+/// Whether the value a form parameter's `steps` place lands in a `secret` property of
+/// `contract`, or inside a class that writes its own decoder and can reach one.
+fn lands_secret<'s>(
+    mut contract: Contract<'_>,
+    mut steps: std::iter::Peekable<impl Iterator<Item = Option<&'s [u8]>>>,
+) -> bool {
+    loop {
+        let Some(Some(key)) = steps.next() else {
+            return false;
+        };
+        let fields = contract.fields();
+        let Some(index) = fields.iter().position(|field| field.key.as_bytes() == key) else {
+            return false;
+        };
+        if contract.desc.field_is_secret(fields[index].slot) {
+            return true;
+        }
+        let Some(next) = nested(contract, index) else {
+            return false;
+        };
+        if next.writes_decoder() {
+            return reaches_secret(next);
+        }
+        if fields[index].ty == CodecTy::List {
+            skip_indexes(&mut steps);
+        }
+        contract = next;
+    }
+}
+
+/// Skips the steps that index a list: `[]` and a number.
+fn skip_indexes<'s>(steps: &mut std::iter::Peekable<impl Iterator<Item = Option<&'s [u8]>>>) {
+    while steps
+        .next_if(|step| step.is_none_or(|key| !key.is_empty() && key.iter().all(u8::is_ascii_digit)))
+        .is_some()
+    {}
+}
+
+/// Whether `contract`, or a class or shape its fields reach, has a `secret` property.
+fn reaches_secret(contract: Contract<'_>) -> bool {
+    let mut seen = Vec::new();
+    let mut ahead = vec![contract];
+    while let Some(contract) = ahead.pop() {
+        let at = (contract.class(), contract.shape.map(std::ptr::from_ref));
+        if seen.contains(&at) {
+            continue;
+        }
+        seen.push(at);
+        if contract.desc.has_secret_field() {
+            return true;
+        }
+        ahead.extend((0..contract.fields().len()).filter_map(|index| nested(contract, index)));
+    }
+    false
+}
+
+/// The contract the `index`th field of `contract` is read against, where it names a class or a
+/// shape.
+fn nested<'a>(contract: Contract<'a>, index: usize) -> Option<Contract<'a>> {
+    let class = contract.class_at(index)?;
+    #[expect(
+        unsafe_code,
+        reason = "a descriptor `nvs-codegen` resolved is the compiled unit's, live as the outer one is"
+    )]
+    Some(unsafe { Contract::new(class, contract.shape_at(index)) })
+}
+
+/// A JSON object's entries in the order written, each value still its own text. A key written
+/// twice is kept twice.
+struct Entries<'a>(Vec<(String, &'a serde_json::value::RawValue)>);
+
+impl<'de> serde::Deserialize<'de> for Entries<'de> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Walk;
+        impl<'de> Visitor<'de> for Walk {
+            type Value = Entries<'de>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a JSON object")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Entries<'de>, A::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = map.next_entry::<String, &'de serde_json::value::RawValue>()? {
+                    entries.push(entry);
+                }
+                Ok(Entries(entries))
+            }
+        }
+        deserializer.deserialize_map(Walk)
+    }
+}
+
 /// `rule:core-classes/derive-property-list`'s decode run once per element: a JSON array in, one instance of
 /// `class` per element out, in the document's own order.
 ///
@@ -6495,5 +6737,131 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A field of `secret_classes`, keyed `key` in slot `slot`.
+    fn secret_field(key: &str, slot: usize, ty: CodecTy, class: Option<&str>) -> CodecField {
+        CodecField {
+            key: key.to_owned(),
+            slot,
+            param: slot,
+            ty,
+            element: (ty == CodecTy::List).then(|| nvs_runtime::CodecElement::leaf(CodecTy::Class)),
+            class: class.map(str::to_owned),
+            cases: None,
+            shape: None,
+            nullable: true,
+            required: false,
+            default: None,
+        }
+    }
+
+    /// `Login { user, secret password, profile: Profile, profiles: array<Profile> }` and
+    /// `Profile { secret token, note }`, as `Login`'s descriptor and a class with no `secret`
+    /// property, `Profile` without its `token`.
+    ///
+    /// Leaked for [`self_nesting_class`]'s reason.
+    fn secret_classes() -> (*const ClassDesc, *const ClassDesc) {
+        let mut table = ClassTable::new();
+        let profile = table.define("Profile", &["token", "note"], &[]);
+        let login = table.define("Login", &["user", "password", "profile", "profiles"], &[]);
+        let plain = table.define("Plain", &["user"], &[]);
+        let profile_desc = table.desc(profile);
+        table.set_codec(
+            profile,
+            vec![
+                secret_field("token", 0, CodecTy::Str, None),
+                secret_field("note", 1, CodecTy::Str, None),
+            ],
+            2,
+            vec![std::ptr::null(); 2],
+            vec![std::ptr::null(); 2],
+        );
+        table.set_secret_fields(profile, vec![true, false]);
+        table.set_codec(
+            login,
+            vec![
+                secret_field("user", 0, CodecTy::Str, None),
+                secret_field("password", 1, CodecTy::Str, None),
+                secret_field("profile", 2, CodecTy::Class, Some("Profile")),
+                secret_field("profiles", 3, CodecTy::List, Some("Profile")),
+            ],
+            4,
+            vec![std::ptr::null(), std::ptr::null(), profile_desc, profile_desc],
+            vec![std::ptr::null(); 4],
+        );
+        table.set_secret_fields(login, vec![false, true, false, false]);
+        table.set_codec(
+            plain,
+            vec![secret_field("user", 0, CodecTy::Str, None)],
+            1,
+            vec![std::ptr::null()],
+            vec![std::ptr::null()],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        (table.desc(login), table.desc(plain))
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`: the ranges
+    /// [`secret_spans`] finds are the values that land in a `secret` property, in a nested class
+    /// and in a list of them, and under a key written twice. A body that is not one document is
+    /// withheld where the class has a `secret` property, and an empty one has nothing to replace.
+    #[test]
+    fn secret_spans_names_each_value_a_secret_property_takes() {
+        let (login, plain) = secret_classes();
+        let text = r#"{"user":"ann","password":"pw-1","profile":{"token":"tk-2","note":"n"},
+            "profiles":[{"token":"tk-3"},{"note":"tk"}],"password":{"x":[1]}}"#;
+        #[expect(unsafe_code, reason = "`secret_classes` leaks its table")]
+        let (spans, broken, empty, none) = unsafe {
+            (
+                secret_spans(login, None, Some(text)),
+                secret_spans(login, None, Some(r#"{"password":"pw"#)),
+                secret_spans(login, None, Some(" ")),
+                secret_spans(plain, None, Some("{")),
+            )
+        };
+        let found: Vec<&str> = spans
+            .expect("a document")
+            .into_iter()
+            .map(|span| &text[span])
+            .collect();
+        assert_eq!(found, [r#""pw-1""#, r#""tk-2""#, r#""tk-3""#, r#"{"x":[1]}"#]);
+        assert_eq!(broken, None, "a body that is not a document is not withheld");
+        assert_eq!(empty, Some(Vec::new()));
+        assert_eq!(none, Some(Vec::new()), "a class with no secret withholds nothing");
+    }
+
+    /// [`secret_spans`]' twin for a urlencoded form: each value whose name lands in a `secret`
+    /// property, under the `{name}` option and through a list, and a multipart body withheld
+    /// only where the class can reach a `secret` property.
+    #[test]
+    fn secret_form_spans_names_each_value_a_secret_property_takes() {
+        let (login, plain) = secret_classes();
+        let form = "user=ann&password=pw%2D1&profile%5Btoken%5D=tk-2&profiles[0][token]=tk-3\
+                    &profiles[][note]=n&password";
+        let named = "password=top&login[password]=pw-4&login[user]=ann";
+        #[expect(unsafe_code, reason = "`secret_classes` leaks its table")]
+        let (spans, under_name, multipart, plain_multipart) = unsafe {
+            (
+                secret_form_spans(login, None, Some(form), None, false),
+                secret_form_spans(login, None, Some(named), Some(b"login"), false),
+                secret_form_spans(login, None, None, None, false),
+                secret_form_spans(plain, None, None, None, false),
+            )
+        };
+        let found: Vec<&str> = spans
+            .expect("a form")
+            .into_iter()
+            .map(|span| &form[span])
+            .collect();
+        assert_eq!(found, ["pw%2D1", "tk-2", "tk-3"]);
+        let found: Vec<&str> = under_name
+            .expect("a form")
+            .into_iter()
+            .map(|span| &named[span])
+            .collect();
+        assert_eq!(found, ["pw-4"]);
+        assert_eq!(multipart, None, "a multipart body with a secret is not withheld");
+        assert_eq!(plain_multipart, Some(Vec::new()));
     }
 }

@@ -1974,6 +1974,21 @@ pub trait RequestBody {
     /// row, or a `Core\Config::set`. A supplier that counts nothing, such as a
     /// body read from a file, ignores it, which is the default.
     fn allow_total(&mut self, _total: u64) {}
+
+    /// Whether the bytes pulled are recorded for the debug spool
+    /// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). A reader
+    /// that finds a `secret` field asks this first, so a body nobody records costs nothing more.
+    fn records(&self) -> bool {
+        false
+    }
+
+    /// Replaces each of `spans`, byte ranges of the body, with `with` in the recorded copy. See
+    /// [`crate::spool::Recorder::redact`].
+    fn redact_recorded(&mut self, _spans: &[std::ops::Range<usize>], _with: &'static [u8]) {}
+
+    /// Leaves the bytes out of the recorded copy, for a body whose `secret` fields could not be
+    /// found. See [`crate::spool::Recorder::withhold`].
+    fn withhold_recorded(&mut self) {}
 }
 
 /// What a reader needs of a request's body, which is what decides whether it

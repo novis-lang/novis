@@ -1545,6 +1545,13 @@ impl ClassDesc {
         self.secret_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether any slot of this class is `secret`: [`Self::field_is_secret`] asked of every
+    /// slot at once.
+    #[must_use]
+    pub fn has_secret_field(&self) -> bool {
+        self.secret_fields.contains(&true)
+    }
+
     /// Whether slot `index` is readable from outside this class — `rule:security/reflection-enforces-visibility`
     /// 's visibility check, asked of an instance because that is all a
     /// reflective walk has.

@@ -310,6 +310,22 @@ enum Landed {
 }
 
 impl RequestBody for Pull {
+    fn records(&self) -> bool {
+        self.wire.borrow().recording.is_some()
+    }
+
+    fn redact_recorded(&mut self, spans: &[std::ops::Range<usize>], with: &'static [u8]) {
+        if let Some(recording) = self.wire.borrow_mut().recording.as_mut() {
+            recording.redact(spans, with);
+        }
+    }
+
+    fn withhold_recorded(&mut self) {
+        if let Some(recording) = self.wire.borrow_mut().recording.as_mut() {
+            recording.withhold();
+        }
+    }
+
     fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
         let landed = loop {
             {

@@ -52,10 +52,13 @@ missing optional field as absent, so a field added later still reads an older sp
 | `dropped` | `records` (lost since the last `dropped` line), `files` (deleted by the cap) |
 
 A `body` has `read`, `cut`, and optional `declared` (the length the request declared), `text` (the
-bytes, when they are UTF-8), `base64` (the bytes, when they are not) and `chunks`. A recorded body of
-at most 64 KiB is written inside its `request` line. A longer one is written while it is recorded, in
-`body` lines of at most 1 MiB each, ahead of its `request` line; its `body` then carries no bytes and
-says in `chunks` how many lines do. So a body is never held whole, and no line passes 4 MiB. A
+bytes, when they are UTF-8), `base64` (the bytes, when they are not), `chunks` and `withheld` (the
+bytes were left out because a `secret` field in them could not be found). A recorded body of
+at most 64 KiB is written inside its `request` line. A longer one is written in `body` lines of at most
+1 MiB each, ahead of its `request` line; its `body` then carries no bytes and says in `chunks` how many
+lines do. A response body's lines are written while it is recorded, so it is never held whole. A
+request body's are written when the request ends, once each `secret` field is replaced. No line
+passes 4 MiB. A
 response body is recorded when it is the bytes the program wrote: a file it sent is on disk already,
 so its `body` has `read` false and the server reads the file once, to send it.
 `nvs_runtime::spool::Line` is
