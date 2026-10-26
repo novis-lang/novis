@@ -343,19 +343,17 @@ subagent. Such subagents run side by side, and none of them builds.
 Every stage is done, and the goal is reached once the driver's acceptance run is green. Nothing is
 uncommitted.
 
-The gate: `bun nv affected --run` is green (23 of 23). It was red over three shipped rules that
-still named this goal, the stale rule chapters, a `Core\Db\Stream` unit test without the site slot,
-`queries_in` missing from the index test's code-lens reader, and two handshake tests that expected
-no debug index. Nine LDAP, HTTP transport and `serve` tests failed on socket deadlines while the
-`side-ci-green` loop ran in the same tree, and pass alone. `bun nv verify --doc`, `bun nv owners
---closes request-aware-editor` and `bun nv ci --check` are green. The backlog's limits are stated in
-their module docs, and two became gap records: a callable reference to a `Core` member with an
-options bag panics the lowering (`query-binding`), and the grants hover's two limits
-(`namespace-grants`). The nightly's supply-chain red was a yanked `crypto-bigint`, now 0.7.10.
+`bun nv affected --run` is green, and the selection store holds no floor debt. `bun nv verify
+--doc`, `bun nv owners --closes request-aware-editor` and `bun nv ci --check` were green at the gate.
 
-May go red in the driver's acceptance: `floor-debt`, which pays every atom the gate left owed,
-including the proofs and nvtests verify does not run, and the deadline tests above if the tree is
-loaded again.
+The refused `DONE` was `floor-debt`. Its `live_config` red came from the side loop's load, and the
+test passes alone. Its last owed proof,
+`tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs`, always diverged: it
+answers a `.nvsr` request, so its log lines carry a `ts` and a random `request_id`. `divergence` in
+`tools/nv/proofs/run.ts` now puts a placeholder in place of those two values (`perRunFields`).
+
+The nightly reds came from before later fixes: the yanked `crypto-bigint` (now 0.7.10), and the
+counted-run test, which 9c8b0fe16 fixed. The `dap` suite's Linux red is in the backlog.
 
 ### Next
 
@@ -364,6 +362,7 @@ If an acceptance check is red, fix what it names and claim `DONE` again.
 
 ### Backlog
 
+- `crates/nvs-cli/tests/dap.rs` is flaky on Linux: 3 of 6 runs of `bun nv linux-test --test dap` failed, and CI run 40377783680 did too. Program `output` events arrive after `stopped`, because the pump threads (`crates/nvs-cli/src/dap/mod.rs:829`) race the stop thread (`mod.rs:147`). A `next` over an `await` once stopped as `pause` (`crates/nvs-host/src/debug.rs:778`). The `ci-green` side loop owns it.
 - The viewer's Make a test dialog has no browser test yet (`viewer/src/views/to-test.tsx`, `viewer/test/`).
 - No test checks the name the call stack gives an anonymous function's frame (`crates/nvs-cli/tests/debugger.rs:241`).
 - A graph count with "at least" reads "at least 0 tests" where no test reaches the method (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
