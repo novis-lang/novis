@@ -245,9 +245,9 @@ its examples and pictures, and AGENTS.md § *Text an end user reads*. The sessio
 each page.
 
 - [ ] Editor: the moved page, then rename, the code actions and generators, the lenses with "used by N routes, M tests", call hierarchy, the route hover and the taint path, each as a replay. Examples from `docs/examples/tools/editor/`. `website/src/content/docs/tools/editor/index.mdx:1`
-- [ ] Formatter: what `nvs fmt` changes, as a terminal block of `--diff`, and `--check` with its exit codes. `website/src/content/docs/tools/formatter/index.mdx:1`
+- [x] Formatter: what `nvs fmt` changes, as a terminal block of `--diff`, and `--check` with its exit codes. `website/src/content/docs/tools/formatter/index.mdx:1`
 - [ ] Test runner: the moved pages, then the options, `#[Property]`, mutation testing and benches, each with a terminal block. `website/src/content/docs/tools/test-runner/index.mdx:1`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`, `docs/examples/tools/cli/nvs-test/about.md:1`
-- [ ] CLI: `nvs check --json`, the cache commands, `nvs update-check` and `nvs telemetry`, each with a terminal block, and a link to the full command list. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/reference/index.mdx:13`
+- [x] CLI: `nvs check --json`, the cache commands, `nvs update-check` and `nvs telemetry`, each with a terminal block, and a link to the full command list. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/reference/index.mdx:13`
 - [ ] Each page's sidebar entry, its questions, and its stamp (`rule:testing/website-pages-are-stamped`). `website/astro.config.ts:669`, `website/src/data/questions.json:1`
 
 ### 5. the debugger and API document pages
@@ -299,47 +299,50 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2, 8 and 3 are done. Tools is the fourth of five areas (`website/config/site.mjs:42`),
-with its sidebar group before In-Depth (`website/astro.config.ts:679`): Overview, the editor
-extension, and the test runner with its coverage page. `install/editor.mdx`, `guides/testing/run-tests.mdx`
-and `guides/testing/coverage.mdx` are now `tools/editor/index.mdx`, `tools/test-runner/index.mdx` and
-`tools/test-runner/coverage.mdx`, and their snippets are under `website/snippets/tools/editor/` and
-`website/snippets/tools/test-runner/`. No old address is linked anywhere, and the home page's Tooling
-link points at `/tools/editor/`. The overview, `tools/index.mdx`, has one line per tool and links the
-two pages that exist. The home page has a Tools card (`home/Path.astro`).
+Stages 1, 7, 2, 8 and 3 are done, and stage 4 has two of its four pages. Tools is the fourth of five
+areas (`website/config/site.mjs:42`); its sidebar (`website/astro.config.ts:679`) is Overview, the
+editor extension, the formatter, the test runner with its coverage page, and the command line.
 
-`bun nv site --check tools` (`toolsProblems`, `tools/nv/cmd/site.ts:857`) fails by design until stage
-9: it names the six pages still owed, the editor and test runner pages' empty `covers:`, and the test
-runner page's missing picture. `TOOL_SECTIONS` (`site.ts:847`) is the sidebar order the later stages
-must keep: editor, formatter, test-runner, cli, debugger, debug-viewer, profiler, api-document. Each
-new page is also linked from the overview as `](/tools/<dir>/)`, or the part names it.
+- **The formatter page**, `tools/formatter/index.mdx`, covers a new feature, `tools:cli/nvs-fmt`: its
+  `# nvs fmt` section in `docs/reference/tools/10-cli.md`, `docs/examples/tools/cli/nvs-fmt/`, an
+  attack under `tests/hostile/tools/cli/nvs-fmt/`, and the `// covers:` lines on
+  `crates/nvs-cli/tests/fmt.rs` (one new test, which passes). Its three terminal blocks are under
+  `website/snippets/tools/formatter/`. Two badly laid out fixtures are `skip` lines in
+  `tools/data/nvs-fmt-corpus.txt`.
+- **The command-line page**, `tools/cli/index.mdx`, covers `one-binary`, `nvs-check`,
+  `the-compile-cache`, `nvs-update-check` and `nvs-telemetry`, with four terminal blocks under
+  `website/snippets/tools/cli/`. `nvs update-check`, `telemetry on`, `status` and `show`, and `cache
+  clear` are plain `sh` blocks: each reaches the network, prints a different line under CI's `CI`
+  variable, or prints a byte count that is not masked.
+- Both pages, `/tools/` and `/reference/cli/nvs-fmt/` have questions and stamps.
 
-Stage 4's CLI page is the first `<Terminal>` (watch for a `.term.out` with `\` paths), and its editor
-page the first of stage 7's replay steps. Stage 5's debugger page is the first debugger replay
-(`site.ts` § *A snippet*, `lib/dap-replay.ts`, `website/config/replay-dap.mjs`), whose look no
-browser has shown yet. Stage 9's last item adds the `<Shot>` component. Every goal § *Gates* names
-is gone, so no page item is gated.
+`bun nv site --check tools` fails by design until stage 9. It names the four pages stages 5 and 9 owe,
+the editor and test runner pages' empty `covers:`, and the test runner page's missing picture.
+`TOOL_SECTIONS` (`tools/nv/cmd/site.ts:847`) is the sidebar order the later stages keep.
 
-The sweep's reds were stale (`env-secret-proofs` exits 0; nightly 40291801939 tested `d6f131752`).
-Uncommitted `tools/nv/cmd/disk.ts` changes belong to another session, and were left alone.
+The sweep's reds were stale: nightly 40291801939 tested `d6f131752`, and its yanked crate and its
+failing counted-run test are fixed at HEAD.
 
 ### Next
 
-**Stage 4, the editor, formatter, test runner and CLI pages.** Follow its `**Split:**` line. Check
-with `bun nv site --check tools snippets stale questions prose`; `tools` stays red only for the pages
-stages 5 and 9 owe.
+**Stage 4's last two pages.** Follow its `**Split:**` line: one writing subagent per page, and the
+session alone edits the sidebar and `questions.json`. Check with `bun nv site --check tools snippets
+stale questions prose`, `--build`, and run `bun nv render --website` after a reference chapter edit.
+A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash, or the URL becomes a Windows path.
 
-- [ ] Editor page: the replays stage 7 built, from `docs/examples/tools/editor/`, and its `covers:`. `website/src/content/docs/tools/editor/index.mdx:1`
-- [ ] Formatter page, `nvs fmt --diff` and `--check` as terminal blocks, its sidebar entry after the editor and its overview link. `website/src/content/docs/tools/formatter/index.mdx:1`, `website/astro.config.ts:679`, `website/src/content/docs/tools/index.mdx:11`
-- [ ] Test runner pages: their `txt` fences become `<Terminal>` blocks, then the options, `#[Property]`, mutation testing and benches. `website/src/content/docs/tools/test-runner/index.mdx:14`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`
-- [ ] CLI page, its sidebar entry and overview link. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/tools/index.mdx:14`
-- [ ] Each page's questions and stamp. `website/src/data/questions.json:17747`
+- [ ] Editor page: rename, the code actions, the lenses, call hierarchy, the route hover and the taint path as replays (stage 7's steps), from `docs/examples/tools/editor/`; `covers:` is `tools:editor/the-vs-code-extension` and `tools:editor/nvs-lsp`. `website/src/content/docs/tools/editor/index.mdx:1`
+- [ ] Test runner pages: the `txt` fence becomes a `<Terminal>`, then the options, `#[Property]`, mutation testing and benches, each a terminal block; `covers:` from `lang:testing/*`, `tools:cli/nvs-test` and `tools:cli/nvs-test-mutate`. `website/src/content/docs/tools/test-runner/index.mdx:14`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`
+- [ ] Each page's questions and stamp, then stage 4's status `done`. `website/src/data/questions.json:17747`
 
-No test is expected to go red. `site.test.ts`'s two new `--check tools` cases pass. `--check
-structure questions guides prose` is ok, `--build` built, and `tsc` is clean. `--check snippets` was
-not run: the moved snippets are the same files under new paths, and the build rendered both replays.
+A terminal block must not print a `\` path: `nvs fmt --check` and other commands print native
+separators for a file found by walking a directory, so a `.term` names its files. No test is expected
+to go red.
 
 ### Backlog
 
+- `lib/term.ts` could write a relative path's `\` as `/` in a recording, so a `.term` may walk a
+  directory. Today the pages avoid it.
+- `nvs cache gc`, `nvs cache clear` and `[opcache] file_cache_max_size` have no section in
+  `docs/reference/tools/10-cli.md`; `nvs cache --help` names them.
 - Stages 5 and 9 follow 4 in order, then 6 and 10. Stage 6 checks that five header areas fit the
   header at mid widths, which no browser has shown yet.
