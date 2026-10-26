@@ -42,6 +42,11 @@
 //! `Core\Log::write`: a dump is something the engine writes *about* a program,
 //! not something the program said.
 //!
+//! **With `[debug] store` on, a dump is also one debug spool `dump` line**, in
+//! both rows, written through `nvs_runtime::Ctx::spool_dump`. Its log record
+//! then goes through `nvs_runtime::Ctx::write_dump_record`, which writes no
+//! spool `log` line, so the viewer shows a dump once.
+//!
 //! **`[debug] inline` adds the block, and changes nothing else.** With the
 //! directive in force the same record is rendered a second time, for the body's
 //! own carrier, and handed to `nvs_runtime::Ctx::append_inline_debug` — which
@@ -404,6 +409,10 @@ nvs_runtime::nvs_helper! {
         if record.nodes.is_empty() {
             return Ok(Value::null());
         }
+        // The debug spool's `dump` line, in both rows of the table, when
+        // `[debug] store` is in force. It is written here once, so the log
+        // record below writes no `log` line beside it.
+        ctx.spool_dump(&record);
         if ctx.inbound().is_none() {
             let rendered = rendered_for(
                 ctx.diagnostic_carrier(),
@@ -434,7 +443,7 @@ nvs_runtime::nvs_helper! {
         // answer for every record write: a log target that could not be written
         // is not a reason to fail the program that was being debugged, and
         // `Core\Log::write` beside it makes the same call.
-        drop(ctx.write_log_record(&record, LogChannel::Diagnostic));
+        drop(ctx.write_dump_record(&record, LogChannel::Diagnostic));
         Ok(Value::null())
     }
 }

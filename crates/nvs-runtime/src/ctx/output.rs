@@ -431,6 +431,13 @@ impl Ctx {
     ///
     /// Whatever the sink returns; a file target's failure is the caller's to
     /// swallow, which is `rule:errors/engine-floor`'s answer at the floor.
+    ///
+    /// **A written record is also a debug spool `log` line** when `[debug]
+    /// store` is in force
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`),
+    /// because a development server logs to its terminal and the viewer has no
+    /// file to read. A dump is written with [`Self::write_dump_record`] instead,
+    /// so it is one `dump` line and not a `log` line too.
     pub fn write_log_record(
         &mut self,
         record: &Record,
@@ -439,6 +446,84 @@ impl Ctx {
         if !self.log_writes(record.envelope.level) {
             return Ok(());
         }
+        self.spool_log(record);
+        self.emit_log_record(record, unconfigured)
+    }
+
+    /// Writes a `Core\Debug::dump` record as [`Self::write_log_record`] does,
+    /// without the spool's `log` line: the dump's routine writes its `dump`
+    /// line with [`Self::spool_dump`], inside a request and outside one.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::write_log_record`].
+    pub fn write_dump_record(
+        &mut self,
+        record: &Record,
+        unconfigured: LogChannel,
+    ) -> io::Result<()> {
+        if !self.log_writes(record.envelope.level) {
+            return Ok(());
+        }
+        self.emit_log_record(record, unconfigured)
+    }
+
+    /// Writes `record` to the debug spool as a `log` line: its level, its
+    /// message and its fields as the JSON rendering spells them. A `secret`
+    /// never reaches the fields, because `rule:security/secret-sinks-refuse`
+    /// refuses one at every producer.
+    fn spool_log(&self, record: &Record) {
+        let Some(config) = self.config() else {
+            return;
+        };
+        if !config.debug_store() {
+            return;
+        }
+        let envelope = &record.envelope;
+        crate::spool::record(
+            self,
+            crate::spool::Record::Log(crate::spool::Log {
+                level: envelope.level.name().to_owned(),
+                message: envelope
+                    .message
+                    .as_ref()
+                    .map(|message| message.as_str().to_owned())
+                    .unwrap_or_default(),
+                fields: nvs_render::json::fields(&envelope.fields),
+                elided: false,
+            }),
+        );
+    }
+
+    /// Writes a `Core\Debug::dump` record to the debug spool as a `dump` line
+    /// when `[debug] store` is in force: where it was called, and its nodes as
+    /// the JSON rendering spells them. The record walk already replaced each
+    /// `secret` value with a redacted node, so no byte of one is in the line.
+    pub fn spool_dump(&self, record: &Record) {
+        let Some(config) = self.config() else {
+            return;
+        };
+        if !config.debug_store() {
+            return;
+        }
+        let (file, line) = record
+            .envelope
+            .source
+            .as_ref()
+            .map_or((String::new(), 0), |source| (source.file.clone(), source.line));
+        crate::spool::record(
+            self,
+            crate::spool::Record::Dump(crate::spool::Dump {
+                file,
+                line,
+                tree: nvs_render::json::nodes(&record.nodes),
+                elided: false,
+            }),
+        );
+    }
+
+    /// Writes one record where `[log] target` says, once the floor let it by.
+    fn emit_log_record(&mut self, record: &Record, unconfigured: LogChannel) -> io::Result<()> {
         let rendered = rendered(self.log_format, record);
         let line = rendered.as_bytes();
         match &mut self.log {

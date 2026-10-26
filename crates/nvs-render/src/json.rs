@@ -102,6 +102,22 @@ pub fn render(record: &Record) -> String {
     })
 }
 
+/// A record's nodes as the JSON array [`render`] writes under `nodes`, for a caller that stores
+/// them inside a document of its own, such as the debug spool's `dump` line.
+#[must_use]
+pub fn nodes(nodes: &[Node]) -> serde_json::Value {
+    serde_json::to_value(AsNodes(nodes)).unwrap_or(serde_json::Value::Null)
+}
+
+/// A record's `fields` as the JSON object [`render`] writes under `fields`, for the same caller.
+#[must_use]
+pub fn fields(fields: &[(String, Node)]) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(AsFields(fields)) {
+        Ok(serde_json::Value::Object(map)) => map,
+        _ => serde_json::Map::new(),
+    }
+}
+
 /// A whole [`Record`]: its envelope's keys, then its own nodes.
 struct AsRecord<'a>(&'a Record);
 
