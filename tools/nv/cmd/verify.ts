@@ -18,7 +18,8 @@
 // working tree added or changed, `cargo test`, the `.nvst` trees, `bun nv reference` (every chapter
 // example), `bun nv soundness --check` (the generated soundness cases are current), `cargo clippy
 // --all-targets -- -D warnings`, and the
-// VS Code extension's headless suites.
+// VS Code extension's headless suites. `bun nv viewer --verify`, the viewer's `tsc`, its bundle check
+// and its unit tests, runs beside the script steps.
 // Green prints one line per step; a failure prints that step's output and nothing else. The full output
 // of every step is written to `.agent-tmp/verify-<step>.log`. This command judges nothing: a step's own
 // exit status is the whole verdict.
@@ -179,8 +180,9 @@ const DOC_CHECKS: [string, string[]][] = [
   ["release", ["release", "--check"]],
 ];
 /** The script steps, which run at the same time as `build` when they are listed before it. */
-const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock"]);
+const BESIDE_BUILD = new Set(["lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "viewer", "fuzz-lock"]);
 const EXTENSION = join(ROOT, "editors", "vscode");
+const VIEWER = join(ROOT, "viewer");
 const FUZZ = join(ROOT, "fuzz");
 /** The `.nvst` trees verify runs. */
 const CASE_TREES = ["conformance"];
@@ -188,7 +190,7 @@ const EXE = process.platform === "win32" ? ".exe" : "";
 /** The doc-tests, one atom: rustdoc builds and runs each in a directory it deletes. */
 const DOC_TESTS = "step:doc-tests";
 /** Every step's atom, whether or not this run's options walk it. */
-const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "fuzz-lock", "build", "reference", "soundness", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
+const STEP_ATOMS = ["fmt", "lints", "directives", "template", "owners", ...DOC_CHECKS.map(([n]) => n), "nv", "viewer", "fuzz-lock", "build", "reference", "soundness", "clippy", "extension", "doc"].map((n) => `step:${n}`).concat(DOC_TESTS);
 
 const RESULT_RE = /test result: \w+\. (\d+) passed; (\d+) failed/g;
 const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/g;
@@ -976,6 +978,12 @@ export const summaries: Record<string, (out: string) => string> = {
     const m = /(\d+)\s+passing/.exec(out);
     return m ? `${m[1]} passing` : "ran, but printed no `N passing` line -- check the log";
   },
+  viewer(out) {
+    const m = /nv viewer: (\d+) unit test file\(s\) pass/.exec(out);
+    if (m) return `the types check, the bundle is current, ${m[1]} unit test file(s) pass`;
+    if (/nv viewer: no unit tests/.test(out)) return "the types check, the bundle is current";
+    return /differ\(s\) from a rebuild/.test(out) ? "viewer/dist/ is stale -- run `bun nv viewer`" : NO_SUMMARY;
+  },
   reference(out) {
     const m = /(\d+) of (\d+) examples hold/.exec(out);
     return m ? `${m[1]} of ${m[2]} examples hold` : "ran, but printed no `N of M examples hold` line -- check the log";
@@ -1112,6 +1120,16 @@ function stepsFor(opts: Opts, r: () => Run, built = existsSync(covwsNvs())): Ste
       // `build` rather than beside it.
       selftest = step("nv", ["nv", "selftest"], summaries.nv!, { exe: "bun", runner: (s) => runSelftest(r(), s) });
       if (built) steps.push(selftest);
+    }
+    if (existsSync(join(VIEWER, "package.json"))) {
+      // Bun's bundler and `tsc` read files where `NV_READS_LOG` does not see them, so the step is also
+      // keyed on the whole folder and on what decides its installed packages.
+      steps.push(
+        bunStep(r, "viewer", ["nv", "viewer", "--verify"], (keys) => {
+          keys.set("tree:viewer", "");
+          for (const f of ["package.json", "bun.lock", "bunfig.toml"]) maybe(keys, f);
+        }),
+      );
     }
     if (existsSync(join(FUZZ, "Cargo.toml"))) {
       steps.push(
