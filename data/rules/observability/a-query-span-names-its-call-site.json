@@ -6,6 +6,9 @@
     "ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site",
     "security/reflection-enforces-visibility"
   ],
-  "guardedBy": [],
-  "goal": "request-aware-editor"
+  "guardedBy": [
+    "crates/nvs-db/src/span.rs",
+    "crates/nvs-ir/tests/query_sites.rs",
+    "crates/nvs-cli/tests/request.rs"
+  ]
 }

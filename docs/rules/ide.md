@@ -3,8 +3,6 @@
 
 # The editor
 
-*3 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="ide-one-grammar-one-tree"></a>
 
 ## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
@@ -541,6 +539,11 @@ asked about, grouped with its call sites, and each method that sends a `Core\Tes
 matched. An outgoing call is each method the body calls and each handler a request it sends reaches.
 A call through a `callable` value or a `mixed` receiver is not shown, because the checker resolved no
 single target for it, and neither is a method taken as a callable value.
+
+`codeLens` reads two structures beside the index, and neither is a request of its own: a coverage
+report's per-test lines for a "used by" count, and `nvs debug`'s index, read-only, for the query lens
+of [`ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`](ide.md#ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site). The query calls the lens
+sits on are the index's, the calls the checker resolved to a member that takes a query site id.
 
 The second non-standard request is `nvs/regions`
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)), and it passes the same test the
@@ -1574,26 +1577,33 @@ click carries `nvs.runTests` with the tests as `Class::method`, for a client tha
 
 <a id="ide-a-route-hover-shows-the-programs-grants"></a>
 
-## Hovering a route shows what the program's grants allow, labelled as that program's and read from the `nvs.toml` that `nvs check` reads in that directory  *(designed — owned by goal request-aware-editor)*
+## Hovering a route shows what the program's grants allow, labelled as that program's and read from the `nvs.toml` that `nvs check` reads in that directory
 
 `rule:ide/a-route-hover-shows-the-programs-grants`
 
 Hovering a `#[Route]` attribute, or the name of the method it is on, shows what the program's grants
 allow: the files it may read and write, the hosts it may connect to, the databases it may open, the
 processes it may run, and every other grant by its name, each with its scope. The hover's first line
-names the `nvs.toml` it read and says that the grants are the program's.
+names the `nvs.toml` it read and says that the grants are the program's. The attribute keeps its own
+card above the grants; the method's name answers the grants alone.
 
-The grants are the configuration snapshot for the program's entry file, resolved the way `nvs check`
-resolves it when run in that directory, through the same reader the extension set uses
-(`crates/nvs-lsp/src/document.rs:787`). Nothing is inferred from the code, so the hover is exactly as
-deep as the grant table the runtime enforces
-([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). An edit to the grants changes the hover with
-no edit to the source, because the tree is resolved again for each hover, as the extension set is: a
-cached tree would outlive an edit to `nvs.toml`. With no `nvs.toml`, the hover says that none was found
-and that the program runs under the default policy.
+The grants are the configuration snapshot for the hovered file, resolved the way `nvs check` resolves
+it when run in that directory, through the same reader the extension set uses
+(`nvs_lsp::document::program_tree`). Every capability of the closed roster is a line: what the
+snapshot writes for it, or its default for server work marked `(default)` where it writes nothing. A
+default that grants nothing is not a line, and one closing sentence says no other grant is given.
+Nothing is inferred from the code, so the hover is exactly as deep as the grant table the runtime
+enforces ([`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). An edit to the grants changes the
+hover with no edit to the source, because the tree is resolved again for each hover, as the extension
+set is: a cached tree would outlive an edit to `nvs.toml`. With no `nvs.toml`, the hover says that
+none was found and lists the default policy. A tree that does not load is named, with no grants, and
+`nvs check` reports why.
+
+A path inside the hovered file's directory is written relative to it, and any other path whole. The
+text is `nvs_lsp::grants::of_program`'s.
 
 A grant belongs to a program, never to a route, so the hover never presents it as the route's.
-Diagnostics are answered with no grants (`crates/nvs-lsp/src/document.rs:725-730`), because a
+Diagnostics are answered with no grants (`nvs_lsp::document::analyse_file`'s type phase), because a
 diagnostic sits on a line of code and cannot say which configuration it came from. A hover can, in its
 first line, so the reader always sees which file answered.
 
@@ -1608,7 +1618,7 @@ first line, so the reader always sees which file answered.
 
 <a id="ide-a-query-lens-shows-what-one-recorded-request-ran-at-a-site"></a>
 
-## Above each query call, a lens shows what the newest recorded request that reached it ran there: the count, the total and the slowest time, and whether one statement repeated  *(designed — owned by goal request-aware-editor)*
+## Above each query call, a lens shows what the newest recorded request that reached it ran there: the count, the total and the slowest time, and whether one statement repeated
 
 `rule:ide/a-query-lens-shows-what-one-recorded-request-ran-at-a-site`
 
@@ -1617,23 +1627,30 @@ service's index ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](
 newest recorded request whose trace reached that site: how many statements ran there, their total time
 and the slowest one. When one statement text ran at the site more than once in that request, the lens
 says it repeated and how many times, which is the N+1 pattern a query inside a loop makes. A click
-opens that request in the viewer.
+opens that request in the viewer, at the `[debug] listen` address of the program's configuration
+tree, through the editor's own `vscode.open` command, which a client names in
+`capabilities.experimental.commands` as it names the others. The server sends no command to a client
+that did not name it, and the lens is then a title alone.
 
-A query is grouped by the site id the compiler gave its call
+A query is grouped by its call site, the file, line and file hash its traced span records
 ([`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), never by its text. So the figures are a few
 numbers per site a request reached, however many times a loop ran the query, which is
-[`testing/debug-surface`](testing.md#testing-debug-surface)'s argument for line counters. The statement is shown as written, its
-placeholders still placeholders: no parameter value is recorded or shown
+[`testing/debug-surface`](testing.md#testing-debug-surface)'s argument for line counters. The debug index looks a site up on an
+index of its own over the hash and the line. The statement is shown as written, its placeholders
+still placeholders: no parameter value is recorded or shown
 ([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)).
 
 Each site carries the hash of its file's text when the program was compiled, and a record whose hash is
-not the hash of the file on disk is not shown. A lens never sits on a line that ran something else.
+not the hash of the text the editor holds is not shown, so an unsaved edit hides the lens until a
+request runs the new text. A lens never sits on a line that ran something else.
 
 The server opens the index read-only, from the data folder, and makes no network request. An index
 that is absent, or that the service holds locked, gives no lens and no error.
 
 - **Memory:** in the editor process, a few numbers per query site per lens request, freed with the
-  answer. In the spool and the index, one site id per traced query, under the service's byte cap.
+  answer, and the start and end of each query call in the reference index. In the spool and the
+  index, one file, line and hash per traced query and one entry of the site index, under the
+  service's byte cap.
 
 **Declined:**
 - **One parameter set kept per site.** No query span holds a parameter value, and a parameter is
@@ -3485,7 +3502,7 @@ user's theme.
 
 <a id="ide-a-hover-shows-where-a-tainted-or-secret-value-came-from"></a>
 
-## Hovering a `tainted` or `secret` value shows its path inside the method, from where the qualifier entered to the cursor with the launderer marked, and only the language server has the checker record it  *(designed — owned by goal request-aware-editor)*
+## Hovering a `tainted` or `secret` value shows its path inside the method, from where the qualifier entered to the cursor with the launderer marked, and only the language server has the checker record it
 
 `rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`
 

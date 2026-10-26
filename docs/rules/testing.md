@@ -3,7 +3,7 @@
 
 # Testing
 
-*6 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2455,7 +2455,7 @@ a dedupe key ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](tes
 in `development`, its input and its response,
 [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)),
 `event` (a trace event, [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), with a `query` event's call
-site id where the compiler passed one), `dump` (a `Core\Debug::dump` record's bounded tree,
+site where the compiler numbered one, [`observability/a-query-span-names-its-call-site`](observability.md#observability-a-query-span-names-its-call-site)), `dump` (a `Core\Debug::dump` record's bounded tree,
 [`errors/record-transformations`](errors.md#errors-record-transformations)), `log` (a log record of the request, because a development
 server logs to its terminal and the viewer has no file to read), `body` (a part of a recorded body too
 long to be written inside its `request` line) and `dropped` (how many records the cap evicted). Every
@@ -2471,7 +2471,7 @@ missing optional field as absent, so a field added later still reads an older sp
 | `kind` | Fields |
 |---|---|
 | `request` | `start_us`, `duration_us`, `method`, `path` without the query, `status`; optional `span` (the server's span id, the third part of its `traceresponse`), `route`, `exception` (`class`, `message`, `file`, `line`), `input` (`query`, `headers` as name and value pairs, `body`) and `response` (`headers`, `body`) |
-| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`) |
+| `event` | `event` (`call`, `gc`, `spawn`, `query` or `http`), `label`, `start_us`, `end_us`; optional `status` and `query` (`driver`, `sql`, optional `rows` and `site`, whose fields are `file`, `line` and `hash`) |
 | `dump` | `file`, `line`, `tree` (the dump's JSON, `null` when elided), `elided` |
 | `log` | `level`, `message`, `fields` (an object, empty when elided), `elided` |
 | `body` | `of` (`request` or `response`), `offset` (where its bytes start in the body); optional `text` and `base64`, as in a `body` |
@@ -2708,7 +2708,7 @@ index_max`, the oldest request first.
 | `requests` | recorded request: trace id, start, duration, method, route, path, status, query, dump and log counts, its exception group | the request list and its filters |
 | `inputs` | request recorded with its input: query, headers, body, bytes declared, whether the body was read, and the response's headers and body | compare, replay and a test made from the request ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)) |
 | `body_parts` | `body` line: trace id, request or response, offset, bytes | a body too long for its `request` line, read in offset order |
-| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows and call site id | a request's timeline |
+| `events` | trace event: trace id, kind, label, start, end, status, a `query` event's driver, SQL, rows, and its call site's file, line and file hash | a request's timeline |
 | `dumps` | dump: trace id, file, line, the bounded tree | a request's dumps |
 | `logs` | log record: trace id where it has one, level, message, fields, source file and offset for a tailed line | the log view |
 | `exceptions` | uncaught exception: trace id, class, message, file, line, group | a request's error |
@@ -3015,7 +3015,8 @@ development server only after the developer confirms it in a dialog that names w
 
 **Compare** sets the recorded input of each — method, path, query, headers and body — against the
 other, then the response — its status, headers and body, a JSON body compared structurally — the
-duration, the queries in the order they ran with their text aligned, the dumps and the log lines. A second request is picked by marking it in any list, and a request's own
+duration, the queries aligned by the call that sent them, one row per call site with each statement
+and how many times it ran there, the dumps and the log lines. A second request is picked by marking it in any list, and a request's own
 view offers the previous request to the same route. A redacted header shows as redacted on both
 sides, never as a difference.
 
@@ -3076,7 +3077,7 @@ otherwise.
 
 <a id="testing-a-recorded-request-becomes-a-test"></a>
 
-## `nvs debug to-test` prints a `Core\Test::request` case from a recorded request that asserts its status, key headers and body, with a placeholder where the spool redacted a credential  *(designed — owned by goal request-aware-editor)*
+## `nvs debug to-test` prints a `Core\Test::request` case from a recorded request that asserts its status, key headers and body, with a placeholder where the spool redacted a credential
 
 `rule:testing/a-recorded-request-becomes-a-test`
 
@@ -3085,13 +3086,26 @@ index and prints a test: one class with one `#[Test]` method that sends the same
 `Core\Test::request` ([`testing/in-process-request`](testing.md#testing-in-process-request)) and asserts what the program answered. The
 request is the method, the path and query, the headers and the body the spool recorded. The text goes
 through `nvs fmt`'s printer, so it is already formatted. `--write <file>` writes it to a new file and
-never replaces one. The viewer's button calls the same function.
+never replaces one. `--span <id>` picks one request where several share the trace id, which is
+otherwise refused. The viewer's button reads the same text from `GET /api/to-test`. The class is
+named for the method, the path and the trace id's first eight digits, so two tests made from two
+requests to one route compile in one program.
+
+A recorded value goes into the test as a string literal that holds exactly its bytes: single-quoted
+where it has no control character, double-quoted with escapes where it has one, and
+`Core\Encoding::fromHex` where it has `ESC`, which no literal may hold
+([`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error)). A response is the program's own output,
+but a request is not, and either can carry text that tries to end a literal; the attack under
+`tests/hostile/tools/cli/nvs-debug-to-test/` holds that it stays text.
 
 **The test asserts the response.** The user decided this. The method asserts the status, the key
 headers and the body. The key headers are `Content-Type`, and `Location` when the status is a
 redirect: the headers the handler chose, not ones that change with every request. A JSON body is read
-through the response's `json()` and compared structurally, so key order and spacing do not fail it.
-Any other body is compared as bytes. The spool cuts a response body at `[limits] request_body`
+through the response's `json()` and compared with `assertEquals` against `Core\Json::decode` of the
+recorded text, so spacing and escapes do not fail it. Key order does: two arrays are equal only with
+their keys in the same order ([`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)), and a handler writes its keys in
+one order. Any other body is compared as text, or as bytes from hex where no string literal can hold
+it. The spool cuts a response body at `[limits] request_body`
 ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)), and a test made from a
 cut body asserts the status and the key headers only.
 
@@ -3110,6 +3124,8 @@ another status, another key header or another body.
 - **Copying the credential into the test.** A test is committed, and a credential in it is published.
 - **Asserting every response header.** `Date`, a request id and a cookie change with every request, so
   the test would fail against the program that passed it.
+- **A JSON comparison that ignores key order.** It needs a recursive key sort printed into every test
+  or a new assertion, and a handler's key order does not change unless its code does.
 
 <sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced), [`testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`](testing.md#testing-the-viewer-shows-the-stream-and-hands-off-every-artifact).</sub>
 

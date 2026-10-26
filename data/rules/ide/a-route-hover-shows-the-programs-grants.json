@@ -6,6 +6,10 @@
     "ide/the-request-set-is-closed",
     "routing/routes-are-compiled-not-registered"
   ],
-  "guardedBy": [],
-  "goal": "request-aware-editor"
+  "guardedBy": [
+    "crates/nvs-lsp/src/grants.rs",
+    "crates/nvs-lsp/tests/grants.rs",
+    "tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt",
+    "tests/lsp/hover/a-changed-grant-changes-the-route-hover.lspt"
+  ]
 }
