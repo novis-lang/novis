@@ -1,4 +1,4 @@
-Run the debug service: read recorded requests into the debug index.
+Run the debug service: read recorded requests into the debug index, and serve the debug viewer.
 ...
 Options:
       --once
