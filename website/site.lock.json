@@ -318,6 +318,13 @@
     "lang:types/mixed": "058379b28ccf00d6",
     "lang:types/type-aliases": "13f50e47f7b1b7b7"
   },
+  "tools/cli/index.mdx": {
+    "tools:cli/nvs-check": "8cc13d1e84f0c0c6",
+    "tools:cli/nvs-telemetry": "2bd39131b67069de",
+    "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
+    "tools:cli/one-binary": "990450b05d9aca43",
+    "tools:cli/the-compile-cache": "a5080b1566be22a6"
+  },
   "tools/formatter/index.mdx": {
     "tools:cli/nvs-fmt": "938dea536a25bec4"
   }

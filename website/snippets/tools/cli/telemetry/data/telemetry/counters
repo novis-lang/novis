@@ -1,0 +1,8 @@
+# Usage counters of `nvs telemetry`. Run `nvs telemetry show` to see what an upload sends.
+uploads 0
+bytes 0
+week 2026-W44
+days 1000100
+invocation.run 3
+invocation.check 2
+invocation.telemetry 1

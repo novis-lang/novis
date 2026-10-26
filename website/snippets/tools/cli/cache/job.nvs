@@ -1,0 +1,8 @@
+<?nvs
+array<string> $queue = ['welcome mail', 'invoice 1042', 'password reset'];
+uint $sent = 0;
+foreach ($queue as string $job) {
+    echo 'sent: ', $job, "\n";
+    $sent = $sent + 1;
+}
+echo $sent, " jobs done\n";

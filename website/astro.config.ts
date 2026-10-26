@@ -688,6 +688,7 @@ export default defineConfig({
                 { label: 'Coverage reports', link: '/tools/test-runner/coverage/' },
               ],
             },
+            { label: 'The command line', link: '/tools/cli/' },
           ],
         },
         {

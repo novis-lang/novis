@@ -1,0 +1,2 @@
+nvs --data data telemetry off
+nvs --data data telemetry reset

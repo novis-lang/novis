@@ -1,0 +1,9 @@
+<?nvs
+class Order
+{
+    public int $total = 0;
+}
+
+Order $order = new Order();
+$order->total = 'seven';
+echo $order->total, "\n";

@@ -1,0 +1,17 @@
+$ nvs --data data run job.nvs
+sent: welcome mail
+sent: invoice 1042
+sent: password reset
+3 jobs done
+exit 0
+
+$ nvs --data data run job.nvs
+sent: welcome mail
+sent: invoice 1042
+sent: password reset
+3 jobs done
+exit 0
+
+$ nvs --data data cache gc
+removed 0 entries, freed 0 bytes, skipped 0
+exit 0

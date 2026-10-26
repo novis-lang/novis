@@ -1,0 +1,9 @@
+$ nvs --data data telemetry off
+telemetry: off
+The counters already recorded are still in ~/project/data/telemetry/counters. Run `nvs telemetry reset` to delete them.
+exit 0
+
+$ nvs --data data telemetry reset
+deleted ~/project/data/telemetry
+telemetry: off
+exit 0

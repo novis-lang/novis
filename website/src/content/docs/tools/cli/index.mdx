@@ -1,0 +1,121 @@
+---
+title: The command line
+covers: ['tools:cli/one-binary', 'tools:cli/nvs-check', 'tools:cli/the-compile-cache', 'tools:cli/nvs-update-check', 'tools:cli/nvs-telemetry']
+description: Use the nvs program to check code, manage the compile cache, look for a new version and control telemetry.
+---
+
+import Terminal from '@components/Terminal.astro'
+
+Novis is one program, `nvs`. You give it a command, then the options of that command, and usually one
+file:
+
+```sh
+nvs run app.nvs
+nvs check app.nvs
+nvs test tests/
+```
+
+`nvs --help` lists every command. `nvs <command> --help` prints the options of one command, for example
+`nvs check --help`. Every command also takes `--config <PATH>` and `--data <PATH>`. `--data` sets the
+data folder, where Novis keeps its own files.
+
+## Check a program
+
+`nvs check` finds the errors in a program and runs nothing. It also checks every file that the
+program loads with `require` and `autoload`.
+
+<Terminal src="tools/cli/check.term" />
+
+When there is no error, `nvs check` prints `no errors` and the exit code is `0`. Otherwise it prints
+every error and the exit code is `1`. Each error has a code, a message, and the file, line and column.
+An error code is `E` and four digits, and a warning code starts with `W`. A code never changes, so you
+can search for it. `nvs agent show E0401` prints what the error `E0401` means and how to fix it.
+
+Nothing runs, so you can use `nvs check` in an editor, a commit hook or a build server. You can also
+give it a folder. It then checks all the `.nvs` files in that folder as one program.
+
+### Diagnostics as JSON
+
+`--json` prints the same errors as one JSON document. Use it when a program reads the result, such as
+an editor, a script or a build server:
+
+<Terminal src="tools/cli/check-json.term" />
+
+Each entry in `diagnostics` has the `code`, the `message` and the `severity`. `labels` gives the
+file, and the line and column where the error starts and ends. `span` is the same place as byte
+offsets in the file. The exit code is the same as without `--json`.
+
+## The compile cache
+
+Novis stores compiled code on disk. A program is compiled at its first start. Later starts load the
+compiled code, so the program starts faster. The output does not change:
+
+<Terminal src="tools/cli/cache.term" />
+
+`nvs run` and `nvs serve` both read and write the cache. The name of each entry comes from a hash of
+the source code and of the build. A changed file gets a new entry, so an entry is never out of date.
+
+The cache is the `cache` folder in the data folder. The default data folder is `.nvsdata`, next to
+the `nvs` program. You can set another folder in `nvs.toml`:
+
+```toml
+[opcache]
+file_cache_dir = "/var/cache/novis"   # where compiled programs are stored
+# file_cache = false                  # compile on every start instead
+```
+
+The folder and its parent folder must belong to the account that runs `nvs`. No other ordinary account
+may write to them. If a folder that you set fails this check, `nvs` prints one warning. It then
+compiles the program at every start.
+
+Two commands change how much disk space the cache uses. `nvs cache gc` removes the oldest entries
+when the cache is larger than `[opcache] file_cache_max_size`. The default limit is 256 MB. In the
+example above, the cache is smaller, so nothing is removed. `nvs cache clear` removes every entry:
+
+```sh
+nvs cache clear
+```
+
+The next run of a removed program compiles it again.
+
+## Check for a new version
+
+`nvs update-check` checks whether a newer version of Novis is released. It reads the latest release
+from GitHub, so it needs a network connection:
+
+```sh
+nvs update-check
+nvs update-check --json
+```
+
+It prints one line for each step: whether telemetry is on, the version you run and the latest
+version. The exit code is always `0`, also when the release cannot be read. A script uses `--json`
+and reads two fields. `update_available` is `true` when a newer version exists. `error` says why the
+release could not be read, and is `null` when it was read. The environment variable `NVS_UPDATE_URL`
+replaces the GitHub address.
+
+## Telemetry
+
+Telemetry counts how often each `nvs` command runs. It is off until you turn it on:
+
+```sh
+nvs telemetry on
+nvs telemetry status
+nvs telemetry show
+```
+
+When telemetry is on, each `nvs` command adds 1 to a counter for that command. The counters are in a
+plain text file in the data folder. They contain no paths, no arguments and no text from your
+programs. `nvs telemetry status` prints whether telemetry is on and where the file is.
+`nvs telemetry show` prints the exact JSON document that an upload sends.
+
+Nothing is uploaded unless the environment variable `NVS_TELEMETRY_URL` is set. Only
+`nvs update-check` and `nvs telemetry upload` send an upload. If `DO_NOT_TRACK` or `CI` has a value,
+`nvs` records nothing and uploads nothing. Most build servers set `CI`.
+
+`nvs telemetry off` stops recording. The counters that are already recorded stay in the file.
+`nvs telemetry reset` deletes them:
+
+<Terminal src="tools/cli/telemetry.term" />
+
+Read more in [Reference: the nvs command](/reference/cli/), with every command and its options.

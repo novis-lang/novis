@@ -1,0 +1,3 @@
+nvs --data data run job.nvs
+nvs --data data run job.nvs
+nvs --data data cache gc

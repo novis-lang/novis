@@ -1,0 +1,2 @@
+nvs check cart.nvs
+nvs check order.nvs

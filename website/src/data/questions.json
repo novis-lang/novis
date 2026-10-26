@@ -17757,13 +17757,24 @@
   },
   "/tools/": {
     "feature": "tools/index.mdx",
-    "hash": "a28fb063a436ecd6",
+    "hash": "1dc5939d527c40c7",
     "questions": [
       "Which developer tools come with Novis?",
       "Is there a debugger and a profiler for Novis?",
       "Does Novis have a code formatter and a test runner?",
       "Which editor can I use to write Novis code?",
       "Can I see the requests my server handled in a browser?"
+    ]
+  },
+  "/tools/cli/": {
+    "feature": "tools/cli/index.mdx",
+    "hash": "2e5c6f38f2334a36",
+    "questions": [
+      "How do I check my code for errors from the command line?",
+      "Get compiler errors as JSON for a script or CI",
+      "Where does Novis store compiled code, and how do I clear it?",
+      "How do I find out if a new Novis version is released?",
+      "Does the nvs command send telemetry, and how do I turn it off?"
     ]
   },
   "/tools/editor/": {

@@ -1,0 +1,5 @@
+<?nvs
+array<string> $items = ['tea', 'bread'];
+foreach ($items as string $item) {
+    echo $item, "\n";
+}

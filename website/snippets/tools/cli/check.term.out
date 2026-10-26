@@ -1,0 +1,14 @@
+$ nvs check cart.nvs
+no errors
+exit 0
+
+$ nvs check order.nvs
+error[E0401]: expected `int`, found `string`
+  --> order.nvs:8:17
+  |
+8 | $order->total = 'seven';
+  |                 ^^^^^^^ this is `string`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
+exit 1
