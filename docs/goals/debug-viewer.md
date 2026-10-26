@@ -62,7 +62,7 @@ stages:
         rules: [testing/two-requests-compare-and-a-replay-asks-first, testing/the-debug-stream-reaches-the-service-through-the-disk, testing/writing-a-debug-record-to-disk-is-its-own-gate]
   - id: 7
     title: "the viewer has its feature proofs, and its rules are shipped"
-    status: open
+    status: done
     context: [docs/reference/tools/10-cli.md, data/proofs/skip/tools/cli/nvs-info.json, docs/rules/testing/feature-proofs.md]
     extra:
       context:
@@ -324,6 +324,12 @@ in the list opens compare with the marked one on the left; the previous request 
 nearest older row with the same method and route on one page of 500, since the list has no route
 filter. Trade-offs: one small read per request page; no new request-list filter.
 
+**The viewer's step count is a unit test in `debug/api.rs`.** Stage 7's call. `nvs-cli` is a
+binary crate with no library, so an integration test under `tests/` cannot count the steps of the
+page query inside the process. `the_newest_page_reads_the_same_steps_at_any_index_size` sets a
+SQLite progress handler of one step and reads the newest page over 1000 and 20000 requests; the
+`perf` skip names it. Trade-offs: none outside the test build.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -437,12 +443,12 @@ compare view and the dialog's browser test.
 then another writes the hostile program and its browser test. The session checks both and writes the
 perf test and the rule flip.
 
-- [ ] A `# The debug viewer` section in the CLI chapter, so the feature is `tools:cli/the-debug-viewer` and its help is in the binary. `docs/reference/tools/10-cli.md:655`
-- [ ] `about.md` and three examples: a route that dumps a value, a handler whose queries repeat, and a handler that throws. `docs/examples/tools/cli/the-debug-viewer/about.md:1`, `docs/examples/tools/cli/the-debug-viewer/01-a-route-that-dumps-a-value.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/02-queries-that-repeat.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/03-a-handler-that-throws.nvs:1`
-- [ ] The attack: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them (`rule:testing/hostile-case-contract`). `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`, `viewer/test/hostile.browser.test.ts:1`
+- [x] A `# The debug viewer` section in the CLI chapter, so the feature is `tools:cli/the-debug-viewer` and its help is in the binary. `docs/reference/tools/10-cli.md:655`
+- [x] `about.md` and three examples: a route that dumps a value, a handler whose queries repeat, and a handler that throws. `docs/examples/tools/cli/the-debug-viewer/about.md:1`, `docs/examples/tools/cli/the-debug-viewer/01-a-route-that-dumps-a-value.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/02-queries-that-repeat.nvs:1`, `docs/examples/tools/cli/the-debug-viewer/03-a-handler-that-throws.nvs:1`
+- [x] The attack: a program whose requests dump, log and throw values with markup, script URLs, control and bidi characters and very long strings, and a browser test that no script runs and no element is made from them (`rule:testing/hostile-case-contract`). `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`, `viewer/test/hostile.browser.test.ts:1`
 - [x] The four `[debug]` keys stage 2 added (`crates/nvs-config/src/default.toml:327`) have their proofs, which CI's `proofs` job owes now: `directive:debug.listen`, `directive:debug.tls_cert_file`, `directive:debug.tls_key_file` and `directive:debug.token_file` each get `about.md`, one example and one hostile case under `docs/examples/config/debug-<key>/` and `tests/hostile/config/debug-<key>/`, and the test case the gate counts, or a skip with its reason. `bun nv proofs --gate --limit 0` names none of them. `docs/examples/config/debug-listen/about.md:1`, `tests/hostile/config/debug-listen/`, `data/proofs/skip/`
-- [ ] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip that names it. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`, `data/proofs/skip/tools/cli/nvs-info.json:1`
-- [ ] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
+- [x] A Rust test that the newest page reads the same number of SQLite steps at two index sizes, and a `perf` skip that names it. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`, `data/proofs/skip/tools/cli/nvs-info.json:1`
+- [x] `bun nv proofs --id 'tools:cli/the-debug-viewer'` passes, `rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact` `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -461,41 +467,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4, 5, 9 and 6 are done. `c116c002b` marks a request to compare from one
-exception group's list and from the search results (`m` and a Mark button). A search result's
-link uses `markLink`, and the compare view clears the mark when it opens. `MarkState` is the
-shared status line (`viewer/src/views/compare.tsx`). The rule
-`testing/two-requests-compare-and-a-replay-asks-first` is `shipped`.
+Stages 1 to 9 are done. Stage 7 landed in four commits: `fff44d3ac` adds `# The debug viewer`
+to the CLI chapter (`nvs agent find` reaches `cli#the-debug-viewer`), `c9b07fe14` the SQLite-steps
+unit test and the `perf` skip, `0aead1d51` `about.md` and three examples, and `755805047` the
+attack, `viewer/test/hostile.browser.test.ts` and the last rule `shipped`.
+`bun nv proofs --id 'tools:cli/the-debug-viewer'` is complete, `bun nv proofs --gate --limit 0`
+owes nothing, and `bun nv owners --closes debug-viewer` passes.
 
-For the operator's ci-green note: `a3de90829` makes `cargo fmt --all --check` pass, `54dcecfa5`
-records the nine stale `Core\Debug::*` figures again, and `cf8294e89` gives the four `[debug]`
-listener keys their proofs. Stage 7's directive item is ticked. The keys are `Boot` rows, so the
-census in `crates/nvs-config/tests/directives.rs`, `snapshot.rs`'s boot lists and
-`rule:config/reloadability-is-its-own-field` name them. `bun nv proofs --gate --limit 0` owes nothing.
-
-Checked once: clippy clean; `tsc` clean (the browser tests' fixture casts go through `unknown`);
-`bun nv viewer --check`; `NV_BROWSER=1 bun test` of `replay` (7 pass) and `exceptions` (4 pass).
-The subagent ran the new conformance case and five `nvs-config` tests by name, all green. The
-sweep's reds were stale: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`.
+Checked once: build and clippy clean; the steps test by name; `NV_BROWSER=1 bun test
+viewer/test/hostile.browser.test.ts` (9 pass); the subagents ran the three examples and the
+hostile case through `bun nv proofs --run --id`, and `tsc` over `viewer/`. The sweep's reds were
+stale: `env-secret-proofs`' log exits 0, and nightly 40291801939 built `d6f131752`, before
+`97ccf66c2` (the yanked `crypto-bigint`) and `9c8b0fe16` (the counted-run test's folder).
 
 Expected red: possibly `crates/nvs-cli/tests/live_config.rs:670` (`refuse_switch`'s message for
 `coverage`), `crates/nvs-cli/tests/debug_ingest.rs`'s `counts` and `debug_viewer.rs`'s ingest case.
 
 ### Next
 
-**Stage 7, by its `**Split:**` line.** First the `# The debug viewer` section in the CLI chapter.
-Then a writing subagent writes `about.md` and three examples, and another writes the attack and
-its browser test. The session writes the SQLite-steps test, the `perf` skip and the rule flip.
+**Stage 10, the gate.** Start `looper verify` with `run_in_background`, end the turn, and group
+its failures by cause. Then the goal-end gates of AGENTS.md § *In the loop*.
 
-- [ ] The CLI section, so `tools:cli/the-debug-viewer` exists and its help is in the binary. `docs/reference/tools/10-cli.md:655`
-- [ ] `about.md` and three examples. `docs/examples/tools/cli/the-debug-viewer/about.md:1`
-- [ ] The attack and `viewer/test/hostile.browser.test.ts`. `tests/hostile/tools/cli/the-debug-viewer/values-that-look-like-markup.nvs:1`
-- [ ] The steps-count test and its `perf` skip. `crates/nvs-cli/tests/debug_api.rs:1`, `data/proofs/skip/tools/cli/the-debug-viewer.json:1`
-- [ ] The last rule `shipped`, and `bun nv owners --closes debug-viewer` passes. `data/rules/testing/the-viewer-shows-the-stream-and-hands-off-every-artifact.json:3`
+- [ ] `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv verify --doc`, `bun nv owners --closes debug-viewer` and `bun nv ci --check` green. `tools/nv/cmd/ci.ts:1`
+- [ ] Each decision only this file's prose holds moved to a rule or module doc before the file is deleted. `docs/goals/debug-viewer.md:102`
 
 ### Backlog
 
-- The top comments of `viewer/src/app.tsx`, `views/saved.tsx`, `views/request.tsx` and `views/timeline.tsx` are over `bun nv proofs --comments`' bounds; stage 7's proofs pass rewrites them.
 - A group's `count` is kept by the ingester and does not fall when the size bound deletes its requests, so it can exceed the requests `?class=&file=&line=` lists (`crates/nvs-cli/src/debug/index.rs:440`).
 - The list's `dumps` and `logs` counts are per trace id (`crates/nvs-cli/src/debug/index.rs:241`), so two requests that share a trace id each count both's records; `viewer/test/fixtures/requests.json` shows it. Count them with the writer-and-sequence split `GET /api/request` uses.
 - A dump's properties reach the index in key order, because the spool's `Dump::tree` is a `serde_json::Value` (`crates/nvs-runtime/src/spool.rs:593`). A `RawValue` there keeps the declared order; the API already passes the stored text through.
