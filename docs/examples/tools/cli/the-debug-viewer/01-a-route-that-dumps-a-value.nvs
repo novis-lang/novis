@@ -1,0 +1,25 @@
+<?nvs
+// Shows a route that dumps a value, so you can read the value later in the debug viewer.
+
+class Carts
+{
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Carts::show')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string
+    {
+        array<int> $prices = ['coffee' => 450, 'cake' => 380];
+        int $total = 0;
+        foreach ($prices as int $price) {
+            $total += $price;
+        }
+
+        // `Core\Debug::dump` writes the array to standard error. With `[debug] store = true`,
+        // the dump is also saved with the request. The request's page in the viewer lists it.
+        Core\Debug::dump($prices);
+        return 'total: ' . $total;
+    }
+}
+
+// The server calls `show` for each `GET /cart` request. Here the program calls it once itself.
+// This prints `total: 830`.
+echo (new Carts())->show(), "\n";

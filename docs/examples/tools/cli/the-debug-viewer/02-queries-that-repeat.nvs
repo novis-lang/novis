@@ -1,0 +1,29 @@
+<?nvs
+// Shows a route that runs one query for each order, and how the debug viewer lists those queries.
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table customers (id integer primary key, name text not null)', []);
+$db->execute('create table orders (id integer primary key, customer integer not null)', []);
+$db->execute("insert into customers (id, name) values (1, 'Ada'), (2, 'Linus')", []);
+$db->execute('insert into orders (id, customer) values (101, 1), (102, 2), (103, 1)', []);
+
+class Orders
+{
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::list')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(Core\Db\Connection $db): void
+    {
+        foreach ($db->query('select id, customer from orders order by id', []) as Core\Db\Row $order) {
+            // This query runs once for each order. The request's page in the viewer lists
+            // every query with its time, so you see the same query three times.
+            foreach ($db->query('select name from customers where id = ?', [$order->int('customer') ?? 0]) as Core\Db\Row $customer) {
+                echo $order->int('id') ?? 0, ' ', $customer->string('name') ?? '', "\n";
+            }
+        }
+    }
+}
+
+// The server calls `list` for each `GET /orders` request. Here the program calls it once itself.
+// This prints one line for each order. A join would give the same lines with one query.
+(new Orders())->list($db);
+$db->close();

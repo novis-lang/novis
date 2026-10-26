@@ -1,0 +1,27 @@
+<?nvs
+// Shows a route that throws an error, which the debug viewer counts on its exceptions page.
+// proof: exit 1
+
+class Invoices
+{
+    #[Core\Route(path: '/invoices/{id}', method: Core\Http\Method::Get, name: 'Invoices::show')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        array<string> $invoices = [7 => 'paid', 8 => 'open'];
+        ?string $status = $invoices[$id] ?? null;
+        if ($status == null) {
+            // The viewer's exceptions page has one row for `RuntimeError` at this line.
+            // Each time the line throws, the count in that row goes up by one.
+            throw new RuntimeError('no invoice ' . $id);
+        }
+        return 'invoice ' . $id . ': ' . $status;
+    }
+}
+
+// The server calls `show` for each request. Here the program calls it twice itself.
+// The first call prints `invoice 7: paid`.
+echo (new Invoices())->show(7), "\n";
+
+// Invoice 9 does not exist, so this call throws. The error ends the program with exit status 1.
+echo (new Invoices())->show(9), "\n";
