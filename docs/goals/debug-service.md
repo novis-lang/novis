@@ -27,7 +27,7 @@ stages:
         rules: [testing/a-recorded-request-keeps-its-input-with-credentials-replaced, testing/the-debug-stream-reaches-the-service-through-the-disk, security/redaction-reaches-the-tools-own-renderings]
   - id: 7
     title: a decoded `secret` field is replaced, and a request's events, dumps and logs reach the spool
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/debug.rs, crates/nvs-runtime/src/ctx/output.rs, crates/nvs-db/src/span.rs, crates/nvs-runtime/src/spool.rs, docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md]
     extra:
       context:
@@ -210,6 +210,26 @@ sent, so a replay sends the same JSON. Trade-offs: per recorded request in `deve
 `[limits] request_body` held; with no recording, one question of the body per call; with it, one more
 read of the document per level the walk descends.
 
+**A derived codec still refuses a `secret` property, so a decoded body has no `secret` field to
+replace.** This session's call, built on as option 1 of decision `d9`, which recommends option 2.
+`rule:security/derived-codec-qualifiers` makes a `secret` property on a derived class `E0462`, so
+`jsonAs` and `postAs` reach one only as a skipped property, which takes no value. A whole document
+read that way is stored as sent, and the replacement runs on no field; the withheld path still
+applies. The recording rule says so. If the user picks option 2, a new stage lets a derived decoder
+fill a `secret` property (encoding it still refused), and the replacement code already in place
+covers it. Trade-off: nothing new to build now; a password read with `jsonAs` is on disk in the
+owner-only folder until the index forgets it.
+
+**Each event is a spool line as it is filed, and a dump is one `dump` line and no `log` line.** This
+session's calls. `Ctx::file_event` writes the `query`, `http` and `gc` events as each is filed and a
+`spawn` at its join, so a viewer sees them within one seal and a child never joined writes none. A
+query's line takes `QuerySpan::spooled`'s fields through `Ctx::record_query`. `Core\Debug::dump`
+writes its `dump` line in both rows of its table, and its log record goes through
+`Ctx::write_dump_record`, which writes no `log` line. A root isolate (the door's or a scheduled run's)
+files no `spawn` event, because no program spawned it and its trace is the connection's.
+Trade-offs: with `store` off, one configuration read per filed event on a run that already records
+spans; with it on, one buffered append per event, dump and log record.
+
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
 ingester's with `cargo test --test debug_ingest`; stage 6's end-to-end test with `cargo test --test
@@ -277,10 +297,10 @@ property's value never reaches the disk.
 `event`, `dump` and `log` line tests as one batch.
 
 - [x] A body decoded by `jsonAs<X>()` or `postAs<X>()` is stored with each field that lands in a `secret` property of `X` replaced by `[redacted]` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-stdlib/src/request.rs:2671`
-- [ ] `event` lines for the span events, a `query` event with its driver, SQL, rows and its call site id when it has one, and never a parameter (`rule:observability/a-query-is-a-trace-event`). `crates/nvs-db/src/span.rs:87`, `crates/nvs-db/src/span.rs:118`
-- [ ] `dump` lines with the bounded tree (`rule:errors/record-transformations`) and `log` lines for the request's log records, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:213`, `crates/nvs-runtime/src/ctx/output.rs:371`
-- [ ] Tests: a `secret` field decoded by `jsonAs<X>()` leaves no byte of its value in the file, a production request records its events and dumps, a query line holds no parameter, and a dump of a `secret` holds no byte of it. `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-db/src/pg.rs:6627`
-- [ ] `rule:testing/the-debug-stream-reaches-the-service-through-the-disk` and `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` `shipped`, their tests in `guardedBy`. `data/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.json:3`, `data/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.json:3`
+- [x] `event` lines for the span events, a `query` event with its driver, SQL, rows and its call site id when it has one, and never a parameter (`rule:observability/a-query-is-a-trace-event`). `crates/nvs-db/src/span.rs:87`, `crates/nvs-db/src/span.rs:118`
+- [x] `dump` lines with the bounded tree (`rule:errors/record-transformations`) and `log` lines for the request's log records, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:213`, `crates/nvs-runtime/src/ctx/output.rs:371`
+- [x] Tests: a `secret` field decoded by `jsonAs<X>()` leaves no byte of its value in the file, a production request records its events and dumps, a query line holds no parameter, and a dump of a `secret` holds no byte of it. `crates/nvs-stdlib/src/request.rs:3180`, `crates/nvs-db/src/pg.rs:6627`
+- [x] `rule:testing/the-debug-stream-reaches-the-service-through-the-disk` and `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced` `shipped`, their tests in `guardedBy`. `data/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.json:3`, `data/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.json:3`
 
 ### 4. `nvs debug` ingests sealed spool files into the index
 
@@ -334,40 +354,50 @@ subagent. Such subagents run side by side, and none of them builds.
 - [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
+- [ ] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 7's first item. Every answer the door counts writes a
-`request` line (`crates/nvs-server/src/spooled.rs`, `counted` at `crates/nvs-server/src/serve.rs:1741`,
-a streamed one's `Pending` written in `joined_when_ended`).
+Stages 1, 2, 3 and 7 are done: every record kind the writer side owns reaches the spool. A `request`
+line is written at the door (`crates/nvs-server/src/spooled.rs`). `event` lines come from
+`Ctx::file_event` (`crates/nvs-runtime/src/ctx/trace.rs:530`), a query's with
+`QuerySpan::spooled`'s fields (`crates/nvs-db/src/span.rs:213`). `dump` lines come from
+`Ctx::spool_dump` and `log` lines from `Ctx::write_log_record`'s `spool_log`
+(`crates/nvs-runtime/src/ctx/output.rs:434`). A root isolate no longer files a `spawn` event
+(`crates/nvs-host/src/isolate.rs:851`), which had put a line under the connection's trace.
 
-**A `secret` value of a body read by `jsonAs` or `postAs` is replaced.** `redact_recorded`
-(`crates/nvs-stdlib/src/request.rs:3293`) asks the body `RequestBody::records`, and only then runs
-`json::secret_spans` (`crates/nvs-stdlib/src/json.rs:3365`) or `json::secret_form_spans` over the
-held octets. The ranges reach `spool::Recorder::redact` through `RequestBody::redact_recorded`
-(`crates/nvs-server/src/body.rs:317`), and `Recorder::finish` replaces them. Pinned by
-`secret_spans_names_each_value_a_secret_property_takes`,
-`secret_form_spans_names_each_value_a_secret_property_takes` and
-`a_request_recorder_replaces_each_redacted_range_or_withholds_the_bytes`, each passing once by name.
+Both writer rules are `shipped`. The recording rule now says that a derived codec refuses a `secret`
+property (`E0462`), so a decoded body has no `secret` field to replace. Decision `d9` asks whether a
+derived decoder may fill one; the work is built on "no" and recommends "yes" (Standing decisions).
 
-The input and response recording is `crates/nvs-server/src/spooled.rs`'s module doc; seven served
-tests pass with `cargo test --lib spool` (`spooled_for`, `serve.rs:13193`). The sweep's reds were
-stale: `env-secret-proofs` exits 0, and run 40174915924's head `9be30356e` predates its fixes.
+New tests, each passing once by name:
+`a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld` (`crates/nvs-cli/tests/request.rs:544`),
+`a_production_request_records_its_events_and_dumps_but_no_input` (`crates/nvs-server/src/serve.rs:13580`),
+`a_dump_is_one_spool_dump_line_with_no_byte_of_a_secret` (`crates/nvs-stdlib/src/debug.rs:1103`),
+`a_written_log_record_is_one_log_line_under_the_requests_trace` and
+`a_filed_query_event_is_an_event_line_with_its_driver_sql_and_rows` (`crates/nvs-runtime/src/spool.rs:1626`),
+and `a_query_span_contains_no_parameter_value_anywhere` now reads the spool line too.
+The sweep's reds were stale: `env-secret-proofs` exits 0, and run 40174915924 predates the fixes.
 
-Tests expected to go red: none known.
+Tests expected to go red: none known. Watch `crates/nvs-host` tests that assert a door-started
+isolate's `wall`, which is now `None` (none found).
 
 ### Next
 
-**Stage 7: the `event`, `dump` and `log` writers, then the test batch**, in
-`crates/nvs-runtime/src/ctx/trace.rs`, `crates/nvs-db/src/span.rs`, `crates/nvs-stdlib/src/debug.rs`
-and `crates/nvs-runtime/src/ctx/output.rs`. No gate; each new test runs once by name.
+**Stage 4: `nvs debug` ingests sealed spool files into the index**, in a new
+`crates/nvs-cli/src/debug.rs` with `debug/index.rs` and `debug/ingest.rs`, and
+`crates/nvs-cli/tests/debug_ingest.rs`. It tests against
+`crates/nvs-cli/tests/fixtures/debug/one-of-each.spool` alone, reading lines with
+`nvs_runtime::spool::Line::parse` (`crates/nvs-runtime/src/spool.rs:121`). No gate.
 
-- [x] The `secret` replacement. `crates/nvs-stdlib/src/request.rs:3293`
-- [ ] The `event` lines from the span events, a `query` with its driver, SQL and rows and no parameter. A query reaches a trace as `QuerySpan`'s rendering through `Ctx::record_query`, so the spool's `Query` fields need the span's own fields there, not the string. `crates/nvs-runtime/src/ctx/trace.rs:504`, `crates/nvs-db/src/span.rs:87`
-- [ ] The `dump` and `log` lines, a `secret` redacted in both. `crates/nvs-stdlib/src/debug.rs:397`, `crates/nvs-runtime/src/ctx/output.rs:434`
-- [ ] Then the stage's split: a writing subagent writes the batch of tests the stage names, with a served `jsonAs` and `postAs` of a class with a `secret` property among them (no byte of the value in the spool files). `crates/nvs-stdlib/src/request.rs:3157`
+- [ ] The command and the lock, then the schema, from the rule's table. `crates/nvs-cli/src/main.rs:395`, `docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md:1`
+- [ ] Read, insert under the dedupe key `(writer, seq)`, commit, delete; then the watermark and the listing cadence. `crates/nvs-cli/src/debug/ingest.rs:1`
+
+Stage 8 now also owes the proofs gate the user named: perf figures, the `debug.*` directive proofs,
+`Core\Server::traceId`'s `about.md` length and its stale site page (stage 8's last two items).
 
 ### Backlog
 
@@ -375,4 +405,5 @@ and `crates/nvs-runtime/src/ctx/output.rs`. No gate; each new test runs once by 
 - The feature proofs of `nvs debug` land with the viewer, the part a developer sees (`docs/rules/testing/feature-proofs.md`).
 - The query call site id is passed by `request-aware-editor`; until then a `query` event has none (`docs/rules/testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time.md`).
 - A recorded request becoming a `Core\Test::request` case is `request-aware-editor`'s (`docs/rules/testing/a-recorded-request-keeps-its-input-with-credentials-replaced.md`).
-- The ingester lane (stages 4, 5) can now run as a side goal beside the writers, against the sample spool alone (`crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`).
+- Once stage 6 starts `nvs debug` from a development `nvs serve`, the service ingests and deletes spool files, so `a_served_body_read_into_a_class_with_a_secret_is_recorded_or_withheld` races it; that test then holds the service lock or keeps the service from starting (`crates/nvs-cli/tests/request.rs:544`).
+- If `d9` is answered "yes", a new stage lets a derived decoder fill a `secret` property, amends `rule:security/derived-codec-qualifiers` and the recording rule, and adds a served test that a whole JSON document keeps no byte of that value (`crates/nvs-types/src/derive.rs:2493`).
