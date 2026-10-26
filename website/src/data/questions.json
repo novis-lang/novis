@@ -1222,7 +1222,7 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "8fe0f892ba44260c",
+    "hash": "a4fd44faf79133fb",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Set up a language server for Novis in Vim or Neovim",
