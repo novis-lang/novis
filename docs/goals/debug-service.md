@@ -399,7 +399,7 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
+- [x] `bun nv proofs --gate --limit 0` owes nothing this goal's commits added: the perf figures for `request.rs` (31), `uri.rs` (23), `queue.rs` (12), `debug.rs` (9), `script.rs` (6) and `json.rs` (4) recorded, the `debug.*` directive proofs, and `Core\Server::traceId`'s `about.md` cut from 206 words. `crates/nvs-stdlib/src/request.rs:1`, `docs/examples/core/Server/traceId/about.md:1`
 - [ ] `bun nv site --check questions` finds `/reference/core/server/traceid/` current, and `bun nv ci --check` is green, so the goal end's pre-push check takes the push. `docs/examples/core/Server/traceId/about.md:1`
 
 ## Handoff
@@ -430,11 +430,16 @@ Tests expected to go red: none known.
 
 ### Next
 
-**Stage 8's last two items.** The proofs gate's two open parts, then the goal-end gates.
+**Stage 8's last item, after three findings from the proofs work.**
 
-- [ ] Perf figures: `bun nv proofs --record-perf` was started for the 86 stale `Core\Request`, `Uri`, `Queue`, `Debug`, `Script` and `Json` figures; check `bun nv proofs --gate --limit 0` names none, and commit the ledger it appends to. `crates/nvs-stdlib/src/request.rs:1`
-- [ ] The `debug.store`, `debug.spool_max`, `debug.index_age`, `debug.index_max` and `tools:cli/nvs-debug` proofs: `bun nv proofs --gate --only` each owes nothing, and every `.nvs` and `about.md` is read against AGENTS.md § *Text an end user reads*. `docs/examples/config/debug-inline/about.md:1`
-- [ ] `bun nv site --check questions`, then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, each red fixed. `docs/examples/core/Server/traceId/about.md:1`
+`bun nv proofs --gate --limit 0` owes nothing in the whole roster: 85 perf figures are recorded
+(`1e8692f02`), and the four `[debug]` keys and `nvs debug` have their proofs (`00cedc1d9`). Those
+proofs came from `target/debug/nvs.exe`, because `target/release/nvs.exe` predates `index_age`.
+
+- [ ] `Core\Config::set('debug.store', 'false')` returns `false` under a file with `store = true`, so the `store` key's comment in `crates/nvs-config/src/default.toml` and the Standing decision "a request's own `Core\Config::set` turning `store` off is honoured" describe a path no program reaches. Find which is wrong (the key's class, or the claim), and fix the code or the comment and the rule. `crates/nvs-config/src/default.toml:1`
+- [ ] The `nvs-debug` attack leaves up to 1 MiB of spool files under `target/proof/.nvsdata/debug/spool` per run, and each run starts a new writer, so they add up. Make the attack's run clean up after itself or use its own data folder. `tests/hostile/tools/cli/nvs-debug/01-records-that-are-hard-to-read-back.nvs:1`
+- [ ] No test drives `Index::forget` with a small `index_max`; add one to `crates/nvs-cli/tests/debug_ingest.rs`, run once by name. `crates/nvs-cli/src/debug/ingest.rs:1`
+- [ ] `bun nv site --check questions`, then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, each red fixed; a change from the items above runs `bun nv affected --run` once more first. `docs/examples/core/Server/traceId/about.md:1`
 
 ### Backlog
 
