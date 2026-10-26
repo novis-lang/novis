@@ -164,11 +164,31 @@ Either lane can run as a side goal. Stage 6 joins them and runs last.
 
 **The spool writer arms no timer; the thread that owns it seals it.** The session's call in stage 2.
 `Writer::deadline` says when the open file is due, every append seals a file past it first, and
-`nvs_runtime::spool::seal_due` is called by the core's loop at that time. A timer thread would have to
-reach a writer's file across threads, which needs the lock the per-thread design avoids, and Windows
-refuses the rename of a file another handle has open. Until the loop calls it, an idle open file is
-read by the ingester after a minute. Trade-off: one deadline read per loop turn while a file is open,
-and nothing while none is.
+`nvs_runtime::spool::seal_due` is called at that time by one task per core, `seal_the_spool` in
+`crates/nvs-cli/src/serve.rs`. That task names its wake with `spool::on_open`, which the writer runs
+when it opens a file, so it parks with no deadline while the core records nothing, and it ends at the
+drain; the core calls `seal_now` once more where it stops. A timer thread would have to reach a
+writer's file across threads, which needs the lock the per-thread design avoids, and Windows refuses
+the rename of a file another handle has open. Trade-off: one parked task per core, and one wake per
+file opened.
+
+**A body longer than 64 KiB goes out as `body` lines.** This session's call, on the handoff's
+recommendation. A recorded body (the request's, as the program pulls it, or the response's, as it is
+written) is held up to 64 KiB and written inline in the `request` line's `Body` when it ends there.
+Past 64 KiB its bytes go out as `kind: "body"` lines, each with the trace id, `of` (`request` or
+`response`), `offset` and at most 1 MiB of bytes as `text` or `base64`, and the `request` line's
+`Body` carries no bytes and says `chunks` (how many lines). Recording still stops at
+`[limits] request_body` and says `cut`. So no line passes 4 MiB, a body is never held whole, and a
+small request stays one line for the ingester. Trade-off: per recorded body in flight, at most 1 MiB
+held; one more kind for the rule's table, `Line`, the sample and the ingester.
+
+**The `request` line is written at the door, gated by what the request ran under.** This session's
+call. Every answer the door counts (`counted` in `serve_connection`) writes one `request` line, so a
+`404` or a `503` is in the viewer too. For a request that ran a program, the gate and the mode are read
+inside the isolate where it finishes, so a request's own `Core\Config::set` turning `store` off is
+honoured, and reach the door on the completion as one field. For an answer the door wrote alone, they
+are read off the snapshot it answered under. The spool gains an entry point that takes the
+configuration and the trace id instead of a `Ctx`, because the door holds no request context.
 
 **Narrow test commands.** The served tests in `crates/nvs-server/src/serve.rs` are looked into with
 `cargo test --lib traceresponse` or `cargo test --lib spool`, never the whole server suite; the
@@ -216,8 +236,11 @@ headers never reach the disk.
 **Split:** after the session lands the `request` line and the input and response capture, a writing
 subagent writes the redaction and cut tests below as one batch in `serve.rs`'s test module.
 
-- [ ] The server drives the writers: `nvs_runtime::spool::set_writers` with the core count at boot, `seal_due` from each core's loop at the deadline it returned, and `seal_now` where a core stops; `nvs run` and `nvs test` call `seal_now` at exit. Then drop the rule's *Not on disk* sentence about `seal_due`. `crates/nvs-runtime/src/spool.rs:663`, `crates/nvs-runtime/src/spool.rs:692`, `crates/nvs-server/src/serve.rs:1269`
+- [x] The server drives the writers: `nvs_runtime::spool::set_writers` with the core count at boot, `seal_due` from each core's loop at the deadline it returned, and `seal_now` where a core stops; `nvs run` and `nvs test` call `seal_now` at exit. Then drop the rule's *Not on disk* sentence about `seal_due`. `crates/nvs-runtime/src/spool.rs:663`, `crates/nvs-runtime/src/spool.rs:692`, `crates/nvs-server/src/serve.rs:1269`
 - [ ] A `request` line at the request's end, from both completion paths: method, route, path, status, duration, counts, and the uncaught exception's class, message and throw site. `crates/nvs-server/src/serve.rs:1362`, `crates/nvs-server/src/serve.rs:2150`, `crates/nvs-server/src/trace.rs:278`
+  - [x] The throw site reaches the door: `Failure::location`, split by `Failure::site`.
+  - [ ] The gate and the mode on the completion, read where the isolate finishes, and a spool entry point that takes them with the trace id.
+  - [ ] The line written from `counted`, with the route label, the start and the duration, on both paths.
 - [ ] In `development`, the input: the head from `Inbound` with the four headers replaced by `[redacted]`, and the body chunks the program pulled, up to `request_body` (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-runtime/src/ctx/inbound.rs:804`, `crates/nvs-server/src/body.rs:279`
 - [ ] In `development`, the response: its status, its headers with the four replaced, and the bytes written, written through to the spool file up to `request_body` and cut there with a marker. `crates/nvs-server/src/serve.rs:1675`
 - [ ] Tests: a request with each header shows `[redacted]` and no byte of the value in the file, an unread body is recorded as not read, a request body and a response body past `request_body` are each cut and say so, and a production request records its outcome and no header or body. `crates/nvs-server/src/serve.rs:3255`
@@ -293,41 +316,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs_runtime::spool` (`crates/nvs-runtime/src/spool.rs`) holds `Line`, the
-one serde type for both sides, and the per-thread `Writer`: sealed by rename at 4 MiB or at
-`Writer::deadline`, long lines elided, its share of `spool_max` kept by deleting its own oldest file
-and writing a `dropped` line. `spool::record(ctx, record)` is the writers' lanes' entry point: it
-checks `nvs_config::Request::debug_store` and stamps the trace id. `Folder::prepare_spool`
-(`crates/nvs-config/src/data.rs:233`) makes `debug/spool/` private and checked. `Ctx::records_spans`
-is `true` with the gate on. The sample is `crates/nvs-cli/tests/fixtures/debug/one-of-each.spool`,
-which `the_sample_spool_is_what_the_writer_writes` rewrites when it differs, and then fails. Every
-spool test is green (`cargo test --lib spool`).
+Stages 1 and 2 are done, and stage 3's first item. `nvs_runtime::spool` (`crates/nvs-runtime/src/spool.rs`)
+holds `Line` and the per-thread `Writer`. `spool::record(ctx, record)` checks
+`nvs_config::Request::debug_store` and stamps the trace id; nothing calls it yet.
 
-**Nothing calls `spool::record`, `seal_due`, `seal_now` or `set_writers` yet**; both rules' *Not on
-disk* paragraphs say so. `crates/nvs-cli/src/debug.rs` does not exist. Find `crates/nvs-cli/src/main.rs`'s
-anchors by name (`Lsp(lsp::Args)`, `Command::Lsp`), since other sessions move it.
+**The writers are driven.** `nvs serve` calls `set_writers` with the core count at boot, each core
+runs `seal_the_spool` (`crates/nvs-cli/src/serve.rs:1613`), which names its wake with `spool::on_open`
+(`crates/nvs-runtime/src/spool.rs:674`) and calls `seal_due` at the deadline, and each core calls
+`seal_now` where it stops. `nvs run` and `nvs test` seal at exit (`sealed` in
+`crates/nvs-cli/src/main.rs`). `the_wake_runs_when_a_file_opens_and_not_on_each_record` is green.
 
-The sweep's reds were already fixed: `env-secret-proofs` passes when run again, and run 40174915924's
-nightly reds are fixed by `0b7eadd2c`, `901f4855c`, `c7e5bd3c3`, `bd2e51f0a` and `d5aa2be18`.
+**The throw site reaches the door.** `nvs_runtime::host::Failure::location`
+(`crates/nvs-runtime/src/host.rs:413`) is the exception's `location`, `file:line`, filled where the
+isolate finishes (`crates/nvs-host/src/isolate.rs:1476`), and `Failure::site` splits it.
+
+Two design calls are recorded under *Standing decisions*: a body past 64 KiB goes out as `body`
+lines, and the `request` line is written from `counted`, gated by what the request ran under.
+
+The sweep's reds were already fixed: `env-secret-proofs` passes when run again (this session ran it),
+and run 40174915924's nightly reds are fixed by `0b7eadd2c`, `901f4855c`, `c7e5bd3c3`, `bd2e51f0a`
+and `d5aa2be18`.
 
 Tests expected to go red: none known.
 
 ### Next
 
-**Stage 3, one group**, in `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/body.rs`,
-`crates/nvs-runtime/src/ctx/inbound.rs` and `crates/nvs-runtime/src/spool.rs`. Follow the stage's
-**Split:** line. No gate; the served tests run by name with `cargo test --lib spool`.
+**Stage 3, the rest, one group**, in `crates/nvs-runtime/src/host.rs`, `crates/nvs-host/src/isolate.rs`,
+`crates/nvs-runtime/src/spool.rs`, `crates/nvs-server/src/serve.rs` and `crates/nvs-server/src/body.rs`.
+Follow the stage's **Split:** line. No gate; the served tests run by name with `cargo test --lib spool`.
 
-**Decide first:** the response body is capped at `[limits] request_body` (8 MiB by default) and
-written through, but a line is at most 4 MiB and `Writer::append` writes whole lines. The
-recommendation: a long body goes out as its own lines, a `body` kind with the trace id, `request` or
-`response`, an offset and one chunk each. Then a body is never held whole and no line passes 4 MiB.
-Record the call under *Standing decisions*, and add the kind to the rule's table, `Line` and the sample.
-
-- [ ] `set_writers`, `seal_due` and `seal_now` driven by the server's cores and by `nvs run` and `nvs test`. `crates/nvs-runtime/src/spool.rs:663`, `crates/nvs-runtime/src/spool.rs:692`, `crates/nvs-server/src/serve.rs:1269`
-- [ ] The `request` line from both completion paths. The dump and log counts in the index's `requests` row are the ingester's to count from the lines, so the line carries none. `crates/nvs-server/src/serve.rs:1362`, `crates/nvs-server/src/serve.rs:2150`, `crates/nvs-server/src/trace.rs:278`
-- [ ] The development input and response, with the four headers replaced by `spool::REDACTED`, after deciding the tension above. `crates/nvs-runtime/src/ctx/inbound.rs:804`, `crates/nvs-server/src/body.rs:279`, `crates/nvs-server/src/serve.rs:1675`
-- [ ] The stage's tests, by the subagent its **Split:** line names. `crates/nvs-server/src/serve.rs:3255`
+- [ ] The gate and the mode on `Completion`, read off `isolate_ctx.config()` beside `take_sampled_trace`, every `Completion {` literal filled (about fourteen, `grep -rn 'Completion {$' crates`). `crates/nvs-runtime/src/host.rs:422`, `crates/nvs-host/src/isolate.rs:1450`
+- [ ] A spool entry point that takes the configuration and the trace id, beside `record`. `crates/nvs-runtime/src/spool.rs:686`
+- [ ] The `request` line from `counted`, both paths: the buffered one through `ran_under` and `labelled`, the streamed one in `joined_when_ended`. The line carries no dump or log count; the ingester counts them. `crates/nvs-server/src/serve.rs:1715`, `crates/nvs-server/src/serve.rs:1375`
+- [ ] The `body` kind: in the rule's table, `Line`, `Body::chunks` and the sample spool, which `cargo test --lib spool` rewrites once. `docs/rules/testing/the-debug-stream-reaches-the-service-through-the-disk.md:43`, `crates/nvs-runtime/src/spool.rs:100`
+- [ ] The development input: the head copied with the four headers replaced, the pulled chunks recorded in `Wire` and read back off the `Supply` at the end. `crates/nvs-server/src/body.rs:279`
+- [ ] The development response: the status, the headers with the four replaced, and the bytes, from `Completion::output` or the streamed chunks. `crates/nvs-server/src/serve.rs:2685`
+- [ ] The stage's tests, by the subagent its **Split:** line names. `crates/nvs-server/src/serve.rs:3457`
 
 ### Backlog
 
