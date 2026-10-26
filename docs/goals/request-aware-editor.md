@@ -156,6 +156,13 @@ written as a placeholder with a comment. This goal also adds the viewer's button
 function, because `debug-viewer` leaves it to the generator's goal.
 `rule:testing/a-recorded-request-becomes-a-test`.
 
+**A printed test compares a JSON body with key order.** This session's call, by simplicity: the
+test writes `Test::assertEquals($response->json(), Core\Json::decode('<recorded text>'))`, which
+ignores spacing and escapes, and two arrays are equal only with their keys in the same order
+(`rule:expressions/equality-semantics`). The declined option was a recursive key sort printed into
+every test, or a new assertion; a handler's key order changes only when its code does. The rule's
+text and its Declined list say so.
+
 **The feature id for `nvs debug to-test` is `tools:cli/nvs-debug-to-test`.** It is a command a
 developer types, so it gets its own `# nvs debug to-test` section in `docs/reference/tools/10-cli.md`,
 after the `# nvs debug` section `debug-service` adds, with its help, examples and proofs. The editor
@@ -307,12 +314,12 @@ asserts the recorded response.
 **Split:** after the command lands, a writing subagent writes the feature's `about.md` and three
 examples under `docs/examples/tools/cli/nvs-debug-to-test/`; the session writes the rule flip.
 
-- [ ] The command reads the request and its response from the debug index and prints one class with one `#[Test]` method, through the formatter's printer (`rule:testing/a-recorded-request-becomes-a-test`). `crates/nvs-cli/src/debug/to_test.rs:1`, `crates/nvs-stdlib/src/test.rs:743`, `crates/nvs-fmt/src/lib.rs:134`
-- [ ] The method asserts the status, `Content-Type`, `Location` on a redirect, and the body: a JSON body through `json()` compared structurally, any other body as bytes. A body the spool cut at `request_body` gives a test that asserts the status and the headers only. `crates/nvs-cli/src/debug/to_test.rs:1`
-- [ ] A header the record holds as `[redacted]` is written as the placeholder with its comment, and a request whose recorded request body is not the whole body is refused with the reason (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-cli/src/debug/to_test.rs:1`
-- [ ] `--write <file>` writes a new file and never replaces one. `crates/nvs-cli/src/debug/to_test.rs:1`
-- [ ] The viewer's request view gains the button that shows the printed test with a copy button. `viewer/src/views/request.tsx:1`
-- [ ] A served fixture: the generated test passes against the unchanged program, and fails when its handler's status, its `Content-Type` or one JSON field of its body changes. `crates/nvs-cli/tests/debug_to_test.rs:1`
+- [x] The command reads the request and its response from the debug index and prints one class with one `#[Test]` method, through the formatter's printer (`rule:testing/a-recorded-request-becomes-a-test`). `crates/nvs-cli/src/debug/to_test.rs:1`, `crates/nvs-stdlib/src/test.rs:743`, `crates/nvs-fmt/src/lib.rs:134`
+- [x] The method asserts the status, `Content-Type`, `Location` on a redirect, and the body: a JSON body through `json()` compared structurally, any other body as bytes. A body the spool cut at `request_body` gives a test that asserts the status and the headers only. `crates/nvs-cli/src/debug/to_test.rs:1`
+- [x] A header the record holds as `[redacted]` is written as the placeholder with its comment, and a request whose recorded request body is not the whole body is refused with the reason (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `crates/nvs-cli/src/debug/to_test.rs:1`
+- [x] `--write <file>` writes a new file and never replaces one. `crates/nvs-cli/src/debug/to_test.rs:1`
+- [x] The viewer's request view gains the button that shows the printed test with a copy button. `viewer/src/views/request.tsx:1`
+- [x] A served fixture: the generated test passes against the unchanged program, and fails when its handler's status, its `Content-Type` or one JSON field of its body changes. `crates/nvs-cli/tests/debug_to_test.rs:1`
 - [ ] The help text and a `# nvs debug to-test` section, so `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` prints nothing owed (`rule:testing/feature-proofs`). `docs/reference/tools/10-cli.md:302`, `docs/examples/tools/cli/nvs-debug-to-test/about.md:1`
 - [ ] `rule:testing/a-recorded-request-becomes-a-test` `shipped`, and `bun nv owners --closes request-aware-editor` passes. `data/rules/testing/a-recorded-request-becomes-a-test.json:3`
 
@@ -333,19 +340,24 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 6 and 8 are done. The query lens is `query_lenses` (`crates/nvs-lsp/src/server.rs:1873`)
-over the index's `queries_in` (`crates/nvs-lsp/src/index.rs:748`) and `nvs_lsp::recorded::at_site`
-(`crates/nvs-lsp/src/recorded.rs:70`), a read-only SQLite read of `Settings::debug_index` matched on
-the one-based line and the buffer's BLAKE3. The debug index is schema 7 with `events_site`. The
-click is `vscode.open`, as the standing decision *A query lens's click* says. The compare view aligns
-queries by call site (`bySite`, `viewer/src/views/compare.tsx:201`). The rule is `shipped`.
+Stages 1 to 6 and 8 are done, and stage 7 has two items left. `nvs debug to-test` is
+`crates/nvs-cli/src/debug/to_test.rs`: `read` (one request with its input and response, refused
+when the request body is cut or withheld), `print` (the test, through `nvs_fmt::format`), `Args`
+(a clap subcommand of `debug::Args`, `--span` and `--write`) and `api` (`GET /api/to-test`, routed in
+`crates/nvs-cli/src/debug/listen.rs`). The viewer's `t` key and Make a test button are
+`viewer/src/views/to-test.tsx`, and `viewer/dist/` is rebuilt. The `# nvs debug to-test` section is in
+`docs/reference/tools/10-cli.md`, the attack is under `tests/hostile/tools/cli/nvs-debug-to-test/`,
+and the rule is `shipped`.
 
-Green once by name: `tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt`, whose index is
-SQL in the shape a served request records; `a_served_query_event_names_the_line_of_its_call` is the
-served half. Clippy and the viewer's `tsc` are clean. The sweep's reds are stale: `env-secret-proofs`
-reran green, and the nightly's `d6f13175` predates `97ccf66c2` and `9c8b0fe16`, which fix both.
+Green once by name: the `debug::to_test` unit tests and both tests of `debug_to_test.rs`. Clippy,
+rustfmt and the viewer's checks are clean. The sweep's reds were stale (nightly `d6f13175`).
 
-May go red in the gate: `viewer/test/replay.browser.test.ts` (its queries row is now keyed
+**Uncommitted and unchecked:** `docs/examples/tools/cli/nvs-debug-to-test/`, which a subagent wrote
+and was stopped in while it wrote example 03.
+
+May go red in the gate: `crates/nvs-cli/tests/debug_viewer.rs` or a help snapshot over `nvs debug`'s
+new subcommand and `/api/to-test`, `viewer/test/replay.browser.test.ts` over the request bar's new
+button, `viewer/test/replay.browser.test.ts` (its queries row is now keyed
 `src/Shop/Items.nvs:12`), `crates/nvs-cli/tests/debug_api.rs`, `debug_ingest.rs` and
 `debug_viewer.rs` over schema 7 or the fixture line, `crates/nvs-lsp/tests/stdout_policy.rs` over the
 new `rusqlite` dependency, `crates/nvs-lsp/tests/handshake.rs`, the VS Code client test that reads
@@ -354,21 +366,26 @@ the proofs gate's perf records, and the LSP latency bound in `crates/nvs-lsp/tes
 
 ### Next
 
-**Stage 7: `nvs debug to-test <trace-id>`.** Its gate holds, because `debug-service` and
-`debug-viewer` are gone. The new module is `crates/nvs-cli/src/debug/to_test.rs`, beside the
-other subcommands of `crates/nvs-cli/src/debug.rs`. It reads the request and its recorded input
-and response from the `requests` and `inputs` tables of the index
-(`crates/nvs-cli/src/debug/index.rs:74`, `:97`: `response_headers`, `response_body`,
-`response_cut`, `body_cut`). It prints one class with one `#[Test]` method through the
-formatter's printer (`crates/nvs-fmt/src/lib.rs:134`) that sends the request with
-`Core\Test::request` (`crates/nvs-stdlib/src/test.rs:743`) and asserts the status,
-`Content-Type`, `Location` on a redirect, and the body, a JSON body through `json()`. The
-recorded request's redacted headers are placeholders with a comment. Then the viewer's button in
-`viewer/src/views/request.tsx`, the served fixture `crates/nvs-cli/tests/debug_to_test.rs`, and the
-proofs for `tools:cli/nvs-debug-to-test` by the stage's `**Split:**` line. Stage 9 follows.
+**Stage 7's last two items, then stage 9.**
+
+1. Check the subagent's files under `docs/examples/tools/cli/nvs-debug-to-test/`. Read each against
+   AGENTS.md § *Text an end user reads*, finish or rewrite example 03, and make each `.out` what the
+   binary prints (`docs/examples/README.md` § *Creating the `.out`*). Each test class in 02 and 03
+   should pass under `nvs test <file>`. Run `bun nv proofs --comments` on the `.nvs` files. Then
+   `bun nv proofs --id 'tools:cli/nvs-debug-to-test'` should print nothing owed, and the directory is
+   one commit.
+2. `bun nv owners --closes request-aware-editor` names one gap this goal owns:
+   `data/gaps/nvs-types/api-card-types-every-field-mixed.json`. `#[Core\Api]`'s card in
+   `crates/nvs-types/src/derive.rs:546` types `tags`, `errors`, `security` and `example` as `mixed`.
+   The record says `tags` and `security` are `array<string>`. Read what `crate::routes` accepts for
+   `errors` and `example` before typing them. Then delete the record, and run
+   `bun nv render --website`, because the card renders into the attributes reference.
+3. Tick stage 7's last two items, set its status to `done`, and start stage 9.
 
 ### Backlog
 
+- A printed test sends every recorded request header but the ones a replay leaves out, `Host` and `Accept-Encoding` included, and an empty request body is sent as no body (`crates/nvs-cli/src/debug/to_test.rs`, `sent_headers`, `print`).
+- The viewer's Make a test dialog has no browser test yet (`viewer/src/views/to-test.tsx`, `viewer/test/`).
 - A query lens's newest request is the newest by `requests.id`, and its figures count every `query` event of that request's trace at the site, so two recorded requests that share one trace id are counted together (`crates/nvs-lsp/src/recorded.rs`, `at_site`).
 - The lens's viewer address is the program tree's `[debug] listen`, and `nvs debug` reads its working directory's tree, so a service started elsewhere with another address gives a click that opens the wrong page (`crates/nvs-lsp/src/server.rs`, `viewer_of`).
 - `$db->query(...)`, a callable reference to a `Core` member with an options bag, panics the lowering: `CheckedTy::CoreShape` is erased as one value (`crates/nvs-ir/src/lower/mod.rs:5161`, reached from `anon_fn::lower_callable`). Every query member has a bag, so the thunk's zero site id has no test yet (`crates/nvs-ir/tests/query_sites.rs`).
