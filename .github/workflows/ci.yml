@@ -587,6 +587,12 @@ jobs:
         env:
           NV_BROWSER: "1"
         run: bun test tools/nv/test/replay-browser.test.ts
+      - name: The debug viewer's types, committed bundle and unit tests
+        run: bun nv viewer --verify
+      - name: The debug viewer in Chromium
+        env:
+          NV_BROWSER: "1"
+        run: bun test ./viewer/test/*.browser.test.ts
 
   # ---------------------------------------------------------------------------
   # Separated because it pulls in Wasmtime, which is minutes of build time that
