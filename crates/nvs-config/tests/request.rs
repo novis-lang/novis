@@ -187,7 +187,11 @@ fn a_value_that_is_not_a_quantity_is_refused() {
 fn a_tightening_flag_takes_false_and_never_true() {
     for key in nvs_config::request::TIGHTEN_FLAGS {
         let row = nvs_config::directive::lookup(key).expect("each flag has a row");
-        assert_eq!(row.class, nvs_config::directive::Class::RuntimeTighten, "`{key}`");
+        assert_eq!(
+            row.class,
+            nvs_config::directive::Class::RuntimeTighten,
+            "`{key}`"
+        );
         let (block, leaf) = key.split_once('.').expect("a dotted key");
         let mut request = Request::new(snapshot_of(&format!("[{block}]\n{leaf} = true\n")));
 
