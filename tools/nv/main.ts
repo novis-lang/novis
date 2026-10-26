@@ -75,6 +75,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   try: () => import("./cmd/try.ts"),
   valgrind: () => import("./cmd/valgrind.ts"),
   verify: () => import("./cmd/verify.ts"),
+  viewer: () => import("./cmd/viewer.ts"),
   "webcrypto-vectors": () => import("./cmd/webcrypto-vectors.ts"),
   "webp-lib": () => import("./cmd/webp-lib.ts"),
 

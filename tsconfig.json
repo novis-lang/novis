@@ -15,5 +15,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["tools/nv/**/*.ts"]
+  "include": ["tools/nv/**/*.ts", "viewer/babel.d.ts"]
 }
