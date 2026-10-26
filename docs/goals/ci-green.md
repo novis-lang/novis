@@ -104,26 +104,30 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`debug-viewer`'s goal-end push of `58c17ba61` was refused on the stale questions of
-`/reference/cli/nvs-debug/` (restamped in `2e22637c7`) and `/reference/cli/nvs-lsp/` (a call
-hierarchy question, `8a2e1ab7f`). Once the main loop committed its lens section of
-`40-editor.md`, `bun nv ci --check` was green, and this session ran `bun nv ci --push`.
-`origin/main` is at `8a2e1ab7f`, and its CI and Website runs are going.
-It carries `request-aware-editor`'s commits up to `74dac4eea`, which no gate has verified yet.
+`origin/main` is at `8a2e1ab7f`. Its Website run is green. Its CI run 40377783680 ended red
+on two jobs only, and both are fixed, committed and not yet pushed:
 
-This push carries `536782207` (aarch64 stack-page bound) and `f7ff2dc7f` (macOS first-use
-lock allocation), and the Miri and overload fixes of the cancelled nightly run 40291801939.
+- `third-party attribution`: `--check-c-deps` refused the ledger's `zstd-sys` entry, which
+  left the graph with `b4ba20386`. Fixed in `55d4ce2f2`.
+- `test / linux-x86_64 (tests)`: `dap.rs`'s `a_next_over_an_await_stops_at_the_same_frame_s_next_statement`
+  got a `stopped` event with reason `pause`. A child's `Tree` stop of the round the `next`
+  resumed reached the adapter after `clear()`, and was filed as a new round. Fixed in `d44a2343e`:
+  `crates/nvs-cli/src/dap/stopped.rs:Stopped::file` drops a stop of a resumed round.
 
-`.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders that Windows keeps while looper
-runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three when looper is stopped.
+Every other job of that run was green, so `536782207` (aarch64) and `f7ff2dc7f` (macOS) held.
+
+`.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci` and `wt-cig` are stray folders that Windows
+keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write. `wt-csv`
+has a `target/` warm at `031acda63`. Delete them all once looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch the runs of `8a2e1ab7f` with `bun nv ci --watch`, without `--next`. `tools/nv/cmd/ci.ts:265`
-  They started before the next session, so `--next` would pass over them. They carry
-  `536782207` and `f7ff2dc7f`. A stamp taken in the root hashes the working tree. If another
+- [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
+  The red run of `8a2e1ab7f` is fixed, and `--next` passes over it. If the dap test goes red
+  again on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
+  `crates/nvs-host/src/debug.rs:Shared::stop`'s `Break` arms. A stamp taken in the root hashes the working tree. If another
   session has uncommitted edits in the page's chapter, take the stamp in a scratch worktree at
   `HEAD`. Point `--nvs` at a binary built there, and copy the root's `tests/db/ca.crt` in first. Watch with no `--past`, and without a pipe into `tail`, which
   hides the exit code. A watch without `--next` exits 1 at once on the newest red run, even an
