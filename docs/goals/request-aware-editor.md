@@ -41,7 +41,7 @@ stages:
         rules: [ide/a-hover-shows-where-a-tainted-or-secret-value-came-from, security/tainted-sources, security/launderers-are-sink-named, security/taint-propagation, ide/tainted-has-no-default-decoration]
   - id: 5
     title: a query call passes its site id, and a traced span records the site
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/lower/anon_fn.rs, crates/nvs-ir/src/lower/call.rs, crates/nvs-stdlib/src/db/span.rs, crates/nvs-stdlib/src/db/execute.rs, crates/nvs-db/src/span.rs, docs/rules/observability/a-query-span-names-its-call-site.md]
     extra:
       context:
@@ -93,6 +93,14 @@ call hierarchy, and turns a request `debug-service` recorded into a test.
 compiler passes a compile-time site id, one integer constant, to each `Core\Db` call that sends a
 statement, in every mode. The span stores it only when tracing is on.
 `rule:observability/a-query-span-names-its-call-site` holds it.
+
+**A traced span records the site's row, not its id.** This session's call, by simplicity: the host
+gives every context the compiled program's `nvs_runtime::QuerySites`, and `QueryWatch` resolves the id
+when the span is traced, so the spool's `query` event and the debug index carry `file`, `line` and
+`hash`. The declined option was a table file beside the spool keyed by a program hash: a reader
+would join three things, and the spool's cap could delete the table before its records. The lens of
+stage 6 matches a site by file, line and hash, which are the index's `site_file`, `site_line` and
+`site_hash` columns.
 
 **"Used by N routes" is transitive.** The user decided this. A route counts when its handler reaches
 the method through a chain of calls the checker resolved. Calls through a `callable` or a `mixed`
@@ -265,7 +273,7 @@ the file and line it names.
 - [x] The callable-reference thunk passes zero. `crates/nvs-ir/src/lower/anon_fn.rs:818`
 - [x] The span records the site only when it is recorded. `crates/nvs-stdlib/src/db/span.rs:52`, `crates/nvs-stdlib/src/db/execute.rs:1051`, `crates/nvs-db/src/span.rs:87`
 - [x] Tests: two calls with the same SQL are two sites, an untraced call reads no site, and `a_query_span_contains_no_parameter_value_anywhere` still passes. `crates/nvs-db/src/pg.rs:6627`
-- [ ] `rule:observability/a-query-span-names-its-call-site` `shipped`. `data/rules/observability/a-query-span-names-its-call-site.json:3`
+- [x] `rule:observability/a-query-span-names-its-call-site` `shipped`. `data/rules/observability/a-query-span-names-its-call-site.json:3`
 
 ### 6. each query call shows what the newest recorded request ran there
 
@@ -313,36 +321,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4 and 8 are done; stage 5 has items 1 to 5. `QUERY_SITE_MEMBERS` on
-`QUERY_SITE_OWNERS` (`crates/nvs-stdlib/src/registry.rs`) is the six statement members on
-`Connection`, `Transaction` and `Queryable`. The site id is their last argument, so each helper's
-`args: [N]` grew by one. `Lowering::query_site_constant` emits `InstKind::QuerySiteConst` with the
-call's span, and the thunk emits `None`. `nvs-codegen` numbers sites from one in
-`Program::query_sites` order (`query_base`, `query_ids`). `Program::query_site_table` gives file, line
-and the BLAKE3 hex of the file's text. `QueryWatch::at` (`crates/nvs-stdlib/src/db/span.rs`) reads
-the id only when traced, into `spool::Query::site`. A stream keeps it in `STREAM_SITE_AT`.
-Green once by name: `crates/nvs-ir/tests/query_sites.rs` (3), the `db::span` and `registry` roster
-tests, and `a_query_span_contains_no_parameter_value_anywhere`. No compiled query ran since the ABI
-change. The sweep was stale: the nightly ran `d6f13175`, and `97ccf66c2` and `9c8b0fe16` fix both
-failures.
+Stages 1, 2, 3, 4, 5 and 8 are done. A traced `query` event now records its call's row of the
+query site table, not the id: `spool::Query::site` is `spool::QuerySite { file, line, hash }`
+(`crates/nvs-runtime/src/spool.rs`). `nvs_runtime::QuerySites` (`crates/nvs-runtime/src/ctx/trace.rs:904`)
+is built once per compiled program by `script::query_sites` (`crates/nvs-cli/src/script.rs:224`) and
+set on the context by `nvs serve`'s `program_over`, `nvs run` and each `nvs test` case; a task copies
+it. `QueryWatch::file` resolves the id through `Ctx::query_site` (`ctx/trace.rs:386`). The debug index
+is schema 6, with `site_file`, `site_line` and `site_hash` on `events`
+(`crates/nvs-cli/src/debug/index.rs:146`), and `/api/request` serves `query.site` as that object.
+The standing decision *A traced span records the site's row* says why.
 
-May go red in the gate: any test that counts a `Core\Db` helper's arguments or prints the IR of a
-query call (it now prints `query.site @l:c-l:c`), the `Core\Db\Stream` slot count, and every earlier
-risk: `crates/nvs-lsp/tests/handshake.rs`, the proofs gate's perf records, and the LSP latency bound
-in `crates/nvs-lsp/tests/latency.rs`.
+Green once by name: `a_served_query_event_names_the_line_of_its_call` (`crates/nvs-cli/tests/request.rs:682`,
+a served SQLite program over the new ABI: two `execute`, one `stream`, one `query`, each its own line
+and the file's BLAKE3), `the_sample_spool_is_what_the_writer_writes`, and
+`a_traced_span_records_its_call_site_and_an_untraced_call_reads_none`. The viewer's `tsc` is clean.
+The sweep was stale: the nightly ran `d6f13175`, and `env-secret-proofs`' Oct 22 log shows exit 0.
+
+May go red in the gate: `crates/nvs-cli/tests/debug_api.rs` (its `query.site` is now an object, and
+it rewrites `viewer/test/fixtures/request.json` if the hand edit differs by a byte),
+`crates/nvs-cli/tests/debug_ingest.rs` and `debug_viewer.rs` over the new fixture line, any test
+that counts a `Core\Db` helper's arguments or prints a query call's IR (`query.site @l:c-l:c`), the
+`Core\Db\Stream` slot count, `crates/nvs-lsp/tests/handshake.rs`, the proofs gate's perf records, and
+the LSP latency bound in `crates/nvs-lsp/tests/latency.rs`.
 
 ### Next
 
-**Finish stage 5: ship `rule:observability/a-query-span-names-its-call-site`.** One gap is left. The
-rule says the recorded span "carries the file and line it names", but the span records only the id,
-and nothing yet publishes `Program::query_site_table` where a reader of the spool can resolve it.
-Pick the place by the priorities. The proposal is that the server writes the table once per loaded
-program, beside the spool, keyed by the program's hash. Then reword the rule to say the id is
-recorded and the table names the file and line. Set
-`data/rules/observability/a-query-span-names-its-call-site.json:3` to `shipped`, and tick item 6.
-Also run one compiled SQLite program that calls `query`, `execute` and `stream`. A `.nvs` case under
-`tests/` that the Db suite already runs is enough, and it is the item's own check of the new ABI.
-Stage 6 follows, behind its gate on `debug-service` and `debug-viewer`, and it reads the same table.
+**Stage 6: the query lens.** Its gate holds, because `debug-service` and `debug-viewer` are gone.
+The server opens `debug/index.sqlite` read-only from the data folder (`crates/nvs-config/src/data.rs:119`)
+and gives no lens for an absent or locked index. For each query call in the document, the lens
+finds the newest request whose `events` row has `site_file`, `site_line` and `site_hash` equal to
+that call's file, line and the file's BLAKE3 on disk. It then counts that request's events at the
+site, totals their time, and takes the slowest. A statement text that ran more than once there is
+"repeated". The click opens the request in the viewer. The query calls of a document are
+`nvs_ir::Program::query_sites` of the LSP's own lowering, or a walk of the checker's resolved calls
+against `QUERY_SITE_MEMBERS`; pick the one that needs no lowering in `nvs-lsp`. `site_file` is the
+name the program gave the file, so compare it after the same path normalisation the coverage lens
+uses (`crates/nvs-lsp/src/server.rs:1173`). The compare view aligns queries by site
+(`viewer/src/views/compare.tsx:1`). Freeze the loop case as
+`tests/lsp/lens/a-query-run-in-a-loop-is-one-repeated-lens.lspt`. Stage 7 follows.
 
 ### Backlog
 
@@ -356,7 +372,6 @@ Stage 6 follows, behind its gate on `debug-service` and `debug-viewer`, and it r
 - A filtered coverage run replaces its program's kept report, so the lens counts only the tests that run covered until a whole-program coverage run (`editors/vscode/src/tests.ts`, `keep`).
 - The client does not ask the server to refresh its lenses after a coverage run, so a new count shows at the next edit or editor switch (`editors/vscode/src/tests.ts`, `keep`).
 - A graph count with "at least" reads "at least 0 tests" where no test reaches the method. The rule words it so, and a later change may drop the prefix on a zero (`crates/nvs-lsp/src/server.rs`, `used_by`).
-- Stage 5 is disjoint and can run as a side goal now (`docs/rules/observability/a-query-span-names-its-call-site.md`).
 - A test count read from a coverage report is as old as that run; the next coverage run refreshes it (`docs/rules/ide/used-by-counts-the-routes-and-tests-that-reach-a-method.md`).
 - `nvs dap` answers no `evaluate` for watch and hover expressions, and no rule asks for it. A goal that wants it writes it into the rule first (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
 - A breakpoint condition that calls a pure `Core` function needs a purity mark on `Core` methods (`docs/rules/ide/the-debugger-ui-is-as-deep-as-the-adapter.md`).
