@@ -765,9 +765,16 @@ mod tests {
         // The fourth slot is the class a `streamAs<T>` would have written, and
         // this walk is `stream`'s: the rows stay `Db\Row`s, which is what makes
         // the count below one about the parking and not about a constructor.
+        // The fifth is the call site id, and 0 names no site.
         let stream = crate::instance::build(
             &STREAM,
-            [Value::uint(0), Value::null(), Value::null(), Value::null()],
+            [
+                Value::uint(0),
+                Value::null(),
+                Value::null(),
+                Value::null(),
+                Value::int(0),
+            ],
         );
         let receiver = stream.obj_ptr().expect("`build` answers an object");
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);

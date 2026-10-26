@@ -296,6 +296,15 @@ fn configured(options: serde_json::Value) -> InitializeParams {
     }
 }
 
+/// The settings of a client that configured nothing: the roster's defaults,
+/// with the debug index of this process's data folder, which no client writes.
+fn unconfigured() -> Settings {
+    Settings {
+        debug_index: nvs_config::data::current().map(|folder| folder.debug_index()),
+        ..Settings::default()
+    }
+}
+
 /// A client that opened `path` as its one workspace folder.
 fn rooted_at(path: &Path) -> InitializeParams {
     InitializeParams {
@@ -393,7 +402,7 @@ fn a_client_that_configured_nothing_gets_the_roster_defaults() {
     // and a client that sent `"workspace"` are the same server.
     assert_eq!(
         Settings::from_initialize(&InitializeParams::default()),
-        Settings::default()
+        unconfigured()
     );
     assert_eq!(Settings::default().scope, CheckScope::Workspace);
     assert!(
@@ -421,13 +430,13 @@ fn a_value_neither_setting_can_hold_leaves_it_at_its_default() {
         "codeLens": { "enable": "yes" },
     })));
 
-    assert_eq!(nonsense, Settings::default());
+    assert_eq!(nonsense, unconfigured());
 
     // And a section that is not an object at all, which is what an editor sends
     // for a setting whose schema a user's own JSON disagrees with.
     assert_eq!(
         Settings::from_initialize(&configured(serde_json::json!({ "check": 7 }))),
-        Settings::default()
+        unconfigured()
     );
 }
 

@@ -248,6 +248,7 @@ fn every_reader_queries_the_one_index() {
                 "subtypes",
                 "overridden",
                 "overriders",
+                "queries_in",
             ],
         ),
         (
