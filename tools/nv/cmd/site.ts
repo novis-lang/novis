@@ -93,6 +93,16 @@
 //   none, replaces what was typed since the list opened, and the list closes.
 // - `hover` shows the diagnostic under the cursor, from what the server last published. No diagnostic
 //   there is a failure.
+// - `card` shows the hover card at the cursor. No card there is a failure.
+// - `rename NAME` renames the name under the cursor to NAME, and makes the edits the server returned
+//   for the open file. A refused rename is a failure.
+// - `action TITLE` asks for the code actions at the cursor and makes the edits of the one with that
+//   title. No action with that title is a failure.
+// - `lens` shows the open file's code lenses. A file with none is a failure.
+// - `calls` shows the call hierarchy of the method at the cursor: its callers and the methods it calls.
+//
+// Every step but `type`, `accept` and `hover` closes the open list. A `rename` or an `action` changes the
+// text, so the snippet is the text after its edits.
 //
 // A list is asked for where an editor asks for one: after a trigger character the server's `initialize`
 // result names, and after a letter typed where the character before it cannot be part of a name. It
@@ -114,7 +124,19 @@
 // the row's right, the text written straight after the label, and the insert text. Each is what a
 // `tests/lsp/` case reads from the item, and the insert text is empty when it is the label. Empty
 // columns at the end of a row are left off. `diagnostic STEP L:C+LENGTH CODE` is the diagnostic a
-// `hover` shows, its range on one line, and the message follows it, each line indented two spaces. A
+// `hover` shows, its range on one line, and the message follows it, each line indented two spaces. The
+// other steps' blocks:
+//
+// - `card STEP L:C`, and the card's Markdown, each line indented two spaces and a blank line left empty.
+// - `rename STEP L:C OTHERS`, OTHERS the number of other files the rename changed, and an `edit` line
+//   per edit in the open file.
+// - `action STEP L:C`, each action's title indented two spaces in the server's order, and an `edit` line
+//   per edit the chosen action makes.
+// - `lens STEP`, and per lens `L:C TITLE` indented two spaces, L:C where its range starts.
+// - `calls STEP L:C NAME`, NAME the method, then `in CALLER COUNT` per caller and `out CALLEE COUNT` per
+//   method it calls, indented two spaces, COUNT the number of call sites.
+//
+// `edit L1:C1-L2:C2 "TEXT"` replaces that range of the text before the step with TEXT, a JSON string. A
 // blank line separates two blocks. `--bless` writes the file from a new session.
 // `--check snippets` fails on a `.replay` whose steps do not end on the snippet's text, a `.replay.out`
 // that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`. A page

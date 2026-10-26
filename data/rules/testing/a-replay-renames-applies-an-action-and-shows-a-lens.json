@@ -1,11 +1,14 @@
 {
   "title": "A website replay can rename, apply a code action, show the code lenses, the call hierarchy and a hover card, each recorded from `nvs lsp` and checked like a completion list",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/a-replay-plays-what-the-language-server-returned",
     "testing/the-tools-area-has-a-page-for-each-tool",
     "ide/the-request-set-is-closed"
   ],
-  "guardedBy": [],
-  "goal": "tools-website"
+  "guardedBy": [
+    "tools/nv/test/site-replay.test.ts",
+    "tools/nv/test/replay-browser.test.ts",
+    "tools/nv/lib/replay.ts"
+  ]
 }

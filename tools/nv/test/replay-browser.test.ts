@@ -29,6 +29,36 @@ const WIDE = {
   recording: [`completion 1 2:${WIDE_START.length + 2}`, ...LIST.slice(1), `diagnostic 3 2:${WIDE_START.length + 1}+4 E0001`, "  `name` is not defined.", ""].join("\n"),
 };
 
+// One step of each kind that draws a panel: an action, the lenses, the calls, a hover card and a rename.
+const PANELS = {
+  replay: "--START--\n<?nvs\nint $n = 3;\nint $m = (i<|>nt)$n;\n--STEPS--\naction rewrite as `$n as int`\nlens\ncalls\ncard\nrename total\n",
+  recording: [
+    "action 1 3:12",
+    "  rewrite as `$n as int`",
+    "  convert to a constant",
+    'edit 3:10-3:17 "$n as int"',
+    "",
+    "lens 2",
+    "  2:5 1 reference",
+    "  3:5 no references",
+    "",
+    "calls 3 3:12 Shop::total",
+    "  in Shop::report 2",
+    "  out Shop::tax 1",
+    "",
+    "card 4 3:12",
+    "  ```nvs",
+    "  int $n",
+    "  ```",
+    "",
+    "  The **number** of `items`.",
+    "",
+    "rename 5 3:12 2",
+    'edit 3:5-3:7 "$total"',
+    "",
+  ].join("\n"),
+};
+
 const markup = (o: { replay: string; recording: string }) => replayMarkup({ ...o, title: "01-name.nvs", install: "/install/editor/", where: "fixture" });
 const replay = () => markup({ replay: REPLAY, recording: RECORDING });
 
@@ -49,6 +79,8 @@ const PAGES: Record<string, string> = {
   "/two": page(`<div style="display:flex;gap:1rem">${replay()}${replay()}</div>`),
   // One replay whose line is too wide for a phone.
   "/wide": page(markup(WIDE)),
+  // One replay with a panel of each kind.
+  "/panels": page(markup(PANELS)),
 };
 
 let server: ReturnType<typeof Bun.serve> | undefined;
@@ -123,6 +155,7 @@ describe("a replay's button", () => {
     expect(replay()).toContain('data-replay-label="Preview the error message"');
     expect(markup(LIST_ONLY)).toContain('data-replay-label="Preview the autocompletion"');
     expect(replay()).not.toContain('data-replay-do="next"');
+    expect(markup(PANELS)).toContain('data-replay-label="Preview the rename"');
   });
 });
 
@@ -264,6 +297,41 @@ describe.skipIf(!EXE)("a replay in Chromium", () => {
     await show(4);
     expect(await tab.run(`document.querySelector(".nv-squiggle").textContent`)).toBe("name");
     expect(await tab.run(`document.querySelector(".nv-hover-message").textContent`)).toBe("`name` is not defined.");
+    await tab.close();
+  }, 30_000);
+
+  test("an action, the lenses, the calls, a hover card and a rename each draw their panel in view", async () => {
+    const tab = await open("/panels");
+    await tab.run(INTO_VIEW);
+    const show = (i: number) => tab.run(`document.querySelector("[data-replay]").nvReplay.show(${i})`);
+    const text = (selector: string) => tab.run(`[...document.querySelectorAll(${JSON.stringify(selector)})].map((e) => e.textContent)`);
+    const shown = (selector: string) => tab.run(VIEW.replace('list: inside(".nv-list")', `list: inside(${JSON.stringify(selector)})`));
+    await show(1);
+    expect(await tab.run(ROWS)).toEqual([
+      ["rewrite as `$n as int`", "", true],
+      ["convert to a constant", "", false],
+    ]);
+    expect(await shown(".nv-actions")).toMatchObject({ caret: true, list: true });
+    await show(2);
+    expect(await text(".nv-line:not(.nv-lens) .nv-text")).toEqual(["<?nvs", "int $n = 3;", "int $m = $n as int;"]);
+    await show(3);
+    expect(await text(".nv-lens .nv-text")).toEqual(["1 reference", "no references"]);
+    // The code area is tall enough for the two lens lines, so nothing is cut off.
+    expect(await tab.run(`(() => { const c = document.querySelector(".nv-replay-code"); return c.scrollHeight <= c.clientHeight })()`)).toBe(true);
+    await show(4);
+    expect(await text(".nv-calls .nv-calls-title")).toEqual(["Called by", "Calls"]);
+    expect(await text(".nv-calls .nv-calls-row")).toEqual(["Shop::report 2 calls", "Shop::tax"]);
+    expect(await shown(".nv-calls")).toMatchObject({ list: true });
+    await show(5);
+    expect(await text(".nv-card pre")).toEqual(["int $n"]);
+    expect(await text(".nv-card p")).toEqual(["The number of items."]);
+    expect(await text(".nv-card strong")).toEqual(["number"]);
+    await show(6);
+    expect(await text(".nv-rename-input")).toEqual(["total"]);
+    expect(await shown(".nv-rename")).toMatchObject({ caret: true, list: true });
+    await show(7);
+    expect(await text(".nv-renamed")).toEqual(["Also renamed in 2 other files."]);
+    expect(await text(".nv-line:not(.nv-lens) .nv-text")).toEqual(["<?nvs", "int $n = 3;", "int $total = $n as int;"]);
     await tab.close();
   }, 30_000);
 

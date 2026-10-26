@@ -3,7 +3,7 @@
 
 # Testing
 
-*5 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -1558,7 +1558,7 @@ eight pages, each with a checked picture and a `covers:` list
 
 <a id="testing-a-terminal-block-shows-what-nvs-printed"></a>
 
-## A terminal block on a website page shows commands run in a fixture and what `nvs` printed, and `bun nv site --check snippets` fails when the output changes  *(designed — owned by goal tools-website)*
+## A terminal block on a website page shows commands run in a fixture and what `nvs` printed, and `bun nv site --check snippets` fails when the output changes
 
 `rule:testing/a-terminal-block-shows-what-nvs-printed`
 
@@ -1566,12 +1566,15 @@ A terminal block shows commands run in a fixture directory and what `nvs` printe
 exit code. A hand-written `.term` beside the fixture under `website/snippets/` lists the commands, one
 per line. `bun nv site --bless` runs them in a copy of the fixture and writes the output beside it as
 `.term.out`, and `bun nv site --check snippets` fails when the binary now prints something else.
-`tools/nv/cmd/site.ts` § *A snippet* is the home of both formats.
+The fixture is the directory beside the `.term` with its name, and a program in it is not a snippet.
+`tools/nv/cmd/site.ts` § *A terminal block* is the home of both formats.
 
-A value that differs from run to run is masked in both the recording and the comparison by a fixed
-pattern: a duration, a date, a trace id, a temporary path and a port. The page shows the masked value
-as the binary printed it on the run that was blessed, so the reader sees real output. Only the commands
-are copied by the block's copy button.
+A value that differs from run to run is masked in the comparison by a fixed pattern on both sides: a
+duration, a date, a trace id, a temporary path and a port. The page shows the masked value as the
+binary printed it on the run that was blessed, so the reader sees real output. The two paths that name
+the machine are the exception: the copy's own path is recorded as `~/project` and the temporary
+directory as `/tmp`, so no page shows the blessing machine's user name or drive. Only the commands are
+copied by the block's copy button.
 
 A terminal block is to a command what a snippet's `.out` is to a program
 ([`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped)): output on a page that the binary is known to print.
@@ -1597,8 +1600,10 @@ beside it as `.replay.out`, and `bun nv site --check snippets` fails when the se
 something else, or when the steps do not end on the snippet's own text. `tools/nv/cmd/site.ts`
 § *A snippet* is the home of both formats.
 
-A replay has three kinds of step: typing text one character at a time, accepting the selected
-completion row, and showing the diagnostic under the cursor. A completion list is recorded wherever an
+A replay has three kinds of step for completion: typing text one character at a time, accepting the
+selected completion row, and showing the diagnostic under the cursor. A rename, a code action, the code
+lenses, the call hierarchy and a hover card are five more
+([`testing/a-replay-renames-applies-an-action-and-shows-a-lens`](testing.md#testing-a-replay-renames-applies-an-action-and-shows-a-lens)). A completion list is recorded wherever an
 editor asks the server for one: at a trigger character
 ([`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends)) and at the first letter of a word. Each list,
 each diagnostic and each hover is recorded. Narrowing a list as more letters are typed is the editor's
@@ -1618,11 +1623,14 @@ never goes below 12px. A line wider than the window does not wrap: the code scro
 editor does, so after each frame the cursor and the open list or error card are in view, and a frame
 already in view does not move it. The line numbers stay in place while it scrolls.
 
-A replay never starts by itself. Before it plays, it shows the last frame with a list open. The
+A replay never starts by itself. Before it plays, it shows the last frame with a list open, or else
+the last frame with an error card or another step's panel. The
 button plays it from the first frame, pauses it while it plays, and plays it again from the first
 frame once it has ended; its icon and its label say which it does next. Before the first play and
 while paused, the label says what the recording shows: "Preview the error message" when the
-recording has a diagnostic, and "Preview the autocompletion" when it has only completion lists. The
+recording has a diagnostic, and "Preview the autocompletion" when it has only completion lists. A
+recording with one of the five other steps names the first of them it has, in the order rename, code
+action, call hierarchy, code lenses and hover card: "Preview the rename", for one. The
 button works from the keyboard. The code never takes keyboard focus, and clicking it does nothing.
 A replay pauses when its window leaves the view, plays once and stops on the last frame, and only
 one replay on a page plays at a time. Under `prefers-reduced-motion` the cursor does not blink and the
@@ -1645,8 +1653,9 @@ replay.
   the page weight is the recording and one script.
 - **Recording the narrowing of a list.** The server returns one list per request, and the narrowing
   after it is the editor's, so recording it would claim the server did work it does not do.
-- **Hover cards and quick fixes as steps before a page needs them.** Each kind of step is another
-  format to check, and no page shows one yet.
+- **A hover card that is drawn by the page and not recorded.** The card is the server's documentation,
+  so it is recorded and checked as a `card` step, the same as a list
+  ([`testing/a-replay-renames-applies-an-action-and-shows-a-lens`](testing.md#testing-a-replay-renames-applies-an-action-and-shows-a-lens)).
 - **Starting when the replay scrolls into view.** Motion the reader did not ask for pulls the eye
   from the text they are reading, and the poster frame already shows the list.
 - **A font that shrinks until every line fits.** On a phone the code became too small to read, and
@@ -1658,7 +1667,7 @@ replay.
 
 <a id="testing-a-replay-renames-applies-an-action-and-shows-a-lens"></a>
 
-## A website replay can rename, apply a code action, show the code lenses, the call hierarchy and a hover card, each recorded from `nvs lsp` and checked like a completion list  *(designed — owned by goal tools-website)*
+## A website replay can rename, apply a code action, show the code lenses, the call hierarchy and a hover card, each recorded from `nvs lsp` and checked like a completion list
 
 `rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`
 

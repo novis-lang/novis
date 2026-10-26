@@ -11,7 +11,9 @@
  * because `replay-colours.mjs` makes them with the website's packages.
  *
  * What is recorded: each completion list and each diagnostic, and where each
- * list opens, which is where the recording says the server was asked. What is
+ * list opens, which is where the recording says the server was asked; and each
+ * rename, code action, code lens, call hierarchy and hover card, with the
+ * edits a rename or an action makes. What is
  * imitated: the narrowing of an open list as letters are typed
  * (`replay-narrow.mjs`), the typing pace, and the look of the editor. It is
  * close to VS Code and is not its exact behaviour.
@@ -24,6 +26,9 @@ import { narrow } from './replay-narrow.mjs'
 
 /** Where the cursor marker is in a `.replay`'s start text. */
 export const CURSOR = '<|>'
+
+/** The steps that are one word with nothing after it. */
+const BARE = ['hover', 'card', 'lens', 'calls']
 
 /** `text`, a `.replay`, parsed as `{ start, cursor, steps }`, or why it is not one. */
 export function parseReplay(text) {
@@ -39,13 +44,16 @@ export function parseReplay(text) {
     if (line.trim() === '') continue
     const where = `line ${stepsAt + 2 + i}`
     const [word, rest] = [line.split(' ', 1)[0], line.slice(line.indexOf(' ') + 1)]
-    if (word === 'hover' && line === 'hover') steps.push({ kind: 'hover' })
-    else if (word === 'accept' && line.includes(' ') && rest !== '') steps.push({ kind: 'accept', label: rest })
-    else if (word === 'type' && line.includes(' ') && rest !== '') {
+    const argued = line.includes(' ') && rest !== ''
+    if (BARE.includes(word) && line === word) steps.push({ kind: word })
+    else if (word === 'accept' && argued) steps.push({ kind: 'accept', label: rest })
+    else if (word === 'action' && argued) steps.push({ kind: 'action', title: rest })
+    else if (word === 'rename' && argued && !/\s/.test(rest)) steps.push({ kind: 'rename', name: rest })
+    else if (word === 'type' && argued) {
       const typed = unescape(rest)
       if (typed === null) return `${where}: only \`\\n\` and \`\\\\\` are escapes`
       steps.push({ kind: 'type', text: typed })
-    } else return `${where}: \`${line}\` is not \`type TEXT\`, \`accept LABEL\` or \`hover\``
+    } else return `${where}: \`${line}\` is not a step: \`type TEXT\`, \`accept LABEL\`, \`rename NAME\`, \`action TITLE\`, ${BARE.map((b) => `\`${b}\``).join(', ')}`
   }
   if (steps.length === 0) return 'no steps'
   return { start: marked.slice(0, cursor) + marked.slice(cursor + CURSOR.length), cursor, steps }
@@ -64,32 +72,102 @@ function unescape(s) {
 }
 
 /**
- * The answers a `.replay.out` records, in order: `{ kind: 'completion', step,
- * line, col, rows }` with each row `{ label, kind, right, after, insert }`, and
- * `{ kind: 'diagnostic', step, line, col, length, code, message }`. Steps,
- * lines and columns count from 0. A line that is not part of the format throws.
+ * The answers a `.replay.out` records, in order, each with its `step`. Steps,
+ * lines and columns count from 0.
+ *
+ * - `{ kind: 'completion', line, col, rows }`, each row `{ label, kind, right, after, insert }`
+ * - `{ kind: 'diagnostic', line, col, length, code, message }`
+ * - `{ kind: 'card', line, col, markdown }`
+ * - `{ kind: 'rename', line, col, others, edits }`
+ * - `{ kind: 'action', line, col, titles, edits }`
+ * - `{ kind: 'lens', lenses }`, each lens `{ line, col, title }`
+ * - `{ kind: 'calls', line, col, name, incoming, outgoing }`, each call `{ name, count }`
+ *
+ * Each edit is `[line, col, endLine, endCol, text]`. A line that is not part of
+ * the format throws.
  */
 export function parseRecording(text) {
   const asks = []
+  // A blank line inside a card's text, kept until an indented line shows the card goes on.
+  let gap = false
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
     const last = asks.at(-1)
+    const at = (l, c) => ({ line: +l - 1, col: +c - 1 })
     let m
-    if ((m = /^completion (\d+) (\d+):(\d+)$/.exec(line))) {
-      asks.push({ kind: 'completion', step: +m[1] - 1, line: +m[2] - 1, col: +m[3] - 1, rows: [] })
-    } else if ((m = /^diagnostic (\d+) (\d+):(\d+)\+(\d+) (\S+)$/.exec(line))) {
-      asks.push({ kind: 'diagnostic', step: +m[1] - 1, line: +m[2] - 1, col: +m[3] - 1, length: +m[4], code: m[5] === '-' ? '' : m[5], message: '' })
-    } else if (line === '') {
+    if (line === '') {
+      gap = true
       continue
+    }
+    const blank = gap
+    gap = false
+    if ((m = /^completion (\d+) (\d+):(\d+)$/.exec(line))) {
+      asks.push({ kind: 'completion', step: +m[1] - 1, ...at(m[2], m[3]), rows: [] })
+    } else if ((m = /^diagnostic (\d+) (\d+):(\d+)\+(\d+) (\S+)$/.exec(line))) {
+      asks.push({ kind: 'diagnostic', step: +m[1] - 1, ...at(m[2], m[3]), length: +m[4], code: m[5] === '-' ? '' : m[5], message: '' })
+    } else if ((m = /^card (\d+) (\d+):(\d+)$/.exec(line))) {
+      asks.push({ kind: 'card', step: +m[1] - 1, ...at(m[2], m[3]), markdown: '' })
+    } else if ((m = /^rename (\d+) (\d+):(\d+) (\d+)$/.exec(line))) {
+      asks.push({ kind: 'rename', step: +m[1] - 1, ...at(m[2], m[3]), others: +m[4], edits: [] })
+    } else if ((m = /^action (\d+) (\d+):(\d+)$/.exec(line))) {
+      asks.push({ kind: 'action', step: +m[1] - 1, ...at(m[2], m[3]), titles: [], edits: [] })
+    } else if ((m = /^lens (\d+)$/.exec(line))) {
+      asks.push({ kind: 'lens', step: +m[1] - 1, lenses: [] })
+    } else if ((m = /^calls (\d+) (\d+):(\d+) (\S+)$/.exec(line))) {
+      asks.push({ kind: 'calls', step: +m[1] - 1, ...at(m[2], m[3]), name: m[4], incoming: [], outgoing: [] })
     } else if (last?.kind === 'completion') {
       const [label, kind = '-', right = '', after = '', insert = ''] = line.split('\t')
       last.rows.push({ label, kind, right, after, insert: insert || label })
     } else if (last?.kind === 'diagnostic' && line.startsWith('  ')) {
       last.message += (last.message ? '\n' : '') + line.slice(2)
+    } else if (last?.kind === 'card' && line.startsWith('  ')) {
+      last.markdown += (last.markdown ? (blank ? '\n\n' : '\n') : '') + line.slice(2)
+    } else if ((last?.kind === 'rename' || last?.kind === 'action') && (m = /^edit (\d+):(\d+)-(\d+):(\d+) (".*")$/.exec(line))) {
+      last.edits.push([+m[1] - 1, +m[2] - 1, +m[3] - 1, +m[4] - 1, JSON.parse(m[5])])
+    } else if (last?.kind === 'action' && line.startsWith('  ')) {
+      last.titles.push(line.slice(2))
+    } else if (last?.kind === 'lens' && (m = /^ {2}(\d+):(\d+) (.*)$/.exec(line))) {
+      last.lenses.push({ ...at(m[1], m[2]), title: m[3] })
+    } else if (last?.kind === 'calls' && (m = /^ {2}(in|out) (\S+) (\d+)$/.exec(line))) {
+      ;(m[1] === 'in' ? last.incoming : last.outgoing).push({ name: m[2], count: +m[3] })
     } else {
       throw new Error(`\`${line}\` is not a line of a recording`)
     }
   }
   return asks
+}
+
+/** The offset in `text` of line `line` and column `col`, both from 0. */
+export function offsetAt(text, line, col) {
+  let at = 0
+  for (let n = 0; n < line; n++) {
+    const end = text.indexOf('\n', at)
+    if (end < 0) return text.length
+    at = end + 1
+  }
+  return Math.min(at + col, text.length)
+}
+
+/**
+ * `text` with `edits` made, each `[line, col, endLine, endCol, text]` in the
+ * text before any of them, and where the cursor moves. A cursor inside a
+ * replaced range stays as far into the new text as it was, at most its end.
+ * The result is `{ text, cursor, edit }`, and `edit` is the whole change as
+ * one `[offset, deleted, inserted]`.
+ */
+export function applyEdits(text, cursor, edits) {
+  const spans = edits.map(([l, c, el, ec, t]) => ({ from: offsetAt(text, l, c), to: offsetAt(text, el, ec), t })).sort((a, b) => b.from - a.from)
+  let out = text
+  let moved = cursor
+  for (const { from, to, t } of spans) {
+    out = out.slice(0, from) + t + out.slice(to)
+    if (to <= cursor) moved += t.length - (to - from)
+    else if (from <= cursor) moved += from - cursor + Math.min(cursor - from, t.length)
+  }
+  let head = 0
+  while (head < text.length && head < out.length && text[head] === out[head]) head++
+  let tail = 0
+  while (tail < text.length - head && tail < out.length - head && text[text.length - 1 - tail] === out[out.length - 1 - tail]) tail++
+  return { text: out, cursor: moved, edit: [head, text.length - head - tail, out.slice(head, out.length - tail)] }
 }
 
 const nameChar = (c) => c !== undefined && /[A-Za-z0-9_]/.test(c)
@@ -110,6 +188,9 @@ const NARROW_MS = 600
 const BEFORE_ACCEPT_MS = 900
 const ACCEPT_MS = 650
 const HOVER_MS = 3200
+const RENAME_MS = 1600
+const MENU_MS = 1800
+const EDITED_MS = 1800
 const FIRST_MS = 700
 
 /**
@@ -117,13 +198,13 @@ const FIRST_MS = 700
  * (what `parseRecording` returns). The result is `{ start, asks, frames,
  * poster, steps }`:
  *
- * - each frame is `{ edit, cursor, list, hover, delay }`: the change since the
- *   frame before as `[offset, deleted, inserted]` or null, the cursor's offset,
- *   the open list as `{ ask, from }` (its answer and where its typed text
- *   starts) or null, the diagnostic shown as an index into `asks` or null, and
- *   how long the frame stays;
+ * - each frame is `{ edit, cursor, list, hover, panel, delay }`: the change
+ *   since the frame before as `[offset, deleted, inserted]` or null, the
+ *   cursor's offset, the open list as `{ ask, from }` (its answer and where its
+ *   typed text starts) or null, the diagnostic shown as an index into `asks` or
+ *   null, the panel `panelHtml` draws or null, and how long the frame stays;
  * - `poster` is the frame shown before the replay plays: the last one with a
- *   list open, or the last frame;
+ *   list open, else the last one with a card or a panel, else the last frame;
  * - `steps` is one sentence group per step, for the text under the replay.
  *
  * A step the recording does not fit throws, naming `where`.
@@ -134,7 +215,7 @@ export function replayData(replay, asks, where) {
   let next = 0
   let list = null
   let typedCount = 0
-  const frames = [{ edit: null, cursor, list: null, hover: null, delay: FIRST_MS }]
+  const frames = [{ edit: null, cursor, list: null, hover: null, panel: null, delay: FIRST_MS }]
   const steps = []
   const fail = (step, why) => {
     throw new Error(`${where}: step ${step + 1}: ${why}; run \`bun nv site --bless\` on the snippet`)
@@ -158,7 +239,7 @@ export function replayData(replay, asks, where) {
         } else if (list !== null && nameChar(c)) {
           if (kept(list).length > 0) delay = NARROW_MS
         } else list = null
-        frames.push({ edit: [at, 0, c], cursor, list, hover: null, delay })
+        frames.push({ edit: [at, 0, c], cursor, list, hover: null, panel: null, delay })
       }
       const words = s.text.split('\n').map((part) => (part === '' ? '' : `Type \`${part}\`.`))
       let said = words.join(' Press Enter. ').trim()
@@ -171,26 +252,69 @@ export function replayData(replay, asks, where) {
       const row = first === undefined ? undefined : asks[list.ask].rows[first.index]
       if (row?.label !== s.label) fail(step, `the list selects ${row ? `\`${row.label}\`` : 'nothing'}, not \`${s.label}\``)
       frames.at(-1).delay = Math.max(frames.at(-1).delay, BEFORE_ACCEPT_MS)
-      frames.push({ edit: [list.from, cursor - list.from, row.insert], cursor: list.from + row.insert.length, list: null, hover: null, delay: ACCEPT_MS })
+      frames.push({ edit: [list.from, cursor - list.from, row.insert], cursor: list.from + row.insert.length, list: null, hover: null, panel: null, delay: ACCEPT_MS })
       text = text.slice(0, list.from) + row.insert + text.slice(cursor)
       cursor = list.from + row.insert.length
       list = null
       steps.push(`Press Enter to choose \`${row.label}\`.${row.insert === row.label ? '' : ` The editor writes \`${row.insert}\`.`}`)
-    } else {
+    } else if (s.kind === 'hover') {
       const ask = asks[next]
       if (ask?.kind !== 'diagnostic' || ask.step !== step) fail(step, 'the recording has no diagnostic for this `hover`')
-      frames.push({ edit: null, cursor, list, hover: next++, delay: HOVER_MS })
+      frames.push({ edit: null, cursor, list, hover: next++, panel: null, delay: HOVER_MS })
       steps.push(`Point at the red underline. The error says: ${ask.message}${ask.code ? ` The error code is \`${ask.code}\`.` : ''}`)
+    } else {
+      const index = next++
+      const ask = asks[index]
+      if (ask?.kind !== s.kind || ask.step !== step) fail(step, `the recording has no answer for this \`${s.kind}\``)
+      list = null
+      const here = position(text, cursor)
+      const panel = { ask: index, line: here.line, col: here.col }
+      if (s.kind === 'rename' || s.kind === 'action') {
+        // The step's menu or input box, then the code after the edit.
+        if (s.kind === 'action' && !ask.titles.includes(s.title)) fail(step, `the code actions are ${names(ask.titles, true)}, not "${s.title}"`)
+        const own = ask.edits.find(([l, c, el, ec]) => (l < here.line || (l === here.line && c <= here.col)) && (el > here.line || (el === here.line && ec >= here.col)))
+        if (s.kind === 'rename' && own) [panel.line, panel.col] = own
+        const old = own ? text.slice(offsetAt(text, own[0], own[1]), offsetAt(text, own[2], own[3])) : ''
+        frames.push({ edit: null, cursor, list: null, hover: null, panel: { ...panel, name: s.name, chosen: s.title }, delay: s.kind === 'rename' ? RENAME_MS : MENU_MS })
+        const made = applyEdits(text, cursor, ask.edits)
+        text = made.text
+        cursor = made.cursor
+        const after = s.kind === 'rename' && ask.others > 0 ? { ...panel, done: true } : null
+        frames.push({ edit: made.edit, cursor, list: null, hover: null, panel: after, delay: EDITED_MS })
+        if (s.kind === 'rename') {
+          const where = ask.others > 0 ? ` and in ${count(ask.others, 'other file')}` : ''
+          steps.push(`Press F2 and type \`${s.name}\`. The editor renames \`${old}\` in ${count(ask.edits.length, 'place')} in this file${where}.`)
+        } else {
+          steps.push(`Press Ctrl+. to show the code actions here. The menu has ${names(ask.titles, true)}. Choose "${s.title}", and the editor changes the code.`)
+        }
+      } else {
+        frames.push({ edit: null, cursor, list: null, hover: null, panel, delay: HOVER_MS })
+        if (s.kind === 'lens') {
+          steps.push(`The editor shows ${count(ask.lenses.length, 'code lens', 'code lenses')}, short notes above the code: ${names(ask.lenses.map((l) => l.title), true)}.`)
+        } else if (s.kind === 'calls') {
+          const called = ask.incoming.length ? `It is called by ${names(ask.incoming.map((c) => c.name))}.` : 'Nothing calls it.'
+          const calls = ask.outgoing.length ? `It calls ${names(ask.outgoing.map((c) => c.name))}.` : 'It calls no other method.'
+          steps.push(`Open the call hierarchy of \`${ask.name}\`. ${called} ${calls}`)
+        } else {
+          const signature = /^```\w*\n(.*)/.exec(ask.markdown)?.[1]
+          steps.push(`Point at the code. A card shows ${signature ? `\`${signature}\` and ` : ''}its documentation.`)
+        }
+      }
     }
   }
   if (next !== asks.length) fail(asks[next].step, 'the recording has an answer the steps do not ask for')
   const listed = frames.findLastIndex((f) => f.list !== null)
-  return { start: replay.start, asks, frames, poster: listed < 0 ? frames.length - 1 : listed, steps, last: text }
+  const shown = frames.findLastIndex((f) => f.panel !== null || f.hover !== null)
+  return { start: replay.start, asks, frames, poster: listed >= 0 ? listed : shown >= 0 ? shown : frames.length - 1, steps, last: text }
 }
 
-/** Up to three labels as a short list, and how many more there are. */
-function names(labels) {
-  const shown = labels.slice(0, 3).map((l) => `\`${l}\``)
+/** `n` and the noun, as `1 place` or `3 places`. */
+const count = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/** Up to three labels as a short list, and how many more there are. Each is code, or in quotes with
+ * `quote`, for a title that may have code inside it. */
+function names(labels, quote = false) {
+  const shown = labels.slice(0, 3).map((l) => (quote ? `"${l}"` : `\`${l}\``))
   const more = labels.length - shown.length
   if (labels.length === 0) return 'no suggestions'
   if (more > 0) return `${shown.join(', ')} and ${more} more`
@@ -211,42 +335,116 @@ const withCode = (text) => text.split('`').map((part, i) => (i % 2 ? `<code>${es
  * runs of each line as `[length, style]`, and `style` is an index into
  * `styles`, each the `style` attribute of a token's span. `replayPaint` writes
  * both.
+ *
+ * `lenses`, when it is given, is the code lenses `{ line, title }` to show,
+ * each above its line with that line's indent.
  */
-export function codeHtml(text, cursor, squiggle, colours = null) {
+export function codeHtml(text, cursor, squiggle, colours = null, lenses = []) {
   const lines = text.split('\n')
   const at = cursor === null ? null : position(text, cursor)
   if (lines.length > 1 && lines.at(-1) === '' && at?.line !== lines.length - 1) lines.pop()
   return lines
     .map((line, n) => {
-      const caret = at?.line === n ? at.col : -1
-      const wavy = squiggle?.line === n ? [squiggle.col, squiggle.col + squiggle.length] : null
-      const styleAt = []
-      for (const [length, style] of colours?.lines[n] ?? []) styleAt.push(...Array(length).fill(colours.styles[style] || null))
-      // A token's span is closed before the cursor or an underline starts or ends, so the spans nest.
-      let html = ''
-      let open = null
-      const shut = () => {
-        if (open !== null) html += '</span>'
-        open = null
-      }
-      for (let i = 0; i <= line.length; i++) {
-        if (wavy && i === wavy[1]) shut(), (html += '</span>')
-        if (i === caret) shut(), (html += '<span class="nv-caret"></span>')
-        if (wavy && i === wavy[0]) shut(), (html += '<span class="nv-squiggle">')
-        if (i === line.length) break
-        const style = styleAt[i] ?? null
-        if (style !== open) {
-          shut()
-          if (style !== null) html += `<span style="${escapeHtml(style)}">`
-          open = style
-        }
-        html += escapeHtml(line[i])
-      }
-      shut()
-      return `<div class="nv-line"><span class="nv-ln">${n + 1}</span><span class="nv-text">${html}</span></div>`
+      const titles = lenses.filter((l) => l.line === n).map((l) => escapeHtml(l.title))
+      const indent = /^\s*/.exec(line)[0]
+      const lens = titles.length ? `<div class="nv-line nv-lens"><span class="nv-ln"></span><span class="nv-text">${indent}${titles.join(' | ')}</span></div>` : ''
+      return lens + lineHtml(line, n)
     })
     .join('')
+
+  function lineHtml(line, n) {
+    const caret = at?.line === n ? at.col : -1
+    const wavy = squiggle?.line === n ? [squiggle.col, squiggle.col + squiggle.length] : null
+    const styleAt = []
+    for (const [length, style] of colours?.lines[n] ?? []) styleAt.push(...Array(length).fill(colours.styles[style] || null))
+    // A token's span is closed before the cursor or an underline starts or ends, so the spans nest.
+    let html = ''
+    let open = null
+    const shut = () => {
+      if (open !== null) html += '</span>'
+      open = null
+    }
+    for (let i = 0; i <= line.length; i++) {
+      if (wavy && i === wavy[1]) shut(), (html += '</span>')
+      if (i === caret) shut(), (html += '<span class="nv-caret"></span>')
+      if (wavy && i === wavy[0]) shut(), (html += '<span class="nv-squiggle">')
+      if (i === line.length) break
+      const style = styleAt[i] ?? null
+      if (style !== open) {
+        shut()
+        if (style !== null) html += `<span style="${escapeHtml(style)}">`
+        open = style
+      }
+      html += escapeHtml(line[i])
+    }
+    shut()
+    return `<div class="nv-line"><span class="nv-ln">${n + 1}</span><span class="nv-text">${html}</span></div>`
+  }
 }
+
+/** The lenses `codeHtml` shows in a frame with `panel`: those of a `lens` answer, and none otherwise. */
+export const frameLenses = (asks, panel) => (panel && asks[panel.ask].kind === 'lens' ? asks[panel.ask].lenses : [])
+
+/**
+ * The HTML of a frame's panel, `{ ask, line, col, ... }`, over the answer
+ * `ask`: the rename box and then how many other files changed, the menu of
+ * code actions with the chosen one selected, the call hierarchy, or the hover
+ * card. A lens has no panel of its own, because `codeHtml` shows it.
+ */
+export function panelHtml(ask, panel) {
+  const box = (cls, body) => `<div class="nv-hover ${cls}" style="--nv-line: ${panel.line + 1}; --nv-col: ${panel.col}">${body}</div>`
+  if (ask.kind === 'rename') {
+    if (panel.done) return box('nv-renamed', escapeHtml(`Also renamed in ${count(ask.others, 'other file')}.`))
+    return box('nv-rename', `<span class="nv-rename-input">${escapeHtml(panel.name)}</span>`)
+  }
+  if (ask.kind === 'action') {
+    const rows = ask.titles.map((t) => `<li class="nv-row${t === panel.chosen ? ' nv-selected' : ''}"><span class="nv-label">${escapeHtml(t)}</span></li>`)
+    return `<ul class="nv-list nv-actions" style="--nv-line: ${panel.line + 1}; --nv-col: ${panel.col}">${rows.join('')}</ul>`
+  }
+  if (ask.kind === 'calls') {
+    const group = (title, calls) =>
+      `<div class="nv-calls-title">${title}</div>` +
+      (calls.length ? calls.map((c) => `<div class="nv-calls-row"><code>${escapeHtml(c.name)}</code>${c.count > 1 ? ` <span class="nv-hover-code">${count(c.count, 'call')}</span>` : ''}</div>`).join('') : '<div class="nv-hover-code">None</div>')
+    return box('nv-calls', `<div class="nv-card-head"><code>${escapeHtml(ask.name)}</code></div>${group('Called by', ask.incoming)}${group('Calls', ask.outgoing)}`)
+  }
+  if (ask.kind === 'card') return box('nv-card', markdownHtml(ask.markdown))
+  return ''
+}
+
+/**
+ * A hover card's Markdown as HTML: code fences, `---` rules, `- ` lists and
+ * paragraphs, with `` `code` `` and `**bold**` inside a line. This is all a card from the
+ * server has.
+ */
+export function markdownHtml(markdown) {
+  const out = []
+  const lines = markdown.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.startsWith('```')) {
+      const code = []
+      while (++i < lines.length && !lines[i].startsWith('```')) code.push(lines[i])
+      out.push(`<pre class="nv-card-code">${escapeHtml(code.join('\n'))}</pre>`)
+    } else if (/^-{3,}$/.test(line.trim())) out.push('<hr>')
+    else if (line.startsWith('- ')) {
+      const items = [line]
+      while (lines[i + 1]?.startsWith('- ')) items.push(lines[++i])
+      out.push(`<ul>${items.map((l) => `<li>${inline(l.slice(2))}</li>`).join('')}</ul>`)
+    } else if (line.trim() !== '') {
+      const words = [line]
+      while (lines[i + 1] !== undefined && lines[i + 1].trim() !== '' && !/^(```|- |-{3,}$)/.test(lines[i + 1])) words.push(lines[++i])
+      out.push(`<p>${inline(words.join(' '))}</p>`)
+    }
+  }
+  return out.join('')
+}
+
+/** One line of a card's Markdown as HTML: `` `code` `` and `**bold**`. */
+const inline = (text) =>
+  text
+    .split('`')
+    .map((part, i) => (i % 2 ? `<code>${escapeHtml(part)}</code>` : escapeHtml(part).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')))
+    .join('')
 
 /** A replay's `.replay` and `.replay.out` as `replayData` returns them. `where` names the snippet in an error. */
 export function replayOf({ replay, recording, where }) {
@@ -307,8 +505,18 @@ export const ICONS = {
   again: svg(`<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4.5v4h4" ${STROKE}/>`),
 }
 
+/** The button's label for a recording with an answer of each kind, the first that applies. */
+const PANEL_LABELS = [
+  ['rename', 'Preview the rename'],
+  ['action', 'Preview the code action'],
+  ['calls', 'Preview the call hierarchy'],
+  ['lens', 'Preview the code lenses'],
+  ['card', 'Preview the hover card'],
+]
+
 /** The button's label before the replay plays: what the recording shows, from what the server returned. */
 export function playLabel(asks) {
+  for (const [kind, label] of PANEL_LABELS) if (asks.some((a) => a.kind === kind)) return label
   if (asks.some((a) => a.kind === 'diagnostic')) return 'Preview the error message'
   if (asks.some((a) => a.kind === 'completion')) return 'Preview the autocompletion'
   return 'Play the recording'
@@ -334,7 +542,9 @@ export function replayMarkup({ replay, recording, title, install, where, colours
   // The code area is as tall as the longest frame, so it does not grow while the replay plays. Its font
   // gets smaller until the widest line, `cols`, fits, and stops at 12px. `Replay.astro`'s style does the
   // sums, and `replay-player.mjs` scrolls a line that is still too wide.
-  const rows = Math.max(...texts.map((text) => text.split('\n').length))
+  // A frame with code lenses has one more row for each line they are above.
+  const lensRows = (i) => new Set(frameLenses(data.asks, data.frames[i].panel).map((l) => l.line)).size
+  const rows = Math.max(...texts.map((text, i) => text.split('\n').length + lensRows(i)))
   const cols = Math.max(...texts.flatMap((text) => text.split('\n').map((line) => line.length)))
   const paint = colours ? replayPaint(texts, colours, where) : null
   const label = playLabel(data.asks)

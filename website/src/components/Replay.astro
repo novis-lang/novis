@@ -24,7 +24,8 @@
  * the open list or card in view.
  *
  * What is recorded: each completion list, each diagnostic, and where each list
- * opens. What is imitated: the list narrowing as letters are typed, the typing
+ * opens, and each rename, code action, code lens, call hierarchy and hover card
+ * with the edits it makes. What is imitated: the list narrowing as letters are typed, the typing
  * pace and the editor's look. It is close to VS Code and is not its exact
  * behaviour. `config/replay-frames.mjs` writes the HTML and the frames when the
  * site is built, `config/replay-colours.mjs` colours the code the way a
@@ -309,6 +310,52 @@ const html = replayMarkup({
     white-space: pre-wrap;
   }
   .nv-replay .nv-hover-code {
+    color: var(--sl-color-gray-3);
+  }
+  /* A code lens is a grey line above the line it is about. It has no line number. */
+  .nv-replay .nv-lens .nv-text {
+    color: var(--sl-color-gray-3);
+    font-size: 0.85em;
+  }
+  /* The rename box shows the new name, as the editor's input box does. */
+  .nv-replay .nv-rename {
+    padding: 0.1rem 0.25rem;
+    white-space: pre;
+  }
+  .nv-replay .nv-rename-input {
+    display: inline-block;
+    min-width: 16ch;
+    padding: 0 0.35rem;
+    border: 1px solid var(--sl-color-accent);
+  }
+  .nv-replay .nv-actions .nv-label {
+    padding-left: 0.25rem;
+  }
+  /* A hover card and the call hierarchy wrap their text as the error card does. */
+  .nv-replay .nv-card,
+  .nv-replay .nv-calls {
+    white-space: normal;
+  }
+  .nv-replay .nv-card p,
+  .nv-replay .nv-card ul,
+  .nv-replay .nv-card hr {
+    margin: 0.35rem 0;
+  }
+  .nv-replay .nv-card ul {
+    padding-left: 1.5ch;
+  }
+  .nv-replay .nv-card hr {
+    border: none;
+    border-top: 1px solid var(--sl-color-gray-5);
+  }
+  .nv-replay .nv-card-code {
+    margin: 0;
+    padding: 0;
+    background: none;
+    white-space: pre-wrap;
+  }
+  .nv-replay .nv-calls-title {
+    margin-top: 0.35rem;
     color: var(--sl-color-gray-3);
   }
   .nv-replay-progress {

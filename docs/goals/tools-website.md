@@ -13,7 +13,7 @@ stages:
         rules: [testing/a-terminal-block-shows-what-nvs-printed, testing/website-pages-are-stamped]
   - id: 7
     title: a replay renames, applies an action, shows a lens and walks calls
-    status: open
+    status: done
     context: [tools/nv/cmd/site.ts, tools/nv/lib/replay.ts, website/src/components/Replay.astro, website/config/replay-frames.mjs, website/config/replay-player.mjs, tools/nv/test/site-replay.test.ts, docs/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.md]
     extra:
       context:
@@ -197,12 +197,12 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 
 **Does:** the editor replay covers the features beyond completion.
 
-- [ ] The replay gains `action` and `lens` steps and a hover card, recorded and checked like a list (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/lib/replay.ts:16`, `tools/nv/lib/replay.ts:223`, `website/config/replay-frames.mjs:29`, `tools/nv/cmd/site.ts:1129`
-- [ ] The `rename` step, once its gate holds. `tools/nv/lib/replay.ts:16`
-- [ ] The `calls` step, once its gate holds. `tools/nv/lib/replay.ts:16`
-- [ ] The player draws them. `website/config/replay-player.mjs:140`, `website/src/components/Replay.astro:63`
-- [ ] Tests over a fixture for each new step, and the browser test. `tools/nv/test/site-replay.test.ts:1`, `tools/nv/test/replay-browser.test.ts:32`
-- [ ] The declined bullet on hover cards in `rule:testing/a-replay-plays-what-the-language-server-returned` rewritten, and `rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens` `shipped`. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:56`, `data/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.json:3`
+- [x] The replay gains `action` and `lens` steps and a hover card, recorded and checked like a list (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/lib/replay.ts:16`, `tools/nv/lib/replay.ts:223`, `website/config/replay-frames.mjs:29`, `tools/nv/cmd/site.ts:1129`
+- [x] The `rename` step, once its gate holds. `tools/nv/lib/replay.ts:16`
+- [x] The `calls` step, once its gate holds. `tools/nv/lib/replay.ts:16`
+- [x] The player draws them. `website/config/replay-player.mjs:140`, `website/src/components/Replay.astro:63`
+- [x] Tests over a fixture for each new step, and the browser test. `tools/nv/test/site-replay.test.ts:1`, `tools/nv/test/replay-browser.test.ts:32`
+- [x] The declined bullet on hover cards in `rule:testing/a-replay-plays-what-the-language-server-returned` rewritten, and `rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens` `shipped`. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:56`, `data/rules/testing/a-replay-renames-applies-an-action-and-shows-a-lens.json:3`
 
 ### 2. a debugger replay plays what `nvs dap` returned
 
@@ -298,38 +298,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. A `.term` under `website/snippets/` lists `nvs` commands, its fixture is the directory
-beside it with its name, and `lib/term.ts` runs the commands in a copy under `.cache/nv-term/`.
-`--bless <x>.term` writes `<x>.term.out`, and `--check snippets` compares the two with durations,
-dates, times, hex ids, ports and `/tmp` paths masked. The copy's path is recorded as `~/project` and the
-temp directory as `/tmp`, so no page names the blessing machine (`site.ts` § *A terminal block*).
-`<Terminal src="...term"/>` (`website/src/components/Terminal.astro`) is written, but no page uses it
-yet, so the site build has not rendered it. The first page that shows one (stage 4's CLI page) is its
-first render. Watch for a Windows-blessed `.term.out` whose relative paths use `\`: only the paths
-under the copy and the temp directory are turned to `/`.
+Stages 1 and 7 are done. Stage 1's terminal block (`<Terminal src="...term"/>`) is still unrendered by
+any page; stage 4's CLI page is its first render. Watch for a Windows-blessed `.term.out` whose relative
+paths use `\`.
 
-The sweep's reds were all stale: `env-secret-proofs` passes now, and nightly run 40291801939 tested
-`d6f131752`, before `97ccf66c2` (crypto-bigint off the yanked 0.7.6) and `9c8b0fe16` (the counted-run
-test in one folder). Its two Linux jobs were cancelled by hand.
+Stage 7: a `.replay` has `card`, `rename NAME`, `action TITLE`, `lens` and `calls` steps beside
+`type`, `accept` and `hover`. `tools/nv/lib/replay.ts` sends each request and records one block per
+answer (`site.ts` § *A snippet* is the format's home). A rename's or an action's edits are learned the
+way an accept's insert is: the session is played again with what the server returned, and `fail` keeps
+what a session learned, so a step after an unknown edit settles one round later. `calls` needs the
+`prepareCallHierarchy` item first, so it always takes one extra session. `replay-frames.mjs` owns the
+shared parts: `applyEdits` (used by both the session and the page), `panelHtml`, `markdownHtml`, and
+`codeHtml`'s lens lines. A frame has a `panel` field now, `{ ask, line, col, ... }` or null. No page
+shows a new step yet; stage 4's editor page is the first.
 
-Every gate in `### Standing decisions` § *Gates* holds now: `editor-refactors`, `request-aware-editor`,
-`debugger-adapter`, `debug-viewer` and `trace-timeline` are all gone from `docs/goals/`, and
-`crates/nvs-lsp/tests/handshake.rs:165` and `:169` list `callHierarchyProvider` and `renameProvider`.
+The sweep's reds were stale: `env-secret-proofs` passes (`bun nv proofs --gate --only 'Core\Env::secret'`
+says nothing owed), and nightly run 40291801939 is the one that tested `d6f131752`, before the fixes.
+
+`tools/nv/cmd/disk.ts` and `tools/nv/test/disk.test.ts` had changes in the tree this session did not
+make. They were left uncommitted.
 
 ### Next
 
-**Stage 7, the replay's new steps**, on `tools/nv/lib/replay.ts`, `website/config/replay-frames.mjs`
-and `website/config/replay-player.mjs`. Gate: none now, so `rename` and `calls` are taken too.
+**Stage 2, the debugger replay**, on a new `tools/nv/lib/dap-replay.ts`, `tools/nv/cmd/site.ts` and
+`website/config/replay-player.mjs`. Gate: `debugger-adapter` is gone, so `nvs dap` steps.
 
-- [ ] `action` and `lens` steps and a hover card (`rule:testing/a-replay-renames-applies-an-action-and-shows-a-lens`). `tools/nv/lib/replay.ts:16`, `tools/nv/lib/replay.ts:223`, `website/config/replay-frames.mjs:29`, `tools/nv/cmd/site.ts:1170`
-- [ ] The `rename` and `calls` steps. `tools/nv/lib/replay.ts:16`
-- [ ] The player draws them. `website/config/replay-player.mjs:140`, `website/src/components/Replay.astro:63`
-- [ ] Tests per step and the browser test. `tools/nv/test/site-replay.test.ts:1`, `tools/nv/test/replay-browser.test.ts:32`
-- [ ] The hover-card declined bullet rewritten, and the rule `shipped`. `docs/rules/testing/a-replay-plays-what-the-language-server-returned.md:56`
+- [ ] A `.dap` beside a snippet, its session against `nvs dap`, and `.dap.out` written by `--bless` and compared by `--check snippets` (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`). Model it on `recordReplay`. `tools/nv/lib/replay.ts:376`, `tools/nv/cmd/site.ts:1193`, `tools/nv/cmd/site.ts:1204`, `tools/nv/cmd/site.ts:1281`, `tools/nv/cmd/site.ts:1333`
+- [ ] The player shows the breakpoint, the stopped line, the call stack and the variables. A frame's `panel` and `panelHtml` are the place to add a kind. `website/config/replay-player.mjs:137`, `website/config/replay-frames.mjs:394`
+- [ ] Tests over a fixture for a fresh and a stale `.dap.out`. `tools/nv/test/site-dap.test.ts:1`
+- [ ] The rule `shipped`. `data/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.json:3`
 
-No test is expected to go red from stage 1: `site --check snippets` passed with it.
+No test is expected to go red from stage 7: `site --check snippets`, `site-replay.test.ts` and the
+browser test (`NV_BROWSER=1`) all passed with it.
 
 ### Backlog
 
-- Stage 3 needs no other goal and can run beside 7 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
-- Stage 2 follows 7 in `website/config/replay-player.mjs`; stage 8 follows 2 in `site.ts`.
+- Stage 3 needs no other goal and can run beside 2 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
+- Stage 8 follows 2 in `site.ts`.
