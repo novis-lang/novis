@@ -1167,7 +1167,7 @@
   },
   "/reference/cli/nvs-debug/": {
     "feature": "tools:cli/nvs-debug",
-    "hash": "073e04d765ba7394",
+    "hash": "73b36a5bf356946f",
     "questions": [
       "Read the saved request records into a database I can search",
       "Read a JSON log file into the same database as the requests",
@@ -1222,14 +1222,14 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "68861d58afed4cb3",
+    "hash": "8fe0f892ba44260c",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Set up a language server for Novis in Vim or Neovim",
       "Why does the editor command hang with no output in my terminal?",
       "Jump to where a class or function is declared from my editor",
       "Why does my editor show only the syntax error while I type?",
-      "Quick fix to convert a string into an HTML template"
+      "See every method that calls this method in my editor"
     ]
   },
   "/reference/cli/nvs-lsp-test/": {
