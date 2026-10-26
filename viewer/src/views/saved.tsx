@@ -1,10 +1,11 @@
 // The saved filters: the settings file `GET /api/settings` reads, the list of filters beside the
-// views, the "Save" action of the stream, log and search views, and the dialog that asks before a
-// filter or the index is deleted.
+// views, the "Save" action of the stream, log, search and exceptions views, and the dialog that asks
+// before a filter or the index is deleted. The settings are one signal, read once when the viewer
+// starts, so the editor links of every view (`site.tsx`) follow a change.
 //
 // A filter is a name, a view and the part of the view's link after `?`, so opening one is opening that
 // link. Saving one sends the whole settings back with `PUT /api/settings`, as the service replaces the
-// file whole; the editor and the theme go back as they were read.
+// file whole; the editor, its path mappings and the theme go back as they were read.
 //
 // What it spends: the settings, at most a few hundred filters of a short query each, for the life of
 // the tab.
@@ -34,10 +35,16 @@ export function loadSettings(): void {
     .catch((err) => setLoadError(message(err)));
 }
 
-/** Writes the settings with `filters` in place of the saved filters. */
-async function putFilters(filters: SavedFilter[]): Promise<void> {
+/** Writes the settings `change` makes from the ones last read, and keeps what the service gives back.
+ *  Every view reads the settings from `saved`, so its editor links follow at once. */
+export async function putSettings(change: (base: Settings) => Settings): Promise<void> {
   const base = saved() ?? (await settings());
-  setSaved(await saveSettings({ ...base, filters }));
+  setSaved(await saveSettings(change(base)));
+}
+
+/** Writes the settings with `filters` in place of the saved filters. */
+function putFilters(filters: SavedFilter[]): Promise<void> {
+  return putSettings((base) => ({ ...base, filters }));
 }
 
 /** The link of a saved filter. */

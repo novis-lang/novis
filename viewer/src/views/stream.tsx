@@ -32,6 +32,7 @@ import {
 } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, query, reloadView, requestLink } from "../router.ts";
+import { Site } from "../site.tsx";
 import { ROW_HEIGHT, statusClass } from "./requests.tsx";
 import { Confirm, SaveButton } from "./saved.tsx";
 import { ValueTree } from "./value-tree.tsx";
@@ -393,8 +394,18 @@ function RecordDetail(props: { record: StreamRecord }) {
         <Show when={r().file}>
           <dt>File</dt>
           <dd class="site">
-            {r().file}
-            {r().line !== null ? `:${r().line}` : ""}
+            {/* A dump's file is a source site. An unreadable line's file is a record file, so it stays text. */}
+            <Show
+              when={r().kind === "dump" && r().line !== null ? { file: r().file!, line: r().line! } : null}
+              fallback={
+                <>
+                  {r().file}
+                  {r().line !== null ? `:${r().line}` : ""}
+                </>
+              }
+            >
+              {(site) => <Site site={site()} />}
+            </Show>
           </dd>
         </Show>
         <Show when={r().request}>

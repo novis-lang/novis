@@ -16,6 +16,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show }
 import { requests, watermarks, type RequestPage, type RequestRow } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
+import { Site } from "../site.tsx";
 
 /** A row's height in pixels. `.row` in `style.css` has the same. */
 export const ROW_HEIGHT = 28;
@@ -40,6 +41,44 @@ export function statusClass(status: number): string {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** The column heads above a list of request rows. */
+export function RequestColumns() {
+  return (
+    <div class="cols" aria-hidden="true">
+      <span>Method</span>
+      <span>Route</span>
+      <span class="num">Status</span>
+      <span class="num">Duration</span>
+      <span class="num">Queries</span>
+      <span class="num">Dumps</span>
+      <span>Exception</span>
+      <span>Thrown at</span>
+    </div>
+  );
+}
+
+/** The cells of one request row. The site of its exception is a link to the editor, which the
+ *  row's own click leaves alone. */
+export function RequestCells(props: { row: RequestRow }) {
+  const row = () => props.row;
+  return (
+    <>
+      <span class="method">{row().method}</span>
+      <span class="route" title={row().path}>
+        {row().route ?? row().path}
+      </span>
+      <span class={`num status ${statusClass(row().status)}`}>{row().status}</span>
+      <span class="num duration">{duration(row().duration_us)}</span>
+      <span class="num queries">{row().queries}</span>
+      <span class="num dumps">{row().dumps}</span>
+      <span class="exc">{row().exception?.class ?? ""}</span>
+      <span class="site exc-at">
+        <Show when={row().exception}>{(threw) => <Site site={threw()} tabindex={-1} />}</Show>
+      </span>
+    </>
+  );
 }
 
 export function RequestList() {
@@ -262,15 +301,7 @@ export function RequestList() {
       <Show when={loaded() && rows().length === 0}>
         <p class="note">No requests yet. They show here when your server handles them.</p>
       </Show>
-      <div class="cols" aria-hidden="true">
-        <span>Method</span>
-        <span>Route</span>
-        <span class="num">Status</span>
-        <span class="num">Duration</span>
-        <span class="num">Queries</span>
-        <span class="num">Dumps</span>
-        <span>Exception</span>
-      </div>
+      <RequestColumns />
       <div
         ref={list}
         class="list"
@@ -300,17 +331,7 @@ export function RequestList() {
                     open(row);
                   }}
                 >
-                  <span class="method">{row.method}</span>
-                  <span class="route" title={row.path}>
-                    {row.route ?? row.path}
-                  </span>
-                  <span class={`num status ${statusClass(row.status)}`}>{row.status}</span>
-                  <span class="num duration">{duration(row.duration_us)}</span>
-                  <span class="num queries">{row.queries}</span>
-                  <span class="num dumps">{row.dumps}</span>
-                  <span class="exc" title={row.exception ? `${row.exception.file}:${row.exception.line}` : undefined}>
-                    {row.exception?.class ?? ""}
-                  </span>
+                  <RequestCells row={row} />
                 </div>
               );
             }}

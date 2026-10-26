@@ -58,6 +58,7 @@ export type Route =
   | { view: "stream" }
   | { view: "log" }
   | { view: "search" }
+  | { view: "exceptions" }
   | { view: "saved"; name: string };
 
 /** Reads a path into the view it names. A path the viewer does not have is the request list. */
@@ -65,8 +66,8 @@ export function route(to: string): Route {
   const at = to.split("?")[0]!;
   const m = /^\/requests\/([0-9a-f]{32})(?:\/([0-9a-f]{16}))?\/?$/.exec(at);
   if (m) return m[2] ? { view: "request", trace: m[1]!, span: m[2] } : { view: "request", trace: m[1]! };
-  const view = /^\/(stream|log|search)\/?$/.exec(at)?.[1];
-  if (view === "stream" || view === "log" || view === "search") return { view };
+  const view = /^\/(stream|log|search|exceptions)\/?$/.exec(at)?.[1];
+  if (view === "stream" || view === "log" || view === "search" || view === "exceptions") return { view };
   const saved = /^\/saved\/([^/]+)\/?$/.exec(at);
   if (saved) {
     try {

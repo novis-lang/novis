@@ -8,7 +8,8 @@
 //
 // Under the chart, every item is one row of a listbox in time order (the WAI-ARIA listbox pattern, the
 // way the request list is one). The keys move the selection, the chart highlights the selected item,
-// and Enter on a dump or a log line moves to it on the page.
+// and Enter on a dump or a log line moves to it on the page. A dump's site is a link to the editor
+// (`site.tsx`), out of the tab order because the row is reached with the arrow keys.
 //
 // What it spends: one object per item and one lane number per bar, for lists the service already
 // limited.
@@ -16,6 +17,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { Dump, LogLine, RequestDetail, TraceEvent } from "../api.ts";
 import { ignored } from "../keys.ts";
+import { Site } from "../site.tsx";
 import { duration } from "./requests.tsx";
 
 type Kind = TraceEvent["kind"] | "dump" | "log";
@@ -254,7 +256,11 @@ export function Timeline(props: { detail: RequestDetail }) {
               >
                 <span class="tl-kind">{KIND_NAMES[item.kind]}</span>
                 <span class="tl-at num">{duration(Math.max(0, item.start - t0()))}</span>
-                <span class="tl-label">{item.label}</span>
+                <span class="tl-label">
+                  <Show when={item.dump} fallback={item.label}>
+                    {(dump) => <Site site={dump()} tabindex={-1} />}
+                  </Show>
+                </span>
                 <span class="tl-detail">{item.detail}</span>
                 <span class="tl-duration num">{item.end === null ? "" : duration(item.end - item.start)}</span>
               </div>

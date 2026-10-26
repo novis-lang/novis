@@ -183,9 +183,11 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     expect(await tab.eval(OPTION_IDS)).toEqual(FIXTURE.map((row) => `request-${row.id}`));
     const cells = (id: number) =>
       tab.eval(`[...document.querySelectorAll("#request-${id} > span")].map((s) => s.textContent)`);
-    // Method, route, status, duration, queries, dumps, exception.
-    expect(await cells(6)).toEqual(["DELETE", "/items/{id}", "403", "610 µs", "0", "0", ""]);
-    expect(await cells(THREW.id)).toEqual(["POST", "/orders", "500", "15.4 ms", "1", "2", "Shop\\OutOfStock"]);
+    // Method, route, status, duration, queries, dumps, exception, and where it was thrown.
+    expect(await cells(6)).toEqual(["DELETE", "/items/{id}", "403", "610 µs", "0", "0", "", ""]);
+    expect(await cells(THREW.id)).toEqual(["POST", "/orders", "500", "15.4 ms", "1", "2", "Shop\\OutOfStock", "src/Shop/Orders.nvs:42"]);
+    // The site is a link to the editor, and VS Code is the editor when the settings do not load.
+    expect(await tab.eval(`document.querySelector("#request-${THREW.id} .exc-at a").getAttribute("href")`)).toBe("vscode://file/src/Shop/Orders.nvs:42:1");
     // A request with no route shows its path.
     expect((await cells(4))[1]).toBe("/missing");
     expect(await tab.eval(`[${LIST}.getAttribute("aria-label"), document.querySelector("#request-6").getAttribute("aria-setsize")]`)).toEqual([

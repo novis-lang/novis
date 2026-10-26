@@ -1,10 +1,13 @@
 {
   "title": "The viewer groups exceptions into one row per class and throw site, with its count, first and last time, and its requests",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact",
     "testing/a-site-in-the-viewer-opens-in-the-editor"
   ],
-  "guardedBy": [],
-  "goal": "debug-viewer"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/exceptions.rs",
+    "crates/nvs-cli/tests/debug_api.rs",
+    "viewer/test/exceptions.browser.test.ts"
+  ]
 }

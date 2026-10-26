@@ -1,6 +1,8 @@
 // One request, at `/requests/<trace id>/<span id>`: its row from `GET /api/requests?trace=&span=`, and
 // everything it recorded from `GET /api/request`: the exception it threw, its timeline, each dump with
-// its value tree, and its log lines. A link back goes to the list, and so does Escape.
+// its value tree, and its log lines. A link back goes to the list, and so does Escape. The link with
+// `#exception` focuses the exception once the records load. Each site is a link to the editor
+// (`site.tsx`); a log line's message is text, whatever it says.
 //
 // A link with the trace id alone shows the request when one has that trace id, and the matching rows
 // when several do, because an inbound `traceparent` can give two requests one trace id. The records are
@@ -13,6 +15,7 @@ import { createEffect, createResource, For, Match, onCleanup, onMount, Show, Swi
 import { request, requests, type Json, type RequestDetail, type RequestFilter, type RequestRow, type TraceKey } from "../api.ts";
 import { ignored } from "../keys.ts";
 import { navigate, requestLink } from "../router.ts";
+import { Site } from "../site.tsx";
 import { duration, statusClass } from "./requests.tsx";
 import { Timeline } from "./timeline.tsx";
 import { ValueTree } from "./value-tree.tsx";
@@ -135,7 +138,7 @@ function Details(props: { row: RequestRow }) {
           <Show when={row().exception} fallback="None">
             {(threw) => (
               <>
-                <span class="bad">{threw().class}</span> at {threw().file}:{threw().line}
+                <span class="bad">{threw().class}</span> at <Site site={threw()} />
               </>
             )}
           </Show>
@@ -164,17 +167,21 @@ function hasFields(fields: Json): boolean {
 function Records(props: { detail: RequestDetail }) {
   const d = () => props.detail;
   const at = (us: number) => duration(Math.max(0, us - d().request.start_us));
+  // A link that ends in `#exception`, as the exceptions view opens a request, moves to the exception.
+  onMount(() => {
+    if (location.hash === "#exception") document.getElementById("exception")?.focus();
+  });
   return (
     <>
       <Show when={d().exception}>
         {(exc) => (
-          <section class="exception" aria-labelledby="exception-title">
+          <section id="exception" class="exception" aria-labelledby="exception-title" tabindex="-1">
             <h3 id="exception-title">Exception</h3>
             <p class="exc-head">
               <span class="exc-class bad">{exc().class}</span>: <span class="exc-message">{exc().message}</span>
             </p>
             <p class="site exc-site">
-              Thrown at {exc().file}:{exc().line}
+              Thrown at <Site site={exc()} />
             </p>
           </section>
         )}
@@ -187,7 +194,7 @@ function Records(props: { detail: RequestDetail }) {
             {(dump) => (
               <article id={`dump-${dump.id}`} class="dump">
                 <h4 class="site">
-                  {dump.file}:{dump.line} <span class="note">at {at(dump.at_us)}</span>
+                  <Site site={dump} /> <span class="note">at {at(dump.at_us)}</span>
                 </h4>
                 <Show when={!dump.elided} fallback={<p class="note cut-note">This value was too long to record.</p>}>
                   <ValueTree value={dump.tree} prefix={`dump-${dump.id}`} name={`Value dumped at ${dump.file}:${dump.line}`} />

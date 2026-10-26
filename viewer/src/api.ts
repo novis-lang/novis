@@ -1,5 +1,5 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
-// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs` and `settings.rs`):
+// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs`, `exceptions.rs` and `settings.rs`):
 // `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 
@@ -285,8 +285,75 @@ export function snippetParts(snippet: string): SnippetPart[] {
   return parts;
 }
 
+/** One group of `GET /api/exceptions`: every uncaught throw of one class at one site. */
+export interface ExceptionGroup {
+  id: number;
+  class: string;
+  file: string;
+  line: number;
+  count: number;
+  first_us: number;
+  last_us: number;
+  /** The newest throw's message. */
+  message: string | null;
+  /** Throws in 24 equal spans from `first_us` to `last_us`. */
+  chart: number[];
+  /** The routes of the newest throws, newest first, at most 5. */
+  routes: string[];
+  /** True when throws older than the newest 1000 are not in `chart` and `routes`. */
+  sampled: boolean;
+}
+
+/** One page of `GET /api/exceptions`. A group changes in place, so a new watermark loads the first
+ *  page again. */
+export interface ExceptionPage {
+  watermark: number;
+  groups: ExceptionGroup[];
+  /** The `before` of the next page, or `null` when this page has the last group. */
+  older: string | null;
+}
+
+/** What names one group: its class and the site of its `throw`. */
+export type ExceptionKey = Threw;
+
+/** One page of `GET /api/exceptions?class=&file=&line=`: the group and its requests, newest first. */
+export interface ExceptionRequests {
+  watermark: number;
+  group: ExceptionGroup;
+  requests: RequestRow[];
+  /** The `before` of the next page, or `null` when this page has the oldest request. */
+  older: number | null;
+}
+
+/** The query string that names `key`, without the `?`, in a fixed key order. */
+export function exceptionQuery(key: ExceptionKey): string {
+  return `class=${encodeURIComponent(key.class)}&file=${encodeURIComponent(key.file)}&line=${key.line}`;
+}
+
+/** Reads an exceptions link's query into the group it names, or `null` when it names none. */
+export function exceptionKey(query: string): ExceptionKey | null {
+  const params = new URLSearchParams(query);
+  const cls = params.get("class");
+  const file = params.get("file");
+  const line = Number(params.get("line"));
+  if (!cls || !file || !Number.isInteger(line) || line < 1) return null;
+  return { class: cls, file, line };
+}
+
+/** One page of the exception groups. */
+export function exceptions(before?: string, signal?: AbortSignal): Promise<ExceptionPage> {
+  return get<ExceptionPage>(before === undefined ? "/api/exceptions" : `/api/exceptions?before=${encodeURIComponent(before)}`, signal);
+}
+
+/** One page of the requests of the group `key` names. A group that is not there is an `ApiError`
+ *  with status `404`. */
+export function exceptionRequests(key: ExceptionKey, before?: number, signal?: AbortSignal): Promise<ExceptionRequests> {
+  const tail = before === undefined ? "" : `&before=${before}`;
+  return get<ExceptionRequests>(`/api/exceptions?${exceptionQuery(key)}${tail}`, signal);
+}
+
 /** The view a saved filter opens. */
-export type SavedView = "requests" | "stream" | "log" | "search";
+export type SavedView = "requests" | "stream" | "log" | "search" | "exceptions";
 
 /** A saved filter: its name, its view, and the part of the view's link after `?`. */
 export interface SavedFilter {
@@ -295,9 +362,24 @@ export interface SavedFilter {
   query: string;
 }
 
+/** Every editor preset the settings offer, and `custom` for a template. */
+export const EDITORS = ["vscode", "vscode-insiders", "vscodium", "cursor", "zed", "idea", "phpstorm", "custom"] as const;
+
+export type Editor = (typeof EDITORS)[number];
+
+/** A path prefix the program recorded, and the prefix the editor's machine has instead. */
+export interface PathMapping {
+  from: string;
+  to: string;
+}
+
 /** The viewer's settings file. `PUT` replaces it whole. */
 export interface Settings {
-  editor: string;
+  editor: Editor;
+  /** The link template of `custom`, with `{file}`, `{line}` and `{column}`. Only with `custom`. */
+  editor_template?: string;
+  /** At most 20. */
+  path_mappings: PathMapping[];
   theme: "system" | "dark" | "light";
   filters: SavedFilter[];
 }

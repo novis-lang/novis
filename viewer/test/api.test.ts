@@ -1,16 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import {
+  exceptionKey,
+  exceptionQuery,
   requestQuery,
   snippetParts,
   streamFilter,
   streamQuery,
   traceKey,
+  type ExceptionPage,
+  type ExceptionRequests,
   type RequestDetail,
   type RequestPage,
   type SearchResults,
   type Settings,
   type StreamPage,
 } from "../src/api.ts";
+import exceptionFixture from "./fixtures/exception.json";
+import exceptionsFixture from "./fixtures/exceptions.json";
 import detailFixture from "./fixtures/request.json";
 import fixture from "./fixtures/requests.json";
 import searchFixture from "./fixtures/search.json";
@@ -19,7 +25,7 @@ import streamFixture from "./fixtures/stream.json";
 
 // `crates/nvs-cli/tests/debug_api.rs` writes the fixtures from a real index. These assignments are
 // the check that the types in `src/api.ts` describe what the service sends: `tsc` fails when they
-// do not. A JSON import types `kind`, `view` and `theme` as `string`, so the one cast for each
+// do not. A JSON import types `kind`, `view`, `editor` and `theme` as `string`, so the one cast for each
 // narrows it and checks the rest.
 const page: RequestPage = fixture;
 const detail: RequestDetail = {
@@ -39,9 +45,12 @@ const results: SearchResults = {
 };
 const saved: Settings = {
   ...settingsFixture,
+  editor: settingsFixture.editor as Settings["editor"],
   theme: settingsFixture.theme as Settings["theme"],
   filters: settingsFixture.filters.map((filter) => ({ ...filter, view: filter.view as Settings["filters"][number]["view"] })),
 };
+const groups: ExceptionPage = exceptionsFixture;
+const group: ExceptionRequests = exceptionFixture;
 
 describe("the request list's API", () => {
   test("the fixture is one page, newest first", () => {
@@ -94,6 +103,31 @@ describe("the request list's API", () => {
   test("the settings fixture has a saved filter", () => {
     expect(saved.filters[0]?.view).toBe("search");
     expect(new URLSearchParams(saved.filters[0]!.query).get("q")).toBe("route:/orders duration:>10ms");
+  });
+
+  test("the exceptions fixtures group throws by class and site, and a group lists its requests", () => {
+    expect(groups.groups.length).toBeGreaterThan(0);
+    for (const one of groups.groups) {
+      expect(one.chart.length).toBe(24);
+      expect(one.chart.reduce((a, b) => a + b, 0)).toBe(one.count);
+      expect(one.routes.length).toBeLessThanOrEqual(5);
+    }
+    expect(group.requests.length).toBe(group.group.count);
+    for (const row of group.requests) expect(row.exception).toEqual({ class: group.group.class, file: group.group.file, line: group.group.line });
+  });
+
+  test("a group's link names its class and site, and reads back", () => {
+    const key = { class: "Shop\\OutOfStock", file: "src/Shop/Orders.nvs", line: 42 };
+    expect(exceptionQuery(key)).toBe("class=Shop%5COutOfStock&file=src%2FShop%2FOrders.nvs&line=42");
+    expect(exceptionKey(exceptionQuery(key))).toEqual(key);
+    expect(exceptionKey("class=A&file=b.nvs")).toBeNull();
+    expect(exceptionKey("")).toBeNull();
+  });
+
+  test("the settings fixture has an editor and a path mapping", () => {
+    expect(saved.editor).toBe("custom");
+    expect(saved.editor_template).toContain("{file}");
+    expect(saved.path_mappings.length).toBeGreaterThan(0);
   });
 
   test("a pasted traceresponse value or trace id gives its key", () => {

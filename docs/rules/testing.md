@@ -3,7 +3,7 @@
 
 # Testing
 
-*11 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -2928,7 +2928,7 @@ the lcov file `nvs test` writes (`editors/vscode/src/tests.ts:237`).
 
 <a id="testing-the-viewer-searches-every-record-and-saves-a-filter"></a>
 
-## The viewer searches the text of every request, dump, log line, query and exception, and a search can be saved and linked  *(designed — owned by goal debug-viewer)*
+## The viewer searches the text of every request, dump, log line, query and exception, and a search can be saved and linked
 
 `rule:testing/the-viewer-searches-every-record-and-saves-a-filter`
 
@@ -2962,7 +2962,7 @@ kept in the viewer's settings file, outside the index, so discarding the index k
 
 <a id="testing-an-exception-is-one-row-per-class-and-site"></a>
 
-## The viewer groups exceptions into one row per class and throw site, with its count, first and last time, and its requests  *(designed — owned by goal debug-viewer)*
+## The viewer groups exceptions into one row per class and throw site, with its count, first and last time, and its requests
 
 `rule:testing/an-exception-is-one-row-per-class-and-site`
 
@@ -3038,10 +3038,13 @@ Every `file:line` the viewer shows is a link that opens that line in the develop
 the editor's own URL scheme, and VS Code's `vscode://file/` is the default.
 
 The viewer's settings offer presets for VS Code, VS Code Insiders, VSCodium, Cursor, Zed and the
-JetBrains IDEs, and a template with `{file}`, `{line}` and `{column}` for any other editor. A list of
-path mappings rewrites a prefix before the link is built, for a program that ran in a container, a
-virtual machine or WSL and recorded paths the editor's machine does not have. The setting is the
-developer's, not the project's, so it lives in the viewer's settings file and never in `nvs.toml`.
+JetBrains IDEs IntelliJ IDEA and PhpStorm, and a template with `{file}`, `{line}` and `{column}` for
+any other editor. A template's scheme is never one that runs or embeds content in the viewer's page
+(`javascript:`, `data:`, `vbscript:`, `blob:`): the service refuses to save one, and the viewer builds
+no link from one. A list of path mappings rewrites a prefix before the link is built, the longest
+that matches, for a program that ran in a container, a virtual machine or WSL and recorded paths the
+editor's machine does not have. The setting is the developer's, not the project's, so it lives in the
+viewer's settings file and never in `nvs.toml`.
 
 A link is built only from a site the record carries as structured data — a frame, a query's call site,
 a dump's or a log call's location — and never from text found inside a message, so a logged string

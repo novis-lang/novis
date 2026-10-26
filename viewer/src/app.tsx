@@ -1,5 +1,5 @@
-// The viewer's frame: the header with the search box, the theme control and the key list, the links to
-// the views and the saved filters, and the region the view the path names renders into (`router.ts`).
+// The viewer's frame: the header with the search box, the theme control, the editor settings and the
+// key list, the links to the views and the saved filters, and the region the view the path names renders into (`router.ts`).
 // The frame answers the keys every view shares, `/`, `?` and `t`, and turns a click on a link inside
 // the viewer into a move without a reload.
 //
@@ -11,6 +11,8 @@ import { traceKey } from "./api.ts";
 import { ignored, KEYS } from "./keys.ts";
 import { navigate, path, query, route, version } from "./router.ts";
 import { nextTheme, setTheme, theme, type Theme } from "./theme.ts";
+import { EditorSettings } from "./views/editor.tsx";
+import { ExceptionsView } from "./views/exceptions.tsx";
 import { LogView } from "./views/log.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
@@ -106,6 +108,7 @@ export function App() {
             <option value="light">Light</option>
           </select>
         </label>
+        <EditorSettings />
         <button type="button" class="btn" onClick={() => keys.showModal()} aria-keyshortcuts="?">
           Keys
         </button>
@@ -123,6 +126,9 @@ export function App() {
         <a href="/search" aria-current={current("search")}>
           Search
         </a>
+        <a href="/exceptions" aria-current={current("exceptions")}>
+          Exceptions
+        </a>
         <SavedList />
       </nav>
       <main id="view">
@@ -139,6 +145,9 @@ export function App() {
               </Match>
               <Match when={view() === "search"}>
                 <For each={[query()]}>{(q) => <SearchView query={q} />}</For>
+              </Match>
+              <Match when={view() === "exceptions"}>
+                <For each={[query()]}>{(q) => <ExceptionsView query={q} />}</For>
               </Match>
               <Match when={saved()}>{(s) => <SavedOpen name={s().name} />}</Match>
             </Switch>
