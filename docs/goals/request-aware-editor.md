@@ -20,7 +20,7 @@ stages:
         rules: [ide/used-by-counts-the-routes-and-tests-that-reach-a-method, ide/the-request-set-is-closed, ide/the-test-tree-is-discovered-and-run-through-the-cli, ide/contributions-are-frozen-and-only-ever-added, ide/an-lsp-answer-is-frozen-as-an-lspt-case, testing/report-formats, testing/coverage-report]
   - id: 2
     title: call hierarchy walks the call graph both ways
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/capabilities.rs, crates/nvs-lsp/tests/handshake.rs, docs/rules/ide/the-request-set-is-closed.md, docs/rules/ide/five-features-are-one-reference-index.md]
     extra:
       context:
@@ -108,7 +108,10 @@ The same rule holds it.
 
 **Call hierarchy is offered.** The user decided this. Once the call graph exists,
 `textDocument/callHierarchy` answers incoming and outgoing calls from it. A call through a `callable`
-or a `mixed` receiver is not shown. `rule:ide/the-request-set-is-closed` admits it, and stage 2 builds it.
+or a `mixed` receiver is not shown. `rule:ide/the-request-set-is-closed` admits it, and stage 2 built
+it. A `Core\Test::request` the route table matched is an incoming call of the route's handler and an
+outgoing call of the method that sends it, because it is the same edge the lens walks; the hierarchy
+then shows the path a lens count came from (`nvs_lsp::calls`).
 
 **The route-reach hover shows the program's grants**, labelled as that program's, with no per-route
 narrowing. The user decided this. `rule:ide/a-route-hover-shows-the-programs-grants` holds it.
@@ -208,11 +211,11 @@ writing subagent after that.
 **Does:** `textDocument/callHierarchy` answers incoming and outgoing calls from the call graph stage 1
 built.
 
-- [ ] The server declares `callHierarchyProvider`, and `crates/nvs-lsp/tests/handshake.rs` holds the eighteenth standard request (`rule:ide/the-request-set-is-closed`). `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/tests/handshake.rs:161`
-- [ ] `prepare` resolves the function or method under the cursor, `incomingCalls` lists the functions whose occurrences resolved to it, and `outgoingCalls` lists the functions it calls, each with the call ranges. `crates/nvs-lsp/src/index.rs:277`, `crates/nvs-lsp/src/server.rs:1173`
-- [ ] A call through a `callable` value or a `mixed` receiver is not shown, as in the lens. `crates/nvs-lsp/src/index.rs:277`
-- [ ] A Rust test for both directions over a recursive pair and a call through a `callable`. `crates/nvs-lsp/tests/navigation.rs:1`
-- [ ] `rule:ide/the-request-set-is-closed` rewritten from "admitted" to served. `docs/rules/ide/the-request-set-is-closed.md:72`
+- [x] The server declares `callHierarchyProvider`, and `crates/nvs-lsp/tests/handshake.rs` holds the eighteenth standard request (`rule:ide/the-request-set-is-closed`). `crates/nvs-lsp/src/capabilities.rs:162`, `crates/nvs-lsp/tests/handshake.rs:161`
+- [x] `prepare` resolves the function or method under the cursor, `incomingCalls` lists the functions whose occurrences resolved to it, and `outgoingCalls` lists the functions it calls, each with the call ranges. `crates/nvs-lsp/src/index.rs:277`, `crates/nvs-lsp/src/server.rs:1173`
+- [x] A call through a `callable` value or a `mixed` receiver is not shown, as in the lens. `crates/nvs-lsp/src/index.rs:277`
+- [x] A Rust test for both directions over a recursive pair and a call through a `callable`. `crates/nvs-lsp/tests/navigation.rs:1`
+- [x] `rule:ide/the-request-set-is-closed` rewritten from "admitted" to served. `docs/rules/ide/the-request-set-is-closed.md:72`
 
 ### 3. a route's hover shows the program's grants
 

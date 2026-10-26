@@ -16,16 +16,17 @@
 //! list, not the schedule.
 
 use lsp_types::{
-    ClientCapabilities, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
-    CodeLensOptions, CompletionOptions, DocumentLinkOptions, FileOperationFilter,
-    FileOperationPattern, FileOperationPatternKind, FileOperationRegistrationOptions,
-    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, OneOf, PositionEncodingKind, RenameOptions, SelectionRangeProviderCapability,
-    SemanticTokenModifier, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
-    SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
-    WorkspaceFileOperationsServerCapabilities, WorkspaceServerCapabilities,
+    CallHierarchyServerCapability, ClientCapabilities, CodeActionKind, CodeActionOptions,
+    CodeActionProviderCapability, CodeLensOptions, CompletionOptions, DocumentLinkOptions,
+    FileOperationFilter, FileOperationPattern, FileOperationPatternKind,
+    FileOperationRegistrationOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, OneOf, PositionEncodingKind, RenameOptions,
+    SelectionRangeProviderCapability, SemanticTokenModifier, SemanticTokenType,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SignatureHelpOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TypeDefinitionProviderCapability,
+    WorkDoneProgressOptions, WorkspaceFileOperationsServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 
 /// The name this server reports in `serverInfo`.
@@ -320,6 +321,10 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
         // promise a second round trip that only ever returns what the first
         // already carried.
         inlay_hint_provider: Some(OneOf::Left(true)),
+        // The call graph the "used by" lens walks, read one step at a time in
+        // both directions by `crate::calls`. No options: the answer is one
+        // lookup, so there is no progress to report and nothing to stream.
+        call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
 }

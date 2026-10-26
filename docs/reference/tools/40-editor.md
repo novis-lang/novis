@@ -134,12 +134,20 @@ carries `secret`, and this request checks that binding for every such value in t
 token channel with a modifier on it — that channel degrades to the plain token type when a client
 does not understand a modifier, and the failure mode here would be the value becoming visible.
 
+## Call hierarchy
+
+Call hierarchy shows the methods that call a method, and the methods it calls. Put the cursor on a
+method's name or on a call to it, and ask your editor for its call hierarchy. Each entry lists the
+places where the call is written. A test that sends a request with `Core\Test::request` counts as a
+caller of the route's handler. This works when the method and the path are written as literal values.
+
+Some calls are not shown. A call through a `callable` value is not shown. A call on a `mixed` value is
+not shown either. The editor cannot know which method such a call runs.
+
 ## What it does not answer
 
-Occurrence highlighting, find-references, rename, workspace symbol search and inlay hints are each
-one query against a workspace-wide symbol index, which this server does not build. No capability is
-declared for them, so an editor never offers the command rather than offering one that fails. Call
-hierarchy needs a different index again — call-site edges — and is not built either.
+The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,
+because a Novis name is declared where it is defined. Go to definition goes to the same place.
 
 # nvs lsp-test
 

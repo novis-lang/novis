@@ -18,7 +18,6 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use lsp_types::PositionEncodingKind;
 use nvs_lsp::reach::{Reach, reach};
 use nvs_lsp::{CheckScope, DeclKind, Documents, SymbolIndex, Visibility, path_of, uri_of};
 
@@ -234,7 +233,7 @@ const BOOKKEEPING: [&str; 6] = [
 fn every_reader_queries_the_one_index() {
     // Each reader, and what it answers from. Six of them answer a request, the
     // dimming is published unasked, and the call graph is what the "used by"
-    // lens and call hierarchy will read.
+    // lens walks and call hierarchy reads one step at a time.
     let readers: [(&str, &[&str]); 8] = [
         (
             "textDocument/references",
@@ -266,6 +265,8 @@ fn every_reader_queries_the_one_index() {
                 "requests",
                 "unfollowed",
                 "overridden",
+                "occurrences_in",
+                "requests_in",
             ],
         ),
     ];
@@ -307,37 +308,6 @@ fn every_reader_queries_the_one_index() {
         offered, queried,
         "the index's read side and the eight readers' queries are not the same \
          set, so a reader was dropped or a ninth one was added"
-    );
-}
-
-/// Call hierarchy is not answered yet.
-///
-/// The index keeps the call graph's edges (`rule:ide/five-features-are-one-reference-index`),
-/// and `request-aware-editor`'s second stage answers the request from them.
-/// Until then the capability is not declared, so a conforming client never
-/// asks, and nothing in the crate names the request, so a client that asks
-/// anyway reaches `answer`'s refusal arm like any other method outside the
-/// list.
-#[test]
-fn call_hierarchy_is_not_answered() {
-    let declared = nvs_lsp::declared_capabilities(PositionEncodingKind::UTF8);
-    assert!(
-        declared.get("callHierarchyProvider").is_none(),
-        "`callHierarchyProvider` is declared, so a client will ask: {declared}"
-    );
-
-    // Both spellings, because either one appearing is something answering or
-    // preparing to: `callHierarchy` is the method string's and `CallHierarchy`
-    // is `lsp_types`'. The needle is not `Hierarchy` — `typeHierarchy` is a
-    // reader the same rule does name.
-    let named: Vec<(String, usize)> = ["callHierarchy", "CallHierarchy"]
-        .into_iter()
-        .flat_map(code_hits)
-        .collect();
-    assert!(
-        named.is_empty(),
-        "the crate names call hierarchy, which is a second index this rule \
-         refuses to build: {named:?}"
     );
 }
 

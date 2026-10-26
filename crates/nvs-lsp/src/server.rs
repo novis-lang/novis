@@ -75,6 +75,7 @@ use lsp_types::notification::{
     DidCloseTextDocument, DidOpenTextDocument, Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
+    CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeLensRefresh, CodeLensRequest, Completion, DocumentHighlightRequest,
     DocumentLinkRequest, DocumentSymbolRequest, FoldingRangeRequest, GotoDefinition,
     GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest,
@@ -83,8 +84,10 @@ use lsp_types::request::{
     TypeHierarchySubtypes, TypeHierarchySupertypes, WillRenameFiles, WorkspaceSymbolRequest,
 };
 use lsp_types::{
-    AnnotatedTextEdit, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens,
-    CodeLensParams, Command, CompletionItem, CompletionParams, CompletionResponse,
+    AnnotatedTextEdit, CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams,
+    CallHierarchyItem, CallHierarchyOutgoingCall, CallHierarchyOutgoingCallsParams,
+    CallHierarchyPrepareParams, CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
+    CodeLens, CodeLensParams, Command, CompletionItem, CompletionParams, CompletionResponse,
     CompletionTriggerKind, DidChangeConfigurationParams, DidChangeTextDocumentParams,
     DidChangeWatchedFilesParams, DidChangeWatchedFilesRegistrationOptions,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentChangeOperation,
@@ -104,6 +107,7 @@ use lsp_types::{
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
 use crate::actions;
+use crate::calls;
 use crate::capabilities::initialize_result;
 use crate::card;
 use crate::completion;
@@ -875,6 +879,49 @@ fn answer(
                 Err(error) => unreadable(id, &method, &error),
             }
         }
+        CallHierarchyPrepare::METHOD => {
+            match serde_json::from_value::<CallHierarchyPrepareParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    prepare_call_hierarchy(documents, index, encoding, &params),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        CallHierarchyIncomingCalls::METHOD => {
+            match serde_json::from_value::<CallHierarchyIncomingCallsParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    call_edges(
+                        documents,
+                        index,
+                        encoding,
+                        &calls::incoming(index, &params.item.name),
+                    )
+                    .into_iter()
+                    .map(|(from, from_ranges)| CallHierarchyIncomingCall { from, from_ranges })
+                    .collect::<Vec<_>>(),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
+        CallHierarchyOutgoingCalls::METHOD => {
+            match serde_json::from_value::<CallHierarchyOutgoingCallsParams>(params) {
+                Ok(params) => Response::new_ok(
+                    id,
+                    call_edges(
+                        documents,
+                        index,
+                        encoding,
+                        &calls::outgoing(index, &params.item.name),
+                    )
+                    .into_iter()
+                    .map(|(to, from_ranges)| CallHierarchyOutgoingCall { to, from_ranges })
+                    .collect::<Vec<_>>(),
+                ),
+                Err(error) => unreadable(id, &method, &error),
+            }
+        }
         redactions::METHOD => match serde_json::from_value::<TextDocumentIdentifier>(params) {
             Ok(document) => {
                 Response::new_ok(id, redaction_ranges(documents, encoding, &document.uri))
@@ -1522,6 +1569,104 @@ fn hierarchy_items(
             })
         })
         .collect()
+}
+
+/// `textDocument/prepareCallHierarchy` — the method under the cursor, as the
+/// item the two call requests below are then asked about.
+///
+/// The cursor is read as [`prepare_type_hierarchy`] reads it, so the method's
+/// own name and a call to it both answer. Anything but a method answers
+/// nothing: only a method calls and is called.
+fn prepare_call_hierarchy(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    params: &CallHierarchyPrepareParams,
+) -> Option<Vec<CallHierarchyItem>> {
+    let uri = &params.text_document_position_params.text_document.uri;
+    let analysed = documents.analysed(uri)?;
+    let offset = offset_at(
+        analysed.map.file(analysed.entry),
+        params.text_document_position_params.position,
+        encoding,
+    );
+
+    let symbol = symbol_at(&analysed, offset)?;
+    let declared = index.declaration(&symbol)?;
+    if declared.kind != DeclKind::Method {
+        return None;
+    }
+    let (map, loaded) = overlaid(documents, std::iter::once(declared.site.path.as_path()));
+    Some(vec![call_item(&map, &loaded, declared, encoding)?])
+}
+
+/// Each method at the other end of `found`'s calls as a call hierarchy item,
+/// with the ranges of its call sites.
+///
+/// A method the index no longer declares, or whose file this process cannot
+/// load, drops out of the answer. The item's `name` is its identity, as
+/// [`hierarchy_items`] says for a type.
+fn call_edges(
+    documents: &Documents,
+    index: &SymbolIndex,
+    encoding: PositionEncoding,
+    found: &[calls::Calls<'_>],
+) -> Vec<(CallHierarchyItem, Vec<Range>)> {
+    let declared: Vec<Option<&Declaration>> = found
+        .iter()
+        .map(|edge| index.declaration(&edge.method))
+        .collect();
+    let (map, loaded) = overlaid(
+        documents,
+        found
+            .iter()
+            .flat_map(|edge| edge.sites.iter().map(|site| site.path.as_path()))
+            .chain(declared.iter().flatten().map(|at| at.site.path.as_path())),
+    );
+
+    found
+        .iter()
+        .zip(declared)
+        .filter_map(|(edge, declared)| {
+            let item = call_item(&map, &loaded, declared?, encoding)?;
+            let ranges = edge
+                .sites
+                .iter()
+                .filter_map(|site| {
+                    let id = (*loaded.get(&site.path)?)?;
+                    Some(range_of(map.file(id), site.start, site.end, encoding))
+                })
+                .collect();
+            Some((item, ranges))
+        })
+        .collect()
+}
+
+/// One method's declaration as a call hierarchy item, its positions counted in
+/// its own file's text.
+fn call_item(
+    map: &SourceMap,
+    loaded: &HashMap<PathBuf, Option<SourceId>>,
+    declared: &Declaration,
+    encoding: PositionEncoding,
+) -> Option<CallHierarchyItem> {
+    let id = (*loaded.get(&declared.site.path)?)?;
+    let range = range_of(
+        map.file(id),
+        declared.site.start,
+        declared.site.end,
+        encoding,
+    );
+    Some(CallHierarchyItem {
+        name: declared.symbol.clone(),
+        kind: SymbolKind::METHOD,
+        tags: None,
+        detail: None,
+        uri: uri_of(&declared.site.path)?,
+        range,
+        selection_range: range,
+        data: None,
+    })
 }
 
 /// What an editor shows a declaration of this kind as.

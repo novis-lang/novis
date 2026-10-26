@@ -457,7 +457,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
 
 `rule:ide/the-request-set-is-closed`
 
-`nvs lsp` answers twenty-one standard requests, the code actions of
+`nvs lsp` answers twenty-two standard requests, the code actions of
 [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows) and organize imports, and seven
 requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
@@ -532,11 +532,15 @@ source said it, so a re-derived one is a confident lie. `documentHighlight` read
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 
-`callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
-reads the call-site edges that [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds
-to the reference index, so the server declares it in the change that builds those edges, as the
-twenty-second standard request. It answers incoming and outgoing calls. A call through a `callable` value
-or a `mixed` receiver is not shown, because the checker resolved no single target for it.
+`callHierarchy` is the twenty-second, admitted on the same test, and the user decided to offer it:
+`prepare`, `incomingCalls` and `outgoingCalls`, one request in three methods. It reads the call-site
+edges that [`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds to the reference
+index, one step at a time, so a recursive pair ends. `nvs_lsp::calls` answers both directions.
+`prepare` answers a method and nothing else. An incoming call is each method whose body calls the one
+asked about, grouped with its call sites, and each method that sends a `Core\Test::request` its route
+matched. An outgoing call is each method the body calls and each handler a request it sends reaches.
+A call through a `callable` value or a `mixed` receiver is not shown, because the checker resolved no
+single target for it, and neither is a method taken as a callable value.
 
 The second non-standard request is `nvs/regions`
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)), and it passes the same test the
@@ -1462,10 +1466,16 @@ An unused `use` line is not dimmed here: it is the `W1026` warning of
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
 silent under the default of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) rather than wrong.
 
-Call hierarchy is not in this list yet. `textDocument/callHierarchy` reads call-site edges, and an
-occurrence does not record the function it is written in, so the index has none.
-[`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method) adds that record, and call hierarchy
-then reads the same index rather than a second one ([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)).
+The index is also the **call graph**. Each occurrence records the method whose body it is written in,
+so an occurrence that resolved to a method is an edge from that method to it. Beside the occurrences,
+each file records two more lists. One holds each `Core\Test::request` whose literal method and path
+the route table matched, as an edge to the route's handler. The other holds each call the graph does
+not follow: a method taken as a callable value, and a call by name the checker did not resolve. A
+method's declaration records the routes it handles and whether it is a `#[Test]` method.
+`nvs_lsp::reach` walks these edges backwards for
+[`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method), and `textDocument/callHierarchy`
+reads the same edges rather than a second index ([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)). The graph
+costs one method name per occurrence and two short lists per file, for as long as the file is indexed.
 
 One more reader reads the same index and is not a reference feature: `nvs/fileKinds`
 ([`ide/a-file-shows-what-it-declares`](ide.md#ide-a-file-shows-what-it-declares)) lists the files that declare one type, from the kind the index
@@ -1530,7 +1540,11 @@ A call the checker did not resolve to one method is not followed: a call through
 and a call by name on a `mixed` receiver. Where either could reach the method, the lens puts "at
 least" before a count read off the graph. That is the case when the method is taken as a callable
 value anywhere in the workspace, or when a call on a `mixed` receiver names a method of the same name.
-A count read off the graph is never too high: everything counted reaches the method.
+A call resolved to a method that the reached method overrides is not followed either, because which
+of the two runs is decided at run time; where such a call exists, the count is "at least" too.
+A count read off the graph is never too high: everything counted reaches the method. A call written
+in a closure counts as a call from the method that writes the closure, which is where a reader looks
+for it.
 
 The route count and a static test count are read from the index, so they are current after every edit.
 A test count from a report is as old as its run, and the next coverage run refreshes it. The lens is

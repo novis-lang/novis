@@ -21,6 +21,10 @@
 //!
 //! One hover is here too: a path argument's, which answers an absolute path a
 //! `.lspt` case cannot freeze because it names the machine the case ran on.
+//!
+//! Call hierarchy is here as well, driven over the same connection: its claim
+//! is that one step of the call graph ends over a recursive pair, and that a
+//! method taken as a callable value is no edge in either direction.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -526,6 +530,112 @@ fn type_definition_and_implementation_resolve_through_the_graph() {
             places,
             [("lib.nvs".to_owned(), 2, 6), ("lib.nvs".to_owned(), 3, 6),],
             "`implementation` did not answer both of the interface's implementors"
+        );
+    });
+}
+
+/// Two methods that call each other, and a third that calls one of them and
+/// takes the other as a callable value.
+const PARITY: &str = "<?nvs\nfinal class Parity\n{\n    \
+                      public static function even(int $n): bool\n    {\n        \
+                      if ($n == 0) {\n            return true;\n        }\n        \
+                      return Parity::odd($n - 1);\n    }\n\n    \
+                      public static function odd(int $n): bool\n    {\n        \
+                      if ($n == 0) {\n            return false;\n        }\n        \
+                      return Parity::even($n - 1);\n    }\n\n    \
+                      public static function start(): bool\n    {\n        \
+                      var $later = Parity::odd(...);\n        \
+                      return Parity::even(4);\n    }\n}\n";
+
+/// The cursor on each method's own name in [`PARITY`].
+const ON_EVEN: (u32, u32) = (3, 28);
+const ON_ODD: (u32, u32) = (11, 28);
+const ON_START: (u32, u32) = (19, 28);
+
+/// The item `textDocument/prepareCallHierarchy` answers at `cursor`.
+fn call_item(client: &Connection, id: i32, uri: &Uri, cursor: (u32, u32)) -> serde_json::Value {
+    let items = ask(
+        client,
+        id,
+        "textDocument/prepareCallHierarchy",
+        at(uri, cursor),
+    );
+    let [item] = items.as_array().map(Vec::as_slice).unwrap_or_default() else {
+        panic!("one method under the cursor: {items}");
+    };
+    item.clone()
+}
+
+/// Each method one call request answers for `item`, with the zero-based line
+/// of every call site, sorted.
+fn calls_of(
+    client: &Connection,
+    id: i32,
+    method: &str,
+    item: &serde_json::Value,
+) -> Vec<(String, Vec<u64>)> {
+    let end = if method.ends_with("incomingCalls") {
+        "from"
+    } else {
+        "to"
+    };
+    let answer = ask(client, id, method, serde_json::json!({ "item": item }));
+    let mut found: Vec<(String, Vec<u64>)> = answer
+        .as_array()
+        .unwrap_or_else(|| panic!("`{method}` answers a list: {answer}"))
+        .iter()
+        .map(|call| {
+            let lines = call["fromRanges"]
+                .as_array()
+                .expect("each call carries its sites")
+                .iter()
+                .filter_map(|range| range["start"]["line"].as_u64())
+                .collect();
+            let name = call[end]["name"].as_str().unwrap_or_default().to_owned();
+            (name, lines)
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+#[test]
+fn call_hierarchy_walks_the_call_graph_both_ways() {
+    let dir = TempDir::new("calls");
+    fs::write(dir.path.join("parity.nvs"), PARITY).expect("a fixture file");
+    let uri = dir.uri("parity.nvs");
+    served(dir.folder(), |client| {
+        opened(client, &uri, PARITY);
+        let even = call_item(client, 2, &uri, ON_EVEN);
+        let odd = call_item(client, 3, &uri, ON_ODD);
+        let start = call_item(client, 4, &uri, ON_START);
+        assert_eq!(even["name"], "Parity::even");
+
+        // A recursive pair: each one is the other's caller and callee, and the
+        // answer is one step, so it ends.
+        let incoming = "callHierarchy/incomingCalls";
+        let outgoing = "callHierarchy/outgoingCalls";
+        assert_eq!(
+            calls_of(client, 5, incoming, &even),
+            [
+                ("Parity::odd".to_owned(), vec![16]),
+                ("Parity::start".to_owned(), vec![22]),
+            ],
+        );
+        assert_eq!(
+            calls_of(client, 6, outgoing, &even),
+            [("Parity::odd".to_owned(), vec![8])],
+        );
+
+        // `start` takes `odd` as a callable value. That calls nothing where it
+        // is written, so it is no edge in either direction.
+        assert_eq!(
+            calls_of(client, 7, incoming, &odd),
+            [("Parity::even".to_owned(), vec![8])],
+        );
+        assert_eq!(
+            calls_of(client, 8, outgoing, &start),
+            [("Parity::even".to_owned(), vec![22])],
         );
     });
 }

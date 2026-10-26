@@ -1,4 +1,4 @@
-`nvs lsp` answers twenty-one standard requests, the code actions of
+`nvs lsp` answers twenty-two standard requests, the code actions of
 `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows` and organize imports, and seven
 requests of Novis's own,
 each one admitted on the same test: a data structure the compiler or the server already builds *is* the
@@ -73,11 +73,15 @@ source said it, so a re-derived one is a confident lie. `documentHighlight` read
 applies resolution to every occurrence of a name, which is a different walk from resolving the one under
 a cursor.
 
-`callHierarchy` is admitted on the same test and is not declared yet. The user decided to offer it. It
-reads the call-site edges that `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds
-to the reference index, so the server declares it in the change that builds those edges, as the
-twenty-second standard request. It answers incoming and outgoing calls. A call through a `callable` value
-or a `mixed` receiver is not shown, because the checker resolved no single target for it.
+`callHierarchy` is the twenty-second, admitted on the same test, and the user decided to offer it:
+`prepare`, `incomingCalls` and `outgoingCalls`, one request in three methods. It reads the call-site
+edges that `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method` adds to the reference
+index, one step at a time, so a recursive pair ends. `nvs_lsp::calls` answers both directions.
+`prepare` answers a method and nothing else. An incoming call is each method whose body calls the one
+asked about, grouped with its call sites, and each method that sends a `Core\Test::request` its route
+matched. An outgoing call is each method the body calls and each handler a request it sends reaches.
+A call through a `callable` value or a `mixed` receiver is not shown, because the checker resolved no
+single target for it, and neither is a method taken as a callable value.
 
 The second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the

@@ -160,6 +160,9 @@ fn initialize_declares_exactly_the_capabilities_this_goal_ships() {
         // `nvs_lsp::declared_capabilities` is what puts it in the object, which
         // is why this test reads the object and not the struct.
         "typeHierarchyProvider",
+        // The call graph the "used by" lens walks, read one step at a time:
+        // the callers of a method and the methods it calls.
+        "callHierarchyProvider",
         // Rename reads the same index for a member, and a body's own
         // bindings for a local. `prepareRename` is an option of this field
         // rather than a field of its own.

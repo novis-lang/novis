@@ -730,6 +730,15 @@ impl SymbolIndex {
             .map_or(&[], |indexed| indexed.occurrences.as_slice())
     }
 
+    /// Every `Core\Test::request` `path` sends that the route table matched,
+    /// in source order, or nothing for a file the index does not hold.
+    #[must_use]
+    pub fn requests_in(&self, path: &Path) -> &[Occurrence] {
+        self.files
+            .get(&canonical_key(path))
+            .map_or(&[], |indexed| indexed.requests.as_slice())
+    }
+
     /// Every file the index holds, in path order.
     pub fn files(&self) -> impl Iterator<Item = &Path> {
         self.files.keys().map(PathBuf::as_path)
