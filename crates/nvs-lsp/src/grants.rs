@@ -49,13 +49,20 @@ pub fn of_program(path: &Path, data: Option<&Path>) -> String {
         Tree::Read {
             files, snapshot, ..
         } => {
-            let folder = snapshot.folder().map_or_else(|| dir.clone(), |at| plain(&at));
+            let folder = snapshot
+                .folder()
+                .map_or_else(|| dir.clone(), |at| plain(&at));
             let mut text = format!(
                 "These are the grants of the whole program, from {}. \
                  Every route of the program has the same grants.\n\n",
                 names(&files, &dir)
             );
-            list(&mut text, snapshot.config.capabilities.as_ref(), &folder, &dir);
+            list(
+                &mut text,
+                snapshot.config.capabilities.as_ref(),
+                &folder,
+                &dir,
+            );
             text
         }
     }

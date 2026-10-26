@@ -34,8 +34,11 @@ fn a_rewritten_nvs_toml_changes_the_next_answer() {
     std::fs::write(&entry, "<?nvs\n").expect("the entry file is written");
     let config = dir.join("nvs.toml");
 
-    std::fs::write(&config, "[capabilities.net]\nconnect = [\"api.example.com\"]\n")
-        .expect("the configuration is written");
+    std::fs::write(
+        &config,
+        "[capabilities.net]\nconnect = [\"api.example.com\"]\n",
+    )
+    .expect("the configuration is written");
     let before = of_program(&entry, None);
     assert!(
         before.contains("- `net.connect`: `api.example.com`\n"),
