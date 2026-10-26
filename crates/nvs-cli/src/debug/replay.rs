@@ -46,7 +46,7 @@ const WAIT: Duration = Duration::from_secs(120);
 
 /// Headers a replay never sends: those of one connection, the length it writes itself, and the
 /// trace context, so the replay gets its own trace id.
-const LEFT_OUT: [&str; 11] = [
+pub(super) const LEFT_OUT: [&str; 11] = [
     "connection",
     "keep-alive",
     "proxy-connection",

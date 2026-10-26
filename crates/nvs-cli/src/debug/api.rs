@@ -275,9 +275,9 @@ struct Cut {
 
 /// What `GET /api/request` was asked for: a trace id, and the span id when the trace has several.
 #[derive(Debug)]
-struct Key {
-    trace: String,
-    span: Option<String>,
+pub(super) struct Key {
+    pub(super) trace: String,
+    pub(super) span: Option<String>,
 }
 
 /// Why `GET /api/request` names no one request.
@@ -462,7 +462,7 @@ pub(super) fn answer<T: Serialize>(read: rusqlite::Result<T>) -> (StatusCode, Ve
 
 impl Key {
     /// Reads `trace`, which is required, and `span`. Any other key is an error.
-    fn parse(query: &str) -> Result<Self, String> {
+    pub(super) fn parse(query: &str) -> Result<Self, String> {
         let (mut trace, mut span) = (None, None);
         for pair in query.split('&').filter(|pair| !pair.is_empty()) {
             let (key, value) = pair.split_once('=').unwrap_or((pair, ""));

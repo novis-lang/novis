@@ -4,7 +4,8 @@
 //! This module owns the command: the lock, the configuration it reads, and the loop. [`index`] is
 //! the SQLite file and its deletion window, and [`ingest`] is what moves spool files into it.
 //! [`listen`] serves the viewer on `[debug] listen` from its own threads, and the loop publishes
-//! the index's watermark to it after every pass that read something.
+//! the index's watermark to it after every pass that read something. `nvs debug to-test` is
+//! [`to_test`], which reads the index and runs no service.
 //!
 //! **It lives in `nvs-cli`, and grows as files under `debug/`, never as a crate.** The
 //! application server's crate never links a line of the service or the viewer, so the request
@@ -66,6 +67,7 @@ pub(crate) mod settings;
 pub(crate) mod source;
 pub(crate) mod stream;
 pub(crate) mod tail;
+pub(crate) mod to_test;
 
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions, TryLockError};
@@ -108,8 +110,13 @@ pub(crate) enum Signal {
 ///
 /// In development, `nvs serve` starts `nvs debug` and stops it when the server stops. If one is
 /// already running for the data folder, the server uses that one. In production, run it yourself.
+///
+/// `nvs debug to-test <TRACE_ID>` prints a test made from one recorded request.
 #[derive(clap::Args)]
+#[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
     /// Read the files that are ready once, then exit.
     #[arg(long)]
     once: bool,
@@ -128,9 +135,18 @@ pub(crate) struct Args {
     parent: bool,
 }
 
+/// What `nvs debug` runs instead of the service.
+#[derive(clap::Subcommand)]
+enum Command {
+    ToTest(to_test::Args),
+}
+
 impl Args {
     /// Runs `nvs debug` with the arguments clap parsed, over the run's `--config` list.
     pub(crate) fn run(mut self, config: &[PathBuf]) -> ExitCode {
+        if let Some(Command::ToTest(args)) = self.command.take() {
+            return args.run();
+        }
         let (window, mut listen) = match settings(config) {
             Ok(settings) => settings,
             Err(code) => return code,
