@@ -206,6 +206,10 @@ pub(crate) struct Compiled {
     /// session with this unit, so a request stops at the sites of the unit it
     /// runs. `None` for a compiler without the debug switch.
     debug: Option<(Debugger, Arc<DebugUnit>)>,
+    /// A zeroed coverage table of this unit's shape, located by file and line, which
+    /// [`program_over`] copies for each development request it runs. `None` for a compiler that
+    /// does not count ([`Compiler::counting`]).
+    coverage: Option<nvs_runtime::StmtHits>,
 }
 
 /// What one written path resolved to last, and when that was checked: the
@@ -562,6 +566,8 @@ pub(crate) struct Compiler {
     /// [`Self::debugging`]'s, and set for the compiler's whole life, so no
     /// request runs a unit of the other kind.
     debug: Option<Debugger>,
+    /// Whether each unit is compiled with a coverage table beside it ([`Self::counting`]).
+    counts: bool,
 }
 
 impl Default for Compiler {
@@ -596,7 +602,22 @@ impl Compiler {
             cache: RwLock::new(crate::cache::from_config(config)),
             compiles: AtomicU64::new(0),
             debug: None,
+            counts: false,
         }
+    }
+
+    /// This compiler, building a located coverage table beside each unit where `counts` is set:
+    /// a server whose `[debug] mode` names `coverage` (`rule:testing/debug-mode-directive`).
+    ///
+    /// **What it spends:** one `u64` per statement and edge and one file and line per statement,
+    /// once per unit, and nothing where `counts` is off.
+    pub(crate) fn counting(self, counts: bool) -> Self {
+        Self { counts, ..self }
+    }
+
+    /// Whether this compiler builds a coverage table beside each unit ([`Self::counting`]).
+    pub(crate) fn counts(&self) -> bool {
+        self.counts
     }
 
     /// [`Self::new`]'s compiler with the debug switch on: every unit it
@@ -1432,11 +1453,16 @@ impl Compiler {
                     debugger.load(&unit);
                     Some((debugger.clone(), unit))
                 });
+                let coverage = self.counts.then(|| {
+                    let probes = crate::coverage::Probes::of(&lowered);
+                    crate::coverage::Sites::of(probes, &checked.map).table()
+                });
                 Arc::new(Compiled {
                     unit: Arc::new(unit),
                     routes: Arc::new(crate::runtime_routes(&checked.exprs)),
                     id,
                     debug,
+                    coverage,
                 })
             })
             .map_err(|error| {
@@ -2015,6 +2041,17 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
         // handler is set on the request's own tree.
         if let Some((debugger, unit)) = &compiled.debug {
             debugger.attach(ctx, unit);
+        }
+        // And a coverage table of this unit's shape, on a development request of a server that
+        // counts, so `Core\Debug::coverage` and the request's `coverage` line name what ran. A
+        // production request under the same tree counts nothing.
+        if let Some(table) = &compiled.coverage
+            && ctx
+                .config()
+                .is_some_and(|config| config.mode() == nvs_config::mode::DEVELOPMENT)
+        {
+            ctx.set_stmt_hits(Some(Arc::new(table.fresh_like())));
+            ctx.set_debug_flags(ctx.debug_flags() | nvs_runtime::DebugFlags::COVERAGE);
         }
         // Ownership discharged into the isolate's own root; the seam's type
         // doc owns why this and not a release here.

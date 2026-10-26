@@ -1781,7 +1781,8 @@ where
             }
             let later = matches!(ending, crate::spooled::Ending::Later);
             let (store, exception) = match ending {
-                crate::spooled::Ending::Ran(store, exception) => {
+                crate::spooled::Ending::Ran(store, exception, coverage) => {
+                    crate::spooled::covered(store, &trace, coverage);
                     (store, exception.map(|exception| *exception))
                 }
                 crate::spooled::Ending::Door | crate::spooled::Ending::Later => {

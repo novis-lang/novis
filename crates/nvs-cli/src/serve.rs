@@ -266,8 +266,9 @@ pub(crate) fn run(
         }
         crate::render_diagnostics(&mut diags, &sources);
     }
-    // `rule:testing/debug-mode-directive`: a server runs no probe, so a tree
-    // naming one stops the boot here and stops a reload in `crate::reload`.
+    // `rule:testing/debug-mode-directive`: a server runs no probe but a development server's
+    // `coverage`, so a tree naming another stops the boot here and stops a reload in
+    // `crate::reload`.
     if let Err(diagnostic) = nvs_config::debug::refuse_serving(&snapshot.config, &origins) {
         return report(diagnostic, &sources);
     }
@@ -520,10 +521,14 @@ pub(crate) fn run(
     // paid for here is the only one any core makes, and a per-core cache would
     // have made the count above one per core. Built once, before anything is
     // bound, and handed to every accept loop by clone.
-    let compiler = Arc::new(debugger.map_or_else(
-        || Compiler::new(&snapshot.config),
-        |debugger| Compiler::debugging(&snapshot.config, debugger.clone()),
-    ));
+    let compiler = Arc::new(
+        debugger
+            .map_or_else(
+                || Compiler::new(&snapshot.config),
+                |debugger| Compiler::debugging(&snapshot.config, debugger.clone()),
+            )
+            .counting(nvs_config::debug::counts_served(&snapshot.config)),
+    );
     // And published once for the process, here rather than on each core: a core
     // `nvs_host` starts for a `spawn script` placed `on: "worker"` is not one of
     // this fleet's and has no accept loop's stack to borrow a resolver from, so

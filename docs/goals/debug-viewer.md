@@ -270,17 +270,21 @@ extension refuses a relative path, a network path and any other file. Trade-offs
 per started profile, off the request's answer; a download holds its file in `nvs debug`'s memory
 while it is sent.
 
-**A request's coverage needs the server to count it, and only under `[debug] mode` coverage.**
-Stage 9's call, for the next session. No server request has a coverage table today: only `nvs
-test` installs one (`crates/nvs-cli/src/coverage.rs`, `Sites::of`), so `Core\Debug::coverage()`
-in a request is empty. The server installs a located `StmtHits` table per request only where the
-request's mode has `coverage`. At the request's end it writes a spool `coverage` line: file to
-line to count for the lines that ran, as `coverage()` gives it, and each file's modified time from
-when the program compiled. `nvs debug` stores it, and `GET /api/source` reads only a file under
-the project root that a coverage row names, and says when its modified time differs. The table
-sizing and locating move out of `nvs-cli` to a crate the server already links. Trade-offs: one
-`u64` per statement per request in flight under coverage, freed with the request; nothing at all
-where the mode has no coverage, which is every production host.
+**A request's coverage is counted by a development server whose `[debug] mode` is `["coverage"]`.**
+Stage 9's call. `rule:testing/debug-mode-directive` refused every probe on a server, so the rule
+is amended: a server whose `[mode] default` is `development` may name `coverage` alone, and any
+other probe, or `coverage` in production, still fails the boot (`nvs_config::debug::refuse_serving`,
+`counts_served`). Whether a server counts is fixed at boot; a reload that changes it is refused
+(`refuse_switch`). The serve compiler (`Compiler::counting`) builds a located `StmtHits` beside each
+unit from `Sites::of` at compile, in `nvs-cli`, which is the server's compiler crate, so nothing
+moves crate. `program_over` gives each `development` request a zeroed copy; the request's
+`Completion::coverage` carries it out, and `nvs_server::spooled` writes a spool `coverage` line
+(`spool::Coverage`: span, file to line to count) beside its `request` line, or at the join for a
+streamed answer. No modified time rides on the line: `GET /api/source` says a file changed when its
+modified time is after the request's `start_us`, since a development server recompiles an edited
+file before the next request. Trade-offs: one `u64` per statement and edge and one file and line
+per statement per unit, once; one `u64` per statement and edge per development request in flight,
+freed with it; nothing where the tree names no `coverage`, which is every production host.
 
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
@@ -419,35 +423,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8, 4 and 5 are done, and stage 9's profile half is done. The extension opens
-`vscode://novis-lang.nvs/profile?file=` links (`editors/vscode/src/profilelink.ts`, the handler in
-`extension.ts`, `onUri`). `Core\Debug::startProfile` writes a spool `profile` line
-(`crates/nvs-runtime/src/spool.rs`, `Profile`), the index keeps `profiles` (schema 4),
-`GET /api/request` lists them and `GET /api/profile?id=` downloads one
-(`crates/nvs-cli/src/debug/api.rs`). The request view lists each profile with a download and, for a
-VS Code family editor, an open link (`viewer/src/editor-link.ts`, `profileLink`).
-`rule:testing/a-site-in-the-viewer-opens-in-the-editor` is shipped.
+Stages 1, 2, 3, 8, 4 and 5 are done, and stage 9's profile half is done. Of its coverage half, the
+server lane is done: a development server with `[debug] mode = ["coverage"]` counts each request
+and writes a spool `coverage` line (the Standing decision *A request's coverage is counted by a
+development server*). `rule:testing/debug-mode-directive` and the shipped `nvs.toml` say so. The
+ingester reads a `coverage` line and skips it (`crates/nvs-cli/src/debug/ingest.rs`,
+`Record::Coverage`), so a spool that carries one still drains.
 
-Checked once: build, clippy and fmt clean; `cargo test --test debug_api` 4 pass (the fixture
-`request.json` was rewritten and committed); `tsc` clean; `editor-link` and `api` 24 pass;
-`request.browser` 5 pass; the extension's compile and headless suite 322 pass; `bun nv rules
---check` clean. The sweep's reds were stale: `env-secret-proofs`' log exits 0, and the nightly
-run 40291801939 built `d6f131752`, before the yanked `crypto-bigint` fix (`97ccf66c2`) and the
-counted-run test fix (`9c8b0fe16`).
+Checked once: build and clippy clean; the new
+`a_development_server_counts_coverage_and_runs_no_other_probe` passes. No served request has been
+run under coverage yet: the next lane's `debug_api` case is the first end-to-end proof. The sweep's
+reds were the same stale ones: `env-secret-proofs`' log exits 0, and the nightly run 40291801939
+built `d6f131752`, before the `crypto-bigint` fix (`97ccf66c2`) and the counted-run test fix
+(`9c8b0fe16`).
 
-Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7.
+Expected red: CI `proofs` (`directive:debug.*`, the four `[debug]` keys) until stage 7. Possibly
+`crates/nvs-cli/tests/live_config.rs:670`, if its server runs in `development`: it expects a
+reload naming `coverage` to be refused with "cannot be used by a server", and such a reload is now
+refused by `refuse_switch` with another message.
 
 ### Next
 
-**Stage 9's coverage half: a request's coverage is a heatmap over its source.** No server request
-counts coverage today, so it starts in the server. The Standing decision *A request's coverage
-needs the server to count it* is the design. Lanes: the server table and spool line first, then
-the ingester, `GET /api/coverage` and `GET /api/source`, then the viewer's `views/coverage.tsx`
-against the fixture. The table is sized and located by `Sites::of` in
-`crates/nvs-cli/src/coverage.rs:112`, which moves to a crate `nvs-server` links.
+**Stage 9's coverage half: the index, the API and the heatmap.** The Standing decision *A
+request's coverage is counted by a development server* is the design. Lanes: the ingester and the
+two endpoints with their `debug_api` case and fixture first, then the viewer's `views/coverage.tsx`
+against the fixture. The `debug_api` case's server needs `[mode] default = "development"` and
+`[debug] mode = ["coverage"]`, or its spool file carries a hand-written `coverage` line.
 
-- [ ] The server installs a located coverage table per request where its mode has `coverage`, and writes a spool `coverage` line at its end. `crates/nvs-cli/src/coverage.rs:112`, `crates/nvs-server/src/spooled.rs:1`, `crates/nvs-runtime/src/spool.rs:129`
-- [ ] The ingester stores it, and `GET /api/coverage` and `GET /api/source` serve it, a source read only under the project root. `crates/nvs-cli/src/debug/ingest.rs:427`, `crates/nvs-cli/src/debug/source.rs:1`
+- [x] The server installs a located coverage table per request where its mode has `coverage`, and writes a spool `coverage` line at its end. `crates/nvs-cli/src/script.rs:2048`, `crates/nvs-server/src/spooled.rs:79`, `crates/nvs-runtime/src/spool.rs:633`
+- [ ] The ingester stores it (a `coverage` table keyed by writer and sequence, with trace and span; index schema 5), `GET /api/request` says whether a request has coverage, and `GET /api/coverage` and `GET /api/source` serve it, a source read only under the project root. `crates/nvs-cli/src/debug/ingest.rs:427`, `crates/nvs-cli/src/debug/source.rs:1`
 - [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
 - [ ] The viewer draws the heatmap. `viewer/src/views/coverage.tsx:1`
 

@@ -378,6 +378,8 @@ impl Process {
         capacity_of(&incoming, &origins).map_err(|refusal| rendered(&refusal, &sources))?;
         nvs_config::debug::refuse_serving(&next.config, &origins)
             .map_err(|refusal| rendered(&refusal, &sources))?;
+        nvs_config::debug::refuse_switch(self.compiler.counts(), &next.config, &origins)
+            .map_err(|refusal| rendered(&refusal, &sources))?;
         // Before anything is built for the new tree, so a refused tree has
         // created nothing. Queue workers that would start on a new connection
         // start only where its storage holds the queue's schema, as at boot.

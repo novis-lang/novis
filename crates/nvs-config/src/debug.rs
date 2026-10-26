@@ -5,12 +5,15 @@
 //! where it is written ([`validate`]), so the runtime reader never meets a fifth. Which bit each name
 //! arms is `nvs_runtime`'s, because this crate does not link the runtime.
 //!
-//! **`nvs run` and `nvs test` arm what the file names, and a server refuses it.** `nvs_runtime`'s
-//! `Ctx::set_config` arms the named bits on a context that is not server work. A server whose tree
-//! names any bit fails its boot and its reload ([`refuse_serving`]): a `trace` probe files two owned
-//! strings per compiled call with no ceiling, nothing reads them on a served request, and the
-//! `coverage` and `branch` probes count into a table a served request does not have. Coverage of a
-//! live server is its own feature, and not designed.
+//! **`nvs run` and `nvs test` arm what the file names, and a server refuses all but one.**
+//! `nvs_runtime`'s `Ctx::set_config` arms the named bits on a context that is not server work. A
+//! server whose tree names `branch`, `trace` or `profile` fails its boot and its reload
+//! ([`refuse_serving`]): a `trace` probe files two owned strings per compiled call with no ceiling,
+//! nothing reads them on a served request, and `branch` counts edges nothing on a server reads. A
+//! server whose `[mode] default` is `development` may name `coverage` ([`counts_served`]): its
+//! compiler builds a located table beside each unit, and each development request counts into a copy
+//! of its own, which the debug viewer draws over the source. Whether a server counts is fixed at its
+//! boot, so a reload that changes it is refused ([`refuse_switch`]).
 //!
 //! **A request cannot set the key.** `RuntimeTighten` in `crate::directive`, but a list is not a
 //! quantity `Core\Config::set` takes (`crate::request`), so no request-side call changes it.
@@ -64,17 +67,35 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     .with_help("remove the name, or write `mode = []` to turn every probe off".to_string()))
 }
 
+/// Whether a server under `config` counts coverage: its `[debug] mode` names `coverage`, and its
+/// `[mode] default` is `development`.
+#[must_use]
+pub fn counts_served(config: &Config) -> bool {
+    named(config).iter().any(|name| name == "coverage") && development(config)
+}
+
+/// Whether `config`'s `[mode] default` is `development`.
+fn development(config: &Config) -> bool {
+    config
+        .mode
+        .as_ref()
+        .and_then(|mode| mode.default.as_deref())
+        == Some(crate::mode::DEVELOPMENT)
+}
+
 /// The same tree, asked by a server before it starts or reloads.
 ///
 /// # Errors
 ///
-/// `E0601` when `[debug] mode` names any probe.
+/// `E0601` when `[debug] mode` names any probe but `coverage`, or names `coverage` and the
+/// `[mode] default` is not `development`.
 pub fn refuse_serving(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<(), Diagnostic> {
     let written = named(config);
-    if written.is_empty() {
+    if written.is_empty() || (written.iter().all(|name| name == "coverage") && development(config))
+    {
         return Ok(());
     }
     Err(Diagnostic::error(
@@ -89,10 +110,39 @@ pub fn refuse_serving(
         ),
     )
     .with_note(format!(
-        "the probes run only under `nvs run` and `nvs test`{}",
+        "a server may count `coverage` when its `[mode] default` is `development`, and runs no \
+         other probe{}",
         origin_note(origins.get(KEY))
     ))
     .with_help("write `mode = []` in the configuration this server reads".to_string()))
+}
+
+/// A reload's tree, asked by a server that booted counting coverage when `counting` is set.
+///
+/// # Errors
+///
+/// `E0601` when the reload would start or stop counting coverage.
+pub fn refuse_switch(
+    counting: bool,
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<(), Diagnostic> {
+    if counts_served(config) == counting {
+        return Ok(());
+    }
+    Err(Diagnostic::error(
+        code::E_BAD_DIRECTIVE,
+        if counting {
+            "this reload stops counting coverage, which a running server cannot do".to_string()
+        } else {
+            "this reload starts counting coverage, which a running server cannot do".to_string()
+        },
+    )
+    .with_note(format!(
+        "whether a server counts coverage is fixed when it starts{}",
+        origin_note(origins.get(KEY))
+    ))
+    .with_help("restart the server to change `[debug] mode`".to_string()))
 }
 
 #[cfg(test)]
@@ -121,11 +171,26 @@ mod tests {
         assert!(refuse_serving(&tree(""), &origins).is_ok());
         assert!(refuse_serving(&tree("[debug]\nmode = []\n"), &origins).is_ok());
         let refused = refuse_serving(&tree("[debug]\nmode = [\"coverage\"]\n"), &origins)
-            .expect_err("a server runs no probe");
+            .expect_err("a production server runs no probe");
         assert!(
             refused.message.contains("\"coverage\""),
             "{}",
             refused.message
         );
+    }
+
+    // covers: directive:debug.mode
+    #[test]
+    fn a_development_server_counts_coverage_and_runs_no_other_probe() {
+        let origins = BTreeMap::new();
+        let counting = tree("[mode]\ndefault = \"development\"\n[debug]\nmode = [\"coverage\"]\n");
+        assert!(refuse_serving(&counting, &origins).is_ok());
+        assert!(counts_served(&counting));
+        let traced =
+            tree("[mode]\ndefault = \"development\"\n[debug]\nmode = [\"coverage\", \"trace\"]\n");
+        assert!(refuse_serving(&traced, &origins).is_err());
+        assert!(refuse_switch(true, &counting, &origins).is_ok());
+        assert!(refuse_switch(false, &counting, &origins).is_err());
+        assert!(refuse_switch(true, &tree(""), &origins).is_err());
     }
 }

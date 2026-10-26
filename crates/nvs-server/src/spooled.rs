@@ -48,15 +48,19 @@ pub enum Ending {
     /// The door wrote the answer alone, or the program's completion never came back, so the gate
     /// is read off the snapshot the answer was written under.
     Door,
-    /// The program ended under this gate, with this uncaught exception. The exception is boxed
-    /// because an `Ending` is held across the handler's wait, on the connection's stack.
-    Ran(Option<Store>, Option<Box<spool::Exception>>),
+    /// The program ended under this gate, with this uncaught exception and the lines it ran. Both
+    /// are boxed because an `Ending` is held across the handler's wait, on the connection's stack.
+    Ran(
+        Option<Store>,
+        Option<Box<spool::Exception>>,
+        Option<Box<spool::Coverage>>,
+    ),
     /// The head went out while the program still writes the body, so the line waits for the join.
     Later,
 }
 
 impl Ending {
-    /// How `done` ended: its gate and its failure.
+    /// How `done` ended: its gate, its failure and its coverage.
     #[must_use]
     pub fn of(done: &Completion) -> Self {
         Self::Ran(
@@ -64,8 +68,40 @@ impl Ending {
             done.error
                 .as_ref()
                 .map(|failure| Box::new(exception(failure))),
+            done.store.and_then(|_| coverage(done)).map(Box::new),
         )
     }
+}
+
+/// The lines `done` ran, where its host located its table: a development server whose `[debug]
+/// mode` names `coverage`. `None` for every other request, which has no table.
+#[must_use]
+pub fn coverage(done: &Completion) -> Option<spool::Coverage> {
+    let hits = done.coverage.as_deref()?;
+    hits.lines()?;
+    Some(spool::Coverage {
+        span: None,
+        files: hits
+            .line_counts()
+            .into_iter()
+            .map(|(file, lines)| (file.to_owned(), lines))
+            .collect(),
+        elided: false,
+    })
+}
+
+/// Writes the `coverage` line of the request `trace` names, under `store`. Writes nothing where
+/// the store is off.
+pub fn covered(
+    store: Option<Store>,
+    trace: &nvs_runtime::TraceContext,
+    coverage: Option<Box<spool::Coverage>>,
+) {
+    let (Some(store), Some(mut coverage)) = (store, coverage) else {
+        return;
+    };
+    coverage.span = Some(trace.span_id_hex());
+    spool::record_under(store, trace, spool::Record::Coverage(*coverage));
 }
 
 /// The uncaught exception `failure` names, as a `request` line records it. A failure that names no
@@ -235,7 +271,10 @@ impl Pending {
     pub fn written(mut self, done: Option<&Completion>, recorded: Option<Recorder>) {
         read_into(self.input.as_mut(), recorded);
         let (store, exception) = match done.map(Ending::of) {
-            Some(Ending::Ran(store, exception)) => (store, exception.map(|exception| *exception)),
+            Some(Ending::Ran(store, exception, coverage)) => {
+                covered(store, &self.trace, coverage);
+                (store, exception.map(|exception| *exception))
+            }
             _ => (Some(self.under), None),
         };
         let Some(tail) = self.tail.take() else {

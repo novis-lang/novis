@@ -556,6 +556,9 @@ fn insert(tx: &Transaction<'_>, line: &Line, batch: i64) -> Result<(), Insert> {
                 ],
             )?;
         }
+        // Not stored yet: the index has no table for it. Read and skipped, so a spool that
+        // carries one still drains.
+        Record::Coverage(_) => {}
         Record::Profile(profile) => {
             let trace = trace.ok_or(Insert::Bad("a profile line has no trace id"))?;
             tx.execute(

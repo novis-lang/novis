@@ -142,6 +142,8 @@ pub enum Record {
     Dropped(Dropped),
     /// A profile the request started with `Core\Debug::startProfile`.
     Profile(Profile),
+    /// The lines a request ran, on a development server whose `[debug] mode` names `coverage`.
+    Coverage(Coverage),
 }
 
 impl Record {
@@ -164,6 +166,10 @@ impl Record {
             Self::Log(log) => {
                 log.fields = serde_json::Map::new();
                 log.elided = true;
+            }
+            Self::Coverage(coverage) => {
+                coverage.files = std::collections::BTreeMap::new();
+                coverage.elided = true;
             }
             // A `body` line is at most [`BODY_CHUNK`] of bytes, so it is never too long.
             Self::Event(_) | Self::Body(_) | Self::Dropped(_) | Self::Profile(_) => {}
@@ -619,6 +625,20 @@ pub struct Log {
 pub struct Profile {
     /// The file's absolute path, as the program's working directory resolved it.
     pub path: String,
+}
+
+/// `kind: "coverage"`: each line one request ran, by file, with its count — what
+/// `Core\Debug::coverage` gives inside the request. Written once, when the request ends.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Coverage {
+    /// The span id the server drew for the request, as its `request` line has it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<String>,
+    /// File path to line to count, for the lines that ran. A line no statement ran on is absent.
+    pub files: std::collections::BTreeMap<String, std::collections::BTreeMap<u32, u64>>,
+    /// Whether `files` was removed because the line was too long.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub elided: bool,
 }
 
 /// `kind: "dropped"`: what a writer's share of the cap deleted.

@@ -358,8 +358,9 @@
 
 [debug]
 # The probes `nvs run` and `nvs test` turn on. `[]` is off. Otherwise write any of `coverage`,
-# `branch`, `trace` and `profile`. Any other name stops the start. A server does not start when this
-# names any probe. A request cannot turn a probe on.
+# `branch`, `trace` and `profile`. Any other name stops the start. A server in `development` mode
+# may name `coverage` only, and then counts the lines each request runs. Any other probe stops a
+# server from starting. A request cannot turn a probe on.
 #mode = ["coverage"]                  # example
 
 # `true` and a `Core\Debug::dump` made while a request writes an HTML body is appended to that body
