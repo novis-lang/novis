@@ -443,7 +443,7 @@ compared with it. `c` compares a request with the previous request to the same r
 
 `r` replays a request: it sends the recorded request to your development server again. The handler
 runs again, with all its side effects, so the viewer asks first. Replay works only when `nvs serve`
-started `nvs debug`.
+started `nvs debug`. `t` makes a test from a request, the same test `nvs debug to-test` prints.
 
 Every `file:line` in the viewer is a link that opens the file in your editor. Pick the editor in
 the **Editor** dialog. The choices are `vscode` (the default), `vscode-insiders`, `vscodium`,
@@ -461,6 +461,32 @@ site cannot read it. When `listen` is not a loopback address, for example in a c
 `nvs debug` serves the viewer over HTTPS. It creates a certificate and a token, and prints a link
 that contains the token. Your browser warns about the certificate once. `[debug] tls_cert_file`,
 `tls_key_file` and `token_file` name your own files instead.
+
+# nvs debug to-test
+
+    nvs debug to-test <trace id> [--span <span id>] [--write <file>]
+
+`nvs debug to-test` prints a test made from one recorded request. The test sends the same request
+to your program with `Core\Test::request`, and checks that the response is the same. Save it in your
+project and run it with `nvs test .`.
+
+The test checks the status, the `Content-Type` header, the `Location` header of a redirect, and the
+body. A JSON body is read with `json()` and compared with the recorded JSON as data, so spaces do
+not matter. The keys must be in the same order. Any other body is compared byte for byte. Headers
+such as `Date` change with every request, so the test does not check them.
+
+| Option | What it does |
+|---|---|
+| `--span <span id>` | choose one request when several requests have the same trace id |
+| `--write <file>` | write the test to a new file; if the file exists, nothing is written |
+
+A header the record has as `[redacted]`, such as `Authorization`, gets the value `'redacted'`, with a
+comment above it. Put a test credential there. If the recorded request body is not complete, no
+test is printed, because part of a body is a different request. If the recorded response body is
+not complete, the test checks the status and the headers only.
+
+The request needs its input in the index, so it must come from a development server with
+`[debug] store = true`. The viewer's `t` key shows the same test, with a button that copies it.
 
 # Profiling
 

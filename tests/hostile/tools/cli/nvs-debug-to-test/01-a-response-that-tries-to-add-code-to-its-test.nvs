@@ -1,0 +1,20 @@
+<?nvs
+// Attack: these responses contain text that tries to end a string in the test `nvs debug to-test`
+// prints, and to add code of its own. The printed test should compile and pass.
+
+// The text has quotes, backslashes, a variable, new lines that close the class, and invisible characters.
+string $breaker = "it's \\' . exit(1) . '\n}\n}\nclass Injected {}\n\$name {\$name} ?> \u{202e}\u{200b}\r\n\t\"end\"";
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    tainted string $path = Core\Request::path();
+    if ($path == '/text') {
+        // 1. A text body that tries to end the string and declare a class.
+        Core\Response::text($breaker);
+    } elseif ($path == '/json') {
+        // 2. A JSON body with the same text in a property and in a list.
+        Core\Response::json(['note' => $breaker, 'items' => [$breaker, '\\u0027']]);
+    } else {
+        // 3. A body with an escape byte, which a string in source code may not contain.
+        Core\Response::bytes(Core\Encoding::fromHex('1b5b33316d27'), 'application/octet-stream');
+    }
+}

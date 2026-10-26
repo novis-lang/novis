@@ -1,11 +1,13 @@
 {
   "title": "`nvs debug to-test` prints a `Core\\Test::request` case from a recorded request that asserts its status, key headers and body, with a placeholder where the spool redacted a credential",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/in-process-request",
     "testing/a-recorded-request-keeps-its-input-with-credentials-replaced",
     "testing/the-viewer-shows-the-stream-and-hands-off-every-artifact"
   ],
-  "guardedBy": [],
-  "goal": "request-aware-editor"
+  "guardedBy": [
+    "crates/nvs-cli/src/debug/to_test.rs",
+    "crates/nvs-cli/tests/debug_to_test.rs"
+  ]
 }
