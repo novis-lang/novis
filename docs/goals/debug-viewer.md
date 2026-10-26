@@ -41,7 +41,7 @@ stages:
         rules: [testing/the-viewer-searches-every-record-and-saves-a-filter, testing/a-bad-line-degrades-and-a-bad-file-is-quarantined, testing/the-ingester-runs-whether-or-not-anyone-is-looking]
   - id: 5
     title: "grouped exceptions, and every site is a link into the editor"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/debug/api.rs, viewer/src/views/exceptions.tsx, viewer/src/editor-link.ts, docs/rules/testing/an-exception-is-one-row-per-class-and-site.md, docs/rules/testing/a-site-in-the-viewer-opens-in-the-editor.md]
     extra:
       context:
@@ -241,6 +241,28 @@ allowlist admits nothing for it. `crates/nvs-cli/src/viewer.rs` holds the two fi
 `CSS`. `bunfig.toml` keeps Bun's hoisted `node_modules`, since a workspace otherwise switches the
 whole install to one `node_modules` per package and the tools import from the root.
 
+**An exception group is named by its site, and its row reads a bounded sample.** Stage 5's call.
+`GET /api/exceptions?class=&file=&line=` names a group the way its row does, because a group's id
+changes when the deletion window ends it or a discard rebuilds the index. Each row's latest message,
+24-count chart (equal spans from first to last seen) and routes come from at most 1000 of the
+group's newest throws on `exceptions_group`, and `sampled` says when older throws are left out.
+Groups change in place, so the viewer reads the first page again at each watermark and pages on
+`<last seen>.<id>`. Trade-offs: one bounded indexed read per row on a page, for a page whose cost
+does not grow with a group's count.
+
+**The editor setting is a preset name, a template and mappings, and the viewer builds the link.**
+Stage 5's call. `editor` is `vscode` (the default), `vscode-insiders`, `vscodium`, `cursor`, `zed`,
+`idea`, `phpstorm` or `custom`; the JetBrains presets are the `idea://open?file=&line=` and
+`phpstorm://open?...` links, and any other JetBrains IDE takes the template. `editor_template` is
+read only for `custom`, and the service and the viewer both refuse a `javascript:`, `data:`,
+`vbscript:` or `blob:` scheme. `path_mappings` replace the longest matching prefix. The `://file/`
+presets drop a path's leading `/`, so a POSIX path is not read as a UNC host. Trade-offs: none on
+the request path; one small settings file.
+
+**`rule:testing/a-site-in-the-viewer-opens-in-the-editor` ships in stage 9.** Stage 5's call. Its
+profile sentence (the `vscode://novis-lang.nvs/` link) is built there, and a shipped rule is true
+as a whole. Stage 5 ships `rule:testing/an-exception-is-one-row-per-class-and-site`.
+
 **Trade-offs, all together.** Request path: nothing. The viewer is another process reading the index,
 and a server process never reaches its code. Memory: the two bundled files are read-only data in every
 binary, never paged in by a server; `nvs debug` holds one read connection and one sequence per open tab;
@@ -316,10 +338,10 @@ stream, log and search views and their browser test against the fixtures.
 
 **Does:** the exceptions view, and an editor link on every structured site.
 
-- [ ] The exceptions API and view: one row per class and throw site with the latest message, count, first and last time, a count chart and routes, and a row opens to its requests (`rule:testing/an-exception-is-one-row-per-class-and-site`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/exceptions.tsx:1`
-- [ ] Every structured site is an editor link, with the presets, the template, path mappings and VS Code as the default (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`). `viewer/src/editor-link.ts:1`
-- [ ] Tests: a link from a logged string is not built, a path mapping, and the exceptions view in the browser. `viewer/test/editor-link.test.ts:1`, `viewer/test/exceptions.browser.test.ts:1`
-- [ ] `rule:testing/an-exception-is-one-row-per-class-and-site` and `rule:testing/a-site-in-the-viewer-opens-in-the-editor` `shipped`. `data/rules/testing/an-exception-is-one-row-per-class-and-site.json:3`, `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
+- [x] The exceptions API and view: one row per class and throw site with the latest message, count, first and last time, a count chart and routes, and a row opens to its requests (`rule:testing/an-exception-is-one-row-per-class-and-site`). `crates/nvs-cli/src/debug/api.rs:1`, `viewer/src/views/exceptions.tsx:1`
+- [x] Every structured site is an editor link, with the presets, the template, path mappings and VS Code as the default (`rule:testing/a-site-in-the-viewer-opens-in-the-editor`). `viewer/src/editor-link.ts:1`
+- [x] Tests: a link from a logged string is not built, a path mapping, and the exceptions view in the browser. `viewer/test/editor-link.test.ts:1`, `viewer/test/exceptions.browser.test.ts:1`
+- [x] `rule:testing/an-exception-is-one-row-per-class-and-site` `shipped`. `data/rules/testing/an-exception-is-one-row-per-class-and-site.json:3`
 
 ### 9. a profile is handed to VS Code, and a request's coverage is a heatmap over its source
 
@@ -330,6 +352,7 @@ source.
 - [ ] The URI handler in the extension's headless suite. `editors/vscode/scripts/headless.mjs:1`
 - [ ] A request's coverage is drawn as a per-line heatmap over its source. The service reads only files under the project root that the record names, and says so when a file changed since the request. The lcov hand-off stays as it is. `crates/nvs-cli/src/debug/source.rs:1`, `viewer/src/views/coverage.tsx:1`, `editors/vscode/src/tests.ts:92`
 - [ ] Rust test: a source path outside the project root is refused. `crates/nvs-cli/tests/debug_api.rs:1`
+- [ ] `rule:testing/a-site-in-the-viewer-opens-in-the-editor` `shipped`, now that its profile link is built. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
 
 ### 6. two requests compare, and one replays after the developer confirms
 
@@ -377,7 +400,24 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 8 and 4 are done. The API is `crates/nvs-cli/src/debug/api.rs` (`/api/requests`,
+Stages 1, 2, 3, 8, 4 and 5 are done. Stage 5 added `crates/nvs-cli/src/debug/exceptions.rs`
+(`GET /api/exceptions`: groups newest last seen first, cursor `<last seen>.<id>`, each row's
+message, 24-count chart and routes from at most 1000 newest throws; `?class=&file=&line=` gives one
+group and its requests, cursor the exception id), the editor presets, template and
+`path_mappings` in `settings.rs`, and the fixtures `exceptions.json` and `exception.json`. In the
+viewer: `viewer/src/editor-link.ts` (links from a structured site only), `site.tsx` (the `Site`
+link, used in the list, the request, the timeline and the stream), `views/exceptions.tsx` and
+`views/editor.tsx` (the header's Editor dialog). `rule:testing/an-exception-is-one-row-per-class-and-site`
+is shipped; `rule:testing/a-site-in-the-viewer-opens-in-the-editor` ships in stage 9 (Standing
+decisions).
+
+Stage 5 checked once: clippy and fmt clean, `cargo test --test debug_api` 3 pass, the debug unit
+tests 20 pass, `tsc` clean, `editor-link` and `api` tests 21 pass, `exceptions.browser` 4 pass
+(the subagent also ran `requests`, `request` and `stream`: 26 pass), `bun nv viewer --check`
+current, `bun nv rules --check` clean. The sweep's reds were stale again: `env-secret-proofs`'
+log exits 0, and the nightly is still run 40291801939 on `d6f131752`.
+
+Earlier stages: the API is `crates/nvs-cli/src/debug/api.rs` (`/api/requests`,
 `/api/request`, `POST /api/index/discard`), `search.rs` (`/api/search`: one FTS5 `MATCH` joined to
 each record by primary key, prefix words, phrases, every field term of the rule, grouped by request,
 cursor `<time>.<key>`, `opens` for a pasted trace id), `stream.rs` (`/api/stream`, each table's newest
@@ -403,22 +443,22 @@ Expected red: CI `proofs` (`directive:debug.*`, stage 7).
 
 ### Next
 
-**Stage 5, grouped exceptions, and every site is a link into the editor**, on
-`crates/nvs-cli/src/debug/api.rs` (or a new `crates/nvs-cli/src/debug/exceptions.rs`),
-`crates/nvs-cli/tests/debug_api.rs`, `viewer/src/api.ts`, a new `viewer/src/editor-link.ts` and
-`viewer/src/views/exceptions.tsx`. Gate: open. The groups are already kept by the index:
-`exception_groups` (class, file, line, count, first and last) at `crates/nvs-cli/src/debug/index.rs:53`,
-and `exceptions.exception_group` per request. The editor setting is `settings.rs`'s `editor`
-(`vscode` by default, free text up to 200 bytes); stage 5 decides its presets and template and
-narrows its validation. Split as the stage says: API and fixture first, then a writing subagent for
-the view and `editor-link.ts`.
+**Stage 9, a profile is handed to VS Code, and a request's coverage is a heatmap over its source.**
+Gate: open (`docs/goals/trace-timeline.md` is gone). Two lanes: the extension (`editors/vscode/`)
+and the service plus viewer. The profile link goes through `viewer/src/editor-link.ts`, offered
+only when `editor` is `vscode` and a download otherwise. Neither the spool
+(`crates/nvs-runtime/src/spool.rs`) nor the ingester names coverage today, so the coverage half
+starts by finding where `rule:testing/debug-surface`'s coverage map is recorded (`bun nv brief
+--where coverage`).
 
-- [ ] `GET /api/exceptions` pages the groups newest last-seen first, with the latest message, and `GET /api/exceptions?group=` lists its requests. `crates/nvs-cli/src/debug/index.rs:53`, `crates/nvs-cli/src/debug/api.rs:1`
-- [ ] `settings.rs`'s `editor` takes the rule's presets and a template, and path mappings. `crates/nvs-cli/src/debug/settings.rs:1`, `docs/rules/testing/a-site-in-the-viewer-opens-in-the-editor.md:1`
-- [ ] `tests/debug_api.rs` writes `exceptions.json`. `crates/nvs-cli/tests/debug_api.rs:1`
+- [ ] The extension registers a URI handler for `vscode://novis-lang.nvs/` beside `nvs.viewProfile`. `editors/vscode/src/extension.ts:144`, `editors/vscode/src/profile.ts:1`
+- [ ] Find where a request's coverage is recorded, and the service's source read under the project root. `crates/nvs-cli/src/debug/api.rs:1`
+- [ ] The rule `a-site-in-the-viewer-opens-in-the-editor` is shipped once its profile link exists. `data/rules/testing/a-site-in-the-viewer-opens-in-the-editor.json:3`
 
 ### Backlog
 
+- The top comments of `viewer/src/app.tsx`, `views/saved.tsx`, `views/request.tsx` and `views/timeline.tsx` are over `bun nv proofs --comments`' bounds; stage 7's proofs pass rewrites them.
+- A group's `count` is kept by the ingester and does not fall when the size bound deletes its requests, so it can exceed the requests `?class=&file=&line=` lists (`crates/nvs-cli/src/debug/index.rs:440`).
 - The list's `dumps` and `logs` counts are per trace id (`crates/nvs-cli/src/debug/index.rs:241`), so two requests that share a trace id each count both's records; `viewer/test/fixtures/requests.json` shows it. Count them with the writer-and-sequence split `GET /api/request` uses.
 - A dump's properties reach the index in key order, because the spool's `Dump::tree` is a `serde_json::Value` (`crates/nvs-runtime/src/spool.rs:593`). A `RawValue` there keeps the declared order; the API already passes the stored text through.
 
