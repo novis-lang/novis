@@ -1,6 +1,6 @@
 // The JSON API `nvs debug` serves under `/api/`. The Rust side owns these shapes
-// (`crates/nvs-cli/src/debug/api.rs`): `crates/nvs-cli/tests/debug_api.rs` writes
-// `test/fixtures/requests.json` and `test/fixtures/request.json` from a real index, and
+// (`crates/nvs-cli/src/debug/api.rs`, `stream.rs`, `search.rs` and `settings.rs`):
+// `crates/nvs-cli/tests/debug_api.rs` writes the files under `test/fixtures/` from a real index, and
 // `test/api.test.ts` makes `tsc` check those fixtures against the types here.
 
 /** The exception a request did not catch: its class and the site of its `throw`. */
@@ -114,6 +114,209 @@ export interface RequestDetail {
   cut: { events: boolean; dumps: boolean; logs: boolean };
 }
 
+/** Every kind of record the stream has. `dropped` and `unparseable` belong to no request. */
+export const RECORD_KINDS = ["request", "call", "query", "spawn", "gc", "http", "dump", "log", "dropped", "unparseable"] as const;
+
+export type RecordKind = (typeof RECORD_KINDS)[number];
+
+/** The request a stream record belongs to. */
+export interface RecordOwner {
+  trace: string;
+  span: string | null;
+  method: string;
+  path: string;
+  status: number;
+}
+
+/** One record of `GET /api/stream`, of any kind. */
+export interface StreamRecord {
+  /** Unique across the stream, and the record's place in `before`. */
+  key: number;
+  kind: RecordKind;
+  at_us: number;
+  batch: number;
+  trace: string | null;
+  /** A request's method and path, an event's label, a dump's `file:line`, a log line's message, or
+   *  the first bytes of an unparseable line. */
+  text: string;
+  /** A log line's level. */
+  level: string | null;
+  /** A request's status, or a call's checked-return status. */
+  status: number | null;
+  /** A dump's file, or the file an unparseable line was read from. */
+  file: string | null;
+  line: number | null;
+  /** A log line's fields, a `dropped` row's counts, or why a line was unparseable. */
+  fields: Json;
+  request: RecordOwner | null;
+}
+
+/** One page of `GET /api/stream`, newest first. */
+export interface StreamPage {
+  watermark: number;
+  records: StreamRecord[];
+  /** The `before` of the next older page, `<time>.<key>`, or `null` when this page has the oldest. */
+  older: string | null;
+}
+
+/** What the stream is filtered on: the part of a stream or log link after `?`. */
+export interface StreamFilter {
+  /** Only these kinds. Empty is every kind. */
+  kinds: RecordKind[];
+  /** Only log lines at this level: lower-case letters. */
+  level?: string;
+  /** Only the records of requests with this route. */
+  route?: string;
+  /** Only the records of this trace id. */
+  trace?: string;
+}
+
+/** A page's place in the stream: what arrived after a watermark, or what is older than a record. */
+export interface StreamCursor {
+  since?: number;
+  before?: string;
+  limit?: number;
+}
+
+/**
+ * The query string of `filter`, without the `?`, in a fixed key order. `kind` keeps its commas,
+ * because the service splits it on a bare `,`.
+ */
+export function streamQuery(filter: StreamFilter, cursor: StreamCursor = {}): string {
+  const parts: string[] = [];
+  if (filter.kinds.length > 0) parts.push(`kind=${filter.kinds.join(",")}`);
+  if (filter.level) parts.push(`level=${encodeURIComponent(filter.level)}`);
+  if (filter.route) parts.push(`route=${encodeURIComponent(filter.route)}`);
+  if (filter.trace) parts.push(`trace=${encodeURIComponent(filter.trace)}`);
+  if (cursor.since !== undefined) parts.push(`since=${cursor.since}`);
+  if (cursor.before !== undefined) parts.push(`before=${encodeURIComponent(cursor.before)}`);
+  if (cursor.limit !== undefined) parts.push(`limit=${cursor.limit}`);
+  return parts.join("&");
+}
+
+/** Reads a stream or log link's query into its filter. A kind the stream does not have is left out. */
+export function streamFilter(query: string): StreamFilter {
+  const params = new URLSearchParams(query);
+  const kinds = (params.get("kind") ?? "")
+    .split(",")
+    .filter((kind): kind is RecordKind => (RECORD_KINDS as readonly string[]).includes(kind));
+  const filter: StreamFilter = { kinds };
+  for (const key of ["level", "route", "trace"] as const) {
+    const value = params.get(key);
+    if (value) filter[key] = value;
+  }
+  return filter;
+}
+
+/** One page of the stream. */
+export function stream(filter: StreamFilter, cursor: StreamCursor = {}, signal?: AbortSignal): Promise<StreamPage> {
+  const query = streamQuery(filter, cursor);
+  return get<StreamPage>(`/api/stream${query ? `?${query}` : ""}`, signal);
+}
+
+/** A file the service stopped reading, and when it tries again. Times are Unix microseconds. */
+export interface QuarantinedFile {
+  path: string;
+  at_us: number;
+  retry_us: number;
+  /** Failures in a row. */
+  failures: number;
+  reason: string;
+}
+
+/** `GET /api/quarantine`, the newest failure first. */
+export function quarantine(signal?: AbortSignal): Promise<{ files: QuarantinedFile[] }> {
+  return get<{ files: QuarantinedFile[] }>("/api/quarantine", signal);
+}
+
+/** One record a search matched. `snippet` marks each matched word with U+0002 before and U+0003 after. */
+export interface SearchHit {
+  kind: "request" | "query" | "dump" | "log" | "exception";
+  id: number;
+  at_us: number;
+  snippet: string;
+}
+
+/** The matches of one request, or one match that belongs to no request. */
+export interface SearchGroup {
+  request: RequestRow | null;
+  /** In time order. */
+  hits: SearchHit[];
+  /** The matches past the ones listed. */
+  more: number;
+}
+
+/** One page of `GET /api/search`, newest group first. */
+export interface SearchResults {
+  watermark: number;
+  groups: SearchGroup[];
+  /** The `before` of the next page, or `null` when this page has the last group. */
+  older: string | null;
+  /** The request the search names, when it is a trace id alone and one request has it. */
+  opens: { trace: string; span: string | null } | null;
+}
+
+/** One page of a search. A search the service cannot read is an `ApiError` with status `400`. */
+export function search(q: string, before?: string, signal?: AbortSignal): Promise<SearchResults> {
+  const params = new URLSearchParams({ q });
+  if (before !== undefined) params.set("before", before);
+  return get<SearchResults>(`/api/search?${params}`, signal);
+}
+
+/** A piece of a search snippet: plain text, or a matched word. */
+export interface SnippetPart {
+  text: string;
+  match: boolean;
+}
+
+/** Splits a snippet at its U+0002 and U+0003 marks. An empty piece is left out. */
+export function snippetParts(snippet: string): SnippetPart[] {
+  const parts: SnippetPart[] = [];
+  let match = false;
+  let text = "";
+  for (const ch of snippet) {
+    if (ch === "\u0002" || ch === "\u0003") {
+      if (text) parts.push({ text, match });
+      text = "";
+      match = ch === "\u0002";
+    } else text += ch;
+  }
+  if (text) parts.push({ text, match });
+  return parts;
+}
+
+/** The view a saved filter opens. */
+export type SavedView = "requests" | "stream" | "log" | "search";
+
+/** A saved filter: its name, its view, and the part of the view's link after `?`. */
+export interface SavedFilter {
+  name: string;
+  view: SavedView;
+  query: string;
+}
+
+/** The viewer's settings file. `PUT` replaces it whole. */
+export interface Settings {
+  editor: string;
+  theme: "system" | "dark" | "light";
+  filters: SavedFilter[];
+}
+
+/** `GET /api/settings`. */
+export function settings(signal?: AbortSignal): Promise<Settings> {
+  return get<Settings>("/api/settings", signal);
+}
+
+/** `PUT /api/settings` with the whole settings. Gives the settings as the service kept them. */
+export function saveSettings(next: Settings): Promise<Settings> {
+  return send<Settings>("PUT", "/api/settings", next);
+}
+
+/** `POST /api/index/discard`: deletes the index and starts an empty one. */
+export function discardIndex(): Promise<{ watermark: number }> {
+  return send<{ watermark: number }>("POST", "/api/index/discard", {});
+}
+
 /** An answer that is not `200`, with the message the service sent. */
 export class ApiError extends Error {
   constructor(
@@ -145,9 +348,19 @@ export function request(key: TraceKey, signal?: AbortSignal): Promise<RequestDet
 }
 
 /** `GET path` as JSON, or an `ApiError` with the service's message. */
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(path, signal ? { signal } : {});
-  const body: unknown = await res.json();
+function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return answer<T>(fetch(path, signal ? { signal } : {}));
+}
+
+/** `method path` with `body` as JSON, or an `ApiError` with the service's message. */
+function send<T>(method: "PUT" | "POST", path: string, body: unknown): Promise<T> {
+  return answer<T>(fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }));
+}
+
+/** The JSON body of `response`, or an `ApiError` when it is not `200`. */
+async function answer<T>(response: Promise<Response>): Promise<T> {
+  const res = await response;
+  const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const message = typeof body === "object" && body && "error" in body ? String(body.error) : res.statusText;
     throw new ApiError(res.status, message);

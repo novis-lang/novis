@@ -3,13 +3,14 @@
 
 /** Every key the viewer answers, in the order the `?` dialog lists them. */
 export const KEYS: ReadonlyArray<readonly [keys: string[], action: string]> = [
-  [["j", "↓"], "Select the next request"],
-  [["k", "↑"], "Select the previous request"],
-  [["Home", "End"], "Select the first or the last request"],
+  [["j", "↓"], "Select the next row, or go to the next search result"],
+  [["k", "↑"], "Select the previous row, or go to the previous search result"],
+  [["Home", "End"], "Select the first or the last row"],
   [["Page Down", "Page Up"], "Move the selection by one screen"],
   [["Enter"], "Open the selected request"],
-  [["p", "Space"], "Pause or follow new requests"],
+  [["p", "Space"], "Pause or follow new rows"],
   [["/"], "Go to the search box"],
+  [["s"], "Save the filter of the stream, the log or the search"],
   [["t"], "Change the theme"],
   [["?"], "Show this list"],
   [["Esc"], "Close this list, leave the search box, or go back to the list"],

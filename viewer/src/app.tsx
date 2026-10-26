@@ -1,33 +1,53 @@
-// The viewer's frame: the header with the search box, the theme control and the key list, and the
-// region the view the path names renders into (`router.ts`). The frame answers the keys every view
-// shares, `/`, `?` and `t`, and turns a click on a link inside the viewer into a move without a reload.
+// The viewer's frame: the header with the search box, the theme control and the key list, the links to
+// the views and the saved filters, and the region the view the path names renders into (`router.ts`).
+// The frame answers the keys every view shares, `/`, `?` and `t`, and turns a click on a link inside
+// the viewer into a move without a reload.
+//
+// The search box opens a pasted `traceresponse` value or trace id at once, and searches for anything
+// else at `/search?q=`.
 
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { traceKey } from "./api.ts";
 import { ignored, KEYS } from "./keys.ts";
-import { navigate, path, route } from "./router.ts";
+import { navigate, path, query, route, version } from "./router.ts";
 import { nextTheme, setTheme, theme, type Theme } from "./theme.ts";
+import { LogView } from "./views/log.tsx";
 import { RequestView } from "./views/request.tsx";
 import { RequestList } from "./views/requests.tsx";
+import { loadSettings, SavedList, SavedOpen } from "./views/saved.tsx";
+import { SearchView } from "./views/search.tsx";
+import { StreamView } from "./views/stream.tsx";
 
 export function App() {
   let search!: HTMLInputElement;
   let keys!: HTMLDialogElement;
-  const [note, setNote] = createSignal("");
+  const at = createMemo(() => route(path()));
   const request = createMemo(() => {
-    const at = route(path());
-    return at.view === "request" ? at : null;
+    const now = at();
+    return now.view === "request" ? now : null;
+  });
+  const saved = createMemo(() => {
+    const now = at();
+    return now.view === "saved" ? now : null;
+  });
+  const view = createMemo(() => at().view);
+
+  // On the search's page the box shows the search.
+  createEffect(() => {
+    if (view() === "search") search.value = new URLSearchParams(query()).get("q") ?? "";
   });
 
-  /** Opens the request a pasted `traceresponse` value or trace id names. */
-  const openPasted = (e: SubmitEvent) => {
+  /** Opens the request a pasted `traceresponse` value or trace id names, or searches for the text. */
+  const submit = (e: SubmitEvent) => {
     e.preventDefault();
-    const key = traceKey(search.value);
-    if (!key) return setNote("This is not a trace id.");
-    setNote("");
-    search.value = "";
+    const text = search.value.trim();
+    if (!text) return;
     search.blur();
-    navigate(key.span ? `/requests/${key.trace}/${key.span}` : `/requests/${key.trace}`);
+    const key = traceKey(text);
+    if (key) {
+      search.value = "";
+      navigate(key.span ? `/requests/${key.trace}/${key.span}` : `/requests/${key.trace}`);
+    } else navigate(`/search?${new URLSearchParams({ q: text })}`);
   };
 
   const onKey = (e: KeyboardEvent) => {
@@ -51,36 +71,32 @@ export function App() {
   onMount(() => {
     document.addEventListener("keydown", onKey);
     document.addEventListener("click", onClick);
+    loadSettings();
   });
   onCleanup(() => {
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("click", onClick);
   });
 
+  const current = (name: string) => (view() === name ? "page" : undefined);
+
   return (
     <>
       <header class="bar">
         <h1>Novis debug</h1>
-        <form class="search" role="search" onSubmit={openPasted}>
+        <form class="search" role="search" onSubmit={submit}>
           <input
             ref={search}
             type="search"
-            aria-label="Trace id"
-            aria-describedby="search-note"
+            aria-label="Search"
             aria-keyshortcuts="/"
-            placeholder="Paste a trace id or a traceresponse value"
+            placeholder="Search, or paste a trace id"
             spellcheck={false}
             autocomplete="off"
-            onInput={() => setNote("")}
             onKeyDown={(e) => {
-              if (e.key !== "Escape") return;
-              setNote("");
-              search.blur();
+              if (e.key === "Escape") search.blur();
             }}
           />
-          <span id="search-note" class="note bad" role="status">
-            {note()}
-          </span>
         </form>
         <label class="theme">
           Theme{" "}
@@ -94,10 +110,40 @@ export function App() {
           Keys
         </button>
       </header>
+      <nav class="views" aria-label="Views">
+        <a href="/" aria-current={current("list")}>
+          Requests
+        </a>
+        <a href="/stream" aria-current={current("stream")}>
+          Stream
+        </a>
+        <a href="/log" aria-current={current("log")}>
+          Log
+        </a>
+        <a href="/search" aria-current={current("search")}>
+          Search
+        </a>
+        <SavedList />
+      </nav>
       <main id="view">
-        <Show when={request()} fallback={<RequestList />}>
-          {(at) => <RequestView trace={at().trace} span={at().span} />}
-        </Show>
+        {/* Discarding the index raises `version`, which loads the view on screen again. */}
+        <For each={[version()]}>
+          {() => (
+            <Switch fallback={<RequestList />}>
+              <Match when={request()}>{(r) => <RequestView trace={r().trace} span={r().span} />}</Match>
+              <Match when={view() === "stream"}>
+                <StreamView />
+              </Match>
+              <Match when={view() === "log"}>
+                <LogView />
+              </Match>
+              <Match when={view() === "search"}>
+                <For each={[query()]}>{(q) => <SearchView query={q} />}</For>
+              </Match>
+              <Match when={saved()}>{(s) => <SavedOpen name={s().name} />}</Match>
+            </Switch>
+          )}
+        </For>
       </main>
       <dialog ref={keys} class="keys" aria-labelledby="keys-title">
         <h2 id="keys-title">Keyboard shortcuts</h2>

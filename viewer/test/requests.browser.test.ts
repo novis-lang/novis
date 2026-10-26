@@ -299,7 +299,7 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
     await tab.close();
   }, 30_000);
 
-  test("a traceresponse value or a trace id typed into the search box opens its request", async () => {
+  test("a traceresponse value or a trace id typed into the search box opens its request, and other text searches", async () => {
     reset(FIXTURE);
     const tab = await open("/");
     await tab.until(`document.querySelectorAll("[role=option]").length == ${FIXTURE.length}`);
@@ -309,8 +309,9 @@ describe.skipIf(!EXE)("the request list in Chromium", () => {
       await tab.press("Enter");
     };
 
+    // Text that is not a trace id is a search.
     await search("not an id");
-    await tab.until(`document.querySelector("#search-note").textContent == "This is not a trace id."`);
+    await tab.until(`location.pathname + location.search == "/search?q=not+an+id"`);
     await tab.eval(`document.querySelector(".search input").value = ""`);
 
     await search(`00-${THREW.trace.toUpperCase()}-${THREW.span}-01`);

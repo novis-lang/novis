@@ -521,6 +521,268 @@ a {
   font-size: 0.85em;
 }
 
+/* The links to the views and the saved filters. */
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.views a[aria-current="page"] {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.saved {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.saved li {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn.small {
+  padding: 0 0.35rem;
+  line-height: 1.2;
+}
+
+.btn.danger {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* The stream and the log. A row's height is `ROW_HEIGHT` in `views/requests.tsx`. */
+.stream,
+.feed,
+.search-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  flex: 1;
+}
+
+.filters input:not([type="checkbox"]),
+.ask input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kinds legend {
+  float: left;
+  margin-right: 0.5rem;
+  color: var(--muted);
+}
+
+.feed > .note,
+.search-view > .note,
+.search-view > div.note {
+  margin: 0.5rem 1rem;
+}
+
+.cols.stream-grid,
+.row.stream-grid {
+  grid-template-columns: 7.5rem 8rem minmax(10rem, 1fr) minmax(10rem, 22rem);
+}
+
+.cols.log-grid,
+.row.log-grid {
+  grid-template-columns: 7.5rem 5rem minmax(10rem, 1fr) minmax(6rem, 16rem) minmax(10rem, 22rem);
+}
+
+.at {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.badge {
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.row.flawed {
+  box-shadow: inset 3px 0 var(--bad);
+}
+
+.owner a {
+  text-decoration: none;
+}
+
+.record-detail {
+  max-height: 30vh;
+  overflow: auto;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.record-detail .note {
+  margin: 0 0 0.5rem;
+}
+
+.quarantine {
+  max-height: 25vh;
+  overflow: auto;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.quarantine h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.quarantine .note {
+  margin: 0 0 0.5rem;
+}
+
+.quarantined {
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+}
+
+.quarantined th,
+.quarantined td {
+  text-align: left;
+  padding: 0.15rem 1rem 0.15rem 0;
+  vertical-align: top;
+}
+
+.quarantined th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+/* The search results. */
+.search-view {
+  overflow: auto;
+}
+
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem;
+}
+
+.group {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.group-head {
+  margin: 0 0 0.25rem;
+}
+
+.group-link {
+  font-weight: 600;
+}
+
+.hits {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1rem;
+}
+
+.hit {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.1rem 0;
+}
+
+.hit-kind {
+  min-width: 5rem;
+  color: var(--muted);
+}
+
+.snippet {
+  overflow-wrap: anywhere;
+}
+
+mark {
+  background: #ffe58f;
+  color: #1b1f24;
+  border-radius: 2px;
+}
+
+.more {
+  margin: 0.25rem 0 0 1rem;
+}
+
+.btn.older {
+  align-self: flex-start;
+  margin: 0.75rem 1rem;
+}
+
+/* The dialogs that ask for a name or ask before deleting. */
+dialog.ask {
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  max-width: 28rem;
+}
+
+dialog.ask::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+dialog.ask h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.ask-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 /* The key list `?` opens. */
 dialog.keys {
   color: var(--fg);
