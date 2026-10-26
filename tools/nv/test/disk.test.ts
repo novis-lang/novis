@@ -28,51 +28,104 @@ describe("leftovers", () => {
 });
 
 describe("optimized profiles", () => {
-  /** An artifact's files under `deps/`, all written `daysAgo` days ago. */
-  function artifact(dir: string, files: string[], daysAgo: number): void {
-    const at = Date.now() / 1000 - daysAgo * 86400;
+  /** An artifact's files under `deps/`, all written `hoursAgo` hours ago. */
+  function artifact(dir: string, files: string[], hoursAgo: number): void {
+    const at = Date.now() / 1000 - hoursAgo * 3600;
     for (const f of files) {
       tmp.put(`${dir}/${f}`, "x");
       utimesSync(join(tmp.root, dir, f), at, at);
     }
   }
   const hash = (n: number) => n.toString(16).padStart(16, "0");
+  /** A fingerprint value as cargo writes it into the file beside the unit's JSON. */
+  const value = (n: number) => {
+    const b = Buffer.alloc(8);
+    b.writeBigUInt64LE(BigInt(n));
+    return b.toString("hex");
+  };
+  /**
+   * One unit cargo built into `profile`: its library under `deps/`, written `hoursAgo` hours ago, and its
+   * fingerprint, whose value is `n` and which names each `[crate, value]` in `deps` as built against.
+   */
+  function unit(profile: string, pkg: string, n: number, hoursAgo: number, deps: [string, number][] = [], kind = "lib", features = "[]"): void {
+    const crate = pkg.replace(/-/g, "_");
+    artifact(`${profile}/deps`, [`lib${crate}-${hash(n)}.rlib`], hoursAgo);
+    const dir = `${profile}/.fingerprint/${pkg}-${hash(n)}`;
+    const list = deps.map(([name, v]) => `[1,"${name}",false,${v}]`).join(",");
+    tmp.put(`${dir}/${kind}-${crate}.json`, `{"rustc":1,"features":${JSON.stringify(features)},"profile":7,"rustflags":[],"compile_kind":0,"deps":[${list}]}`);
+    tmp.put(`${dir}/${kind}-${crate}`, value(n));
+    // Cargo writes the fingerprint when it builds the unit.
+    const when = Date.now() / 1000 - hoursAgo * 3600;
+    utimesSync(join(tmp.root, `${dir}/${kind}-${crate}.json`), when, when);
+  }
+  /** A `Cargo.lock` at `at` with the packages built from a path and those from the registry. */
+  function lock(at: string, local: string[], registry: string[]): string {
+    const block = (name: string, source: boolean) =>
+      `[[package]]\nname = "${name}"\nversion = "1.0.0"\n${source ? 'source = "registry+https://github.com/rust-lang/crates.io-index"\n' : ""}`;
+    tmp.put(at, ["version = 4\n", ...local.map((n) => block(n, false)), ...registry.map((n) => block(n, true))].join("\n"));
+    return join(tmp.root, at);
+  }
   const rel = (paths: string[]) => paths.map((p) => p.slice(tmp.root.length + 1).replace(/\\/g, "/"));
+  const DAY = 24;
 
-  test("an artifact past the newest copies of its name is swept whole, and only once it is idle", () => {
+  test("the newest build of a workspace unit and what it was built against are kept, and the rest goes once idle", () => {
     tmp = scratch();
-    // Five copies of one library, a day apart, the newest written today.
-    for (let i = 1; i <= 5; i++) artifact("release/deps", [`libnvs_runtime-${hash(i)}.rlib`, `libnvs_runtime-${hash(i)}.rmeta`, `nvs_runtime-${hash(i)}.d`], 6 - i + 2);
-    // Six copies of a proc-macro, all inside the grace.
-    for (let i = 1; i <= 6; i++) artifact("release/deps", [`nvs_macros-${hash(16 + i)}.dll`, `nvs_macros-${hash(16 + i)}.dll.lib`, `nvs_macros-${hash(16 + i)}.d`], 1);
-    // One old copy of a dependency is still the newest of its name.
-    artifact("release/deps", [`libserde-${hash(99)}.rlib`, `serde-${hash(99)}.d`], 30);
-    expect(rel(staleOptimized(tmp.root, 4, 3))).toEqual([
+    const at = lock("Cargo.lock", ["nvs-runtime"], ["serde"]);
+    // Three builds of one library, a day apart, each against its own build of a dependency.
+    for (let i = 1; i <= 3; i++) {
+      unit("release", "serde", 10 + i, (4 - i) * DAY);
+      unit("release", "nvs-runtime", i, (4 - i) * DAY, [["serde", 10 + i]]);
+    }
+    // A build nothing reaches, inside the grace.
+    unit("release", "serde", 20, 1);
+    // A copy cargo has no fingerprint for.
+    artifact("release/deps", [`libserde-${hash(99)}.rlib`], 30 * DAY);
+    expect(rel(staleOptimized(tmp.root, 2, at))).toEqual([
       `release/deps/libnvs_runtime-${hash(1)}.rlib`,
-      `release/deps/libnvs_runtime-${hash(1)}.rmeta`,
-      `release/deps/nvs_runtime-${hash(1)}.d`,
+      `release/deps/libnvs_runtime-${hash(2)}.rlib`,
+      `release/deps/libserde-${hash(11)}.rlib`,
+      `release/deps/libserde-${hash(12)}.rlib`,
+      `release/deps/libserde-${hash(99)}.rlib`,
     ]);
   });
 
-  test("the proof profile is ranked on its own, and a debug build is never looked at", () => {
+  test("two builds that turn on different features of one dependency keep a copy each", () => {
     tmp = scratch();
-    for (let i = 1; i <= 3; i++) artifact("proof/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 10 - i);
-    for (let i = 4; i <= 6; i++) artifact("release/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 10 - i);
-    for (let i = 7; i <= 9; i++) artifact("debug/deps", [`libnvs_types-${hash(i)}.rlib`, `nvs_types-${hash(i)}.d`], 30);
-    expect(rel(staleOptimized(tmp.root, 2, 3))).toEqual([
-      `proof/deps/libnvs_types-${hash(1)}.rlib`,
-      `proof/deps/nvs_types-${hash(1)}.d`,
-      `release/deps/libnvs_types-${hash(4)}.rlib`,
-      `release/deps/nvs_types-${hash(4)}.d`,
-    ]);
+    const at = lock("Cargo.lock", ["nvs-cli", "nvs-abi-probe"], ["serde"]);
+    unit("release", "serde", 11, 5 * DAY);
+    unit("release", "serde", 12, 3 * DAY);
+    unit("release", "serde", 13, 9 * DAY);
+    unit("release", "nvs-cli", 1, 3 * DAY, [["serde", 12]], "bin");
+    unit("release", "nvs-abi-probe", 2, 5 * DAY, [["serde", 11]], "lib", '["probe"]');
+    expect(rel(staleOptimized(tmp.root, 2, at))).toEqual([`release/deps/libserde-${hash(13)}.rlib`]);
   });
 
-  test("an extension's target is ranked in every profile, and its old incremental caches go", () => {
+  test("a dependency no recorded fingerprint matches keeps every copy of its crate, and without a lock nothing goes", () => {
     tmp = scratch();
-    for (let i = 1; i <= 3; i++) artifact("extensions/pdf/target/debug/deps", [`libnvs_pdf-${hash(i)}.rlib`, `nvs_pdf-${hash(i)}.d`], 10 - i);
-    for (let i = 4; i <= 6; i++) artifact("extensions/pdf/target/wasm32-wasip2/release/deps", [`libnvs_pdf-${hash(i)}.rlib`], 10 - i);
-    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-old/s-1", ["dep-graph.bin"], 5);
-    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-mid/s-1", ["dep-graph.bin"], 4);
+    const at = lock("Cargo.lock", ["nvs-runtime"], ["serde", "rand"]);
+    unit("release", "serde", 11, 5 * DAY);
+    unit("release", "serde", 12, 4 * DAY);
+    unit("release", "rand", 30, 9 * DAY);
+    unit("release", "nvs-runtime", 1, 3 * DAY, [["serde", 77]]);
+    expect(rel(staleOptimized(tmp.root, 2, at))).toEqual([`release/deps/librand-${hash(30)}.rlib`]);
+    expect(staleOptimized(tmp.root, 2, join(tmp.root, "no.lock"))).toEqual([]);
+  });
+
+  test("the proof profile is judged on its own, and a debug build is never looked at", () => {
+    tmp = scratch();
+    const at = lock("Cargo.lock", ["nvs-types"], []);
+    for (const profile of ["proof", "release"]) for (let i = 1; i <= 2; i++) unit(profile, "nvs-types", i, (10 - i) * DAY);
+    for (let i = 7; i <= 8; i++) artifact("debug/deps", [`libnvs_types-${hash(i)}.rlib`], 30 * DAY);
+    expect(rel(staleOptimized(tmp.root, 2, at))).toEqual([`proof/deps/libnvs_types-${hash(1)}.rlib`, `release/deps/libnvs_types-${hash(1)}.rlib`]);
+  });
+
+  test("an extension's target is judged in every profile by its own lock, and its old incremental caches go", () => {
+    tmp = scratch();
+    lock("extensions/pdf/Cargo.lock", ["nvs-pdf"], []);
+    for (const profile of ["extensions/pdf/target/debug", "extensions/pdf/target/wasm32-wasip2/release"])
+      for (let i = 1; i <= 2; i++) unit(profile, "nvs-pdf", i, (10 - i) * DAY);
+    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-old/s-1", ["dep-graph.bin"], 5 * DAY);
+    artifact("extensions/pdf/target/debug/incremental/nvs_pdf-mid/s-1", ["dep-graph.bin"], 4 * DAY);
     artifact("extensions/pdf/target/debug/incremental/nvs_pdf-new/s-1", ["dep-graph.bin"], 0);
     // The newest write is what dates an incremental cache directory.
     for (const [name, days] of [["old", 5], ["mid", 4], ["new", 0]] as const) {
@@ -81,11 +134,10 @@ describe("optimized profiles", () => {
     }
     // A source tree with no target is not looked at.
     tmp.put("extensions/fonts/a.ttf", "x");
-    expect(rel(staleExtensions(tmp.root, 2, 3, 2, 2))).toEqual([
+    expect(rel(staleExtensions(tmp.root, 2, 2))).toEqual([
       `extensions/pdf/target/debug/deps/libnvs_pdf-${hash(1)}.rlib`,
-      `extensions/pdf/target/debug/deps/nvs_pdf-${hash(1)}.d`,
       "extensions/pdf/target/debug/incremental/nvs_pdf-old",
-      `extensions/pdf/target/wasm32-wasip2/release/deps/libnvs_pdf-${hash(4)}.rlib`,
+      `extensions/pdf/target/wasm32-wasip2/release/deps/libnvs_pdf-${hash(1)}.rlib`,
     ]);
   });
 });

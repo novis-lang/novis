@@ -29,11 +29,11 @@
 // way and a `--test <name>` run that resolves a dev-dependency its own way. `incremental/` has no
 // artifact list to ask, so there age and the newest `KEEP_INCREMENTAL` per crate are the whole rule,
 // under `target/` and under `target/covws` alike. `release/deps` and `proof/deps` cannot be asked, because
-// their live set can only be named by an optimized build, so they are swept by rank (`staleOptimized`):
-// each artifact keeps its newest `KEEP_OPTIMIZED` copies and anything written in the last
-// `OPTIMIZED_GRACE_DAYS`. An extension's target directory is swept by the same rank in every profile,
-// with its incremental caches by the newest-per-crate rule (`staleExtensions`): nothing here builds it
-// the one way a live set could be asked of.
+// their live set can only be named by an optimized build, so it is read from cargo's fingerprints
+// instead (`staleOptimized`): the newest build of each of the workspace's units, and every copy a
+// dependent among them was built against. An extension's target directory is swept by the same rule in
+// every profile, with its incremental caches by the newest-per-crate rule (`staleExtensions`): nothing
+// here builds it the one way a live set could be asked of.
 //
 // `--clean` also deletes what nothing reads any more: a `default_*.profraw` an instrumented binary left
 // at the root or in a package directory (`strayProfiles`), the memo files the selection store replaced
@@ -105,10 +105,6 @@ export const KEEP_INCREMENTAL = 2;
 export const MIN_FREE_GB = 10;
 /** `target/`: nothing written more recently than this is swept, whatever cargo says. */
 export const GRACE_HOURS = 2;
-/** `target/{release,proof}/deps`: copies kept per artifact name, newest first (`staleOptimized`). */
-export const KEEP_OPTIMIZED = 4;
-/** `target/{release,proof}/deps`: nothing written more recently than this is swept, whatever its rank. */
-export const OPTIMIZED_GRACE_DAYS = 3;
 
 // `libnvs_stdlib-2a3f7eaa9f84477e.rlib` -> `libnvs_stdlib`. Cargo's metadata hash is 16 hex digits and
 // always the last dash-separated component of the stem.
@@ -732,50 +728,147 @@ function staleIncremental(keep: number = KEEP_INCREMENTAL, graceHours: number = 
 }
 
 /**
- * The files in `target/release/deps` and `target/proof/deps` of every artifact past the newest `keep`
- * of its name in its directory that nothing has written for `graceDays`. An artifact is every file
- * under one metadata hash, as new as the newest of them. Cargo cannot name the live set of an optimized
- * profile without an optimized build of every shape that uses it, so the rank stands in for the answer:
- * a dependency edit gives each shape a new copy of what it reaches and orphans the old one, and a crate
- * is built only a few ways at once -- the release `nvs`, the abi probe with and without its feature, a
- * bench, a dependency of a build script. A copy deleted while still in use costs its rebuild and
- * nothing else.
+ * The files in `target/release/deps` and `target/proof/deps` of every artifact no build reuses, once
+ * nothing has written it for `graceHours`. An artifact is every file under one metadata hash, as new as
+ * the newest of them. Cargo cannot name the live set of an optimized profile without an optimized build
+ * of every shape that uses it, so its fingerprints stand in for the answer (`reachable`). `lock` is the
+ * `Cargo.lock` of the workspace that builds into `target`; without one nothing is judged.
  */
-export function staleOptimized(target: string = TARGET, keep: number = KEEP_OPTIMIZED, graceDays: number = OPTIMIZED_GRACE_DAYS): string[] {
+export function staleOptimized(target: string = TARGET, graceHours: number = GRACE_HOURS, lock: string = join(dirname(target), "Cargo.lock")): string[] {
   const doomed: string[] = [];
-  for (const profile of ["release", PROOF_PROFILE]) doomed.push(...rankedOut(join(target, profile, "deps"), keep, graceDays));
+  const local = localPackages(lock);
+  for (const profile of ["release", PROOF_PROFILE]) doomed.push(...rankedOut(join(target, profile, "deps"), graceHours, local));
   return doomed.sort();
 }
 
-/** `staleOptimized` over one `deps/` directory. */
-function rankedOut(dir: string, keep: number, graceDays: number): string[] {
-  const cutoff = now() - graceDays * 86400;
-  const units = new Map<string, { name: string; mtime: number; files: string[] }>();
+/** The packages a `Cargo.lock` builds from a path, the workspace's own among them, or null when there is
+ * no lock to read. Every other package has a `source` line. */
+function localPackages(lock: string): Set<string> | null {
+  let text: string;
+  try {
+    text = readFileSync(lock, "utf8");
+  } catch {
+    return null;
+  }
+  const out = new Set<string>();
+  for (const block of text.split(/^\[\[package\]\]$/m).slice(1)) {
+    const name = /^name = "([^"]+)"$/m.exec(block)?.[1];
+    if (name && !/^source = /m.test(block)) out.add(name);
+  }
+  return out;
+}
+
+/** One unit's fingerprint: its package, what it was built as, and the fingerprint of each dependency it
+ * was built against, with the crate name the dependency is used under. */
+interface Print {
+  pkg: string;
+  shape: string;
+  mtime: number;
+  deps: { print: string; name: string }[];
+}
+
+/** A u64 as cargo writes it into a fingerprint's hash file: its little-endian bytes in hex. */
+function printHex(decimal: string): string {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(BigInt(decimal));
+  return b.toString("hex");
+}
+
+/**
+ * The fingerprints under one `.fingerprint` directory, by metadata hash, and the metadata hash of each
+ * fingerprint value. A unit's directory has one JSON file per thing cargo did for it and, beside each, a
+ * file holding that fingerprint's value, which a dependent's JSON names among its `deps`.
+ */
+function readPrints(dir: string): { units: Map<string, Print>; byPrint: Map<string, string> } {
+  const units = new Map<string, Print>();
+  const byPrint = new Map<string, string>();
+  for (const unitDir of listDir(dir)) {
+    const m = /^(.+)-([0-9a-f]{16})$/.exec(unitDir);
+    if (!m) continue;
+    const at = join(dir, unitDir);
+    const shape: unknown[] = [];
+    const deps: Print["deps"] = [];
+    let newest = 0;
+    for (const name of listDir(at).filter((n) => n.endsWith(".json")).sort()) {
+      let raw: string;
+      try {
+        raw = readFileSync(join(at, name), "utf8");
+        byPrint.set(readFileSync(join(at, name.slice(0, -5)), "utf8").trim(), m[2]!);
+      } catch {
+        continue;
+      }
+      newest = Math.max(newest, mtime(join(at, name)));
+      // The u64s are past what a JS number holds, so they are read from the text.
+      for (const d of raw.matchAll(/\[\d+,"([^"]+)",(?:true|false),(\d+)\]/g)) deps.push({ print: printHex(d[2]!), name: d[1]! });
+      const field = (key: string) => new RegExp(`"${key}":("(?:[^"\\\\]|\\\\.)*"|\\d+|\\[[^\\]]*\\])`).exec(raw)?.[1] ?? "";
+      shape.push([name, field("features"), field("profile"), field("rustflags"), field("compile_kind")]);
+    }
+    if (shape.length) units.set(m[2]!, { pkg: m[1]!, shape: JSON.stringify([m[1], shape]), mtime: newest, deps });
+  }
+  return { units, byPrint };
+}
+
+/**
+ * The metadata hashes a build of this profile reuses. The roots are the newest build of each of the
+ * local packages' units, told apart by what each was built as: two builds of a unit with the same
+ * features, profile and flags are one superseded by the other. From the roots it follows the
+ * fingerprint every dependent recorded for each dependency, which names the very copy it was built
+ * against, so two builds that turn on different features of one dependency keep a copy each, and
+ * superseded versions and generations are reached by nothing. A local dependency rebuilt since a
+ * dependent recorded it is reached as a root of its own. A registry dependency whose recorded
+ * fingerprint matches no unit keeps every copy of its crate; when none has its name, nothing is judged,
+ * and null says so.
+ */
+function reachable(units: Map<string, Print>, byPrint: Map<string, string>, local: Set<string>): Set<string> | null {
+  const newest = new Map<string, { hash: string; mtime: number }>();
+  for (const [hash, u] of units) {
+    if (!local.has(u.pkg)) continue;
+    const seen = newest.get(u.shape);
+    if (!seen || u.mtime > seen.mtime) newest.set(u.shape, { hash, mtime: u.mtime });
+  }
+  const crate = (pkg: string) => pkg.replace(/-/g, "_");
+  const localCrates = new Set([...local].map(crate));
+  const live = new Set<string>();
+  const stack = [...newest.values()].map((n) => n.hash);
+  while (stack.length) {
+    const hash = stack.pop()!;
+    if (live.has(hash)) continue;
+    live.add(hash);
+    for (const dep of units.get(hash)?.deps ?? []) {
+      const found = byPrint.get(dep.print);
+      if (found !== undefined) {
+        stack.push(found);
+        continue;
+      }
+      if (localCrates.has(dep.name)) continue;
+      const copies = [...units].filter(([, u]) => crate(u.pkg) === dep.name).map(([h]) => h);
+      if (copies.length === 0) return null;
+      stack.push(...copies);
+    }
+  }
+  return live;
+}
+
+/** `staleOptimized` over one `deps/` directory, with the fingerprints in the `.fingerprint` beside it. */
+function rankedOut(dir: string, graceHours: number, local: Set<string> | null): string[] {
+  if (local === null || !isDir(dir)) return [];
+  const { units: prints, byPrint } = readPrints(join(dirname(dir), ".fingerprint"));
+  const live = reachable(prints, byPrint, local);
+  if (live === null) return [];
+  const cutoff = now() - graceHours * 3600;
+  const units = new Map<string, { mtime: number; files: string[] }>();
   for (const file of listDir(dir)) {
     const m = UNIT_FILE.exec(file);
     if (!m) continue;
-    const stem = m[1]!;
     const hash = m[2]!;
-    const ext = m[3];
-    if (!units.has(hash)) units.set(hash, { name: "", mtime: 0, files: [] });
+    if (!units.has(hash)) units.set(hash, { mtime: 0, files: [] });
     const unit = units.get(hash)!;
-    // The dep-info file has the crate's own name; a library's files put `lib` in front of it.
-    if (ext === ".d") unit.name = stem;
-    else if (!unit.name) unit.name = stem.replace(/^lib/, "");
     const path = join(dir, file);
     unit.mtime = Math.max(unit.mtime, mtime(path));
     unit.files.push(path);
   }
-  const byName = new Map<string, { mtime: number; files: string[] }[]>();
-  for (const unit of units.values()) {
-    if (!byName.has(unit.name)) byName.set(unit.name, []);
-    byName.get(unit.name)!.push(unit);
-  }
   const doomed: string[] = [];
-  for (const copies of byName.values()) {
-    copies.sort((a, b) => b.mtime - a.mtime);
-    for (const c of copies.slice(keep)) if (c.mtime < cutoff) doomed.push(...c.files);
-  }
+  for (const [hash, unit] of units) if (!live.has(hash) && unit.mtime < cutoff) doomed.push(...unit.files);
   return doomed;
 }
 
@@ -802,21 +895,16 @@ function cargoDirs(target: string, sub: string): string[] {
 }
 
 /**
- * What `--clean` deletes under `extensionTargets`: in each profile's `deps/`, every artifact past the
- * newest `keep` of its name that nothing has written for `graceDays`, as `staleOptimized` ranks them, and
- * the incremental caches past the newest `keepIncremental` per crate. No sweep can ask cargo for the live
- * set, because only a build of each shape somebody ran by hand could name it.
+ * What `--clean` deletes under `extensionTargets`: in each profile's `deps/`, every artifact
+ * `staleOptimized` would delete there, judged by the extension's own `Cargo.lock`, and the incremental
+ * caches past the newest `keepIncremental` per crate. No sweep can ask cargo for the live set, because
+ * only a build of each shape somebody ran by hand could name it.
  */
-export function staleExtensions(
-  root: string = ROOT,
-  keep: number = KEEP_OPTIMIZED,
-  graceDays: number = OPTIMIZED_GRACE_DAYS,
-  keepIncremental: number = KEEP_INCREMENTAL,
-  graceHours: number = GRACE_HOURS,
-): string[] {
+export function staleExtensions(root: string = ROOT, keepIncremental: number = KEEP_INCREMENTAL, graceHours: number = GRACE_HOURS): string[] {
   const doomed: string[] = [];
   for (const target of extensionTargets(root)) {
-    for (const dir of cargoDirs(target, "deps")) doomed.push(...rankedOut(dir, keep, graceDays));
+    const local = localPackages(join(dirname(target), "Cargo.lock"));
+    for (const dir of cargoDirs(target, "deps")) doomed.push(...rankedOut(dir, graceHours, local));
     doomed.push(...staleIncremental(keepIncremental, graceHours, cargoDirs(target, "incremental")));
   }
   return doomed.sort();
@@ -849,9 +937,9 @@ export async function clean(opts: CleanOptions = {}): Promise<Record<string, num
   let incremental = 0;
   for (const p of staleIncremental(opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) incremental += await rm(p, dryRun);
   let optimized = 0;
-  for (const p of staleOptimized()) optimized += await rm(p, dryRun);
+  for (const p of staleOptimized(TARGET, grace)) optimized += await rm(p, dryRun);
   let extensions = 0;
-  for (const p of staleExtensions(ROOT, KEEP_OPTIMIZED, OPTIMIZED_GRACE_DAYS, opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) extensions += await rm(p, dryRun);
+  for (const p of staleExtensions(ROOT, opts.keepIncremental ?? KEEP_INCREMENTAL, grace)) extensions += await rm(p, dryRun);
   let maps = 0;
   for (const p of staleMaps(COVMAP_DIR, grace)) maps += await rm(p, dryRun);
   for (const p of strayProfiles()) leftovers += await rm(p, dryRun);
@@ -936,8 +1024,8 @@ async function report(deep: boolean): Promise<void> {
   let staleOpt = 0;
   for (const p of staleOptimized()) staleOpt += Number(stat(p)?.size ?? 0);
   console.log(
-    `${blank}release/ and proof/ deps: ${human(staleOpt)} is past the newest ${KEEP_OPTIMIZED} copies ` +
-      `per artifact and idle ${OPTIMIZED_GRACE_DAYS}d`,
+    `${blank}release/ and proof/ deps: ${human(staleOpt)} is replaced by a newer build of the same shape, ` +
+      `or no build can reuse it`,
   );
   console.log(`${blank}\`--clean\` keeps what verify builds and anything written in the last ${GRACE_HOURS}h`);
   console.log(
@@ -948,8 +1036,8 @@ async function report(deep: boolean): Promise<void> {
   let staleExt = 0;
   for (const p of staleExtensions()) staleExt += isDir(p) ? (await walk(p)).total : Number(stat(p)?.size ?? 0);
   console.log(
-    `  extensions/   ${human(extensions.total).padStart(8)}   */target: ${human(staleExt)} is past the newest ` +
-      `${KEEP_OPTIMIZED} copies per artifact or ${KEEP_INCREMENTAL} incremental caches per crate`,
+    `  extensions/   ${human(extensions.total).padStart(8)}   */target: ${human(staleExt)} is replaced builds ` +
+      `or past the newest ${KEEP_INCREMENTAL} incremental caches per crate`,
   );
   console.log(
     `  coverage maps ${human(covmap.total).padStart(8)}   .cache/select/covmap: ${human(bytes(staleMaps(COVMAP_DIR)))} ` +
