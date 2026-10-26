@@ -122,6 +122,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   <FILE>'`, which reads like a CLI bug. When a message changes, bless the examples with it, edit each
   case's `--EXPECT--` with Edit, and run the cases once with `target/debug/nvs.exe test <paths>`.
   `until: gone tools/nv/cmd/proofs.ts:--bless`
+- **`--bless` on a `// proof: exit 1` example accepts a compile error.** A program that does not
+  compile also exits `1`, so `--bless` writes an empty `.out` and the proof passes. Run such an
+  example once with `target/debug/nvs.exe run <file>` before trusting what `--bless` wrote.
+  `until: gone tools/nv/cmd/proofs.ts:--bless`
 
 ## Splitting a file
 
