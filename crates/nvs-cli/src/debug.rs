@@ -10,12 +10,25 @@
 //! folder says so and exits. The operating system releases the lock when the process ends, however
 //! it ends, so a killed service leaves no lock behind.
 //!
-//! **What it spends:** see [`index`] and [`ingest`]. Nothing here holds more than the lock's file
-//! handle.
+//! **Sources in turn.** The spool is one source and each `--tail` file is one more. A pass gives
+//! each source at most [`ingest::PASS_BYTES`], in the same order every time, so one enormous file
+//! cannot keep the others waiting. A spool file the budget stopped in goes on where it stopped in
+//! the next pass.
+//!
+//! **A failure waits, and nothing else does.** A source or a file that cannot be listed, opened,
+//! read or deleted is quarantined under an [`ingest::Backoff`] and listed in `quarantine`, and every
+//! other one keeps flowing. An index error, a full disk among them, stops every source under the
+//! same backoff, and deletes no file
+//! (`rule:testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`).
+//!
+//! **What it spends:** see [`index`], [`ingest`] and [`tail`]. Here, the lock's file handle, and one
+//! entry per spool file stopped in or per file failing.
 
 pub(crate) mod index;
 pub(crate) mod ingest;
+pub(crate) mod tail;
 
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -42,6 +55,11 @@ pub(crate) struct Args {
     /// Read the files that are ready once, then exit.
     #[arg(long)]
     once: bool,
+    /// Also read the log file at this path, and every line that is added to it later.
+    /// The file must use the `json` log format. `nvs debug` never changes the file.
+    /// You can give this option more than once.
+    #[arg(long, value_name = "FILE")]
+    tail: Vec<PathBuf>,
 }
 
 impl Args {
@@ -78,71 +96,197 @@ impl Args {
             }
         };
         let index_path = folder.debug_index();
-        let mut index = match Index::open(&index_path) {
+        let index = match Index::open(&index_path) {
             Ok(index) => index,
             Err(err) => {
                 eprintln!("error: cannot open `{}`: {err}", index_path.display());
                 return ExitCode::FAILURE;
             }
         };
-        serve(&mut index, &spool, window, self.once)
+        let tails = self
+            .tail
+            .iter()
+            .map(|path| std::path::absolute(path).unwrap_or_else(|_| path.clone()))
+            .collect();
+        let mut service = Service {
+            index,
+            spool,
+            tails,
+            resume: HashMap::new(),
+            failed: HashMap::new(),
+            stalled: None,
+        };
+        service.serve(window, self.once)
     }
 }
 
-/// The ingest loop: a pass over `spool`, the deletion window after any pass that read a file,
-/// and the wait [`ingest::wait`] names. With `once`, one pass and its deletion.
-fn serve(index: &mut Index, spool: &Path, window: Window, once: bool) -> ExitCode {
-    let mut last_arrival = Instant::now();
-    let mut forget = true;
-    loop {
-        match pass(index, spool) {
-            Ok(0) => {}
-            Ok(_) => {
+/// The running service: the index, its sources, and what the module doc's failures left waiting.
+struct Service {
+    index: Index,
+    spool: PathBuf,
+    tails: Vec<PathBuf>,
+    /// Each spool file the budget stopped in, and where it goes on.
+    resume: HashMap<PathBuf, u64>,
+    /// Each source or file that failed, and when it is tried again.
+    failed: HashMap<PathBuf, ingest::Backoff>,
+    /// The index's own failure, which stops every source.
+    stalled: Option<ingest::Backoff>,
+}
+
+impl Service {
+    /// The ingest loop: a pass, the deletion window after any pass that read something, and the
+    /// wait [`ingest::wait`] names. With `once`, one pass and its deletion.
+    fn serve(&mut self, window: Window, once: bool) -> ExitCode {
+        let mut last_arrival = Instant::now();
+        let mut forget = true;
+        loop {
+            if self.pass(Instant::now()) > 0 {
                 last_arrival = Instant::now();
                 forget = true;
             }
-            Err(err) => {
-                eprintln!("error: cannot list `{}`: {err}", spool.display());
-                return ExitCode::FAILURE;
+            if forget && self.stalled.is_none() {
+                if let Err(err) = self.index.forget(window, now_us()) {
+                    eprintln!("warning: the debug index could not delete old records: {err}");
+                }
+                forget = false;
             }
-        }
-        if forget {
-            if let Err(err) = index.forget(window, now_us()) {
-                eprintln!("warning: the debug index could not delete old records: {err}");
+            if once {
+                return ExitCode::SUCCESS;
             }
-            forget = false;
+            std::thread::sleep(ingest::wait(last_arrival, Instant::now()));
         }
-        if once {
-            return ExitCode::SUCCESS;
-        }
-        std::thread::sleep(ingest::wait(last_arrival, Instant::now()));
     }
-}
 
-/// One pass over `spool`: every file [`ingest::ready`] lists, ingested. Answers how many files it
-/// read.
-fn pass(index: &mut Index, spool: &Path) -> std::io::Result<u64> {
-    let mut read = 0;
-    for path in ingest::ready(spool, SystemTime::now())? {
-        match ingest::file(index, &path, now_us()) {
-            Ok(_) => read += 1,
-            // Committed: the next pass reads the file again and adds nothing.
-            Err(ingest::Failed::Delete(err)) => {
-                eprintln!("warning: cannot delete `{}`: {err}", path.display());
-                read += 1;
+    /// One pass over every source in turn. Answers how many sources read something.
+    fn pass(&mut self, now: Instant) -> u64 {
+        if self.stalled.is_some_and(|stalled| now < stalled.until) {
+            return 0;
+        }
+        match self.sources(now) {
+            Ok(arrived) => {
+                self.stalled = None;
+                arrived
             }
-            Err(ingest::Failed::Read(err)) => {
-                eprintln!("warning: cannot read `{}`: {err}", path.display());
-            }
-            Err(ingest::Failed::Index(err)) => {
+            Err(err) => {
+                let backoff = ingest::Backoff::after(self.stalled, now);
                 eprintln!(
-                    "warning: cannot write `{}` to the debug index: {err}",
-                    path.display()
+                    "warning: cannot write to the debug index: {err}. It is tried again in {} s.",
+                    backoff.delay.as_secs()
                 );
+                self.stalled = Some(backoff);
+                0
             }
         }
     }
-    Ok(read)
+
+    /// The spool, then each tailed file, each up to [`ingest::PASS_BYTES`].
+    fn sources(&mut self, now: Instant) -> rusqlite::Result<u64> {
+        let mut arrived = u64::from(self.spool(now)?);
+        for tail in self.tails.clone() {
+            if !self.due(&tail, now) {
+                continue;
+            }
+            match tail::pass(&mut self.index, &tail, ingest::PASS_BYTES, now_us()) {
+                Ok(read) => {
+                    arrived += u64::from(read.bytes > 0);
+                    self.recovered(&tail)?;
+                }
+                Err(ingest::Failed::Read(err) | ingest::Failed::Delete(err)) => {
+                    self.fail(&tail, &err, now)?;
+                }
+                Err(ingest::Failed::Index(err)) => return Err(err),
+            }
+        }
+        Ok(arrived)
+    }
+
+    /// The spool's share of a pass: every file [`ingest::ready`] lists, in order, until the budget
+    /// is spent. Answers whether a file was read.
+    fn spool(&mut self, now: Instant) -> rusqlite::Result<bool> {
+        let spool = self.spool.clone();
+        if !self.due(&spool, now) {
+            return Ok(false);
+        }
+        let files = match ingest::ready(&spool, SystemTime::now()) {
+            Ok(files) => files,
+            Err(err) => {
+                self.fail(&spool, &err, now)?;
+                return Ok(false);
+            }
+        };
+        self.recovered(&spool)?;
+        self.resume.retain(|path, _| files.contains(path));
+        let gone: Vec<PathBuf> = self
+            .failed
+            .keys()
+            .filter(|path| path.parent() == Some(&spool) && !files.contains(path))
+            .cloned()
+            .collect();
+        for path in gone {
+            self.recovered(&path)?;
+        }
+        let mut budget = ingest::PASS_BYTES;
+        let mut arrived = false;
+        for path in files {
+            if budget == 0 {
+                break;
+            }
+            if !self.due(&path, now) {
+                continue;
+            }
+            let from = self.resume.get(&path).copied().unwrap_or(0);
+            match ingest::file(&mut self.index, &path, from, budget, now_us()) {
+                Ok(read) => {
+                    arrived = true;
+                    budget = budget.saturating_sub(read.bytes);
+                    match read.next {
+                        Some(next) => self.resume.insert(path.clone(), next),
+                        None => self.resume.remove(&path),
+                    };
+                    self.recovered(&path)?;
+                }
+                // The writer evicted it after the listing.
+                Err(ingest::Failed::Read(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+                    self.resume.remove(&path);
+                }
+                // A failed delete was committed: the next try reads it again and adds nothing.
+                Err(ingest::Failed::Read(err) | ingest::Failed::Delete(err)) => {
+                    arrived = true;
+                    self.resume.remove(&path);
+                    self.fail(&path, &err, now)?;
+                }
+                Err(ingest::Failed::Index(err)) => return Err(err),
+            }
+        }
+        Ok(arrived)
+    }
+
+    /// Whether `path` is not waiting out a failure at `now`.
+    fn due(&self, path: &Path, now: Instant) -> bool {
+        self.failed
+            .get(path)
+            .is_none_or(|backoff| now >= backoff.until)
+    }
+
+    /// Quarantines `path` after it failed with `err` at `now`.
+    fn fail(&mut self, path: &Path, err: &std::io::Error, now: Instant) -> rusqlite::Result<()> {
+        let backoff = ingest::Backoff::after(self.failed.get(path).copied(), now);
+        eprintln!(
+            "warning: cannot read `{}`: {err}. It is tried again in {} s.",
+            path.display(),
+            backoff.delay.as_secs()
+        );
+        self.failed.insert(path.to_owned(), backoff);
+        ingest::quarantine(&self.index, path, &err.to_string(), backoff, now_us())
+    }
+
+    /// Releases `path` from quarantine, when it was in it.
+    fn recovered(&mut self, path: &Path) -> rusqlite::Result<()> {
+        if self.failed.remove(path).is_some() {
+            ingest::release(&self.index, path)?;
+        }
+        Ok(())
+    }
 }
 
 /// The lock on `path`, or `None` when another process holds it.

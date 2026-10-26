@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// The schema this build writes. A file with any other is a cache miss.
-pub(crate) const SCHEMA: i64 = 1;
+pub(crate) const SCHEMA: i64 = 2;
 
 /// How many requests one deletion transaction removes.
 const FORGET_BATCH: i64 = 1000;
@@ -154,6 +154,7 @@ CREATE TABLE logs (
     writer TEXT,
     seq INTEGER,
     source TEXT,
+    source_key TEXT,
     offset INTEGER,
     batch INTEGER NOT NULL,
     trace TEXT,
@@ -161,10 +162,11 @@ CREATE TABLE logs (
     level TEXT NOT NULL,
     message TEXT NOT NULL,
     fields TEXT NOT NULL,
-    elided INTEGER NOT NULL
+    elided INTEGER NOT NULL,
+    lossy INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX logs_key ON logs (writer, seq);
-CREATE UNIQUE INDEX logs_tailed ON logs (source, offset);
+CREATE UNIQUE INDEX logs_tailed ON logs (source_key, offset);
 CREATE INDEX logs_trace ON logs (trace);
 CREATE INDEX logs_at ON logs (at_us);
 
@@ -198,27 +200,28 @@ CREATE TABLE unparseable (
     batch INTEGER NOT NULL,
     at_us INTEGER NOT NULL,
     source TEXT NOT NULL,
+    source_key TEXT NOT NULL,
     offset INTEGER NOT NULL,
+    length INTEGER NOT NULL,
     reason TEXT NOT NULL,
-    excerpt TEXT NOT NULL
+    excerpt TEXT NOT NULL,
+    lossy INTEGER NOT NULL
 );
-CREATE UNIQUE INDEX unparseable_key ON unparseable (source, offset);
+CREATE UNIQUE INDEX unparseable_key ON unparseable (source_key, offset);
 CREATE INDEX unparseable_at ON unparseable (at_us);
 
 CREATE TABLE quarantine (
-    id INTEGER PRIMARY KEY,
-    batch INTEGER NOT NULL,
+    path TEXT PRIMARY KEY,
     at_us INTEGER NOT NULL,
-    path TEXT NOT NULL,
+    retry_us INTEGER NOT NULL,
+    failures INTEGER NOT NULL,
     reason TEXT NOT NULL
-);
-CREATE INDEX quarantine_at ON quarantine (at_us);
+) WITHOUT ROWID;
 
 CREATE TABLE checkpoints (
-    identity TEXT PRIMARY KEY,
-    path TEXT NOT NULL,
-    offset INTEGER NOT NULL,
-    first_line TEXT NOT NULL
+    path TEXT PRIMARY KEY,
+    source_key TEXT NOT NULL,
+    offset INTEGER NOT NULL
 ) WITHOUT ROWID;
 
 CREATE VIRTUAL TABLE search USING fts5 (text);
@@ -281,14 +284,15 @@ const BY_TRACE: [&str; 6] = [
 ];
 
 /// The tables whose rows carry their own time, deleted past `index_age` when no request names them.
-const BY_TIME: [&str; 7] = [
+/// A `quarantine` row is not one: it stays while its file fails, and goes once the file is read or
+/// is gone.
+const BY_TIME: [&str; 6] = [
     "body_parts",
     "events",
     "dumps",
     "logs",
     "dropped",
     "unparseable",
-    "quarantine",
 ];
 
 /// The open index. See the module doc.
@@ -428,7 +432,7 @@ impl Index {
 
 /// Whether `table` has a `trace` column.
 fn has_trace(table: &str) -> bool {
-    !matches!(table, "dropped" | "unparseable" | "quarantine")
+    !matches!(table, "dropped" | "unparseable")
 }
 
 /// Write-ahead mode with synchronous writes off: the module doc's *A cache, opened in its fastest

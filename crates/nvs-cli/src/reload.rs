@@ -586,15 +586,34 @@ fn identity(_path: &Path, meta: &std::fs::Metadata) -> Option<(u64, u64)> {
     Some((meta.dev(), meta.ino()))
 }
 
-/// The volume serial number and file index `path` reaches. `std` keeps both
-/// behind an unstable feature, so they are read off an open handle.
+/// The volume serial number and file index `path` reaches.
 #[cfg(windows)]
 fn identity(path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    file_identity(&std::fs::File::open(path).ok()?)
+}
+
+/// No identity where the platform has none to read.
+#[cfg(not(any(unix, windows)))]
+fn identity(_path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    None
+}
+
+/// The device and inode of the open `file`.
+#[cfg(unix)]
+pub(crate) fn file_identity(file: &std::fs::File) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = file.metadata().ok()?;
+    Some((meta.dev(), meta.ino()))
+}
+
+/// The volume serial number and file index of the open `file`. `std` keeps both
+/// behind an unstable feature, so they are read off its handle.
+#[cfg(windows)]
+pub(crate) fn file_identity(file: &std::fs::File) -> Option<(u64, u64)> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
     };
-    let file = std::fs::File::open(path).ok()?;
     let mut info = BY_HANDLE_FILE_INFORMATION::default();
     #[expect(
         unsafe_code,
@@ -613,7 +632,7 @@ fn identity(path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
 
 /// No identity where the platform has none to read.
 #[cfg(not(any(unix, windows)))]
-fn identity(_path: &Path, _meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+pub(crate) fn file_identity(_file: &std::fs::File) -> Option<(u64, u64)> {
     None
 }
 
