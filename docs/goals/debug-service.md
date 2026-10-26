@@ -461,43 +461,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The user answered decision `d9` with option 2, and it is closed. Stage 9 is new: a derived JSON
-decoder fills a `secret` property, and encoding the class does not compile (Standing decisions).
-The gate stage is open again for stage 9's change. Stages 1 to 7 are done and stay done.
+Stages 1 to 7 and 9 are done. Stage 9 landed in `9b06d8cee`. A `#[Json\Derive]` decoder fills a
+`secret` property, and `#[Db\Derive]` keeps `E0462` at the declaration. `Core\Json::encode` and
+`Core\Response::json` are `E0462` at the call, and the encoder throws for a `mixed` value
+(Standing decisions). `LOGIN` decodes its password, and its served test passes by name.
 
-This session checked the sweep's reds against HEAD and changed no code. `env-secret-proofs` exits 0.
-Each failing job of run 40174915924 (built at `9be30356e`) has a later fix:
+The gate stage is open for stage 9's change. `bun nv affected --run` was started once over it, and
+its result is not read yet. Stage 9's two site reds are fixed: `syntax/attributes/json.mdx` is
+stamped, and the questions of `/reference/cli/nvs-debug/` and `/syntax/attributes/json/` are
+rewritten and stamped (`bun nv site --check stale questions` is green).
 
-- the Windows stalled-peer test, by `0b7eadd2c`;
-- the Miri timeout of the traced-loop case, by `bd2e51f0a`;
-- the two Miri `getrusage` cases, ignored under Miri by `901f4855c`;
-- the `overload past capacity` null p99, by `d5aa2be18`.
+The proofs gate has 11 stale perf figures from stage 9: `Core\Json::encode`, `decode`, `decodeAs`
+and `isValid`, and the seven `lang:attributes/*` features of `docs/reference/lang/90-attributes.md`.
+`--record-perf` refused to calibrate while the verify run took the CPU, so they are not recorded yet.
 
-`[debug] store`'s `about.md` is under 160 words since `6bcb2df7d`. At that commit, `bun nv affected --run` was green (22 of 22, 7777 tests), and so were
-`bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`.
-
-Tests expected to go red once stage 9's checker change lands:
-
-- `tests/conformance/reject/a-json-derive-refuses-a-secret-or-lateinit-field.nvst`;
-- the `E0462` cases in `crates/nvs-types/tests/derive.rs`;
-- every `.nvs` that skips a `secret` property only to get past `E0462`.
+No test is expected to go red beyond what the gate run reports. No `.nvs` skipped a `secret` to get
+past `E0462`, and `crates/nvs-types/tests/derive.rs` had no `E0462` case.
 
 ### Next
 
-**Stage 9, in `nvs-types`' derive check, then the rules and the tests.** Its files are
-`crates/nvs-types/src/derive.rs`, `crates/nvs-diagnostics/src/code/types.rs` and
-`crates/nvs-cli/tests/request.rs`.
+**The gate stage, after stage 9.**
 
-- Drop the declaration refusal for `Format::Json` in `codec_field` and keep it for `#[Db\Derive]`.
-  `crates/nvs-types/src/derive.rs:2493`, `crates/nvs-types/src/derive.rs:2647`
-- Find where an encode call checks its argument's codec: `check_json_participation`, and the
-  encoder's class arm in `nvs_stdlib::json`. Report `E0462` there when the class reaches a
-  `secret` field. `crates/nvs-types/src/derive.rs:1777`, `crates/nvs-diagnostics/src/code/types.rs:530`
-- The record's replacement is already written: `json::secret_spans` finds the field once a decoder
-  fills it. `crates/nvs-stdlib/src/json.rs:3345`
-- `LOGIN` stops skipping `$password`, and its test asserts no byte of the password in the spool.
-  `crates/nvs-cli/tests/request.rs:531`
-- Then the gate stage: `bun nv affected --run`, then the goal-end gates again.
+- Read `.agent-tmp/affected.log`, fix every failure in one pass, and run `bun nv affected --run`
+  again. `tools/nv/cmd/verify.ts:1`
+- On an idle machine, record the 11 figures: `bun nv proofs --record-perf --only` with the ids
+  `bun nv proofs --gate --limit 0` lists as `perf: stale`. `tools/nv/proofs/perf.ts:1`
+- Then `bun nv verify --doc`, `bun nv owners --closes debug-service` and `bun nv ci --check`, and
+  tick stage 8's last two items. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
