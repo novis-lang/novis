@@ -13161,6 +13161,307 @@ pub(crate) mod tests {
         assert!(request.input.is_none() && request.response.is_none());
     }
 
+    /// Serves `asked`, written whole with its blank line, to `handler` under
+    /// the tree `written`, with a spool writer of this thread's own on a fresh
+    /// scratch directory. Gives back what the client read, the one `request`
+    /// line, and the raw bytes of every spool file, for a case that searches
+    /// them for a value no line may carry.
+    fn spooled_for<H>(
+        name: &str,
+        written: &str,
+        asked: &'static [u8],
+        handler: &Rc<H>,
+    ) -> (String, nvs_runtime::spool::Request, Vec<u8>)
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
+        let dir = nvs_repo::scratch(name);
+        nvs_runtime::spool::install(nvs_runtime::spool::Writer::new(
+            dir.to_path_buf(),
+            "1-2-0".to_owned(),
+            u64::MAX,
+        ));
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || written_whole_then_read(addr, asked.to_vec()));
+        let answer = served_under(listener, handler, client, booted_on(written));
+        nvs_runtime::spool::seal_now();
+
+        let mut raw = Vec::new();
+        let mut requests = Vec::new();
+        for entry in std::fs::read_dir(&dir).expect("the spool directory") {
+            let bytes = std::fs::read(entry.expect("an entry").path()).expect("a file");
+            let text = std::str::from_utf8(&bytes).expect("a spool file is UTF-8");
+            for line in text.lines() {
+                let line = nvs_runtime::spool::Line::parse(line).expect("a line");
+                if let nvs_runtime::spool::Record::Request(request) = line.record {
+                    requests.push(*request);
+                }
+            }
+            raw.extend_from_slice(&bytes);
+        }
+        assert_eq!(
+            requests.len(),
+            1,
+            "one answer, one request line: {requests:?}"
+        );
+        let request = requests.pop().expect("the one line");
+        (answer, request, raw)
+    }
+
+    /// The value the recorded `headers` give `name`, compared without case.
+    fn recorded_header<'a>(headers: &'a [(String, String)], name: &str) -> Option<&'a str> {
+        headers
+            .iter()
+            .find(|(recorded, _)| recorded.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+    }
+
+    /// [`carrying`] with the door's trace decided on the carrier, as the
+    /// binary's handler decides it: a run records its request body only for a
+    /// carrier that has a trace.
+    fn carrying_traced(request: Request<Incoming>) -> (nvs_runtime::Inbound, Option<Supply>) {
+        let (mut inbound, supply) = carrying(request);
+        crate::trace::take(&mut inbound, None);
+        (inbound, supply)
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// in `development`, each credential header of the request and the
+    /// response's `Set-Cookie` is recorded as `[redacted]`, any other header as
+    /// it was sent, and no byte of a secret value reaches a spool file.
+    #[test]
+    fn a_spool_request_line_replaces_every_credential_header_in_development() {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            let mut response = Response::new(Answer::new(Bytes::from_static(b"signed in")));
+            response.headers_mut().insert(
+                hyper::header::SET_COOKIE,
+                hyper::header::HeaderValue::from_static("session=response-secret-5; HttpOnly"),
+            );
+            Reply::Done(response)
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-credentials",
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n",
+            b"GET /account?tab=keys HTTP/1.1\r\nHost: localhost\r\n\
+              Authorization: Bearer auth-secret-1\r\nCookie: session=cookie-secret-2\r\n\
+              Proxy-Authorization: Basic proxy-secret-3\r\n\
+              Set-Cookie: echoed=setcookie-secret-4\r\nX-Plain: plain-value\r\n\
+              Connection: close\r\n\r\n",
+            &handler,
+        );
+        assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+        let input = request.input.expect("development records the input");
+        assert_eq!(input.query, "tab=keys");
+        for name in nvs_runtime::spool::CREDENTIALS {
+            assert_eq!(
+                recorded_header(&input.headers, name),
+                Some(nvs_runtime::spool::REDACTED),
+                "the request's `{name}` was not replaced: {:?}",
+                input.headers
+            );
+        }
+        assert_eq!(
+            recorded_header(&input.headers, "x-plain"),
+            Some("plain-value"),
+            "a header that is not a credential was not recorded as sent"
+        );
+        let response = request.response.expect("development records the response");
+        assert_eq!(
+            recorded_header(&response.headers, "set-cookie"),
+            Some(nvs_runtime::spool::REDACTED),
+            "the response's cookie was not replaced: {:?}",
+            response.headers
+        );
+        assert_eq!(response.body.bytes().as_deref(), Some(&b"signed in"[..]));
+        for secret in [
+            "auth-secret-1",
+            "cookie-secret-2",
+            "proxy-secret-3",
+            "setcookie-secret-4",
+            "response-secret-5",
+        ] {
+            assert!(
+                !raw.windows(secret.len())
+                    .any(|window| window == secret.as_bytes()),
+                "`{secret}` reached a spool file"
+            );
+        }
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// a request body the program never read is recorded as not read, with no
+    /// bytes, and with the length its `Content-Length` declared.
+    #[test]
+    fn a_spool_request_line_records_a_body_the_program_never_read_as_not_read() {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying_traced(request);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                child.write_output(b"ok").expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-unread",
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n",
+            b"POST /upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8\r\n\
+              Connection: close\r\n\r\nunread-8",
+            &handler,
+        );
+        assert!(answer.ends_with("ok"), "{answer}");
+        let input = request.input.expect("development records the input");
+        assert!(!input.body.read, "a body nobody read was recorded as read");
+        assert_eq!(input.body.declared, Some(8));
+        assert_eq!(input.body.bytes(), None, "an unread body has bytes");
+        assert!(
+            !raw.windows(8).any(|window| window == b"unread-8"),
+            "the bytes of a body nobody read reached a spool file"
+        );
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// a request body the program reads past `[limits] request_body` is
+    /// recorded up to that size and says it was cut, while the program still
+    /// reads all of it.
+    #[test]
+    fn a_spool_request_line_cuts_a_request_body_read_past_request_body() {
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying_traced(request);
+            let program: Program = Box::new(|child: &mut Ctx, _args| {
+                let mut said = b"read=".to_vec();
+                if let Some(body) = child
+                    .inbound_mut()
+                    .expect("the isolate ran with no request in front of it")
+                    .body()
+                {
+                    while let Ok(Some(chunk)) = body.next_chunk() {
+                        said.extend_from_slice(chunk);
+                    }
+                }
+                child.write_output(&said).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+                None,
+            )
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-request-cut",
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n\n\
+             [limits]\nrequest_body = 4\n",
+            b"POST /upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8\r\n\
+              Connection: close\r\n\r\nabcdefgh",
+            &handler,
+        );
+        assert!(
+            answer.ends_with("read=abcdefgh"),
+            "the program did not read the whole body: {answer}"
+        );
+        let input = request.input.expect("development records the input");
+        assert!(
+            input.body.read,
+            "a body the program read was recorded as not read"
+        );
+        assert!(
+            input.body.cut,
+            "a body past the cap does not say it was cut"
+        );
+        assert_eq!(input.body.declared, Some(8));
+        assert_eq!(input.body.bytes().as_deref(), Some(&b"abcd"[..]));
+        assert!(
+            !raw.windows(4).any(|window| window == b"efgh"),
+            "bytes past the cap reached a spool file"
+        );
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// a whole response body longer than `[limits] request_body` is recorded
+    /// up to that size and says it was cut, while the client gets all of it.
+    #[test]
+    fn a_spool_request_line_cuts_a_response_body_past_request_body() {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            Reply::Done(Response::new(Answer::new(Bytes::from_static(
+                b"twelve bytes",
+            ))))
+        });
+        let (answer, request, _raw) = spooled_for(
+            "serve-spool-response-cut",
+            "[mode]\ndefault = \"development\"\n\n[debug]\nstore = true\n\n\
+             [limits]\nrequest_body = 4\n",
+            b"GET /report HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            &handler,
+        );
+        assert!(answer.ends_with("twelve bytes"), "{answer}");
+        let response = request.response.expect("development records the response");
+        assert!(response.body.read, "a whole body was recorded as not read");
+        assert!(
+            response.body.cut,
+            "a body past the cap does not say it was cut"
+        );
+        assert_eq!(response.body.bytes().as_deref(), Some(&b"twel"[..]));
+        assert_eq!(response.body.chunks, None);
+    }
+
+    /// `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`:
+    /// in `production` the `request` line records the outcome alone, with no
+    /// input and no response, so no header value and no body reaches the
+    /// spool.
+    #[test]
+    fn a_production_spool_request_line_records_no_input_and_no_response() {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
+            let mut response = Response::new(Answer::new(Bytes::from_static(b"prod-body-value")));
+            response.headers_mut().insert(
+                hyper::header::SET_COOKIE,
+                hyper::header::HeaderValue::from_static("session=prod-secret-2"),
+            );
+            Reply::Done(response)
+        });
+        let (answer, request, raw) = spooled_for(
+            "serve-spool-production",
+            "[debug]\nstore = true\n",
+            b"GET /account HTTP/1.1\r\nHost: localhost\r\n\
+              Authorization: Bearer prod-secret-1\r\nX-Plain: prod-plain-value\r\n\
+              Connection: close\r\n\r\n",
+            &handler,
+        );
+        assert!(answer.ends_with("prod-body-value"), "{answer}");
+        assert_eq!(
+            (
+                request.method.as_str(),
+                request.path.as_str(),
+                request.status
+            ),
+            ("GET", "/account", 200)
+        );
+        assert!(request.input.is_none(), "production recorded the input");
+        assert!(
+            request.response.is_none(),
+            "production recorded the response"
+        );
+        for value in [
+            "prod-secret-1",
+            "prod-plain-value",
+            "prod-secret-2",
+            "prod-body-value",
+        ] {
+            assert!(
+                !raw.windows(value.len())
+                    .any(|window| window == value.as_bytes()),
+                "`{value}` reached a spool file in production"
+            );
+        }
+    }
+
     /// The bytes [`served_ranged`]'s program streams from, ten of them so a
     /// window is easy to read off the wire.
     const RANGED_BODY: &[u8] = b"0123456789";
