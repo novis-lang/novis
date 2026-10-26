@@ -1028,7 +1028,9 @@ export function comparableRun(_what: What, path: string, ran: Ran): Ran {
  *
  * The two runs are different binaries in different folders, and a program may print its binary's
  * default data folder, `.nvsdata` beside the binary. Each run's own folder is replaced with one
- * placeholder in its output before the two are compared (`ownDataFolder`). A `.cmd` example whose `.out`
+ * placeholder in its output before the two are compared (`ownDataFolder`). A program that answers a
+ * request writes each log line with its time and the request's random id, so those two values are a
+ * placeholder each too (`perRunFields`). A `.cmd` example whose `.out`
  * elides lines prints what differs per build in them, so with `elided`, that `.out`, the recording run
  * agrees when its output matches the `.out`.
  */
@@ -1037,8 +1039,8 @@ export function divergence(judged: Ran, recorded: Ran, elided: string | null = n
   if (recorded.timedOut) return `the recording run was still running after ${Math.round(recorded.ms / 1000)}s`;
   if (recorded.code !== judged.code) return `exit ${recorded.code} on the recording run, ${judged.code} on the judged run`;
   if (elided !== null) return matchesOut(recorded.stdout, elided, true) ? null : "stdout on the recording run differs from the elided .out";
-  const a = normalise(ownDataFolder(judged)).split("\n");
-  const b = normalise(ownDataFolder(recorded)).split("\n");
+  const a = perRunFields(normalise(ownDataFolder(judged))).split("\n");
+  const b = perRunFields(normalise(ownDataFolder(recorded))).split("\n");
   if (a.join("\n") === b.join("\n")) return null;
   let line = 0;
   while (line < a.length && line < b.length && a[line] === b[line]) line++;
@@ -1056,6 +1058,12 @@ export function ownDataFolder(ran: Ran): string {
     .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join("[\\\\/]");
   return ran.stdout.replace(new RegExp(pattern, process.platform === "win32" ? "gi" : "g"), "<data folder>");
+}
+
+/** `stdout` with the two values a JSON log line of a request carries that differ on every run, its
+ * `"ts"` and its `"request_id"`, each replaced by `<ts>` and `<request id>`. Any other text is unchanged. */
+export function perRunFields(stdout: string): string {
+  return stdout.replace(/"ts":"[^"]*"/g, '"ts":"<ts>"').replace(/"request_id":"[0-9a-f]+"/g, '"request_id":"<request id>"');
 }
 
 /** One program run for a person to read: a `== <path>` line, what it printed, then its exit status and

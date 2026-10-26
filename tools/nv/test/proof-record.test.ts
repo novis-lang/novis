@@ -266,6 +266,13 @@ describe("the judged run and the recording run", () => {
     expect(divergence(crossed, recorded)).toBe("stdout differs from the judged run's at line 2");
   });
 
+  test("a request's log lines are compared without their time and request id, and with every other field", () => {
+    const line = (ts: string, id: string, msg: string) => `{"ts":"${ts}","level":"warn","msg":"${msg}","request_id":"${id}"}\n`;
+    const judged = ran(0, line("2026-10-26T22:11:58.7316624Z", "a9e261a2ff88adb58b52867e57ea312d", "x"));
+    expect(divergence(judged, ran(0, line("2026-10-26T22:11:59.1Z", "2b440d6f03c6ffcd710811a2bf52cad4", "x")))).toBeNull();
+    expect(divergence(judged, ran(0, line("2026-10-26T22:11:59.1Z", "2b440d6f03c6ffcd710811a2bf52cad4", "y")))).toBe("stdout differs from the judged run's at line 1");
+  });
+
   test("only a program whose judged run ran out of time is run again alone", () => {
     const results = new Map<string, Result>([
       ["hostile:slow.nvs", { verdict: "fail", why: "still running after 10s", cached: false, ran: ran(1, "", true) }],
