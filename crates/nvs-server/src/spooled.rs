@@ -48,8 +48,9 @@ pub enum Ending {
     /// The door wrote the answer alone, or the program's completion never came back, so the gate
     /// is read off the snapshot the answer was written under.
     Door,
-    /// The program ended under this gate, with this uncaught exception.
-    Ran(Option<Store>, Option<spool::Exception>),
+    /// The program ended under this gate, with this uncaught exception. The exception is boxed
+    /// because an `Ending` is held across the handler's wait, on the connection's stack.
+    Ran(Option<Store>, Option<Box<spool::Exception>>),
     /// The head went out while the program still writes the body, so the line waits for the join.
     Later,
 }
@@ -58,7 +59,12 @@ impl Ending {
     /// How `done` ended: its gate and its failure.
     #[must_use]
     pub fn of(done: &Completion) -> Self {
-        Self::Ran(done.store, done.error.as_ref().map(exception))
+        Self::Ran(
+            done.store,
+            done.error
+                .as_ref()
+                .map(|failure| Box::new(exception(failure))),
+        )
     }
 }
 
@@ -228,7 +234,7 @@ impl Pending {
     pub fn written(mut self, done: Option<&Completion>, recorded: Option<Recorder>) {
         read_into(self.input.as_mut(), recorded);
         let (store, exception) = match done.map(Ending::of) {
-            Some(Ending::Ran(store, exception)) => (store, exception),
+            Some(Ending::Ran(store, exception)) => (store, exception.map(|exception| *exception)),
             _ => (Some(self.under), None),
         };
         let Some(tail) = self.tail.take() else {

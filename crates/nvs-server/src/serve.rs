@@ -1744,7 +1744,7 @@ where
                        trace: Option<nvs_runtime::TraceContext>,
                        under: &Arc<nvs_config::Snapshot>,
                        ending: crate::spooled::Ending,
-                       input: Option<nvs_runtime::spool::Input>| {
+                       input: Option<Box<nvs_runtime::spool::Input>>| {
             let trace = trace.unwrap_or_else(nvs_runtime::TraceContext::started);
             crate::trace::respond(
                 response.headers_mut(),
@@ -1781,7 +1781,9 @@ where
             }
             let later = matches!(ending, crate::spooled::Ending::Later);
             let (store, exception) = match ending {
-                crate::spooled::Ending::Ran(store, exception) => (store, exception),
+                crate::spooled::Ending::Ran(store, exception) => {
+                    (store, exception.map(|exception| *exception))
+                }
                 crate::spooled::Ending::Door | crate::spooled::Ending::Later => {
                     (crate::spooled::door_store(under), None)
                 }
@@ -1808,7 +1810,7 @@ where
                 status,
                 took,
                 exception,
-                input,
+                input: input.map(|input| *input),
                 response: recorded,
             };
             if later {
@@ -1836,10 +1838,17 @@ where
         let policy = serving.policy(&snapshot);
         // `rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`'s
         // head, copied before the handler takes the request, where the store
-        // is on in `development`. Every answer below hands it to `counted`.
+        // is on in `development`. Every answer below hands it to `counted`. It
+        // is boxed because it is held across the handler's wait, and this
+        // future is on the connection's stack.
         let mut input = crate::spooled::door_store(&snapshot)
             .filter(|store| store.development)
-            .map(|_| crate::spooled::head(request.uri().query(), request.headers()));
+            .map(|_| {
+                Box::new(crate::spooled::head(
+                    request.uri().query(),
+                    request.headers(),
+                ))
+            });
         // `rule:errors/http-message-defects`'s three rows `hyper` accepts: a
         // repeated `Content-Length` and a bare LF in the head, and a path with
         // a dot-segment or an encoded separator. First, so a head two readers
@@ -2367,7 +2376,7 @@ where
                                         },
                                     );
                                     crate::spooled::read_into(
-                                        input.as_mut(),
+                                        input.as_deref_mut(),
                                         peer.supply.as_ref().and_then(Supply::recorded),
                                     );
                                     // `rule:errors/http-message-defects`: a body
