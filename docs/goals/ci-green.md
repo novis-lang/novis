@@ -104,27 +104,15 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `1f93a1275`, `debug-service`'s goal end. Its Website run is green. Its CI run
-40305416602 was red in two jobs, each fixed and not pushed. Every other job was green, and the
-`--past` watch exited 4.
+`debug-viewer`'s goal-end push of `58c17ba61` was refused on the stale questions of
+`/reference/cli/nvs-debug/` (restamped in `2e22637c7`) and `/reference/cli/nvs-lsp/` (a call
+hierarchy question, `8a2e1ab7f`). Once the main loop committed its lens section of
+`40-editor.md`, `bun nv ci --check` was green, and this session ran `bun nv ci --push`.
+`origin/main` is at `8a2e1ab7f`, and its CI and Website runs are going.
+It carries `request-aware-editor`'s commits up to `74dac4eea`, which no gate has verified yet.
 
-- `test / linux-aarch64`: `a_waiting_request_holds_its_connection_and_its_isolate_on_the_heap`
-  measured 9.1 host stack pages per waiting request against a bound of 9. `536782207` sets the
-  bound to 10, from that aarch64 figure, as the idle connection's bound already allows for.
-- `test / macos-aarch64 (tests)`: the counted-run test's two cold runs differed by one 64-byte
-  allocation. On macOS a std mutex or condvar allocates on its first use. The slice clock's `slots`
-  and the watchdog's `change` were raced for by the run thread and their own thread. `f7ff2dc7f`
-  uses each once before its thread starts. Windows cannot show this race, so only the next macOS
-  run checks it.
-
-The push run cancelled nightly run 40291801939, so the Miri and overload fixes are still unchecked.
-
-The main loop's live goal is `debug-viewer`, its proofs in stage 7. Nothing went out since
-`1f93a1275`. At `HEAD`, `bun nv site --check stale questions` is green. `cargo fmt --all --check` fails on the committed
-`crates/nvs-cli/src/debug/api.rs:830` and `crates/nvs-cli/tests/debug_api.rs:923`. The proofs gate
-owes 9 `Core\Debug::*` perf figures (`debug.rs`, from `e894e74a1`) and the proofs of the four
-`directive:debug.*` settings. All of these were handed to the main loop with `loop say`, and a
-refused push names them first.
+This push carries `536782207` (aarch64 stack-page bound) and `f7ff2dc7f` (macOS first-use
+lock allocation), and the Miri and overload fixes of the cancelled nightly run 40291801939.
 
 `.agent-tmp/wt-perf`, `wt-csv` and `wt-render` are stray folders that Windows keeps while looper
 runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three when looper is stopped.
@@ -133,9 +121,11 @@ runs. `wt-csv` has a `target/` warm at `f6883f463`. Delete all three when looper
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch the next push with `bun nv ci --watch --next`. `tools/nv/cmd/ci.ts:265`
-  Run 40305416602 has ended, so `--next` passes over it. The next goal end's push carries
-  `536782207` and `f7ff2dc7f`. Watch with no `--past`, and without a pipe into `tail`, which
+- [ ] Watch the runs of `8a2e1ab7f` with `bun nv ci --watch`, without `--next`. `tools/nv/cmd/ci.ts:265`
+  They started before the next session, so `--next` would pass over them. They carry
+  `536782207` and `f7ff2dc7f`. A stamp taken in the root hashes the working tree. If another
+  session has uncommitted edits in the page's chapter, take the stamp in a scratch worktree at
+  `HEAD`. Point `--nvs` at a binary built there, and copy the root's `tests/db/ca.crt` in first. Watch with no `--past`, and without a pipe into `tail`, which
   hides the exit code. A watch without `--next` exits 1 at once on the newest red run, even an
   old nightly one. If `proofs` fails on perf figures of `math.rs`, `test.rs`, `request.rs` or
   `json.rs`, bench-counters' gate did not record them: record them as below. If a `Core\Process` example fails on another program,
