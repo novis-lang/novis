@@ -35,6 +35,12 @@
 //! reused. A child that finds the lock held exits quietly: the server then uses the service that
 //! is already running.
 //!
+//! **The loop waits on one channel.** Between two passes the loop waits on a channel of
+//! [`Signal`]s, so the parent's end and the viewer's discard of the index each wake it at once. A
+//! discard drops the loop's connection, deletes the file and creates it again
+//! ([`Index::rebuild`]); the spool's leftovers and each tailed file are then read from their start,
+//! and the quarantine list starts empty.
+//!
 //! **What it spends:** see [`index`], [`ingest`], [`tail`] and [`listen`]. Here, the lock's file handle, and one
 //! entry per spool file stopped in or per file failing. Under `--parent`, one thread blocked on
 //! standard input. In the server, the child's handle and its pipe.
@@ -43,7 +49,10 @@ pub(crate) mod api;
 pub(crate) mod index;
 pub(crate) mod ingest;
 pub(crate) mod listen;
+pub(crate) mod search;
 pub(crate) mod secure;
+pub(crate) mod settings;
+pub(crate) mod stream;
 pub(crate) mod tail;
 
 use std::collections::HashMap;
@@ -60,6 +69,15 @@ use crate::config::Init;
 use crate::render_diagnostics;
 use index::{Index, Window};
 use listen::{Listen, Watermark};
+
+/// What wakes the loop between two passes.
+pub(crate) enum Signal {
+    /// The parent closed the pipe: the loop ends.
+    Gone,
+    /// The viewer asks for the index to be discarded. The new watermark, or why it failed, goes
+    /// back on the channel.
+    Discard(mpsc::Sender<Result<i64, String>>),
+}
 
 /// Run the debug service: read recorded requests into the debug index, and serve the debug viewer.
 ///
@@ -160,8 +178,9 @@ impl Args {
                 return ExitCode::FAILURE;
             }
         };
+        let (signal, signals) = mpsc::channel();
         if !self.once {
-            match listen::start(&listen, folder, Arc::clone(&watermark)) {
+            match listen::start(&listen, folder, Arc::clone(&watermark), signal.clone()) {
                 Ok(link) => eprintln!("the debug viewer is at {link}"),
                 Err(message) if self.parent => eprintln!("warning: {message}"),
                 Err(message) => {
@@ -170,29 +189,32 @@ impl Args {
                 }
             }
         }
+        if self.parent {
+            parent_gone(signal.clone());
+        }
         let mut service = Service {
             index,
+            index_path,
             spool,
             tails,
             resume: HashMap::new(),
             failed,
             stalled: None,
             watermark,
+            signals,
+            _signal: signal,
         };
-        let parent = self.parent.then(parent_gone);
-        service.serve(window, self.once, parent.as_ref())
+        service.serve(window, self.once)
     }
 }
 
-/// A channel that disconnects once standard input reaches its end, which is the parent closing
-/// the pipe or ending.
-fn parent_gone() -> mpsc::Receiver<()> {
-    let (tx, rx) = mpsc::channel::<()>();
+/// Sends [`Signal::Gone`] once standard input reaches its end, which is the parent closing the
+/// pipe or ending.
+fn parent_gone(signal: mpsc::Sender<Signal>) {
     std::thread::spawn(move || {
         let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
-        drop(tx);
+        let _ = signal.send(Signal::Gone);
     });
-    rx
 }
 
 /// The `nvs debug` a development server started, stopped when this value is dropped
@@ -253,6 +275,7 @@ impl Drop for Child {
 /// The running service: the index, its sources, and what the module doc's failures left waiting.
 struct Service {
     index: Index,
+    index_path: PathBuf,
     spool: PathBuf,
     tails: Vec<PathBuf>,
     /// Each spool file the budget stopped in, and where it goes on.
@@ -263,18 +286,18 @@ struct Service {
     stalled: Option<ingest::Backoff>,
     /// What the viewer's event streams are sent.
     watermark: Arc<Watermark>,
+    /// What wakes the wait between two passes.
+    signals: mpsc::Receiver<Signal>,
+    /// Keeps `signals` connected when nothing else sends on it.
+    _signal: mpsc::Sender<Signal>,
 }
 
 impl Service {
     /// The ingest loop: a pass, the deletion window after any pass that read something, and the
-    /// wait [`ingest::wait`] names. With `once`, one pass and its deletion. With `parent`, the
-    /// loop ends once the parent is gone, which wakes the wait.
-    fn serve(
-        &mut self,
-        window: Window,
-        once: bool,
-        parent: Option<&mpsc::Receiver<()>>,
-    ) -> ExitCode {
+    /// wait [`ingest::wait`] names. With `once`, one pass and its deletion. A [`Signal`] ends the
+    /// wait early: the loop stops on [`Signal::Gone`] and discards the index on
+    /// [`Signal::Discard`].
+    fn serve(&mut self, window: Window, once: bool) -> ExitCode {
         let mut last_arrival = Instant::now();
         let mut forget = true;
         loop {
@@ -295,15 +318,32 @@ impl Service {
                 return ExitCode::SUCCESS;
             }
             let wait = ingest::wait(last_arrival, Instant::now());
-            match parent {
-                Some(parent) => {
-                    if let Err(mpsc::RecvTimeoutError::Disconnected) = parent.recv_timeout(wait) {
-                        return ExitCode::SUCCESS;
-                    }
+            match self.signals.recv_timeout(wait) {
+                Ok(Signal::Gone) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return ExitCode::SUCCESS;
                 }
-                None => std::thread::sleep(wait),
+                Ok(Signal::Discard(reply)) => {
+                    let _ = reply.send(self.rebuild());
+                    last_arrival = Instant::now();
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
             }
         }
+    }
+
+    /// Discards the index and creates it again, and forgets every file's place and failure, which
+    /// the old file held. Answers the new watermark.
+    fn rebuild(&mut self) -> Result<i64, String> {
+        let next = self.index.rebuild(&self.index_path)?;
+        self.resume.clear();
+        self.failed.clear();
+        self.stalled = None;
+        self.watermark.publish(next);
+        eprintln!(
+            "the debug index `{}` was discarded and is read again",
+            self.index_path.display()
+        );
+        Ok(next)
     }
 
     /// One pass over every source in turn. Answers how many sources read something.

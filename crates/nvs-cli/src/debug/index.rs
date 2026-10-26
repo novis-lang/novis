@@ -33,6 +33,13 @@
 //! name no recorded request are deleted by their own time past `index_age`, and an exception group
 //! once its last seen is.
 //!
+//! # A discard keeps the numbers rising
+//!
+//! [`Index::rebuild`] deletes the file and creates it again, and the new file's watermark and
+//! request ids go on from the old file's, so a cursor or a watermark the viewer holds never names
+//! a newer row. A file too damaged to read them starts both at the watermark the loop last
+//! published.
+//!
 //! **What it spends:** SQLite's page cache in the service process. On disk, at most `index_max`
 //! of pages in use; a page freed by a deletion is reused, so the file stays near its largest size.
 
@@ -359,6 +366,54 @@ impl Index {
         } else {
             Err(rusqlite::Error::InvalidQuery)
         }
+    }
+
+    /// Deletes the file at `path`, which this index has open, and creates it again empty. The
+    /// next watermark and request id go on from this file's (the module doc's *A discard keeps the
+    /// numbers rising*). Answers the new watermark.
+    ///
+    /// # Errors
+    ///
+    /// When the file cannot be deleted, because another process has it open, or cannot be created.
+    /// The old file stays open in the first case, and an empty in-memory database stands in for
+    /// it in the second, so every write fails and backs off until a discard succeeds.
+    pub(crate) fn rebuild(&mut self, path: &Path) -> Result<i64, String> {
+        let watermark = self.watermark().unwrap_or(0);
+        let requests: i64 = self
+            .db
+            .query_row(
+                "SELECT seq FROM sqlite_sequence WHERE name = 'requests'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        let closed = Connection::open_in_memory().map_err(|err| err.to_string())?;
+        drop(std::mem::replace(&mut self.db, closed));
+        discard(path);
+        if path.exists() {
+            self.db = Self::open(path).map_err(|err| err.to_string())?.db;
+            return Err(format!(
+                "`{}` cannot be deleted. Another program may have it open.",
+                path.display()
+            ));
+        }
+        let fresh = Self::open(path).map_err(|err| format!("`{}`: {err}", path.display()))?;
+        let next = watermark + 1;
+        fresh
+            .db
+            .execute("UPDATE meta SET value = ?1 WHERE key = 'watermark'", [next])
+            .and_then(|_| {
+                fresh.db.execute(
+                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('requests', ?1)",
+                    [requests],
+                )
+            })
+            .map_err(|err| err.to_string())?;
+        self.db = fresh.db;
+        Ok(next)
     }
 
     /// The number of the last committed batch, which the viewer is pushed

@@ -23,16 +23,21 @@
 //! read blocks its own thread's write and nothing else, and a number it missed is replaced by the
 //! next one, so nothing buffers.
 //!
+//! **A body is read only once the checks pass.** `PUT /api/settings` is the one route with a body,
+//! and it is read up to [`settings::BODY_MAX`] after the host, the origin and the token are
+//! admitted. A longer body is a `413`.
+//!
 //! **What it spends:** a thread per open connection, at most [`MAX_CONNECTIONS`], each with its
-//! connection's buffers and the stack `std` gives a thread. One [`Watermark`] and one [`Api`] for
-//! the service. The two embedded files are sent from the binary's read-only data.
+//! connection's buffers and the stack `std` gives a thread, and while a settings body is read, that
+//! body. One [`Watermark`] and one [`Api`] for the service. The two embedded files are sent from
+//! the binary's read-only data.
 
 use std::convert::Infallible;
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, PoisonError, mpsc};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -43,8 +48,11 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 
+use super::Signal;
 use super::api::Api;
 use super::secure::Secure;
+use super::settings::{self, Store};
+use super::{search, stream};
 use crate::viewer;
 
 /// The most connections served at once. A browser opens at most six to one address, so this covers
@@ -90,11 +98,12 @@ pub(crate) struct Listen {
 }
 
 /// Binds `listen`, starts the thread that accepts on it, and answers the link to print. The error
-/// is the message to print.
+/// is the message to print. `signal` reaches the ingest loop, for `POST /api/index/discard`.
 pub(crate) fn start(
     listen: &Listen,
     folder: &nvs_config::data::Folder,
     watermark: Arc<Watermark>,
+    signal: mpsc::Sender<Signal>,
 ) -> Result<String, String> {
     let wanted: SocketAddr = listen.addr.parse().map_err(|_| {
         format!(
@@ -111,7 +120,7 @@ pub(crate) fn start(
     })?;
     let addr = socket.local_addr().map_err(|err| err.to_string())?;
     let index = folder.debug_index();
-    let api = Api::open(&index)
+    let api = Api::open(&index, signal)
         .map_err(|err| format!("the debug viewer cannot read `{}`: {err}", index.display()))?;
     let secure = if addr.ip().is_loopback() {
         None
@@ -134,6 +143,7 @@ pub(crate) fn start(
         secure,
         watermark,
         api,
+        settings: Store::new(folder.viewer_settings()),
     });
     std::thread::Builder::new()
         .name("nvs-debug-accept".to_owned())
@@ -197,8 +207,8 @@ fn connection(stream: TcpStream, site: &Site) {
             Err(_) => return,
         },
     };
-    let service = service_fn(|request: Request<Incoming>| {
-        std::future::ready(Ok::<_, Infallible>(site.answer(&request)))
+    let service = service_fn(|request: Request<Incoming>| async move {
+        Ok::<_, Infallible>(site.answer(request).await)
     });
     let _ = nvs_host::block_on(
         http1::Builder::new()
@@ -207,19 +217,34 @@ fn connection(stream: TcpStream, site: &Site) {
     );
 }
 
-/// What every connection shares: the bound address, the off-loopback secrets, the watermark and
-/// the index's read connection.
+/// What every connection shares: the bound address, the off-loopback secrets, the watermark, the
+/// index's read connection and the settings file.
 struct Site {
     addr: SocketAddr,
     secure: Option<Secure>,
     watermark: Arc<Watermark>,
     api: Api,
+    settings: Store,
 }
 
 impl Site {
     /// The response to `request`, with the headers every response carries.
-    fn answer(&self, request: &Request<Incoming>) -> Response<Body> {
-        let mut response = self.route(request);
+    async fn answer(&self, request: Request<Incoming>) -> Response<Body> {
+        let (parts, incoming) = request.into_parts();
+        let request = Request::from_parts(parts, ());
+        let mut response = match self.refused(&request) {
+            Some(refused) => refused,
+            None if *request.method() == Method::PUT => {
+                match read_body(incoming, settings::BODY_MAX).await {
+                    Some(body) => self.route(&request, &body),
+                    None => text(
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        "The body is too large, or it ended early.",
+                    ),
+                }
+            }
+            None => self.route(&request, &[]),
+        };
         let headers = response.headers_mut();
         for (name, value) in [
             (header::CONTENT_SECURITY_POLICY, CSP),
@@ -236,76 +261,77 @@ impl Site {
         response
     }
 
-    /// The checks in the module doc's order, then the route.
-    fn route(&self, request: &Request<Incoming>) -> Response<Body> {
+    /// The checks in the module doc's order: the response that turns `request` away, or `None`
+    /// when it may be routed.
+    fn refused(&self, request: &Request<()>) -> Option<Response<Body>> {
         let headers = request.headers();
         let Some(host) = single(headers, &header::HOST) else {
-            return text(
+            return Some(text(
                 StatusCode::BAD_REQUEST,
                 "The request needs one `Host` header.",
-            );
+            ));
         };
         if !self.admits_host(host) {
-            return text(
+            return Some(text(
                 StatusCode::MISDIRECTED_REQUEST,
                 "This host name is not allowed. Open the address that `nvs debug` printed.",
-            );
+            ));
         }
         let changing = !matches!(*request.method(), Method::GET | Method::HEAD);
         match single(headers, &header::ORIGIN) {
             Some(origin) if !self.is_own_origin(origin, host) => {
-                return text(StatusCode::FORBIDDEN, "This origin is not allowed.");
+                return Some(text(StatusCode::FORBIDDEN, "This origin is not allowed."));
             }
             None if changing || headers.contains_key(header::ORIGIN) => {
-                return text(
+                return Some(text(
                     StatusCode::FORBIDDEN,
                     "A request that changes something needs one `Origin` header.",
-                );
+                ));
             }
             _ => {}
         }
         if changing && !is_json(headers) {
-            return text(
+            return Some(text(
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 "A request that changes something needs a JSON body.",
-            );
+            ));
         }
         if let Some(secure) = &self.secure {
             if let Some(token) = query_token(request.uri().query()) {
-                return if secure.admits(token) {
+                return Some(if secure.admits(token) {
                     admitted(request.uri().path(), token)
                 } else {
                     text(StatusCode::UNAUTHORIZED, "This token is not valid.")
-                };
+                });
             }
             if !cookie_token(headers).is_some_and(|token| secure.admits(token)) {
-                return text(
+                return Some(text(
                     StatusCode::UNAUTHORIZED,
                     "Open the link that `nvs debug` printed. It contains the token.",
-                );
+                ));
             }
         }
+        None
+    }
+
+    /// The route of an admitted `request`, with its `body`.
+    fn route(&self, request: &Request<()>, body: &[u8]) -> Response<Body> {
         let path = request.uri().path();
+        let query = request.uri().query();
         let reads = matches!(*request.method(), Method::GET | Method::HEAD);
+        let method = request.method();
         match path {
             "/viewer.js" if reads => file(viewer::JS, "text/javascript; charset=utf-8"),
             "/viewer.css" if reads => file(viewer::CSS, "text/css; charset=utf-8"),
-            "/api/events" if *request.method() == Method::GET => {
-                events(Arc::clone(&self.watermark))
-            }
-            "/api/requests" | "/api/request" if reads => {
-                let query = request.uri().query();
-                let (status, body) = if path == "/api/request" {
-                    self.api.request(query)
-                } else {
-                    self.api.requests(query)
-                };
-                with(
-                    status,
-                    "application/json",
-                    Body::Bytes(Some(Bytes::from(body))),
-                )
-            }
+            "/api/events" if *method == Method::GET => events(Arc::clone(&self.watermark)),
+            "/api/requests" if reads => api(self.api.requests(query)),
+            "/api/request" if reads => api(self.api.request(query)),
+            "/api/stream" if reads => api(stream::stream(&self.api, query)),
+            "/api/quarantine" if reads => api(stream::quarantine(&self.api)),
+            "/api/search" if reads => api(search::search(&self.api, query)),
+            "/api/settings" if reads => api(self.settings.get()),
+            "/api/settings" if *method == Method::PUT => api(self.settings.put(body)),
+            "/api/index/discard" if *method == Method::POST => api(self.api.discard()),
             _ if path.starts_with("/api/") => json(
                 StatusCode::NOT_FOUND,
                 "{\"error\":\"There is no such API path.\"}",
@@ -429,6 +455,31 @@ fn admitted(path: &str, token: &str) -> Response<Body> {
         headers.insert(header::SET_COOKIE, cookie);
     }
     response
+}
+
+/// An API answer as a JSON response.
+fn api((status, body): (StatusCode, Vec<u8>)) -> Response<Body> {
+    with(
+        status,
+        "application/json",
+        Body::Bytes(Some(Bytes::from(body))),
+    )
+}
+
+/// The body of a request, or `None` when it is longer than `max` bytes or fails partway.
+async fn read_body(mut incoming: Incoming, max: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    while let Some(frame) =
+        std::future::poll_fn(|cx| hyper::body::Body::poll_frame(Pin::new(&mut incoming), cx)).await
+    {
+        if let Ok(data) = frame.ok()?.into_data() {
+            if bytes.len() + data.len() > max {
+                return None;
+            }
+            bytes.extend_from_slice(&data);
+        }
+    }
+    Some(bytes)
 }
 
 fn file(bytes: &'static [u8], content_type: &'static str) -> Response<Body> {

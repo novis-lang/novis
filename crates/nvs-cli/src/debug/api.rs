@@ -20,13 +20,22 @@
 //! and its own `request` line. Two such requests in flight at once on one thread cannot be told
 //! apart, and each shows both.
 //!
+//! **The stream, the search and the settings are their own modules.** `GET /api/stream` is
+//! [`super::stream`], `GET /api/search` is [`super::search`], and `GET` and `PUT /api/settings` are
+//! [`super::settings`]. The first two read through this connection.
+//!
+//! **Discarding the index closes this connection first.** `POST /api/index/discard` drops the
+//! connection, asks the ingest loop to discard and create the file, and waits for it, all while it
+//! holds the connection's lock. A file another handle has open cannot be deleted on Windows, and no
+//! API request opens the old file again in between. The next API request opens the new one.
+//!
 //! **What it spends:** one SQLite connection and its page cache for the service, and one page of
 //! at most [`PAGE_MAX`] rows per API request while it is written out. One request's answer is at
 //! most [`EVENTS_MAX`] events, [`DUMPS_MAX`] dumps and [`LOGS_MAX`] log lines, and `cut` says
 //! which list stopped there.
 
-use std::path::Path;
-use std::sync::{Mutex, PoisonError};
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError, mpsc};
 use std::time::Duration;
 
 use hyper::StatusCode;
@@ -34,8 +43,14 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension as _, ToSql, params};
 use serde::Serialize;
 use serde_json::value::RawValue;
 
+use super::Signal;
+
 /// The rows in a page when the viewer names no `limit`.
-const PAGE_DEFAULT: i64 = 100;
+pub(super) const PAGE_DEFAULT: i64 = 100;
+
+/// How long `POST /api/index/discard` waits for the ingest loop. The loop may be in a pass, which
+/// reads at most 16 MiB per source.
+const REBUILD_WAIT: Duration = Duration::from_secs(60);
 
 /// The most rows in one page.
 pub(crate) const PAGE_MAX: i64 = 500;
@@ -49,9 +64,12 @@ const DUMPS_MAX: i64 = 200;
 /// The most log lines in one request's answer.
 const LOGS_MAX: i64 = 1_000;
 
-/// The index, opened once for reading.
+/// The index, opened for reading, and the way to the ingest loop.
 pub(crate) struct Api {
-    db: Mutex<Connection>,
+    path: PathBuf,
+    /// `None` while the index is discarded, and until the next API request opens it again.
+    db: Mutex<Option<Connection>>,
+    signal: mpsc::Sender<Signal>,
 }
 
 /// One page of `GET /api/requests`.
@@ -67,12 +85,12 @@ struct Page {
 
 /// One request in the list: the columns the rule names for the main view.
 #[derive(Serialize)]
-struct Row {
-    id: i64,
+pub(super) struct Row {
+    pub(super) id: i64,
     batch: i64,
-    trace: String,
-    span: Option<String>,
-    start_us: i64,
+    pub(super) trace: String,
+    pub(super) span: Option<String>,
+    pub(super) start_us: i64,
     duration_us: i64,
     method: String,
     route: Option<String>,
@@ -193,18 +211,34 @@ struct Filter {
 }
 
 impl Api {
-    /// Opens the index at `path` for reading. The ingester has created it already.
+    /// Opens the index at `path` for reading. The ingester has created it already, and `signal`
+    /// reaches its loop.
     ///
     /// # Errors
     ///
     /// When SQLite cannot open the file.
-    pub(crate) fn open(path: &Path) -> rusqlite::Result<Self> {
-        let db = Connection::open_with_flags(
-            path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )?;
-        db.busy_timeout(Duration::from_secs(1))?;
-        Ok(Self { db: Mutex::new(db) })
+    pub(crate) fn open(path: &Path, signal: mpsc::Sender<Signal>) -> rusqlite::Result<Self> {
+        let db = connect(path)?;
+        Ok(Self {
+            path: path.to_owned(),
+            db: Mutex::new(Some(db)),
+            signal,
+        })
+    }
+
+    /// Runs `read` on the connection, opening it first when a discard closed it.
+    pub(super) fn read<T>(
+        &self,
+        read: impl FnOnce(&mut Connection) -> rusqlite::Result<T>,
+    ) -> rusqlite::Result<T> {
+        let mut db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
+        if db.is_none() {
+            *db = Some(connect(&self.path)?);
+        }
+        match db.as_mut() {
+            Some(db) => read(db),
+            None => Err(rusqlite::Error::InvalidQuery),
+        }
     }
 
     /// `GET /api/requests` with `query`: the status and the JSON body.
@@ -213,17 +247,7 @@ impl Api {
             Ok(filter) => filter,
             Err(message) => return error(StatusCode::BAD_REQUEST, &message),
         };
-        let mut db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
-        match page(&mut db, &filter) {
-            Ok(page) => match serde_json::to_vec(&page) {
-                Ok(body) => (StatusCode::OK, body),
-                Err(err) => error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
-            },
-            Err(err) => error(
-                StatusCode::SERVICE_UNAVAILABLE,
-                &format!("The index cannot be read: {err}"),
-            ),
-        }
+        answer(self.read(|db| page(db, &filter)))
     }
 
     /// `GET /api/request` with `query`: the status and the JSON body.
@@ -232,12 +256,8 @@ impl Api {
             Ok(key) => key,
             Err(message) => return error(StatusCode::BAD_REQUEST, &message),
         };
-        let mut db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
-        match detail(&mut db, &key) {
-            Ok(Ok(detail)) => match serde_json::to_vec(&detail) {
-                Ok(body) => (StatusCode::OK, body),
-                Err(err) => error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
-            },
+        match self.read(|db| detail(db, &key)) {
+            Ok(Ok(detail)) => answer(Ok(detail)),
             Ok(Err(Missing::None)) => error(
                 StatusCode::NOT_FOUND,
                 "No request in the index has this trace id and span id.",
@@ -246,11 +266,59 @@ impl Api {
                 StatusCode::BAD_REQUEST,
                 "Several requests have this trace id. Add `span` to choose one.",
             ),
-            Err(err) => error(
+            Err(err) => answer::<()>(Err(err)),
+        }
+    }
+
+    /// `POST /api/index/discard`: the module doc's *Discarding the index closes this connection
+    /// first*. The body is `{"watermark": <the new index's first batch>}`.
+    pub(crate) fn discard(&self) -> (StatusCode, Vec<u8>) {
+        let mut db = self.db.lock().unwrap_or_else(PoisonError::into_inner);
+        *db = None;
+        let (reply, done) = mpsc::channel();
+        if self.signal.send(Signal::Discard(reply)).is_err() {
+            return error(
                 StatusCode::SERVICE_UNAVAILABLE,
-                &format!("The index cannot be read: {err}"),
+                "The service is stopping, so the index cannot be discarded.",
+            );
+        }
+        match done.recv_timeout(REBUILD_WAIT) {
+            Ok(Ok(watermark)) => (
+                StatusCode::OK,
+                serde_json::json!({ "watermark": watermark })
+                    .to_string()
+                    .into_bytes(),
+            ),
+            Ok(Err(message)) => error(StatusCode::SERVICE_UNAVAILABLE, &message),
+            Err(_) => error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "The service did not discard the index in time.",
             ),
         }
+    }
+}
+
+/// A read-only connection to the index at `path`.
+fn connect(path: &Path) -> rusqlite::Result<Connection> {
+    let db = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )?;
+    db.busy_timeout(Duration::from_secs(1))?;
+    Ok(db)
+}
+
+/// The status and JSON body of a read: `200` with the value, or `503` when the index failed.
+pub(super) fn answer<T: Serialize>(read: rusqlite::Result<T>) -> (StatusCode, Vec<u8>) {
+    match read {
+        Ok(value) => match serde_json::to_vec(&value) {
+            Ok(body) => (StatusCode::OK, body),
+            Err(err) => error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()),
+        },
+        Err(err) => error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            &format!("The index cannot be read: {err}"),
+        ),
     }
 }
 
@@ -298,7 +366,7 @@ impl Filter {
 }
 
 /// `value` as a whole number that is not negative.
-fn number(key: &str, value: &str) -> Result<i64, String> {
+pub(super) fn number(key: &str, value: &str) -> Result<i64, String> {
     value
         .parse::<i64>()
         .ok()
@@ -307,7 +375,7 @@ fn number(key: &str, value: &str) -> Result<i64, String> {
 }
 
 /// `value` when it is `digits` lower-case hex digits.
-fn hex(key: &str, value: &str, digits: usize) -> Result<String, String> {
+pub(super) fn hex(key: &str, value: &str, digits: usize) -> Result<String, String> {
     if value.len() == digits
         && value
             .bytes()
@@ -374,11 +442,11 @@ fn page(db: &mut Connection, filter: &Filter) -> rusqlite::Result<Page> {
 }
 
 /// The columns [`row`] reads, over `requests r` joined to its `exception_groups g`.
-const ROW: &str = "r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
+pub(super) const ROW: &str = "r.id, r.batch, r.trace, r.span, r.start_us, r.duration_us, r.method, r.route, \
                    r.path, r.status, r.queries, r.dumps, r.logs, g.class, g.file, g.line";
 
 /// One [`Row`] from the columns [`ROW`] names, in its order.
-fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
+pub(super) fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
     let class: Option<String> = row.get(13)?;
     Ok(Row {
         id: row.get(0)?,
@@ -406,7 +474,7 @@ fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Row> {
 }
 
 /// The last committed batch.
-fn watermark(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<i64> {
+pub(super) fn watermark(tx: &rusqlite::Transaction<'_>) -> rusqlite::Result<i64> {
     tx.query_row(
         "SELECT value FROM meta WHERE key = 'watermark'",
         [],
@@ -427,7 +495,11 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
         ))?;
         statement
             .query_map(params![key.trace, key.span], |found| {
-                Ok((row(found)?, found.get::<_, String>(16)?, found.get::<_, i64>(17)?))
+                Ok((
+                    row(found)?,
+                    found.get::<_, String>(16)?,
+                    found.get::<_, i64>(17)?,
+                ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?
     };
@@ -470,7 +542,11 @@ fn detail(db: &mut Connection, key: &Key) -> rusqlite::Result<Result<Detail, Mis
     } else {
         (None, 0)
     };
-    let (before, from_us, to_us) = (seq, request.start_us, request.start_us + request.duration_us);
+    let (before, from_us, to_us) = (
+        seq,
+        request.start_us,
+        request.start_us + request.duration_us,
+    );
     let mut cut = Cut::default();
     let events = {
         let mut statement = tx.prepare_cached(
@@ -586,15 +662,17 @@ fn keep<T>(rows: &mut Vec<T>, max: i64) -> bool {
 
 /// A value tree the index has as JSON text, written into the answer as it is. A tree the ingester
 /// wrote is always JSON, so text that is not is given as a string.
-fn tree(text: &str) -> Box<RawValue> {
+pub(super) fn tree(text: &str) -> Box<RawValue> {
     match serde_json::from_str::<&RawValue>(text) {
         Ok(raw) => raw.to_owned(),
-        Err(_) => serde_json::value::to_raw_value(text).unwrap_or_else(|_| RawValue::NULL.to_owned()),
+        Err(_) => {
+            serde_json::value::to_raw_value(text).unwrap_or_else(|_| RawValue::NULL.to_owned())
+        }
     }
 }
 
 /// A JSON error body with `message`.
-fn error(status: StatusCode, message: &str) -> (StatusCode, Vec<u8>) {
+pub(super) fn error(status: StatusCode, message: &str) -> (StatusCode, Vec<u8>) {
     let body = serde_json::json!({ "error": message });
     (status, body.to_string().into_bytes())
 }

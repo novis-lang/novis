@@ -1,0 +1,308 @@
+{
+  "older": null,
+  "records": [
+    {
+      "at_us": 1700000005000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 49,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "DELETE",
+        "path": "/items/9",
+        "span": "c4d8e0f1a2b3c4d5",
+        "status": 403,
+        "trace": "7e3a0c2f4d9b4a1c8e5f8d3b2a4c6e9f"
+      },
+      "status": 403,
+      "text": "DELETE /items/9",
+      "trace": "7e3a0c2f4d9b4a1c8e5f8d3b2a4c6e9f"
+    },
+    {
+      "at_us": 1700000004002000,
+      "batch": 1,
+      "fields": null,
+      "file": "src/Shop/Orders.nvs",
+      "key": 27,
+      "kind": "dump",
+      "level": null,
+      "line": 17,
+      "request": {
+        "method": "PUT",
+        "path": "/items/7",
+        "span": "a3ce929d0e0e4736",
+        "status": 204,
+        "trace": "0af7651916cd43dd8448eb211c80319c"
+      },
+      "status": null,
+      "text": "src/Shop/Orders.nvs:17",
+      "trace": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "at_us": 1700000004000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 41,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "PUT",
+        "path": "/items/7",
+        "span": "a3ce929d0e0e4736",
+        "status": 204,
+        "trace": "0af7651916cd43dd8448eb211c80319c"
+      },
+      "status": 204,
+      "text": "PUT /items/7",
+      "trace": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "at_us": 1700000003000060,
+      "batch": 1,
+      "fields": {},
+      "file": null,
+      "key": 20,
+      "kind": "log",
+      "level": "info",
+      "line": null,
+      "request": {
+        "method": "GET",
+        "path": "/missing",
+        "span": "53995c3f42cd8ad8",
+        "status": 404,
+        "trace": "0af7651916cd43dd8448eb211c80319c"
+      },
+      "status": null,
+      "text": "no route matched",
+      "trace": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "at_us": 1700000003000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 33,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "GET",
+        "path": "/missing",
+        "span": "53995c3f42cd8ad8",
+        "status": 404,
+        "trace": "0af7651916cd43dd8448eb211c80319c"
+      },
+      "status": 404,
+      "text": "GET /missing",
+      "trace": "0af7651916cd43dd8448eb211c80319c"
+    },
+    {
+      "at_us": 1700000002014000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 10,
+      "kind": "call",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "Shop\\Orders::place",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002013000,
+      "batch": 1,
+      "fields": null,
+      "file": "src/Shop/Orders.nvs",
+      "key": 19,
+      "kind": "dump",
+      "level": null,
+      "line": 41,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "src/Shop/Orders.nvs:41",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002009000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 34,
+      "kind": "spawn",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "Shop\\Mail::notify",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002003000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 26,
+      "kind": "gc",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "cycle collection",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002001200,
+      "batch": 1,
+      "fields": {
+        "item": 7
+      },
+      "file": null,
+      "key": 12,
+      "kind": "log",
+      "level": "warning",
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "stock is empty",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002001000,
+      "batch": 1,
+      "fields": null,
+      "file": "src/Shop/Orders.nvs",
+      "key": 11,
+      "kind": "dump",
+      "level": null,
+      "line": 40,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "src/Shop/Orders.nvs:40",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002000900,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 18,
+      "kind": "query",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": null,
+      "text": "sqlite main SELECT * FROM items WHERE id = ?",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000002000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 25,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "POST",
+        "path": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      },
+      "status": 500,
+      "text": "POST /orders",
+      "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+    },
+    {
+      "at_us": 1700000001000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 17,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "GET",
+        "path": "/items/7",
+        "span": "b7ad6b7169203331",
+        "status": 200,
+        "trace": "5c1e8a0d2b7f4e9a8c3d6b1f0e2a4c7d"
+      },
+      "status": 200,
+      "text": "GET /items/7",
+      "trace": "5c1e8a0d2b7f4e9a8c3d6b1f0e2a4c7d"
+    },
+    {
+      "at_us": 1700000000000000,
+      "batch": 1,
+      "fields": null,
+      "file": null,
+      "key": 9,
+      "kind": "request",
+      "level": null,
+      "line": null,
+      "request": {
+        "method": "GET",
+        "path": "/",
+        "span": "00f067aa0ba902b7",
+        "status": 200,
+        "trace": "4bf92f3577b34da6a3ce929d0e0e4736"
+      },
+      "status": 200,
+      "text": "GET /",
+      "trace": "4bf92f3577b34da6a3ce929d0e0e4736"
+    }
+  ],
+  "watermark": 1
+}

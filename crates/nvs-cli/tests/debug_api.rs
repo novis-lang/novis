@@ -1,15 +1,17 @@
-//! `nvs debug`'s request list and request page over a real index
-//! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`).
+//! `nvs debug`'s API over a real index: the request list and request page
+//! (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`), and the stream, the
+//! search and the saved filters (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`).
 //!
-//! The case starts one service on a data folder of its own and a port the OS picks, renames one
+//! Each case starts one service on a data folder of its own and a port the OS picks, renames one
 //! spool file of several requests into its spool, and waits on `/api/events` for the batch that
-//! read it. It then reads `/api/requests` and `/api/request` the ways the viewer does.
+//! read it. It then reads the API the ways the viewer does.
 //!
 //! **The viewer's fixtures come from here.** The newest page is written to
-//! `viewer/test/fixtures/requests.json` and the request that threw to `request.json`, which `tsc`
-//! checks against `viewer/src/api.ts` and the browser tests serve. When a committed file differs,
-//! the case writes the new one and fails, so a change to the API's shape reaches the viewer's types
-//! in the same commit.
+//! `viewer/test/fixtures/requests.json`, the request that threw to `request.json`, the stream to
+//! `stream.json`, a search to `search.json` and the saved settings to `settings.json`. `tsc` checks
+//! them against `viewer/src/api.ts` and the browser tests serve them. When a committed file
+//! differs, the case writes the new one and fails, so a change to the API's shape reaches the
+//! viewer's types in the same commit.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -37,6 +39,21 @@ struct Service {
 }
 
 impl Service {
+    /// A service that has ingested [`spool`]'s requests.
+    fn ingested() -> Self {
+        let service = Self::start();
+        let mut events = service.events();
+        service.wait_for(&mut events, 0);
+        let debug = service.data.join("debug");
+        // Written beside the spool and then renamed into it, so the service never sees half a file.
+        let staged = debug.join("staged.spool");
+        std::fs::write(&staged, spool()).expect("the debug folder is writable");
+        std::fs::rename(&staged, debug.join("spool").join("1-1-0.0.spool"))
+            .expect("the spool is writable");
+        service.wait_for(&mut events, 1);
+        service
+    }
+
     fn start() -> Self {
         let data = nvs_repo::scratch_private("nvsdata");
         // The requests start in 2023, so the deletion window must reach that far back.
@@ -80,14 +97,27 @@ impl Service {
 
     /// `GET path`, and the status and the body.
     fn get(&self, path: &str) -> (u16, String) {
+        self.send("GET", path, None)
+    }
+
+    /// `method path` with a JSON `body` when there is one, from the page's own origin, and the
+    /// status and the body.
+    fn send(&self, method: &str, path: &str, body: Option<&str>) -> (u16, String) {
         let mut stream = TcpStream::connect(self.addr).expect("the service accepts");
         stream
             .set_read_timeout(Some(PATIENCE))
             .expect("a timeout is set");
-        let request = format!(
-            "GET {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
-            self.addr
-        );
+        let addr = self.addr;
+        let request = match body {
+            None => {
+                format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n")
+            }
+            Some(body) => format!(
+                "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nOrigin: http://{addr}\r\n\
+                 Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            ),
+        };
         stream
             .write_all(request.as_bytes())
             .expect("the request is sent");
@@ -239,7 +269,11 @@ fn spool() -> String {
                     "start_us": start_us + from, "end_us": start_us + to
                 })
             };
-            line(trace, start_us + 14_000, event("call", "Shop\\Orders::place", 50, 14_000));
+            line(
+                trace,
+                start_us + 14_000,
+                event("call", "Shop\\Orders::place", 50, 14_000),
+            );
             line(
                 trace,
                 start_us + 900,
@@ -249,10 +283,17 @@ fn spool() -> String {
                     "query": { "driver": "sqlite", "sql": "SELECT * FROM items WHERE id = ?", "rows": 1, "site": 12 }
                 }),
             );
-            line(trace, start_us + 1_000, dump(40, &json!({
-                "$class": "Shop\\Item", "$id": 1,
-                "$properties": { "id": 7, "stock": 0, "name": "Lamp" }
-            })));
+            line(
+                trace,
+                start_us + 1_000,
+                dump(
+                    40,
+                    &json!({
+                        "$class": "Shop\\Item", "$id": 1,
+                        "$properties": { "id": 7, "stock": 0, "name": "Lamp" }
+                    }),
+                ),
+            );
             line(
                 trace,
                 start_us + 1_200,
@@ -261,24 +302,39 @@ fn spool() -> String {
                     "fields": { "item": 7 }, "elided": false
                 }),
             );
-            line(trace, start_us + 3_000, event("gc", "cycle collection", 2_400, 3_000));
-            line(trace, start_us + 9_000, event("spawn", "Shop\\Mail::notify", 4_000, 9_000));
+            line(
+                trace,
+                start_us + 3_000,
+                event("gc", "cycle collection", 2_400, 3_000),
+            );
+            line(
+                trace,
+                start_us + 9_000,
+                event("spawn", "Shop\\Mail::notify", 4_000, 9_000),
+            );
             // A repeat names the node it repeats by its `$id`, and a cut list says how much is gone.
-            line(trace, start_us + 13_000, dump(41, &json!({
-                "$class": "Shop\\Order", "$id": 2,
-                "$properties": {
-                    "id": 31,
-                    "card": { "$redacted": true },
-                    "lines": [
-                        { "$class": "Shop\\Line", "$id": 3, "$properties": {
-                            "order": { "$cycle": 2 }, "quantity": 2
-                        } },
-                        { "$elided": { "cut": "entries", "total": 40, "entries": 39 } }
-                    ],
-                    "note": { "$elided": { "cut": "text", "kept": "Leave at the", "bytes": 120 } },
-                    "deep": { "$elided": { "cut": "depth" } }
-                }
-            })));
+            line(
+                trace,
+                start_us + 13_000,
+                dump(
+                    41,
+                    &json!({
+                        "$class": "Shop\\Order", "$id": 2,
+                        "$properties": {
+                            "id": 31,
+                            "card": { "$redacted": true },
+                            "lines": [
+                                { "$class": "Shop\\Line", "$id": 3, "$properties": {
+                                    "order": { "$cycle": 2 }, "quantity": 2
+                                } },
+                                { "$elided": { "cut": "entries", "total": 40, "entries": 39 } }
+                            ],
+                            "note": { "$elided": { "cut": "text", "kept": "Leave at the", "bytes": 120 } },
+                            "deep": { "$elided": { "cut": "depth" } }
+                        }
+                    }),
+                ),
+            );
         }
         // Two requests share a trace id, and each has one record of its own.
         if *span == "53995c3f42cd8ad8" {
@@ -331,18 +387,145 @@ fn fixture(name: &str, value: &Value) -> Option<String> {
     Some(fixture.display().to_string())
 }
 
+/// The number of groups a search gives.
+fn groups(results: &Value) -> usize {
+    results["groups"].as_array().map_or(0, Vec::len)
+}
+
+/// The kinds of the matches in a search's first group, sorted.
+fn hit_kinds(results: &Value) -> Vec<String> {
+    let mut kinds: Vec<String> = results["groups"][0]["hits"]
+        .as_array()
+        .expect("a list of matches")
+        .iter()
+        .map(|hit| hit["kind"].as_str().expect("a kind").to_owned())
+        .collect();
+    kinds.sort();
+    kinds
+}
+
+#[test]
+fn search_finds_words_phrases_and_field_terms_and_a_saved_filter_outlives_the_index() {
+    let service = Service::ingested();
+
+    // The writer replaced the card number with a redacted node, so the number is not found.
+    let secret = service.json("/api/search?q=4111");
+    assert_eq!(groups(&secret), 0, "{secret}");
+    let word = service.json("/api/search?q=stock");
+    assert_eq!(groups(&word), 1, "{word}");
+    assert_eq!(word["groups"][0]["request"]["status"], 500);
+    assert_eq!(hit_kinds(&word), ["dump", "exception", "log"]);
+    let prefix = service.json("/api/search?q=Lam");
+    assert_eq!(
+        hit_kinds(&prefix),
+        ["dump"],
+        "a bare word matches the start of a word"
+    );
+    let phrase = service.json("/api/search?q=%22out+of+stock%22");
+    assert_eq!(hit_kinds(&phrase), ["exception"]);
+    let narrowed = service.json("/api/search?q=stock+kind%3Alog");
+    assert_eq!(hit_kinds(&narrowed), ["log"]);
+
+    for (terms, want) in [
+        ("status%3A500", 1),
+        ("status%3A2xx", 3),
+        ("method%3Adelete", 1),
+        ("route%3A%2Fitems%2F%7Bid%7D", 3),
+        ("kind%3Aquery", 1),
+        ("kind%3Aexception", 1),
+        ("level%3Ainfo", 1),
+        ("duration%3A%3E2ms", 3),
+        ("duration%3A%3C%3D120us", 1),
+        (&format!("trace%3A{SHARED}"), 2),
+    ] {
+        let found = service.json(&format!("/api/search?q={terms}"));
+        assert_eq!(groups(&found), want, "{terms}: {found}");
+        assert_eq!(found["groups"][0]["hits"], json!([]), "{terms}");
+    }
+    let pasted = service.json(&format!("/api/search?q=00-{SHARED}-53995c3f42cd8ad8-01"));
+    assert_eq!(
+        pasted["opens"],
+        json!({ "trace": SHARED, "span": "53995c3f42cd8ad8" })
+    );
+    let first = service.json("/api/search?q=status%3A2xx&limit=2");
+    let older = first["older"]
+        .as_str()
+        .expect("a page of two has a next page");
+    let rest = service.json(&format!("/api/search?q=status%3A2xx&before={older}"));
+    assert_eq!((groups(&first), groups(&rest)), (2, 1));
+    assert_eq!(rest["older"], Value::Null);
+    let (status, body) = service.get("/api/search?q=kind%3Acall");
+    assert_eq!(status, 400, "{body}");
+    assert!(body.contains("kind:call"), "{body}");
+
+    let stream = service.json("/api/stream");
+    let records = stream["records"].as_array().expect("a list");
+    assert_eq!(
+        records.len(),
+        15,
+        "6 requests, 4 events, 3 dumps and 2 log lines"
+    );
+    let times: Vec<i64> = records
+        .iter()
+        .map(|record| record["at_us"].as_i64().expect("a time"))
+        .collect();
+    assert!(
+        times.windows(2).all(|pair| pair[0] >= pair[1]),
+        "newest first: {times:?}"
+    );
+    let logs = service.json("/api/stream?kind=log");
+    assert_eq!(logs["records"].as_array().map(Vec::len), Some(2));
+    assert_eq!(logs["records"][0]["request"]["path"], "/missing");
+    assert_eq!(logs["records"][1]["request"]["path"], "/orders");
+    let info = service.json("/api/stream?level=info");
+    assert_eq!(info["records"][0]["text"], "no route matched");
+    let shared = service.json(&format!("/api/stream?trace={SHARED}"));
+    assert_eq!(shared["records"].as_array().map(Vec::len), Some(4));
+    let routed = service.json("/api/stream?route=%2Forders");
+    assert_eq!(routed["records"].as_array().map(Vec::len), Some(8));
+    let page = service.json("/api/stream?limit=10");
+    let older = page["older"]
+        .as_str()
+        .expect("a page of ten has an older page");
+    let rest = service.json(&format!("/api/stream?before={older}"));
+    assert_eq!(rest["records"].as_array().map(Vec::len), Some(5));
+    assert_eq!(service.json("/api/quarantine"), json!({ "files": [] }));
+
+    let defaults = service.json("/api/settings");
+    assert_eq!(
+        defaults,
+        json!({ "editor": "vscode", "theme": "system", "filters": [] })
+    );
+    let saved = r#"{"editor":"vscode","theme":"dark","filters":[{"name":"Slow orders","view":"search","query":"q=route%3A%2Forders+duration%3A%3E10ms"}]}"#;
+    let (status, body) = service.send("PUT", "/api/settings", Some(saved));
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = service.send("PUT", "/api/settings", Some(r#"{"colour":"red"}"#));
+    assert_eq!(status, 400, "{body}");
+    let (status, body) = service.send("POST", "/api/index/discard", Some("{}"));
+    assert_eq!((status, body.as_str()), (200, r#"{"watermark":2}"#));
+    let after = service.json("/api/requests");
+    assert_eq!(after["requests"], json!([]), "the index is empty again");
+    assert_eq!(after["watermark"], 2, "the watermark goes on rising");
+    let kept = service.json("/api/settings");
+    assert_eq!(kept["filters"][0]["name"], "Slow orders", "{kept}");
+
+    let written: Vec<String> = [
+        ("stream.json", &stream),
+        ("search.json", &word),
+        ("settings.json", &kept),
+    ]
+    .into_iter()
+    .filter_map(|(name, value)| fixture(name, value))
+    .collect();
+    assert!(
+        written.is_empty(),
+        "{written:?} differed from the API's answers and are written again: commit them"
+    );
+}
+
 #[test]
 fn the_request_list_pages_newest_first_and_writes_the_viewers_fixture() {
-    let service = Service::start();
-    let mut events = service.events();
-    service.wait_for(&mut events, 0);
-    let debug = service.data.join("debug");
-    // Written beside the spool and then renamed into it, so the service never sees half a file.
-    let staged = debug.join("staged.spool");
-    std::fs::write(&staged, spool()).expect("the debug folder is writable");
-    std::fs::rename(&staged, debug.join("spool").join("1-1-0.0.spool"))
-        .expect("the spool is writable");
-    service.wait_for(&mut events, 1);
+    let service = Service::ingested();
 
     let newest = service.json("/api/requests");
     assert_eq!(newest["watermark"], 1);

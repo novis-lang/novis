@@ -1,0 +1,50 @@
+{
+  "groups": [
+    {
+      "hits": [
+        {
+          "at_us": 1700000002001000,
+          "id": 1,
+          "kind": "dump",
+          "snippet": "{\"$class\":\"Shop\\\\Item\",\"$id\":1,\"$properties\":{\"id\":7,\"name\":\"Lamp\",\"\u0002stock\u0003\":0}}"
+        },
+        {
+          "at_us": 1700000002001200,
+          "id": 1,
+          "kind": "log",
+          "snippet": "\u0002stock\u0003 is empty"
+        },
+        {
+          "at_us": 1700000002015400,
+          "id": 1,
+          "kind": "exception",
+          "snippet": "Shop\\OutOfStock item 7 is out of \u0002stock\u0003"
+        }
+      ],
+      "more": 0,
+      "request": {
+        "batch": 1,
+        "dumps": 2,
+        "duration_us": 15400,
+        "exception": {
+          "class": "Shop\\OutOfStock",
+          "file": "src/Shop/Orders.nvs",
+          "line": 42
+        },
+        "id": 3,
+        "logs": 1,
+        "method": "POST",
+        "path": "/orders",
+        "queries": 1,
+        "route": "/orders",
+        "span": "e457b5a2e4d86bd1",
+        "start_us": 1700000002000000,
+        "status": 500,
+        "trace": "6d2f9b1e3c8a4f0b9d4e7c2a1f3b5d8e"
+      }
+    }
+  ],
+  "older": null,
+  "opens": null,
+  "watermark": 1
+}

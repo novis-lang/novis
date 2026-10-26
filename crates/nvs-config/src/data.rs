@@ -218,6 +218,14 @@ impl Folder {
         self.debug().join("index.sqlite")
     }
 
+    /// `debug/viewer.json`: the debug viewer's settings and saved filters, kept outside the index
+    /// so discarding the index keeps them
+    /// (`rule:testing/the-viewer-searches-every-record-and-saves-a-filter`).
+    #[must_use]
+    pub fn viewer_settings(&self) -> PathBuf {
+        self.debug().join("viewer.json")
+    }
+
     /// `debug/viewer.crt`, `debug/viewer.key` and `debug/viewer.token`: the certificate, its key
     /// and the token `nvs debug` generates to serve the viewer off loopback, in that order
     /// (`rule:testing/the-viewer-shows-the-stream-and-hands-off-every-artifact`). They are kept so

@@ -1,0 +1,11 @@
+{
+  "editor": "vscode",
+  "filters": [
+    {
+      "name": "Slow orders",
+      "query": "q=route%3A%2Forders+duration%3A%3E10ms",
+      "view": "search"
+    }
+  ],
+  "theme": "dark"
+}
