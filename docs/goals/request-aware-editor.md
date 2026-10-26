@@ -27,7 +27,7 @@ stages:
         rules: [ide/the-request-set-is-closed, ide/five-features-are-one-reference-index, ide/used-by-counts-the-routes-and-tests-that-reach-a-method, ide/an-lsp-answer-is-frozen-as-an-lspt-case]
   - id: 3
     title: a route's hover shows the program's grants
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/document.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/tree.rs, docs/rules/ide/a-route-hover-shows-the-programs-grants.md]
     extra:
       context:
@@ -235,11 +235,11 @@ the `nvs.toml` it read.
 **Split:** after the session lands the hover, a writing subagent writes the `.lspt` cases and their
 fixture under `tests/lsp/hover/` as one batch.
 
-- [ ] The hover resolves the snapshot for the program's entry file the way the extension set does, once per hover (`rule:ide/a-route-hover-shows-the-programs-grants`). `crates/nvs-lsp/src/document.rs:809`, `crates/nvs-config/src/snapshot.rs:149`
-- [ ] It lists the grants by kind with their scopes, under a first line naming the file and saying the grants are the program's (`rule:security/capability-question-is-grant-and-scope`). `crates/nvs-config/src/tree.rs:501`, `crates/nvs-lsp/src/hover.rs:132`
-- [ ] With no `nvs.toml`, it says so and names the default policy. `crates/nvs-lsp/src/hover.rs:132`
-- [ ] `.lspt` cases over a fixture with grants, a changed grant giving a changed hover with no source edit, and none. `tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt:1`
-- [ ] `rule:ide/a-route-hover-shows-the-programs-grants` `shipped`. `data/rules/ide/a-route-hover-shows-the-programs-grants.json:3`
+- [x] The hover resolves the snapshot for the program's entry file the way the extension set does, once per hover (`rule:ide/a-route-hover-shows-the-programs-grants`). `crates/nvs-lsp/src/document.rs:809`, `crates/nvs-config/src/snapshot.rs:149`
+- [x] It lists the grants by kind with their scopes, under a first line naming the file and saying the grants are the program's (`rule:security/capability-question-is-grant-and-scope`). `crates/nvs-config/src/tree.rs:501`, `crates/nvs-lsp/src/hover.rs:132`
+- [x] With no `nvs.toml`, it says so and names the default policy. `crates/nvs-lsp/src/hover.rs:132`
+- [x] `.lspt` cases over a fixture with grants, a changed grant giving a changed hover with no source edit, and none. `tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt:1`
+- [x] `rule:ide/a-route-hover-shows-the-programs-grants` `shipped`. `data/rules/ide/a-route-hover-shows-the-programs-grants.json:3`
 
 ### 4. a `tainted` or `secret` value's hover shows its path
 
@@ -313,34 +313,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 8 are done. A method a route or a test reaches carries "used by N routes, M tests"
-(`crates/nvs-lsp/src/server.rs`, `used_by`). The tests come from `nvs_lsp::reports`, which reads every
-report in the directory `initializationOptions` names as `coverage.dir`, and from the call graph,
-marked "(static)", where no report reached the method's file. The VS Code client keeps one report per
-program there after a coverage run, and `nvs.runTests` starts the Run profile over the lens's tests
-(`editors/vscode/src/tests.ts`). Six `.lspt` cases under `tests/lsp/lens/` and the headless
-`coverage` suite pass. The rule is `shipped`.
+Stages 1, 2, 3 and 8 are done. Hovering a `#[Route]` attribute, or its handler's name, lists the
+program's grants under a first line naming the `nvs.toml` (`crates/nvs-lsp/src/grants.rs`,
+`of_program`; `crates/nvs-lsp/src/hover.rs:200`, `route`). The tree is
+`crates/nvs-lsp/src/document.rs:864`, `program_tree`, which the extension set now shares, read again
+per hover. `hover::answer` takes the data folder's file, and the `.lspt` suite passes none, so a case
+reads only what it writes. Four new cases under `tests/lsp/hover/` and `crates/nvs-lsp/tests/grants.rs`
+(no `nvs.toml`, a rewritten one, one that does not load) pass; `nvs lsp-test tests/lsp/hover/` is 57
+passed. `an-attribute-name-answers-the-attributes-card.lspt` was refrozen, because its cursor is on a
+`#[Route]` and the rule extends that answer. The rule is `shipped`, and the nvs-lsp page's questions
+are restamped.
 
-The sweep's findings were the same nightly run the last session closed. `bun nv linux-test --test
-dap` now passes on Linux (21 tests), and `env-secret-proofs` exits 0.
+The sweep's findings were already fixed on HEAD: the nightly ran on `d6f13175`, whose lock had the
+yanked `crypto-bigint` 0.7.6 (HEAD has 0.7.9), and `two_counted_runs_with_a_collection_print_the_same_line`
+was fixed in `e384a0ae8`. `env-secret-proofs` exits 0.
 
 May go red in the gate: `crates/nvs-lsp/tests/handshake.rs` if it pins `Client` or the
 initialization options further, and the proofs gate's perf records, because the counted baseline
-moved last session.
+moved two sessions ago.
 
 ### Next
 
-**Stage 3, a route's hover shows the program's grants**, on `crates/nvs-lsp/src/hover.rs` and
-`crates/nvs-lsp/src/document.rs`. It needs no gate, and it follows the stage's **Split:** line.
+**Stage 4, a `tainted` or `secret` value's hover shows its path**, on `crates/nvs-types/src/expr/quals.rs`,
+`crates/nvs-types/src/expr_table.rs` and `crates/nvs-lsp/src/hover.rs`. It needs no gate, and it
+follows the stage's **Split:** line.
 
-- [ ] Resolve the snapshot for the program's entry file once per hover. `crates/nvs-lsp/src/document.rs:809`, `crates/nvs-config/src/snapshot.rs:149`
-- [ ] List the grants by kind with their scopes, under a first line that names the file. `crates/nvs-config/src/tree.rs:501`, `crates/nvs-lsp/src/hover.rs:132`
-- [ ] With no `nvs.toml`, say so and name the default policy. `crates/nvs-lsp/src/hover.rs:132`
-- [ ] `.lspt` cases (writing subagent). `tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt:1`
+- [ ] A switch on the expression table only `nvs-lsp` sets, off for `nvs check` and a run. `crates/nvs-types/src/expr_table.rs:1428`, `crates/nvs-types/src/check.rs:128`, `crates/nvs-lsp/src/document.rs:725`
+- [ ] Under it, record the source, each carrying step and the launderer. `crates/nvs-types/src/expr/quals.rs:414`, `crates/nvs-types/src/expr/quals.rs:523`, `crates/nvs-types/src/expr/quals.rs:574`
+- [ ] Hover on the value, or on an argument at a sink, shows the steps. `crates/nvs-lsp/src/hover.rs:200`
+- [ ] `.lspt` cases (writing subagent). `tests/lsp/hover/a-tainted-value-shows-where-it-came-from.lspt:1`
 
-Stage 4 (the taint path hover) shares `hover.rs` and follows. Stage 5 is disjoint.
+Stage 5 is disjoint and can run beside it.
 
 ### Backlog
+
+- The grants hover resolves the tree for the hovered file. A handler in a file the program autoloads from another directory reads that directory's `nvs.toml`, not the entry's (`crates/nvs-lsp/src/grants.rs`, `of_program`).
+- The grants hover lists the `[capabilities]` roster only. `net.internal`'s exceptions and an extension's own `grants` are not shown (`crates/nvs-lsp/src/grants.rs`, `list`).
 
 - A filtered coverage run replaces its program's kept report, so the lens counts only the tests that run covered until a whole-program coverage run (`editors/vscode/src/tests.ts`, `keep`).
 - The client does not ask the server to refresh its lenses after a coverage run, so a new count shows at the next edit or editor switch (`editors/vscode/src/tests.ts`, `keep`).
