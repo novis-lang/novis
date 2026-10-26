@@ -260,11 +260,11 @@ each step it took, and the hover shows it.
 **Does:** each `Core\Db` call that sends a statement gets a constant site id, and a traced span carries
 the file and line it names.
 
-- [ ] A roster of the `Core\Db` members that send a statement, on the pattern `CALL_SITE_MEMBERS` and `PATH_GRAPH_MEMBERS` use, and the rule fixes the argument's slot (`rule:observability/a-query-span-names-its-call-site`). `crates/nvs-stdlib/src/registry.rs:3055`, `crates/nvs-stdlib/src/registry.rs:3139`
-- [ ] The lowering passes the id at each call, where it hands a `CALL_SITE_MEMBERS` member its constant, and the program keeps a site table: file, line and the file's text hash. `crates/nvs-ir/src/lower/expr.rs:4201`, `crates/nvs-ir/src/lower/mod.rs:2541`, `crates/nvs-ir/src/lower/call.rs:83`
-- [ ] The callable-reference thunk passes zero. `crates/nvs-ir/src/lower/anon_fn.rs:818`
-- [ ] The span records the site only when it is recorded. `crates/nvs-stdlib/src/db/span.rs:52`, `crates/nvs-stdlib/src/db/execute.rs:1051`, `crates/nvs-db/src/span.rs:87`
-- [ ] Tests: two calls with the same SQL are two sites, an untraced call reads no site, and `a_query_span_contains_no_parameter_value_anywhere` still passes. `crates/nvs-db/src/pg.rs:6627`
+- [x] A roster of the `Core\Db` members that send a statement, on the pattern `CALL_SITE_MEMBERS` and `PATH_GRAPH_MEMBERS` use, and the rule fixes the argument's slot (`rule:observability/a-query-span-names-its-call-site`). `crates/nvs-stdlib/src/registry.rs:3055`, `crates/nvs-stdlib/src/registry.rs:3139`
+- [x] The lowering passes the id at each call, where it hands a `CALL_SITE_MEMBERS` member its constant, and the program keeps a site table: file, line and the file's text hash. `crates/nvs-ir/src/lower/expr.rs:4201`, `crates/nvs-ir/src/lower/mod.rs:2541`, `crates/nvs-ir/src/lower/call.rs:83`
+- [x] The callable-reference thunk passes zero. `crates/nvs-ir/src/lower/anon_fn.rs:818`
+- [x] The span records the site only when it is recorded. `crates/nvs-stdlib/src/db/span.rs:52`, `crates/nvs-stdlib/src/db/execute.rs:1051`, `crates/nvs-db/src/span.rs:87`
+- [x] Tests: two calls with the same SQL are two sites, an untraced call reads no site, and `a_query_span_contains_no_parameter_value_anywhere` still passes. `crates/nvs-db/src/pg.rs:6627`
 - [ ] `rule:observability/a-query-span-names-its-call-site` `shipped`. `data/rules/observability/a-query-span-names-its-call-site.json:3`
 
 ### 6. each query call shows what the newest recorded request ran there
@@ -313,36 +313,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4 and 8 are done. Under `ExprTypeTable::record_provenance`, which only
-`crates/nvs-lsp/src/document.rs:737` calls, the checker records each qualified value's path in
-`crates/nvs-types/src/provenance.rs`. `expr::infer` notes every expression after its type is known
-(`crates/nvs-types/src/expr/mod.rs:315`), and a typed or `var` local's initializer is noted as an
-assignment (`crates/nvs-types/src/locals.rs`, `LocalDecl`). The steps are source, `mixed`, declared,
-assigned, concatenated, interpolated, carried by a call, and ended (the launderer). A variable's path
-is keyed by its declaration's span. `crates/nvs-lsp/src/taint.rs` spells the innermost path under the
-cursor, and `hover::answer` puts it under an answer on the same node, or in place of one around it.
-`crates/nvs-types/tests/provenance.rs` (3 tests) pins the switch off for a plain check, a recorded
-path, and `nvs-lsp` as the only caller. Four new `.lspt` cases under `tests/lsp/hover/`;
-`nvs lsp-test tests/lsp/hover/` is 61 passed. The rule is `shipped`, `40-editor.md` has a section, and
-the nvs-lsp page's questions are restamped.
+Stages 1, 2, 3, 4 and 8 are done; stage 5 has items 1 to 5. `QUERY_SITE_MEMBERS` on
+`QUERY_SITE_OWNERS` (`crates/nvs-stdlib/src/registry.rs`) is the six statement members on
+`Connection`, `Transaction` and `Queryable`. The site id is their last argument, so each helper's
+`args: [N]` grew by one. `Lowering::query_site_constant` emits `InstKind::QuerySiteConst` with the
+call's span, and the thunk emits `None`. `nvs-codegen` numbers sites from one in
+`Program::query_sites` order (`query_base`, `query_ids`). `Program::query_site_table` gives file, line
+and the BLAKE3 hex of the file's text. `QueryWatch::at` (`crates/nvs-stdlib/src/db/span.rs`) reads
+the id only when traced, into `spool::Query::site`. A stream keeps it in `STREAM_SITE_AT`.
+Green once by name: `crates/nvs-ir/tests/query_sites.rs` (3), the `db::span` and `registry` roster
+tests, and `a_query_span_contains_no_parameter_value_anywhere`. No compiled query ran since the ABI
+change. The sweep was stale: the nightly ran `d6f13175`, and `97ccf66c2` and `9c8b0fe16` fix both
+failures.
 
-The sweep's findings were stale: the nightly ran on `d6f13175` again, older than `origin/main`
-(`8a2e1ab7f`), and the `env-secret-proofs` log shows exit 0.
-
-May go red in the gate: `crates/nvs-lsp/tests/handshake.rs` if it pins `Client` or the
-initialization options further, the proofs gate's perf records (the counted baseline moved), and the
-LSP latency bound in `crates/nvs-lsp/tests/latency.rs`, since every editor check now records paths.
+May go red in the gate: any test that counts a `Core\Db` helper's arguments or prints the IR of a
+query call (it now prints `query.site @l:c-l:c`), the `Core\Db\Stream` slot count, and every earlier
+risk: `crates/nvs-lsp/tests/handshake.rs`, the proofs gate's perf records, and the LSP latency bound
+in `crates/nvs-lsp/tests/latency.rs`.
 
 ### Next
 
-**Stage 5, a query call passes its site id, and a traced span records the site.** It needs no gate,
-and its items carry their anchors: `crates/nvs-stdlib/src/registry.rs:3055`,
-`crates/nvs-ir/src/lower/expr.rs:4201`, `crates/nvs-ir/src/lower/anon_fn.rs:818`,
-`crates/nvs-stdlib/src/db/span.rs:52`, `crates/nvs-db/src/pg.rs:6627`. Stage 6 follows it, behind its
-gate on `debug-service` and `debug-viewer`.
+**Finish stage 5: ship `rule:observability/a-query-span-names-its-call-site`.** One gap is left. The
+rule says the recorded span "carries the file and line it names", but the span records only the id,
+and nothing yet publishes `Program::query_site_table` where a reader of the spool can resolve it.
+Pick the place by the priorities. The proposal is that the server writes the table once per loaded
+program, beside the spool, keyed by the program's hash. Then reword the rule to say the id is
+recorded and the table names the file and line. Set
+`data/rules/observability/a-query-span-names-its-call-site.json:3` to `shipped`, and tick item 6.
+Also run one compiled SQLite program that calls `query`, `execute` and `stream`. A `.nvs` case under
+`tests/` that the Db suite already runs is enough, and it is the item's own check of the new ABI.
+Stage 6 follows, behind its gate on `debug-service` and `debug-viewer`, and it reads the same table.
 
 ### Backlog
 
+- `$db->query(...)`, a callable reference to a `Core` member with an options bag, panics the lowering: `CheckedTy::CoreShape` is erased as one value (`crates/nvs-ir/src/lower/mod.rs:5161`, reached from `anon_fn::lower_callable`). Every query member has a bag, so the thunk's zero site id has no test yet (`crates/nvs-ir/tests/query_sites.rs`).
+- A query site's line is where the call expression starts, so `$db\n->query(...)` names the receiver's line (`Lowering::query_site_constant`).
 - A taint path does not join branches: after an `if` that assigns in one arm, a read shows the last write the walk reached (`crates/nvs-types/src/provenance.rs`, `assign`).
 - A taint path does not follow a property write, so a later read of the property starts at its declared type. A captured variable in an anonymous function records no path (`crates/nvs-types/src/provenance.rs`, `read`).
 - The grants hover resolves the tree for the hovered file. A handler in a file the program autoloads from another directory reads that directory's `nvs.toml`, not the entry's (`crates/nvs-lsp/src/grants.rs`, `of_program`).
