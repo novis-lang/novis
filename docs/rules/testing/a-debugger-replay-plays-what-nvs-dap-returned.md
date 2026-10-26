@@ -11,7 +11,8 @@ left out of the recording, so two runs of the same session record the same file.
 
 The panel has the replay's look and its rules for play, pause and focus
 (`rule:testing/a-replay-plays-what-the-language-server-returned`). The editor window shows the
-breakpoint and the stopped line, and beside it are the call stack and the variables. A drawn debugger
+breakpoints and the stopped line, and a panel under the stopped line shows the call stack and the
+variables. A debugger replay is a `<Replay>` of a snippet with a `.dap` and no `.replay`. A drawn debugger
 would show values the program never had, and recording `nvs dap`'s answers is what keeps the page true.
 
 - **Memory:** nothing in the language or the binary. `--bless` and `--check snippets` start `nvs dap`

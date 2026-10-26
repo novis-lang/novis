@@ -28,6 +28,11 @@ export interface RunOptions {
   input?: string;
   /** Called with each line the program prints, as it prints it, without its line ending. */
   onLine?: (line: string, stream: "stdout" | "stderr") => void;
+  /** Called with each piece of text the program prints, as it arrives, for output that is not lines. */
+  onText?: (text: string, stream: "stdout" | "stderr") => void;
+  /** Called once the program starts, with a way to write to its standard input as the run goes on and
+   * to close it, for a program that answers what it is sent. A run with `talk` has no `input`. */
+  talk?: (stdin: { write(text: string): void; end(): void }) => void;
   /** When the program exits with a failure, kill every process it started that is still running. */
   reap?: boolean;
   /** When aborted, the program is killed with every process it started. A run whose signal is already
@@ -87,11 +92,26 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
   const child = Bun.spawn(resolved(argv, env), {
     cwd: opts.cwd ?? ROOT,
     env,
-    stdin: opts.input === undefined ? "ignore" : new TextEncoder().encode(opts.input),
+    stdin: opts.talk ? "pipe" : opts.input === undefined ? "ignore" : new TextEncoder().encode(opts.input),
     stdout: "pipe",
     stderr: "pipe",
   });
   const tree = new Tree(child);
+  if (opts.talk) {
+    const sink = child.stdin as import("bun").FileSink;
+    let open = true;
+    opts.talk({
+      write: (text) => {
+        if (!open) return;
+        sink.write(text);
+        void sink.flush();
+      },
+      end: () => {
+        if (open) void sink.end();
+        open = false;
+      },
+    });
+  }
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
@@ -109,8 +129,8 @@ export async function run(argv: string[], opts: RunOptions = {}): Promise<RunRes
     // The exit status first: a process the program left running holds the pipes open, and reaping it is
     // what lets them close.
     const reading = Promise.all([
-      drain(child.stdout, printed, opts.onLine && ((l) => opts.onLine!(l, "stdout"))),
-      drain(child.stderr, printed, opts.onLine && ((l) => opts.onLine!(l, "stderr"))),
+      drain(child.stdout, printed, opts.onLine && ((l) => opts.onLine!(l, "stdout")), opts.onText && ((t) => opts.onText!(t, "stdout"))),
+      drain(child.stderr, printed, opts.onLine && ((l) => opts.onLine!(l, "stderr")), opts.onText && ((t) => opts.onText!(t, "stderr"))),
     ]);
     const code = await child.exited;
     watching?.stop();
@@ -149,8 +169,9 @@ class Printed {
 }
 
 /** All of `stream` as text, counted into `printed` as it arrives, with `onLine` called on each line. A
- * line ends at LF, and a CR before it is dropped; a last line with no LF is passed as well. */
-async function drain(stream: ReadableStream<Uint8Array>, printed: Printed, onLine?: (line: string) => void): Promise<string> {
+ * line ends at LF, and a CR before it is dropped; a last line with no LF is passed as well. `onText` is
+ * called with each piece as it is decoded. */
+async function drain(stream: ReadableStream<Uint8Array>, printed: Printed, onLine?: (line: string) => void, onText?: (text: string) => void): Promise<string> {
   const decoder = new TextDecoder();
   let all = "";
   let pending = "";
@@ -158,6 +179,7 @@ async function drain(stream: ReadableStream<Uint8Array>, printed: Printed, onLin
     const text = decoder.decode(chunk, { stream: true });
     all += text;
     printed.add(text);
+    if (text) onText?.(text);
     if (!onLine) continue;
     pending += text;
     let nl = pending.indexOf("\n");

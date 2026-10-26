@@ -7,6 +7,8 @@
  * `replay-narrow.mjs`, the red underline and its card on a hover step, and the
  * panel of a `rename`, `action`, `calls` or `card` step, or the code lenses of a
  * `lens` step, drawn by `replay-frames.mjs`'s `panelHtml` and `codeHtml`. A
+ * debugger replay's frame has its breakpoints by the line numbers, the line
+ * the program stopped on, and a panel with the call stack and the variables. A
  * bar under the code shows how far the replay has played. A line wider than
  * the window does not wrap: the code scrolls sideways, and after each frame the
  * player scrolls it so the cursor and the open list or card are in view, as an
@@ -25,7 +27,7 @@
  * browser test reads the first two and draws frames with `nvReplay.show`.
  */
 
-import { buttonHtml, codeHtml, escapeHtml, frameColours, frameLenses, panelHtml, position } from './replay-frames.mjs'
+import { buttonHtml, codeHtml, escapeHtml, frameColours, frameDebug, frameLenses, panelHtml, position } from './replay-frames.mjs'
 import { narrow } from './replay-narrow.mjs'
 
 /** The symbol and colour group of a completion row's kind icon. */
@@ -140,7 +142,7 @@ class Player {
     const frame = this.data.frames[index]
     const text = this.texts[index]
     const diagnostic = frame.hover === null ? null : this.data.asks[frame.hover]
-    let html = codeHtml(text, frame.cursor, diagnostic, frameColours(this.data.paint, index), frameLenses(this.data.asks, frame.panel))
+    let html = codeHtml(text, frame.cursor, diagnostic, frameColours(this.data.paint, index), frameLenses(this.data.asks, frame.panel), frameDebug(this.data, frame.panel))
     if (frame.list) html += this.list(frame, text)
     if (frame.panel) html += panelHtml(this.data.asks[frame.panel.ask], frame.panel)
     if (diagnostic) {

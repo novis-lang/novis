@@ -20,7 +20,7 @@ stages:
         rules: [testing/a-replay-renames-applies-an-action-and-shows-a-lens, testing/a-replay-plays-what-the-language-server-returned]
   - id: 2
     title: a debugger replay plays what `nvs dap` returned
-    status: open
+    status: done
     context: [tools/nv/cmd/site.ts, tools/nv/lib/dap-replay.ts, website/config/replay-player.mjs, docs/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.md]
     extra:
       context:
@@ -208,10 +208,10 @@ area, three new kinds of checked picture, and no hand-drawn image to keep up to 
 
 **Does:** the debugger's picture is a recorded `nvs dap` session.
 
-- [ ] A `.dap` beside a snippet lists breakpoints and steps, `--bless` records the answers into `.dap.out`, and `--check snippets` fails when `nvs dap` returns something else (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`). `tools/nv/lib/dap-replay.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
-- [ ] The player shows the breakpoint, the stopped line, the call stack and the variables. `website/config/replay-player.mjs:56`
-- [ ] Tests over a fixture for a fresh and a stale `.dap.out`. `tools/nv/test/site-dap.test.ts:1`
-- [ ] `rule:testing/a-debugger-replay-plays-what-nvs-dap-returned` `shipped`. `data/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.json:3`
+- [x] A `.dap` beside a snippet lists breakpoints and steps, `--bless` records the answers into `.dap.out`, and `--check snippets` fails when `nvs dap` returns something else (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`). `tools/nv/lib/dap-replay.ts:1`, `tools/nv/cmd/site.ts:1172`, `tools/nv/cmd/site.ts:1208`
+- [x] The player shows the breakpoint, the stopped line, the call stack and the variables. `website/config/replay-player.mjs:56`
+- [x] Tests over a fixture for a fresh and a stale `.dap.out`. `tools/nv/test/site-dap.test.ts:1`
+- [x] `rule:testing/a-debugger-replay-plays-what-nvs-dap-returned` `shipped`. `data/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.json:3`
 
 ### 8. a screenshot is taken from a real run
 
@@ -298,40 +298,40 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 7 are done. Stage 1's terminal block (`<Terminal src="...term"/>`) is still unrendered by
+Stages 1, 7 and 2 are done. Stage 1's terminal block (`<Terminal src="...term"/>`) is still unrendered by
 any page; stage 4's CLI page is its first render. Watch for a Windows-blessed `.term.out` whose relative
 paths use `\`.
 
-Stage 7: a `.replay` has `card`, `rename NAME`, `action TITLE`, `lens` and `calls` steps beside
-`type`, `accept` and `hover`. `tools/nv/lib/replay.ts` sends each request and records one block per
-answer (`site.ts` § *A snippet* is the format's home). A rename's or an action's edits are learned the
-way an accept's insert is: the session is played again with what the server returned, and `fail` keeps
-what a session learned, so a step after an unknown edit settles one round later. `calls` needs the
-`prepareCallHierarchy` item first, so it always takes one extra session. `replay-frames.mjs` owns the
-shared parts: `applyEdits` (used by both the session and the page), `panelHtml`, `markdownHtml`, and
-`codeHtml`'s lens lines. A frame has a `panel` field now, `{ ask, line, col, ... }` or null. No page
-shows a new step yet; stage 4's editor page is the first.
+Stage 2: a snippet with a `.dap` and no `.replay` is a debugger replay, shown by the same
+`<Replay src="..."/>`. `site.ts` § *A snippet* is the home of the `.dap` and `.dap.out` formats.
+`tools/nv/lib/dap-replay.ts` holds a conversation with `nvs dap`, because the adapter answers
+`stackTrace` only while the program is stopped; `proc.run` has `talk` (write to stdin as the run goes)
+and `onText` for it. `website/config/replay-dap.mjs` owns `parseDap`, `parseDapRecording` and
+`dapData`, which returns `replayData`'s shape plus `breaks`. `replay-frames.mjs` has `dapOf`,
+`dapMarkup`, `frameDebug`, a `stop` and an `end` panel, and `codeHtml`'s `debug` argument (red dot,
+stopped line). The top-level frame's name is `<script>`. No page shows a debugger replay yet; stage
+5's debugger page is the first, and its look has not been seen in a browser.
 
-The sweep's reds were stale: `env-secret-proofs` passes (`bun nv proofs --gate --only 'Core\Env::secret'`
-says nothing owed), and nightly run 40291801939 is the one that tested `d6f131752`, before the fixes.
+Stage 7's new replay steps (`card`, `rename`, `action`, `lens`, `calls`) are shown by no page yet;
+stage 4's editor page is the first.
 
-`tools/nv/cmd/disk.ts` and `tools/nv/test/disk.test.ts` had changes in the tree this session did not
-make. They were left uncommitted.
-
+The sweep's reds were stale again: `env-secret-proofs` exits 0 in its own log, and nightly run
+40291801939 is the same run that tested `d6f131752`, before the fixes.
 ### Next
 
-**Stage 2, the debugger replay**, on a new `tools/nv/lib/dap-replay.ts`, `tools/nv/cmd/site.ts` and
-`website/config/replay-player.mjs`. Gate: `debugger-adapter` is gone, so `nvs dap` steps.
+**Stage 8, a screenshot is taken from a real run**, on a new `tools/nv/lib/shoot.ts`,
+`tools/nv/cmd/site.ts` and `tools/nv/test/chromium.ts`. Gate: `debug-viewer` and `trace-timeline` are
+gone from `docs/goals/`, so both shots can be built.
 
-- [ ] A `.dap` beside a snippet, its session against `nvs dap`, and `.dap.out` written by `--bless` and compared by `--check snippets` (`rule:testing/a-debugger-replay-plays-what-nvs-dap-returned`). Model it on `recordReplay`. `tools/nv/lib/replay.ts:376`, `tools/nv/cmd/site.ts:1193`, `tools/nv/cmd/site.ts:1204`, `tools/nv/cmd/site.ts:1281`, `tools/nv/cmd/site.ts:1333`
-- [ ] The player shows the breakpoint, the stopped line, the call stack and the variables. A frame's `panel` and `panelHtml` are the place to add a kind. `website/config/replay-player.mjs:137`, `website/config/replay-frames.mjs:394`
-- [ ] Tests over a fixture for a fresh and a stale `.dap.out`. `tools/nv/test/site-dap.test.ts:1`
-- [ ] The rule `shipped`. `data/rules/testing/a-debugger-replay-plays-what-nvs-dap-returned.json:3`
+- [ ] `bun nv site --shoot` and each `.shot` beside its `.shot.out`, as stage 8's first item says. `tools/nv/lib/shoot.ts:1`, `tools/nv/test/chromium.ts:31`, `tools/nv/cmd/site.ts:1370`
+- [ ] The profile shot over a real `--profile=speedscope` export. `tools/nv/lib/shoot.ts:1`
+- [ ] A `shots` part in `PARTS`, its check, and `tools/nv/test/site-shots.test.ts`. `tools/nv/cmd/site.ts:279`, `tools/nv/cmd/site.ts:1332`
+- [ ] The rule `shipped`. `data/rules/testing/a-screenshot-is-taken-from-a-real-run.json:3`
 
-No test is expected to go red from stage 7: `site --check snippets`, `site-replay.test.ts` and the
-browser test (`NV_BROWSER=1`) all passed with it.
+No test is expected to go red from stage 2. `site-dap.test.ts` (5 pass), `site-replay.test.ts` (15
+pass) and `tsc` ran green. The browser test (`NV_BROWSER=1`) was not run. It reads `replay-player.mjs`,
+whose `show` now passes `frameDebug`, which is null for an editor replay.
 
 ### Backlog
 
-- Stage 3 needs no other goal and can run beside 2 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).
-- Stage 8 follows 2 in `site.ts`.
+- Stage 3 needs no other goal and can run beside 8 (`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md`).

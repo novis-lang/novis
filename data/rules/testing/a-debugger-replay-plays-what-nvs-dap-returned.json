@@ -1,11 +1,13 @@
 {
   "title": "A website debugger replay plays what `nvs dap` returned for a session's breakpoints and steps, and `bun nv site --check snippets` fails when it now returns something else",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/a-replay-plays-what-the-language-server-returned",
     "ide/the-debug-adapter-does-not-wait-for-an-editor",
     "testing/the-tools-area-has-a-page-for-each-tool"
   ],
-  "guardedBy": [],
-  "goal": "tools-website"
+  "guardedBy": [
+    "tools/nv/test/site-dap.test.ts",
+    "tools/nv/cmd/site.ts"
+  ]
 }

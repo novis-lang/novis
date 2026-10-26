@@ -142,6 +142,36 @@
 // that is missing or is not what the server returns now, and a `.replay.out` with no `.replay`. A page
 // that shows a replay shows its snippet too, because the replay ends on the snippet's text.
 //
+// A `.dap` beside a snippet is a debug session over it, and `<Replay src="..."/>` shows it as a debugger
+// replay when the snippet has no `.replay`. It is hand-written: `break LINE` once per breakpoint, lines
+// counted from 1, and then one step per line, each a request sent once the program has stopped:
+//
+//     break 9
+//     in
+//     next
+//     out
+//
+// `continue` runs to the next breakpoint, `next` steps over a line, `in` steps into a call and `out`
+// steps out of a method. `nvs dap` runs the snippet from the repository root, with the directory's
+// `nvs.toml` as `--config` when there is one, and the session starts the program and waits for its
+// first stop (`lib/dap-replay.ts`). The `.dap.out` beside it is one block per stop, a blank line
+// between two:
+//
+//     stop 1 step
+//       frame main.nvs:4 Shop::total
+//       frame main.nvs:9 main
+//       var $price	int	4
+//
+// `stop STEP REASON` is where the program stopped after step STEP, 0 for the start, and REASON is the
+// `stopped` event's. A `frame FILE:LINE NAME` line follows per frame of the call stack, innermost
+// first, FILE the file's name alone, and then a `var` line per variable of the innermost frame's first
+// scope: its name, its type and its value, joined by one tab each, with a line break in a value written
+// `\n`. `end STEP EXIT` is the program's end with its exit code, and a step after it is a failure. A
+// frame id and a variables reference only name an object for one session, so neither is written.
+// `--bless` writes the file from a new session. `--check snippets` fails on a `.dap` that does not
+// parse or run, a `.dap.out` that is missing or is not what `nvs dap` returns now, a `.dap.out` with no
+// `.dap`, and a snippet with both a `.dap` and a `.replay`.
+//
 // **A terminal block** is a `.term` under `website/snippets/` that a page shows with `<Terminal
 // src="tools/cli/check.term"/>`. It lists commands, one per non-blank line, each starting with `nvs`; a
 // word is a run without white space, or a run inside `"` or `'`. Its fixture is the directory beside it
@@ -222,6 +252,7 @@ import { pathToFileURL } from "node:url";
 import { newestNvs } from "../lib/nvs-binary.ts";
 import { lspFrame, lspMessages } from "../lib/lsp.ts";
 import { rel, ROOT } from "../lib/paths.ts";
+import { parseDap, recordDap } from "../lib/dap-replay.ts";
 import { parseReplay, recordReplay } from "../lib/replay.ts";
 import { recordTerm, sameTerm, TERM, TERM_OUT } from "../lib/term.ts";
 import { run as runProc } from "../lib/proc.ts";
@@ -843,7 +874,7 @@ export function snippetShape(root: string = ROOT): { problems: string[]; snippet
       used.add(src);
       const at = `${DOCS}/${page.key}: <Replay src="${src}"/>`;
       if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
-      else if (!existsSync(join(root, SNIPPETS, beside(src, "replay")))) problems.push(`${at}: the snippet has no .replay beside it`);
+      else if (!existsSync(join(root, SNIPPETS, beside(src, "replay"))) && !existsSync(join(root, SNIPPETS, beside(src, "dap")))) problems.push(`${at}: the snippet has no .replay or .dap beside it`);
     }
     for (const m of page.text.matchAll(TERMINAL_RE)) {
       const src = m[1]!;
@@ -1213,6 +1244,35 @@ export async function replayProblems(p: string, nvs: string, root: string = ROOT
   return problems;
 }
 
+/** The extensions of a snippet's debug session and of its recording: the header's § *A snippet*. */
+export const DAP = "dap";
+export const DAP_OUT = "dap.out";
+
+/** What a snippet's `.dap` records now, from `nvs dap` over the snippet; null when it has no `.dap`. */
+export async function snippetDap(p: string, nvs: string, root: string): Promise<{ recording: string } | { failure: string } | null> {
+  if (!existsSync(join(root, beside(p, DAP)))) return null;
+  const dap = parseDap(readAt(root, beside(p, DAP)));
+  if (typeof dap === "string") return { failure: `${beside(p, DAP)}: ${dap}` };
+  const config = `${p.slice(0, p.lastIndexOf("/"))}/nvs.toml`;
+  const argv = [nvs, ...(existsSync(join(root, config)) ? ["--config", config] : []), "dap"];
+  const got = await recordDap(join(root, p), dap, (opts) => runProc(argv, { cwd: root, timeoutMs: SNIPPET_MS, ...opts }));
+  return "failure" in got ? { failure: `${beside(p, DAP)}: ${got.failure}` } : got;
+}
+
+/** The problems with a snippet's `.dap` and `.dap.out` under `root`: a session that does not run, and a
+ * recording that is missing, stale or has no `.dap`. */
+export async function dapProblems(p: string, nvs: string, root: string = ROOT): Promise<string[]> {
+  const file = existsSync(join(root, beside(p, DAP_OUT))) ? readAt(root, beside(p, DAP_OUT)) : null;
+  const recorded = await snippetDap(p, nvs, root);
+  if (recorded === null) return file === null ? [] : [`${p}: a .${DAP_OUT} beside it and no .${DAP}`];
+  if ("failure" in recorded) return [recorded.failure];
+  const problems: string[] = [];
+  if (existsSync(join(root, beside(p, REPLAY)))) problems.push(`${p}: both a .${REPLAY} and a .${DAP} beside it; a page shows one replay per snippet`);
+  if (file === null) problems.push(`${p}: no .${DAP_OUT} beside its .${DAP}`);
+  else if (!same(recorded.recording, file)) problems.push(`${p}: its .${DAP_OUT} is not what \`nvs dap\` returns for its .${DAP} now`);
+  return problems;
+}
+
 /** What a `.term`'s commands record now, run with `nvs` in a copy of its fixture with `NO_COLOR=1`. */
 export async function termRecording(t: string, nvs: string, root: string = ROOT): Promise<{ recording: string } | { failure: string }> {
   const play = async (argv: string[], cwd: string) => {
@@ -1279,6 +1339,7 @@ async function snippetProblems(nvs: string): Promise<string[]> {
     const taintProblem = "failure" in taint ? taint.failure : taintVerdict(p, taint.owed, taintFile(p));
     if (taintProblem) found.push(taintProblem);
     found.push(...(await replayProblems(p, nvs)));
+    found.push(...(await dapProblems(p, nvs)));
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     // A snippet `snippetShape` already named has no one file to match.
     if ((err && (out || http)) || (!out && !http && !err)) return found;
@@ -1337,6 +1398,12 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
     } else if (replayed !== null && "failure" in replayed) fail(replayed.failure);
     else if (replayed !== null && !same(replayed.last, readAt(ROOT, p))) fail(`${beside(p, REPLAY)}: its steps end on other text than the snippet`);
     else if (replayed !== null) blessWrite(beside(p, RECORDING), replayed.recording);
+    const debugged = await snippetDap(p, nvs, ROOT);
+    if (debugged === null && existsSync(join(ROOT, beside(p, DAP_OUT)))) {
+      rmSync(join(ROOT, beside(p, DAP_OUT)));
+      console.log(`  deleted  ${beside(p, DAP_OUT)}`);
+    } else if (debugged !== null && "failure" in debugged) fail(debugged.failure);
+    else if (debugged !== null) blessWrite(beside(p, DAP_OUT), debugged.recording);
     const [out, http, err] = (["out", "http", "err"] as const).map((k) => hasFile(ROOT, p, k));
     if (err && (out || http)) {
       fail(`${p}: both a .err and an output file beside it; delete the one that is wrong`);

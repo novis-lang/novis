@@ -22,6 +22,7 @@
  * website's packages.
  */
 
+import { dapData, panelRows, parseDap, parseDapRecording } from './replay-dap.mjs'
 import { narrow } from './replay-narrow.mjs'
 
 /** Where the cursor marker is in a `.replay`'s start text. */
@@ -338,8 +339,12 @@ const withCode = (text) => text.split('`').map((part, i) => (i % 2 ? `<code>${es
  *
  * `lenses`, when it is given, is the code lenses `{ line, title }` to show,
  * each above its line with that line's indent.
+ *
+ * `debug`, when it is given, is `{ breaks, at }`: the lines with a breakpoint,
+ * which get a red dot by their number, and the line the program stopped on, or
+ * null. Lines count from 0.
  */
-export function codeHtml(text, cursor, squiggle, colours = null, lenses = []) {
+export function codeHtml(text, cursor, squiggle, colours = null, lenses = [], debug = null) {
   const lines = text.split('\n')
   const at = cursor === null ? null : position(text, cursor)
   if (lines.length > 1 && lines.at(-1) === '' && at?.line !== lines.length - 1) lines.pop()
@@ -378,18 +383,24 @@ export function codeHtml(text, cursor, squiggle, colours = null, lenses = []) {
       html += escapeHtml(line[i])
     }
     shut()
-    return `<div class="nv-line"><span class="nv-ln">${n + 1}</span><span class="nv-text">${html}</span></div>`
+    const marks = `${debug?.breaks.includes(n) ? ' nv-break' : ''}${debug?.at === n ? ' nv-stopped' : ''}`
+    return `<div class="nv-line${marks}"><span class="nv-ln">${n + 1}</span><span class="nv-text">${html}</span></div>`
   }
 }
 
 /** The lenses `codeHtml` shows in a frame with `panel`: those of a `lens` answer, and none otherwise. */
 export const frameLenses = (asks, panel) => (panel && asks[panel.ask].kind === 'lens' ? asks[panel.ask].lenses : [])
 
+/** The breakpoints and the stopped line `codeHtml` shows in a frame of `data`: none outside a debugger replay. */
+export const frameDebug = (data, panel) => (data.breaks ? { breaks: data.breaks, at: panel && data.asks[panel.ask].kind === 'stop' ? panel.line : null } : null)
+
 /**
  * The HTML of a frame's panel, `{ ask, line, col, ... }`, over the answer
  * `ask`: the rename box and then how many other files changed, the menu of
- * code actions with the chosen one selected, the call hierarchy, or the hover
- * card. A lens has no panel of its own, because `codeHtml` shows it.
+ * code actions with the chosen one selected, the call hierarchy, the hover
+ * card, or the call stack and the variables where a debugged program stopped,
+ * and the exit code where it ended. A lens has no panel of its own, because
+ * `codeHtml` shows it.
  */
 export function panelHtml(ask, panel) {
   const box = (cls, body) => `<div class="nv-hover ${cls}" style="--nv-line: ${panel.line + 1}; --nv-col: ${panel.col}">${body}</div>`
@@ -408,6 +419,13 @@ export function panelHtml(ask, panel) {
     return box('nv-calls', `<div class="nv-card-head"><code>${escapeHtml(ask.name)}</code></div>${group('Called by', ask.incoming)}${group('Calls', ask.outgoing)}`)
   }
   if (ask.kind === 'card') return box('nv-card', markdownHtml(ask.markdown))
+  if (ask.kind === 'stop') {
+    const frames = ask.frames.map((f) => `<div class="nv-calls-row"><code>${escapeHtml(f.name)}</code> <span class="nv-hover-code">${escapeHtml(`${f.file}:${f.line}`)}</span></div>`)
+    const vars = ask.variables.map((v) => `<div class="nv-calls-row"><code>${escapeHtml(v.name)}</code> = ${escapeHtml(v.value)}${v.type ? ` <span class="nv-hover-code">${escapeHtml(v.type)}</span>` : ''}</div>`)
+    const none = '<div class="nv-hover-code">None</div>'
+    return box('nv-calls nv-debug', `<div class="nv-calls-title">Call stack</div>${frames.join('')}<div class="nv-calls-title">Variables</div>${vars.length ? vars.join('') : none}`)
+  }
+  if (ask.kind === 'end') return box('nv-debug', escapeHtml(`The program ended with exit code ${ask.exit}.`))
   return ''
 }
 
@@ -538,27 +556,54 @@ export const buttonHtml = (icon, label) => `${ICONS[icon]}<span>${escapeHtml(lab
  */
 export function replayMarkup({ replay, recording, title, install, where, colours = null }) {
   const data = replayOf({ replay, recording, where })
+  // A frame with code lenses has one more row for each line they are above.
+  const extra = (i) => new Set(frameLenses(data.asks, data.frames[i].panel).map((l) => l.line)).size
+  const head = 'How it looks in your editor'
+  const note = `A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.`
+  return markup(data, { title, where, colours, extra, head, note, label: playLabel(data.asks) })
+}
+
+/**
+ * The HTML of one debugger replay, as `replayMarkup` writes an editor replay's:
+ * `dap` and `recording` are the `.dap` and the `.dap.out`, and `text` is the
+ * snippet. `dapData` from `replay-dap.mjs` writes the frames.
+ */
+export function dapMarkup({ dap, recording, text, title, install, where, colours = null }) {
+  const data = dapOf({ dap, recording, text, title, where })
+  // A stop's panel opens under its line, so the code area is tall enough for the panel under the last line.
+  const extra = (i) => (data.frames[i].panel ? panelRows(data.asks[data.frames[i].panel.ask]) : 0)
+  const head = 'How it looks in your debugger'
+  const note = `A recording of a debug session in the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.`
+  return markup(data, { title, where, colours, extra, head, note, label: 'Preview the debugger' })
+}
+
+/** A debugger replay's `.dap` and `.dap.out` as `dapData` returns them, over the snippet `text` named `title`. */
+export function dapOf({ dap, recording, text, title, where }) {
+  const parsed = parseDap(dap)
+  if (typeof parsed === 'string') throw new Error(`${where}: the .dap is not valid: ${parsed}`)
+  return dapData(parsed, parseDapRecording(recording), text, title, where)
+}
+
+/** The HTML of a replay whose frames are `data`, with `extra(i)` rows under the code of frame `i`. */
+function markup(data, { title, where, colours, extra, head, note, label }) {
   const texts = frameTexts(data)
   // The code area is as tall as the longest frame, so it does not grow while the replay plays. Its font
   // gets smaller until the widest line, `cols`, fits, and stops at 12px. `Replay.astro`'s style does the
   // sums, and `replay-player.mjs` scrolls a line that is still too wide.
-  // A frame with code lenses has one more row for each line they are above.
-  const lensRows = (i) => new Set(frameLenses(data.asks, data.frames[i].panel).map((l) => l.line)).size
-  const rows = Math.max(...texts.map((text, i) => text.split('\n').length + lensRows(i)))
+  const rows = Math.max(...texts.map((text, i) => text.split('\n').length + extra(i)))
   const cols = Math.max(...texts.flatMap((text) => text.split('\n').map((line) => line.length)))
   const paint = colours ? replayPaint(texts, colours, where) : null
-  const label = playLabel(data.asks)
-  const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint }).replace(/</g, '\\u003c')
+  const json = JSON.stringify({ start: data.start, asks: data.asks, frames: data.frames, poster: data.poster, paint, breaks: data.breaks ?? null }).replace(/</g, '\\u003c')
   return [
     '<figure class="nv-replay not-content" data-replay data-motion>',
     '<figcaption class="nv-replay-head">',
     `<span class="nv-replay-icon">${ICONS.editor}</span>`,
-    '<span class="nv-replay-heading"><span class="nv-replay-title">How it looks in your editor</span>',
-    `<span class="nv-replay-note">A recording from the <a href="${escapeHtml(install)}">Novis editor extension</a>. You cannot type here.</span></span>`,
+    `<span class="nv-replay-heading"><span class="nv-replay-title">${head}</span>`,
+    `<span class="nv-replay-note">${note}</span></span>`,
     '</figcaption>',
     `<div class="nv-replay-frame" inert aria-hidden="true" style="--nv-cols: ${cols}">`,
     `<div class="nv-replay-bar"><span class="nv-replay-dots"><i></i><i></i><i></i></span><span class="nv-replay-tab">${escapeHtml(title)}</span></div>`,
-    `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null, frameColours(paint, texts.length - 1))}</div>`,
+    `<div class="nv-replay-code" style="--nv-rows: ${rows}">${codeHtml(data.last, null, null, frameColours(paint, texts.length - 1), [], frameDebug(data, null))}</div>`,
     '<div class="nv-replay-progress"><span></span></div>',
     '</div>',
     `<div class="nv-replay-controls"><button type="button" class="nv-button nv-button-primary nv-replay-button" data-replay-do="play" data-replay-label="${escapeHtml(label)}">${buttonHtml('play', label)}</button></div>`,

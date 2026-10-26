@@ -23,6 +23,13 @@
  * wrap. The code scrolls sideways instead, and the player keeps the cursor and
  * the open list or card in view.
  *
+ * A snippet with a `.dap` beside it, and no `.replay`, gets a debugger replay:
+ * the `.dap` lists breakpoints and steps, and the `.dap.out` is what `nvs dap`
+ * returned at each stop. The code does not change. Each frame shows the
+ * breakpoints, the line the program stopped on, and the call stack and the
+ * variables in a panel under that line. `config/replay-dap.mjs` writes its
+ * frames.
+ *
  * What is recorded: each completion list, each diagnostic, and where each list
  * opens, and each rename, code action, code lens, call hierarchy and hover card
  * with the edits it makes. What is imitated: the list narrowing as letters are typed, the typing
@@ -32,7 +39,7 @@
  * `<Snippet>` is coloured, and `config/replay-player.mjs` plays them.
  */
 import { colourLines } from '../../config/replay-colours.mjs'
-import { frameTexts, replayMarkup, replayOf } from '../../config/replay-frames.mjs'
+import { dapMarkup, dapOf, frameTexts, replayMarkup, replayOf } from '../../config/replay-frames.mjs'
 
 interface Props {
   /** The snippet's path under website/snippets/. */
@@ -45,26 +52,28 @@ const ROOT = '../../snippets/'
 const sources = import.meta.glob('../../snippets/**/*.nvs', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const replays = import.meta.glob('../../snippets/**/*.replay', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const recordings = import.meta.glob('../../snippets/**/*.replay.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const daps = import.meta.glob('../../snippets/**/*.dap', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const dapRecordings = import.meta.glob('../../snippets/**/*.dap.out', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 const { src } = Astro.props
-if (sources[`${ROOT}${src}`] === undefined) throw new Error(`Replay: no file website/snippets/${src}`)
+const text = sources[`${ROOT}${src}`]
+if (text === undefined) throw new Error(`Replay: no file website/snippets/${src}`)
 const beside = (ext: string) => `${ROOT}${src.replace(/\.nvs$/, ext)}`
 const replay = replays[beside('.replay')]
-if (replay === undefined) throw new Error(`Replay ${src}: there is no .replay beside it`)
-const recording = recordings[beside('.replay.out')]
-if (recording === undefined) throw new Error(`Replay ${src}: there is no .replay.out beside it; run \`bun nv site --bless\` on the snippet`)
+const dap = daps[beside('.dap')]
+if (replay === undefined && dap === undefined) throw new Error(`Replay ${src}: there is no .replay or .dap beside it`)
+const recording = replay === undefined ? dapRecordings[beside('.dap.out')] : recordings[beside('.replay.out')]
+const out = replay === undefined ? '.dap.out' : '.replay.out'
+if (recording === undefined) throw new Error(`Replay ${src}: there is no ${out} beside it; run \`bun nv site --bless\` on the snippet`)
 const where = `website/snippets/${src}`
+const title = src.split('/').at(-1)!
+const install = `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/install/editor/`
 // Each frame's code is coloured by the engine that colours a <Snippet>, once per distinct text.
-const texts = [...new Set(frameTexts(replayOf({ replay, recording, where })))]
-const coloured = new Map(await Promise.all(texts.map(async (text) => [text, await colourLines(text)] as const)))
-const html = replayMarkup({
-  replay,
-  recording,
-  title: src.split('/').at(-1)!,
-  install: `${import.meta.env.BASE_URL.replace(/\/+$/, '')}/install/editor/`,
-  where,
-  colours: (text: string) => coloured.get(text)!,
-})
+const data = replay === undefined ? dapOf({ dap: dap!, recording, text, title, where }) : replayOf({ replay, recording, where })
+const texts = [...new Set(frameTexts(data))]
+const coloured = new Map(await Promise.all(texts.map(async (t) => [t, await colourLines(t)] as const)))
+const colours = (t: string) => coloured.get(t)!
+const html = replay === undefined ? dapMarkup({ dap: dap!, recording, text, title, install, where, colours }) : replayMarkup({ replay, recording, title, install, where, colours })
 ---
 
 <Fragment set:html={html} />
@@ -357,6 +366,25 @@ const html = replayMarkup({
   .nv-replay .nv-calls-title {
     margin-top: 0.35rem;
     color: var(--sl-color-gray-3);
+  }
+  /* A breakpoint is a red dot left of its line number, and the line the program stopped on has a yellow
+     background, as in VS Code. */
+  .nv-replay .nv-break .nv-ln::before {
+    content: '';
+    position: absolute;
+    top: calc(50% - 0.3em);
+    left: 0.3rem;
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    background: var(--sl-color-red);
+  }
+  .nv-replay .nv-stopped,
+  .nv-replay .nv-stopped .nv-ln {
+    background: color-mix(in oklab, var(--sl-color-orange) 25%, var(--nv-code-bg));
+  }
+  .nv-replay .nv-debug .nv-calls-title:first-child {
+    margin-top: 0;
   }
   .nv-replay-progress {
     height: 3px;
