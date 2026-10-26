@@ -29,9 +29,13 @@ mod tests {
     fn the_embedded_files_are_the_committed_ones() {
         let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../viewer/dist");
         for (name, embedded) in [("viewer.js", JS), ("viewer.css", CSS)] {
-            let committed = std::fs::read(dist.join(name)).expect("the committed bundle is on disk");
+            let committed =
+                std::fs::read(dist.join(name)).expect("the committed bundle is on disk");
             assert!(!embedded.is_empty(), "{name} is empty");
-            assert!(committed == embedded, "the embedded {name} is not the committed file");
+            assert!(
+                committed == embedded,
+                "the embedded {name} is not the committed file"
+            );
         }
     }
 }
