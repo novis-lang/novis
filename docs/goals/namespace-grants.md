@@ -34,7 +34,7 @@ stages:
         rules: [packaging/a-package-file-stays-under-its-declared-prefix, packaging/a-package-cannot-reach-its-host, security/path-scope-canonicalise-then-prefix]
   - id: 4
     title: an optional capability compiles behind a guard, and `Core\Cap::has` answers for its namespace
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-types/src/expr/calls.rs, docs/rules/security/optional-capability-degrades.md]
     extra:
       context:
@@ -162,6 +162,16 @@ own method reference to `set` cannot raise either).
 (`crates/nvs-diagnostics/src/code/config.rs:822`), and each message names the namespace, the
 capability and the grant line that would fix it.
 
+**The optional guard is decided while compiling, so it is a throw and not a branch.** The grant
+table and each package's `optional` list are in the unit's key (`Grants::set_optional`), so where a
+call's namespace lacks an optional capability is known when the unit compiles. That call lowers to a
+`RuntimeError` raised before its arguments run, followed by the call in a dead block; a granted call
+carries nothing (latency over the stage's "one branch" wording, which would test a constant). A call
+missing a capability that is not optional is still `E0658`, naming only the non-optional ones.
+`Core\Cap::has` gets its namespace's line as a prepared word (`PREPARED_GRANTS` and one bit per
+`Cap::ALL` entry), and a method reference to it answers `false`, failing closed as `Config::set`'s
+does.
+
 **Trade-offs.** Security gains the most: a compromised dependency can compute but cannot act unless a
 human wrote its name in a grant line. Latency on the request path is unchanged, because the check is
 done while compiling; the only run-time cost is one predictable branch at a call site a package
@@ -234,9 +244,12 @@ outside its package, and refuses a `require` or `autoload` path that leaves the 
 **Does:** a capability a package's manifest lists as optional compiles either way, and its call site
 throws a catchable error when it runs without the grant.
 
-- [ ] The guard is one branch, emitted only at a call site in a package that declared the capability optional (`rule:security/optional-capability-degrades`). `crates/nvs-types/src/expr/calls.rs:506`
-- [ ] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:201`
-- [ ] Conformance cases: an optional capability compiles and throws without the grant, and `Core\Cap::has` answers `false` in that package. `tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst:1`
+- [x] The guard is one branch, emitted only at a call site in a package that declared the capability optional (`rule:security/optional-capability-degrades`). `crates/nvs-types/src/expr/calls.rs:506`
+  - [x] `Packages` reaches `Env::packages`, and `reject_ungranted_call` records a `CapabilityGuard` where every missing capability is optional
+  - [x] `nvs-ir` throws the guard's `RuntimeError` before the call runs
+  - [x] each package's `optional` list folds into `Grants::digest`
+- [x] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:201`
+- [x] Conformance cases: an optional capability compiles and throws without the grant, and `Core\Cap::has` answers `false` in that package. `tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst:1`
 
 ### 6. the grant table has its feature proofs, and its rules are shipped
 
@@ -275,32 +288,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 5 are done. The call-site check is `reject_ungranted_call`
-(`crates/nvs-types/src/capability.rs:159`); `Grants::read` (`crates/nvs-config/src/grants.rs:143`)
-puts `package.toml` in every unit's trace; `Core\Config::set` raises only where no grant line
-matches (`crates/nvs-types/src/capability.rs:120`). Their tests passed by name.
+Stages 1 to 5 are done; their rules stay `designed` until stage 6. The guard: `reject_ungranted_call`
+(`crates/nvs-types/src/capability.rs:205`) records a `CapabilityGuard` where every missing
+capability is in the file's package's `optional` list (`Env::packages`, passed by `main.rs`), and
+`lower_capability_guard` (`crates/nvs-ir/src/lower/exception.rs:249`) throws it. `Core\Cap::has`
+takes `PreparedFact::CapGrants` from `prepare_cap_has` (`capability.rs:167`). Optional lists fold
+into `Grants::digest` (`crates/nvs-config/src/grants.rs:242`). `nvs_types::package::check` now
+makes a relative entry absolute; before, `nvs run main.nvs` placed no file in a package. The
+conformance case and `package_grants` pass by name.
 
-Stage 5: `nvs_config::package::read` (`crates/nvs-config/src/package.rs`) reads `[package] name`
-and `[capabilities]`. `nvs_types::package::check` (`crates/nvs-types/src/package.rs`) places each
-loaded file by its real path and reports `E0660` and `E0661`; `crates/nvs-cli/src/main.rs` calls it
-after `resolve_entry` and drops its `Packages`. `crates/nvs-cli/tests/package_grants.rs` passes by
-name. The two packaging rules stay `designed` until stage 6.
-
-Tests that may go red at the gate: an IR snapshot printing a `Core\Config::set` call now shows
-`prepared config.application` or `prepared none`; a test counting `SourceMap` files or `missed`
-paths sees a missed `package.toml` per directory above the entry, and per directory between a loaded
-file and the entry; a test over every diagnostic code sees `E0659`–`E0661`.
-The sweep's `env-secret-proofs` log on HEAD exits 0, and nightly run 40291801939 was covered before.
+Tests that may go red at the gate: an IR snapshot of `Core\Config::set` (`prepared
+config.application`/`none`) or `Core\Cap::has` (`prepared cap.grants 0x…`); a test counting
+`SourceMap` files or missed paths (a missed `package.toml` per directory walked); a test over every
+diagnostic code (`E0659`–`E0661`); a test over `PREPARED_MEMBERS`, or one calling
+`nvs_core_cap_has` without the prepared word first.
+`cargo fmt --check` names `crates/nvs-cli/src/script.rs` and `tests/strict_docs.rs`, another loop's.
+The sweep's `env-secret-proofs` exits 0 on HEAD; nightly run 40291801939 predates this work.
 
 ### Next
 
-**Stage 4**: an optional capability compiles behind a guard, and `Core\Cap::has` answers for its
-namespace.
+**Stage 6**: the grant table has its feature proofs, and its rules are shipped. Follow the stage's
+**Split:** line.
 
-- [ ] Keep the `Packages` from `nvs_types::package::check` and hand it to `check_program_loaded`, so `reject_ungranted_call` lets an ungranted capability compile where the call's file is in a package that lists it under `optional`. `crates/nvs-cli/src/main.rs:1156`, `crates/nvs-types/src/capability.rs:159`
-- [ ] The guard: one branch at such a call site, throwing a catchable error when the namespace does not hold the grant; fold each package's optional list into the unit's key, because it changes the code. `crates/nvs-types/src/expr/calls.rs:506`, `crates/nvs-config/src/cache.rs:175`
-- [ ] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:201`
-- [ ] The conformance case, on a hand-built layout as `crates/nvs-cli/tests/package_grants.rs` builds one. `tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst:1`
+- [ ] The chapter heading `# Grants: what each namespace may do`, linked from the index. `docs/reference/tools/35-packages.md:1`, `docs/reference/README.md:1`
+- [ ] The about page, the examples, the bench and the attack, by two writing subagents. `docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md:1`, `tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs:1`
+- [ ] `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
+- [ ] The seven rules `shipped`, each fragment's *Partly on disk* paragraph removed, and `bun nv owners --closes namespace-grants` passes. `data/rules/security/optional-capability-degrades.json:3`, `docs/rules/security/optional-capability-degrades.md:1`
 
 ### Backlog
 
