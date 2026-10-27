@@ -1,0 +1,72 @@
+assets 65665b32676c1cdb
+
+Novis debug
+Theme
+System
+Dark
+Light
+Editor
+Keys
+Requests
+Stream
+Log
+Search
+Exceptions
+Back to the request list
+GET App::apiShow
+Path
+/api/notes/1
+Status
+404
+Duration
+<duration>
+Started
+27.10.2026, <time>
+Queries
+2
+Dumps
+0
+Log lines
+0
+Exception
+None
+Trace id
+<id>
+Span id
+<id>
+No earlier request to this route was found.
+Replay
+Send this request again?
+
+This sends GET /api/notes/1 to 127.0.0.1:<port>.
+
+Your handler runs again. Anything it changes, such as a payment or an email, happens again.
+
+Cancel
+Send
+Make a test
+Timeline
+<duration>
+<duration>
+<duration>
+<duration>
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+select id, title, body from notes where id = ?
+Query
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+sqlite, 0 rows
+<duration>
+Query
+<duration>
+select id, title, body from notes where id = ?
+sqlite, 0 rows
+<duration>
+Dumps
+
+This request dumped no values.
+
+Log lines
+
+This request wrote no log lines.

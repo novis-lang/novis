@@ -1,0 +1,64 @@
+---
+/**
+ * A screenshot of a tool, taken in a real run. `src` names a `.shot` under
+ * website/snippets/, and `alt` says what the picture shows:
+ *
+ *   <Shot src="tools/debug-viewer/requests.shot" alt="The request list" />
+ *
+ * The picture is the `.png` beside the `.shot` with its name, and only
+ * `bun nv site --shoot` writes it. `tools/nv/cmd/site.ts` § *A screenshot* is
+ * the home of the format, and `bun nv site --check shots` fails when the tool
+ * shows something else now, or when no page shows a `.shot`.
+ */
+import { Image } from 'astro:assets'
+import type { ImageMetadata } from 'astro'
+
+interface Props {
+  /** The `.shot`'s path under website/snippets/. */
+  src: string
+  /** What the picture shows, for a reader who cannot see it. */
+  alt: string
+  /** One line under the picture. */
+  caption?: string
+}
+
+// The globs below are relative to this file, so their keys start with this prefix.
+const ROOT = '../../snippets/'
+
+const shots = import.meta.glob('../../snippets/**/*.shot', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const pictures = import.meta.glob<ImageMetadata>('../../snippets/**/*.png', { import: 'default', eager: true })
+
+const { src, alt, caption } = Astro.props
+if (shots[`${ROOT}${src}`] === undefined) throw new Error(`Shot: no file website/snippets/${src}`)
+const picture = pictures[`${ROOT}${src.replace(/\.shot$/, '.png')}`]
+if (picture === undefined) throw new Error(`Shot ${src}: there is no picture beside it; run \`bun nv site --shoot ${src}\``)
+---
+
+<figure class="nv-shot">
+  <a href={picture.src} target="_blank" rel="noopener">
+    <Image src={picture} alt={alt} loading="lazy" />
+  </a>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style is:global>
+  .nv-shot {
+    margin: 1.5rem 0 0;
+  }
+  .nv-shot a {
+    display: block;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: var(--nv-radius, 0.625rem);
+    overflow: hidden;
+  }
+  .nv-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .nv-shot figcaption {
+    margin-top: 0.5rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+  }
+</style>

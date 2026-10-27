@@ -1,0 +1,64 @@
+assets 65665b32676c1cdb
+
+Novis debug
+Theme
+System
+Dark
+Light
+Editor
+Keys
+Requests
+Stream
+Log
+Search
+Exceptions
+Back to the request list
+GET App::home
+Path
+/
+Status
+200
+Duration
+<duration>
+Started
+27.10.2026, <time>
+Queries
+2
+Dumps
+0
+Log lines
+0
+Exception
+None
+Trace id
+<id>
+Span id
+<id>
+No earlier request to this route was found.
+Replay
+Make a test
+Timeline
+<duration>
+<duration>
+<duration>
+<duration>
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+select id, title, body from notes order by id desc
+Query
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+sqlite, 0 rows
+<duration>
+Query
+<duration>
+select id, title, body from notes order by id desc
+sqlite, 0 rows
+<duration>
+Dumps
+
+This request dumped no values.
+
+Log lines
+
+This request wrote no log lines.

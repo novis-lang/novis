@@ -1,0 +1,6 @@
+app notes
+request GET /
+request GET /api/notes
+request GET /api/notes/7
+open /search?q=notes
+wait .groups .group

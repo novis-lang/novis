@@ -59,7 +59,7 @@ export function parseShot(text: string): Shot | string {
     const at = `line ${i + 1}`;
     const [word = "", ...rest] = line.split(/\s+/);
     const arg = line.slice(word.length).trim();
-    if (word === "app" && /^[a-z0-9-]+$/.test(arg)) app = arg;
+    if (word === "app" && /^(?:[a-z0-9-]+|\.)$/.test(arg)) app = arg;
     else if (word === "profile" && /^[\w./-]+\.nvs$/.test(arg) && !arg.includes("..")) program = arg;
     else if (word === "request" && /^[A-Z]+$/.test(rest[0] ?? "") && (rest[1] ?? "").startsWith("/")) {
       const body = rest.slice(2).join(" ");
@@ -93,6 +93,8 @@ export function assetsHash(dir: string): string | null {
 /** The values a page shows that differ from run to run, beyond the ones `term.ts` masks. */
 const MORE_MASKS: [RegExp, string][] = [
   [/\b\d+(?:\.\d+)?\s(?:ns|µs|μs|us|ms|s|min|m|h)\b/g, "<duration>"],
+  // The class of a test made from a request ends with the first 8 digits of its trace id.
+  [/[0-9a-f]{8}Test\b/g, "<id>Test"],
   [/\b\d+\s(?:seconds?|minutes?|hours?|days?)\sago\b/g, "<ago>"],
 ];
 
@@ -102,6 +104,15 @@ export function shotText(text: string): string {
   let out = mask(text);
   for (const [re, to] of MORE_MASKS) out = out.replace(re, to);
   return out.replace(/\n{3,}/g, "\n\n");
+}
+
+/** `text` with each path inside `app`, the run's copy of the project, written from the project's root
+ * with `/` between its parts, so a `.shot.out` is the same wherever the copy was made. */
+export function projectPaths(text: string, app: string): string {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const forms = [...new Set([app, app.replaceAll("\\", "/")])].map(esc).join("|");
+  // Windows writes a canonical path with the `\\?\` prefix.
+  return text.replace(new RegExp(String.raw`(?:\\\\\?\\)?(?:${forms})[\\/]([^\s:]*)`, "g"), (_, rest: string) => rest.replaceAll("\\", "/"));
 }
 
 /** A `.shot.out`: the hash of the assets drawn, a blank line, and the text. */
@@ -196,11 +207,11 @@ async function withBrowser<T>(body: (b: Browser) => Promise<T>): Promise<T> {
 const SHOT_TOML = '[mode]\ndefault = "development"\n\n[debug]\nstore = true\nlisten = "127.0.0.1:0"\n';
 
 /** A viewer shot: the app served from a copy, its requests sent, and the steps taken in the viewer. */
-async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, nvs: string, root: string): Promise<{ recording: string; png: Uint8Array }> {
+async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, fixture: string, nvs: string, root: string): Promise<{ recording: string; png: Uint8Array }> {
   const hash = assetsHash(join(root, VIEWER_ASSETS));
   if (!hash) throw new Error(`${VIEWER_ASSETS} is not built: run \`bun run --cwd viewer build\``);
-  const source = join(root, "apps", shot.app);
-  if (!existsSync(join(source, "public", "index.nvs"))) throw new Error(`apps/${shot.app}/public/index.nvs does not exist`);
+  const source = shot.app === "." ? fixture : join(root, "apps", shot.app);
+  if (!existsSync(join(source, "public", "index.nvs"))) throw new Error(`${shot.app === "." ? "the directory beside the shot" : `apps/${shot.app}`} has no public/index.nvs`);
   return inCopy(async (dir) => {
     const app = join(dir, "app");
     cpSync(source, app, { recursive: true, filter: (p) => !/\.sqlite(-\w+)?$/.test(p) });
@@ -235,7 +246,7 @@ async function viewerShot(shot: Extract<Shot, { kind: "viewer" }>, nvs: string, 
         return (page.requests?.length ?? 0) >= shot.requests.length ? true : null;
       });
       const { text, png } = await withBrowser((b) => takeSteps(b, viewer, shot.steps, "!document.querySelector('[aria-busy=\"true\"]')"));
-      return { recording: shotOut(hash, shotText(text.replaceAll(server, "http://127.0.0.1:<port>"))), png };
+      return { recording: shotOut(hash, shotText(projectPaths(text.replaceAll(server, "http://127.0.0.1:<port>"), app))), png };
     } finally {
       stop.abort();
       await served;
@@ -285,7 +296,8 @@ export async function recordShot(path: string, nvs: string, root: string = ROOT)
   if (typeof shot === "string") return { failure: `${path}: ${shot}` };
   if (!canShoot()) return { failure: `${path}: no Chromium headless shell is installed; tools/nv/test/chromium.ts says how to install it` };
   try {
-    return shot.kind === "viewer" ? await viewerShot(shot, nvs, root) : await profileShot(shot, join(root, shotFixture(path)), nvs, root);
+    const fixture = join(root, shotFixture(path));
+    return shot.kind === "viewer" ? await viewerShot(shot, fixture, nvs, root) : await profileShot(shot, fixture, nvs, root);
   } catch (e) {
     return { failure: `${path}: ${(e as Error).message}` };
   }

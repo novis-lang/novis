@@ -1,0 +1,8 @@
+app notes
+request GET /notes/1
+request GET /api/notes
+request GET /
+open /
+wait .requests .row
+click .requests .row
+wait .timeline .tl-list

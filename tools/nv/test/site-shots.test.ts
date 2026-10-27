@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { shotShape, shotVerdict, snippetShape } from "../cmd/site.ts";
-import { parseShot, profileText, shotOut, shotText } from "../lib/shoot.ts";
+import { parseShot, profileText, projectPaths, shotOut, shotText } from "../lib/shoot.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
 // A website screenshot's steps, its text and the `shots` part's verdicts
@@ -48,6 +48,17 @@ describe("a .shot.out", () => {
   test("a viewer's text has every value that differs from run to run masked", () => {
     const shown = "GET\n/api/notes\n200\n854 µs\n3.45 ms\n12 seconds ago\n2026-10-27 09:12:44\n4bf92f3577b34da6a3ce929d0e0e4736\nhttp://127.0.0.1:51234/\n\n\n\nEnd";
     expect(shotText(shown)).toBe("GET\n/api/notes\n200\n<duration>\n<duration>\n<ago>\n<date>\n<id>\nhttp://127.0.0.1:<port>/\n\nEnd");
+    expect(shotText("class GetApiNotesc373d450Test")).toBe("class GetApiNotes<id>Test");
+  });
+
+  test("a path inside the run's copy is written from the project's root", () => {
+    const app = String.raw`E:\mwl\.cache\nv-shot\4934\app`;
+    expect(projectPaths("\\\\?\\" + app + String.raw`\src\Store.nvs:21 query`, app)).toBe("src/Store.nvs:21 query");
+    expect(projectPaths("/tmp/nv-shot/4934/app/src/Store.nvs:38", "/tmp/nv-shot/4934/app")).toBe("src/Store.nvs:38");
+  });
+
+  test("`app .` serves the directory beside the shot", () => {
+    expect(parseShot("app .\nopen /exceptions\n")).toEqual({ kind: "viewer", app: ".", requests: [], steps: [{ kind: "open", path: "/exceptions" }] });
   });
 
   test("a profile's text is each timeline's frames and calls, and no time", () => {
@@ -86,10 +97,21 @@ describe("the shots part", () => {
     s.put("website/snippets/tools/debug-viewer/requests.png", "png");
     s.put("website/snippets/tools/old.shot.out", OUT);
     s.put("website/snippets/tools/old.png", "png");
+    s.put("website/src/content/docs/tools/debug-viewer/index.mdx", '---\ntitle: Viewer\n---\n\n<Shot src="tools/debug-viewer/requests.shot" alt="The request list" />\n');
     expect(shotShape(s.root)).toEqual({
       shots: [P],
       problems: ["website/snippets/tools/old.shot.out: a .shot.out and no .shot beside it", "website/snippets/tools/old.png: a picture and no .shot beside it"],
     });
+  });
+
+  test("a shot no page shows, and a <Shot> that names no .shot, are named", () => {
+    s = scratch();
+    s.put(P, VIEWER);
+    s.put("website/src/content/docs/tools/profiler/index.mdx", '---\ntitle: Profiler\n---\n\n<Shot src="tools/profiler/gone.shot" alt="A profile" />\n');
+    expect(shotShape(s.root).problems).toEqual([
+      'website/src/content/docs/tools/profiler/index.mdx: <Shot src="tools/profiler/gone.shot"/> names no file under website/snippets/',
+      `${P}: no page shows it`,
+    ]);
   });
 
   test("a program in a shot's fixture is not a snippet", () => {

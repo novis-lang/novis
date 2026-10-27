@@ -1,0 +1,10 @@
+<?nvs
+// A small server that throws an error for each invoice that does not exist.
+// Nothing catches the error, so the debug viewer lists it on its exceptions page.
+
+array<string> $invoices = ['/invoices/7' => 'paid', '/invoices/8' => 'open'];
+?string $status = $invoices[Core\Request::path()] ?? null;
+if ($status == null) {
+    throw new RuntimeError('There is no such invoice.');
+}
+echo 'The invoice is ', $status, ".\n";

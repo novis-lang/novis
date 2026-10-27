@@ -1,0 +1,7 @@
+app .
+request GET /invoices/7
+request GET /invoices/9
+request GET /invoices/12
+request GET /invoices/9
+open /exceptions
+wait .exceptions .exc-class

@@ -1,0 +1,8 @@
+app notes
+request GET /api/notes/1
+open /
+wait .requests .row
+click .requests .row
+wait .replay-action
+click .replay-action
+wait .replay-request

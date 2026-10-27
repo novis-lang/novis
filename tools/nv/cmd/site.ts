@@ -210,8 +210,9 @@
 //     type input[type=search] home
 //
 // `request METHOD PATH [BODY]` sends BODY as a form. The first step is `open PATH`, a path of the
-// viewer; `wait`, `click` and `type` take a CSS selector, and `type` the text after it. The app is
-// copied without its database, served in development with `[debug] store` on, so the server starts
+// viewer; `wait`, `click` and `type` take a CSS selector, and `type` the text after it. `app .` serves
+// the directory beside the `.shot` with its name instead, for a project no app under `apps/` is, such as
+// one whose entry file throws an error no gate catches. The app is copied without its database, served in development with `[debug] store` on, so the server starts
 // `nvs debug`, and the steps are taken once the viewer lists every request (`lib/shoot.ts`). A profile
 // shot is one line, `profile main.nvs`: the program in the directory beside the `.shot` with its name
 // and no extension, run with `--profile=speedscope` in a copy of it and opened in the speedscope build
@@ -220,11 +221,13 @@
 //
 // The picture is the `.png` beside the `.shot` with its name. The `.shot.out` is `assets HASH`, a blank
 // line and what the picture shows as text. HASH is over the files the page draws with: `viewer/dist/`
-// or the speedscope release. A viewer shot's text is the page's visible text with `lib/term.ts`'s masks
-// and a spaced duration and an age masked too. A profile shot's text is one `timeline NAME` block per
+// or the speedscope release. A viewer shot's text is the page's visible text with `lib/term.ts`'s masks,
+// a spaced duration, an age and the trace id digits in a made test's class name masked too, and each
+// path inside the run's copy written from the project's root with `/`. A profile shot's text is one `timeline NAME` block per
 // timeline of the export, with each frame and its number of calls and no time. `--check shots` takes
-// every shot again and fails on a `.shot.out` that is missing or differs, a missing picture, and a
-// `.shot.out` or `.png` with no `.shot`. The pixels are never compared. With no Chromium installed the
+// every shot again and fails on a `.shot.out` that is missing or differs, a missing picture, a
+// `.shot.out` or `.png` with no `.shot`, a `.shot` no page shows, and a `<Shot src="..."/>` that names no
+// `.shot`. `Shot.astro` shows the picture. The pixels are never compared. With no Chromium installed the
 // part prints a `skip` line, and with `NV_BROWSER` set that is a failure, as the browser suites do.
 //
 // **A handwritten page** is every page under `website/src/content/docs/` that no renderer writes, which
@@ -899,6 +902,7 @@ const FENCE_RE = /^\s*(?:```|~~~)\s*(?:novis|nvs)\b/;
 const SNIPPET_RE = /<Snippet\s+src=["']([^"']+)["']([^>]*)>/g;
 const REPLAY_RE = /<Replay\s+src=["']([^"']+)["']/g;
 const TERMINAL_RE = /<Terminal\s+src=["']([^"']+)["']/g;
+const SHOT_RE = /<Shot\s+src=["']([^"']+)["']/g;
 /** The front page, under `DOCS`, which shows only what the server sends. */
 export const FRONT_PAGE = "index.mdx";
 
@@ -1513,12 +1517,23 @@ async function blessSnippets(nvs: string, paths: string[]): Promise<number> {
   return failed ? 1 : 0;
 }
 
-/** Every `.shot` under `root`'s snippets, and the problems with the files beside them that need no run:
- * a `.shot.out` or a `.png` with no `.shot`. */
+/** Every `.shot` under `root`'s snippets, and the problems that need no run: a `<Shot src>` that names no
+ * `.shot`, a `.shot` no page shows, and a `.shot.out` or a `.png` with no `.shot`. */
 export function shotShape(root: string = ROOT): { shots: string[]; problems: string[] } {
   const files = filesUnder(root, SNIPPETS);
   const shots = files.filter((p) => p.endsWith(`.${SHOT}`));
   const problems: string[] = [];
+  const used = new Set<string>();
+  for (const page of pages(root)) {
+    for (const m of page.text.matchAll(SHOT_RE)) {
+      const src = m[1]!;
+      used.add(src);
+      const at = `${DOCS}/${page.key}: <Shot src="${src}"/>`;
+      if (!src.endsWith(`.${SHOT}`)) problems.push(`${at} names no .${SHOT} file`);
+      else if (!existsSync(join(root, SNIPPETS, src))) problems.push(`${at} names no file under ${SNIPPETS}/`);
+    }
+  }
+  for (const p of shots) if (!used.has(p.slice(SNIPPETS.length + 1))) problems.push(`${p}: no page shows it`);
   for (const p of files.filter((f) => f.endsWith(`.${SHOT_OUT}`))) {
     if (!shots.includes(p.slice(0, -".out".length))) problems.push(`${p}: a .${SHOT_OUT} and no .${SHOT} beside it`);
   }

@@ -1,0 +1,9 @@
+app notes
+request GET /notes/18446744073709551615
+request GET /notes/1
+open /
+wait .requests .row
+click .requests .row
+wait .compare-previous
+click .compare-previous
+wait .cmp

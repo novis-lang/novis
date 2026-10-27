@@ -1,0 +1,71 @@
+assets 65665b32676c1cdb
+
+Novis debug
+Theme
+System
+Dark
+Light
+Editor
+Keys
+Requests
+Stream
+Log
+Search
+Exceptions
+Back to the request list
+Compare two requests
+Original
+GET /notes/18446744073709551615 500 started 27.10.2026, <time>
+Other
+GET /notes/1 404 started 27.10.2026, <time>
+
+6 rows differ.
+
+Request
+Field	Original	Other
+Method	GET	GET
+Path Differs	/notes/18446744073709551615	/notes/1
+Query	None	None
+Duration Differs	<duration>	<duration>
+Request headers
+Header	Original	Other
+connection	keep-alive	keep-alive
+user-agent	Bun/1.4.3	Bun/1.4.3
+accept	*/*	*/*
+host	127.0.0.1:<port>	127.0.0.1:<port>
+accept-encoding	gzip, deflate, br, zstd	gzip, deflate, br, zstd
+Request body
+Key	Original	Other
+Body	The program did not read this body.	The program did not read this body.
+Response
+Field	Original	Other
+Status Differs	500	404
+Response headers
+Header	Original	Other
+content-type	text/html; charset=utf-8	text/html; charset=utf-8
+x-content-type-options	nosniff	nosniff
+content-security-policy	frame-ancestors 'none'	frame-ancestors 'none'
+referrer-policy	strict-origin-when-cross-origin	strict-origin-when-cross-origin
+traceresponse Differs	00-<id>-<id>-00	00-<id>-<id>-00
+Response body
+Key	Original	Other
+Body Differs	<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Something went wrong</title></head>
+<body><h1>Something went wrong</h1><p>Please try again later.</p><p><a href="/">All notes</a></p></body>
+</html>	<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Not found</title></head>
+<body><h1>Not found</h1><p>There is no page at this address.</p><p><a href="/">All notes</a></p></body>
+</html>
+Queries
+Call	Original	Other
+src/Store.nvs:21	create table if not exists notes (id integer primary key, title text not null, body text not null)	create table if not exists notes (id integer primary key, title text not null, body text not null)
+src/Store.nvs:38 Differs	Not reached	select id, title, body from notes where id = ?
+Dumps
+
+Neither request dumped a value.
+
+Log lines
+
+Neither request wrote a log line.

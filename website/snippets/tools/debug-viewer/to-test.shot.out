@@ -1,0 +1,95 @@
+assets 65665b32676c1cdb
+
+Novis debug
+Theme
+System
+Dark
+Light
+Editor
+Keys
+Requests
+Stream
+Log
+Search
+Exceptions
+Back to the request list
+GET App::apiList
+Path
+/api/notes
+Status
+200
+Duration
+<duration>
+Started
+27.10.2026, <time>
+Queries
+2
+Dumps
+0
+Log lines
+0
+Exception
+None
+Trace id
+<id>
+Span id
+<id>
+No earlier request to this route was found.
+Replay
+Make a test
+A test made from this request
+
+Save this test in your project and run it with nvs test .. It sends the same request and checks that the response is the same.
+
+<?nvs
+// This test sends the request with the trace id <id> again.
+// It checks that the program gives the same response.
+use Core\Http\Method;
+use Core\Test;
+
+class GetApiNotes<id>Test
+{
+    #[Test]
+public function givesTheRecordedResponse(): void
+    {
+        array<string> $headers = [
+            'user-agent' => 'Bun/1.4.3',
+            'accept' => '*/*',
+            'host' => '127.0.0.1:<port>',
+            'accept-encoding' => 'gzip, deflate, br, zstd',
+        ];
+        var $response = Test::request(Method::Get, '/api/notes', { headers: $headers });
+
+        Test::assertEquals($response->status(), 200);
+        Test::assertEquals($response->header('content-type'), 'application/json');
+        Test::assertEquals($response->json(), Core\Json::decode('[]'));
+    }
+}
+
+Close
+Copy
+Timeline
+<duration>
+<duration>
+<duration>
+<duration>
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+select id, title, body from notes order by id desc
+Query
+<duration>
+create table if not exists notes (id integer primary key, title text not null, body text not null)
+sqlite, 0 rows
+<duration>
+Query
+<duration>
+select id, title, body from notes order by id desc
+sqlite, 0 rows
+<duration>
+Dumps
+
+This request dumped no values.
+
+Log lines
+
+This request wrote no log lines.
