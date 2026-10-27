@@ -106,6 +106,7 @@ const SETTINGS = [
   "nvs.template.format",
   "nvs.secrets.redact",
   "nvs.taint.mark",
+  "nvs.ast.enable",
   "nvs.stubs.dir",
 ];
 

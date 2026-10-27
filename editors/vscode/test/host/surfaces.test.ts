@@ -141,30 +141,36 @@ describe("the surfaces", () => {
 
   it("renders the AST panel for a file that does not compile", async () => {
     const document = await open("broken.nvs");
-    await vscode.commands.executeCommand("nvs.showAst");
-    const reading = await surface();
+    // The panel is off by default, and with it off the command only offers to turn it on.
+    await vscode.workspace.getConfiguration().update("nvs.ast.enable", true, vscode.ConfigurationTarget.Global);
+    try {
+      await vscode.commands.executeCommand("nvs.showAst");
+      const reading = await surface();
 
-    // `nvs ast --json` is resilient by default and prints the tree it recovered whatever the parser
-    // reported, which is the whole reason the panel is worth opening on this file at all
-    // (`rule:ide/the-ast-panel-shells-out-to-the-cli`). A stump would satisfy "a tree appeared", so
-    // what is asserted is the recovered statements themselves.
-    const roots = await until("the AST panel drawing a tree", async () => {
-      const tree = await reading.ast.getChildren(undefined);
-      return tree !== null && tree !== undefined && tree.length > 0 ? tree : undefined;
-    });
-    assert.deepEqual(roots.map((node) => node.kind), ["File"]);
+      // `nvs ast --json` is resilient by default and prints the tree it recovered whatever the
+      // parser reported, which is the whole reason the panel is worth opening on this file at all
+      // (`rule:ide/the-ast-panel-shells-out-to-the-cli`). A stump would satisfy "a tree appeared",
+      // so what is asserted is the recovered statements themselves.
+      const roots = await until("the AST panel drawing a tree", async () => {
+        const tree = await reading.ast.getChildren(undefined);
+        return tree !== null && tree !== undefined && tree.length > 0 ? tree : undefined;
+      });
+      assert.deepEqual(roots.map((node) => node.kind), ["File"]);
 
-    const statements = await reading.ast.getChildren(roots[0]);
-    assert.ok(statements, "the file node has no children");
-    const kinds = statements.map((node) => node.kind);
-    assert.ok(kinds.includes("LocalDecl"), `the declaration is missing from [${kinds.join(", ")}]`);
+      const statements = await reading.ast.getChildren(roots[0]);
+      assert.ok(statements, "the file node has no children");
+      const kinds = statements.map((node) => node.kind);
+      assert.ok(kinds.includes("LocalDecl"), `the declaration is missing from [${kinds.join(", ")}]`);
 
-    // The node the error is about is there too, and it covers the text the diagnostic named. The
-    // fixture is ASCII, so a byte span and a UTF-16 index are the same number here.
-    const text = document.getText();
-    const echo = statements.find((node) => node.kind === "Echo");
-    assert.ok(echo, `no Echo statement in [${kinds.join(", ")}]`);
-    assert.match(text.slice(echo.span[0], echo.span[1]), /\$missing/);
+      // The node the error is about is there too, and it covers the text the diagnostic named.
+      // The fixture is ASCII, so a byte span and a UTF-16 index are the same number here.
+      const text = document.getText();
+      const echo = statements.find((node) => node.kind === "Echo");
+      assert.ok(echo, `no Echo statement in [${kinds.join(", ")}]`);
+      assert.match(text.slice(echo.span[0], echo.span[1]), /\$missing/);
+    } finally {
+      await vscode.workspace.getConfiguration().update("nvs.ast.enable", undefined, vscode.ConfigurationTarget.Global);
+    }
   });
 
   it("conceals both secrets on open and reveals exactly one", async () => {

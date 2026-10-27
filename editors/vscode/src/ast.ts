@@ -19,6 +19,7 @@
 import { execFile } from "node:child_process";
 
 import {
+  ConfigurationTarget,
   EventEmitter,
   ExtensionContext,
   Range,
@@ -40,6 +41,12 @@ import { Node, detail, index, label, read, tooltip } from "./nodes";
 
 /** The view `package.json` contributes, and the id the editor's own `<view>.focus` hangs off. */
 export const VIEW = "nvs.ast";
+
+/**
+ * The setting the view and the palette entry are shown under. Off by default: few people read a
+ * syntax tree, and a view nobody opens should not take space in every Explorer.
+ */
+export const SETTING = "nvs.ast.enable";
 
 // An AST document is larger than the file it describes — every whitespace run is a node
 // (`crates/nvs-cli/src/ast.rs`) — and Node's default cap on a child process's output is a
@@ -70,6 +77,13 @@ export function install(context: ExtensionContext): void {
         void render(document.uri.fsPath);
       }
     }),
+    // Turning the setting off hides the view, and the tree it showed is dropped with it, so a
+    // hidden panel holds no document.
+    workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration(SETTING) && !enabled()) {
+        clear();
+      }
+    }),
   );
 }
 
@@ -80,6 +94,17 @@ export function install(context: ExtensionContext): void {
  * alternative is a tree view that silently stays empty and looks broken.
  */
 export async function show(): Promise<void> {
+  // The palette hides the command while the setting is off, but a keybinding still reaches it.
+  if (!enabled()) {
+    const choice = await window.showInformationMessage(
+      `The AST panel is off. The ${SETTING} setting turns it on.`,
+      "Turn On",
+    );
+    if (choice === undefined) {
+      return;
+    }
+    await workspace.getConfiguration().update(SETTING, true, ConfigurationTarget.Global);
+  }
   const file = active();
   if (file === undefined) {
     void window.showInformationMessage("The AST panel needs a Novis file: open one first.");
@@ -161,6 +186,20 @@ async function dump(file: string): Promise<string | undefined> {
       },
     );
   });
+}
+
+/** Whether the user has the panel on. */
+function enabled(): boolean {
+  return workspace.getConfiguration().get<boolean>(SETTING, false);
+}
+
+/** Empty the view and let go of the document it showed. */
+function clear(): void {
+  shown = undefined;
+  if (view !== undefined) {
+    view.description = undefined;
+  }
+  changed.fire();
 }
 
 /** Select the source a node covers, in the file the tree was taken from. */

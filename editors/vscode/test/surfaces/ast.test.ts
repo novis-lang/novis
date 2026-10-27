@@ -21,8 +21,10 @@ const ROOT = resolve(__dirname, "..", "..", "..");
 
 interface Manifest {
   contributes: {
-    views?: Record<string, { id: string; name: string; visibility?: string }[]>;
+    views?: Record<string, { id: string; name: string; when?: string; visibility?: string }[]>;
     viewsWelcome?: { view: string; contents: string }[];
+    configuration: { properties: Record<string, { default?: unknown }> };
+    menus?: Record<string, { command: string; when?: string }[]>;
   };
 }
 
@@ -65,6 +67,16 @@ describe("the AST panel the manifest contributes", () => {
     assert.equal(welcome?.length, 1);
     assert.ok(welcome?.[0].contents.includes("command:nvs.showAst"),
               "the empty panel does not say what fills it");
+  });
+
+  it("shows the view and the palette entry only while nvs.ast.enable is on, which it is not by default", () => {
+    // Few people read a syntax tree, so the view does not appear in every Explorer unasked.
+    assert.equal(manifest.contributes.configuration.properties["nvs.ast.enable"]?.default, false);
+    const views = manifest.contributes.views?.["explorer"] ?? [];
+    assert.equal(views.find((view) => view.id === "nvs.ast")?.when, "config.nvs.ast.enable");
+    const palette = manifest.contributes.menus?.["commandPalette"] ?? [];
+    assert.equal(palette.find((entry) => entry.command === "nvs.showAst")?.when,
+                 "config.nvs.ast.enable");
   });
 
   it("shells out to nvs ast --json, and never asks for the strict tree", () => {

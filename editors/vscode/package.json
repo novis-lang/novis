@@ -194,6 +194,11 @@
           "default": "off",
           "description": "Whether tainted values carry a marker glyph in addition to their token modifier."
         },
+        "nvs.ast.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the Novis AST panel in the Explorer, and the Novis: Show AST command. The panel shows the syntax tree of the open file."
+        },
         "nvs.stubs.dir": {
           "type": "string",
           "default": "",
@@ -262,6 +267,10 @@
     "menus": {
       "commandPalette": [
         {
+          "command": "nvs.showAst",
+          "when": "config.nvs.ast.enable"
+        },
+        {
           "command": "nvs.convertToHtmlTemplate",
           "when": "editorLangId == nvs"
         }
@@ -279,6 +288,7 @@
         {
           "id": "nvs.ast",
           "name": "Novis AST",
+          "when": "config.nvs.ast.enable",
           "visibility": "collapsed"
         }
       ]
