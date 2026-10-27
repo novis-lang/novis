@@ -104,17 +104,19 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `07916606a`. Its Website run is green. Its CI run 40412025147 ended red
-on one job only, which is fixed, committed and not yet pushed:
+`origin/main` is at `b12214b33`. Its Website run is green. Its CI run 40432495152 was still
+going at the hand-off, with four red jobs. Three are fixed and committed, not yet pushed:
+`dc8ff66e9` gives the shrinking property fixture `seed: 7` (macOS drew `11` itself).
+`dd773711a` shoots in `en-US` and masks its dates (`proofs`' "Website screenshots").
+`c7f684405` finds an exception stop by its event, since late stdout can follow it (linux dap).
 
-- `test / linux-x86_64 (tests)`: `dap.rs`'s `a_condition_stops_where_it_holds_and_a_logpoint_writes_without_stopping`
-  read no stdout before its `stopped` event. The program had written `1` and `2` into the pipe,
-  but the pump thread forwarded them after the stop thread wrote `stopped`. The adapter promises
-  order only before `exited` and `terminated`. Fixed in `0288e849d`: `Client::until_output`
-  reads on until the stdout written before a stop has arrived, in that test and in the three
-  exception filter tests that assert stdout at a stop.
+The fourth is seen once and not fixed: `test / linux-aarch64`'s
+`live_config.rs:a_changed_file_cache_dir_applies_to_the_next_compile`. After the refused `open`
+reload the server answered `three`, but `two/` got no second `.nvsc` in 30 s. Ruled out: the
+eviction walk (only above 256 MiB), `Recache::Keep` (the cache stays on `two`), the rename race.
+Not yet read: whether that compile can pass `None` to `cache::unit_for`.
 
-The two fixes of `8a2e1ab7f`'s red run went out in this push, and both jobs were green.
+The rest of run 40432495152 was not watched to its end.
 
 `.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci` and `wt-cig` are stray folders that Windows
 keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write. `wt-csv`
@@ -124,9 +126,12 @@ has a `target/` warm at `031acda63`. Delete them all once looper is stopped.
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  The red run of `07916606a` is fixed, and `--next` passes over it. If a dap test reads stdout
-  late at a stop again, give it `Client::until_output`. If a dap test goes red on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
+- [ ] First run `bun nv ci --status`. If run 40432495152 has ended, read each red job it lists `tools/nv/cmd/ci.ts:265`
+  beyond the four in *State*, fix it, and commit. Then watch with `bun nv ci --watch --next`, for
+  the next goal end's push.
+  If the cache dir test fails again, it is not noise: start at `crates/nvs-cli/src/script.rs:1468`. If a
+  dap test reads stdout late at a stop again, give it `Client::until_output`, and find the stop
+  by its event, never as the last message. If a dap test goes red on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
   `crates/nvs-host/src/debug.rs:Shared::stop`'s `Break` arms. A stamp taken in the root hashes the working tree. If another
   session has uncommitted edits in the page's chapter, take the stamp in a scratch worktree at
   `HEAD`. Point `--nvs` at a binary built there, and copy the root's `tests/db/ca.crt` in first. Watch with no `--past`, and without a pipe into `tail`, which
