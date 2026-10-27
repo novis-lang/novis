@@ -155,6 +155,8 @@ const TEST_LIMIT_FACTOR = 10;
 const TEST_FLOOR_MS = 5 * 60 * 1000;
 /** The time limit of a test binary with no recorded time. */
 const TEST_UNKNOWN_MS = 20 * 60 * 1000;
+/** The test binaries whose cases reach the shared `samba-ad` server, which the tail waits out. */
+const SAMBA_BINARIES = new Set(["nvs-stdlib test ldap", "nvs-ldap test samba"]);
 
 /** The time limit of a test binary whose last run took `seconds`, `Infinity` when it has none recorded. */
 export function testLimitMs(seconds: number): number {
@@ -641,8 +643,12 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     );
   };
 
-  // The tail: every job started and at most half the cores still running one.
+  // The tail: every job started, at most half the cores still running one, and none of
+  // `SAMBA_BINARIES` still running. The conformance step's `ldap-*` cases reach the same
+  // Samba server without `nvs_repo::turn`'s machine-wide limit, so beside those binaries
+  // they push its four workers past the deadlines the binaries' cases set.
   const results = new Map<string, [number, number, string]>();
+  let sambaLeft = jobs.filter((j) => SAMBA_BINARIES.has(j.name)).length;
   let left = jobs.length;
   let red = false;
   let next = 0;
@@ -656,9 +662,10 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
       results.set(j.name, got);
       recordJob(j, got[1], got[2]);
       left--;
+      if (SAMBA_BINARIES.has(j.name)) sambaLeft--;
       red ||= got[1] !== 0;
       count();
-      if (s.onTail && !red && left <= Math.floor(workers / 2)) s.onTail();
+      if (s.onTail && !red && sambaLeft === 0 && left <= Math.floor(workers / 2)) s.onTail();
     }
   };
   await Promise.all(Array.from({ length: Math.min(workers, jobs.length) }, worker));
