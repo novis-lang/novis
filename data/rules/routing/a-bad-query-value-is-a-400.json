@@ -6,7 +6,8 @@
     "security/route-capture-is-laundered-by-its-type"
   ],
   "guardedBy": [
-    "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst"
+    "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst",
+    "tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst"
   ],
   "goal": "query-binding"
 }

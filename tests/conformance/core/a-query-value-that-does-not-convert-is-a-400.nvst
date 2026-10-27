@@ -1,0 +1,76 @@
+--TEST--
+`Core\Router::dispatch` fills each `#[Query]` parameter from the query string, and a value that does not convert, a missing required key and a repeated key are a `400` before `allows`, while a path capture that does not convert is a `404` — `rule:routing/a-bad-query-value-is-a-400`
+--FILE--
+<?nvs
+// covers: Core\Router::dispatch
+// A path capture takes part in choosing the route, so a value that does not
+// convert means no route matched: the result is `404`. A query value does not
+// choose the route, so a bad one is bad input to a route that matched: `400`.
+class Orders {
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "order")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(Core\Uuid $id): void {
+        echo "show ran\n";
+    }
+
+    // `$sort` has no default, so the key `sort` is required. `$page` has a
+    // default, so the key `page` is optional.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "orders")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function list(#[Core\Query] "new"|"old" $sort, #[Core\Query] uint $page = 1): void {
+        echo "page ", $page, ", sort ", $sort, "\n";
+    }
+}
+
+// This gate allows every route and prints each refusal it receives.
+class Gate implements Core\Router\Gate {
+    public function allows(Core\Router\Match $route): bool {
+        echo "allows ", $route->name() ?? "no name", "\n";
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
+        string $why = match ($reason) {
+            Core\Router\Refusal::NotFound => "NotFound",
+            Core\Router\Refusal::BadCapture => "BadCapture",
+            default => "other",
+        };
+        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void {
+        echo "failed ", $error?->message ?? "no error", "\n";
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    array<string> $targets = [
+        "/orders/not-a-uuid",
+        "/orders?sort=new",
+        "/orders?page=3&sort=old",
+        "/orders?page=three&sort=new",
+        "/orders?page=2",
+        "/orders?sort=new&sort=old",
+    ];
+    foreach ($targets as string $target) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, $target);
+        echo $target, " -> ", $answer->status(), "\n", $answer->body();
+    }
+}
+--EXPECT--
+/orders/not-a-uuid -> 404
+refused NotFound for no route
+/orders?sort=new -> 200
+allows orders
+page 1, sort new
+/orders?page=3&sort=old -> 200
+allows orders
+page 3, sort old
+/orders?page=three&sort=new -> 400
+refused BadCapture for orders
+/orders?page=2 -> 400
+refused BadCapture for orders
+/orders?sort=new&sort=old -> 400
+refused BadCapture for orders

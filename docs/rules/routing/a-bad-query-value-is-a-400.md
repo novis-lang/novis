@@ -17,9 +17,11 @@ The divergence is the point rather than an inconsistency, and it is pinned as on
 path capture's `404` and a text-built capture's `400` side by side, so a reader holding two adjacent
 lines of one signature knows they fail two ways.
 
-**The path half is built; the query half is goal `query-binding`'s.** The declaration — the marker, its type list, its
-optional bit (`rule:routing/a-query-parameter-is-declared-like-a-capture`) — compiles, and both path
-failures answer as above. Nothing yet binds a query value to a parameter or answers `400` for one: a
-program reads `Core\Request::query()` and converts the value itself. Goal `query-binding` binds each `#[Query]`
-parameter from the query string when a route method is called, and answers `400` for a value that
-does not convert or a required key that is absent.
+**A key written twice is a `400` too**, for a parameter that takes one value: neither value is picked
+(`rule:errors/ambiguous-input-refused`). So is a bracketed key such as `page[]=1`, which builds a list.
+
+`Core\Router::dispatch` binds each `#[Query]` parameter when it calls a route method, after the match
+and before `allows`. It reads the query string through the parser `Core\Request::query()` uses, once per
+request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
+more. An absent optional key gives the declared default. Every failure above is `refused` with
+`BadCapture` and the match. The proofs and the shipped status are goal `query-binding`'s.
