@@ -59112,14 +59112,15 @@ editor ignores every token the server sends. Your theme still picks each colour.
 | `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |
 | `nvs.secrets.redact` | `true` | conceal the ranges the server reports as `secret` |
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
+| `nvs.ast.enable` | `false` | whether the Explorer shows the **Novis AST** panel, and the command palette shows **Novis: Show AST** |
 | `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
-The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`
-and `nvs.template.format` are the client's own and take effect on the next redraw, request or save,
+The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`,
+`nvs.template.format` and `nvs.ast.enable` are the client's own and take effect on the next redraw, request or save,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
 `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.lsp.debounce` are read by the server. When you
@@ -59140,7 +59141,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.checkWorkspace` | Check Workspace | indexes every `.nvs` file in the workspace once, and says how many files the index holds. `nvs.check.scope` keeps its value |
 | `nvs.run` | Run File | starts the `nvs` task that checks the open file, then compiles and runs it |
 | `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |
-| `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view |
+| `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view. The panel and this command are off until you turn on `nvs.ast.enable` |
 | `nvs.viewProfile` | View Profile | opens a speedscope profile, such as one from `nvs run --profile=speedscope`, in a viewer inside the editor. The profile stays on your computer |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
