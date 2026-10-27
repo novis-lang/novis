@@ -27,7 +27,7 @@ stages:
         rules: [security/authority-is-the-enclosing-namespace, security/package-authority-is-granted-one-line-at-a-time, security/no-runtime-grant]
   - id: 5
     title: a package file stays under its package's namespace, and a package path cannot escape the package
-    status: open
+    status: done
     context: [crates/nvs-hir/src/requires.rs, crates/nvs-hir/src/autoload.rs, docs/rules/packaging/a-package-file-stays-under-its-declared-prefix.md, docs/rules/packaging/a-package-cannot-reach-its-host.md]
     extra:
       context:
@@ -111,12 +111,21 @@ member's only row, and `every_door_names_the_capability_its_member_declares` hol
 whose member is a literal or a `const` to the rows. Stage 3 may narrow a call by an argument the
 checker already knows, such as a literal `FileMode`, and records that if it does.
 
-**A file belongs to a package when it was reached through an autoload root inside a directory that
-holds a `package.toml`.** That manifest gives the package's name and its required and optional
-capabilities, read by a second new module, `crates/nvs-config/src/package.rs`, which reads those keys
-and nothing else; goal `package-client`'s manifest reader calls it for them. This needs no package
-manager, so the tests build the layout by hand and this goal does not wait for goal
-`package-client`. Hand-copied code with no manifest gets the grant check and no file check.
+**A file belongs to a package when a `package.toml` with a `[package] name` sits between the file's
+real path and the entry's directory; the nearest one wins.** That manifest gives the package's name
+and its required and optional capabilities, read by a second new module,
+`crates/nvs-config/src/package.rs`, which reads those keys and nothing else; goal `package-client`'s
+manifest reader calls it for them. The file is `[package] name = 'Vendor\Package'` and
+`[capabilities]` with `required` and `optional` lists; a bad one is `E0659`. Placing a file by its
+canonical path, not by the autoload root that reached it, puts an autoloaded file, a file a
+`discover` glob found and a file a `require` loaded under one rule, and the walk keeps no provenance
+(simplicity; the cost is one `stat` per distinct directory between a loaded file and the entry, at
+compile time only). A manifest at or above the entry's directory is the application's and names no
+package. This needs no package manager, so the tests build the layout by hand and this goal does not
+wait for goal `package-client`. Hand-copied code with no manifest, or with a name-less one, gets the
+grant check and no file check. The check is `nvs_types::package::check`
+(`crates/nvs-types/src/package.rs`), called where the grant table is read, and its `Packages` is
+what stage 4's guard asks which package a call site is in.
 
 **A grant key is written `'Vendor\Package'` or `'Vendor\Package\*'`, and the subtree form covers its
 own namespace too.** A value is a list of capability names and never a scope; the scope is the
@@ -214,11 +223,11 @@ granted it, intersected with the operator's configuration.
 **Does:** the compiler knows which package a file is in, refuses a file that declares a namespace
 outside its package, and refuses a `require` or `autoload` path that leaves the package.
 
-- [ ] The package's own manifest read for its name and its required and optional capabilities, and nothing else. `crates/nvs-config/src/package.rs:1`
-- [ ] The file to package map, built from the autoload roots as the standing decision says. `crates/nvs-hir/src/requires.rs:1248`, `crates/nvs-hir/src/autoload.rs:259`
-- [ ] A package file declaring a namespace outside `Vendor\Package` is a compile error naming the file, the namespace and the package (`rule:packaging/a-package-file-stays-under-its-declared-prefix`). `crates/nvs-hir/src/requires.rs:1248`
-- [ ] A `require` or `autoload` path in a package that escapes it through `..`, an absolute path or a symlink is a compile error, by canonicalise then prefix check (`rule:packaging/a-package-cannot-reach-its-host`, `rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-hir/src/requires.rs:662`
-- [ ] Tests: a hand-built package layout for each refusal, the symlink case through a fake canonicalizer as `crates/nvs-stdlib/tests/capability.rs:91` does. `crates/nvs-cli/tests/package_grants.rs:1`
+- [x] The package's own manifest read for its name and its required and optional capabilities, and nothing else. `crates/nvs-config/src/package.rs:1`
+- [x] The file to package map, built from each file's real path as the standing decision says. `crates/nvs-types/src/package.rs:1`
+- [x] A package file declaring a namespace outside `Vendor\Package` is a compile error naming the file, the namespace and the package (`rule:packaging/a-package-file-stays-under-its-declared-prefix`). `crates/nvs-types/src/package.rs:1`
+- [x] A `require` or `autoload` path in a package that escapes it through `..`, an absolute path or a symlink is a compile error, by canonicalise then prefix check (`rule:packaging/a-package-cannot-reach-its-host`, `rule:security/path-scope-canonicalise-then-prefix`). `crates/nvs-types/src/package.rs:1`
+- [x] Tests: a hand-built package layout for each refusal, the symlink case through a fake canonicalizer as `crates/nvs-stdlib/tests/capability.rs:91` does. `crates/nvs-cli/tests/package_grants.rs:1`
 
 ### 4. an optional capability compiles behind a guard, and `Core\Cap::has` answers for its namespace
 
@@ -266,40 +275,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. The call-site check is `reject_ungranted_call`
-(`crates/nvs-types/src/capability.rs:159`), and four conformance cases pass by name under
-`tests/conformance/cap/grants-*.nvst`.
+Stages 1, 2, 3 and 5 are done. The call-site check is `reject_ungranted_call`
+(`crates/nvs-types/src/capability.rs:159`); `Grants::read` (`crates/nvs-config/src/grants.rs:143`)
+puts `package.toml` in every unit's trace; `Core\Config::set` raises only where no grant line
+matches (`crates/nvs-types/src/capability.rs:120`). Their tests passed by name.
 
-The server needed no key change. `Grants::read` (`crates/nvs-config/src/grants.rs:143`) now loads
-`package.toml` by its path and notes each directory's missing one, so the file is a read in every
-unit's trace, and an edit or a new file recompiles the unit. The standing decision *A server keys a
-unit's grant table through its trace ...* says why the environment digest keeps the empty table.
-`a_package_toml_created_or_edited_beside_the_entry_recompiles_the_unit`
-(`crates/nvs-cli/src/script.rs:2674`) passes by name.
+Stage 5: `nvs_config::package::read` (`crates/nvs-config/src/package.rs`) reads `[package] name`
+and `[capabilities]`. `nvs_types::package::check` (`crates/nvs-types/src/package.rs`) places each
+loaded file by its real path and reports `E0660` and `E0661`; `crates/nvs-cli/src/main.rs` calls it
+after `resolve_entry` and drops its `Packages`. `crates/nvs-cli/tests/package_grants.rs` passes by
+name. The two packaging rules stay `designed` until stage 6.
 
-`Core\Config::set` is on `PREPARED_MEMBERS`, so its helper takes three arguments. The checker's
-`prepare_config_set` (`crates/nvs-types/src/capability.rs:120`) files `PreparedFact::ApplicationSet`
-where no grant line matches, and every other call reaches `Request::set_as_package`
-(`crates/nvs-config/src/request.rs:324`), which only lowers a `[limits]` key.
-`a_package_lowers_a_limit_and_never_raises_one` and
-`grants-a-package-lowers-a-limit-and-never-raises-one.nvst` pass by name.
-
-Tests that may go red at the gate: an IR snapshot that prints a `Core\Config::set` call now shows
-`prepared config.application` or `prepared none` before its arguments, and a test that counts
-`SourceMap` files or `missed` paths for a compile now sees one missed `package.toml` per directory
-above the entry.
+Tests that may go red at the gate: an IR snapshot printing a `Core\Config::set` call now shows
+`prepared config.application` or `prepared none`; a test counting `SourceMap` files or `missed`
+paths sees a missed `package.toml` per directory above the entry, and per directory between a loaded
+file and the entry; a test over every diagnostic code sees `E0659`–`E0661`.
 The sweep's `env-secret-proofs` log on HEAD exits 0, and nightly run 40291801939 was covered before.
 
 ### Next
 
-**Stage 5**: a package file stays under its package's namespace, and a package path cannot escape.
+**Stage 4**: an optional capability compiles behind a guard, and `Core\Cap::has` answers for its
+namespace.
 
-- [ ] `crates/nvs-config/src/package.rs`: read a package's `package.toml` for its name and its required and optional capabilities, and nothing else, beside `grants.rs`. `crates/nvs-config/src/package.rs:1`, `crates/nvs-config/src/grants.rs:143`
-- [ ] The file to package map, from the autoload roots inside a directory with a `package.toml`. `crates/nvs-hir/src/requires.rs:1248`, `crates/nvs-hir/src/autoload.rs:259`
-- [ ] The namespace refusal and the path-escape refusal, each with a hand-built layout test. `crates/nvs-hir/src/requires.rs:662`, `crates/nvs-cli/tests/package_grants.rs:1`
+- [ ] Keep the `Packages` from `nvs_types::package::check` and hand it to `check_program_loaded`, so `reject_ungranted_call` lets an ungranted capability compile where the call's file is in a package that lists it under `optional`. `crates/nvs-cli/src/main.rs:1156`, `crates/nvs-types/src/capability.rs:159`
+- [ ] The guard: one branch at such a call site, throwing a catchable error when the namespace does not hold the grant; fold each package's optional list into the unit's key, because it changes the code. `crates/nvs-types/src/expr/calls.rs:506`, `crates/nvs-config/src/cache.rs:175`
+- [ ] `Core\Cap::has` answers what its own call site holds. `crates/nvs-stdlib/src/cap.rs:201`
+- [ ] The conformance case, on a hand-built layout as `crates/nvs-cli/tests/package_grants.rs` builds one. `tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst:1`
 
 ### Backlog
 
-- The editor reads the table and shows `E0658`. Stage 6, or a later goal. `crates/nvs-lsp/src/document.rs:771`
+- The editor reads the table and shows `E0658`, `E0660` and `E0661`. Stage 6, or a later goal. `crates/nvs-lsp/src/document.rs:771`
+- An application's `autoload` root that is itself a symlink out of a package's directory places the package's files by their real path, outside the package, so they get no file check. Whether a fetched archive may carry a symlink is goal `package-client`'s to decide.
 - `nvs pkg fetch` writes the grant lines for fetched packages in goal `package-client` (`docs/goals/package-client.md`).
 - The audit warning for an unmatched autoload root is goal `package-audit`'s (`docs/goals/package-audit.md`).
