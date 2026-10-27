@@ -4223,11 +4223,22 @@ mod tests {
     /// `mount` is what the door stripped, which is a fact about where the unit
     /// is served and never about which route it is.
     fn serving(mount: &str, arrived: &str, matched: Option<&str>, query: &str) -> Ctx {
+        serving_in(shop, mount, arrived, matched, query)
+    }
+
+    /// [`serving`] over the table `table` builds.
+    fn serving_in(
+        table: fn() -> nvs_runtime::routes::Routes,
+        mount: &str,
+        arrived: &str,
+        matched: Option<&str>,
+        query: &str,
+    ) -> Ctx {
         let mut inbound = nvs_runtime::Inbound::new("GET", arrived, query);
         inbound.set_mount(mount, &[]);
         if let Some(path) = matched {
             inbound.set_route(
-                shop()
+                table()
                     .match_request("GET", path)
                     .expect("the table claims the path the case names"),
             );
@@ -4235,7 +4246,7 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
         // The unit's table, as the server sets it: `is` reads the matched
         // row's method from it by the row's index.
-        ctx.set_routes(std::sync::Arc::new(shop()));
+        ctx.set_routes(std::sync::Arc::new(table()));
         ctx.set_inbound(inbound);
         ctx
     }
@@ -4350,6 +4361,36 @@ mod tests {
             verified(&mut moved, ring),
             verified(&mut here, ring),
             "and says the same thing one remount later"
+        );
+
+        dropped(ring);
+    }
+
+    /// `rule:core-classes/router-signed-url`: a link signs the route's path
+    /// pattern and its values, and no method. So a link minted before the
+    /// route's method was renamed still verifies against the renamed table.
+    #[test]
+    fn url_signed_verifies_after_the_route_s_method_is_renamed() {
+        fn renamed() -> nvs_runtime::routes::Routes {
+            nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
+                "Get",
+                "/shop/{id}",
+                "Shop::display",
+                None,
+                vec![nvs_runtime::routes::Capture {
+                    name: "id".to_owned(),
+                    conv: nvs_runtime::routes::CaptureConv::Int,
+                }],
+            )])
+        }
+        let ring = crate::keyring::tests::ring_of(&[&[7; 32]]);
+        let (path, query) = signed_link(ring, 7);
+
+        let mut after = serving_in(renamed, "", &path, Some(&path), &query);
+        assert_eq!(
+            verified(&mut after, ring),
+            Ok("Shop::display".to_owned()),
+            "the link minted for `Shop::show` verifies on the renamed method"
         );
 
         dropped(ring);
