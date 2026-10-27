@@ -62,7 +62,7 @@ stages:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/a-screenshot-is-taken-from-a-real-run, testing/website-pages-are-stamped]
   - id: 6
     title: the home page points at the Tools area, and every page is stamped
-    status: open
+    status: done
     context: [website/src/components/home/Tooling.astro, website/src/content/docs/index.mdx, website/src/data/questions.json, website/site.lock.json]
     extra:
       context:
@@ -278,9 +278,9 @@ session alone edits the sidebar and `questions.json`.
 **Does:** the home page's Tooling section shows the tools and links to Tools, and the whole site
 passes its check.
 
-- [ ] The Tooling section lists the tools with one line each and links to the overview, and no link points at a moved page. `website/src/components/home/Tooling.astro:29`, `website/src/components/home/Tooling.astro:76`
-- [ ] The overview shows each tool's first picture. `website/src/content/docs/tools/index.mdx:1`
-- [ ] `bun nv site --check` passes, `rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`, and `bun nv owners --closes tools-website` passes. `data/rules/testing/the-tools-area-has-a-page-for-each-tool.json:3`
+- [x] The Tooling section lists the tools with one line each and links to the overview, and no link points at a moved page. `website/src/components/home/Tooling.astro:29`, `website/src/components/home/Tooling.astro:76`
+- [x] The overview shows each tool's first picture. `website/src/content/docs/tools/index.mdx:1`
+- [x] `bun nv site --check` passes, `rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`, and `bun nv owners --closes tools-website` passes. `data/rules/testing/the-tools-area-has-a-page-for-each-tool.json:3`
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -299,39 +299,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2, 8, 3, 4, 5 and 9 are done. Tools is the fourth of five areas
-(`website/config/site.mjs:42`), and its sidebar (`website/astro.config.ts:679`) and the overview's list
-(`website/src/content/docs/tools/index.mdx:10`) name all eight tool pages in `TOOL_SECTIONS`' order
-(`tools/nv/cmd/site.ts:850`).
+Stages 1, 7, 2, 8, 3, 4, 5, 9 and 6 are done, and only stage 10, the gate, is left.
+`bun nv site --check --nvs target/debug/nvs.exe` passes every part, `bun nv owners --closes
+tools-website` passes, and in a browser the five header areas sit on one row from 800px up.
 
-- **`<Shot src alt caption>`**, `website/src/components/Shot.astro`, shows the `.png` beside a `.shot`.
-  `shotShape` (`tools/nv/cmd/site.ts:1520`) names a `.shot` no page shows and a `<Shot src>` that names
-  no `.shot`. A viewer shot's `app .` serves the directory beside it, which is how `exceptions.shot`
-  gets an error no gate catches: every app under `apps/` has a gate whose `failed()` catches it, and the
-  exceptions page lists only an error nothing caught. `projectPaths` (`tools/nv/lib/shoot.ts:111`)
-  writes a path in the run's copy from the project root, and a made test's class name has its 8 trace
-  id digits masked, so a `.shot.out` is the same on every run and runner.
-- **The debug viewer page**, `tools/debug-viewer/index.mdx`, covers `tools:cli/nvs-debug`,
-  `tools:cli/the-debug-viewer` and `tools:cli/nvs-debug-to-test`, with seven shots (`requests`,
-  `timeline`, `search`, `exceptions`, `compare`, `replay`, `to-test`) and one terminal block,
-  `unknown-trace`. A `--help` block is not used: its `Usage:` line prints `nvs.exe` on Windows.
-- **The profiler page**, `tools/profiler/index.mdx`, covers `tools:cli/profiling`, with the
-  `callgrind` and `speedscope` terminal blocks (each names its file with `--profile-out`, since the
-  default name has the process id) and the `fibonacci` shot.
-- The sweep's reds were fixed on HEAD before this session: nightly run 40291801939's by `c244b4b36`,
-  `e384a0ae8` and `0288e849d`; `env-secret-proofs` passes when rerun.
+- **The home page** links each `nvs` row of its Tooling card to its tool page, or to its reference page
+  where no tool page is about it (`nvs run`, `nvs serve`, `nvs build --compile`). It adds rows for the
+  profiler, the debug viewer and the debugger, and "All the tools" links the overview.
+  `website/src/components/home/Tooling.astro:13`, `website/src/components/home/Tooling.astro:88`
+- **The overview** has one `## [tool](/tools/<tool>/)` section per tool, each with one line and one
+  checked picture. `toolsProblems` (`tools/nv/cmd/site.ts:861`) fails a missing section and a section
+  with no picture, and `tools/nv/test/site.test.ts:291` tests both.
+- **`rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`**, guarded by `site.ts` and its
+  test.
+- **The whole check had two reds that no CI job runs.** `syntax` named 47 uncovered features. The new
+  enums are in `syntax/values/enums.mdx`'s `covers:`, the three new error classes in
+  `syntax/errors/error-types.mdx` with a table row each, the router's gate types in
+  `syntax/attributes/routes.mdx`, and the property and bench features have a `<FeatureSection>` in
+  `syntax/testing/`. `roadmap` wanted "Debugging and profiling" before "Web APIs".
+- The sweep's reds were already fixed: nightly run 40291801939 ran on `d6f131752`, before `c244b4b36`,
+  `e384a0ae8` and `0288e849d`, and `env-secret-proofs` passes.
 
 ### Next
 
-**Stage 6: the home page points at the Tools area, and every page is stamped.** No gate. The session
-edits alone: one component and the overview.
+**Stage 10: the goal is verified once.** Start `bun nv affected --run` with `run_in_background`,
+group its failures by cause, fix them in one pass and run it again. Then the goal-end gates:
+`bun nv verify --doc`, `bun nv owners --closes tools-website` and `bun nv ci --check`.
 
-- [ ] The Tooling section links each row to its tool page where one exists (`nvs fmt` has none, `nvs test` could go to `/tools/test-runner/`), its "more" link goes to `/tools/`, and no link points at a moved page. `website/src/components/home/Tooling.astro:18`, `website/src/components/home/Tooling.astro:76`
-- [ ] The overview shows each tool's first picture beside its line, a `<Shot>`, `<Terminal>` or `<Replay>` each. `website/src/content/docs/tools/index.mdx:10`
-- [ ] `bun nv site --check` passes (with `--nvs target/debug/nvs.exe` unless the release build is rebuilt), and the five header areas fit at mid widths in a browser. `tools/nv/cmd/site.ts:193`
-- [ ] `rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`, and `bun nv owners --closes tools-website` passes. `data/rules/testing/the-tools-area-has-a-page-for-each-tool.json:3`
+- [ ] `bun nv affected --run` has run once, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second `bun nv affected --run` is green, and the goal-end gates pass. `tools/nv/cmd/verify.ts:1`
 
-Then stage 10, the gate. No test is expected to go red.
+No test is expected to go red. The "nv site --check tools" tests in `tools/nv/test/site.test.ts`
+changed with `toolsProblems` and pass.
 
 ### Backlog
 
@@ -349,4 +349,6 @@ Then stage 10, the gate. No test is expected to go red.
 - A replay of the field names inside `#[Api(...)]` needs `nvs lsp` to complete in a half-written
   attribute with `'])` after the cursor; `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt`
   covers only the clean case.
+- `bun nv site --check syntax` and `roadmap` run in no CI job (`.github/workflows/ci.yml:489`), so a
+  new enum or error class goes uncovered until a goal runs the whole check. CI could run both.
 - A `.dap.out` could list an object's properties, so a debugger replay could show one.
