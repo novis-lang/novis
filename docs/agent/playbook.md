@@ -26,6 +26,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A `docs/reference/lang/` chapter is generated, so a wording change goes in the feature's
+  `about.md` or `details.md`, then `bun nv render`.** An edit to the chapter itself is overwritten by
+  the next render. Each render that changes the chapter makes its `lang:` features' perf stale again,
+  so settle the words (`bun nv proofs --id` checks `about.md`'s 200-word bound) before
+  `bun nv proofs --record-perf`. `until: gone tools/nv/proofs/chapters.ts:generated form`
+
 - **`bun nv splice` writes past the edit-claim guard, so check `looper status` for a side loop before
   splicing a file it may have touched.** A side session's claim on `serve.rs` outlived its commit,
   because the claim is released only when a listing sees the file clean, and the splice dirtied it
