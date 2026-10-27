@@ -35,7 +35,9 @@ about what a `Core` member costs is a number with no guard test.
 
 `nvs run --count` prints the same rows at exit, `gc=` last on the line (`DebugFlags::COUNT` in
 `crates/nvs-runtime/src/ctx/mod.rs`, the line in `crates/nvs-cli/src/main.rs`). A GC cycle is one run of
-the in-flight collector, counted in `Ctx::collect_if_asked`. The attribute's options are
+the in-flight collector, counted in `Ctx::collect_if_asked`. A counted run starts no queue worker
+and no slice clock, because both run on the counted thread at moments set by the clock, so its tasks
+switch only where they wait. The attribute's options are
 `crates/nvs-types/src/testing.rs`'s `BENCH_OPTIONS`, and a bench's rows are
 `crates/nvs-cli/src/runner.rs`'s `Rows`.
 

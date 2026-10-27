@@ -2382,8 +2382,13 @@ fn run_run(
         .is_some()
         .then(nvs_host::Watchdog::new);
     // The slice clock `nvs serve` starts too, so a run's tasks share this thread
-    // the way a core's requests share their core (`nvs_host::slice`).
-    let _slices = watchdog.as_ref().map(|watchdog| {
+    // the way a core's requests share their core (`nvs_host::slice`). A
+    // `--count` run starts none, for the queue worker's reason above: the clock
+    // raises a yield by wall time, and each yield's switch and reactor poll run
+    // on this thread, so where they fall would move the allocation counters the
+    // count line reads (`rule:testing/bench-counters`). Its tasks then switch
+    // only where they wait, which is the same place on every run.
+    let _slices = watchdog.as_ref().filter(|_| !count).map(|watchdog| {
         let slices = nvs_host::SliceClock::start();
         watchdog.slice_with(&slices);
         slices
