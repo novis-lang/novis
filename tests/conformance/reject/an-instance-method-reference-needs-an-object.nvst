@@ -1,0 +1,26 @@
+--TEST--
+a reference to an instance method through its class name, from a frame with no `$this`, is refused where it becomes a callable, and allowed where it is a link's target, which calls nothing — `rule:statements/static-is-a-member-modifier`, `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// A callable made from `Ledger::total` would have to keep the object the
+// method runs on, and there is none here. `nvs_ir::lower::expr` reads the
+// frame's `$this` for that object, so the refusal below is what stands between
+// that read and a panic.
+class Ledger {
+    #[Core\Route(path: "/total", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function total(): string {
+        return "2";
+    }
+}
+
+// Legal: a link reads the route of the method and calls nothing.
+echo Core\Router::url(Ledger::total), "\n";
+callable $total = Ledger::total;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0778]: `Ledger::total` is not `static`, so a reference to it needs an object
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

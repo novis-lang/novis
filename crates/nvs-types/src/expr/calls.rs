@@ -626,18 +626,22 @@ pub(crate) fn infer_static_call(
                     // refused is a non-static target reached where no receiver is in
                     // scope — the frame `nvs_ir::lower::expr` would panic on. A
                     // method reference, `Class::method`
-                    // (`rule:expressions/method-reference`), is not that frame and not a call:
-                    // it names the method, and `Core\Attributes::get<T>(C::m)`
-                    // folds it at check time without ever needing a receiver
-                    // (`docs/reference/lang/90-attributes.md`).
+                    // (`rule:expressions/method-reference`), is that frame too
+                    // where it is lowered to a callable. Only a reference that
+                    // is folded while checking needs no receiver: a
+                    // `Core\Attributes` retrieval's target, a link's target and
+                    // `Core\Test::assertCalled`'s method, each marked by the
+                    // call that reads it.
+                    let folded = matches!(args, CallArgs::MethodRef)
+                        && (link_target
+                            || named_for_attributes
+                            || env.method_name_args.contains(&expr.span));
                     if let Some((owner, _, sig)) = &found
                         && !sig.is_static
                     {
                         if owner.is_core() {
                             report_core_instance_member(expr.span, owner, &name, env);
-                        } else if through_class_ref
-                            || (!scope.holds_receiver() && !matches!(args, CallArgs::MethodRef))
-                        {
+                        } else if through_class_ref || (!scope.holds_receiver() && !folded) {
                             // A `class<T>` class side takes the refusal
                             // unconditionally, and that is the same rule rather
                             // than an extra one: what makes `self::f()` legal
@@ -649,7 +653,13 @@ pub(crate) fn infer_static_call(
                             // reference denotes — passing it would be a field
                             // write through the wrong layout rather than a
                             // diagnostic. See `ExprInfo::ClassRefCall`.
-                            report_instance_method_called_statically(expr.span, owner, &name, env);
+                            report_instance_method_called_statically(
+                                expr.span,
+                                owner,
+                                &name,
+                                matches!(args, CallArgs::MethodRef),
+                                env,
+                            );
                         } else if scope.holds_receiver() {
                             // The call, or the `(...)` reference, forwards
                             // `$this`, so it reads it: inside an anonymous

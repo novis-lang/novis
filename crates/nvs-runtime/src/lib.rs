@@ -291,8 +291,8 @@ pub use array::{
 };
 pub use callable::{
     CALLABLE_ARITY_SLOT, CALLABLE_INVOKE, CALLABLE_PARAM_NAMES, CALLABLE_PARAM_NAMES_SLOT,
-    CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT, NativeBody, call_callable, callable_arity,
-    callable_param_names, native_callable,
+    CALLABLE_PARAM_TAG_ANY, CALLABLE_PARAM_TAGS_SLOT, CALLABLE_TARGET, NativeBody, call_callable,
+    callable_arity, callable_param_names, callable_target, native_callable,
 };
 pub use ctx::{
     AnswerTable, AnsweredTls, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT,

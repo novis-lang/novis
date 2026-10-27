@@ -117,6 +117,15 @@ pub const CALLABLE_PARAM_NAMES: &str = "fn#names";
 /// a hit.
 pub const CALLABLE_PARAM_NAMES_SLOT: usize = 2;
 
+/// The private class constant a **method reference**'s class records its
+/// target under, as `Class::method` — the text a route row's handler is
+/// written in.
+///
+/// `nvs_ir::lower`'s `FN_TARGET` writes it on a forwarding reference's class
+/// and on nothing else, so an anonymous function's callable answers
+/// [`callable_target`] `None`. Must agree with that constant.
+pub const CALLABLE_TARGET: &str = "fn#target";
+
 /// The one [`CALLABLE_PARAM_TAGS_SLOT`] nibble that is not a [`Tag`]: the
 /// parameter is `mixed`, `?T` or another union, whose representation *is* a
 /// tag chosen at run time, so no argument can be wrong for it.
@@ -787,6 +796,47 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
             .map(str::to_owned)
             .collect(),
     ))
+}
+
+/// The `Class::method` a method reference forwards to, read off its class's
+/// [`CALLABLE_TARGET`] constant, or `None` for a callable that is not a method
+/// reference.
+///
+/// `Core\Router::url` reads it for a reference passed as a value, and finds the
+/// route whose handler it is (`rule:routing/link-target-and-params-are-checked`).
+///
+/// # Errors
+///
+/// A fatal fault when `callable` is not an object or its object has no class
+/// descriptor — [`callable_param_names`]' two compiler bugs.
+pub fn callable_target(callable: Value) -> Result<Option<String>, Fault> {
+    let ptr = callable.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable` argument carried tag {} rather than an object",
+            callable.tag_byte()
+        ))
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the \
+                  allocation and its descriptor are both live for this read"
+    )]
+    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
+    if desc.is_null() {
+        return Err(Fault::fatal(
+            "internal error: a `callable` argument's object has no class descriptor".to_owned(),
+        ));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "just checked the descriptor is non-null, and it is owned by \
+                  the compiled unit's class table for that unit's whole life"
+    )]
+    let found = unsafe { &*desc }.constant(CALLABLE_TARGET);
+    Ok(found.and_then(|constant| match &constant.value {
+        crate::object::ConstantValue::Str(target) => Some(target.clone()),
+        _ => None,
+    }))
 }
 
 /// Refuses `args` unless every one of them carries the tag the callee's

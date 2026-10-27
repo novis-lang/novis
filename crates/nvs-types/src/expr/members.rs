@@ -2723,17 +2723,32 @@ pub(crate) fn report_core_instance_member(
 /// enclosing frame's `$this` for a non-static target and panics when there is
 /// none, naming this function's absence as the cause.
 ///
-/// `rule:types/callable-values`'s method reference `C::m(...)` is not one of those frames —
-/// it records a `CallableRef` and, as `Core\Attributes::get<T>`'s argument, is
-/// folded while checking — so the call site excludes it rather than this
-/// function testing for it.
+/// `rule:types/callable-values`'s method reference `C::m` is one of those
+/// frames where it is lowered to a callable, because the callable stores the
+/// receiver. A reference folded while checking stores nothing, so the call site
+/// excludes it rather than this function testing for it. `reference` picks the
+/// wording for the reference form.
 pub(crate) fn report_instance_method_called_statically(
     span: Span,
     qname: &QName,
     name: &str,
+    reference: bool,
     env: &mut Env<'_>,
 ) {
-    env.diags.report(
+    let diagnostic = if reference {
+        Diagnostic::error(
+            code::E_INSTANCE_METHOD_CALLED_STATICALLY,
+            format!("`{qname}::{name}` is not `static`, so a reference to it needs an object"),
+        )
+        .with_primary(
+            span,
+            "referenced through the class name, with no `$this` in scope",
+        )
+        .with_help(format!(
+            "write `$value->{name}(...)` with an object, or declare `{name}` `static` if it \
+             needs no object"
+        ))
+    } else {
         Diagnostic::error(
             code::E_INSTANCE_METHOD_CALLED_STATICALLY,
             format!("`{qname}::{name}()` is not `static`, so it is called on a value"),
@@ -2745,8 +2760,9 @@ pub(crate) fn report_instance_method_called_statically(
         .with_help(format!(
             "call it on an instance — `$value->{name}(…)` — or declare `{name}` `static` if it \
              needs no receiver"
-        )),
-    );
+        ))
+    };
+    env.diags.report(diagnostic);
 }
 
 /// Both visibility rules a resolved method call answers to, in the order a

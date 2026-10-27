@@ -1,0 +1,73 @@
+--TEST--
+`Core\Router::url`, `urlAbsolute` and `urlSigned` find the route of a method reference passed as a value, check its `$params` as a written link is checked, and throw for a callable that has no route — `rule:routing/link-target-and-params-are-checked`
+--FILE--
+<?nvs
+// A menu holds its links as values, so each link is found while the program
+// runs. A written reference is checked while compiling; these are not.
+enum Kind { Book, Game }
+
+class Shop {
+    #[Core\Route(path: "/shop/{kind}/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(Kind $kind, uint $id, #[Core\Query] string $sort = "name"): string {
+        return "show";
+    }
+
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function home(): string { return "home"; }
+
+    public function helper(): string { return "helper"; }
+}
+
+class Menu {
+    public static function link(callable $route, array<mixed> $params): string {
+        try {
+            return Core\Router::url($route, $params);
+        } catch (RuntimeError $e) {
+            return "threw";
+        }
+    }
+}
+
+// `show` is not static, so its reference needs an object. An enum case is
+// written by its case name. A key that is not a capture goes in the query string.
+var $shop = new Shop();
+echo Menu::link($shop->show(...), ["kind" => Kind::Game, "id" => 7, "sort" => "price"]), "\n";
+echo Menu::link(Shop::home, []), "\n";
+
+// The method has no `#[Route]`.
+echo Menu::link($shop->helper(...), []), "\n";
+// An anonymous function is not a method reference.
+echo Menu::link(fn() => "x", []), "\n";
+// `color` is not a capture or a `#[Query]` parameter of the route.
+echo Menu::link($shop->show(...), ["kind" => Kind::Book, "id" => 1, "color" => "red"]), "\n";
+// `id` is a `uint`, so `-1` is not a value the route matches.
+echo Menu::link($shop->show(...), ["kind" => Kind::Book, "id" => -1]), "\n";
+// A required capture is missing.
+echo Menu::link($shop->show(...), ["kind" => Kind::Book]), "\n";
+
+// A value gives the same link as the reference written in the call.
+callable $menu = Shop::home;
+echo "absolute=", Core\Router::urlAbsolute($menu) == Core\Router::urlAbsolute(Shop::home)
+    ? "same" : "different", "\n";
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$key];
+string $signed = Core\Router::urlSigned($menu, [], {keys: $ring, until: null});
+echo "signed=", $signed == Core\Router::urlSigned(Shop::home, [], {keys: $ring, until: null})
+    ? "same" : "different", "\n";
+--FILE nvs.toml--
+[[app]]
+root = "."
+origin = "https://example.test"
+--EXPECT--
+/shop/Game/7?sort=price
+/
+threw
+threw
+threw
+threw
+threw
+absolute=same
+signed=same

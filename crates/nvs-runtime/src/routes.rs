@@ -324,6 +324,20 @@ pub enum Param {
     },
 }
 
+/// One segment of a route's path as [`Route::link_pieces`] gives it: the text
+/// of a fixed segment, without its `/`, or the name of a capture.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LinkPiece<'a> {
+    /// A fixed segment's text.
+    Fixed(&'a str),
+    /// `{name}`.
+    Required(&'a str),
+    /// `{name?}`.
+    Optional(&'a str),
+    /// `{name...}`.
+    Rest(&'a str),
+}
+
 /// § 2's three capture forms and the fixed segment that is none of them, as the
 /// matcher walks a path rather than as an author wrote one.
 ///
@@ -582,6 +596,21 @@ impl Route {
     #[must_use]
     pub fn captures(&self) -> &[Capture] {
         &self.captures
+    }
+
+    /// The path's segments after its leading `/`, in order, as a link writes
+    /// them. `nvs_stdlib::router` builds a link out of these for a method
+    /// reference passed as a value, so the path is read by [`segments_of`]
+    /// alone and the grammar has no second reader here.
+    pub fn link_pieces(&self) -> impl Iterator<Item = LinkPiece<'_>> {
+        // `skip(1)`: a path begins at `/`, so the first segment is the empty
+        // text in front of it.
+        self.segments.iter().skip(1).map(|segment| match segment {
+            Seg::Fixed(text) => LinkPiece::Fixed(text),
+            Seg::One(name) => LinkPiece::Required(name),
+            Seg::Optional(name) => LinkPiece::Optional(name),
+            Seg::Rest(name) => LinkPiece::Rest(name),
+        })
     }
 
     /// The captures `request` fills, or `None` where this row does not match it

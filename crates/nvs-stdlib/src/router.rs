@@ -1555,15 +1555,21 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_router_link_absolute(ctx, args: [2]) {
         let template = link_template(args, "urlAbsolute")?;
         let path = mounted(ctx, &substitute(template, &args[1], "urlAbsolute")?);
-        let Some(origin) = ctx.origin() else {
-            return Err(Fault::thrown(format!(
-                "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
-                 has no absolute form. `rule:routing/an-absolute-link-takes-a-configured-origin` refuses to derive one from a request header, \
-                 so give `nvs.toml` an `[[app]] origin`"
-            )));
-        };
-        produced(&format!("{origin}{path}"))
+        with_origin(ctx, &path)
     }
+}
+
+/// `path` with the unit's configured origin in front — the half of
+/// `urlAbsolute` that the resolved and the unfolded member share.
+fn with_origin(ctx: &nvs_runtime::Ctx, path: &str) -> HelperResult {
+    let Some(origin) = ctx.origin() else {
+        return Err(Fault::thrown(format!(
+            "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
+             has no absolute form. `rule:routing/an-absolute-link-takes-a-configured-origin` refuses to derive one from a request header, \
+             so give `nvs.toml` an `[[app]] origin`"
+        )));
+    };
+    produced(&format!("{origin}{path}"))
 }
 
 /// `Core\Router::urlSigned`, spelled the way [`crate::keyring`]'s refusals
@@ -1694,56 +1700,62 @@ nvs_runtime::nvs_helper! {
     /// `4/3 × (name + params + 40)` characters — buying one wire format for
     /// all three doors rather than a second, shorter one here.
     fn nvs_core_router_link_signed(ctx, args: [5]) {
-        const MEMBER: &str = "urlSigned";
-
-        let template = link_template(args, MEMBER)?;
+        let template = link_template(args, "urlSigned")?;
         // Unreachable from source: `nvs_types::links` records this argument as
         // the resolved route's path pattern, and `nvs-ir` emits it as a
         // `ConstStr`.
         let pattern = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Router::{MEMBER} expected {:?} for its route's path pattern, got tag {}",
+                "Core\\Router::urlSigned expected {:?} for its route's path pattern, got tag {}",
                 Tag::Str,
                 args[1].tag_byte()
             ))
         })?;
-        let ring = crate::keyring::borrow(args, 3, URL_SIGNED)?;
-        let until = crate::signature::until_of(args, 4, MEMBER)?;
-        if carries_reserved(&args[2]) {
-            return Err(Fault::thrown(format!(
-                "Core\\Router::{MEMBER}(): `$params` holds `{SIG_NAME}`, which is the parameter \
+        signed_link(ctx, template, pattern, args, 2)
+    }
+}
+
+/// The signed link both `urlSigned` members build, over `args[params]` and the
+/// `{keys, until}` fields in the two arguments after it.
+fn signed_link(
+    ctx: &nvs_runtime::Ctx,
+    template: &str,
+    pattern: &str,
+    args: &[Value],
+    params: usize,
+) -> HelperResult {
+    const MEMBER: &str = "urlSigned";
+
+    let ring = crate::keyring::borrow(args, params + 1, URL_SIGNED)?;
+    let until = crate::signature::until_of(args, params + 2, MEMBER)?;
+    if carries_reserved(&args[params]) {
+        return Err(Fault::thrown(format!(
+            "Core\\Router::{MEMBER}(): `$params` holds `{SIG_NAME}`, which is the parameter \
                  this member writes the signature into. A signed link carries exactly one of \
                  them, so the key is refused here rather than overwritten"
-            )));
-        }
-
-        let payload = signed_payload(pattern, &args[2], MEMBER)?;
-        // `mint` borrows the payload, so this frame still owns the one
-        // reference `signed_payload` built — and owns it on the refusing path
-        // too, which is why the `?` is below the release rather than on the
-        // call.
-        let minted = crate::signature::mint(
-            Domain::Route,
-            until,
-            &payload,
-            &ring,
-            URL_SIGNED,
-            "$params",
-        );
-        discard(payload);
-        let token = minted?;
-
-        // The prefix joins here as it does in [`nvs_core_router_link`], and the
-        // payload never sees it: what is signed is the route's name and its
-        // `$params`, so a link minted under one mount verifies under another
-        // ([`signed_payload`]).
-        let mut out = mounted(ctx, &substitute(template, &args[2], MEMBER)?);
-        out.push(if out.contains('?') { '&' } else { '?' });
-        out.push_str(SIG_NAME);
-        out.push('=');
-        out.push_str(&token);
-        produced(&out)
+        )));
     }
+
+    let payload = signed_payload(pattern, &args[params], MEMBER)?;
+    // `mint` borrows the payload, so this frame still owns the one
+    // reference `signed_payload` built — and owns it on the refusing path
+    // too, which is why the `?` is below the release rather than on the
+    // call.
+    let minted =
+        crate::signature::mint(Domain::Route, until, &payload, &ring, URL_SIGNED, "$params");
+    discard(payload);
+    let token = minted?;
+
+    // The prefix joins here as it does in [`nvs_core_router_link`], and the
+    // payload never sees it: what is signed is the route's name and its
+    // `$params`, so a link minted under one mount verifies under another
+    // ([`signed_payload`]).
+    let mut out = mounted(ctx, &substitute(template, &args[params], MEMBER)?);
+    out.push(if out.contains('?') { '&' } else { '?' });
+    out.push_str(SIG_NAME);
+    out.push('=');
+    out.push_str(&token);
+    produced(&out)
 }
 
 /// `Core\Router::signedRoute`, spelled the way [`crate::keyring`]'s refusals
@@ -1954,23 +1966,159 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::text(text))
 }
 
-/// The answer the three members give for a method reference that reached run
-/// time, which is one passed as a value. A reference written in the call never
-/// arrives here: it is either a prepared path in [`link`]'s symbols or a
-/// compile error.
+/// The throw the three unfolded members give for a callable that names no
+/// route: a method with no `#[Route]`, or a callable that is not a method
+/// reference at all. A reference written in the call never arrives here: it
+/// is either a prepared path in [`link`]'s symbols or a compile error.
 ///
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
 /// reaching its helper is a compiler bug. These are ordinary runtime members,
-/// so the throw is a real answer a program can catch. A reference passed as a
-/// value is not yet looked up in the unit's route table, and until it is, this
-/// throw is its answer (`rule:routing/link-target-and-params-are-checked`).
+/// so the throw is a real answer a program can catch
+/// (`rule:routing/link-target-and-params-are-checked`).
 fn no_such_route(member: &str) -> Fault {
     Fault::thrown(format!(
-        "Core\\Router::{member}(): this method reference was passed as a value, and its route \
-         cannot be found while the program runs. Write the method reference directly in the call, \
-         such as `Core\\Router::{member}(Shop::show)`"
+        "Core\\Router::{member}(): this callable is not a method with a `#[Route]`, so it has \
+         no link. Pass a method reference to a method that has a `#[Route]`, such as `Shop::show`"
     ))
+}
+
+/// The route a method reference passed as a value links to: the first row
+/// whose handler is the `Class::method` the reference's class records
+/// ([`nvs_runtime::callable_target`]). Every row of one method has the same
+/// path, so the first is the answer.
+///
+/// **Cost:** one scan of the unit's rows per call, comparing the handler
+/// text. Only a reference passed as a value pays it: a written one is
+/// resolved while compiling.
+fn value_route(
+    ctx: &nvs_runtime::Ctx,
+    route: Value,
+    member: &str,
+) -> Result<std::sync::Arc<nvs_runtime::routes::Route>, Fault> {
+    let target = nvs_runtime::callable_target(route)?;
+    target
+        .and_then(|target| {
+            ctx.routes()?
+                .rows()
+                .iter()
+                .find(|row| row.handler() == target)
+                .cloned()
+        })
+        .ok_or_else(|| no_such_route(member))
+}
+
+/// `row`'s path as the prepared template [`substitute`] reads — what
+/// `nvs_types::UrlPiece::prepared` writes for a written reference, built here
+/// from the row the runtime already parsed.
+///
+/// A name-spelled enum capture's spelling rows come first, as that writer puts
+/// them. A case whose segment is its backing value needs no row.
+fn value_template(row: &nvs_runtime::routes::Route) -> String {
+    use nvs_runtime::routes::{CaptureConv, LinkPiece};
+
+    fn push(out: &mut String, tag: u8, text: &str) {
+        if !out.is_empty() {
+            out.push(link::PIECE_SEPARATOR);
+        }
+        out.push(char::from(tag));
+        out.push_str(text);
+    }
+
+    let mut out = String::new();
+    for capture in row.captures() {
+        let CaptureConv::Enum { cases, .. } = &capture.conv else {
+            continue;
+        };
+        for (segment, value) in cases {
+            let value = case_text(value);
+            if *segment != value {
+                let row = format!(
+                    "{}{sep}{value}{sep}{segment}",
+                    capture.name,
+                    sep = link::FIELD_SEPARATOR
+                );
+                push(&mut out, link::SPELLING, &row);
+            }
+        }
+    }
+    for piece in row.link_pieces() {
+        match piece {
+            LinkPiece::Fixed(text) => push(&mut out, link::LITERAL, &format!("/{text}")),
+            LinkPiece::Required(name) => push(&mut out, link::REQUIRED, name),
+            LinkPiece::Optional(name) => push(&mut out, link::OPTIONAL, name),
+            LinkPiece::Rest(name) => push(&mut out, link::REST, name),
+        }
+    }
+    out
+}
+
+/// An enum case's backing value in decimal — the text a `$params` entry
+/// holding the case arrives as.
+fn case_text(value: &nvs_runtime::commands::CaseValue) -> String {
+    match value {
+        nvs_runtime::commands::CaseValue::Int(number) => number.to_string(),
+        nvs_runtime::commands::CaseValue::Uint(number) => number.to_string(),
+    }
+}
+
+/// The two checks `nvs_types::links` makes while compiling for a written
+/// reference, made at run time for one passed as a value: every key of
+/// `$params` is a capture or a `#[Query]` parameter of `row`, and every
+/// capture's value is one its route matches.
+///
+/// # Errors
+///
+/// A throw naming the key, for a key the route does not declare and for a
+/// value its capture does not match. [`segment_text`]'s throw for a value with
+/// no text form.
+fn check_value_params(
+    row: &nvs_runtime::routes::Route,
+    params: &Value,
+    member: &str,
+) -> Result<(), Fault> {
+    use nvs_runtime::routes::CaptureConv;
+
+    // Unreachable from source: the row declares `array<mixed>`, so `E0401`
+    // refuses anything else before this body runs.
+    let raw = params.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Router::{member} expected {:?} for `$params`, got tag {}",
+            Tag::Array,
+            params.tag_byte()
+        ))
+    })?;
+    let array = crate::arr::borrowed(raw);
+    let mut slot = 0;
+    while let Some(live) = array.next_slot(slot) {
+        slot = live + 1;
+        let key = array.key_at(live).expect("a live slot has a key");
+        let key = String::from_utf8_lossy(key.as_bytes()).into_owned();
+        let value = array.value_at(live).expect("a live slot has a value");
+        if let Some(capture) = row.captures().iter().find(|c| c.name == key) {
+            let text = segment_text(value, member, &key)?;
+            let matches = match &capture.conv {
+                CaptureConv::Enum { cases, .. } => cases
+                    .iter()
+                    .any(|(segment, case)| *segment == text || case_text(case) == text),
+                conv => conv.convert(&text).is_some(),
+            };
+            if !matches {
+                return Err(Fault::thrown(format!(
+                    "Core\\Router::{member}(): `{key}` is `{text}`. The route of `{}` does not \
+                     match that value, so the link would not work",
+                    row.handler()
+                )));
+            }
+        } else if !row.queries().iter().any(|query| query.name == key) {
+            return Err(Fault::thrown(format!(
+                "Core\\Router::{member}(): `$params` has the key `{key}`. The route of `{}` has \
+                 no capture and no `#[Query]` parameter with that name",
+                row.handler()
+            )));
+        }
+    }
+    Ok(())
 }
 
 nvs_runtime::nvs_helper! {
@@ -1979,10 +2127,14 @@ nvs_runtime::nvs_helper! {
     /// URL-path sink.
     ///
     /// This is the *unfolded* member, reached only by a reference passed as a
-    /// value, so there is no prepared path to substitute into. [`no_such_route`]
-    /// is its answer. The resolved twin is [`nvs_core_router_link`].
-    fn nvs_core_router_url(_ctx, _args: [2]) {
-        Err(no_such_route("url"))
+    /// value. It finds the route by [`value_route`], makes the checks a written
+    /// reference gets while compiling ([`check_value_params`]), and builds the
+    /// link as [`nvs_core_router_link`], its resolved twin, does.
+    fn nvs_core_router_url(ctx, args: [2]) {
+        let row = value_route(ctx, args[0], "url")?;
+        check_value_params(&row, &args[1], "url")?;
+        let path = substitute(&value_template(&row), &args[1], "url")?;
+        produced(&mounted(ctx, &path))
     }
 }
 
@@ -1992,23 +2144,27 @@ nvs_runtime::nvs_helper! {
     /// configured origin in front.
     ///
     /// The origin is per mount, falling back to `[app] origin`, and is never
-    /// derived from `Host` or `X-Forwarded-Host`. Nothing here resolves one:
-    /// the route lookup refuses first.
-    fn nvs_core_router_url_absolute(_ctx, _args: [2]) {
-        Err(no_such_route("urlAbsolute"))
+    /// derived from `Host` or `X-Forwarded-Host` ([`with_origin`]).
+    fn nvs_core_router_url_absolute(ctx, args: [2]) {
+        let row = value_route(ctx, args[0], "urlAbsolute")?;
+        check_value_params(&row, &args[1], "urlAbsolute")?;
+        let path = substitute(&value_template(&row), &args[1], "urlAbsolute")?;
+        with_origin(ctx, &mounted(ctx, &path))
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::urlSigned(callable $route, array<mixed> $params, {keys, until}): string`
-    /// — [`nvs_core_router_url`]'s answer for a reference that reached run
-    /// time, with two more arguments it never gets as far as reading.
+    /// — [`nvs_core_router_url`]'s lookup and checks, then the signed link
+    /// [`nvs_core_router_link_signed`], its resolved twin, builds, over the
+    /// row's own path pattern.
     ///
-    /// The lookup refuses first on purpose: checking the ring before saying
-    /// so would answer a question about the key material when the mistake is
-    /// in the call. The resolved twin is [`nvs_core_router_link_signed`].
-    fn nvs_core_router_url_signed(_ctx, _args: [4]) {
-        Err(no_such_route("urlSigned"))
+    /// The lookup comes first: checking the ring before it would answer a
+    /// question about the key material when the mistake is in the call.
+    fn nvs_core_router_url_signed(ctx, args: [4]) {
+        let row = value_route(ctx, args[0], "urlSigned")?;
+        check_value_params(&row, &args[1], "urlSigned")?;
+        signed_link(ctx, &value_template(&row), row.path(), args, 1)
     }
 }
 

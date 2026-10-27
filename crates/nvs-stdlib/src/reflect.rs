@@ -1854,7 +1854,13 @@ fn describe(desc: &ClassDesc) -> Value {
         ));
     }
     let mut constants = NvsArray::new();
-    for constant in desc.constants() {
+    // A method reference's class carries `nvs_runtime::CALLABLE_TARGET`, which
+    // no program declared, so a description leaves it out.
+    for constant in desc
+        .constants()
+        .iter()
+        .filter(|constant| constant.name != nvs_runtime::CALLABLE_TARGET)
+    {
         constants.append(crate::instance::build(
             &CONSTANT_INFO,
             [

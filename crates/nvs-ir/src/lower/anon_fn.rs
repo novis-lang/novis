@@ -544,6 +544,18 @@ pub(crate) const FCC_RECV: &str = "fcc#recv";
 /// reason, and the two never share an object: that target is always `static`.
 pub(crate) const FCC_DESC: &str = "fcc#desc";
 
+/// The private class constant a forwarding thunk's class carries: the target's
+/// `Class::method`, rendered as `nvs_types::routes::Route::handler` renders a
+/// handler. `nvs_runtime::CALLABLE_TARGET` restates the name.
+///
+/// `Core\Router::url` and its two siblings read it when a method reference
+/// reaches them as a value, and find the route by it
+/// (`rule:routing/link-target-and-params-are-checked`). A constant rather than a
+/// field because it is the same for every evaluation of one written reference:
+/// it costs one row in the class descriptor per reference site, and nothing per
+/// evaluation. `#` cannot start a declared name, so no constant collides with it.
+pub(crate) const FN_TARGET: &str = "fn#target";
+
 /// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
 /// waiting for the thunk that forwards it — see [`lower_callable`].
 ///
@@ -775,7 +787,7 @@ pub(crate) fn lower_callable(
             );
             low.release_all_locals(cur, &env, None);
             low.seal(cur, Terminator::Return(Some(value)));
-            let mut classes = vec![thunk_class(class, false, false, *span, exprs)];
+            let mut classes = vec![thunk_class(class, false, false, None, *span, exprs)];
             classes.append(&mut low.shapes);
             let (blocks, stmt_spans, edge_spans, debug_slots, debug_catches) = low.finish();
             return (
@@ -980,6 +992,7 @@ pub(crate) fn lower_callable(
         class,
         takes_receiver,
         through_class_reference,
+        Some(format!("{}::{}", call.class, call.method)),
         *span,
         exprs,
     )];
@@ -1100,11 +1113,13 @@ fn build_thunk_body(
 /// The class a [`PendingCallable`] synthesizes: [`FN_ARITY`],
 /// [`FN_PARAM_TAGS`] and [`FN_PARAM_NAMES`], [`FCC_RECV`] where the target
 /// takes a receiver, [`FCC_DESC`] where it was reached through a class
-/// reference, and the one `invoke`.
+/// reference, [`FN_TARGET`] where it forwards to a method, and the one
+/// `invoke`.
 fn thunk_class(
     class: &str,
     takes_receiver: bool,
     through_class_reference: bool,
+    target: Option<String>,
     span: Span,
     exprs: &ExprTypeTable,
 ) -> crate::ir::Class {
@@ -1130,7 +1145,16 @@ fn thunk_class(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         readonly_fields: Vec::new(),
-        constants: Vec::new(),
+        constants: target
+            .map(|target| nvs_types::ClassConstant {
+                name: FN_TARGET.to_owned(),
+                public: false,
+                protected: false,
+                secret: false,
+                value: nvs_types::consts::ConstValue::Str(target),
+            })
+            .into_iter()
+            .collect(),
         attributes: Vec::new(),
         field_types: Vec::new(),
         field_classes: Vec::new(),
