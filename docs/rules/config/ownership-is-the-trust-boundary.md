@@ -54,6 +54,15 @@ path the configuration names, keeps the full check, parent included. A file insi
 checked as any file is, with the private data folder as its directory. Novis creates the data folder
 private to its account and never re-permissions one that exists: it checks it.
 
+**The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
+and a command that sets up or reports on a service judges for the account the service runs as, through
+the same function: `trust::check_as` with a `trust::Account`, a uid on Unix and a SID on Windows. On
+Unix a number is a uid and a name comes from the password database. On Windows `LocalSystem` is the
+well-known SID, `NT SERVICE\<name>` is computed as Windows computes it (`S-1-5-80-` and the SHA-1 of
+the upper-case name in UTF-16LE), because that account does not resolve until the service exists, and
+any other name goes through `LookupAccountNameW`. A breach for a named account names it: "neither the
+account `LocalSystem` nor an administrative one". `resolve::JudgedFor` resolves a tree that way.
+
 **Declined:**
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.

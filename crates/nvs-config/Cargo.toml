@@ -64,6 +64,8 @@ libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
+# The SID of `NT SERVICE\<name>` is a SHA-1 of the name, computed before the service exists.
+sha1.workspace = true
 
 # `unsafe_code` is `deny` rather than the workspace's `forbid` because that rule's
 # check is four `advapi32` calls and a `geteuid`, each carrying its own

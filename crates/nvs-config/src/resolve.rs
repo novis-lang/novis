@@ -286,6 +286,56 @@ impl Files for Unowned {
     }
 }
 
+/// [`Disk`] judging for another account than this process's: the account a service will run as.
+/// A command that sets up or reports on a service resolves through it, so it names the file, the
+/// `E0607` and the repair the service's own boot would (`rule:config/ownership-is-the-trust-boundary`).
+/// Only [`Files::trust`] differs from [`Disk`].
+#[derive(Clone, Debug)]
+pub struct JudgedFor(pub trust::Account);
+
+impl Files for JudgedFor {
+    fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
+        nvs_footprint::exists(path);
+        trust::check_as(path, &self.0)
+    }
+
+    fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical(path)
+    }
+
+    fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+        Disk.canonical_block(path)
+    }
+
+    fn read(&self, path: &Path) -> Result<String, String> {
+        Disk.read(path)
+    }
+
+    fn read_config(&self, path: &Path) -> Result<String, String> {
+        Disk.read_config(path)
+    }
+
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+        Disk.read_bytes(path)
+    }
+
+    fn exposure(&self, path: &Path) -> Option<String> {
+        Disk.exposure(path)
+    }
+
+    fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+        Disk.list(dir)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        Disk.exists(path)
+    }
+
+    fn missing(&self, path: &Path) -> bool {
+        Disk.missing(path)
+    }
+}
+
 /// Where one value in the resolved configuration was written.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Origin {

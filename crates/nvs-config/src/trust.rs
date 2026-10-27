@@ -159,10 +159,21 @@ pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
 /// [`Untrusted`], which [`resolve`](crate::resolve) turns into `E0605` when the path could not be
 /// examined and `E0607` when it was and failed.
 pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
-    let canonical = check_alone(path)?;
+    check_as(path, &Account::current()?)
+}
+
+/// [`check`] for `account` rather than for this process: the same verdict, with `account` the one
+/// whose own files pass the owner test. A command that sets up a service runs it for the account
+/// the service will run as, so it names the file the service's boot would name.
+///
+/// # Errors
+///
+/// As [`check`].
+pub fn check_as(path: &Path, account: &Account) -> Result<PathBuf, Untrusted> {
+    let canonical = check_alone_as(path, account)?;
     let parent = canonical.parent();
     if let Some(parent) = parent {
-        platform::check(parent).map_err(|why| why.about(parent))?;
+        platform::check(parent, account).map_err(|why| why.about(parent))?;
     }
     for link in path.ancestors().filter(|prefix| {
         std::fs::symlink_metadata(prefix).is_ok_and(|meta| meta.file_type().is_symlink())
@@ -170,7 +181,7 @@ pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
         let Some(holder) = link.parent().filter(|holder| Some(*holder) != parent) else {
             continue;
         };
-        platform::check_link_holder(holder).map_err(|why| why.holding(holder, link))?;
+        platform::check_link_holder(holder, account).map_err(|why| why.holding(holder, link))?;
     }
     Ok(canonical)
 }
@@ -188,9 +199,77 @@ pub fn check(path: &Path) -> Result<PathBuf, Untrusted> {
 ///
 /// As [`check`], about `path` only.
 pub fn check_alone(path: &Path) -> Result<PathBuf, Untrusted> {
+    check_alone_as(path, &Account::current()?)
+}
+
+/// [`check_alone`] for `account`, as [`check_as`] is [`check`] for it.
+///
+/// # Errors
+///
+/// As [`check`], about `path` only.
+pub fn check_alone_as(path: &Path, account: &Account) -> Result<PathBuf, Untrusted> {
     let canonical = canonical(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
-    platform::check(&canonical).map_err(|why| why.about(&canonical))?;
+    platform::check(&canonical, account).map_err(|why| why.about(&canonical))?;
     Ok(canonical)
+}
+
+/// The account a check judges for: a file it owns passes the owner test.
+///
+/// A uid on Unix and a SID on Windows, and never a display name for the comparison, because a name
+/// is localized and a rename does not move it. The name it was given by is kept for the messages
+/// alone. [`Account::current`] is this process's account, which [`check`] judges for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Account {
+    /// The uid on Unix, the SID on Windows.
+    id: platform::Id,
+    /// The name the caller gave, and `None` for this process's own account.
+    name: Option<String>,
+}
+
+impl Account {
+    /// This process's own account.
+    ///
+    /// # Errors
+    ///
+    /// [`Untrusted::Unreadable`] when Windows cannot read this process's token.
+    pub fn current() -> Result<Self, Untrusted> {
+        Ok(Self {
+            id: platform::current()?,
+            name: None,
+        })
+    }
+
+    /// The account `name` names on this machine.
+    ///
+    /// On Unix a number is a uid, and any other name is looked up in the password database. On
+    /// Windows `LocalSystem`, `SYSTEM` and `NT AUTHORITY\SYSTEM` are the well-known SID, and
+    /// `NT SERVICE\<service>` is computed as Windows computes it, because that account does not
+    /// resolve until the service is installed. Any other name is looked up.
+    ///
+    /// # Errors
+    ///
+    /// A message that says no such account exists on this machine.
+    pub fn named(name: &str) -> Result<Self, String> {
+        let name = name.trim();
+        Ok(Self {
+            id: platform::named(name)?,
+            name: Some(name.to_string()),
+        })
+    }
+
+    /// The name the caller gave, or `None` for this process's own account.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// The account as a breach message names it.
+    fn label(&self) -> String {
+        match &self.name {
+            None => "this account".to_string(),
+            Some(name) => format!("the account `{name}`"),
+        }
+    }
 }
 
 /// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory half: how an account other than this one may **read** `path`, or `None`.
@@ -222,14 +301,14 @@ pub(crate) fn owner_sid() -> Option<String> {
 mod platform {
     use std::path::{Path, PathBuf};
 
-    use super::Untrusted;
+    use super::{Account, Untrusted};
 
     /// Nothing to simplify: `fs::canonicalize` already returns an ordinary absolute path here.
     pub(super) fn simplified(path: PathBuf) -> PathBuf {
         path
     }
 
-    /// The owner is this account or root, and neither the group nor the world may write.
+    /// The owner is `me` or root, and neither the group nor the world may write.
     ///
     /// **The owner test is waived on a read-only mount** ([`read_only_mount`]): no account on this
     /// host can change the path through that mount, which is what the owner test guards against.
@@ -237,22 +316,82 @@ mod platform {
     /// not the container's. The mode test still runs there, so a group- or world-writable mode is
     /// refused on a read-only mount too: it says the files are meant to be shared, and a later
     /// read-write mount of the same tree would serve them.
+    pub(super) fn check(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        judged(path, &stat(path)?, me, || read_only_mount(path))
+    }
+
+    /// An account is its uid.
+    pub(super) type Id = u32;
+
+    /// This process's effective uid.
     #[expect(
         unsafe_code,
         reason = "`geteuid` has no safe spelling in `std`; it takes no argument, cannot fail, and \
                   returns a plain `uid_t`, so the call is unsafe only because it is `extern`"
     )]
-    pub(super) fn check(path: &Path) -> Result<(), Untrusted> {
+    pub(super) fn current() -> Result<Id, Untrusted> {
+        Ok(unsafe { libc::geteuid() })
+    }
+
+    /// A number as a uid, and any other name from the password database.
+    pub(super) fn named(name: &str) -> Result<Id, String> {
+        if let Ok(uid) = name.parse::<u32>() {
+            return Ok(uid);
+        }
+        lookup(name)?.ok_or_else(|| format!("no account named `{name}` exists on this machine"))
+    }
+
+    /// The uid `name` has in the password database, or `None` when it has none.
+    #[expect(
+        unsafe_code,
+        reason = "`getpwnam_r` has no spelling in `std`; it writes into a record and a buffer \
+                  this function owns, and is unsafe only because it is `extern`"
+    )]
+    fn lookup(name: &str) -> Result<Option<Id>, String> {
+        let Ok(wanted) = std::ffi::CString::new(name) else {
+            return Ok(None);
+        };
+        let mut buffer: Vec<libc::c_char> = vec![0; 4096];
+        loop {
+            let mut record = std::mem::MaybeUninit::<libc::passwd>::uninit();
+            let mut found: *mut libc::passwd = std::ptr::null_mut();
+            let status = unsafe {
+                libc::getpwnam_r(
+                    wanted.as_ptr(),
+                    record.as_mut_ptr(),
+                    buffer.as_mut_ptr(),
+                    buffer.len(),
+                    &mut found,
+                )
+            };
+            if status == libc::ERANGE && buffer.len() < 1 << 20 {
+                buffer.resize(buffer.len() * 4, 0);
+                continue;
+            }
+            if status != 0 {
+                return Err(format!(
+                    "the account `{name}` could not be looked up: {}",
+                    std::io::Error::from_raw_os_error(status)
+                ));
+            }
+            if found.is_null() {
+                return Ok(None);
+            }
+            // A zero status with a non-null `found` means the call filled `record`.
+            return Ok(Some(unsafe { record.assume_init() }.pw_uid));
+        }
+    }
+
+    /// What [`check`] reads of `path`.
+    fn stat(path: &Path) -> Result<Stat, Untrusted> {
         use std::os::unix::fs::MetadataExt;
 
         let meta = std::fs::metadata(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
-        let me = unsafe { libc::geteuid() };
-        let stat = Stat {
+        Ok(Stat {
             owner: meta.uid(),
             gid: meta.gid(),
             mode: meta.mode() & 0o7777,
-        };
-        judged(path, &stat, me, || read_only_mount(path))
+        })
     }
 
     /// [`check`] on a directory that holds a link the configuration's path goes through, with one
@@ -262,22 +401,8 @@ mod platform {
     /// read-only file system, with each key a link into a timestamped folder it swaps. No account
     /// in the pod can write it, and only the kubelet, as root on the node, changes it. A directory
     /// another account owns, or one on a writable mount, gets [`check`] unchanged.
-    #[expect(
-        unsafe_code,
-        reason = "`geteuid` has no safe spelling in `std`; it takes no argument, cannot fail, and \
-                  returns a plain `uid_t`, so the call is unsafe only because it is `extern`"
-    )]
-    pub(super) fn check_link_holder(path: &Path) -> Result<(), Untrusted> {
-        use std::os::unix::fs::MetadataExt;
-
-        let meta = std::fs::metadata(path).map_err(|err| Untrusted::Unreadable(err.to_string()))?;
-        let me = unsafe { libc::geteuid() };
-        let stat = Stat {
-            owner: meta.uid(),
-            gid: meta.gid(),
-            mode: meta.mode() & 0o7777,
-        };
-        judged_link_holder(path, &stat, me, || read_only_mount(path))
+    pub(super) fn check_link_holder(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        judged_link_holder(path, &stat(path)?, me, || read_only_mount(path))
     }
 
     /// [`check_link_holder`]'s verdict on `stat`, read from `path`, for the account `me`.
@@ -286,7 +411,7 @@ mod platform {
     pub(super) fn judged_link_holder(
         path: &Path,
         stat: &Stat,
-        me: u32,
+        me: &Account,
         read_only: impl FnOnce() -> bool,
     ) -> Result<(), Untrusted> {
         if stat.owner != 0 {
@@ -310,26 +435,32 @@ mod platform {
     ///
     /// The help is the one command that repairs what was found. `chown` comes first because a
     /// mode is only this account's to change once the path is its own or root's, and `chmod` is
-    /// prefixed with `sudo` where root owns the path and this is not root.
+    /// prefixed with `sudo` unless the path is this process's own: when the check is for a named
+    /// account, the operator who reads the repair is not that account.
     pub(super) fn judged(
         path: &Path,
         stat: &Stat,
-        me: u32,
+        account: &Account,
         read_only: impl FnOnce() -> bool,
     ) -> Result<(), Untrusted> {
         let Stat { owner, gid, mode } = *stat;
+        let me = account.id;
         if owner != me && owner != 0 && !read_only() {
             let quoted = quoted(path);
             let mut help = format!("run `sudo chown root {quoted}`.");
             if me != 0 {
+                let who = match account.name() {
+                    None => "The account that runs `nvs`".to_string(),
+                    Some(name) => format!("The account `{name}`"),
+                };
                 help.push_str(&format!(
-                    " The account that runs `nvs` (uid {me}) may own it instead: \
-                     `sudo chown {me} {quoted}`."
+                    " {who} (uid {me}) may own it instead: `sudo chown {me} {quoted}`."
                 ));
             }
             return Err(Untrusted::breach(
                 format!(
-                    "is owned by uid {owner}, which is neither this account (uid {me}) nor root"
+                    "is owned by uid {owner}, which is neither {} (uid {me}) nor root",
+                    account.label()
                 ),
                 help,
             ));
@@ -340,7 +471,11 @@ mod platform {
             (_, 0) => "group-writable",
             _ => "group- and world-writable",
         };
-        let sudo = if owner == me { "" } else { "sudo " };
+        let sudo = if owner == me && account.name().is_none() {
+            ""
+        } else {
+            "sudo "
+        };
         Err(Untrusted::breach(
             format!("is {who} (mode {mode:04o}, gid {gid})"),
             format!("run `{sudo}chmod go-w {}`.", quoted(path)),
@@ -412,11 +547,11 @@ mod platform {
     };
     use windows_sys::Win32::Security::{
         ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION,
-        EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE,
-        OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE, TOKEN_QUERY,
-        TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE, WinAnonymousSid, WinAuthenticatedUserSid,
-        WinBuiltinAdministratorsSid, WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalSystemSid,
-        WinWorldSid,
+        EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE, LookupAccountNameW,
+        OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE,
+        SID_NAME_USE, TOKEN_QUERY, TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE, WinAnonymousSid,
+        WinAuthenticatedUserSid, WinBuiltinAdministratorsSid, WinBuiltinGuestsSid,
+        WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
         DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
@@ -428,7 +563,7 @@ mod platform {
     };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
-    use super::Untrusted;
+    use super::{Account, Untrusted};
 
     /// The `Administrators` group as `icacls` takes it.
     const ADMINISTRATORS: &str = "*S-1-5-32-544";
@@ -540,8 +675,115 @@ mod platform {
 
     /// [`check`] alone: Windows has no read-only mount, so a directory that holds a link has no
     /// waiver the file's own directory lacks.
-    pub(super) fn check_link_holder(path: &Path) -> Result<(), Untrusted> {
-        check(path)
+    pub(super) fn check_link_holder(path: &Path, me: &Account) -> Result<(), Untrusted> {
+        check(path, me)
+    }
+
+    /// An account is its SID.
+    pub(super) type Id = Sid;
+
+    /// This process's own user SID.
+    pub(super) fn current() -> Result<Id, Untrusted> {
+        token_user()
+    }
+
+    /// The SID `name` names: the well-known one for `LocalSystem`, the computed one for
+    /// `NT SERVICE\<service>`, and `LookupAccountNameW`'s for any other name.
+    pub(super) fn named(name: &str) -> Result<Id, String> {
+        if is_local_system(name) {
+            return well_known(WinLocalSystemSid).map_err(|why| why.message().to_string());
+        }
+        let prefix = r"NT SERVICE\";
+        if name.len() > prefix.len()
+            && name.is_char_boundary(prefix.len())
+            && name[..prefix.len()].eq_ignore_ascii_case(prefix)
+        {
+            return Ok(service_sid(&name[prefix.len()..]));
+        }
+        lookup(name)
+    }
+
+    /// Whether `name` is one of the ways to write `LocalSystem`.
+    fn is_local_system(name: &str) -> bool {
+        [
+            "LocalSystem",
+            "SYSTEM",
+            r"NT AUTHORITY\SYSTEM",
+            r".\LocalSystem",
+        ]
+        .iter()
+        .any(|known| name.eq_ignore_ascii_case(known))
+    }
+
+    /// The SID of the virtual account `NT SERVICE\<service>`, computed as Windows computes it:
+    /// `S-1-5-80-`, then the SHA-1 of the upper-case service name in UTF-16LE as five
+    /// sub-authorities. The SCM resolves the name only once the service is installed, and an
+    /// install checks before that.
+    pub(super) fn service_sid(service: &str) -> Sid {
+        use sha1::{Digest, Sha1};
+
+        let name: Vec<u8> = service
+            .to_uppercase()
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let digest = Sha1::digest(&name);
+        // Revision 1, six sub-authorities, and the NT authority, 5, in the layout a `SID` has.
+        let mut sid: Sid = vec![
+            u32::from_ne_bytes([1, 6, 0, 0]),
+            u32::from_ne_bytes([0, 0, 0, 5]),
+            80,
+        ];
+        let (hash, _) = digest.as_chunks::<4>();
+        sid.extend(hash.iter().map(|word| u32::from_le_bytes(*word)));
+        sid
+    }
+
+    /// The SID `LookupAccountNameW` gives for `name` on this machine.
+    #[expect(
+        unsafe_code,
+        reason = "the two-call size-then-read shape `LookupAccountNameW` requires, into buffers \
+                  this function owns and sized as the first call said"
+    )]
+    fn lookup(name: &str) -> Result<Sid, String> {
+        let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let missing = || format!("no account named `{name}` exists on this machine");
+        let mut sid_len = 0u32;
+        let mut domain_len = 0u32;
+        let mut kind: SID_NAME_USE = 0;
+        // The first call is the size query and is expected to fail with a too-small buffer.
+        unsafe {
+            LookupAccountNameW(
+                std::ptr::null(),
+                wide.as_ptr(),
+                std::ptr::null_mut(),
+                &mut sid_len,
+                std::ptr::null_mut(),
+                &mut domain_len,
+                &mut kind,
+            )
+        };
+        if sid_len == 0 {
+            return Err(missing());
+        }
+        let mut sid: Sid = vec![0; words(sid_len as usize)];
+        let mut domain: Vec<u16> = vec![0; domain_len.max(1) as usize];
+        domain_len = domain_len.max(1);
+        let found = unsafe {
+            LookupAccountNameW(
+                std::ptr::null(),
+                wide.as_ptr(),
+                sid.as_mut_ptr().cast(),
+                &mut sid_len,
+                domain.as_mut_ptr(),
+                &mut domain_len,
+                &mut kind,
+            )
+        };
+        if found == 0 {
+            return Err(missing());
+        }
+        Ok(sid)
     }
 
     /// The owner is trusted and no untrusted principal has an effective write right.
@@ -551,7 +793,7 @@ mod platform {
                   descriptor is freed on both paths and nothing borrowed from it outlives this \
                   function, since `examine` copies every SID it keeps"
     )]
-    pub(super) fn check(path: &Path) -> Result<(), Untrusted> {
+    pub(super) fn check(path: &Path, me: &Account) -> Result<(), Untrusted> {
         let wide = wide(path);
         let mut owner: PSID = std::ptr::null_mut();
         let mut dacl: *mut ACL = std::ptr::null_mut();
@@ -573,7 +815,7 @@ mod platform {
                 "its security descriptor could not be read (win32 error {status})"
             )));
         }
-        let verdict = examine(path, owner, dacl);
+        let verdict = examine(path, owner, dacl, me);
         unsafe { LocalFree(descriptor) };
         verdict
     }
@@ -640,30 +882,35 @@ mod platform {
     /// first, then each untrusted principal's rights. Each breach carries the `icacls` command
     /// that repairs it, with `path` filled in. The help is built only for a breach, so a path that
     /// passes costs nothing more than the check.
-    fn examine(path: &Path, owner: PSID, dacl: *const ACL) -> Result<(), Untrusted> {
+    fn examine(
+        path: &Path,
+        owner: PSID,
+        dacl: *const ACL,
+        account: &Account,
+    ) -> Result<(), Untrusted> {
         if owner.is_null() {
             return Err(Untrusted::breach(
                 "has no owner in its security descriptor".to_string(),
                 owner_help(path),
             ));
         }
-        let me = token_user()?;
         let trusted = [
             well_known(WinBuiltinAdministratorsSid)?,
             well_known(WinLocalSystemSid)?,
         ];
-        if !equal(owner, &me) && !trusted.iter().any(|sid| equal(owner, sid)) {
+        if !equal(owner, &account.id) && !trusted.iter().any(|sid| equal(owner, sid)) {
             return Err(Untrusted::breach(
                 format!(
-                    "is owned by {}, which is neither this account nor an administrative one",
-                    sid_text(owner)
+                    "is owned by {}, which is neither {} nor an administrative one",
+                    sid_text(owner),
+                    account.label()
                 ),
                 owner_help(path),
             ));
         }
         if dacl.is_null() {
             // A null DACL is not an empty one: it grants every account every right.
-            let me = sid_text(as_psid(&me));
+            let me = sid_text(as_psid(&account.id));
             return Err(Untrusted::breach(
                 "has a null DACL, which grants every account every right".to_string(),
                 null_dacl_help(path, me.trim_matches('`')),
@@ -891,18 +1138,168 @@ mod platform {
     fn words(bytes: usize) -> usize {
         bytes.div_ceil(std::mem::size_of::<u32>())
     }
+
+    #[cfg(test)]
+    mod tests {
+        use std::path::Path;
+
+        use windows_sys::Win32::Foundation::LocalFree;
+        use windows_sys::Win32::Security::Authorization::{
+            ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+        };
+        use windows_sys::Win32::Security::{
+            GetSecurityDescriptorDacl, GetSecurityDescriptorOwner, PSECURITY_DESCRIPTOR,
+        };
+
+        use super::super::Account;
+        use super::{as_psid, copy_sid, examine, service_sid, sid_text};
+
+        /// An ordinary local user's SID, made up: no machine has to know it.
+        const USER: &str = "S-1-5-21-1-2-3-1001";
+
+        /// [`examine`]'s verdict on the descriptor `sddl` describes, built in memory, for the
+        /// account `account` gives. `account` is handed the descriptor's owner, so a test can judge
+        /// for the account that owns it.
+        #[expect(
+            unsafe_code,
+            reason = "a descriptor `ConvertStringSecurityDescriptorToSecurityDescriptorW` \
+                      allocated, read through two getters and freed once `examine` returned"
+        )]
+        fn verdict(sddl: &str, account: impl FnOnce(Account) -> Account) -> Result<(), String> {
+            let wide: Vec<u16> = sddl.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+            let built = unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    wide.as_ptr(),
+                    SDDL_REVISION_1,
+                    &mut descriptor,
+                    std::ptr::null_mut(),
+                )
+            };
+            assert_ne!(built, 0, "`{sddl}` is a descriptor");
+            let mut owner = std::ptr::null_mut();
+            let mut dacl = std::ptr::null_mut();
+            let (mut present, mut defaulted) = (0, 0);
+            unsafe {
+                GetSecurityDescriptorOwner(descriptor, &mut owner, &mut defaulted);
+                GetSecurityDescriptorDacl(descriptor, &mut present, &mut dacl, &mut defaulted);
+            }
+            let owners = Account {
+                id: copy_sid(owner),
+                name: Some("Blog".to_string()),
+            };
+            let path = Path::new(r"C:\ProgramData\novis\nvs.toml");
+            let verdict = examine(path, owner, dacl, &account(owners))
+                .map_err(|why| why.message().to_string());
+            unsafe { LocalFree(descriptor) };
+            verdict
+        }
+
+        /// A file an ordinary user owns passes for that user and fails for `LocalSystem`, with a
+        /// message that names `LocalSystem`.
+        #[test]
+        fn a_users_file_passes_for_that_user_and_not_for_local_system() {
+            let sddl = format!("O:{USER}D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FA;;;{USER})");
+            verdict(&sddl, |owner| owner).expect("the owner's own file");
+            let why = verdict(&sddl, |_| {
+                Account::named("LocalSystem").expect("well known")
+            })
+            .expect_err("`LocalSystem` does not trust an ordinary user's file");
+            assert!(
+                why.contains("neither the account `LocalSystem` nor an administrative one"),
+                "{why}"
+            );
+        }
+
+        /// A file `Administrators` owns passes for every account a service may run as.
+        #[test]
+        fn an_administrators_file_passes_for_a_user_and_for_local_system() {
+            let sddl = "O:BAD:P(A;;FA;;;SY)(A;;FA;;;BA)";
+            verdict(sddl, |owner| owner).expect("an ordinary user trusts administrators");
+            verdict(sddl, |_| Account::named("SYSTEM").expect("well known"))
+                .expect("so does `LocalSystem`");
+        }
+
+        /// The virtual account's SID is the one `sc showsid Shop` prints, whatever case the name
+        /// is written in, and `Account::named` computes it without the service existing.
+        #[test]
+        fn a_service_accounts_sid_is_the_one_windows_computes() {
+            let pinned = "`S-1-5-80-1634301681-1672949335-233545464-2934124745-3671813728`";
+            assert_eq!(sid_text(as_psid(&service_sid("Shop"))), pinned);
+            let account = Account::named(r"nt service\shop").expect("computed, never looked up");
+            assert_eq!(sid_text(as_psid(&account.id)), pinned);
+            assert_eq!(account.name(), Some(r"nt service\shop"));
+        }
+
+        /// The ways to write `LocalSystem` all give `S-1-5-18`, and a name no machine has is an
+        /// error that names it.
+        #[test]
+        fn local_system_is_well_known_and_an_unknown_name_is_an_error() {
+            for name in ["LocalSystem", "system", r"NT AUTHORITY\SYSTEM"] {
+                let account = Account::named(name).expect("well known");
+                assert_eq!(sid_text(as_psid(&account.id)), "`S-1-5-18`", "{name}");
+            }
+            let why = Account::named("no-such-account-anywhere").expect_err("nobody has it");
+            assert!(why.contains("`no-such-account-anywhere`"), "{why}");
+        }
+    }
 }
 
 #[cfg(all(test, unix))]
 mod tests {
     use std::path::Path;
 
-    use super::Untrusted;
     use super::platform::{Stat, judged, judged_link_holder, read_only_mount};
+    use super::{Account, Untrusted};
 
     /// The account a container runs as, and the host account whose checkout it mounts.
     const SERVER: u32 = 65532;
     const HOST: u32 = 1000;
+
+    /// [`SERVER`] as the account this process runs as.
+    fn server() -> Account {
+        Account {
+            id: SERVER,
+            name: None,
+        }
+    }
+
+    /// A file uid 1000 owns passes for uid 1000 and fails for any other uid, and the refusal
+    /// names the account the check was for.
+    #[test]
+    fn a_file_passes_for_its_owner_and_not_for_another_named_account() {
+        let stat = Stat {
+            owner: HOST,
+            gid: HOST,
+            mode: 0o644,
+        };
+        let host = Account::named("1000").expect("a number is a uid");
+        judged(config(), &stat, &host, || false).expect("the owner's own file");
+        let other = Account::named("1001").expect("a number is a uid");
+        let why = judged(config(), &stat, &other, || false).expect_err("another account's file");
+        assert!(
+            why.message()
+                .contains("neither the account `1001` (uid 1001) nor root"),
+            "{why:?}"
+        );
+        let help = why.help().expect("a breach carries its repair");
+        assert!(
+            help.contains("The account `1001` (uid 1001) may own it instead"),
+            "{help}"
+        );
+    }
+
+    /// `root` is in every password database, and a name nobody has is an error that names it.
+    #[cfg_attr(
+        miri,
+        ignore = "`getpwnam_r` reads the password database, which Miri cannot"
+    )]
+    #[test]
+    fn a_name_is_looked_up_and_an_unknown_one_is_an_error() {
+        assert_eq!(Account::named("root").expect("root exists").id, 0);
+        let why = Account::named("no-such-account-anywhere").expect_err("nobody has it");
+        assert!(why.contains("`no-such-account-anywhere`"), "{why}");
+    }
 
     /// The path every verdict here is about. Nothing reads it: the verdict only names it.
     fn config() -> &'static Path {
@@ -920,10 +1317,10 @@ mod tests {
             gid: HOST,
             mode: 0o644,
         };
-        judged(config(), &stat, SERVER, || true)
+        judged(config(), &stat, &server(), || true)
             .expect("nobody on this host can write through the mount");
-        let why =
-            judged(config(), &stat, SERVER, || false).expect_err("the owner can rewrite this file");
+        let why = judged(config(), &stat, &server(), || false)
+            .expect_err("the owner can rewrite this file");
         assert!(
             matches!(&why, Untrusted::Breach { message, .. } if message.contains("uid 1000")),
             "the refusal names the owner: {why:?}"
@@ -945,10 +1342,10 @@ mod tests {
             gid: SERVER,
             mode: 0o664,
         };
-        let why = judged(config(), &mine, SERVER, || false).expect_err("the group may write");
+        let why = judged(config(), &mine, &server(), || false).expect_err("the group may write");
         assert_eq!(why.help(), Some("run `chmod go-w /etc/novis/nvs.toml`."));
         let roots = Stat { owner: 0, ..mine };
-        let why = judged(config(), &roots, SERVER, || false).expect_err("the group may write");
+        let why = judged(config(), &roots, &server(), || false).expect_err("the group may write");
         assert_eq!(
             why.help(),
             Some("run `sudo chmod go-w /etc/novis/nvs.toml`.")
@@ -963,8 +1360,10 @@ mod tests {
             gid: SERVER,
             mode: 0o666,
         };
-        let why = judged(Path::new("/srv/my app/it's.toml"), &stat, SERVER, || false)
-            .expect_err("the world may write");
+        let why = judged(Path::new("/srv/my app/it's.toml"), &stat, &server(), || {
+            false
+        })
+        .expect_err("the world may write");
         assert_eq!(
             why.help(),
             Some(r"run `chmod go-w '/srv/my app/it'\''s.toml'`.")
@@ -985,7 +1384,7 @@ mod tests {
                 gid: HOST,
                 mode,
             };
-            let why = judged(config(), &stat, SERVER, || true)
+            let why = judged(config(), &stat, &server(), || true)
                 .expect_err("the mode says others may write");
             assert!(
                 why.message().contains(who),
@@ -997,7 +1396,7 @@ mod tests {
             gid: SERVER,
             mode: 0o600,
         };
-        judged(config(), &mine, SERVER, || {
+        judged(config(), &mine, &server(), || {
             panic!("the mount is asked only of another account's file")
         })
         .expect("this account's own private file");
@@ -1014,8 +1413,9 @@ mod tests {
             mode: 0o777,
         };
         let dir = Path::new("/etc/novis");
-        judged_link_holder(dir, &volume, SERVER, || true).expect("the kubelet's ConfigMap volume");
-        let why = judged_link_holder(dir, &volume, SERVER, || false)
+        judged_link_holder(dir, &volume, &server(), || true)
+            .expect("the kubelet's ConfigMap volume");
+        let why = judged_link_holder(dir, &volume, &server(), || false)
             .expect_err("anyone on this host could swap the link");
         assert!(
             why.message().contains("group- and world-writable"),
@@ -1025,10 +1425,10 @@ mod tests {
             owner: HOST,
             ..volume
         };
-        let why = judged_link_holder(dir, &hosts, SERVER, || true)
+        let why = judged_link_holder(dir, &hosts, &server(), || true)
             .expect_err("the waiver is root's alone");
         assert!(why.message().contains("mode 0777"), "{why:?}");
-        judged(dir, &volume, SERVER, || true)
+        judged(dir, &volume, &server(), || true)
             .expect_err("the file's own directory keeps the mode test");
     }
 

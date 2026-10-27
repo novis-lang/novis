@@ -3438,6 +3438,7 @@ dependencies = [
  "nvs-render",
  "nvs-repo",
  "serde",
+ "sha1",
  "toml",
  "windows-sys 0.61.2",
 ]

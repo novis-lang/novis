@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/trust.rs, docs/rules/config/ownership-is-the-tru
 stages:
   - id: 1
     title: the ownership check judges a path for a named account
-    status: open
+    status: done
     context: [crates/nvs-config/src/resolve.rs, crates/nvs-config/src/data.rs]
     extra:
       context:
@@ -100,10 +100,10 @@ Fallback: none needed; listing every failing file is a later change if operators
 (`Win32_Security` is already a workspace feature, `Cargo.toml:239`). An `NT SERVICE\<name>` account
 does not resolve until the SCM holds that service, so at install it is computed as Windows computes
 it: `S-1-5-80-` and the SHA-1 of the upper-case service name in UTF-16LE, as five sub-authorities.
-`nvs-cli` takes `sha1.workspace = true` for it (`Cargo.toml:696`), and a test pins the value
-`sc showsid <name>` prints for one fixed neutral name. On Linux a user name is looked up as the
-service code does (`getpwnam_r`, `crates/nvs-cli/src/service.rs:3086`), and a number is taken as a
-uid. A name this machine cannot resolve is an error with a new code: the next free number in
+`nvs-config` takes `sha1.workspace = true` on Windows for it, because `Account::named` lives beside
+the SID type, and a test pins the value `sc showsid Shop` prints. On Linux a user name is looked up
+with `getpwnam_r` in `trust.rs` too, so `Account::named` is the one entry point on both platforms,
+and a number is taken as a uid. A name this machine cannot resolve is an error with a new code: the next free number in
 `crates/nvs-diagnostics/src/code/config.rs`, never `E0654`, whose note is about systemd.
 
 **The message names the account it judged for.** "neither this account nor an administrative one"
@@ -184,12 +184,12 @@ they run in order. Stage 4 is docs only. Stage 5 shares `service.rs` with stage 
 **Does:** `trust::check_as(path, &Account)` judges for any account, `check` is `check_as` for this
 process, and a `Files` impl resolves a tree through it.
 
-- [ ] `trust::Account` (a uid on Unix, a SID on Windows) with `Account::current()`, and `check_as` and `check_alone_as` beside `check` and `check_alone`, which call them. `crates/nvs-config/src/trust.rs:161`, `crates/nvs-config/src/trust.rs:190`
-- [ ] Unix `platform::check` and `check_link_holder` take the account in place of `geteuid()`. `crates/nvs-config/src/trust.rs:245`, `crates/nvs-config/src/trust.rs:270`
-- [ ] Windows `examine` takes the account's SID in place of `token_user()`, and the breach message names the account when it is not this process's own. `crates/nvs-config/src/trust.rs:643`, `crates/nvs-config/src/trust.rs:554`
-- [ ] `Account::named(name)` on Windows: the `LocalSystem` names, `LookupAccountNameW`, and the computed `NT SERVICE\<name>` SID. `crates/nvs-config/src/trust.rs:808`
-- [ ] The `Files` impl that judges for a given account, beside `Disk` and `Unowned` (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/resolve.rs:181`, `crates/nvs-config/src/resolve.rs:245`
-- [ ] Tests: on Unix a `Stat` owned by uid 1000 passes for 1000 and fails for another uid; on Windows (`#[cfg(windows)]`) a descriptor built in memory from SDDL with an ordinary user as owner passes for that user and fails for `LocalSystem`, and one owned by `Administrators` passes for both; the `NT SERVICE` SID matches its pinned value. `crates/nvs-config/src/trust.rs:897`
+- [x] `trust::Account` (a uid on Unix, a SID on Windows) with `Account::current()`, and `check_as` and `check_alone_as` beside `check` and `check_alone`, which call them. `crates/nvs-config/src/trust.rs:161`, `crates/nvs-config/src/trust.rs:190`
+- [x] Unix `platform::check` and `check_link_holder` take the account in place of `geteuid()`. `crates/nvs-config/src/trust.rs:245`, `crates/nvs-config/src/trust.rs:270`
+- [x] Windows `examine` takes the account's SID in place of `token_user()`, and the breach message names the account when it is not this process's own. `crates/nvs-config/src/trust.rs:643`, `crates/nvs-config/src/trust.rs:554`
+- [x] `Account::named(name)` on Windows: the `LocalSystem` names, `LookupAccountNameW`, and the computed `NT SERVICE\<name>` SID. `crates/nvs-config/src/trust.rs:808`
+- [x] The `Files` impl that judges for a given account, beside `Disk` and `Unowned` (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/resolve.rs:181`, `crates/nvs-config/src/resolve.rs:245`
+- [x] Tests: on Unix a `Stat` owned by uid 1000 passes for 1000 and fails for another uid; on Windows (`#[cfg(windows)]`) a descriptor built in memory from SDDL with an ordinary user as owner passes for that user and fails for `LocalSystem`, and one owned by `Administrators` passes for both; the `NT SERVICE` SID matches its pinned value. `crates/nvs-config/src/trust.rs:897`
 
 ### 2. `nvs config check --as <account>` runs the check for that account
 
@@ -267,21 +267,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `trust::check` judges only for this process's account, `nvs config check`
-reads through `Unowned`, `nvs service install --dry-run` runs no ownership check, and `nvs service
-status` prints only the manager's state word. The `E0607` help already prints the repair command.
+Stage 1 is done. `trust::Account` (`crates/nvs-config/src/trust.rs:222`) is a uid or a SID with the
+name it was given; `Account::current()` and `Account::named(name)` build one on both platforms
+(a number or `getpwnam_r` on Unix; `LocalSystem`, the computed `NT SERVICE\<name>` SID, or
+`LookupAccountNameW` on Windows). `Account::named` returns `Err(String)` "no account named `x`
+exists on this machine", which stage 2 wraps in its new code. `check_as` and `check_alone_as`
+(`crates/nvs-config/src/trust.rs:172`) are what `check` and `check_alone` call. A breach for a named
+account says "neither the account `LocalSystem` …", and the Unix help says "The account `x` (uid N)
+may own it instead". `resolve::JudgedFor(Account)` (`crates/nvs-config/src/resolve.rs:294`) is the
+`Files` impl. The rule `config/ownership-is-the-trust-boundary` has a paragraph on it. The Windows
+tests (`trust::platform::tests`) and the Unix ones (`trust::tests`, run in WSL) pass. No test is
+expected to go red. Nothing calls `check_as` from `nvs-cli` yet.
 
 ### Next
 
-**Stage 1: the check judges for a named account**, one file set: `crates/nvs-config/src/trust.rs`,
-`crates/nvs-config/src/resolve.rs`. No gate.
+**Stage 2: `nvs config check --as <account>`**, one file set: `crates/nvs-cli/src/config.rs`,
+`crates/nvs-cli/tests/config_audit.rs`, `crates/nvs-diagnostics/src/code/config.rs`, the two config
+rules. No gate. The stage's items in § *Stages* are the list.
 
-- [ ] `trust::Account`, `Account::current()`, and `check_as` and `check_alone_as` (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/trust.rs:161`
-- [ ] Unix `platform::check` and `check_link_holder` take the account. `crates/nvs-config/src/trust.rs:245`
-- [ ] Windows `examine` takes the SID, and the message names the account. `crates/nvs-config/src/trust.rs:643`
-- [ ] `Account::named` on Windows, with the computed `NT SERVICE` SID. `crates/nvs-config/src/trust.rs:808`
-- [ ] The `Files` impl that judges for an account. `crates/nvs-config/src/resolve.rs:245`
-- [ ] Tests for both platforms and the pinned `NT SERVICE` SID. `crates/nvs-config/src/trust.rs:897`
+- [ ] `--as` on `Command::Check`. `crates/nvs-cli/src/config.rs:66`
+- [ ] `check` resolves through `JudgedFor(Account::named(..)?)` with `--as`, `LocalFiles` otherwise. `crates/nvs-cli/src/config.rs:100`, `crates/nvs-cli/src/config.rs:146`
+- [ ] The new code after `E0661` for an account this machine cannot resolve. `crates/nvs-diagnostics/src/code/config.rs:891`
+- [ ] Tests in WSL with `bun nv linux-test`. `crates/nvs-cli/tests/config_audit.rs:1`
+- [ ] Amend the two rules and the JSON title. `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:1`
+
+Stage 3 can take the service's uid from `Account::named` instead of `service.rs`'s own `lookup`
+(`crates/nvs-cli/src/service.rs:3089`), which also needs the gid, so that one stays.
 
 ### Backlog
 
