@@ -665,7 +665,11 @@ fn one_method_with_two_paths_does_not_compile() {
          #[Route(path: \"/hook\", method: Core\\Http\\Method::Get)]\n  \
          public function receive(): string { return \"\"; }\n",
     ));
-    assert_eq!(count(&diags, code::E_ROUTE_PATHS_ON_ONE_METHOD), 1, "{diags:?}");
+    assert_eq!(
+        count(&diags, code::E_ROUTE_PATHS_ON_ONE_METHOD),
+        1,
+        "{diags:?}"
+    );
     let error = diags
         .iter()
         .find(|d| d.code == Some(code::E_ROUTE_PATHS_ON_ONE_METHOD))
@@ -675,7 +679,10 @@ fn one_method_with_two_paths_does_not_compile() {
         "`Users::receive` already has the path `/webhook`, and this route gives `/hook`"
     );
     assert_eq!(error.labels.len(), 2, "{error:?}");
-    assert!(error.notes.iter().any(|note| note.contains("{name?}")), "{error:?}");
+    assert!(
+        error.notes.iter().any(|note| note.contains("{name?}")),
+        "{error:?}"
+    );
 
     // Two methods with two paths are two routes, and nothing collides.
     let diags = check_src(&route_src(

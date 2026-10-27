@@ -3432,7 +3432,9 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             diags.report(
                 Diagnostic::error(
                     code::E_ROUTE_PATHS_ON_ONE_METHOD,
-                    format!("`{handler}` already has the path `{prior}`, and this route gives `{path}`"),
+                    format!(
+                        "`{handler}` already has the path `{prior}`, and this route gives `{path}`"
+                    ),
                 )
                 .with_primary(row.span, "this route has a second path")
                 .with_secondary(first.span, "the method's first path")
