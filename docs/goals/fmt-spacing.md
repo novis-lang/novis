@@ -20,7 +20,7 @@ stages:
         rules: [tooling/fmt-one-run-between-two-tokens, tooling/fmt-is-idempotent]
   - id: 3
     title: no two blank lines in a row, and none at the inside edge of a body
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/blank.rs, crates/nvs-fmt/src/statement.rs, crates/nvs-fmt/tests/base_style.rs, docs/rules/tooling/fmt-at-most-one-blank-line.md]
     extra:
       context:
@@ -213,10 +213,10 @@ honest.
 **Does:** a whitespace run in code carries at most two line breaks, and one after an opening bracket
 that ends its line or before a closing one that starts its line.
 
-- [ ] `blank.rs` names each whitespace run with three or more line breaks and writes two, outside the text nodes `space.rs` lists (`rule:tooling/fmt-at-most-one-blank-line`). `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/space.rs:82`
-- [ ] The run after a line that ends in `{`, `(` or `[`, and the run before a line that starts with `}`, `)` or `]`, carry one line break. `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/statement.rs:1`
-- [ ] The blank lines `rule:tooling/fmt-base-style-is-per` requires still win on their offset, as `print.rs` orders them now. `crates/nvs-fmt/src/print.rs:143`
-- [ ] Tests: three blank lines become one, a blank line after a method's `{` and before its `}` is deleted, and a heredoc's and a template's blank lines are kept. Run once by name with `cargo test --test base_style`. `crates/nvs-fmt/tests/base_style.rs:1`, `tests/fmt/input/blank.nvs:1`, `tests/fmt/formatted/blank.nvs:1`
+- [x] `blank.rs` names each whitespace run with three or more line breaks and writes two, outside the text nodes `space.rs` lists (`rule:tooling/fmt-at-most-one-blank-line`). `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/space.rs:82`
+- [x] The run after a line that ends in `{`, `(` or `[`, and the run before a line that starts with `}`, `)` or `]`, carry one line break. `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/statement.rs:1`
+- [x] The blank lines `rule:tooling/fmt-base-style-is-per` requires still win on their offset, as `print.rs` orders them now. `crates/nvs-fmt/src/print.rs:143`
+- [x] Tests: three blank lines become one, a blank line after a method's `{` and before its `}` is deleted, and a heredoc's and a template's blank lines are kept. Run once by name with `cargo test --test base_style`. `crates/nvs-fmt/tests/base_style.rs:1`, `tests/fmt/input/blank.nvs:1`, `tests/fmt/formatted/blank.nvs:1`
 
 ### 7. every binary operator chain breaks operator first, a nested one is one level in, and `.` keeps its lines
 
@@ -303,9 +303,12 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test --test
+Stages 1, 2 and 3 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test --test
 token_gaps` passes its 25 cases, the coverage test among them.
 
+- Blank lines: `blank::collapsed` (`crates/nvs-fmt/src/blank.rs:62`), pushed after `statement::runs`
+  (`crates/nvs-fmt/src/print.rs:157`) so every line-break stage wins on its offset. A run in a
+  `space::TEXT` node is skipped. `cargo test --test base_style` passes 10, and `blank.nvs` is green.
 - Types: `gap::runs` (`crates/nvs-fmt/src/gap.rs:180`) collects each written type's span with
   `nvs_syntax::written::written_types_in` (`crates/nvs-syntax/src/written.rs:35`), moved out of
   `nvs_lsp::definition`, which re-exports it. Type punctuation gets nothing (`gap.rs:311`).
@@ -314,23 +317,24 @@ token_gaps` passes its 25 cases, the coverage test among them.
   `crates/nvs-fmt/tests/token_gaps.rs:436`.
 - `every_formatted_corpus_file_lexes_to_its_inputs_token_kinds` (`crates/nvs-fmt/tests/corpus.rs:202`)
   passes over the corpus. It compares sorted kinds with the formatter's own rewrites undone.
-- The sweep's reds were stale: nightly `55b03e97a` predates the Miri fixes; `env-secret-proofs` is 0.
+- The sweep's reds are stale: nightly `55b03e97a` predates the Miri fixes; `env-secret-proofs` is 0.
 
 Expected red until stage 4: `crates/nvs-fmt/tests/identity.rs` and any `nvs-fmt` fixture whose text
-spaces a pair, a type or a unary another way. The LSP suites calling `written_types_in` were built,
+spaces a pair, a type or a unary another way, such as `tests/fmt/formatted/comments.nvs`'s two
+spaces before a trailing comment, and any corpus file with two blank lines in a row or one at a body's
+inside edge. The LSP suites calling `written_types_in` were built,
 not run; stage 6 runs them.
 
 ### Next
 
-**Stage 3: no two blank lines in a row, and none at the inside edge of a body**, one file set:
-`crates/nvs-fmt/src/blank.rs`, `crates/nvs-fmt/src/statement.rs`, `crates/nvs-fmt/tests/base_style.rs`,
-`tests/fmt/input/blank.nvs`, `tests/fmt/formatted/blank.nvs`. The items are the stage's own, under
-`### 3.` above.
+**Stage 7: every binary operator chain breaks operator first, a nested one is one level in, and `.`
+keeps its lines**, one file set: `crates/nvs-fmt/src/chain.rs`, `crates/nvs-fmt/tests/chain_layout.rs`.
+The items are the stage's own, under `### 7.` above; stages 8, 9 and 10 follow in the same file.
 
-- [ ] Each whitespace run in code with three or more line breaks writes two (`rule:tooling/fmt-at-most-one-blank-line`). `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/space.rs:82`
-- [ ] One line break after a line ending in `{`, `(` or `[`, and before a line starting with `}`, `)` or `]`. `crates/nvs-fmt/src/blank.rs:29`, `crates/nvs-fmt/src/statement.rs:1`
-- [ ] The blank lines `rule:tooling/fmt-base-style-is-per` requires still win on their offset. `crates/nvs-fmt/src/print.rs:143`
-- [ ] Tests, run once by name with `cargo test --test base_style`. `crates/nvs-fmt/tests/base_style.rs:1`
+- [ ] `OPERATORS` grows to every binary operator, read from the `Binary` node as `operator_of` reads it. `crates/nvs-fmt/src/chain.rs:91`, `crates/nvs-fmt/src/chain.rs:380`
+- [ ] A broken chain inside a broken chain opens one level in. `crates/nvs-fmt/src/chain.rs:555`, `crates/nvs-fmt/src/chain.rs:588`
+- [ ] A broken `.` chain breaks only where its author did, with the `.` first. `crates/nvs-fmt/src/chain.rs:400`
+- [ ] The crate doc, and the tests, run once by name with `cargo test --test chain_layout`. `crates/nvs-fmt/src/chain.rs:1`, `crates/nvs-fmt/tests/chain_layout.rs:1`
 
 ### Backlog
 

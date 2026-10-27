@@ -12,6 +12,7 @@ class Basket
     public function add(int $n): int
     {
         $this->count += $n;
+
         return $this->count;
     } // The end of `add`.
 

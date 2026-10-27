@@ -152,6 +152,9 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(statement::runs(&indent));
+    // The bound on blank lines comes after every stage that writes a line
+    // break, so a run one of them already decides is written as it says.
+    wanted.extend(blank::collapsed(&indent));
     // The space between two tokens comes last, so every stage above that
     // names the same byte wins over it.
     wanted.extend(gap::runs(parsed, text));

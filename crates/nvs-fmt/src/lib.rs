@@ -65,7 +65,8 @@
 //!   `catch` and `finally` on the closing brace's line, and `elseif` as one
 //!   word.
 //! - [`crate::blank`]: the blank line after `namespace`, after the `use` block
-//!   and between two members that each have a body.
+//!   and between two members that each have a body, never two in a row, and
+//!   none at the inside edge of a body or a list.
 //! - [`crate::modifiers`]: one canonical order for a declaration's modifiers.
 //! - [`crate::imports`]: the order a run of imports goes out in.
 //! - [`crate::list`]: a list on one line or one item per line.

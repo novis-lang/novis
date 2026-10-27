@@ -79,7 +79,7 @@ const QUALIFIERS: &[&str] = &["tainted", "secret"];
 /// inside a string literal looking exactly like a qualifier in front of a
 /// nullable type. The innermost node holding the byte is what tells them apart,
 /// and these are the kinds that answer "not code".
-const TEXT: &[&str] = &["Str", "Interpolated", "HtmlTemplate", "InlineHtml"];
+pub(crate) const TEXT: &[&str] = &["Str", "Interpolated", "HtmlTemplate", "InlineHtml"];
 
 /// Everything these rules require of `text`, which must be `index`'s and
 /// `trivia`'s own file: the run that has to precede an offset, by that offset.

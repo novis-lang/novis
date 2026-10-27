@@ -6,13 +6,19 @@ use Core\Arr;
 
 class Basket
 {
+
     public int $count = 0;
+
+
 
     public string $owner = '';
     public function add(int $n): int
     {
+
         $this->count += $n;
+
         return $this->count;
+
     } // The end of `add`.
     // `total` returns the number of items.
     public function total(): int

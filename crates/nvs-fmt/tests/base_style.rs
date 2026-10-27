@@ -295,3 +295,106 @@ if ($a) {
 ";
     assert_eq!(formatted(mangled), canonical);
 }
+
+/// Three blank lines in a row are one, between two statements and between two
+/// top-level declarations, and a single blank line the author left stands
+/// (`rule:tooling/fmt-at-most-one-blank-line`).
+#[test]
+fn a_run_of_blank_lines_is_one_blank_line() {
+    let mangled = "\
+<?nvs
+int $a = 1;
+
+
+
+int $b = 2;
+
+int $c = 3;
+
+
+class Cart
+{
+    public int $count = 0;
+}
+";
+    let canonical = "\
+<?nvs
+int $a = 1;
+
+int $b = 2;
+
+int $c = 3;
+
+class Cart
+{
+    public int $count = 0;
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+/// A blank line right after a body's `{` or a list's `(`, and right before its
+/// `}` or `)`, is deleted, and a blank line between two statements inside the
+/// body stands.
+#[test]
+fn a_body_has_no_blank_line_at_its_inside_edge() {
+    let mangled = "\
+<?nvs
+class Cart
+{
+
+    public function add(int $n): int
+    {
+
+        int $total = $n;
+
+        return sum(
+
+            $total,
+            1,
+
+        );
+
+    }
+
+}
+";
+    let canonical = "\
+<?nvs
+class Cart
+{
+    public function add(int $n): int
+    {
+        int $total = $n;
+
+        return sum(
+            $total,
+            1,
+        );
+    }
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+/// The blank lines inside a heredoc's body and an html template's body are
+/// text the program prints, so they are copied as they are.
+#[test]
+fn a_heredoc_and_a_template_keep_their_blank_lines() {
+    let source = "\
+<?nvs
+string $text = <<<'TEXT'
+one
+
+
+
+two
+TEXT;
+echo html`<p>
+
+
+
+</p>`;
+";
+    assert_eq!(formatted(source), source);
+}
