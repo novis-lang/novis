@@ -150,6 +150,16 @@ that guard them. A removed rule's fragment and data file are deleted, and every 
 rewritten (`bun nv rules --check`). The Declined entry on deriving a name is replaced by a Declined
 entry on a `name` field, with the reasons above.
 
+**The parser decides a bare reference by casing alone** (stage 2, decided by the session that built
+it). A name after `::` that starts with a lowercase letter is a method, so the parser builds the same
+`StaticCall { args: MethodRef }` node `(...)` built, and every later pass reads one shape. The
+checker fallback the first decision names was not needed: the casing rules leave no lowercase
+constant, enum case or nested type. The two new codes are parser codes, `E0136` for `(...)` on a
+class and `E0137` for a dropped reference, because both are decided from the tree alone.
+`Core\Test::assertCalled`'s reference still folds to the method's name and keeps `E0829`; it is marked
+in its own set, `Env::method_name_args`, apart from a retrieval target. Why: one node is the simplest
+change, and nothing downstream of the parser needed a new arm.
+
 **Lanes.** Stages 1 to 4 run in order: the rules first, then the parser and checker, then the route
 table and links, then the readers of the match. Stage 5 (editor) touches only `crates/nvs-lsp/` and
 `tests/lsp/` and may run as a side goal once stage 4 lands. Stage 6's batches of `.nvs` files are
@@ -183,12 +193,15 @@ and `.md` file that writes `Class::method(...)`; the grep `::[a-z]\w*\(\.\.\.\)`
 Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `tests/conformance/`,
 `benches/`, `crates/*/tests/fixtures/`), side by side, none of them building.
 
-- [ ] `ClassConstAccess` whose name is `camelCase` and resolves to a method of the class is a method reference everywhere, recorded as `ExprInfo::CallableRef` as the `(...)` form is now; the `Core\Test` special case in `note_method_ref_args` becomes the general rule. `crates/nvs-types/src/expr/members.rs:77`, `crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-types/src/expr/calls.rs:1498`
-- [ ] The member walk resolves a bare method name with `MemberKind::Method` when no constant has it. `crates/nvs-hir/src/members.rs:1286`, `crates/nvs-hir/src/members.rs:1469`
-- [ ] `Class::method(...)`, `self::method(...)` and `static::method(...)` are refused with a new code and a fix that drops the `(...)`; `$obj->method(...)` is unchanged. `crates/nvs-syntax/src/parser/expr.rs:1132`, `crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-diagnostics/src/code/types_e07.rs:1`
-- [ ] A method reference as an expression statement is refused with a new code and the fix `Class::method()`; a reference where a non-callable type is expected adds the same hint to its message. `crates/nvs-types/src/expr/calls.rs:1`
-- [ ] Conformance cases: a bare reference called through a variable, `self::` and `static::` references, the refused `(...)` form, and the dropped reference. `tests/conformance/core/a-bare-method-reference-is-a-callable.nvst:1`, `tests/conformance/reject/a-static-method-reference-with-dots-is-refused.nvst:1`, `tests/conformance/reject/a-dropped-method-reference-is-refused.nvst:1`
+- [x] `ClassConstAccess` whose name is `camelCase` and resolves to a method of the class is a method reference everywhere, recorded as `ExprInfo::CallableRef` as the `(...)` form is now; the `Core\Test` special case in `note_method_ref_args` becomes the general rule. `crates/nvs-types/src/expr/members.rs:77`, `crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-types/src/expr/calls.rs:1498`
+- [x] The member walk resolves a bare method name with `MemberKind::Method` when no constant has it. `crates/nvs-hir/src/members.rs:1286`, `crates/nvs-hir/src/members.rs:1469`
+- [x] `Class::method(...)`, `self::method(...)` and `static::method(...)` are refused with a new code and a fix that drops the `(...)`; `$obj->method(...)` is unchanged. `crates/nvs-syntax/src/parser/expr.rs:1132`, `crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-diagnostics/src/code/types_e07.rs:1`
+- [x] A method reference as an expression statement is refused with a new code and the fix `Class::method()`; a reference where a non-callable type is expected adds the same hint to its message. `crates/nvs-types/src/expr/calls.rs:1`
+- [x] Conformance cases: a bare reference called through a variable, `self::` and `static::` references, the refused `(...)` form, and the dropped reference. `tests/conformance/core/a-bare-method-reference-is-a-callable.nvst:1`, `tests/conformance/reject/a-static-method-reference-with-dots-is-refused.nvst:1`, `tests/conformance/reject/a-dropped-method-reference-is-refused.nvst:1`
 - [ ] The corpus rewrite in **Split**. `docs/examples/lang/expressions/calls/04-every-way-to-write-a-call.nvs:1`
+  - [x] every `.nvs`, `.nvst` and Rust test source, and every diagnostic's help, writes the bare form
+  - [ ] every `.md` under `docs/` that shows a reference writes the bare form; a call with elided arguments keeps `(...)`
+  - [ ] every website page under `website/src/content/docs/` does too, and the generated `website/src/data/core.json` and `website/public/llms-full.txt` are written again
 
 ### 3. `#[Route]` has no `name`, and a link names its route by a method reference
 
@@ -256,35 +269,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done: the rules state the design, and the code still writes the old one. Every rule this
-goal changes is `designed` with `"goal": "routes-by-method"` (30 records, `grep -l routes-by-method
-data/rules/*/*.json`). Three rules were renamed, `a-method-is-one-endpoint-everywhere`,
-`link-target-and-params-are-checked` and `route-label-is-the-path-pattern`, and every citation of the
-old ids in code, tests and docs was rewritten by id. The shared-name rule was deleted, and its
-citations in `crates/nvs-types/src/routes.rs` and `crates/nvs-types/tests/routes.rs` now point at
-`rule:routing/routes-are-compiled-not-registered`. Their comments still describe a shared `name`, and
-stage 3 rewrites them with the code. `bun nv rules --check` is clean, and the chapters are rendered.
+Stage 1 is done. Stage 2's compiler change and its code corpus are done (`64ac447d5`, `5f7719c6b`);
+only the prose half of its corpus rewrite is left. The parser reads a lowercase name after `::` as a
+method reference (`crates/nvs-syntax/src/parser/expr.rs`, `names_a_method`), refuses `Class::method(...)`
+with `E0136` and a dropped reference with `E0137` (`crates/nvs-diagnostics/src/code/parser.rs`), and a
+reference where a non-callable type is expected names the call in its `E0401` help
+(`crates/nvs-types/src/expr/assign.rs`, `uncalled_method_help`). The standing decision *The parser
+decides a bare reference by casing alone* records why there is no checker fallback.
 
-Two choices the rules settle beyond the standing decisions: `#[Api]`'s `operationId` takes the verb
-suffix like the derived id when a method serves several verbs, and a duplicate `operationId` is
-`E0771` (`docs/rules/attributes/api-adds-and-cannot-contradict.md:20`). The spawn, upgrade, worker,
-structural-retrieval, `static` and enum rules now write the bare `Class::method` form, so stage 2's
-checker change covers their entry operands and `Core\Attributes::get<T>(Class::method)` too.
-`parent::constructor(...)`, `Category::find(...)` and `$cls::f(...)` in the rules are calls with
-elided arguments, not references, and stay.
+Every `.nvs`, `.nvst` and Rust test source, and every diagnostic help that names the reference form,
+writes the bare form. A call with elided arguments keeps `(...)`: `parent::constructor(...)` in the
+`E0885`/`E0410` messages, `Core\Html::escape(...)`, `Core\Cli\Text::plain(...)`,
+`Core\Secret::reveal(...)`, and `Bench::run(...)` in `tools/nv/cmd/scaling.ts`. The four new and
+rewritten conformance cases and the 56 rewritten `.nvst` files pass on a debug build; every rewritten
+`.nvs` compiles but the two that show an error on purpose, whose `.out` files were blessed again.
 
-No tests are expected red: the only code edits are rule-id citations in comments.
+Expected red until the next slice: none from the code. The Rust test files with rewritten Novis source
+(`crates/nvs-types/tests/attributes.rs`, `isolates.rs`, `core_members.rs`, `paths.rs`,
+`crates/nvs-ir/tests/callable_names.rs`, `crates/nvs-lsp/tests/index.rs`, `navigation.rs`,
+`crates/nvs-cli/tests/spawn_entry.rs`) were not run; a column or a span they assert may have moved by
+the five bytes `(...)` took. The `docs`/website pages still show `Class::method(...)`, which the
+proofs gate and the website render may name.
 
 ### Next
 
-**Stage 2: the bare method reference**, files `crates/nvs-syntax/src/parser/expr.rs`,
-`crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/members.rs`,
-`crates/nvs-hir/src/members.rs`, `crates/nvs-diagnostics/src/code/types_e07.rs`.
+**Stage 2, the prose half of the corpus rewrite**, then stage 3.
 
-- [ ] A `camelCase` `ClassConstAccess` that resolves to a method is a method reference, recorded as `ExprInfo::CallableRef`; `note_method_ref_args`' `Core\Test` case becomes the general rule. `crates/nvs-types/src/expr/members.rs:77`, `crates/nvs-types/src/expr/calls.rs:225`
-- [ ] The member walk resolves a bare method name when no constant has it. `crates/nvs-hir/src/members.rs:1286`
-- [ ] `Class::method(...)`, `self::method(...)` and `static::method(...)` are refused with a new code and a fix that drops `(...)`. `crates/nvs-types/src/expr/calls.rs:240`
-- [ ] A dropped reference as a statement is refused with the fix `Class::method()`, and the non-callable type error adds the hint. `crates/nvs-types/src/expr/calls.rs:1`
-- [ ] The three conformance cases, then the corpus rewrite in stage 2's **Split**, which also covers the `spawn script`, `Socket::upgrade`, `on worker` and `Core\Attributes::get` operands. `tests/conformance/reject/a-dropped-method-reference-is-refused.nvst:1`
+- [ ] Every `.md` under `docs/` that writes `Class::method(...)` as a reference writes the bare form: the reference chapters, `about.md` and `details.md`, the agent docs and the playbook. A call with elided arguments (`parent::constructor(...)`, `Category::find(...)`, `$cls::f(...)`) keeps it. `git grep -lE '::[a-z][A-Za-z0-9_]*\(\.\.\.\)' -- '*.md'` lists 52; `docs/rules/` is done already. `docs/reference/lang/90-attributes.md:1`
+- [ ] Every website page under `website/src/content/docs/` does too, then the generated `website/src/data/core.json` and `website/public/llms-full.txt` are written again by their generator. `website/src/content/docs/syntax/operators/pipeline.mdx:1`, `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:1`
+- [ ] Set stage 2 `done`, then stage 3: `#[Route]` loses `name`, and a link takes a method reference. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-types/src/links.rs:156`
 
 ### Backlog

@@ -132,6 +132,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   compile also exits `1`, so `--bless` writes an empty `.out` and the proof passes. Run such an
   example once with `target/debug/nvs.exe run <file>` before trusting what `--bless` wrote.
   `until: gone tools/nv/cmd/proofs.ts:--bless`
+- **A rewrite of `Class::method(...)` by pattern also hits a call written with elided arguments.**
+  A diagnostic or a `--TEST--` line that says `parent::constructor(...)`, `Core\Html::escape(...)` or
+  `Bench::run(...)` means the call, and dropping the `(...)` there changes what it says. Rewrite from
+  `git show HEAD:<file>` with a list of the calls to keep, then run the touched cases once. See
+  `crates/nvs-syntax/src/parser/expr.rs`. `until: gone crates/nvs-syntax/src/parser/expr.rs:names_a_method`
 
 ## Splitting a file
 
