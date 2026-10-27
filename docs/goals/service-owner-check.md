@@ -295,7 +295,9 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Every stage is done. The third full verify is green (`bun tools/looper/main.ts verify`, 536 s), and
+Every stage is done. The floor check `floor-debt` was red after the last DONE: commits landed on the
+tree while it ran, and it left four `tools/nv/test/` atoms owed. Those four pass by name (89 pass), and
+`bun tools/looper/main.ts check --name floor-debt` is now green with nothing left owed. The third full verify is green (`bun tools/looper/main.ts verify`, 536 s), and
 so are `bun nv verify --doc`, `bun nv owners --closes service-owner-check`, `bun nv ci --check` and
 the goal's two proof gates. `ci --check` first found four website pages whose search questions were
 stale after stages 4 and 5; their questions are rewritten and stamped. The decisions only this file
