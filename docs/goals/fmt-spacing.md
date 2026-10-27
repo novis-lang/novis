@@ -341,6 +341,8 @@ Every stage is done, and the goal is reached.
 - Stages 4 and 5: the corpus is formatted (8153 files, 1926 pages), and the seven rules are `shipped`.
 - The sweep's reds were stale again: the nightly ran at 09:33 +0100 on `55b03e97a`, before the Miri
   fixes (`22f1e4ec4`, `e461612ce`, `c33a8b8f7`), and `proofs --gate --only "Core\Env::secret"` exits 0.
+- The refused DONE's `floor-debt` left one Ldap hostile proof owed with no red run; it is green
+  now, and `looper check --name floor-debt` passes.
 
 No test is expected red.
 
