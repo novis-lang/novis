@@ -104,21 +104,20 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `55b03e97a`. Its push run 40455321666 and its Website run 40455321488 are
-green. Its nightly deep lane run 40474302703 failed three Miri jobs, all fixed and committed, out
-with the next goal end's push:
+`origin/main` is at `1467fa8f6`. Its push run 40484733037 and its Website run 40484733002 are
+green. The namespace-grants goal end's push was refused on a stale editor page (`a7e387aea`) and a
+rustfmt diff in `nvs-lsp/src/server.rs` (`1467fa8f6`); both are fixed and this session pushed. It
+carries the three Miri skips of nightly run 40474302703, which the next nightly checks.
 
-- `22f1e4ec4`: `json.rs:secret_spans_names_each_value_a_secret_property_takes` uses the spare
-  stack, whose `mmap(PROT_NONE)` Miri does not support. It is skipped under Miri.
-- `e461612ce`, `c33a8b8f7`: two `spool.rs` tests render megabytes and timed out at 300 s, so they
-  are skipped. `the_wake_runs_when_a_file_opens_and_not_on_each_record` passed `SEAL_AFTER` in real
-  time, and now counts wakes against the files in the folder.
+`proofs / windows-x86_64` passed every step, then hung in `Post Run actions/checkout` until the
+1h30 job limit, and a rerun went green. Earlier runs spend 3 s in that step. A second such hang is
+not noise: look for a process the proofs leave running that holds the checkout.
 
-A new test that renders megabytes or uses the spare stack needs the same skip. `2bcc7da11`, a
-`Core\Cap::has` bench that declares its one Core call, waits for the push too.
+`6178594a4`, not pushed: `bun nv ci` counts a cancelled run on `origin/main`'s commit as red, and
+prints a cancelled job's annotations. Before it, `--watch` passed over the timed-out run and reported
+the old nightly one.
 
-`bun nv site --check stale questions` is green at `22f1e4ec4`'s parent. `bun nv proofs --gate
---limit 0` owes four `Core\Config` figures, stale from the main loop's uncommitted `config.rs` edit.
+A new test that renders megabytes or uses the spare stack needs the Miri skip.
 
 `.agent-tmp/wt-*` are stray folders Windows keeps while looper runs. `wt-csv/target` is a warm
 target dir with a release `nvs.exe` at `7d7e7dd37`. Delete them all once looper is stopped.
@@ -128,7 +127,7 @@ target dir with a release `nvs.exe` at `7d7e7dd37`. Delete them all once looper 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  Run 40455321666 on `55b03e97a` is green. If `tsan`'s allocation test fails
+  Run 40484733037 on `1467fa8f6` is green. If `tsan`'s allocation test fails
   again with a different batch off by one, the first-use allocation is elsewhere on the core:
   compare `crates/nvs-host/src/scheduler.rs:Scheduler::new`'s empty collections with the parked path.
   If the cache dir test fails again, the edit is now one rename, so print `artifacts(&dir("two"))`
