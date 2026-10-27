@@ -27,7 +27,7 @@ stages:
         rules: [packaging/a-service-runs-as-a-virtual-account, packaging/the-installer-is-a-sink, config/the-ownership-check-runs-where-it-can-be-answered]
   - id: 4
     title: the website and the reference pages say which account each command checks for
-    status: open
+    status: done
     context: [website/src/content/docs/install/server.mdx, website/src/content/docs/guides/production/run-as-a-service.mdx, docs/examples/tools/install/what-novis-checks/about.md, docs/examples/tools/server/nvs-service/about.md, docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md]
   - id: 5
     title: "`nvs service status` on a stopped service prints its last run's diagnostic"
@@ -251,12 +251,12 @@ and a second writes the two reference `about.md` files and the example; their fi
 are held to AGENTS.md § *Text an end user reads*, and each runs `bun nv proofs --comments` on the
 `.nvs` files it wrote.
 
-- [ ] `## What Novis checks`: the owner row says "the account the server runs as", the command table gains `nvs service install`, `nvs service status` and `nvs config check --as`, and `## When the check fails` says to run `nvs config check --as <account>` before a service starts. `website/src/content/docs/install/server.mdx:113`, `website/src/content/docs/install/server.mdx:217`
-- [ ] The install example's about page matches the table. `docs/examples/tools/install/what-novis-checks/about.md:1`
-- [ ] The service guide: install refuses a configuration its account would refuse, and status prints the error. `website/src/content/docs/guides/production/run-as-a-service.mdx:92`
-- [ ] The `nvs service` reference page says what install and status check. `docs/examples/tools/server/nvs-service/about.md:1`
-- [ ] The `nvs config check` reference page documents `--as` and its limits, with one example that shows it. `docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md:1`, `docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/02-check-a-configuration-for-the-service-account.nvs:1`
-- [ ] `bun nv proofs --id 'tools:cli/nvs-config-check-and-nvs-config-dump'` and `--id 'tools:server/nvs-service'` owe nothing, each Rust test from stages 2 and 3 is in its feature's list, and `bun nv render --website` is rerun. `website/src/data/reference.json:1063`
+- [x] `## What Novis checks`: the owner row says "the account the server runs as", the command table gains `nvs service install`, `nvs service status` and `nvs config check --as`, and `## When the check fails` says to run `nvs config check --as <account>` before a service starts. `website/src/content/docs/install/server.mdx:113`, `website/src/content/docs/install/server.mdx:217`
+- [x] The install example's about page matches the table. `docs/examples/tools/install/what-novis-checks/about.md:1`
+- [x] The service guide: install refuses a configuration its account would refuse, and status prints the error. `website/src/content/docs/guides/production/run-as-a-service.mdx:92`
+- [x] The `nvs service` reference page says what install and status check. `docs/examples/tools/server/nvs-service/about.md:1`
+- [x] The `nvs config check` reference page documents `--as` and its limits, with one example that shows it. `docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md:1`, `docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/02-check-a-configuration-for-the-service-account.nvs:1`
+- [x] `bun nv proofs --id 'tools:cli/nvs-config-check-and-nvs-config-dump'` and `--id 'tools:server/nvs-service'` owe nothing, each Rust test from stages 2 and 3 is in its feature's list, and `bun nv render --website` is rerun. `website/src/data/reference.json:1063`
 
 ### 5. `nvs service status` on a stopped service prints its last run's diagnostic
 
@@ -288,34 +288,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Install judges its `--config` files through `judge` and
-`registration::judge_files` (`crates/nvs-cli/src/service.rs:2260`). `nvs service status`
-(`crates/nvs-cli/src/service.rs:4493`) prints the manager's state, and then `status_of`
-(`crates/nvs-cli/src/service.rs:4526`) judges every stored `--config` for `stored.account`. `E0607` is
-an error with exit `1`. `E0605` (a file this prompt cannot read) is turned into a warning, with a help
-that names an administrator prompt or `sudo`, and the exit is `0`. A manager whose `stored` is
-`Unsupported` gives the state alone. `Recording::holding(Stored)` seeds the case
-`status_on_a_stored_service_judges_its_configuration_for_its_account`, green on Windows and in WSL.
-On Windows, `data.rs`'s top folder names `O:BA` when `trust::administrator()` is true, and
-`data::give_to_administrators` (`crates/nvs-config/src/data.rs:619`) sets that owner on the template
-`config::write_default_in` writes and on a refreshed template. The test
-`a_folder_an_administrator_creates_passes_for_the_service_accounts` judges for `LocalSystem` and
-`NT SERVICE\Shop` only on an elevated token. This prompt is not elevated, so only CI's elevated
-Windows runner exercises that branch. Its first run there is the proof. The ownership-check rule says
-what install and status do, and is rendered. The acceptance sweep's Miri failures and
-`env-secret-proofs` came from a run on `55b03e97a`, before `e461612ce`, `c33a8b8f7` and `22f1e4ec4`.
-The check is green now. No test is expected to go red.
+Stages 1 to 4 are done. Install and status judge the stored `--config` files for the service's
+account (`status_of`, `crates/nvs-cli/src/service.rs:4526`). Stage 4's pages say so:
+`website/src/content/docs/install/server.mdx` has the three new command rows and a
+`### Check for another account` section, and `run-as-a-service.mdx` has
+`## The installer checks the configuration` and status's check under *Start, stop and check*. The
+`nvs config check` reference page documents `--as`, and its example
+`02-check-a-configuration-for-the-service-account.nvs` runs under the folder's `nvs.toml`. Both
+features owe nothing, and `a_folder_an_administrator_creates_passes_for_the_service_accounts`
+(`crates/nvs-config/src/data.rs:913`) now covers `tools:server/nvs-service`. `reference.json` reads
+each `about.md` in place, so `bun nv render --website` had nothing to write. The sweep's
+`env-secret-proofs` is green on this tree. Its Miri reds came from the CI run on `55b03e97a`, before
+the fixes the last handoff named. The release binary lacks `--as` until `bun nv relink --build`. No
+test is expected to go red.
 
 ### Next
 
-**Stage 4: the website and the reference pages**, docs only. Follow the stage's `**Split:**` line:
-two writing subagents with disjoint files, each held to AGENTS.md § *Text an end user reads*. The
-stage's items are the list, and each one names its anchor. What the pages say about status: it prints
-the state, then the boot's `E0607` for a file the service's account would refuse, and exits `1`. A file
-the prompt cannot read is a warning. What they say about install: it refuses with that `E0607` before
-it changes anything, `--dry-run` included. On Windows an elevated install's data folder is owned by
-`Administrators`. Stage 5's last-run reading comes after this stage. Leave its sentences out of the
-pages for now.
+**Stage 5: `nvs service status` on a stopped service prints its last run's diagnostic.** One session,
+`crates/nvs-cli/src/service.rs` alone plus the rule and two pages. Anchors have moved since the stage
+was written: the `registration` control enum's `Status` is at `crates/nvs-cli/src/service.rs:2093`,
+each manager's `stored` at `crates/nvs-cli/src/service.rs:2137` (Linux), `:3152` and `:4228`, the
+Windows `QueryServiceStatusEx` call at `crates/nvs-cli/src/service.rs:4140`, status's entry at
+`crates/nvs-cli/src/service.rs:4526`, and the argv-pinning test's `Status` row at
+`crates/nvs-cli/src/service.rs:6783`. Add the last-run method beside `stored`, with a default that
+returns nothing, then the Windows and Linux readers, then status's print and the pure selection
+function with its test. The page sentences go in `docs/examples/tools/server/nvs-service/about.md`,
+which is at 198 of its 200 words, so a sentence goes out for each one that comes in, and in
+`run-as-a-service.mdx` under *Start, stop and check*.
 
 ### Backlog
 

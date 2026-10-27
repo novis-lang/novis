@@ -908,6 +908,7 @@ mod tests {
     /// The folder an elevated install creates, and the `nvs.toml` it writes there, pass the check for
     /// `LocalSystem` and for a virtual account, because their owner is `Administrators`. A token
     /// that is not an administrator's owns them itself, and they pass for that account.
+    // covers: tools:server/nvs-service
     #[cfg(windows)]
     #[test]
     fn a_folder_an_administrator_creates_passes_for_the_service_accounts() {

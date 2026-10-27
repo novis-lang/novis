@@ -1,15 +1,19 @@
 Novis checks who owns a configuration file or a cache folder, and who can write to it.
 
-A configuration file can allow a program to read files, open network connections and start other
-programs. An account that can change the file can allow itself all of that. The same is true for
-the compile cache, because Novis runs the compiled programs it finds there.
+A configuration file can allow a program to read files and start programs. An account that can
+change the file can allow itself all of that.
 
-A path passes the check when its owner is the account that runs `nvs` or an administrator, and no
-group of ordinary accounts can write to it. `nvs serve` checks every configuration file and its
-folder when it starts, and again after each save. When that check fails, the error is `E0607`.
-`nvs init` checks the folder it writes into and the folder one level up. The cache folder and the
-data folder get the same check. When it fails, `nvs` prints a `warning:` line and the program still
-runs. The default data folder, `.nvsdata`, is checked without the folder of `nvs`.
+A path passes the check when its owner is the account the server runs as or an administrator, and
+no group of ordinary accounts can write to it. A failed check is the error `E0607`.
+
+- `nvs serve` checks every configuration file and its folder at the start and after each save.
+- `nvs service install` and `nvs service status` check every `--config` file for the service's
+  account. A failed check stops the install before it changes anything.
+- `nvs config check --as <account>` checks for the account you name. Run it before a service starts.
+- `nvs init` checks the folder it writes into and the folder above it.
+
+The cache and data folders get the same check. When it fails, `nvs` prints a `warning:` and the
+program still runs.
 
 **Good to know:** Novis never checks who can read or run something.
 

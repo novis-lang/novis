@@ -121,7 +121,7 @@ file. A file or folder passes the check when both of these are true:
 
 | | Windows | Linux and macOS |
 |---|---|---|
-| The owner is | the account that runs `nvs`, `Administrators` or `SYSTEM` | the account that runs `nvs`, or `root` |
+| The owner is | the account the server runs as, `Administrators` or `SYSTEM` | the account the server runs as, or `root` |
 | Nobody else can write | `Everyone`, `Authenticated Users`, `Users`, `Guests` and `ANONYMOUS LOGON` cannot write to it | the group and others have no write permission |
 
 A permission for one named account, for example your own, passes the check.
@@ -129,12 +129,36 @@ A permission for one named account, for example your own, passes the check.
 | Command | Checks | If the check fails |
 |---|---|---|
 | `nvs serve`, at the start and each time a configuration file is saved | every configuration file, and its folder | the error is `E0607`. At the start, the server does not start. After a save, the server keeps its current settings |
+| `nvs service install`, also with `--dry-run` | every `--config` file, for the account the service runs as | the error is `E0607`, and nothing is changed. With `--dry-run`, the exit status is `1` |
+| `nvs service status` | every `--config` file, for the account the service runs as | the error is `E0607`, and the exit status is `1` |
+| `nvs config check --as <account>` | the configuration files, for the account you name | the error is `E0607` |
 | `nvs init` | the folder it writes into, and the folder above it | nothing is written, and the exit status is `1` |
 | `nvs run`, `nvs serve`, `nvs test`, `nvs build`, `nvs check`, `nvs lsp` | the data folder. For a folder that `--data` names, also the folder above it | one warning. The command runs without the data folder |
 | every command that compiles a program | the cache folder, and the folder above it | a warning. The program runs, but it is compiled again every time |
 
-`nvs run`, `nvs check` and `nvs test` do not check the configuration files. The log folder is
-not checked.
+`nvs run`, `nvs check` and `nvs test` do not check the configuration files. `nvs config check`
+without `--as` does not check the owner. The log folder is not checked.
+
+A service runs as the account that `--account` names. Without `--account`, it runs as `LocalSystem`
+on Windows and as `root` on Linux. A configuration file that does not exist yet passes the
+install check, because the installer writes it. When `status` cannot read a file from your
+terminal, it prints a warning, and the exit status stays `0`. A file in a private folder is an
+example. Use an administrator terminal or `sudo` to check it.
+
+### Check for another account
+
+`nvs config check --as <account>` runs the check for the named account on this machine:
+
+| | Windows | Linux and macOS |
+|---|---|---|
+| `<account>` is | an account name, `LocalSystem`, or `NT SERVICE\<service>` | a user name or a uid |
+
+`NT SERVICE\<service>` works before the service exists. A name that the machine does not know
+gives the error `E0662`.
+
+The command checks the files on this machine as they are now. It does not see the copy that a
+running server already read. It does not see a read-only mount in a container. It does not see a
+deploy step that changes an owner later.
 
 The default data folder, `.nvsdata` next to `nvs`, is checked alone. The folder above it is the
 folder of the `nvs` program, and Novis does not check that folder. An account that can change it
@@ -221,10 +245,17 @@ the folder you were working in. For example, if `D:\srv\novis\config` is correct
 `D:\srv\novis` is not, the message names `D:\srv\novis`. The `help:` line under the message
 prints the command to run, with the path filled in.
 
+**Run `nvs config check --as <account>` before a service starts.** Use the account the service
+runs as. Then you see the failure before the start, and you can fix it first:
+
+```sh
+nvs config check --as shop
+```
+
 | Message | What to do |
 |---|---|
 | `... grants write access to ...`, `... is group-writable` or `... is world-writable` | Remove the write permission from the named path. On Windows, the message prints the SID to use. |
-| `... is owned by ..., which is neither this account ...` | Make the owner the account that runs `nvs`, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator**. |
+| `... is owned by ..., which is neither this account ...` | Make the owner the account the server runs as, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator**. |
 | `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file. Edit it, or delete it and run `nvs init` again. |
 | `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |

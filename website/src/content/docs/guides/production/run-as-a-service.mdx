@@ -41,6 +41,25 @@ To use another configuration file, name it with a full path:
 nvs service install shop -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
 ```
 
+## The installer checks the configuration
+
+A server checks who owns its configuration file, and it does not start when the check fails. So
+the installer runs that check on every `--config` file, for the account the service runs as. The
+account is the one that `--account` names. Without `--account`, it is `LocalSystem` on Windows and
+`root` on Linux.
+
+A file passes when its owner is that account or an administrator, and no group of ordinary
+accounts can write to it. If a file fails, the installer stops with the error `E0607` and changes
+nothing. The `help:` line under the error prints the command that fixes it. `--dry-run` runs the
+same check, prints the same error, and the exit status is `1`.
+
+A `--config` file that does not exist yet passes, because the installer writes it. On Windows,
+the installer runs as administrator, so `Administrators` owns the data folder it creates. Every
+service account accepts that folder.
+
+To run the same check without the installer, use
+[`nvs config check --as <account>`](/install/server/#check-for-another-account).
+
 ## What the service account can change
 
 With `--account`, the service runs as that account. The account can read the data folder and
@@ -98,8 +117,16 @@ nvs service stop shop
 ```
 
 A stop finishes the requests that are running, and then the server exits. `status` prints the state
-of the service and the number of requests that are running. `nvs service run shop` runs the same
-command in your terminal, so you can read the error when the service does not start.
+of the service and the number of requests that are running.
+
+Then `status` checks every `--config` file for the account the service runs as. This is the same
+check that the installer runs. A file that the account would not accept prints the error `E0607`,
+and the exit status is `1`. A file that your terminal cannot read prints a warning, and the exit
+status stays `0`. A file in a private folder is an example. Run `status` in an administrator
+terminal or with `sudo` to check it.
+
+`nvs service run shop` runs the same command in your terminal, so you can read the error when the
+service does not start.
 
 ## Useful options
 
