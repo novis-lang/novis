@@ -1,0 +1,11 @@
+--TEST--
+a run of `//` lines whose last character is `—`, three bytes in UTF-8, folds through its last line like any other run, `rule:ide/positions-have-one-home`
+--FILE--
+<?nvs
+// a link with a signature, and the check —
+// a second line that also ends in one —
+class Link { }
+--REQUEST--
+foldingRange
+--EXPECT--
+2-3 comment

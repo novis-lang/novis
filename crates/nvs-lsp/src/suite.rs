@@ -602,7 +602,7 @@ fn hover(analysed: &Analysed, offset: BytePos) -> Response {
 /// [`crate::folding::for_document`] is the same call the server makes, on an
 /// analysis produced the same way.
 fn folding_range(analysed: &Analysed) -> Response {
-    Response::FoldingRange(folding::for_document(analysed, COLUMNS))
+    Response::FoldingRange(folding::for_document(analysed))
 }
 
 /// `textDocument/documentLink` — every `require` and `autoload` written path

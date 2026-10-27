@@ -56,22 +56,21 @@
 //! or not it is legal, and the diagnostic is what says it is refused.
 
 use lsp_types::{FoldingRange, FoldingRangeKind};
-use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
+use nvs_diagnostics::{BytePos, SourceFile, Span};
 use nvs_syntax::ast::{
     Block, ClassMember, ClassMemberKind, MethodMember, PropertyHookBody, Stmt, StmtKind,
 };
 use nvs_syntax::{Trivia, TriviaKind};
 
 use crate::document::Analysed;
-use crate::position::position_at;
 
-/// Every range the entry document of `analysed` folds at, in `encoding`.
+/// Every range the entry document of `analysed` folds at, as whole lines.
 ///
 /// Sorted by where a range starts and then where it ends, so what a `.lspt`
 /// case freezes is the document's shape rather than the order this walk
 /// happened to reach two constructs in.
 #[must_use]
-pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<FoldingRange> {
+pub fn for_document(analysed: &Analysed) -> Vec<FoldingRange> {
     let Some(loaded) = analysed
         .loaded
         .iter()
@@ -81,7 +80,6 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Fold
     };
     let mut walk = Walk {
         file: analysed.map.file(analysed.entry),
-        encoding,
         found: Vec::new(),
     };
     walk.stmts(&loaded.stmts);
@@ -95,10 +93,6 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Fold
 struct Walk<'a> {
     /// The entry file, whose text says where its lines begin.
     file: &'a SourceFile,
-    /// The units a column is counted in — carried because
-    /// [`position_at`] answers a whole [`lsp_types::Position`] and
-    /// `rule:ide/positions-have-one-home` owns the arithmetic, not this module.
-    encoding: PositionEncoding,
     /// The ranges so far, in walk order until [`for_document`] sorts them.
     found: Vec<FoldingRange>,
 }
@@ -343,7 +337,12 @@ impl Walk<'_> {
     }
 
     /// Which line `offset` is on, 0-based as the wire counts them.
+    ///
+    /// Any byte offset, including one inside a character: a span's last byte,
+    /// `span.end - 1`, is one whenever the span ends with a multi-byte
+    /// character, as a comment ending in `—` does. A fold has no column, so
+    /// the line is all this asks of `rule:ide/positions-have-one-home`'s home.
     fn line(&self, offset: BytePos) -> u32 {
-        position_at(self.file, offset, self.encoding).line
+        u32::try_from(self.file.line_index(offset)).unwrap_or(u32::MAX)
     }
 }

@@ -713,7 +713,7 @@ fn answer(
         FoldingRangeRequest::METHOD => match serde_json::from_value::<FoldingRangeParams>(params) {
             Ok(params) => Response::new_ok(
                 id,
-                folding_range(documents, encoding, &params.text_document.uri),
+                folding_range(documents, &params.text_document.uri),
             ),
             Err(error) => unreadable(id, &method, &error),
         },
@@ -1018,14 +1018,10 @@ fn document_symbol(
 /// [`document_symbol`]'s terms. The walk is [`folding::for_document`], which
 /// the `.lspt` suite calls too, so what an editor folds and what a case freezes
 /// cannot drift apart.
-fn folding_range(
-    documents: &Documents,
-    encoding: PositionEncoding,
-    uri: &Uri,
-) -> Vec<FoldingRange> {
-    documents.analysed(uri).map_or_else(Vec::new, |analysed| {
-        folding::for_document(&analysed, encoding)
-    })
+fn folding_range(documents: &Documents, uri: &Uri) -> Vec<FoldingRange> {
+    documents
+        .analysed(uri)
+        .map_or_else(Vec::new, |analysed| folding::for_document(&analysed))
 }
 
 /// `textDocument/semanticTokens/full` — what every name in one open document
