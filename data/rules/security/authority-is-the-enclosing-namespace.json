@@ -1,12 +1,14 @@
 {
   "title": "Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/grants-are-keyed-on-a-namespace",
     "security/longest-prefix-wins",
     "security/an-unmatched-namespace-holds-the-application",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": [],
-  "goal": "namespace-grants"
+  "guardedBy": [
+    "tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst",
+    "tests/conformance/cap/grants-an-anonymous-function-keeps-the-namespace-it-was-written-in.nvst"
+  ]
 }

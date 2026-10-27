@@ -1,11 +1,13 @@
 {
   "title": "A dependency's authority is granted by the application one line at a time, and a declaration grants nothing",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",
     "security/grants-are-keyed-on-a-namespace",
     "security/no-runtime-grant"
   ],
-  "guardedBy": [],
-  "goal": "namespace-grants"
+  "guardedBy": [
+    "tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst",
+    "tests/conformance/cap/grants-a-package-lowers-a-limit-and-never-raises-one.nvst"
+  ]
 }

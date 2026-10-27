@@ -43,7 +43,3 @@ namespace that inherits the standard library's own authority.
   route. For a fetched package the clause would also sit in a generated file marked *do not edit*,
   it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
   the clause has no single namespace to attach to.
-
-**Partly on disk.** `nvs_config::grants` reads the table, refuses an unknown capability (`E0655`) and a
-key under `Core` (`E0657`), and its lines fold into every unit's key. Nothing reads the table while
-compiling yet, and no call site is checked against it.

@@ -1,6 +1,6 @@
 {
   "title": "A capability is required or optional, and only a required one refuses to build",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/no-runtime-grant",
     "security/capability-roster-is-closed",
@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-capability-query-answers-the-grant-table-both-ways.nvst",
-    "tests/conformance/core/a-capability-query-refuses-a-name-no-grant-can-hold.nvst"
-  ],
-  "goal": "namespace-grants"
+    "tests/conformance/core/a-capability-query-refuses-a-name-no-grant-can-hold.nvst",
+    "tests/conformance/cap/grants-an-optional-capability-throws-where-it-is-not-granted.nvst"
+  ]
 }

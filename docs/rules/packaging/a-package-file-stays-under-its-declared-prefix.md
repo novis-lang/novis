@@ -27,5 +27,3 @@ The file's package is found from its real path: the nearest `package.toml` with 
 between the file and the entry's directory. So an autoloaded file, a file a `discover` glob found and
 a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.rs`). The diagnostic is
 `E0660`, and a manifest whose name is not `Vendor\Package` is `E0659`.
-
-**Not on disk.** The rule has no feature proofs yet.

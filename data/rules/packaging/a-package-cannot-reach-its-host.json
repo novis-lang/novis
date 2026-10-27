@@ -1,11 +1,12 @@
 {
   "title": "A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "config/nvs-toml-is-not-a-project-manifest",
     "security/path-scope-canonicalise-then-prefix"
   ],
-  "guardedBy": [],
-  "goal": "namespace-grants"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_grants.rs"
+  ]
 }

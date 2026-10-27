@@ -356,3 +356,7 @@ before the first slice.
 - Stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`, `lock.rs`) can then run in either order. `crates/nvs-cli/src/package/pack.rs`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
+- The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the
+  editor shows `E0658`, `E0660` and `E0661` as `nvs check` does. Handed over from goal
+  `namespace-grants`. `data/gaps/nvs-lsp/the-grants-hover-reads-the-entrys-tree-and-every-grant.json`,
+  `crates/nvs-lsp/src/document.rs:771`

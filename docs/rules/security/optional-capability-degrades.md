@@ -23,10 +23,6 @@ line, handed to the member as its prepared word, that the operator's `nvs.toml` 
 **not** a runtime grant: nothing widens (`rule:security/no-runtime-grant`). A method reference to
 `has` carries no word and answers `false` wherever it is written, which fails closed.
 
-**Partly on disk.** The split, the compile error, the guard and `Core\Cap::has`'s answer are in
-`nvs_types::capability` (`reject_ungranted_call`, `prepare_cap_has`), and the guard's throw is
-`nvs_ir`'s `lower_capability_guard`. The editor does not read the grant table yet.
-
 **Declined:**
 - **A run-time branch at each optional call site**, testing the namespace's grant as the call runs.
   The grant is compile-time input already in the unit's key, so the branch would test a constant.

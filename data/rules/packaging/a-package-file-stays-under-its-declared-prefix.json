@@ -1,6 +1,6 @@
 {
   "title": "Every file in a package declares the package's namespace or one under it, or it does not compile",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-name-is-vendor-slash-name",
     "security/grants-are-keyed-on-a-namespace",
@@ -8,6 +8,8 @@
     "security/an-unmatched-namespace-holds-the-application",
     "packaging/a-fetched-package-is-an-autoload-line"
   ],
-  "guardedBy": [],
-  "goal": "namespace-grants"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_grants.rs",
+    "tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs"
+  ]
 }

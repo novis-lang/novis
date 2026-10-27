@@ -13,5 +13,6 @@ thing costs two extra characters and is visible in review as its own token.
 - **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
   default, so a grant would silently extend to modules that did not exist when it was written.
 
-**On disk.** `nvs_config::grants::Grants::lookup` is the lookup, and the tie is `E0656`. No call site
-is checked against it yet.
+**On disk.** `nvs_config::grants::Grants::lookup` is the lookup, and the tie is `E0656`.
+`nvs_types::capability::reject_ungranted_call` asks it for the namespace enclosing each `Core` call
+site.
