@@ -63,7 +63,7 @@ stages:
     context: [docs/rules/tooling/fmt-base-style-is-per.md, docs/rules/tooling/fmt-novis-constructs.md, docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md, docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md, docs/examples/tools/cli/nvs-fmt/about.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: token-gaps
@@ -316,40 +316,41 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 and 7 to 10 are done. Stage 6, the verify, is all that is left.
+Every stage is done, and the goal is reached.
 
-- Stage 4: `bun nv nvs-fmt --bless` rewrote 393 files and 29 page blocks, and `--check` names nothing.
-  No expectation file moved, no comment cites a moved line, and no `.replay` sits beside the one
-  snippet it rewrote (`website/snippets/home/tasks.nvs`). The render, the restamps and the perf
-  records for the five re-rendered chapters are committed; `proofs --gate --limit 0` owes nothing.
-- The sweep found one bug: `gap.rs` wrote `{ width:?int }`, since the type row emptied the run after
-  an object type's `:`. A `:` inside a type now takes the `:` row (`crates/nvs-fmt/src/gap.rs:311`),
-  with `a_colon_inside_a_type_keeps_its_space_before_a_nullable_type` in `token_gaps.rs`, run green.
-- Stage 5: the seven rules are `shipped` with their tests in `guardedBy`, the four older rules cite
-  them, and the `nvs fmt` page and `website/src/content/docs/tools/formatter/index.mdx` say what is set
-  inside a line, the blank lines and the broken layouts. `rules --check` and `owners --closes` are clean.
+- Stage 6: the first `bun nv affected --run` failed four tests from three causes, all fixed in one
+  pass; the second run is green (7933 tests, 3088 conformance cases, clippy clean).
+  - Every binary operator is a chain now, so *Put on separate lines* is offered on the innermost one
+    around the cursor: eight `tests/lsp/actions/` cases and the title order in
+    `crates/nvs-lsp/tests/actions.rs` freeze that answer. `the-right-side-of-and-is-not-extracted`
+    offers the `!=` split; `a-loop-condition-extracts-only-to-a-method` still holds the condition's.
+  - `a_qualifier_sits_one_space_before_its_type` expected the author's run before `is`, which the
+    table now writes as one space.
+  - `crates/nvs-fmt/tests/layout_coverage.rs` reaches `docs/rules` through `nvs_repo::path`.
+  - `bun nv verify --doc`, `owners --closes fmt-spacing`, `nvs-fmt --check` and `ci --check` are
+    green; `ci --check` needed one 28-word sentence on the formatter page split, and its questions
+    restamped.
+- Stages 4 and 5: the corpus is formatted (8153 files, 1926 pages), and the seven rules are `shipped`.
 - The sweep's reds were stale again: the nightly ran at 09:33 +0100 on `55b03e97a`, before the Miri
-  fixes (10:17), and the `env-secret-proofs` log shows exit 0.
+  fixes (`22f1e4ec4`, `e461612ce`, `c33a8b8f7`), and `proofs --gate --only "Core\Env::secret"` exits 0.
 
-Expected red in stage 6: tests that quote formatter output by text, such as the LSP suites calling
-`written_types_in`, the rest of `crates/nvs-lsp/tests/actions.rs` and the `tests/lsp/actions/` cases,
-which were built, not run. `crates/nvs-fmt/tests/identity.rs` should now be green.
+No test is expected red.
 
 ### Next
 
-**Stage 6: the goal is verified once, and every failure is fixed**, as its `**Split:**` line says.
+Nothing: the goal is reached, and the loop retires it. `service-owner-check` is next on the chain.
 
-- [ ] `bun nv affected --run` with `run_in_background`, then group the failures by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Fix every failure in one pass, then the second run is green. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes fmt-spacing`, `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` with `run_in_background`, then group the failures by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Fix every failure in one pass, then the second run is green. `tools/nv/cmd/verify.ts:1`
+- [x] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes fmt-spacing`, `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
