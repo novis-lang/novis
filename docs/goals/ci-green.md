@@ -104,32 +104,34 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `b12214b33`. Its Website run is green. Its CI run 40432495152 was still
-going at the hand-off, with four red jobs. Three are fixed and committed, not yet pushed:
+`origin/main` is at `b12214b33`. Its Website run is green. Its CI run 40432495152 ended red on
+four jobs and nothing else, and each is fixed in a local commit, not yet pushed:
 `dc8ff66e9` gives the shrinking property fixture `seed: 7` (macOS drew `11` itself).
 `dd773711a` shoots in `en-US` and masks its dates (`proofs`' "Website screenshots").
 `c7f684405` finds an exception stop by its event, since late stdout can follow it (linux dap).
+`b358c465f` replaces `app.nvs` in one rename in `live_config.rs:a_changed_file_cache_dir_applies_to_the_next_compile`
+(linux-aarch64). With `settle = "0s"`, a compile read the file that `fs::write` had just emptied,
+and wrote a third `.nvsc`, so the wait for two never ended. It passes on Windows and in WSL.
 
-The fourth is seen once and not fixed: `test / linux-aarch64`'s
-`live_config.rs:a_changed_file_cache_dir_applies_to_the_next_compile`. After the refused `open`
-reload the server answered `three`, but `two/` got no second `.nvsc` in 30 s. Ruled out: the
-eviction walk (only above 256 MiB), `Recache::Keep` (the cache stays on `two`), the rename race.
-Not yet read: whether that compile can pass `None` to `cache::unit_for`.
+`fc3208d72` records the 68 `Core\Uri`, `Core\Router` and `Core\Request` figures that the main
+loop's `b72efccfb` staled. Handed to the main loop with `loop say`, as its live goal's open work:
+`Router-Refusal/about.md` is 201 words (the bound is 200), `syntax/attributes/routes.mdx` is stale
+on the route table and `Core\Router\Refusal`, and `/reference/types/router-refusal/`'s questions
+are stale. If the goal end ships them unfixed, CI's `proofs` job goes red on them.
 
-The rest of run 40432495152 was not watched to its end.
-
-`.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci` and `wt-cig` are stray folders that Windows
-keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write. `wt-csv`
-has a `target/` warm at `031acda63`. Delete them all once looper is stopped.
+`.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci`, `wt-cig` and `wt-rec` are stray folders
+that Windows keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write.
+`wt-csv` has a `target/` with a release `nvs.exe` built at `b358c465f`. Delete them all once
+looper is stopped.
 
 ### Next
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] First run `bun nv ci --status`. If run 40432495152 has ended, read each red job it lists `tools/nv/cmd/ci.ts:265`
-  beyond the four in *State*, fix it, and commit. Then watch with `bun nv ci --watch --next`, for
-  the next goal end's push.
-  If the cache dir test fails again, it is not noise: start at `crates/nvs-cli/src/script.rs:1468`. If a
+- [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
+  Run 40432495152's reds are all fixed in local commits.
+  If the cache dir test fails again, the edit is now one rename, so print `artifacts(&dir("two"))`
+  in its wait message and start at `crates/nvs-cli/src/script.rs:1468`. If a
   dap test reads stdout late at a stop again, give it `Client::until_output`, and find the stop
   by its event, never as the last message. If a dap test goes red on a `pause` reason, the stop came from somewhere other than a late `Tree` stop: read
   `crates/nvs-host/src/debug.rs:Shared::stop`'s `Break` arms. A stamp taken in the root hashes the working tree. If another
