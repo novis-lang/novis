@@ -1,0 +1,32 @@
+<?nvs
+// The `operationId` of an operation: `Class.method` by default, the verb
+// appended where one method serves two verbs, and `#[Api]`'s `operationId`
+// in place of both.
+
+class Shop
+{
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): uint
+    {
+        return $id;
+    }
+
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post)]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Put)]
+    #[Core\Access(allow: Core\Audience::Public, csrf: false)]
+    public function cart(): uint
+    {
+        return 0;
+    }
+
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(operationId: 'listProducts')]
+    public function index(): uint
+    {
+        return 0;
+    }
+}
+
+echo 'GET /products -> Shop::index', "\n";

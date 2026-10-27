@@ -44,7 +44,7 @@ fn build(file: &str) -> (String, String, bool) {
 /// `rule:routing/api-document-is-generated-from-the-route-table`: every route in
 /// the table appears exactly once
 /// in the document, at its own path, under its own verb, carrying the
-/// `operationId` its `name` gave it.
+/// `operationId` its method gave it.
 // covers: tools:cli/nvs-build-openapi
 #[test]
 fn an_openapi_document_names_every_route_of_the_fixture_once() {
@@ -58,9 +58,9 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
     for fragment in [
         "\"/users\"",
         "\"/users/{id}\"",
-        "\"operationId\": \"Users::index\"",
-        "\"operationId\": \"Users::create\"",
-        "\"operationId\": \"Users::show\"",
+        "\"operationId\": \"Users.index\"",
+        "\"operationId\": \"Users.create\"",
+        "\"operationId\": \"Users.show\"",
     ] {
         assert_eq!(
             doc.matches(fragment).count(),
@@ -791,9 +791,41 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
     let (doc, err, ok) = build(&fixture("api-that-agrees"));
     assert!(ok, "an `#[Api]` that agrees with its code builds: {err}");
     assert!(
-        doc.contains("\"operationId\": \"Items::show\""),
+        doc.contains("\"operationId\": \"Items.show\""),
         "and the operation it annotates is in the document:\n{doc}"
     );
+}
+
+/// `rule:routing/a-method-is-one-endpoint-everywhere`'s `operationId`: the
+/// method as `Class.method`, the lowercased verb appended where one method
+/// serves two verbs, and `#[Api]`'s `operationId` in place of both.
+#[test]
+fn an_operation_id_is_the_method_unless_its_api_writes_one() {
+    let (doc, err, ok) = build(&fixture("operation-id"));
+    assert!(ok, "the fixture compiles: {err}");
+    let doc: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    let id = |path: &str, verb: &str| doc["paths"][path][verb]["operationId"].clone();
+    assert_eq!(id("/products/{id}", "get"), "Shop.show");
+    assert_eq!(id("/cart", "post"), "Shop.cart.post");
+    assert_eq!(id("/cart", "put"), "Shop.cart.put");
+    assert_eq!(id("/products", "get"), "listProducts");
+}
+
+/// `rule:attributes/api-adds-and-cannot-contradict`: two methods whose
+/// `#[Api]` write one `operationId` are `E0771`, naming both.
+#[test]
+fn one_operation_id_on_two_methods_does_not_compile() {
+    let (doc, err, ok) = build(&fixture("operation-id-twice"));
+    assert!(!ok, "two methods with one `operationId` do not build");
+    assert!(
+        err.contains("E0771") && err.contains("the same `operationId` `products`"),
+        "the error names the id:\n{err}"
+    );
+    assert!(
+        err.contains("the first method with this `operationId`"),
+        "and points at the first method:\n{err}"
+    );
+    assert!(doc.trim().is_empty(), "and no document is written:\n{doc}");
 }
 
 /// `#[Api]`'s values in the document, read back off the operation they annotate
@@ -1210,7 +1242,7 @@ fn a_strict_openapi_31_validator_accepts_every_document_the_fixtures_build() {
         "the fixture declares a scheme of each type"
     );
     assert!(
-        every["paths"]["/products/page"]["get"]["operationId"] == "Catalog::page.without-page"
+        every["paths"]["/products/page"]["get"]["operationId"] == "Catalog.page.without-page"
             && every["paths"]["/products/page/{page}"]["get"]["parameters"][0]["required"] == true,
         "an optional capture is two paths, and the one that has it requires it:\n{every:#}"
     );

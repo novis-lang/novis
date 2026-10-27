@@ -354,26 +354,27 @@ fn oauth_flow(flow: &OAuthFlow) -> Value {
 
 /// Every row's `operationId`, by the row's position in the table.
 ///
-/// The id is `#[Route]`'s `name`. A route that declared none falls back to
-/// its handler label, which is unique by construction — a method declares one
-/// route per verb, and `Class::method` names it — and a *shared* name takes
+/// The id is the route's method, `Class.method`
+/// ([`Route::operation_base`]), or the
+/// `operationId` its `#[Api]` writes in its place. A method that serves
+/// several verbs has one row per verb, so a *shared* id takes
 /// `rule:routing/a-method-is-one-endpoint-everywhere`
-/// 's lowercased-verb suffix, which is what keeps the id unique when one
-/// method's repeated routes deliberately share one name.
+/// 's lowercased-verb suffix, which is what keeps the id unique.
 ///
-/// By position rather than keyed by name because both the fallback and the
-/// suffix have to be decided over the whole table before any row is rendered.
+/// By position rather than keyed by method because the suffix has to be
+/// decided over the whole table before any row is rendered.
 fn operation_ids(routes: &RouteTable) -> Vec<String> {
+    let bases: Vec<String> = routes.rows().iter().map(Route::operation_base).collect();
     let mut shared: BTreeMap<&str, usize> = BTreeMap::new();
-    for row in routes.rows() {
-        *shared.entry(base_id(row)).or_default() += 1;
+    for base in &bases {
+        *shared.entry(base.as_str()).or_default() += 1;
     }
     routes
         .rows()
         .iter()
-        .map(|row| {
-            let base = base_id(row);
-            if shared.get(base).copied().unwrap_or(0) > 1 {
+        .zip(&bases)
+        .map(|(row, base)| {
+            if shared.get(base.as_str()).copied().unwrap_or(0) > 1 {
                 format!("{base}.{}", row.verb.to_lowercase())
             } else {
                 base.to_owned()
@@ -420,12 +421,6 @@ fn templates(path: &str) -> Vec<(String, Option<&str>)> {
     vec![(bare.to_owned(), Some(name)), (full, None)]
 }
 
-/// The id a row would carry if no other row shared it.
-fn base_id(row: &Route) -> &str {
-    row.name
-        .as_ref()
-        .map_or(row.handler.as_str(), |(name, _)| name.as_str())
-}
 
 /// One operation object.
 ///

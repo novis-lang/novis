@@ -1,0 +1,22 @@
+<?nvs
+// Two methods whose `#[Api]` give the same `operationId`. Each operation needs
+// its own, so this program does not compile.
+
+class Shop
+{
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(operationId: 'products')]
+    public function index(): uint
+    {
+        return 0;
+    }
+
+    #[Core\Route(path: '/products/all', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(operationId: 'products')]
+    public function all(): uint
+    {
+        return 0;
+    }
+}

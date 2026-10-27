@@ -134,6 +134,7 @@ const TAGS: &str = "tags";
 const ERRORS: &str = "errors";
 const SECURITY: &str = "security";
 const EXAMPLE: &str = "example";
+const OPERATION_ID: &str = "operationId";
 
 const STATUS: &str = "status";
 const TYPE: &str = "type";
@@ -503,6 +504,11 @@ pub struct Route {
     /// `rule:attributes/retrieval-folds-while-checking`'s fold — a reading of the source, over that file's own imports, that
     /// nothing past this pass can still make.
     pub example: Option<ConstArg>,
+    /// `#[Api]`'s `operationId`, which replaces the one the API document
+    /// derives from [`Self::handler`]: a public API whose clients must keep
+    /// their function names writes it, so a method rename leaves the document
+    /// unchanged. The span is the field's, where a duplicate is reported.
+    pub operation_id: Option<(String, Span)>,
     /// The whole attribute.
     pub span: Span,
 }
@@ -576,6 +582,7 @@ struct Api {
     security: Vec<String>,
     errors: Vec<ApiError>,
     example: Option<ConstArg>,
+    operation_id: Option<(String, Span)>,
 }
 
 /// Where one of a route's parameters arrives from.
@@ -862,6 +869,29 @@ struct DispatchSite {
     /// Whether any class the program declares is both admitted by the gate
     /// argument's static type and a `Core\Router\Responder`.
     responds: bool,
+}
+
+impl Route {
+    /// The `operationId` this row's operation carries before the verb suffix:
+    /// `#[Api]`'s `operationId`, or else the handler label with every `\` and
+    /// `::` written `.`, so `App\Shop::show` is `App.Shop.show`.
+    ///
+    /// The qualified class and not its last segment, because two namespaces
+    /// may each declare a `Shop`, and the qualified name is unique by
+    /// construction.
+    #[must_use]
+    pub fn operation_base(&self) -> String {
+        self.operation_id.as_ref().map_or_else(
+            || {
+                self.handler
+                    .replace("::", ".")
+                    .replace('\\', ".")
+                    .trim_start_matches('.')
+                    .to_owned()
+            },
+            |(id, _)| id.clone(),
+        )
+    }
 }
 
 impl RouteTable {
@@ -1214,10 +1244,11 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
 }
 
 /// `#[Api(tags?: string[], errors?: {status: int, type: Class::class}[],
-/// security?: string[], example?: {…})]` — `rule:attributes/api-adds-and-cannot-contradict`'s own spelling, in the
+/// security?: string[], example?: {…}, operationId?: string)]` — `rule:attributes/api-adds-and-cannot-contradict`'s own spelling, in the
 /// order that section writes it.
 ///
-/// Every row is [`OptionTy::Mixed`], and that is not this roster giving up. Of
+/// `operationId` is a plain [`OptionTy::Str`], so the roster checks its type.
+/// Every other row is [`OptionTy::Mixed`], and that is not this roster giving up. Of
 /// the types [`OptionTy`] can place a value at, one is a list of strings and
 /// none is a shape, and adding rows for one attribute would put the *structure* of
 /// `#[Api]`'s payload in a table shared by four other attributes that have no
@@ -1231,6 +1262,7 @@ pub(crate) const API_OPTIONS: &[(&str, OptionTy)] = &[
     (ERRORS, OptionTy::Mixed),
     (SECURITY, OptionTy::Mixed),
     (EXAMPLE, OptionTy::Mixed),
+    (OPERATION_ID, OptionTy::Str),
 ];
 
 /// `#[Api\Scheme]`'s roster: every field some scheme `type` takes,
@@ -1414,6 +1446,7 @@ fn check_api(
         security: security.into_iter().map(|(name, _)| name).collect(),
         errors: check_api_errors(api, ctx, env),
         example: check_api_example(api, m, class, ctx, env),
+        operation_id: folded_str(api, OPERATION_ID, env),
     }
 }
 
@@ -2276,12 +2309,13 @@ fn collect_route(
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.cloned(),
         bodies: bodies.to_vec(),
-        // `#[Api]`'s four, copied per row: one `#[Api]` describes the operation
+        // `#[Api]`'s five, copied per row: one `#[Api]` describes the operation
         // however many verbs the method serves, and a row is per verb.
         tags: api.map(|api| api.tags.clone()).unwrap_or_default(),
         security: api.map(|api| api.security.clone()).unwrap_or_default(),
         errors: api.map(|api| api.errors.clone()).unwrap_or_default(),
         example: api.and_then(|api| api.example.clone()),
+        operation_id: api.and_then(|api| api.operation_id.clone()),
         span: attr.span,
     });
 }
@@ -3445,7 +3479,39 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             );
         }
     }
+    check_operation_ids(table, diags);
     check_security(table, diags);
+}
+
+/// `rule:attributes/api-adds-and-cannot-contradict`'s unique `operationId`:
+/// two methods whose rows carry one id are `E0771`, naming both sites.
+///
+/// Only an `#[Api]`-written id can collide. A derived id is the qualified
+/// handler, which no other method shares, and one method's rows share their
+/// id on purpose and take the verb suffix in the document.
+fn check_operation_ids(table: &RouteTable, diags: &mut Diagnostics) {
+    let mut ids: FxHashMap<String, &Route> = FxHashMap::default();
+    for row in &table.rows {
+        let first = *ids.entry(row.operation_base()).or_insert(row);
+        if first.handler == row.handler {
+            continue;
+        }
+        let at = |row: &Route| row.operation_id.as_ref().map_or(row.span, |(_, span)| *span);
+        diags.report(
+            Diagnostic::error(
+                code::E_API_CONTRADICTS_THE_CODE,
+                format!(
+                    "`{}` and `{}` have the same `operationId` `{}`",
+                    first.handler,
+                    row.handler,
+                    row.operation_base()
+                ),
+            )
+            .with_primary(at(row), "this `operationId` is already used")
+            .with_secondary(at(first), "the first method with this `operationId`")
+            .with_help("Each operation needs its own `operationId`. Change it on one of the two methods."),
+        );
+    }
 }
 
 /// § 2's path *shape*: the path with every capture's name erased but its
