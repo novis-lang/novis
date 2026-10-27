@@ -13,7 +13,7 @@ stages:
         rules: [packaging/only-a-major-may-break-the-api, packaging/nothing-runs-before-the-program, packaging/package-toml-is-a-tool-input]
   - id: 2
     title: a removal, and an addition that breaks a caller, are breaks
-    status: open
+    status: done
     context: [crates/nvs-cli/src/api_diff.rs, crates/nvs-cli/src/package/diff.rs]
     extra:
       context:
@@ -122,6 +122,14 @@ values, constants' values and enum case values are left out, as behaviour. A cla
 `extends` and `implements` it writes; stage 3 closes over the parents in the document. Why: a
 uniform shape keeps the stage 2 comparison one walk with no absent-key cases.
 
+**`nvs pkg diff` adds three breaks the brief did not list, all towards breaking.** A new
+optional parameter breaks on an interface's method and on an abstract one, because every class
+that writes the method must add it; on any other method it is additive, as the brief says. A
+renamed parameter breaks, because a call may name it. A key the walk does not know whose value
+differs breaks, so a newer document is never compared as if its new keys were absent. Why: the
+standing decision errs towards breaking, and each of these breaks a caller or an implementing
+class that compiled before.
+
 **Trade-offs.** No program changes, and nothing runs on the request path. A publish pays one compile
 of each version. A package author loses the freedom to break a stable API in a minor, which is the
 point. Simplicity: one check the user already expects from semantic versioning, applied by a tool
@@ -152,11 +160,11 @@ public and protected member's signature, are written as deterministic JSON.
 **Split:** after the classifier lands, one writing subagent writes the fixture pairs of stages 2 and 3,
 one directory per class in the standing decision's break list and each additive class.
 
-- [ ] `nvs pkg diff <old> <new>` over two directories or two JSON files, one line per change, and `--json`. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-cli/src/package/mod.rs:1`
-- [ ] A removed or renamed public declaration or member, and a lowered visibility, are breaks (`rule:packaging/only-a-major-may-break-the-api`). `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] A new method on a public interface, a new abstract method, a new enum case and a new required parameter are breaks. `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] A new class, a new concrete method and a new optional parameter are additive. `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] The fixture pairs, and a test that each gives its class. `crates/nvs-cli/tests/fixtures/package-api/removed-method/old/src/Api.nvs:1`, `crates/nvs-cli/tests/package_api.rs:1`
+- [x] `nvs pkg diff <old> <new>` over two directories or two JSON files, one line per change, and `--json`. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-cli/src/package/mod.rs:1`
+- [x] A removed or renamed public declaration or member, and a lowered visibility, are breaks (`rule:packaging/only-a-major-may-break-the-api`). `crates/nvs-cli/src/package/diff.rs:1`
+- [x] A new method on a public interface, a new abstract method, a new enum case and a new required parameter are breaks. `crates/nvs-cli/src/package/diff.rs:1`
+- [x] A new class, a new concrete method and a new optional parameter are additive. `crates/nvs-cli/src/package/diff.rs:1`
+- [x] The fixture pairs, and a test that each gives its class. `crates/nvs-cli/tests/fixtures/package-api/removed-method/old/src/Api.nvs:1`, `crates/nvs-cli/tests/package_api.rs:1`
 
 ### 3. a parameter that narrows and a return that widens are breaks
 
@@ -199,34 +207,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs pkg api <dir>` prints a package's API as schema-1 JSON
-(`crates/nvs-cli/src/package/api.rs:73`), and `Command::Pkg` and `"pkg"` in `COMMAND_NAMES` are in
-`crates/nvs-cli/src/main.rs`. The two standing decisions on the package's `src/` and the document's
-shape record what the extraction decided. `crates/nvs-cli/tests/package_api.rs` pins
-`tests/fixtures/package-api/shop.json` byte for byte and shows a top-level `echo` does not print.
-Both tests were run once and pass. Build and clippy are green.
+Stages 1 and 2 are done. `nvs pkg diff <old> <new> [--json]` compares two package directories or
+two `nvs pkg api` documents (`crates/nvs-cli/src/package/diff.rs`), prints one line per change
+worst-first and a summary, and exits non-zero on any break. The version step is not read yet. A
+document of another `schema` is refused. Every stage 2 class is in the walk, and the new standing
+decision records the three breaks it adds. `crates/nvs-cli/tests/package_api.rs` runs the twelve
+fixture pairs of stages 2 and 3 that the walk already classifies, and the JSON-document side; all
+four tests pass, run once. Build and clippy are green.
 
-The acceptance sweep's four reds were already fixed on disk before this session: `env-secret-proofs`
-exits 0, and the three nightly Miri jobs failed on tests that 22f1e4ec4, e461612ce and c33a8b8f7
-(all after the nightly's commit) mark for Miri. The next nightly should be green.
+The fixture pairs for stage 3 are on disk: `narrowed-parameter`, `widened-return`,
+`widened-parameter` and `narrowed-return` under `crates/nvs-cli/tests/fixtures/package-api/`. The
+last two are not in a test yet, because the walk calls every type change a break.
+
+The acceptance sweep's reds were already fixed on disk: `env-secret-proofs` exits 0, and the nightly
+run it names predates the commits that mark its Miri tests.
 
 Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
-(updated to 30 entries, not run), and any proofs or help-text check that counts subcommands.
+(30 entries, not run), and any proofs or help-text check that counts subcommands.
 
 ### Next
 
-**Stage 2: `nvs pkg diff` and the removal and addition classes**, one file set:
-`crates/nvs-cli/src/package/mod.rs:22`, a new `crates/nvs-cli/src/package/diff.rs`,
+**Stage 3: types are classified by direction**, one file set: `crates/nvs-cli/src/package/diff.rs`,
 `crates/nvs-cli/tests/package_api.rs`, `crates/nvs-cli/tests/fixtures/package-api/`. No gate.
 
-- [ ] `Command::Diff { old, new, json }` beside `Command::Api`; each side is a directory (run `api::extract`) or a `.json` file (refuse a `schema` other than `api::SCHEMA`). `crates/nvs-cli/src/package/mod.rs:22`, `crates/nvs-cli/src/package/api.rs:73`
-- [ ] The walk over the two documents keyed by declaration `name` and member `name`, with `api_diff.rs`'s `Class`/`Change` shape and its worst-first print. `crates/nvs-cli/src/api_diff.rs:96`
-- [ ] The break and additive classes the stage lists, then the fixture pairs under `package-api/<class>/{old,new}/src/` (the split's subagent) and one test per pair. `crates/nvs-cli/tests/package_api.rs:1`
+- [ ] A type comparison over the two documents: split on `|` and `&`, a class covered by itself or an ancestor the document lists (close over `extends` and `implements`), an undeclared parent by name alone, undecidable as `None`. `crates/nvs-cli/src/package/diff.rs:467`
+- [ ] A parameter's `type` may only widen and a method's `returns` may only narrow; a property's and a constant's `type` stay `same`, and an undecidable change says so in its line. `crates/nvs-cli/src/package/diff.rs:306`, `crates/nvs-cli/src/package/diff.rs:278`
+- [ ] `widened-parameter` and `narrowed-return` as additive in `each_change_between_two_versions_gets_its_class`, and one undecidable pair. `crates/nvs-cli/tests/package_api.rs:66`
 
 ### Backlog
 
-- Stage 3 needs each class's ancestors: close over `extends` and `implements` within the document,
-  and treat a parent the document does not declare (a `Core` class) by name alone.
 - Stage 4 waits for `docs/reference/tools/35-packages.md` from goal `namespace-grants`; if it is absent, stage 4 creates the file with its own heading. `docs/goals/namespace-grants.md`
 - The registry calls `nvs pkg diff` at publish in goal `registry-service` (`docs/goals/registry-service.md`).
 - The website shows the API diff per version in goal `registry-website` (`docs/goals/registry-website.md`).

@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+final class Client
+{
+    public function send(int|string $id): int
+    {
+        return 0;
+    }
+}

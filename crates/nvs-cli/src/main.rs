@@ -40,7 +40,8 @@
 //!   diff is a released artifact rather than a program; see [`api_diff`].
 //! * `nvs pkg api <dir>` — a package's public API as JSON, read from the
 //!   checked program and never by running it
-//!   (`rule:packaging/only-a-major-may-break-the-api`); see [`package`].
+//!   (`rule:packaging/only-a-major-may-break-the-api`), and `nvs pkg diff <old> <new>`, every
+//!   change between two versions as breaking or additive, non-zero on a break; see [`package`].
 //! * `nvs config check` — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`

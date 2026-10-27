@@ -1,0 +1,7 @@
+<?nvs
+namespace Api;
+
+interface Sender
+{
+    public function send(string $body): int;
+}

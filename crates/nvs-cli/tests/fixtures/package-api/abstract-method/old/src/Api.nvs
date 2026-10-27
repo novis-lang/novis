@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+abstract class Handler
+{
+    public function name(): string
+    {
+        return 'h';
+    }
+}

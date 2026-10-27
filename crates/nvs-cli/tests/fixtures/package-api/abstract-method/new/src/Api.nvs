@@ -1,0 +1,12 @@
+<?nvs
+namespace Api;
+
+abstract class Handler
+{
+    public function name(): string
+    {
+        return 'h';
+    }
+
+    abstract public function handle(string $body): int;
+}

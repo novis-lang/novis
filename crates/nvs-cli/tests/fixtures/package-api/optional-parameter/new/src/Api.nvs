@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+final class Client
+{
+    public function send(string $body, int $timeout = 30): int
+    {
+        return 0;
+    }
+}

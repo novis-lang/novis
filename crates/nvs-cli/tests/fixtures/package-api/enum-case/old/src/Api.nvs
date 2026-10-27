@@ -1,0 +1,8 @@
+<?nvs
+namespace Api;
+
+enum Mode
+{
+    On,
+    Off,
+}

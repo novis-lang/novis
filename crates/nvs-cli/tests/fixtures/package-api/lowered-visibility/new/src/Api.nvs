@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+class Client
+{
+    protected function ping(): int
+    {
+        return 0;
+    }
+}

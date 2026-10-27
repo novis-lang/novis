@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+class Client
+{
+    public function ping(): int
+    {
+        return 0;
+    }
+}

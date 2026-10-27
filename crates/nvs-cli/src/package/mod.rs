@@ -3,12 +3,14 @@
 //!
 //! One module per subcommand under this one. [`api`] is
 //! `rule:packaging/only-a-major-may-break-the-api`'s extraction: a package's public API, read
-//! from the checked program and never by running any of it.
+//! from the checked program and never by running any of it, and [`diff`] is its comparison: every
+//! change between two versions, breaking or additive.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
+mod diff;
 
 /// Work with Novis packages.
 #[derive(clap::Args)]
@@ -30,6 +32,20 @@ enum Command {
         /// The package's directory, the one that contains `src`.
         dir: PathBuf,
     },
+    /// Compare two versions of a package's public API.
+    ///
+    /// OLD and NEW are each a package directory or a JSON file that
+    /// `nvs pkg api` printed. Each change prints on one line, as breaking or
+    /// additive. The command exits with an error if a change is breaking.
+    Diff {
+        /// The older version: a package directory or an API JSON file.
+        old: PathBuf,
+        /// The newer version: a package directory or an API JSON file.
+        new: PathBuf,
+        /// Print the changes as JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 impl Args {
@@ -37,6 +53,7 @@ impl Args {
     pub(crate) fn run(self) -> ExitCode {
         match self.command {
             Command::Api { dir } => api::run(&dir),
+            Command::Diff { old, new, json } => diff::run(&old, &new, json),
         }
     }
 }

@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+final class Client
+{
+    public function find(int $id): string
+    {
+        return '';
+    }
+}
