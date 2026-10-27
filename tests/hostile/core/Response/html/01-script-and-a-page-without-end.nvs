@@ -33,7 +33,7 @@ Core\Response::html($page);
 // stops the program.
 echo "step 6\n";
 Core\Html\Markup $chunk = Core\Html::escape(Core\Str::repeat('b', 65536));
-var $kept = Core\Out::capture(fn (): void => {
+var $kept = Core\Out::capture(fn(): void => {
     uint $written = 0;
     while ($written < 1000000) {
         Core\Response::html($chunk);

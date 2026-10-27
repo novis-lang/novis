@@ -7,7 +7,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table tasks (id integer primary key, title text not null, done int not null)', []);
 $db->execute('insert into tasks (title, done) values (?, 0), (?, 0), (?, 0)', ['pack', 'label', 'ship']);
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     var $open = $tx->query('select id, title from tasks where done = 0 order by id', []);
 
     // Each round reads one row and writes with it. Both statements run on the

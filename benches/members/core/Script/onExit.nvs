@@ -16,7 +16,7 @@ class Bench
         while ($i < $rounds) {
             // Each function is new, because it keeps its own copy of `$i`.
             uint $n = $i;
-            Core\Script::onExit(fn (): void => {
+            Core\Script::onExit(fn(): void => {
                 Seen::$ran = Seen::$ran + $n % 2;
             });
             $i = $i + 1;

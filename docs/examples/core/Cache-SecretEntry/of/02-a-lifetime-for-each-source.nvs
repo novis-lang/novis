@@ -9,12 +9,12 @@ var $cache = Core\Cache::memory();
 
 // A short-lived access token. The service replaces it every few minutes, so
 // the entry may only be used for two.
-var $accessToken = fn (): Core\Cache\SecretEntry =>
+var $accessToken = fn(): Core\Cache\SecretEntry =>
     Core\Cache\SecretEntry::of('at-7f3c9b21', 2m);
 
 // A signing key from the same service. It is changed twice a year, so this
 // entry may be used for a day.
-var $signingKey = fn (): Core\Cache\SecretEntry =>
+var $signingKey = fn(): Core\Cache\SecretEntry =>
     Core\Cache\SecretEntry::of('sk-0a51d7', 1d);
 
 // Both entries live in the same store under names of their own. This prints
@@ -27,6 +27,6 @@ echo $token != null && $signer != null
 
 // A lifetime of zero is already over, so nothing is stored. The next read is
 // a miss, and this prints nothing was kept.
-var $once = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('one-time', 0s);
+var $once = fn(): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('one-time', 0s);
 $cache->getSecret('one-time-code', $keys, { fill: $once });
 echo $cache->getSecret('one-time-code', $keys) == null ? 'nothing was kept' : 'it was kept', "\n";

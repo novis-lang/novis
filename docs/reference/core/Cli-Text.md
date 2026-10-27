@@ -12,7 +12,7 @@ until it is converted. Styling, colour and the rest of a terminal surface are no
 
 ```nvs
 <?nvs
-var $captured = Core\Out::capture(fn (): void => {
+var $captured = Core\Out::capture(fn(): void => {
     echo 'inner';
 });
 

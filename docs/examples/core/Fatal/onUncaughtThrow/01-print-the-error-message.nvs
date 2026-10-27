@@ -3,7 +3,7 @@
 // proof: exit 1
 
 // This function gets the error object. `$e->message` is the text the error was created with.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     echo 'the program stopped: ', $e->message, "\n";
 });
 

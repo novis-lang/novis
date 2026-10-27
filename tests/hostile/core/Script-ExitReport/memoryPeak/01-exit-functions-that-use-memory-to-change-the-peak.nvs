@@ -11,7 +11,7 @@ final class Seen
 }
 
 // 1. The first function saves the peak it reads.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     Seen::$first = $report->memoryPeak();
 });
 
@@ -22,7 +22,7 @@ final class Kept
 }
 int $i = 0;
 while ($i < 200) {
-    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
         Kept::$strings[] = Core\Str::repeat('z', 65536);
         if ($report->memoryPeak() != Seen::$first) {
             Seen::$changed = Seen::$changed + 1;
@@ -32,7 +32,7 @@ while ($i < 200) {
 }
 
 // The last function prints how many reads differed from the first one.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo 'changed: ', Seen::$changed, "\n";
 });
 

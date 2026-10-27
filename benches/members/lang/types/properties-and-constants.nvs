@@ -30,7 +30,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            $counter->carried = ($counter->seen + Limits::STEP) % 1021;   // chained: $counter->seen is last round's
+            $counter->carried = ($counter->seen + Limits::STEP) % 1021; // chained: $counter->seen is last round's
             $counter->seen = $counter->carried + 1;
             $i = $i + 1;
         }

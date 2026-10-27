@@ -4,8 +4,10 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
 // The uploaded file. Here the program renders it first, so the example has a file to read.
-var $upload = Document::fromHtml("<html><head><title>Order 1042</title><meta name=\"author\" content=\"Shop\"></head>"
-    . "<body><p>Order 1042</p><p style=\"break-before: page\">Delivery note</p></body></html>")
+var $upload = Document::fromHtml(
+    "<html><head><title>Order 1042</title><meta name=\"author\" content=\"Shop\"></head>"
+        . "<body><p>Order 1042</p><p style=\"break-before: page\">Delivery note</p></body></html>",
+)
     ->render()->bytes;
 
 // `Reader::open` reads the file once. This prints `2 pages`, then the title and the author.

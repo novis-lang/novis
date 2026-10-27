@@ -209,9 +209,9 @@ of functions is `E0401` too.
 // job and returns one field per result, under the same names.
 
 var $page = Core\Task::all({
-    rows:  fn(): array<int> => [10, 20, 30],
-    label: fn(): string     => 'orders',
-    total: fn(): int        => 60,
+    rows: fn(): array<int> => [10, 20, 30],
+    label: fn(): string => 'orders',
+    total: fn(): int => 60,
 });
 
 // Each field already has the type its own function returns, so nothing needs converting.
@@ -241,9 +241,9 @@ class Stock
 var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
-    here:   fn(): string => 'written in place',
+    here: fn(): string => 'written in place',
     method: Stock::onHand,
-    kept:   $kept,
+    kept: $kept,
 });
 
 // This prints written in place, then 42, then from a variable.
@@ -286,7 +286,7 @@ class Catalog
 
 var $page = Core\Task::all({
     product: Catalog::product,
-    stock:   Catalog::stock,
+    stock: Catalog::stock,
     reviews: Catalog::reviews,
 });
 
@@ -2072,7 +2072,7 @@ class Orders
 var $page = Core\Task::all({
     total: Orders::total,
     title: Orders::title,
-    note:  fn(): string => 'ready',
+    note: fn(): string => 'ready',
 });
 
 // The results are ready on this line. `Core\Task::all` returns only when every

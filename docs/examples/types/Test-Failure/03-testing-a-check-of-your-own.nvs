@@ -22,7 +22,7 @@ echo "1250 is accepted\n";
 
 // An invalid amount must fail the check. `expectFailure` tests this,
 // and the test itself still passes.
-Test::expectFailure(fn (): void => {
+Test::expectFailure(fn(): void => {
     Money::assertValidCents(-1);
 });
 echo "-1 is refused\n";
@@ -30,7 +30,7 @@ echo "-1 is refused\n";
 // If no check in the function fails, `expectFailure` throws a `Failure`.
 // So a check that stops working makes this test fail.
 try {
-    Test::expectFailure(fn (): void => {
+    Test::expectFailure(fn(): void => {
         Money::assertValidCents(0);
     });
     echo "nothing was refused\n";

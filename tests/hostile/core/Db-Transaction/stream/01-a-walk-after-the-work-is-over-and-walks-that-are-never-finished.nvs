@@ -11,7 +11,7 @@ $db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call
 
 // 1. A transaction carried out of the work that owned it opens a walk. The
 // transaction has ended, so the walk must be refused.
-var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+var $escaped = $db->transaction(fn(Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
 try {
     $escaped->stream('select id from notes', []);
     echo "1 the late walk went through\n";
@@ -24,7 +24,7 @@ try {
 uint $rows = 0;
 uint $i = 0;
 while ($i < 10000) {
-    $rows = $rows + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    $rows = $rows + $db->transaction(fn(Core\Db\Transaction $tx): uint => {
         uint $walked = 0;
         foreach ($tx->stream('select id, text from notes order by id', []) as Core\Db\Row $row) {
             $walked = $walked + 1;
@@ -40,7 +40,7 @@ echo '2 rows walked: ', $rows, "\n";
 uint $refused = 0;
 $i = 0;
 while ($i < 2000) {
-    $refused = $refused + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    $refused = $refused + $db->transaction(fn(Core\Db\Transaction $tx): uint => {
         uint $stopped = 0;
         foreach ($tx->stream('select id from notes order by id', []) as Core\Db\Row $row) {
             try {
@@ -58,7 +58,7 @@ echo '3 refused: ', $refused, "\n";
 // 4. A statement no database knows, opened as a walk. Nothing is held, so the
 // transaction around it still ends.
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         foreach ($tx->stream('select from where', []) as Core\Db\Row $row) {
             echo "4 the broken statement gave a row\n";
         }
@@ -76,7 +76,7 @@ array<string> $attempts = [
     "' union select id, text from notes --",
     Core\Str::repeat("'", 10000),
 ];
-uint $found = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $found = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     uint $seen = 0;
     foreach ($attempts as string $attempt) {
         foreach ($tx->stream('select id from notes where text = ?', [$attempt]) as Core\Db\Row $row) {
@@ -90,7 +90,7 @@ echo '5 rows found: ', $found, ', table still there: ', $db->query('select id fr
 // 6. A result of ten million rows is left after a hundred. The walk still holds
 // the connection, so the transaction cannot end.
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         uint $read = 0;
         foreach ($tx->stream('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n, hex(zeroblob(200)) as filler from many', []) as Core\Db\Row $row) {
             $read = $read + 1;

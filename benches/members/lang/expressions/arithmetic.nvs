@@ -15,7 +15,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            int $step = ($total * 3 + 7) % 1000;   // chained: $total is last round's
+            int $step = ($total * 3 + 7) % 1000; // chained: $total is last round's
 
             $total = ($total + $step) % 100000 + 1;
 

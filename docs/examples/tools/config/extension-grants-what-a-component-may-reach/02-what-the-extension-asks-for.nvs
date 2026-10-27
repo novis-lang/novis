@@ -7,8 +7,8 @@ use Geo\Atlas;
 // So each call throws a `RuntimeError`, and no request is sent.
 array<string> $hosts = [
     'tiles.example.com', // This program may not connect to it.
-    'maps.example.com',  // The extension does not ask for it.
-    'example.org',       // `nvs.toml` does not grant it to the extension.
+    'maps.example.com', // The extension does not ask for it.
+    'example.org', // `nvs.toml` does not grant it to the extension.
 ];
 foreach ($hosts as string $host) {
     try {

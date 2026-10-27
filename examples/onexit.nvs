@@ -17,8 +17,7 @@
 // Novis does — so before this queue there was no way at all to run code at the
 // one ending a CLI program most wants to clean up after.
 
-
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     // The reason is an ordinary enum, so a `match` over it is exhaustive and a
     // fourth ending would be a compile error here rather than a silent branch.
     // There is deliberately no case for a `FATAL` or a cancellation: neither
@@ -33,7 +32,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
 
 // Registering twice registers twice — this is a queue and not a slot, which is
 // what makes it usable by two unrelated parts of one program.
-Core\Script::onExit(fn (): void => {
+Core\Script::onExit(fn(): void => {
     // A hook may declare no parameter at all, exactly as a `Core\Fatal`
     // handler may: what it is handed is decided at the call.
     echo "second hook\n";

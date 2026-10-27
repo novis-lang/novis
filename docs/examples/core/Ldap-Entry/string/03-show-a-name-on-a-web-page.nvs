@@ -8,7 +8,7 @@ var $person = $corp->read('CN=Ben Kohl,OU=Company,DC=example,DC=test', { select:
 if ($person != null) {
     // The value is `tainted`, so `Core\Html::escape` makes it safe for HTML first.
     Core\Html\Markup $name = Core\Html::escape($person->string('givenName') ?? 'colleague');
-    Core\Html\Markup $mail =Core\Html::escape($person->string('mail') ?? '');
+    Core\Html\Markup $mail = Core\Html::escape($person->string('mail') ?? '');
 
     // This prints `<p>Hello Ben, your address is ben.kohl@example.test.</p>`.
     echo '<p>Hello ', $name, ', your address is ', $mail, ".</p>\n";

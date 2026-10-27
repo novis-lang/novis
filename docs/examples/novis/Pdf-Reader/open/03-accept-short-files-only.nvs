@@ -7,8 +7,10 @@ uint $maxPages = 3;
 
 // Two uploads: a receipt with one page and a catalogue with five pages.
 var $receipt = Document::fromHtml('<p>Receipt 1042</p>')->render()->bytes;
-var $catalogue = Document::fromHtml('<style>p { break-after: page }</style>'
-    . '<p>Bikes</p><p>Helmets</p><p>Lights</p><p>Locks</p><p>Bells</p>')->render()->bytes;
+var $catalogue = Document::fromHtml(
+    '<style>p { break-after: page }</style>'
+        . '<p>Bikes</p><p>Helmets</p><p>Lights</p><p>Locks</p><p>Bells</p>',
+)->render()->bytes;
 
 // This loop prints `accepted` for the receipt and `too long` for the catalogue.
 array<bytes> $uploads = [$receipt, $catalogue];

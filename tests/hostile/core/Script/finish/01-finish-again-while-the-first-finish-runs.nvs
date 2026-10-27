@@ -27,10 +27,10 @@ final class Depth
 // 1. 1000 exit functions each call `finish()`. Each call stops only its own function.
 int $i = 0;
 while ($i < 1000) {
-    Core\Script::onExit(fn (): void => Core\Script::finish());
+    Core\Script::onExit(fn(): void => Core\Script::finish());
     $i = $i + 1;
 }
-Core\Script::onExit(fn (): void => {
+Core\Script::onExit(fn(): void => {
     echo 'closed: ', Depth::$closed, "\n";
 });
 

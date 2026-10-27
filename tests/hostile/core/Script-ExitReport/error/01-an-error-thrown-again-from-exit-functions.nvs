@@ -22,7 +22,7 @@ final class Seen
 // 1. 100 exit functions each throw the error they receive again.
 int $i = 0;
 while ($i < 100) {
-    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
         ?Throwable $error = $report->error();
         if ($error != null) {
             throw $error;
@@ -32,7 +32,7 @@ while ($i < 100) {
 }
 
 // 2. The last function reads the error 100000 times and walks its whole chain.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     int $n = 0;
     while ($n < 100000) {
         if ($report->error() != null) {

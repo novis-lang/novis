@@ -12,7 +12,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             int $limit = (($total % 3) as int) - 1;
-            ?string $name = Core\Arr::findKey($readings, fn(int $n) => $n <= $limit);   // chained: $limit is last round's
+            ?string $name = Core\Arr::findKey($readings, fn(int $n) => $n <= $limit); // chained: $limit is last round's
             if ($name == null) {
                 $total = $total + 1;
             } else {

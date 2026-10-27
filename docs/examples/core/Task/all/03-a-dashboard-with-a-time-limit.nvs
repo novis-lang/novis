@@ -9,15 +9,15 @@ class Dashboard
             // `limit: 2` runs at most two tasks at the same time.
             // `deadline` is the time limit for all three tasks together.
             var $data = Core\Task::all({
-                visits:  fn (): int => {
+                visits: fn(): int => {
                     Core\Time::sleep(20ms);
                     return 5120;
                 },
-                signups: fn (): int => {
+                signups: fn(): int => {
                     Core\Time::sleep(20ms);
                     return 48;
                 },
-                revenue: fn (): int => {
+                revenue: fn(): int => {
                     Core\Time::sleep(20ms);
                     return 73100;
                 },

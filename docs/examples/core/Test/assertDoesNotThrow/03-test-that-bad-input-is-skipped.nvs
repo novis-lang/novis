@@ -21,5 +21,5 @@ array<string> $lines = ['120', '', 'abc', '80', '12.5'];
 
 // The import gets empty and broken lines. The check passes when the import
 // runs to the end without an error.
-Core\Test::assertDoesNotThrow(fn (): void => { Import::total($lines); });
+Core\Test::assertDoesNotThrow(fn(): void => { Import::total($lines); });
 echo 'total: ', Import::total($lines), "\n";

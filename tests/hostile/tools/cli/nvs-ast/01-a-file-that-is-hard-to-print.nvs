@@ -70,7 +70,8 @@ echo Core\Str::length($long), "\n";
 echo ((((((((((1 + 2)))))))))) * 3, "\n";
 
 // 3. Comments between the parts of one expression. Each comment is a node in the tree.
-int $sum = 1 /* one */ + /* two */ 2 // three
+int $sum = 1 /* one */
+    + /* two */ 2 // three
     + 3;
 echo $sum, "\n";
 

@@ -16,7 +16,7 @@ class Account
 
     public function reader(): callable
     {
-        return fn (): int => $this->balance * 2;
+        return fn(): int => $this->balance * 2;
     }
 }
 
@@ -26,7 +26,7 @@ class Premium extends Account
 
     public function bonusReader(): callable
     {
-        return fn (): int => $this->bonus;
+        return fn(): int => $this->bonus;
     }
 }
 

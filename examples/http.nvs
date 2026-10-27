@@ -20,7 +20,6 @@
 // address is named here rather than discovered, and the reason the origin is
 // the harness's is recorded in `tools/nv/accept/origin.ts`.
 
-
 string $origin = 'http://127.0.0.1:8099';
 
 // Allowed: laundered, pinned, and then fetched.

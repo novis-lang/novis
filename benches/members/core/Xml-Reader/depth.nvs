@@ -24,7 +24,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + 1 + $readers[(($total + $i) % 4) as int]->depth();   // chained: $total is last round's
+            $total = $total + 1 + $readers[(($total + $i) % 4) as int]->depth(); // chained: $total is last round's
             $i = $i + 1;
         }
         return $total;

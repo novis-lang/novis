@@ -20,7 +20,7 @@ class Orders
 var $page = Core\Task::all({
     total: Orders::total,
     title: Orders::title,
-    note:  fn(): string => 'ready',
+    note: fn(): string => 'ready',
 });
 
 // The results are ready on this line. `Core\Task::all` returns only when every

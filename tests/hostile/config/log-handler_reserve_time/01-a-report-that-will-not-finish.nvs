@@ -58,7 +58,7 @@ echo 'the clock reads: ', Core\Config::get('log.handler_reserve_time') ?? '(noth
 
 // The request runs out of memory, and this handler then loops 200,000,000 times.
 // The loop has an end, so the test passes whether the handler is stopped or not.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     uint $spin = 0;
     uint $acc = 0;
     while ($spin < 200000000) {

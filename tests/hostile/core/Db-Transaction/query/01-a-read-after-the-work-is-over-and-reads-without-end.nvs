@@ -11,7 +11,7 @@ $db->execute('insert into notes (text) values (?), (?)', ['buy milk', 'call Ana'
 
 // 1. The transaction is carried out of the work that owned it. Reading through
 // it would read outside every transaction, so it must be refused.
-var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+var $escaped = $db->transaction(fn(Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
 try {
     $escaped->query('select id from notes', []);
     echo "1 the late read went through\n";
@@ -27,7 +27,7 @@ array<string> $attempts = [
     "' union select id, text from notes --",
     Core\Str::repeat("'", 10000),
 ];
-uint $found = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $found = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     uint $rows = 0;
     foreach ($attempts as string $attempt) {
         $rows = $rows + $tx->query('select id from notes where text = ?', [$attempt])->count();
@@ -39,7 +39,7 @@ echo '2 rows found: ', $found, ', table still there: ', $db->query('select id fr
 // 3. Fifty thousand reads inside one transaction. Each result is freed at
 // once, and fifty thousand of them may not fill the memory.
 try {
-    uint $read = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    uint $read = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
         uint $seen = 0;
         uint $i = 0;
         while ($i < 50000) {
@@ -55,7 +55,7 @@ try {
 
 // 4. Ten thousand reads whose `:missing` names no value, all in one
 // transaction. Every one throws, and the errors may not fill the memory.
-uint $refused = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $refused = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     string $byName = 'select id from notes where text = :missing';
     uint $failed = 0;
     uint $i = 0;
@@ -74,7 +74,7 @@ echo '4 refused: ', $refused, "\n";
 // 5. A statement of two million characters. No database knows it, so it must be
 // refused, and the transaction around it must still end.
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         $tx->query(Core\Str::repeat('select ', 250000), []);
     });
     echo "5 the long statement ran\n";

@@ -11,7 +11,7 @@ final class Count
     public static function chain(int $left): void
     {
         if ($left > 0) {
-            Core\Script::onExit(fn (): void => Count::chain($left - 1));
+            Core\Script::onExit(fn(): void => Count::chain($left - 1));
         }
     }
 }
@@ -20,7 +20,7 @@ final class Count
 int $i = 0;
 while ($i < 50000) {
     int $n = $i;
-    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
         Count::$ran = Count::$ran + 1;
         if ($n % 100 == 0) {
             throw new RuntimeError('exit function ' . $n . ' failed');
@@ -34,14 +34,14 @@ Count::chain(1000);
 
 // 3. Two functions try to end the script again, with `exit` and with `finish()`.
 // Each call stops only its own function, and the functions after it still run.
-Core\Script::onExit(fn (): void => {
+Core\Script::onExit(fn(): void => {
     exit(9);
 });
-Core\Script::onExit(fn (): void => {
+Core\Script::onExit(fn(): void => {
     Core\Script::finish();
 });
 
 // 4. The last function reports how many ran.
-Core\Script::onExit(fn (): void => {
+Core\Script::onExit(fn(): void => {
     echo 'ran: ', Count::$ran, "\n";
 });

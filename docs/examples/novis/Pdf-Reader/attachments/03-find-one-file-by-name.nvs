@@ -8,8 +8,10 @@ string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     . " xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\">"
     . '<rsm:ExchangedDocument><ram:ID>Shop-8</ram:ID><ram:TypeCode>380</ram:TypeCode></rsm:ExchangedDocument>'
     . '</rsm:CrossIndustryInvoice>';
-var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-8</title></head>"
-    . '<body><p>Invoice Shop-8</p></body></html>')
+var $invoice = Document::fromHtml(
+    "<html lang=\"en\"><head><title>Invoice Shop-8</title></head>"
+        . '<body><p>Invoice Shop-8</p></body></html>',
+)
     ->standard(Document::Standard::PdfA3b)
     ->created(Core\Time::fromIso('2026-01-01T00:00:00Z'))
     ->invoiceXml($xml)

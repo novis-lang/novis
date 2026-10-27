@@ -38,7 +38,7 @@ class Bench
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Total $row = Total::make($total % 7);   // chained: $total is last round's
+            Total $row = Total::make($total % 7); // chained: $total is last round's
             $total = $total + $row->add(1)->add(2)->n;
             Row::seen($total);
             $i = $i + 1;

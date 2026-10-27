@@ -2372,7 +2372,7 @@ Two `get` hooks may read each other, such as `get => $this->b` on `$a` and `get 
 class Volume
 {
     public int $level {
-        set (int $v) {
+        set(int $v) {
             if ($v < 0) {
                 throw new LogicError('a volume is never below 0');
             }
@@ -2462,7 +2462,7 @@ class User
 {
     public string $email {
         get => $this->email;
-        set (string $v) {
+        set(string $v) {
             string $clean = Core\Str::trim(Core\Str::lower($v));
             if (!Core\Str::contains($clean, '@')) {
                 throw new LogicError('that is not an e-mail address');
@@ -2521,7 +2521,7 @@ class Box
 {
     public array<int> $xs {
         get => $this->xs;
-        set (array<int> $v) {
+        set(array<int> $v) {
             $this->xs = $v;
         }
     }
@@ -3090,7 +3090,7 @@ class Record implements PropertyObserver
     // The `set` hook stores the lower case text. The observer is told what the
     // hook stored, not what was written.
     public string $slug {
-        set (string $v) {
+        set(string $v) {
             $this->slug = Core\Str::lower($v);
         }
     }

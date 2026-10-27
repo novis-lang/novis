@@ -1,12 +1,12 @@
 <?nvs
 // Shows that a second call to `Core\Signal::onShutdown` replaces the first function.
 
-Core\Signal::onShutdown(fn (): void => {
+Core\Signal::onShutdown(fn(): void => {
     echo "first function\n";
 });
 
 // This call replaces the function above. On a stop signal, only "second function" is printed.
-Core\Signal::onShutdown(fn (): void => {
+Core\Signal::onShutdown(fn(): void => {
     echo "second function\n";
 });
 

@@ -3,7 +3,7 @@
 // if the job can try again.
 // proof: exit 1
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     ?Throwable $error = $report->error();
     if ($error == null) {
         return;

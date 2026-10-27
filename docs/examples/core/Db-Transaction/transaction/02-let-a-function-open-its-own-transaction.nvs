@@ -14,13 +14,13 @@ class Audit
     // caller's transaction. Its own `transaction` call is one step of it.
     public static function record(Transaction $tx, string $what): void
     {
-        $tx->transaction(fn (Transaction $step): void => {
+        $tx->transaction(fn(Transaction $step): void => {
             $step->execute('insert into events (what) values (?)', [$what]);
         });
     }
 }
 
-$db->transaction(fn (Transaction $work): void => {
+$db->transaction(fn(Transaction $work): void => {
     $work->execute('insert into notes (text) values (?)', ['buy milk']);
     Audit::record($work, 'a note was written');
 });

@@ -5,13 +5,13 @@
 array<string> $defaults = [
     'currency' => 'EUR',
     'language' => 'en',
-    'theme'    => 'light',
+    'theme' => 'light',
     'timezone' => 'Europe/Vienna',
 ];
 
 array<string> $saved = [
     'language' => 'de',
-    'theme'    => 'light',
+    'theme' => 'light',
     'signature' => 'Mit freundlichen Grüßen',
 ];
 

@@ -21,7 +21,6 @@
 // `Core\Ast::parse` reads source code and does not run it. Novis has no
 // `eval`, and this function does not add one.
 
-
 class Point
 {
     public int $x = 3;

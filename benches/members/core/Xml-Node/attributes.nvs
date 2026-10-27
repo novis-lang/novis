@@ -19,7 +19,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + Core\Arr::count($items[($total % 3) as int]->attributes());   // chained: $total is last round's
+            $total = $total + Core\Arr::count($items[($total % 3) as int]->attributes()); // chained: $total is last round's
             $i = $i + 1;
         }
         return $total;

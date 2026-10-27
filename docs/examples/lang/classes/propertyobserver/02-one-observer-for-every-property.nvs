@@ -10,7 +10,7 @@ class Record implements PropertyObserver
     // The `set` hook stores the lower case text. The observer is told what the
     // hook stored, not what was written.
     public string $slug {
-        set (string $v) {
+        set(string $v) {
             $this->slug = Core\Str::lower($v);
         }
     }

@@ -6,9 +6,9 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table stock (item text primary key, left int not null)', []);
 $db->execute('insert into stock (item, left) values (?, ?)', ['lamp', 2]);
 
-var $order = fn (string $item, int $count): string => {
+var $order = fn(string $item, int $count): string => {
     try {
-        $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        $db->transaction(fn(Core\Db\Transaction $tx): void => {
             $tx->execute('update stock set left = left - ? where item = ?', [$count, $item]);
 
             // The update is part of this transaction, so this read sees the new

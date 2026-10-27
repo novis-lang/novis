@@ -18,7 +18,6 @@
 // computed once when the program loads, and again only when a changed file is
 // reloaded. Nothing here recomputes, caches or shortens anything.
 
-
 string $id = Core\Program::id();
 
 // Counted over the whole string rather than sampled. A member that answered

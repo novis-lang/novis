@@ -31,7 +31,7 @@ $body->write(Core\Str::repeat('x', 8388608));
 // stops the program.
 echo "step 6\n";
 string $chunk = Core\Str::repeat('b', 65536);
-var $kept = Core\Out::capture(fn (): void => {
+var $kept = Core\Out::capture(fn(): void => {
     Core\Response\Stream $inner = Core\Response::stream('text/plain; charset=utf-8');
     uint $written = 0;
     while ($written < 1000000) {

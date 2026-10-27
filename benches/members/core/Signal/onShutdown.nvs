@@ -9,8 +9,8 @@ class Bench
 {
     public static function run(uint $rounds): int
     {
-        var $first = fn (): void => { echo "first\n"; };
-        var $second = fn (): void => { echo "second\n"; };
+        var $first = fn(): void => { echo "first\n"; };
+        var $second = fn(): void => { echo "second\n"; };
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

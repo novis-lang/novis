@@ -45,12 +45,12 @@ class Attack
     public static function run(int $rounds): int
     {
         int $seen = 0; // the running total
-        int $i = 0;    /* the loop counter */
+        int $i = 0; /* the loop counter */
         while ($i < $rounds) {
             // Every line of this loop has a comment. Each value is used by the
             // next round, so the compiler cannot remove any of it.
             $seen = $seen + ($i % 3); /* adds to the total */
-            $i = $i + 1;              # next round
+            $i = $i + 1; # next round
         }
         return $seen;
     }

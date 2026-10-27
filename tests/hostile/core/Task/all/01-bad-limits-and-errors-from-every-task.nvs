@@ -12,7 +12,7 @@ class Nest
             return 0;
         }
         var $inner = Core\Task::all({
-            next: fn (): uint => Nest::down($depth - 1),
+            next: fn(): uint => Nest::down($depth - 1),
         });
         return $inner->next + 1;
     }
@@ -20,7 +20,7 @@ class Nest
 
 // Step 1: `limit: 0` lets no task run. The call throws a `LogicError`.
 try {
-    var $none = Core\Task::all({ a: fn (): int => 1 }, { limit: 0 });
+    var $none = Core\Task::all({ a: fn(): int => 1 }, { limit: 0 });
     echo 'step 1: ', $none->a, "\n";
 } catch (LogicError $noTask) {
     echo "step 1: not allowed\n";
@@ -30,7 +30,7 @@ try {
 array<Core\Time\Duration> $limits = [0s, 1000000s->negated()];
 foreach ($limits as Core\Time\Duration $limit) {
     try {
-        var $late = Core\Task::all({ a: fn (): int => 1 }, { deadline: $limit });
+        var $late = Core\Task::all({ a: fn(): int => 1 }, { deadline: $limit });
         echo 'step 2: ', $late->a, "\n";
     } catch (TimeoutError $noTime) {
         echo "step 2: out of time\n";
@@ -40,9 +40,9 @@ foreach ($limits as Core\Time\Duration $limit) {
 // Step 3: every task throws. Only the first error comes out of the call.
 try {
     var $all = Core\Task::all({
-        a: fn (): int => { throw new RuntimeError('a'); },
-        b: fn (): int => { throw new LogicError('b'); },
-        c: fn (): int => { throw new RuntimeError('c'); },
+        a: fn(): int => { throw new RuntimeError('a'); },
+        b: fn(): int => { throw new LogicError('b'); },
+        c: fn(): int => { throw new RuntimeError('c'); },
     });
     echo 'step 3: ', $all->a, "\n";
 } catch (Throwable $first) {
@@ -52,9 +52,9 @@ try {
 // Step 4: `limit: 1` with tasks that each start a group of their own.
 // Every inner group must still finish.
 var $queued = Core\Task::all({
-    a: fn (): uint => Nest::down(50),
-    b: fn (): uint => Nest::down(50),
-    c: fn (): uint => Nest::down(50),
+    a: fn(): uint => Nest::down(50),
+    b: fn(): uint => Nest::down(50),
+    c: fn(): uint => Nest::down(50),
 }, { limit: 1 });
 echo 'step 4: ', $queued->a + $queued->b + $queued->c, "\n";
 

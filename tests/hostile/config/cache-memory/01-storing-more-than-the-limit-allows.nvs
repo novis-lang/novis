@@ -28,19 +28,19 @@ while ($n < 100000) {
 secret bytes $material = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$material];
 
-var $itself = fn (): Core\Cache\SecretEntry => {
+var $itself = fn(): Core\Cache\SecretEntry => {
     var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('self', $ring) ?? 'none';
     return Core\Cache\SecretEntry::of('self:' . $seen, 1h);
 };
 $store->getSecret('self', $ring, { fill: $itself });
 
-var $second = fn (): Core\Cache\SecretEntry => {
+var $second = fn(): Core\Cache\SecretEntry => {
     var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('first', $ring) ?? 'none';
     return Core\Cache\SecretEntry::of('second:' . $seen, 1h);
 };
-var $first = fn (): Core\Cache\SecretEntry => {
+var $first = fn(): Core\Cache\SecretEntry => {
     var $inner = Core\Cache::memory();
     var $seen = $inner->getSecret('second', $ring, { fill: $second }) ?? 'none';
     return Core\Cache\SecretEntry::of('first:' . $seen, 1h);
@@ -48,7 +48,7 @@ var $first = fn (): Core\Cache\SecretEntry => {
 $store->getSecret('first', $ring, { fill: $first });
 
 // 5. Use a `fill` function that throws. The next `getSecret` for that key should not wait.
-var $refuses = fn (): Core\Cache\SecretEntry => {
+var $refuses = fn(): Core\Cache\SecretEntry => {
     throw new RuntimeError('the token endpoint said no');
 };
 try {
@@ -56,7 +56,7 @@ try {
 } catch (RuntimeError $refused) {
     echo "the fill threw and the caller saw it\n";
 }
-var $answers = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('t0ken', 1h);
+var $answers = fn(): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('t0ken', 1h);
 $store->getSecret('token', $ring, { fill: $answers });
 
 // 6. Change both settings of the block, to larger values and to `0` and `false`.

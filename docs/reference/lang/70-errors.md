@@ -1405,7 +1405,7 @@ loading order 7
 
 // This anonymous function runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     echo 'import stopped: ', $e->message, "\n";
     echo "check your file, then run the import again\n";
 });
@@ -1448,7 +1448,7 @@ final class Counter
 
 // This anonymous function runs at every ending: a normal one, an `exit`, and an error
 // that nothing caught. `status()` is 1 for an ending an error caused.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo '--- rows written: ', Counter::$written, "\n";
     echo '--- exit status: ', $report->status(), "\n";
     echo '--- error: ', $report->error()?->message ?? 'none', "\n";
@@ -1768,7 +1768,7 @@ memory = "16M"
 // the limit that fired. The program still ends after it.
 // proof: exit 1
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 
@@ -1811,7 +1811,7 @@ final class Job
     public static string $current = 'none';
 }
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped on order ', Job::$current, ', limit: ', $report['limit'], "\n";
 });
 

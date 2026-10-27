@@ -13,7 +13,7 @@ $db->execute('create table readings (id integer primary key, celsius int not nul
 array<int> $batch = [19, 21, -400, 23];
 
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         foreach ($batch as int $celsius) {
             if ($celsius < -273) {
                 $tx->rollBack('a reading below absolute zero is in the batch');

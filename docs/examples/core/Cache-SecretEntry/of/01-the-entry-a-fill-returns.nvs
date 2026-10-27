@@ -9,7 +9,7 @@ var $cache = Core\Cache::memory();
 
 // The fill runs when the cache has no secret under "api-token". It returns one
 // entry, and the store seals what the entry carries.
-var $fetch = fn (): Core\Cache\SecretEntry => {
+var $fetch = fn(): Core\Cache\SecretEntry => {
     echo "asking the service\n";
     return Core\Cache\SecretEntry::of('at-7f3c9b21', 15m);
 };

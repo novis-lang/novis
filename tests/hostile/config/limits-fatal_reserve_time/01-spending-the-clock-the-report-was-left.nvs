@@ -5,7 +5,7 @@
 // hostile: timeout-ms 30000
 // hostile: ends-early 4 FATAL
 
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "the handler still had a clock to run on\n";
 });
 

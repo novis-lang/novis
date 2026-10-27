@@ -7,13 +7,13 @@ use Core\Db\Transaction;
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
 
-$db->transaction(fn (Transaction $work): void => {
+$db->transaction(fn(Transaction $work): void => {
     $work->execute('insert into notes (text) values (?)', ['buy milk']);
 
     try {
         // A second transaction inside the first one. It is one step of the work,
         // with its own end.
-        $work->transaction(fn (Transaction $step): void => {
+        $work->transaction(fn(Transaction $step): void => {
             $step->execute('insert into notes (text) values (?)', ['call Ana']);
             $step->rollBack('this note is not wanted');
         });

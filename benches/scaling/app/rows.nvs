@@ -23,7 +23,7 @@ class Bench
         array<Core\Html\Markup> $items = [];
         array<mixed> $products = [];
         foreach ($rows as var $row) {
-            tainted string $code =$row->get('code') as string;
+            tainted string $code = $row->get('code') as string;
             int $price = $row->get('price') as int;
             if (Core\Validate::isAscii($code)) {
                 $cache->put('price:' . $code, $price);

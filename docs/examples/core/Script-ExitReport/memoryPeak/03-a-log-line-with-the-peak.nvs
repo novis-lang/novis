@@ -1,7 +1,7 @@
 <?nvs
 // Shows an import job that checks its peak memory in a log line when it ends.
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     // The job held 2 MiB of rows, which is 2097152 bytes.
     // This prints "job=import peak-ok=yes".
     echo 'job=import peak-ok=', $report->memoryPeak() >= 2097152 ? 'yes' : 'no', "\n";

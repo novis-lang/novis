@@ -5,7 +5,7 @@
 array<int> $waits = [30, 20, 10];
 
 // `Core\Task::map` calls the function once for each element, at the same time.
-var $loaded = Core\Task::map($waits, fn (int $ms): string => {
+var $loaded = Core\Task::map($waits, fn(int $ms): string => {
     Core\Time::sleep(Core\Time\Duration::milliseconds($ms));
     return 'file loaded in ' . $ms . 'ms';
 });

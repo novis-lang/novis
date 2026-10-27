@@ -8,7 +8,7 @@ echo 'time held back:      ', Core\Config::get('log.handler_reserve_time') ?? '(
 
 // A program registers its own handler with `Core\Fatal::onLimit`. This function
 // runs inside the request that failed.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "the program's own handler ran\n";
 });
 

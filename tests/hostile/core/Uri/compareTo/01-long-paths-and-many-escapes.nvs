@@ -46,5 +46,5 @@ while ($j < 5000) {
     $links[] = 'http://example.com/' . (($j * 7919) % 5000) . '/..%2F?q=' . $j;
     $j = $j + 1;
 }
-var $sorted = Core\Arr::sort($links, { comparator: fn (string $x, string $y): int => Compare::of($x, $y) });
+var $sorted = Core\Arr::sort($links, { comparator: fn(string $x, string $y): int => Compare::of($x, $y) });
 echo Core\Arr::count($sorted), "\n";

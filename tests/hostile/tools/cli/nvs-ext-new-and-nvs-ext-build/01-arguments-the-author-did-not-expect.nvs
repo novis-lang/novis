@@ -5,11 +5,11 @@
 use Geo\Atlas;
 
 array<string> $paths = [
-    '',                                  // 1. An empty path.
-    "note.txt\u{0}.png",                 // 2. A path with a NUL character in the middle.
+    '', // 1. An empty path.
+    "note.txt\u{0}.png", // 2. A path with a NUL character in the middle.
     '../../../../../../../../etc/passwd', // 3. A path that tries to leave `data/`.
-    Core\Str::repeat('a', 1000000),      // 4. A path of one million characters.
-    "\u{202E}txt.eton",                  // 5. A path with a right-to-left mark.
+    Core\Str::repeat('a', 1000000), // 4. A path of one million characters.
+    "\u{202E}txt.eton", // 5. A path with a right-to-left mark.
 ];
 foreach ($paths as string $path) {
     try {

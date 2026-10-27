@@ -4,7 +4,7 @@
 // between the call and the root runs, the `Core\Script::onExit` queue drains,
 // and `Core\Task::afterResponse` work goes out afterwards. That is the whole
 // difference from `exit`, which runs none of the three.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
         Core\Script\ExitReport::Reason::Normal => 'Normal',
         Core\Script\ExitReport::Reason::ExitCall => 'ExitCall',
@@ -14,7 +14,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     echo 'exit hook: ', $reason, "\n";
 });
 
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     echo "after the response\n";
 });
 

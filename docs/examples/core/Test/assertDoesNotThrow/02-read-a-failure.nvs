@@ -14,7 +14,7 @@ class Settings
 // The code throws a `LogicError`, so the check throws a `Core\Test\Failure`.
 // The message contains the message of the `LogicError`.
 try {
-    Core\Test::assertDoesNotThrow(fn (): void => { Settings::load('mode'); });
+    Core\Test::assertDoesNotThrow(fn(): void => { Settings::load('mode'); });
 } catch (Core\Test\Failure $failure) {
     echo $failure->message, "\n";
 }
@@ -22,7 +22,7 @@ try {
 // The option `message` adds your own text at the start of the message.
 try {
     Core\Test::assertDoesNotThrow(
-        fn (): void => { Settings::load('mode'); },
+        fn(): void => { Settings::load('mode'); },
         { message: 'a setting without a value is allowed' },
     );
 } catch (Core\Test\Failure $failure) {

@@ -38,7 +38,7 @@ final class Totals
     // Adds one report to both tables. Both tables change, or neither does.
     public function add(Report $report): void
     {
-        $this->db->transaction(fn (Transaction $tx): void => {
+        $this->db->transaction(fn(Transaction $tx): void => {
             // `active_1` to `active_7` count the reports by their `days_active`. This report adds 1 to one of them.
             array<mixed> $row = [$report->week, $report->version, $report->os, $report->arch, $report->first ? 1 : 0];
             foreach (Core\Arr::range(1, 7) as int $day) {
@@ -119,16 +119,22 @@ final class Totals
     public function commands(tainted string $week): array<Count>
     {
         // `invocation.` has 11 characters, so the command starts at character 12.
-        return $this->counts("select substr(counter, 12) as label, sum(reports) as value from counters where week = ? and counter like 'invocation.%' "
-            . 'group by counter order by value desc, label', [$week]);
+        return $this->counts(
+            "select substr(counter, 12) as label, sum(reports) as value from counters where week = ? and counter like 'invocation.%' "
+                . 'group by counter order by value desc, label',
+            [$week],
+        );
     }
 
     // Returns the number of internal errors of each command in one week.
     public function internalErrors(tainted string $week): array<Count>
     {
         // `internal-error.` has 15 characters, so the command starts at character 16.
-        return $this->counts("select substr(counter, 16) as label, sum(total) as value from counters where week = ? and counter like 'internal-error.%' "
-            . 'group by counter order by value desc, label', [$week]);
+        return $this->counts(
+            "select substr(counter, 16) as label, sum(total) as value from counters where week = ? and counter like 'internal-error.%' "
+                . 'group by counter order by value desc, label',
+            [$week],
+        );
     }
 
     // Returns how many reports in one week had each value of `days_active`, from 1 day to 7 days.

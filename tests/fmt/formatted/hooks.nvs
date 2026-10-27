@@ -3,7 +3,7 @@ class Temperature
 {
     public float $celsius {
         get => $this->celsius;
-        set (float $value) {
+        set(float $value) {
             if ($value < -273.15) {
                 throw new LogicError('below absolute zero');
             }

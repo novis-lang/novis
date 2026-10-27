@@ -22,7 +22,7 @@ class Bench
         int $total = 1;
         uint $i = 0;
         while ($i < $rounds) {
-            ?int $maybe = ($total % 7 == 0) ? null : $total;   // chained: $total is last round's
+            ?int $maybe = ($total % 7 == 0) ? null : $total; // chained: $total is last round's
             $total = (Bench::step($maybe, 3) * 7) % 1021;
             $i = $i + 1;
         }

@@ -51,7 +51,6 @@ final class Chain
 
 echo Chain::causes(100000), "\n";
 
-
 try {
     Chain::fromTheBottom(2000);
     echo "no throw\n";

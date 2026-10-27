@@ -14,7 +14,7 @@ class Bench
             $labels[] = 'link ' . $i;
             $i = $i + 1;
         }
-        var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label));
+        var $sizes = Core\Task::map($labels, fn(string $label): uint => Core\Str::length($label));
         uint $total = 0;
         foreach ($sizes as uint $one) {
             $total = $total + $one;

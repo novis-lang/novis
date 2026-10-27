@@ -6,7 +6,7 @@ uint $refused = 0;
 
 // 1. The byte FF is never part of valid UTF-8.
 try {
-    var $first = Core\Out::capture(fn (): void => {
+    var $first = Core\Out::capture(fn(): void => {
         Core\Response::bytes(Core\Encoding::fromHex('ff'), 'application/octet-stream');
     });
 } catch (RuntimeError $error) {
@@ -15,7 +15,7 @@ try {
 
 // 2. Text, then the first byte of a two-byte character with no second byte.
 try {
-    var $second = Core\Out::capture(fn (): void => {
+    var $second = Core\Out::capture(fn(): void => {
         echo 'price: ';
         Core\Response::bytes(Core\Encoding::fromHex('c3'), 'text/plain');
     });
@@ -24,9 +24,9 @@ try {
 }
 
 // 3. A capture inside a capture. The inner one throws, and the outer one goes on.
-var $outer = Core\Out::capture(fn (): void => {
+var $outer = Core\Out::capture(fn(): void => {
     try {
-        var $inner = Core\Out::capture(fn (): void => {
+        var $inner = Core\Out::capture(fn(): void => {
             Core\Response::bytes(Core\Encoding::fromHex('c0bc'), 'text/plain');
         });
     } catch (RuntimeError $error) {
@@ -35,7 +35,7 @@ var $outer = Core\Out::capture(fn (): void => {
 });
 
 // 4. Bytes that are valid UTF-8 are captured as text.
-var $fine = Core\Out::capture(fn (): void => {
+var $fine = Core\Out::capture(fn(): void => {
     Core\Response::bytes('café' as bytes, 'text/plain');
 });
 

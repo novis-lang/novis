@@ -13,7 +13,7 @@ class Nest
         if ($left == 0) {
             return 0;
         }
-        return $tx->transaction(fn (Core\Db\Transaction $inner): uint =>
+        return $tx->transaction(fn(Core\Db\Transaction $inner): uint =>
             Nest::deeper($inner, $left - 1) + 1);
     }
 }
@@ -24,7 +24,7 @@ $db->execute('create table rows (id integer primary key, n integer not null)', [
 // 1. A hundred thousand transactions inside one another, which is deeper than
 // the call stack goes. The program must be stopped with an error it can catch.
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+    $db->transaction(fn(Core\Db\Transaction $tx): uint =>
         Nest::deeper($tx, 100000) + 1);
     echo "1 nested all the way\n";
 } catch (Throwable $stopped) {
@@ -40,7 +40,7 @@ echo '2 still usable: ', $db->query('select id from rows', [])->count(), "\n";
 // A transaction left open would stop the next one.
 uint $i = 0;
 while ($i < 10000) {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         $tx->execute('insert into rows (n) values (?)', [$i as int]);
     });
     $i = $i + 1;
@@ -53,7 +53,7 @@ uint $abandoned = 0;
 $i = 0;
 while ($i < 100000) {
     try {
-        $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        $db->transaction(fn(Core\Db\Transaction $tx): void => {
             $tx->execute('insert into rows (n) values (?)', [-1]);
             $tx->rollBack('never keep this');
         });
@@ -68,7 +68,7 @@ echo '4 abandoned: ', $abandoned, "\n";
 // abandoned, and the error still reaches the code that started it.
 uint $reached = 0;
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         try {
             $tx->rollBack('caught on the way out');
         } catch (Throwable $swallowed) {

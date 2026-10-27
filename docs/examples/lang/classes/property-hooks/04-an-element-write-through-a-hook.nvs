@@ -8,7 +8,7 @@ class Box
 {
     public array<int> $xs {
         get => $this->xs;
-        set (array<int> $v) {
+        set(array<int> $v) {
             $this->xs = $v;
         }
     }

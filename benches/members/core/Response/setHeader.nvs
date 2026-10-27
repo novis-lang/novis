@@ -13,7 +13,7 @@ class Bench
         while ($i < $rounds) {
             string $value = $values[($total % 4) as int];
             Core\Response::setHeader('Cache-Control', $value);
-            $total = $total + Core\Str::length($value);   // chained: the next value depends on this one
+            $total = $total + Core\Str::length($value); // chained: the next value depends on this one
             $i = $i + 1;
         }
         return $total;

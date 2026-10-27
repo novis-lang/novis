@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (id integer primary key, item text not null)', []);
 
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         var $written = $tx->execute('insert into orders (item) values (?)', ['a red bicycle']);
         // The write reports one row. This prints `1 row written`.
         echo $written->affected(), " row written\n";

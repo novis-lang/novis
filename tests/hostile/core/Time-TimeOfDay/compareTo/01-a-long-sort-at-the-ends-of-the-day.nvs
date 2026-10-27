@@ -21,7 +21,7 @@ while ($i < 20000) {
     $i = $i + 1;
 }
 array<Core\Time\TimeOfDay> $sorted = Core\Arr::sort($times, {
-    comparator: fn (Core\Time\TimeOfDay $p, Core\Time\TimeOfDay $q): int => $p->compareTo($q),
+    comparator: fn(Core\Time\TimeOfDay $p, Core\Time\TimeOfDay $q): int => $p->compareTo($q),
 });
 
 // 3. Every neighbour in the sorted list is checked. This counts the pairs out of order.

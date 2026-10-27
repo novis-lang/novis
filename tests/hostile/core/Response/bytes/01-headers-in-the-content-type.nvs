@@ -57,7 +57,7 @@ Core\Response::bytes(Core\Encoding::fromHex('00ff80c3281b5b306d'), 'application/
 // stops the program.
 echo "step 8\n";
 bytes $chunk = Core\Str::repeat('b', 65536) as bytes;
-var $kept = Core\Out::capture(fn (): void => {
+var $kept = Core\Out::capture(fn(): void => {
     uint $written = 0;
     while ($written < 1000000) {
         Core\Response::bytes($chunk, 'application/octet-stream');

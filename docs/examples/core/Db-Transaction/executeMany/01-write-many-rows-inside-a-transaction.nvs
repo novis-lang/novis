@@ -12,7 +12,7 @@ array<array<mixed>> $rows = [
     ['book train'],
 ];
 
-uint $written = $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+uint $written = $db->transaction(fn(Core\Db\Transaction $tx): uint =>
     $tx->executeMany('insert into notes (text) values (?)', $rows));
 
 // This prints `3 rows written`.

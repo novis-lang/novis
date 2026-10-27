@@ -23,7 +23,6 @@
 // writer, so a second worker waits out the busy timeout rather than claiming in
 // parallel, and `both ran` below is the assertion that waiting is what it does.
 
-
 use Core\Queue;
 
 class Poll
@@ -81,11 +80,11 @@ echo 'enqueued', "\n";
 // is one transaction the database arbitrates, so the worker that arrives second
 // waits for the write lock and by the time it proceeds the row is no longer
 // due.
-echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
+echo 'claimed ', Poll::counted(fn(): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
 // The write-back, read as the state it leaves behind rather than as a
 // callback: delivery is at-least-once, so "it ran" is something a row says.
-Poll::until(fn (): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
+Poll::until(fn(): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
 echo 'ran', "\n";
 
 // Two jobs now, against the same single writer. Neither worker can be inside
@@ -94,7 +93,7 @@ echo 'ran', "\n";
 // is a claim that reported contention as an error instead of waiting for it.
 var $first = Queue::push('queue/receipt.nvs', { queue: $queue });
 var $second = Queue::push('queue/receipt.nvs', { queue: $queue });
-Poll::until(fn (): bool => {
+Poll::until(fn(): bool => {
     return Queue::status($first) == Queue::State::Succeeded
         && Queue::status($second) == Queue::State::Succeeded;
 });

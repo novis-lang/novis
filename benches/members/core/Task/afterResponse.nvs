@@ -12,7 +12,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             string $receipt = $receipts[($total % 3) as int];
-            Core\Task::afterResponse(fn (): void => {
+            Core\Task::afterResponse(fn(): void => {
                 uint $size = Core\Str::length($receipt);
             });
             $total = $total + Core\Str::length($receipt) % ($i % 3 + 2);

@@ -14,7 +14,7 @@ class Bench
         while ($i < $rounds) {
             ?Core\Xml\Node $node = $reader->read();
             if ($node == null) {
-                $reader = Core\Xml::reader($xml);   // chained: the next round reads where this one stopped
+                $reader = Core\Xml::reader($xml); // chained: the next round reads where this one stopped
             } else {
                 $total = $total + 1;
             }

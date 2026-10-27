@@ -18,7 +18,6 @@
 // program, because a script that could exempt its own files could be made to
 // hoard them.
 
-
 string $dir = Core\IO::temporaryDir();
 string $note = Core\Path::join($dir, 'note.txt');
 

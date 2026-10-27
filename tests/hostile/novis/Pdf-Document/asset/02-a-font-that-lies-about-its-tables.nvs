@@ -9,8 +9,10 @@ class Attack
     public static function attempt(int $step, bytes $font): void
     {
         try {
-            var $rendered = Document::fromHtml('<style>@font-face { font-family: Shop; src: url(shop.ttf) } '
-                . 'p { font-family: Shop }</style><p>Shop 1042</p>')
+            var $rendered = Document::fromHtml(
+                '<style>@font-face { font-family: Shop; src: url(shop.ttf) } '
+                    . 'p { font-family: Shop }</style><p>Shop 1042</p>',
+            )
                 ->asset('shop.ttf', $font)
                 ->render();
             echo 'step ', $step, ' ran ', $rendered->pageCount, ' ', Core\Arr::count($rendered->missingGlyphs), "\n";
@@ -24,24 +26,26 @@ class Attack
 string $start = '00010000' . '0004' . '0040' . '0002' . '0000';
 
 // 1. A `head` table past the end of the file, a `cmap` table of 2 GB, and a `maxp` table on top of the header.
-Attack::attempt(1, Core\Encoding::fromHex($start
-    . '68656164'
-    . '00000000'
-    . 'ffffff00'
-    . '00000036'
-    . '636d6170'
-    . '00000000'
-    . '0000004c'
-    . '7fffffff'
-    . '676c7966'
-    . '00000000'
-    . '0000004c'
-    . '00000010'
-    . '6d617870'
-    . '00000000'
-    . '00000000'
-    . '00000006'
-    . Core\Str::repeat('ff', 64)));
+Attack::attempt(1, Core\Encoding::fromHex(
+    $start
+        . '68656164'
+        . '00000000'
+        . 'ffffff00'
+        . '00000036'
+        . '636d6170'
+        . '00000000'
+        . '0000004c'
+        . '7fffffff'
+        . '676c7966'
+        . '00000000'
+        . '0000004c'
+        . '00000010'
+        . '6d617870'
+        . '00000000'
+        . '00000000'
+        . '00000006'
+        . Core\Str::repeat('ff', 64),
+));
 
 // 2. A file that says it has 65535 tables and has none.
 Attack::attempt(2, Core\Encoding::fromHex('00010000ffff00000000000000'));

@@ -16,7 +16,7 @@ class Bench
         while ($i < $rounds) {
             // The number written is last round's total, so the loop cannot be
             // left out.
-            $total = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+            $total = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
                 $tx->execute('insert into totals (n) values (?)', [$total as int]);
                 return $total + 1;
             });

@@ -14,5 +14,5 @@ class Settings
 
 // The function is the code to run. It runs once, and it throws no error,
 // so the check passes and nothing is thrown.
-Core\Test::assertDoesNotThrow(fn (): void => { Settings::load('mode=fast'); });
+Core\Test::assertDoesNotThrow(fn(): void => { Settings::load('mode=fast'); });
 echo "the check passed\n";

@@ -56,7 +56,8 @@ int $rolling = 1;
 int $round = 0;
 
 while ($round < 200000) {
-    $rolling = Collect::sum($rolling % 5) + Collect::sum($rolling % 5, 3)
+    $rolling = Collect::sum($rolling % 5)
+        + Collect::sum($rolling % 5, 3)
         + Collect::sum(first: $rolling % 5, second: 3)
         + Collect::sum(second: 3, first: $rolling % 5)
         + Collect::sum($rolling % 5, 3, 4, 5);

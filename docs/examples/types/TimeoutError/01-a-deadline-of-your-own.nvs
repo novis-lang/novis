@@ -14,12 +14,14 @@ class Budget
     public function spend(string $step, int $cost): void
     {
         if ($cost > $this->left) {
-            throw new TimeoutError($step
-                . ' needs '
-                . $cost as string
-                . 'ms and only '
-                . $this->left as string
-                . 'ms are left');
+            throw new TimeoutError(
+                $step
+                    . ' needs '
+                    . $cost as string
+                    . 'ms and only '
+                    . $this->left as string
+                    . 'ms are left',
+            );
         }
         $this->left = $this->left - $cost;
         echo $step, ' took ', $cost, "ms\n";

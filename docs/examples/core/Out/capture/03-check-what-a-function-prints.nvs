@@ -13,7 +13,7 @@ final class Receipt
 }
 
 // `as string` converts the collected output to a `string`, so you can compare it.
-string $printed = Core\Out::capture(fn (): void => {
+string $printed = Core\Out::capture(fn(): void => {
     Receipt::print(['Coffee', 'Bread']);
 }) as string;
 

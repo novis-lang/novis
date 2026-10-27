@@ -7,9 +7,9 @@
 // Step 1: a task started by `Core\Task::all` tries to add work. This is not
 // allowed, and the error is caught so the next steps still run.
 var $fromTask = Core\Task::all({
-    tried: fn (): string => {
+    tried: fn(): string => {
         try {
-            Core\Task::afterResponse(fn (): void => {
+            Core\Task::afterResponse(fn(): void => {
                 echo "never\n";
             });
             return 'allowed';
@@ -25,7 +25,7 @@ echo 'step 1: ', $fromTask->tried, "\n";
 string $big = Core\Str::repeat('w', 16000000);
 uint $i = 0;
 while ($i < 100000) {
-    Core\Task::afterResponse(fn (): void => {
+    Core\Task::afterResponse(fn(): void => {
         uint $size = Core\Str::length($big);
     });
     $i = $i + 1;
@@ -34,18 +34,18 @@ echo 'step 2: added ', $i, "\n";
 
 // Step 3: an anonymous function throws an error. The error is written to the log,
 // and the next function still runs.
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     throw new RuntimeError('the webhook failed');
 });
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     echo "step 3: the function after the error ran\n";
 });
 
 // Step 4: an anonymous function tries to add one more function. This is not allowed,
 // and the error is caught inside the function.
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     try {
-        Core\Task::afterResponse(fn (): void => {
+        Core\Task::afterResponse(fn(): void => {
             echo "never either\n";
         });
         echo "step 4: allowed\n";
@@ -56,19 +56,19 @@ Core\Task::afterResponse(fn (): void => {
 
 // Step 5: three functions wait longer than their time limit: 5 milliseconds, zero,
 // and a negative time. Each one is stopped, and the next function still runs.
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     Core\Time::sleep(10s);
     echo "step 5: never\n";
 }, { deadline: 5ms });
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     Core\Time::sleep(10s);
     echo "step 5: never\n";
 }, { deadline: 0s });
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     Core\Time::sleep(10s);
     echo "step 5: never\n";
 }, { deadline: 1000000s->negated() });
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     echo "step 5: the function after the stopped ones ran\n";
 });
 

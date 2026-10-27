@@ -1,7 +1,7 @@
 <?nvs
 // Shows the reason when a script ends early with `Core\Script::finish()`.
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     // The reason is `Finish`, so this prints "finished early".
     if ($report->reason() == Core\Script\ExitReport::Reason::Finish) {
         echo "finished early\n";

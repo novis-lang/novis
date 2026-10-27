@@ -13,14 +13,14 @@ final class Basket
     public function add(string $line): Lines
     {
         $this->lines[] = $line;
-        return $this->lines;      // inside the class: the short name
+        return $this->lines; // inside the class: the short name
     }
 }
 
 class Printer
 {
     public static function show(Basket::Lines $lines): void
-    {      // outside the class: the class name first
+    { // outside the class: the class name first
         foreach ($lines as string $line) {
             echo '- ', $line, "\n";
         }

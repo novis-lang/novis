@@ -37,7 +37,7 @@ echo 'step 1: ', $true, " answers were true\n";
 // Step 2: 100,000 shutdown handlers are registered. Registering a handler does not start a shutdown.
 $i = 0;
 while ($i < 100000) {
-    Core\Signal::onShutdown(fn (): void => {
+    Core\Signal::onShutdown(fn(): void => {
         echo "shutting down\n";
     });
     $i = $i + 1;
@@ -57,7 +57,7 @@ echo 'step 3: ', Ask::once(), " after the full stack\n";
 $true = 0;
 $i = 0;
 while ($i < 1000000) {
-    $true = $true + (fn (): uint => Ask::once())();
+    $true = $true + (fn(): uint => Ask::once())();
     $i = $i + 1;
 }
 echo 'step 4: ', $true, " answers were true\n";

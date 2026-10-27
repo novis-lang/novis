@@ -31,11 +31,11 @@ try {
 // Step 3: both hooks throw while the runtime reports the failure. Neither may
 // replace the failure, and neither may run twice.
 echo "step 3\n";
-Core\Fatal::onUncaughtThrow(fn (Throwable $failure): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $failure): void => {
     throw new LogicError('the uncaught handler throws as well');
 });
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     throw new LogicError('the exit hook throws as well');
 });
 

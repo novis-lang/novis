@@ -5,8 +5,8 @@
 // the same field names, and each field has the return type of its function.
 // So `->rows` is an `array<int>` and `->label` is a `string`, with no cast.
 var $page = Core\Task::all({
-    rows:  fn(): array<int> => [1, 2, 3],
-    label: fn(): string     => 'all',
+    rows: fn(): array<int> => [1, 2, 3],
+    label: fn(): string => 'all',
 });
 echo $page->label, '=', Core\Arr::count($page->rows), "\n";
 

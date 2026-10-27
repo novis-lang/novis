@@ -16,7 +16,7 @@ final class Job
     }
 }
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     // The job called `exit`, so this prints "import: stopped".
     echo 'import: ', Job::outcome($report->reason()), "\n";
 });

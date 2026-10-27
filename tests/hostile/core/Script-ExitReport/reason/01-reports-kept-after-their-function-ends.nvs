@@ -13,14 +13,14 @@ final class Kept
 // 1. 1000 exit functions each save the report they receive.
 int $i = 0;
 while ($i < 1000) {
-    Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
         Kept::$reports[] = $report;
     });
     $i = $i + 1;
 }
 
 // 2. A later function reads the reason of every saved report 1000 times.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     foreach (Kept::$reports as Core\Script\ExitReport $kept) {
         int $n = 0;
         while ($n < 1000) {

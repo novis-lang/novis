@@ -14,8 +14,8 @@ class Bench
             // Chained: this round's jobs are given the number the last round returned.
             uint $seed = $total % 7;
             var $group = Core\Task::all({
-                one:   fn(): uint => $seed + 1,
-                two:   fn(): uint => $seed + 2,
+                one: fn(): uint => $seed + 1,
+                two: fn(): uint => $seed + 2,
                 three: fn(): uint => $seed + 3,
             });
             $total = $total + $group->one + $group->two + $group->three;

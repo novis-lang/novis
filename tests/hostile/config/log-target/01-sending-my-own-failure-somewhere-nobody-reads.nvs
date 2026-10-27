@@ -68,7 +68,7 @@ echo 'writing to: ', Core\Config::get('log.target') ?? '(nothing written)', "\n"
 
 // 3. Registers a handler that throws an error, so the server must write the
 //    record to `log.target` itself.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     throw new RuntimeError('the handler this program arranged threw as well');
 });
 

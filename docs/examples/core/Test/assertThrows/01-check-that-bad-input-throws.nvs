@@ -18,5 +18,5 @@ class Age
 
 // The function is the code to run. `LogicError::class` is the class of error you expect.
 // "-4" is not an age, so the code throws a `LogicError` and the check passes.
-Core\Test::assertThrows(fn (): void => { Age::parse('-4'); }, LogicError::class);
+Core\Test::assertThrows(fn(): void => { Age::parse('-4'); }, LogicError::class);
 echo "the check passed\n";

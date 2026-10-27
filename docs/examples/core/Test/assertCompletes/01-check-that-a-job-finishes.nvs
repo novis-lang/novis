@@ -23,7 +23,7 @@ class ReportTest
     {
         // `within` is the time limit. The check moves the clock forward by 5 seconds,
         // then runs the function. It fails if the function leaves a task still running.
-        Test::assertCompletes(fn (): void => { Report::build([120, 80, 45]); }, { within: 5s });
+        Test::assertCompletes(fn(): void => { Report::build([120, 80, 45]); }, { within: 5s });
     }
 }
 

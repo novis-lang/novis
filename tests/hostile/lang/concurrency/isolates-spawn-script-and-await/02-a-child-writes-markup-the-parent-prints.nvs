@@ -52,7 +52,7 @@ echo "step 2: the echoed text is the same as the text body\n";
 // Step 3: the parent captures its own `Core\Response::text`. The capture has no
 // escape character either.
 string $esc = Core\Str::fromCodePoint(27);
-var $captured = Core\Out::capture(fn (): void => {
+var $captured = Core\Out::capture(fn(): void => {
     Core\Response::text("<script>alert(1)</script>{$esc}[2J");
 });
 string $fromCapture = Plain::of($captured);

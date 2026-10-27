@@ -72,9 +72,9 @@
     "LateInit": "a9c0e741b47e724a"
   },
   "syntax/classes/property-hooks.mdx": {
-    "lang:classes/property-hooks": "825e6f1bf58e66c0",
+    "lang:classes/property-hooks": "068edc4da87db6f8",
     "lang:classes/propertyguard": "70d5351f64bb54b0",
-    "lang:classes/propertyobserver": "bc05f77900d6d3df",
+    "lang:classes/propertyobserver": "b154b347e6060235",
     "PropertyGuard": "b83409fc6b58c981",
     "PropertyObserver": "c06bfdacbad721bd"
   },
@@ -104,10 +104,10 @@
     "lang:concurrency/limit-and-deadline": "84f954dd88e083d9"
   },
   "syntax/concurrency/tasks.mdx": {
-    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "bc0691b4405879dc",
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "45b1c38f77ab3eab",
     "lang:concurrency/core-task-map-one-task-per-element": "6f0e0a892699d872",
     "lang:concurrency/no-colouring-i-o-just-waits": "cdf0ac583b880f75",
-    "lang:concurrency/what-does-not-exist": "ff82ff6fec254930"
+    "lang:concurrency/what-does-not-exist": "aef7c81c226b7b87"
   },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "ef905dac1723e1ed",
@@ -145,7 +145,7 @@
     "lang:statements/switch": "4214e5c6f1200373"
   },
   "syntax/errors/assert-and-dump.mdx": {
-    "Core\\Test\\Failure": "315e603d6550217a",
+    "Core\\Test\\Failure": "abe54063f22adf39",
     "lang:errors/assertion-failures": "5e4b6895a0551957",
     "lang:errors/inspecting-a-value": "37502786bc0d36ed"
   },
@@ -156,7 +156,7 @@
     "ArithmeticError": "d6121f623d34b376",
     "Core\\Cli\\NotInteractive": "202969e53dc98681",
     "Core\\Db\\DbError": "5d19915665250f78",
-    "Core\\Db\\RolledBack": "df5c34b4ef5737fe",
+    "Core\\Db\\RolledBack": "5797ef6a13798852",
     "Core\\DeprecatedError": "3a02da527e3b70de",
     "Core\\Ldap\\LdapError": "b6aff29e9beb2e6d",
     "Core\\Script\\Finished": "e2ca69d6a2bf9c19",
@@ -170,15 +170,15 @@
     "RecursionError": "44eec427742aae99",
     "RuntimeError": "90140b1f9afa5388",
     "Throwable": "4540224c331e67b1",
-    "TimeoutError": "05486b95a7a72a18"
+    "TimeoutError": "12e808d1beb68c5d"
   },
   "syntax/errors/limits.mdx": {
     "lang:errors/capability-denials-are-catchable": "a4be527d67f6816a",
-    "lang:errors/fatal-errors-limits-no-catch-sees": "1dafe927c72b82e5",
+    "lang:errors/fatal-errors-limits-no-catch-sees": "5a44617a4841dee1",
     "lang:errors/recursion-depth": "ea442f8dfdeb5535"
   },
   "syntax/errors/rethrowing.mdx": {
-    "lang:errors/an-uncaught-throw": "b2f210668299ed76",
+    "lang:errors/an-uncaught-throw": "a614e0070f09292f",
     "lang:errors/rethrowing": "2b6a233edf1823d8"
   },
   "syntax/errors/throw-and-catch.mdx": {
@@ -235,7 +235,7 @@
     "lang:types/what-does-not-exist": "c8b5bb6adf1bf913"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
-    "lang:testing/assertions": "4828a029a4109902",
+    "lang:testing/assertions": "458d6ccfa379dc67",
     "lang:testing/core-test-fixture-built-once-injected-by-type": "8003e9ee8920cf91",
     "lang:testing/core-test-property-generated-inputs": "efc5ffb061d342e8",
     "lang:testing/core-test-testwith-data-rows": "03ce1be5303e2b8f",
@@ -262,8 +262,8 @@
   "syntax/values/enums.mdx": {
     "Core\\Api\\KeyIn": "5aa79024bdd3ab76",
     "Core\\Api\\SchemeType": "da109ff3b7fdb07a",
-    "Core\\Arr::Order": "874c58c7c527703c",
-    "Core\\Arr::SetOn": "c18b936def864b64",
+    "Core\\Arr::Order": "8a57b289e309c4f4",
+    "Core\\Arr::SetOn": "b6f68d501f3c7e26",
     "Core\\Audience": "5a7ecb834fad0c20",
     "Core\\Charset": "832aaa3ceb8d72b1",
     "Core\\Cldr::PluralCategory": "5ceaaed49629daf7",
@@ -291,14 +291,14 @@
     "Core\\Ldap\\Entry::AccountType": "8767ba1368093a6c",
     "Core\\Ldap\\LdapError::Kind": "c6ec09a71fb9d31c",
     "Core\\Log::Level": "6c1289976c043719",
-    "Core\\Mime::Type": "70dd60ad005b3a6f",
+    "Core\\Mime::Type": "c2de0908a2f01886",
     "Core\\Queue::State": "9790f63b8c97f935",
-    "Core\\Reflect::TypeKind": "6edbc7dfa224d153",
+    "Core\\Reflect::TypeKind": "55a2186a90add963",
     "Core\\Response::Redirect": "723bc710af8b1941",
     "Core\\Response::SameSite": "aa076e34c7ba575c",
     "Core\\RoundMode": "cf234c100a0c3584",
-    "Core\\Script\\ExitReport::Reason": "2dbe7814f70c3754",
-    "Core\\Str::NormalForm": "334a9fa5e3150e9e",
+    "Core\\Script\\ExitReport::Reason": "886869a487e62b1a",
+    "Core\\Str::NormalForm": "cb76b3ce4476f5b2",
     "Core\\Time\\DateTime::Weekday": "462d38fa64bee316",
     "Core\\Unit": "a7d8af8decb1030b",
     "Core\\Xml\\Node::Kind": "c4eb257baafe13ee",
@@ -354,7 +354,7 @@
     "lang:types/numbers-bool-int-uint-float-decimal": "8a3c7b0c0828d8b8"
   },
   "syntax/values/strings.mdx": {
-    "lang:types/text-string-and-bytes": "e114e428f67a2bc3",
+    "lang:types/text-string-and-bytes": "1327416f6f7819e0",
     "lang:types/values-written-in-the-code": "ad7d0a7f1d4d26cf"
   },
   "syntax/values/tainted-and-secret.mdx": {
@@ -362,8 +362,8 @@
   },
   "syntax/values/union-types.mdx": {
     "lang:types/a-member-every-class-of-a-union-declares": "8ca381330c3d017f",
-    "lang:types/mixed": "058379b28ccf00d6",
-    "lang:types/type-aliases": "13f50e47f7b1b7b7"
+    "lang:types/mixed": "8b325c6938b23489",
+    "lang:types/type-aliases": "31665e04ec81910c"
   },
   "tools/api-document/index.mdx": {
     "tools:cli/nvs-api-diff": "776eaa9ca908be4a",

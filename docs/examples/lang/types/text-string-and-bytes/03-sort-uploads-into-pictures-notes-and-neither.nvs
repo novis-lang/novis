@@ -7,9 +7,9 @@
 bytes $pngSignature = Core\Encoding::fromHex('89504e47');
 
 array<string> $uploads = [
-    'iVBORw0KGgo=',          // the first bytes of a PNG
-    'SGVsbG8sIHdvcmxkIQ==',  // a short note
-    'SGVsbG8s/w==',          // a note with one byte that is not text
+    'iVBORw0KGgo=', // the first bytes of a PNG
+    'SGVsbG8sIHdvcmxkIQ==', // a short note
+    'SGVsbG8s/w==', // a note with one byte that is not text
 ];
 
 foreach ($uploads as string $encoded) {

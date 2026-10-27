@@ -25,7 +25,7 @@ class Bench
         uint $carry = 1;
         uint $i = 0;
         while ($i < $rounds) {
-            $carry = Bench::step($carry + $i % 5);   // chained: $carry is last round's
+            $carry = Bench::step($carry + $i % 5); // chained: $carry is last round's
             $i = $i + 1;
         }
         return $carry;

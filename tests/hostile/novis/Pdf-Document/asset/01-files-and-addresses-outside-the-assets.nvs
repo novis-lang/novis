@@ -45,8 +45,11 @@ foreach ($targets as string $target) {
     // 4. A font in `@font-face`.
     Attack::attempt('4', "<style>@font-face { font-family: Evil; src: url('{$target}') } p { font-family: Evil }</style><p>x</p>");
     // 5. An `href` and an `xlink:href` in an inline SVG.
-    Attack::attempt('5', "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"10\" height=\"10\">"
-        . "<image href=\"{$target}\" width=\"10\" height=\"10\"/><use xlink:href=\"{$target}#a\"/></svg>");
+    Attack::attempt(
+        '5',
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"10\" height=\"10\">"
+            . "<image href=\"{$target}\" width=\"10\" height=\"10\"/><use xlink:href=\"{$target}#a\"/></svg>",
+    );
 }
 
 // 6. A stylesheet asset whose own `@import` and `url()` name the metadata address.

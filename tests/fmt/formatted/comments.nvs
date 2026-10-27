@@ -11,7 +11,7 @@ use Core\Str;
 class Ledger
 {
     // Above a member.
-    public int $entries = 0;  // And after one, on its own line.
+    public int $entries = 0; // And after one, on its own line.
 
     /// What a method is for.
     public function record(/* before a parameter */ int $count): int
@@ -40,14 +40,14 @@ for (int $i = 0; /* inside a header */ $i < 2; $i += 1) {
 array<int> $counts = [
     // Above the first element of a list written across lines.
     1,
-    2,  // After an element.
+    2, // After an element.
     3,
 ];
 
 var $label = match (true) {
     // Above the first arm, which the arm rule places like an arm.
     $total > 3 => 'many',
-    default => 'few',  // After an arm.
+    default => 'few', // After an arm.
 };
 
 /* A block comment on a line of its own, above the last statement. */

@@ -14,7 +14,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             int $limit = (($total % 3) as int) - 1;
-            ?int $low = Core\Arr::find($stock, fn(int $n) => $n <= $limit);   // chained: $limit is last round's
+            ?int $low = Core\Arr::find($stock, fn(int $n) => $n <= $limit); // chained: $limit is last round's
             if ($low == null) {
                 $total = $total + 1;
             } else {

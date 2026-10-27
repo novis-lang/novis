@@ -4,7 +4,7 @@
 // the limit that fired. The program still ends after it.
 // proof: exit 1
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 

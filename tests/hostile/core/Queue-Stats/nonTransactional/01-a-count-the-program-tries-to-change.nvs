@@ -116,7 +116,7 @@ try {
 // 9. The program removes the column from the jobs table.
 $db->execute('alter table nvs_jobs drop column non_transactional', []);
 try {
-    echo '9: ',Queue::stats('q')->nonTransactional(), "\n";
+    echo '9: ', Queue::stats('q')->nonTransactional(), "\n";
 } catch (Throwable $e) {
     echo "9: error\n";
 }

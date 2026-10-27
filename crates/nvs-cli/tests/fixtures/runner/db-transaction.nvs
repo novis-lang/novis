@@ -81,7 +81,7 @@ class Rollback
         Core\Test::assertEquals(Rows::count($db), 1);
 
         try {
-            $db->transaction(fn (Transaction $tx): void => {
+            $db->transaction(fn(Transaction $tx): void => {
                 $tx->execute('insert into nvs_test_db_rollback (id) values (2)', []);
                 $tx->rollBack('the savepoint is undone and the row above it is not');
             });

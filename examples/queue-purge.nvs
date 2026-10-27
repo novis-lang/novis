@@ -109,7 +109,7 @@ echo 'purged-pending=', Queue::purge($batch, { state: Queue::State::Pending }), 
 // row exhausts its attempts and moves to the table
 // `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` keeps.
 Queue::push('queue/flaky.nvs', { queue: $doomed, maxAttempts: 1 });
-if (!Poll::until(fn (): bool => { return Queue::stats($doomed)->deadLettered() > 0; })) {
+if (!Poll::until(fn(): bool => { return Queue::stats($doomed)->deadLettered() > 0; })) {
     throw new RuntimeError('the flaky job never reached the dead-letter table');
 }
 
@@ -129,7 +129,7 @@ echo 'purged-dead=', Queue::purge($doomed, { state: Queue::State::Dead }), "\n";
 // state a claim reads and the row a delete removes are one moment, so the
 // database decides and the `bool` is what it decided.
 var $running = Queue::push('queue/held.nvs', { queue: $held });
-if (!Poll::until(fn (): bool => { return Queue::status($running) == Queue::State::Claimed; })) {
+if (!Poll::until(fn(): bool => { return Queue::status($running) == Queue::State::Claimed; })) {
     throw new RuntimeError('the held job was never observed claimed');
 }
 echo 'claimed-delete=', Said::word(Queue::delete($running)), "\n";
@@ -137,7 +137,7 @@ echo 'claimed-delete=', Said::word(Queue::delete($running)), "\n";
 // The same receipt one state later, with nothing else about the call changed.
 // `delete` is `cancel`'s twin and its `bool` means what `cancel`'s does: this
 // call is what removed it.
-if (!Poll::until(fn (): bool => { return Queue::status($running) == Queue::State::Succeeded; })) {
+if (!Poll::until(fn(): bool => { return Queue::status($running) == Queue::State::Succeeded; })) {
     throw new RuntimeError('the held job never reached a terminal state');
 }
 echo 'terminal-delete=', Said::word(Queue::delete($running)), "\n";

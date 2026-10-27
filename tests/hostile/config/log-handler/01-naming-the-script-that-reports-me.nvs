@@ -60,7 +60,7 @@ Core\Config::restore('log.handler');
 
 // 3. Registers the program's own handler, which a program may do. This handler
 //    throws an error, so the `log.handler` script must report the failure.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     throw new RuntimeError('the handler this program arranged threw as well');
 });
 

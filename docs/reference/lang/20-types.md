@@ -460,9 +460,9 @@ S  Straße a…
 bytes $pngSignature = Core\Encoding::fromHex('89504e47');
 
 array<string> $uploads = [
-    'iVBORw0KGgo=',          // the first bytes of a PNG
-    'SGVsbG8sIHdvcmxkIQ==',  // a short note
-    'SGVsbG8s/w==',          // a note with one byte that is not text
+    'iVBORw0KGgo=', // the first bytes of a PNG
+    'SGVsbG8sIHdvcmxkIQ==', // a short note
+    'SGVsbG8s/w==', // a note with one byte that is not text
 ];
 
 foreach ($uploads as string $encoded) {
@@ -1059,7 +1059,7 @@ array<mixed> $lines = [
 decimal $total = 0.00;
 foreach ($lines as mixed $line) {
     try {
-        tainted string $sku =$line['sku'] as string;
+        tainted string $sku = $line['sku'] as string;
         uint $quantity = $line['quantity'] as uint;
         decimal $price = $line['price'] as decimal;
         $total = $total + $price * $quantity;
@@ -1829,7 +1829,7 @@ class Report
 }
 
 UserId $id = 1042;
-uint $plain = $id;          // the alias and `uint` are one type, in both directions
+uint $plain = $id; // the alias and `uint` are one type, in both directions
 
 echo Report::line($id, 7), "\n";
 echo Report::line($plain, 'maybe'), "\n";
@@ -1862,14 +1862,14 @@ final class Basket
     public function add(string $line): Lines
     {
         $this->lines[] = $line;
-        return $this->lines;      // inside the class: the short name
+        return $this->lines; // inside the class: the short name
     }
 }
 
 class Printer
 {
     public static function show(Basket::Lines $lines): void
-    {      // outside the class: the class name first
+    { // outside the class: the class name first
         foreach ($lines as string $line) {
             echo '- ', $line, "\n";
         }

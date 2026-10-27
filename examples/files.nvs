@@ -14,7 +14,6 @@
 // bound asserted on both sides: the name that stays inside the base, and
 // the first one that escapes it.
 
-
 // A directory this program owns, so the fixture leaves nothing behind.
 string $dir = Core\IO::temporaryDir();
 string $note = Core\Path::join($dir, 'note.txt');

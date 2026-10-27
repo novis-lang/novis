@@ -12,7 +12,7 @@ class Bench
         int $i = 0;
         while ($i < $rounds) {
             $sse->send('update', event: $names[$total % 3]);
-            $total = $total + ($total % 7) + 1;   // chained: each name depends on the last
+            $total = $total + ($total % 7) + 1; // chained: each name depends on the last
             $i = $i + 1;
         }
         return $total;

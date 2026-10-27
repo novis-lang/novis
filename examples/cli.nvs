@@ -18,7 +18,6 @@
 // driver runs it with no arguments of its own and the frozen line is about
 // the command's body rather than about argv parsing.
 
-
 // The handler is a `public static` method of a class, and both halves of that
 // are rules rather than style: Novis has no top-level functions at all,
 // and § 6's compiled table holds a `Class::method` string with no constructor

@@ -20,6 +20,6 @@ class Bench
 }
 
 // A report exists only inside an exit function, so the loop runs there.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo Bench::run($report, 400000), "\n";
 });

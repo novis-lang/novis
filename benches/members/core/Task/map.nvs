@@ -12,7 +12,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             uint $shift = $total % 3;
-            var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label) + $shift);
+            var $sizes = Core\Task::map($labels, fn(string $label): uint => Core\Str::length($label) + $shift);
             $total = $total + $sizes['0'] + $sizes['1'] + $sizes['2'];
             $i = $i + 1;
         }

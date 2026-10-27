@@ -1,7 +1,7 @@
 <?nvs
 // Shows that memory an exit function uses does not change the peak in the report.
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     int $before = $report->memoryPeak();
 
     // This function makes an 8 MiB string of its own.

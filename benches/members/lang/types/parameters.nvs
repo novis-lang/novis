@@ -22,7 +22,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            Tally::add(inout $running, amount: $running % 7);   // chained: $running is last round's
+            Tally::add(inout $running, amount: $running % 7); // chained: $running is last round's
             $i = $i + 1;
         }
 

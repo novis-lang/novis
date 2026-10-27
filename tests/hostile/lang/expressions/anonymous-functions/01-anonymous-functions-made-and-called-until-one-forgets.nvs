@@ -12,7 +12,7 @@ class Attack
     // made and freed.
     public static function fresh(int $seed): int
     {
-        callable $once = fn (int $n): int => $n + $seed;
+        callable $once = fn(int $n): int => $n + $seed;
 
         return $once($seed) as int;
     }
@@ -25,7 +25,7 @@ class Attack
             return 0;
         }
 
-        callable $down = fn (int $n): int => Attack::deeper($n - 1);
+        callable $down = fn(int $n): int => Attack::deeper($n - 1);
 
         return 1 + ($down($depth) as int);
     }
@@ -44,7 +44,7 @@ array<callable> $held = [];
 int $made = 0;
 
 while ($made < 10000) {
-    $held = Core\Arr::append($held, fn (): int => $made);
+    $held = Core\Arr::append($held, fn(): int => $made);
     $made = $made + 1;
 }
 
@@ -79,7 +79,7 @@ while ($built < 400000) {
     $built = $built + 1;
 }
 
-callable $measure = fn (): uint => Core\Str::length($long);
+callable $measure = fn(): uint => Core\Str::length($long);
 $long = '';
 echo $measure() as uint, ' ', Core\Str::length($long), "\n";
 
@@ -93,7 +93,7 @@ try {
 
 // An anonymous function gets a value of a type it does not declare, tens of
 // thousands of times. Each error is caught.
-callable $needsText = fn (string $s): string => Core\Str::upper($s);
+callable $needsText = fn(string $s): string => Core\Str::upper($s);
 int $refused = 0;
 int $attempt = 0;
 
@@ -110,13 +110,13 @@ echo $refused, "\n";
 
 // An anonymous function is called with far more arguments than it declares.
 // Another one is made and called in the same line, hundreds of thousands of times.
-callable $spareStep = fn (int $n): int => $n + 1;
+callable $spareStep = fn(int $n): int => $n + 1;
 int $spare = 0;
 $attempt = 0;
 
 while ($attempt < 200000) {
     $spare = $spareStep($spare, 1, 2, 3, 4, 5, 6, 7, 8, 9) as int;
-    $spare = (fn (int $n): int => $n + 1)($spare) as int;
+    $spare = (fn(int $n): int => $n + 1)($spare) as int;
     $spare = $spare % 1000003;
     $attempt = $attempt + 1;
 }

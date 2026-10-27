@@ -33,13 +33,13 @@ echo 'step 1: ', $caught, ' errors caught', "\n";
 
 // 2. An object is read with `peek`, then taken out with `pop`, and then the heap is freed.
 // The object that was read must still be whole.
-var $tasks = new Core\Heap<Task>(fn (Task $a, Task $b): int => Core\Str::compare($a->name, $b->name));
+var $tasks = new Core\Heap<Task>(fn(Task $a, Task $b): int => Core\Str::compare($a->name, $b->name));
 $tasks->push(new Task(Core\Str::repeat('a', 100)));
 $tasks->push(new Task(Core\Str::repeat('b', 100)));
 var $first = $tasks->peek();
 $tasks->pop();
 $tasks->pop();
-$tasks = new Core\Heap<Task>(fn (Task $a, Task $b): int => 0);
+$tasks = new Core\Heap<Task>(fn(Task $a, Task $b): int => 0);
 echo 'step 2: ', Core\Str::length($first->name), ' characters', "\n";
 
 // 3. A text of 16 million characters is read with `peek` 100000 times. No copy may be made.

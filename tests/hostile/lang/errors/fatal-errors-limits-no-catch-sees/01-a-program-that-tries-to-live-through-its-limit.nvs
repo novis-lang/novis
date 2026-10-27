@@ -6,13 +6,13 @@
 // hostile: timeout-ms 30000
 
 // Step 1: a handler that replaces an earlier one. Only the second may run.
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo "step 1: the replaced handler ran\n";
 });
 
 // Step 2: the handler asks for eight megabytes while the program is already
 // over its limit.
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'step 2: the handler ran for the ', $report['limit'], " limit\n";
     string $more = Core\Str::repeat('y', 8388608);
     echo 'step 2: the handler held ', Core\Str::length($more), " more bytes\n";

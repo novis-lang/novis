@@ -25,7 +25,7 @@ Core\Response::text(Core\Str::repeat('x', 8388608));
 // stops the program.
 echo "step 6\n";
 string $chunk = Core\Str::repeat('b', 65536);
-var $kept = Core\Out::capture(fn (): void => {
+var $kept = Core\Out::capture(fn(): void => {
     uint $written = 0;
     while ($written < 1000000) {
         Core\Response::text($chunk);

@@ -12,7 +12,7 @@ class Attack
             var $book = Workbook::createInMemory($options);
             $book->sheet('Shop')->add(['order' => 1, 'total' => 2.5]);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
-            var $title =Novis\Spreadsheet\Reader::open($file)->properties()->title;
+            var $title = Novis\Spreadsheet\Reader::open($file)->properties()->title;
             echo 'step ', $step, ' ran ', Core\Str::length($title ?? ''), " characters of title\n";
         } catch (Throwable $e) {
             echo 'step ', $step, ' stopped ', $e::class, "\n";

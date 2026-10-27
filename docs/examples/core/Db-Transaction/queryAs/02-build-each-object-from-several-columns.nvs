@@ -27,7 +27,7 @@ class Line
 var $db = Core\Db::connect('notes');
 $db->execute('create table lines (id integer primary key, item text not null, count int not null, cents int not null)', []);
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     $tx->execute('insert into lines (item, count, cents) values (?, ?, ?), (?, ?, ?)', ['Coffee', 2, 450, 'Tea', 3, 220]);
 
     // Each row is a `Line` with the text and the sum the method built. This

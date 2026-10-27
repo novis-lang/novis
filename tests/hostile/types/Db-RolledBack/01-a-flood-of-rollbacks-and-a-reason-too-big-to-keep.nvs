@@ -20,7 +20,7 @@ final class Churn
         int $i = 0;
         while ($i < $rounds) {
             try {
-                $db->transaction(fn (Transaction $tx): void => {
+                $db->transaction(fn(Transaction $tx): void => {
                     $tx->execute('insert into one (n) values (?)', [1]);
                     $tx->rollBack('this round keeps nothing');
                 });
@@ -49,7 +49,7 @@ final class Churn
             $i = $i + 1;
         }
         try {
-            $db->transaction(fn (Transaction $tx): void => {
+            $db->transaction(fn(Transaction $tx): void => {
                 $tx->execute('insert into one (n) values (?)', [2]);
                 $tx->rollBack($reason);
             });
@@ -67,7 +67,7 @@ final class Churn
             $outer->rollBack('the bottom of the stack said no');
         }
         $outer->execute('insert into one (n) values (?)', [3]);
-        $outer->transaction(fn (Transaction $inner): void => {
+        $outer->transaction(fn(Transaction $inner): void => {
             Churn::deep($inner, $depth - 1);
         });
     }
@@ -80,7 +80,7 @@ echo Churn::rounds($db, 100000), "\n";
 echo Churn::huge($db, 17), "\n";
 
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         Churn::deep($tx, 2000);
     });
     echo "nothing gave up\n";

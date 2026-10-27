@@ -17,9 +17,9 @@ class Upload
 
 array<string> $received = [
     'receipt.pdf' => '255044462d312e37',
-    'logo.png'    => '89504e470d0a1a0a',
-    'notes.txt'   => '68656c6c6f2c2074686572650a',
-    'setup.png'   => '504b03041400',
+    'logo.png' => '89504e470d0a1a0a',
+    'notes.txt' => '68656c6c6f2c2074686572650a',
+    'setup.png' => '504b03041400',
 ];
 
 foreach ($received as string $name => string $firstBytes) {

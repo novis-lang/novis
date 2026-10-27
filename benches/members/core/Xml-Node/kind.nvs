@@ -22,7 +22,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Xml\Node $node = $nodes[(($total + $i) % 6) as int];   // chained: $total is last round's
+            Core\Xml\Node $node = $nodes[(($total + $i) % 6) as int]; // chained: $total is last round's
             if ($node->kind() == Core\Xml\Node::Kind::Element) {
                 $total = $total + 6;
             }

@@ -17,7 +17,7 @@ string $cookie = Core\SignedCookie::seal('sid', $sid, $ring);
 // The round trip. The cookie itself is different on every call — each seals
 // under its own nonce — so what is printed is the value that came back, never
 // the carrier that brought it.
-if (Core\SignedCookie::open('sid',$cookie, $ring) == $sid) {
+if (Core\SignedCookie::open('sid', $cookie, $ring) == $sid) {
     echo 'opened', "\n";
 } else {
     echo 'opened a different value', "\n";
@@ -27,7 +27,7 @@ if (Core\SignedCookie::open('sid',$cookie, $ring) == $sid) {
 // Altered, not base64 at all, or sealed under a retired key are deliberately
 // one message: telling them apart tells a forger which half landed.
 try {
-    tainted string $forged = Core\SignedCookie::open('sid',$cookie . 'x', $ring);
+    tainted string $forged = Core\SignedCookie::open('sid', $cookie . 'x', $ring);
     echo 'opened a forged cookie', "\n";
 } catch (RuntimeError $refused) {
     echo 'forgery refused', "\n";
@@ -38,7 +38,7 @@ try {
 // possible without a hand-written fallback.
 secret bytes $next = Core\Crypto::generateKey();
 array<secret bytes> $rotated = [$next, $key];
-if (Core\SignedCookie::open('sid',$cookie, $rotated) == $sid) {
+if (Core\SignedCookie::open('sid', $cookie, $rotated) == $sid) {
     echo 'opens across a rotation', "\n";
 } else {
     echo 'lost a session across a rotation', "\n";
@@ -47,7 +47,7 @@ if (Core\SignedCookie::open('sid',$cookie, $rotated) == $sid) {
 // Retirement: drop the tail and the same cookie is a forgery, on the same
 // message as any other.
 try {
-    tainted string $stale = Core\SignedCookie::open('sid',$cookie, [$next]);
+    tainted string $stale = Core\SignedCookie::open('sid', $cookie, [$next]);
     echo 'opened under a retired key', "\n";
 } catch (RuntimeError $refused) {
     echo 'retired key refused', "\n";

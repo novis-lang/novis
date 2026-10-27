@@ -11,7 +11,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             Core\Test::assertThrows(
-                fn (): void => { throw new LogicError('bad input'); },
+                fn(): void => { throw new LogicError('bad input'); },
                 LogicError::class,
             );
             $total = $total + 1 + ($total % 2);

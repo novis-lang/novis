@@ -25,11 +25,14 @@ string $number = '<style>@page { size: 60mm 40mm; margin: 2mm } body { font-size
 // 1. A table of contents just before its target. Each page number changes the length of the line,
 //    which can move the target to the next page and change the number again.
 for (uint $fill = 1; $fill <= 40; $fill++) {
-    Attack::attempt(1, $number
-        . Core\Str::repeat('<p>Shop</p>', $fill)
-        . '<p>'
-        . Core\Str::repeat('x', $fill * 3)
-        . " <a href=\"#end\">end</a></p><p id=\"end\">The end</p>");
+    Attack::attempt(
+        1,
+        $number
+            . Core\Str::repeat('<p>Shop</p>', $fill)
+            . '<p>'
+            . Core\Str::repeat('x', $fill * 3)
+            . " <a href=\"#end\">end</a></p><p id=\"end\">The end</p>",
+    );
 }
 
 // 2. 300 links in a chain, each pointing at the next, and one that points at itself.
@@ -43,9 +46,12 @@ Attack::attempt(2, $number . $chain . "<p id=\"me\"><a href=\"#me\">me</a></p>")
 Attack::attempt(3, $number . "<a href=\"#nowhere\">a</a><a href=\"#\">b</a><a href=\"\">c</a><a href=\"#" . Core\Str::repeat('z', 1000000) . "\">d</a>");
 
 // 4. Page counters in two margin boxes, and a heading that starts a new page 500 times.
-Attack::attempt(4, "<style>@page { @top-left { content: counter(page) ' of ' counter(pages) } "
-    . '@bottom-right { content: counter(pages) counter(pages) counter(pages) } } h2 { break-before: page }</style>'
-    . Core\Str::repeat('<h2>Part</h2>', 500));
+Attack::attempt(
+    4,
+    "<style>@page { @top-left { content: counter(page) ' of ' counter(pages) } "
+        . '@bottom-right { content: counter(pages) counter(pages) counter(pages) } } h2 { break-before: page }</style>'
+        . Core\Str::repeat('<h2>Part</h2>', 500),
+);
 
 // 5. A table of 100000 rows. It does not fit in 64 MB, so the render stops here.
 echo "step 5\n";

@@ -14,7 +14,7 @@ class Bench
         int $total = 1;
         uint $i = 0;
         while ($i < $rounds) {
-            int $n = $texts[$total % 4] as int;   // chained: $total is last round's
+            int $n = $texts[$total % 4] as int; // chained: $total is last round's
             $total = ($total + $n) % 997;
             $i = $i + 1;
         }

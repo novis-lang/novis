@@ -20,7 +20,7 @@ class ManyFailures extends Outcome
 {
     public function failures(): array<string>
     {
-        return Core\Arr::fill(1000000,"Core\\Test::assertSame failed");
+        return Core\Arr::fill(1000000, "Core\\Test::assertSame failed");
     }
 }
 

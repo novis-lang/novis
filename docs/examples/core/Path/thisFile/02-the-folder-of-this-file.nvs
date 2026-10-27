@@ -9,4 +9,5 @@ echo Core\Path::basename($folder), "\n";
 // `normalize` writes both paths the same way before they are compared.
 // This prints `same folder`.
 echo Core\Path::normalize($folder) == Core\Path::normalize(Core\Path::thisDir())
-    ? 'same folder' : 'different folder', "\n";
+    ? 'same folder'
+    : 'different folder', "\n";

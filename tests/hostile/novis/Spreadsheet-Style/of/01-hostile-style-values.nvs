@@ -13,7 +13,7 @@ class Attack
             var $book = Workbook::createInMemory();
             $book->sheet('Shop')->add(['price' => 9.5], { style: $make() });
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
-            tainted string $styles =Core\Zip::read($file, 'xl/styles.xml') as string;
+            tainted string $styles = Core\Zip::read($file, 'xl/styles.xml') as string;
             echo 'step ', $step, ' ran ', Core\Str::contains($styles, '<script') ? 'with markup' : 'clean', "\n";
         } catch (Throwable $e) {
             echo 'step ', $step, ' stopped ', $e::class, "\n";
@@ -22,25 +22,25 @@ class Attack
 }
 
 // 1. Markup and quotes in the text fields, which go into the XML of the file.
-Attack::attempt(1, fn (): Style => Style::of({ font: "Arial\"/><script>alert(1)</script>" }));
-Attack::attempt(1, fn (): Style => Style::of({ format: "0\"/><script>x</script><numFmt formatCode=\"" }));
-Attack::attempt(1, fn (): Style => Style::of({ color: "#FF0000\"/><script>", fill: '&lt;&#0;' }));
+Attack::attempt(1, fn(): Style => Style::of({ font: "Arial\"/><script>alert(1)</script>" }));
+Attack::attempt(1, fn(): Style => Style::of({ format: "0\"/><script>x</script><numFmt formatCode=\"" }));
+Attack::attempt(1, fn(): Style => Style::of({ color: "#FF0000\"/><script>", fill: '&lt;&#0;' }));
 
 // 2. Names that are not on the list of each field.
-Attack::attempt(2, fn (): Style => Style::of({ border: 'thin; bottom: none' }));
-Attack::attempt(2, fn (): Style => Style::of({ border: { top: 'thin', left: 'wavy' } }));
-Attack::attempt(2, fn (): Style => Style::of({ underline: 'triple' }));
-Attack::attempt(2, fn (): Style => Style::of({ valign: "\u{0}" }));
+Attack::attempt(2, fn(): Style => Style::of({ border: 'thin; bottom: none' }));
+Attack::attempt(2, fn(): Style => Style::of({ border: { top: 'thin', left: 'wavy' } }));
+Attack::attempt(2, fn(): Style => Style::of({ underline: 'triple' }));
+Attack::attempt(2, fn(): Style => Style::of({ valign: "\u{0}" }));
 
 // 3. Numbers out of range: a size that is not a number, a turn of 10,000 degrees, a huge indent.
-Attack::attempt(3, fn (): Style => Style::of({ size: Core\Math::NAN }));
-Attack::attempt(3, fn (): Style => Style::of({ size: -1.0e308 }));
-Attack::attempt(3, fn (): Style => Style::of({ rotate: 10000 }));
-Attack::attempt(3, fn (): Style => Style::of({ indent: 4000000000 }));
+Attack::attempt(3, fn(): Style => Style::of({ size: Core\Math::NAN }));
+Attack::attempt(3, fn(): Style => Style::of({ size: -1.0e308 }));
+Attack::attempt(3, fn(): Style => Style::of({ rotate: 10000 }));
+Attack::attempt(3, fn(): Style => Style::of({ indent: 4000000000 }));
 
 // 4. A font name and a format code of 1,000,000 characters.
-Attack::attempt(4, fn (): Style => Style::of({ font: Core\Str::repeat('F', 1000000) }));
-Attack::attempt(4, fn (): Style => Style::of({ format: Core\Str::repeat('0', 1000000) }));
+Attack::attempt(4, fn(): Style => Style::of({ font: Core\Str::repeat('F', 1000000) }));
+Attack::attempt(4, fn(): Style => Style::of({ format: Core\Str::repeat('0', 1000000) }));
 
 // 5. 5,000 different styles in one sheet, each with its own format code.
 try {

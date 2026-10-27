@@ -33,14 +33,14 @@ $start->write('Shop');
 $start->close();
 
 // 1. A file that is open for reading only.
-Attack::attempt(1, fn (): void => {
+Attack::attempt(1, fn(): void => {
     var $book = Workbook::createForStream(Core\IO::open($path, Core\IO::FileMode::Read));
     $book->sheet('Shop')->addAll(Attack::rows());
     $book->finish();
 });
 
 // 2. The file is closed after the first rows, and the workbook keeps writing.
-Attack::attempt(2, fn (): void => {
+Attack::attempt(2, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     var $book = Workbook::createForStream($file);
     var $sheet = $book->sheet('Shop');
@@ -51,7 +51,7 @@ Attack::attempt(2, fn (): void => {
 });
 
 // 3. Two workbooks write to one file at the same time, one row each in turn.
-Attack::attempt(3, fn (): void => {
+Attack::attempt(3, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     var $first = Workbook::createForStream($file);
     var $second = Workbook::createForStream($file, { format: 'csv' });
@@ -67,7 +67,7 @@ Attack::attempt(3, fn (): void => {
 });
 
 // 4. A file that was closed before the workbook started.
-Attack::attempt(4, fn (): void => {
+Attack::attempt(4, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     $file->close();
     var $book = Workbook::createForStream($file);

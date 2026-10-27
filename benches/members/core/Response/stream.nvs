@@ -13,7 +13,7 @@ class Bench
         while ($i < $rounds) {
             uint $k = $total % 3;
             Core\Response::stream($types[$k]);
-            $total = $total + $k + 1;   // chained: the next content type depends on this one
+            $total = $total + $k + 1; // chained: the next content type depends on this one
             $i = $i + 1;
         }
         return $total;

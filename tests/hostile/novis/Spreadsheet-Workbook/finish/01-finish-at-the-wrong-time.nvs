@@ -34,31 +34,31 @@ class Attack
 }
 
 // 1. `finish` twice, and `finish` with no sheet.
-Attack::attempt(1, fn (): void => {
+Attack::attempt(1, fn(): void => {
     var $book = Workbook::createInMemory();
     $book->sheet('Shop')->add(['order' => 1]);
     $book->finish();
     $book->finish();
 });
-Attack::attempt(1, fn (): void => {
+Attack::attempt(1, fn(): void => {
     Workbook::createInMemory()->finish();
 });
 
 // 2. A row with a value a cell cannot have, after 1,500 good rows, and then `finish`.
 var $broken = Workbook::createInMemory();
-Attack::attempt(2, fn (): void => {
+Attack::attempt(2, fn(): void => {
     var $sheet = $broken->sheet('Shop');
     for (int $at = 0; $at < 1500; $at++) {
         $sheet->add(['order' => $at]);
     }
     $sheet->add(['order' => [1, 2]]);
 });
-Attack::attempt(2, fn (): void => {
+Attack::attempt(2, fn(): void => {
     $broken->finish();
 });
 
 // 3. `finish` called from inside the generator that gives the rows.
-Attack::attempt(3, fn (): void => {
+Attack::attempt(3, fn(): void => {
     var $book = Workbook::createInMemory();
     Attack::$current = $book;
     $book->sheet('Shop')->addAll(Attack::rows());

@@ -18,7 +18,7 @@ class Bench
             string $name = $names[$carry % 4];
             int $characters = Core\Str::length($name) as int;
             int $stored = Core\Bytes::length($name as bytes) as int;
-            $carry = ($carry + $characters + $stored) % 997;      // chained: $carry is last round's
+            $carry = ($carry + $characters + $stored) % 997; // chained: $carry is last round's
             $total = $total + $carry;
             $i = $i + 1;
         }

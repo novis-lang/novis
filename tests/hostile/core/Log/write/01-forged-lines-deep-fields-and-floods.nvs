@@ -20,7 +20,7 @@ class Check
 // 1. A message with line breaks, quotes and terminal control characters tries to start a
 // second record. The output must be exactly one line.
 string $forged = "ok\"}\n{\"level\":\"critical\",\"msg\":\"forged\"}\r\u{0}" . Core\Str::fromCodePoint(27) . '[2J';
-var $one = Core\Out::capture(fn (): void => {
+var $one = Core\Out::capture(fn(): void => {
     Core\Log::write(Core\Log::Level::Info, $forged, [$forged => $forged]);
 });
 if (Check::lines($one as string) != 1) {
@@ -35,7 +35,7 @@ while ($d < 100000) {
     $deep = ['inner' => $deep];
     $d = $d + 1;
 }
-var $nested = Core\Out::capture(fn (): void => {
+var $nested = Core\Out::capture(fn(): void => {
     Core\Log::write(Core\Log::Level::Info, 'deep', $deep);
 });
 echo 'step 2: done ', Check::lines($nested as string), "\n";
@@ -43,20 +43,20 @@ echo 'step 2: done ', Check::lines($nested as string), "\n";
 // 3. An object that points to itself. The writer must stop at the second visit.
 Node $loop = new Node();
 $loop->next = $loop;
-var $cycle = Core\Out::capture(fn (): void => {
+var $cycle = Core\Out::capture(fn(): void => {
     Core\Log::write(Core\Log::Level::Info, 'cycle', ['node' => $loop]);
 });
 echo 'step 3: done ', Check::lines($cycle as string), "\n";
 
 // 4. A message of ten million characters. It is written as one line.
 string $huge = Core\Str::repeat('A', 10000000);
-var $long = Core\Out::capture(fn (): void => {
+var $long = Core\Out::capture(fn(): void => {
     Core\Log::write(Core\Log::Level::Info, $huge);
 });
 echo 'step 4: done ', Check::lines($long as string), "\n";
 
 // 5. One hundred thousand different records. Every one is written.
-var $many = Core\Out::capture(fn (): void => {
+var $many = Core\Out::capture(fn(): void => {
     uint $i = 0;
     while ($i < 100000) {
         Core\Log::write(Core\Log::Level::Info, 'row', ['row' => $i]);
@@ -70,7 +70,7 @@ echo 'step 5: done', "\n";
 
 // 6. The same record one hundred thousand times. The log keeps only a few lines, and the
 // memory used must not grow with each record.
-var $same = Core\Out::capture(fn (): void => {
+var $same = Core\Out::capture(fn(): void => {
     uint $i = 0;
     while ($i < 100000) {
         Core\Log::write(Core\Log::Level::Warn, 'the disk is almost full');

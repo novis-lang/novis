@@ -209,8 +209,8 @@ server reads.
 <?nvs
 // The proxy at 10.0.0.5 sent `X-Forwarded-For: 192.0.2.99, 203.0.113.7`
 // and `X-Forwarded-Proto: https`.
-?tainted string $client = Core\Request::clientIp();   // "203.0.113.7"
-tainted string $scheme = Core\Request::scheme();      // "https"
+?tainted string $client = Core\Request::clientIp(); // "203.0.113.7"
+tainted string $scheme = Core\Request::scheme(); // "https"
 ```
 
 `clientIp()` returns `null` when the proxy wrote `unknown` in place of the address. A port after

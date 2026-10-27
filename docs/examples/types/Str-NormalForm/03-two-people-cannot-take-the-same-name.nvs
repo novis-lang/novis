@@ -19,8 +19,8 @@ $taken[Names::key('Sofía')] = 'registered last week';
 // The second typed a wide capital S. The third is a different person.
 array<string> $asking = [
     'the accent typed apart' => Core\Str::fromCodePoints([83, 111, 102, 105, 769, 97]),
-    'a wide capital S'       => 'Ｓofía',
-    'a different person'     => 'Mira',
+    'a wide capital S' => 'Ｓofía',
+    'a different person' => 'Mira',
 ];
 
 foreach ($asking as string $who => string $name) {

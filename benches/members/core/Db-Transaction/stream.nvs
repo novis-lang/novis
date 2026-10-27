@@ -15,7 +15,7 @@ class Bench
             $db->execute('insert into notes (n) values (?)', [$written as int]);
             $written = $written + 1;
         }
-        return $db->transaction(fn (Core\Db\Transaction $tx): int => {
+        return $db->transaction(fn(Core\Db\Transaction $tx): int => {
             int $total = 0;
             uint $i = 0;
             while ($i < $rounds) {

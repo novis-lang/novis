@@ -18,7 +18,7 @@ echo 'raise it from code:     ', Core\Config::set('deferred.max_concurrent', '40
 
 // `Core\Task::afterResponse` runs this anonymous function after the response is sent.
 // Over the limit, it throws an error while the request still runs, so the work can run at once.
-Core\Task::afterResponse(fn (): void => {
+Core\Task::afterResponse(fn(): void => {
     echo "and the work itself runs once the answer is on its way\n";
 });
 

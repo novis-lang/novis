@@ -25,7 +25,7 @@ final class Sheet
         |{ placed: string, layers: array<{ kind: ChartKind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }>, title: ?string, xTitle: ?string, yTitle: ?string, legend: Legend, labels: bool, width: ?float, height: ?float }
         |{ orientation: ?Orientation, fitWidth: ?uint, fitHeight: ?uint, margins: ?{ top: float, right: float, bottom: float, left: float }, header: ?string, footer: ?string, repeatRows: ?string, area: ?string }
         |{ password: ?string, allow: array<string> };
-    type PrintOptions ={ orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
+    type PrintOptions = { orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
 
     /// `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
     /// `$add` adds a row. `$ready` sends the rows that wait and checks that the sheet is still open. `$position` finds the column of a key.

@@ -12,7 +12,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             string $label = $labels[($total % 3) as int];
-            Core\Test::assertDoesNotThrow(fn (): void => { Core\Str::length($label); });
+            Core\Test::assertDoesNotThrow(fn(): void => { Core\Str::length($label); });
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

@@ -47,7 +47,7 @@ $db->execute('create table accounts (id integer primary key, owner text not null
 // gets the failure it should have got. There is no way to ask for a rollback
 // and carry on inside the same transaction.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         $tx->executeMany('insert into accounts (id, owner) values (?, ?)', [
             [1, 'ada'],
             [2, 'grace'],
@@ -72,7 +72,7 @@ echo 'count=', Accounts::count($db), "\n";
 
 // The committing half — the same anonymous function without the refusal at the end.
 // There is no `commit` member to call: returning is the commit.
-$db->transaction(fn (Transaction $tx): void => {
+$db->transaction(fn(Transaction $tx): void => {
     $tx->executeMany('insert into accounts (id, owner) values (?, ?)', [
         [1, 'ada'],
         [2, 'grace'],

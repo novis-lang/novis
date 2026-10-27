@@ -19,7 +19,7 @@ while ($i < 20000) {
     $i = $i + 1;
 }
 array<Core\Time\Date> $sorted = Core\Arr::sort($dates, {
-    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+    comparator: fn(Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
 });
 echo $sorted[0]->format('yyyy-MM-dd'), ' to ', $sorted[19999]->format('yyyy-MM-dd'), "\n";
 
@@ -31,6 +31,6 @@ while ($j < 20000) {
     $j = $j + 1;
 }
 array<Core\Time\Date> $sortedSame = Core\Arr::sort($same, {
-    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+    comparator: fn(Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
 });
 echo $sortedSame[19999]->compareTo($first), "\n";

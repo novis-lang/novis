@@ -3,10 +3,13 @@
 // record, so a file of ten gigabytes needs as much memory as this one.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), 'sales.csv');
-Core\IO::write($path, "date;region;amount\n"
-    . "2026-01-02;north;120.50\n"
-    . "2026-01-02;south;99.00\n"
-    . "2026-01-03;north;18.25\n");
+Core\IO::write(
+    $path,
+    "date;region;amount\n"
+        . "2026-01-02;north;120.50\n"
+        . "2026-01-02;south;99.00\n"
+        . "2026-01-03;north;18.25\n",
+);
 
 Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 

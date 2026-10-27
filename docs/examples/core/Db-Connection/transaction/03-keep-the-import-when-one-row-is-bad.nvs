@@ -8,11 +8,11 @@ $db->execute('create table people (id integer primary key, name text not null)',
 
 array<string> $names = ['Ada', '', 'Ben'];
 
-$db->transaction(fn (Core\Db\Transaction $import): void => {
+$db->transaction(fn(Core\Db\Transaction $import): void => {
     foreach ($names as string $name) {
         try {
             // One row, in its own transaction inside the import.
-            $import->transaction(fn (Core\Db\Transaction $row): void => {
+            $import->transaction(fn(Core\Db\Transaction $row): void => {
                 $row->execute('insert into people (name) values (?)', [$name]);
                 if ($name == '') {
                     $row->rollBack('the name is empty');

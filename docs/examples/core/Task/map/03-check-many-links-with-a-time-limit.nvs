@@ -18,7 +18,7 @@ class Links
             // `deadline` is the time limit for all the checks together.
             var $codes = Core\Task::map(
                 $urls,
-                fn (string $url): int => Links::check($url),
+                fn(string $url): int => Links::check($url),
                 { limit: 2, deadline: $limit },
             );
             array<string> $broken = [];

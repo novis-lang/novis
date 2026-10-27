@@ -13,9 +13,9 @@ class Stock
 var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
-    here:   fn(): string => 'written in place',
+    here: fn(): string => 'written in place',
     method: Stock::onHand,
-    kept:   $kept,
+    kept: $kept,
 });
 
 // This prints written in place, then 42, then from a variable.

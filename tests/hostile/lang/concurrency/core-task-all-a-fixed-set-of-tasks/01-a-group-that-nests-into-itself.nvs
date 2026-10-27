@@ -57,7 +57,7 @@ echo 'step 1: built ', $seen, " characters and kept none of them\n";
 // here as itself, with nothing of the group left running.
 try {
     var $mixed = Core\Task::all({
-        slow:  fn(): int => Nest::deeper(50),
+        slow: fn(): int => Nest::deeper(50),
         cross: Nest::angry,
     });
     echo "step 2: the group finished, which it must not\n";

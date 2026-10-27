@@ -38,7 +38,7 @@ Attack::attempt(1, [$wide]);
 // 2. Cells that contain an array, an object and a function.
 Attack::attempt(2, [['order' => [1, [2, [3]]]]]);
 Attack::attempt(2, [['order' => new Attack()]]);
-Attack::attempt(2, [['order' => fn (): int => 1]]);
+Attack::attempt(2, [['order' => fn(): int => 1]]);
 
 // 3. Keys that look like XML or formulas, and keys that change from row to row.
 Attack::attempt(3, [['</c><c>' => 1, "=cmd|' /C calc'!A0" => 2]]);

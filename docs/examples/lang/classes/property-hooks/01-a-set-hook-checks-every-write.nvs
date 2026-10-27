@@ -5,7 +5,7 @@
 class Volume
 {
     public int $level {
-        set (int $v) {
+        set(int $v) {
             if ($v < 0) {
                 throw new LogicError('a volume is never below 0');
             }

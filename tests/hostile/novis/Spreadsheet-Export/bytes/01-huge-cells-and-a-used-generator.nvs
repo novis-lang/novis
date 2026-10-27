@@ -41,10 +41,10 @@ Attack::attempt(3, $once);
 Attack::attempt(3, $once);
 
 // 4. An export whose function throws before it adds a sheet, and one that adds no sheet.
-Attack::attempt(4, new Export(fn (Workbook $book): void => {
+Attack::attempt(4, new Export(fn(Workbook $book): void => {
     throw new RuntimeError('the database went away');
 }, null));
-Attack::attempt(4, new Export(fn (Workbook $book): void => {}, null));
+Attack::attempt(4, new Export(fn(Workbook $book): void => {}, null));
 
 // 5. 200,000 rows of one cell each, written in memory.
 array<array<mixed>> $many = [];

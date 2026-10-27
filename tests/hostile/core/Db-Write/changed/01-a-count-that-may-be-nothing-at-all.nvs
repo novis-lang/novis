@@ -62,7 +62,7 @@ echo '5 counts added up: ', $written, "\n";
 // 6. The count of a write inside a transaction that was given up. The rows are
 // not in the table, and the write still answers the number it reported.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         var $write = $tx->execute('insert into notes (text) values (?), (?)', ['never saved', 'never saved either']);
         echo '6 inside the transaction: ', $write->changed() ?? 0, "\n";
         $tx->rollBack('nothing worth keeping');

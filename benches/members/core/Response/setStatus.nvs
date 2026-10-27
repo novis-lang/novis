@@ -13,7 +13,7 @@ class Bench
         while ($i < $rounds) {
             uint $code = 200 + $total % 5;
             Core\Response::setStatus($code);
-            $total = $total + $code;   // chained: the next code depends on this one
+            $total = $total + $code; // chained: the next code depends on this one
             $i = $i + 1;
         }
         return $total;

@@ -68,7 +68,7 @@ final class ReportTest
     public function aMissingFieldIsRefused(): void
     {
         array<mixed> $fields = ReportTest::fields();
-        $fields = Arr::filter($fields, fn (mixed $value, tainted string $name): bool => $name != 'first');
+        $fields = Arr::filter($fields, fn(mixed $value, tainted string $name): bool => $name != 'first');
         Test::assertSame(ReportTest::status(Json::encode($fields)), 400);
     }
 

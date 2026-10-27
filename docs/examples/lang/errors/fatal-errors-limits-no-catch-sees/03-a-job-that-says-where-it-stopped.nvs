@@ -11,7 +11,7 @@ final class Job
     public static string $current = 'none';
 }
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped on order ', Job::$current, ', limit: ', $report['limit'], "\n";
 });
 

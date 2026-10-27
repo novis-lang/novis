@@ -4,9 +4,9 @@
 
 array<int> $sold = [
     'notebook' => 41,
-    'pencil'   => 128,
-    'eraser'   => 12,
-    'ruler'    => 63,
+    'pencil' => 128,
+    'eraser' => 12,
+    'ruler' => 63,
 ];
 
 array<int> $best = Core\Arr::sort($sold, { order: Core\Arr::Order::Desc, preserveKeys: true });

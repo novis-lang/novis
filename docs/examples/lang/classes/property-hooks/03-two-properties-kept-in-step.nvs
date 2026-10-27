@@ -7,7 +7,7 @@ class User
 {
     public string $email {
         get => $this->email;
-        set (string $v) {
+        set(string $v) {
             string $clean = Core\Str::trim(Core\Str::lower($v));
             if (!Core\Str::contains($clean, '@')) {
                 throw new LogicError('that is not an e-mail address');

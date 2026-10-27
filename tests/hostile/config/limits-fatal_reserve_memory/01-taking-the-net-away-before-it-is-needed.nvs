@@ -6,7 +6,7 @@
 
 // Registers the handler first, so every step below runs while the handler is
 // in place.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "the handler still had somewhere to run\n";
 });
 

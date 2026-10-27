@@ -23,7 +23,7 @@ $db->execute('insert into jobs (task, taken) values (?, 0), (?, 0), (?, 0)', ['r
 
 // The work returns the jobs it claimed, so the rest of the program runs them
 // after the transaction is saved.
-var $claimed = $db->transaction(fn (Core\Db\Transaction $tx): array<Job> => {
+var $claimed = $db->transaction(fn(Core\Db\Transaction $tx): array<Job> => {
     array<Job> $batch = [];
     foreach ($tx->queryAs<Job>('select id, task from jobs where taken = 0 order by id limit 2', []) as Job $job) {
         $tx->execute('update jobs set taken = 1 where id = ?', [$job->id]);

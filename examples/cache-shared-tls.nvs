@@ -23,7 +23,6 @@
 // `a_reconnect_after_a_dropped_socket_sends_both_again` in
 // `crates/nvs-stdlib/src/cache/redis.rs`, which can see the wire itself.
 
-
 var $shared = Core\Cache::shared();
 
 // Index zero's entry, asked for before anything here has written a key.

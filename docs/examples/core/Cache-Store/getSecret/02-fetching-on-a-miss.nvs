@@ -9,7 +9,7 @@ var $cache = Core\Cache::memory();
 
 // The function runs only on a miss. It returns a `Core\Cache\SecretEntry`: the
 // secret it fetched, and how long that secret stays good.
-var $fetch = fn (): Core\Cache\SecretEntry => {
+var $fetch = fn(): Core\Cache\SecretEntry => {
     echo "asking the service\n";
     return Core\Cache\SecretEntry::of('at-7f3c9b21', 15m);
 };

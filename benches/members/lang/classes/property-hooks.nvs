@@ -9,7 +9,7 @@ class Gauge
 {
     public int $level {
         get => $this->level;
-        set (int $v) {
+        set(int $v) {
             $this->level = $v % 1000003;
         }
     }

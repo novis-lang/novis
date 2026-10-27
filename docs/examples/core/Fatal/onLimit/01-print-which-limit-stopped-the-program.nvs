@@ -7,7 +7,7 @@ Core\Config::set('limits.memory', '16M');
 
 // This function runs when a limit stops the program.
 // The array has one key, `limit`. Here its value is `memory`.
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 

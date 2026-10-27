@@ -10,7 +10,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Core\Test::expectFailure(fn (): void => Core\Test::assertTrue($total < $i));
+            Core\Test::expectFailure(fn(): void => Core\Test::assertTrue($total < $i));
             $total = $total + 1 + ($total % 2);
             $i = $i + 1;
         }

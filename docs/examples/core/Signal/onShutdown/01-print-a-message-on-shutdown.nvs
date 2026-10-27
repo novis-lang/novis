@@ -2,7 +2,7 @@
 // Shows how to print a message when the program is asked to stop.
 
 // This function runs only if the program gets a stop signal, such as Ctrl-C.
-Core\Signal::onShutdown(fn (): void => {
+Core\Signal::onShutdown(fn(): void => {
     echo "Stopping. Goodbye.\n";
 });
 

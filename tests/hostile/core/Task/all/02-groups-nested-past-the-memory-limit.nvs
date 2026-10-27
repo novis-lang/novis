@@ -14,7 +14,7 @@ class Nest
             return 0;
         }
         var $inner = Core\Task::all({
-            next: fn (): uint => Nest::down($depth - 1),
+            next: fn(): uint => Nest::down($depth - 1),
         });
         return $inner->next + 1;
     }

@@ -16,8 +16,8 @@ even a `catch`.
 ```nvs
 <?nvs
 var $page = Core\Task::all({
-    rows:  fn(): array<int> => [1, 2, 3],
-    label: fn(): string     => 'all',
+    rows: fn(): array<int> => [1, 2, 3],
+    label: fn(): string => 'all',
 });
 echo $page->label, '=', Core\Arr::count($page->rows), "\n";
 

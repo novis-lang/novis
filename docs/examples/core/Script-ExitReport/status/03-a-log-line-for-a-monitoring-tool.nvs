@@ -3,7 +3,7 @@
 // tool reads the line and shows the job as green or red.
 // proof: exit 2
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     string $state = $report->status() == 0 ? 'green' : 'red';
     // This prints "job=backup status=2 state=red".
     echo 'job=backup status=', $report->status(), ' state=', $state, "\n";

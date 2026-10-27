@@ -8,7 +8,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
 
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         $tx->execute('insert into notes (text) values (?)', ['buy milk']);
 
         string $text = '';

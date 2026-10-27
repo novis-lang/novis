@@ -9,7 +9,7 @@ $db->execute('create table lines (id integer primary key, orderId integer not nu
 
 array<string> $items = ['a red bicycle', 'a bell', 'a lamp'];
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     var $order = $tx->execute('insert into orders (customer) values (?)', ['Ada']);
     // `lastId` gives the id the database made for the new order.
     var $orderId = $order->lastId() ?? 0;

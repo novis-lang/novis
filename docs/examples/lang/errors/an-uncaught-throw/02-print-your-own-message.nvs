@@ -4,7 +4,7 @@
 
 // This anonymous function runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     echo 'import stopped: ', $e->message, "\n";
     echo "check your file, then run the import again\n";
 });

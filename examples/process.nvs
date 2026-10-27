@@ -23,7 +23,6 @@
 // `NVS_BIN` unset, the name is one no grant covers, and the first call stops
 // the program with a capability denial that names it.
 
-
 ?tainted string $named = Core\Env::get('NVS_BIN');
 string $nvs = Core\Taint::assertTrusted($named ?? 'NVS_BIN is not set', 'the pipeline that runs this fixture names its own binary');
 

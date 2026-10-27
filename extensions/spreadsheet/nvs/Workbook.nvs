@@ -93,7 +93,7 @@ final class Workbook
     /// `$options` has the workbook options and the sheet options. `sheet` is the name of the sheet, and the default is `'Sheet1'`.
     public static function fromRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows, ExportOptions $options = null): Export
     {
-        return new Export(fn (Workbook $book): void => {
+        return new Export(fn(Workbook $book): void => {
             var $sheet = $book->sheet($options?->sheet ?? 'Sheet1', $options);
             // All rows of an array go to the engine in one call, so the width of each column fits every row.
             if ($rows is array<array<mixed>>) {

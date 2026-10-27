@@ -15,7 +15,7 @@ class Bench
         uint $i = 0;
 
         while ($i < $rounds) {
-            mixed $value = $values[$total % 8];   // chained: $total is last round's
+            mixed $value = $values[$total % 8]; // chained: $total is last round's
 
             if ($value) {
                 $total = $total + 3;

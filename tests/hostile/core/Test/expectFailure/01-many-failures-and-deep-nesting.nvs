@@ -12,12 +12,12 @@ final class Nested
             Core\Test::assertTrue(false);
             return;
         }
-        Core\Test::expectFailure(fn (): void => Nested::expect($depth - 1));
+        Core\Test::expectFailure(fn(): void => Nested::expect($depth - 1));
     }
 }
 
 // Step 1: two hundred thousand failed checks, each caught inside the function.
-Core\Test::expectFailure(fn (): void => {
+Core\Test::expectFailure(fn(): void => {
     uint $i = 0;
     while ($i < 200000) {
         try {
@@ -33,7 +33,7 @@ echo "many failures\n";
 // Step 2: a failed check, and then an error with a message of ten million characters.
 string $long = Core\Str::repeat('e', 10000000);
 try {
-    Core\Test::expectFailure(fn (): void => {
+    Core\Test::expectFailure(fn(): void => {
         try {
             Core\Test::assertTrue(false, { message: $long });
         } catch (Core\Test\Failure $failure) {
@@ -48,7 +48,7 @@ try {
 // Step 3: one hundred thousand calls in a row.
 uint $round = 0;
 while ($round < 100000) {
-    Core\Test::expectFailure(fn (): void => Core\Test::assertTrue($round > 100000));
+    Core\Test::expectFailure(fn(): void => Core\Test::assertTrue($round > 100000));
     $round = $round + 1;
 }
 echo "many calls\n";

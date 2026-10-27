@@ -22,7 +22,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table items (id integer primary key, item text not null, count int not null)', []);
 
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         Cart::addItem($tx, 'Coffee', 2);
         Cart::addItem($tx, 'Tea', 0);
         echo "this line never runs\n";

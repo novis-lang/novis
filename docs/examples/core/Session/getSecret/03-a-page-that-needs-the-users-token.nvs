@@ -7,7 +7,7 @@ class Calendar
     public static function page(array<secret bytes> $keys): string
     {
         // `null` means the user has not signed in to the service yet.
-        var $token =Core\Session::getSecret('calendar-token', $keys);
+        var $token = Core\Session::getSecret('calendar-token', $keys);
         if ($token == null) {
             return 'please connect your calendar';
         }

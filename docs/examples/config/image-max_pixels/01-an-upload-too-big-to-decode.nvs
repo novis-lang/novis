@@ -16,7 +16,7 @@ bytes $bomb = Core\Encoding::fromHex(
         . '000000044944415478010000456a05430000000049454e44ae426082',
 );
 
-var $uploads =['avatar.png' => $avatar, 'bomb.png' => $bomb];
+var $uploads = ['avatar.png' => $avatar, 'bomb.png' => $bomb];
 foreach ($uploads as string $name => bytes $data) {
     try {
         bytes $png = Image::open($data)->encode();

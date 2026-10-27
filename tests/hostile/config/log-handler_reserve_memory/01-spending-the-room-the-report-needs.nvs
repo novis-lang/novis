@@ -59,7 +59,7 @@ echo 'the allotment reads: ', Core\Config::get('log.handler_reserve_memory') ?? 
 
 // This handler does not report anything. It uses even more memory, so the
 // server's own report must handle the failure.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     array<string> $more = [];
     uint $k = 0;
     while ($k < 100000) {

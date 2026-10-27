@@ -12,7 +12,7 @@ final class Lock
         Lock::$taken = true;
         echo "lock taken\n";
         // The release is added right after the lock is taken.
-        Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+        Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
             Lock::$taken = false;
             echo 'lock released, status ', $report->status(), "\n";
         });

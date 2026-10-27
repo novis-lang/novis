@@ -10,7 +10,7 @@
 int $round = 0;
 while ($round < 100000) {
     string $note = Core\Str::repeat('n', 1024);
-    Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
         echo 'step 1: a replaced function ran: ', Core\Str::length($note), "\n";
     });
     $round = $round + 1;
@@ -19,9 +19,9 @@ echo "step 1: registered 100,000 functions\n";
 
 // 2. The last function registers a new one and throws the same error again.
 // The new one must not run, and the program must not start over.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     echo 'step 2: the function ran for: ', Core\Str::length($e->message), " characters\n";
-    Core\Fatal::onUncaughtThrow(fn (Throwable $again): void => {
+    Core\Fatal::onUncaughtThrow(fn(Throwable $again): void => {
         echo "step 2: a second function ran\n";
     });
     throw $e;

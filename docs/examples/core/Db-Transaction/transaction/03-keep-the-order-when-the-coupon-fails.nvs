@@ -14,13 +14,13 @@ class Checkout
 {
     public static function place(Core\Db\Connection $db, string $email, int $cents, string $code): void
     {
-        $db->transaction(fn (Transaction $order): void => {
+        $db->transaction(fn(Transaction $order): void => {
             $order->execute('insert into orders (email, cents) values (?, ?)', [$email, $cents]);
 
             try {
                 // The discount is a step inside the order. Both writes it makes
                 // are undone together if the coupon turns out to be used up.
-                $order->transaction(fn (Transaction $step): void => {
+                $order->transaction(fn(Transaction $step): void => {
                     $step->execute('update coupons set remaining = remaining - 1 where code = ?', [$code]);
                     $step->execute('update orders set cents = cents - 500 where email = ?', [$email]);
 

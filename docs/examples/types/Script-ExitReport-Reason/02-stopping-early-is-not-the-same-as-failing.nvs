@@ -3,7 +3,7 @@
 // It is not a failure. The status is `0` and every `finally` block still runs.
 // It is not an error either, so no `catch` block runs.
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     string $ending = match ($report->reason()) {
         Core\Script\ExitReport::Reason::Normal => 'ran to the end',
         Core\Script\ExitReport::Reason::ExitCall => 'called exit',

@@ -24,7 +24,7 @@ $db->execute('create table invoices (id integer primary key, customer text not n
 $db->execute('create table reminders (id integer primary key, invoice int not null, customer text not null)', []);
 $db->execute('insert into invoices (customer, daysLate, paid) values (?, ?, 0), (?, ?, 0), (?, ?, 0), (?, ?, 1)', ['Ana', 12, 'Bo', 0, 'Cy', 40, 'Dee', 90]);
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     // A second statement while rows remain is a `LogicError`, so this loop only
     // reads. It keeps the objects it needs and nothing else.
     array<Invoice> $late = [];

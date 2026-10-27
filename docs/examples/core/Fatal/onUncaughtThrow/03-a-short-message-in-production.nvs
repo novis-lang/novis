@@ -3,7 +3,7 @@
 // and the full details only to a developer.
 // proof: exit 1
 
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     if (Core\Env::mode() == Core\Env::Mode::Development) {
         echo 'error: ', $e->message, "\n";
     } else {

@@ -5,7 +5,7 @@
 var $db = Core\Db::connect('notes');
 $db->execute('create table notes (id integer primary key, text text not null)', []);
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     var $written = $tx->execute('insert into notes (text) values (?)', ['buy milk']);
     // This prints `1 row written, id 1`.
     echo $written->affected(), ' row written, id ', $written->lastId() ?? 0, "\n";

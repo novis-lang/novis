@@ -5,7 +5,7 @@
 
 Core\Config::set('limits.memory', '16M');
 
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "the page cache is full\n";
 });
 

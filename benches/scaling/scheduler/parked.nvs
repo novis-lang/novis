@@ -16,7 +16,7 @@ class Bench
         }
         var $done = Core\Task::all({
             idle: fn(): uint => {
-                var $counts = Core\Task::map($idle, fn (Core\Task\Channel<uint> $one): uint => {
+                var $counts = Core\Task::map($idle, fn(Core\Task\Channel<uint> $one): uint => {
                     uint $seen = 0;
                     foreach ($one as uint $value) {
                         $seen = $seen + $value;

@@ -53,7 +53,7 @@ final class CartTest
     public function refusesANegativePrice(): void
     {
         var $cart = new Cart();
-        Core\Test::assertThrows(fn (): void => { $cart->add(-1); }, LogicError::class);
+        Core\Test::assertThrows(fn(): void => { $cart->add(-1); }, LogicError::class);
         Core\Test::assertTrue($cart->total() == 0);
     }
 }

@@ -23,7 +23,7 @@ class Audit
     }
 }
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo Audit::line($report->reason()), "\n";
     if (Audit::wakeSomebody($report->reason())) {
         echo "paging the on-call engineer\n";

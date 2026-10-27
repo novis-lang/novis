@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `error()` returns `null` when the script caught its error.
 
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     ?Throwable $error = $report->error();
     // This prints "no error".
     if ($error == null) {

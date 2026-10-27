@@ -8,7 +8,7 @@ echo 'held back for the report:       ', Core\Config::get('limits.fatal_reserve_
 
 // The reserve is part of `limits.memory`, so normal work gets the rest.
 // `Core\Fatal::onLimit` registers the function that runs in the reserve.
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "the request stopped on a limit\n";
 });
 

@@ -25,7 +25,7 @@ $db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call
 
 // 1. A transaction carried out of the work that owned it opens a typed walk.
 // The transaction has ended, so the walk must be refused.
-var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+var $escaped = $db->transaction(fn(Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
 try {
     $escaped->streamAs<Note>('select id, text from notes', []);
     echo "1 the late walk went through\n";
@@ -38,7 +38,7 @@ try {
 uint $built = 0;
 uint $i = 0;
 while ($i < 10000) {
-    $built = $built + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    $built = $built + $db->transaction(fn(Core\Db\Transaction $tx): uint => {
         uint $seen = 0;
         foreach ($tx->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
             $seen = $seen + 1;
@@ -54,7 +54,7 @@ echo '2 objects built: ', $built, "\n";
 uint $refused = 0;
 $i = 0;
 while ($i < 2000) {
-    $refused = $refused + $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    $refused = $refused + $db->transaction(fn(Core\Db\Transaction $tx): uint => {
         uint $stopped = 0;
         foreach ($tx->streamAs<Note>('select id, text from notes order by id', []) as Note $note) {
             try {
@@ -77,7 +77,7 @@ array<string> $attempts = [
     "' union select id, text from notes --",
     Core\Str::repeat("'", 10000),
 ];
-uint $found = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $found = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     uint $seen = 0;
     foreach ($attempts as string $attempt) {
         foreach ($tx->streamAs<Note>('select id, text from notes where text = ?', [$attempt]) as Note $note) {
@@ -91,7 +91,7 @@ echo '4 objects found: ', $found, ', table still there: ', $db->query('select id
 // 5. Ten million rows are built into objects, and the walk is left after a
 // hundred. It still holds the connection, so the transaction cannot end.
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         uint $read = 0;
         foreach ($tx->streamAs<Note>('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n as id, hex(zeroblob(200)) as text from many', []) as Note $note) {
             $read = $read + 1;

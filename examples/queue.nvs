@@ -90,10 +90,10 @@ echo 'enqueued', "\n";
 
 // The claim is the worker's, not ours, and `stats` is how a program sees
 // that it happened. One job was pushed to this queue, so one is claimed.
-echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
+echo 'claimed ', Poll::counted(fn(): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
 // At-least-once, so "it ran" is a state and not a callback.
-Poll::until(fn (): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
+Poll::until(fn(): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
 echo 'ran', "\n";
 
 // The failing half, on its own queue so its counters are its own. Two
@@ -109,11 +109,11 @@ var $doomed = Queue::push('queue/flaky.nvs', {
 // is claimed again after its backoff. A job exceeding its memory, CPU or time
 // budget arrives here too, reported as a failed attempt rather than as an
 // out-of-memory.
-Poll::until(fn (): bool => { return Queue::stats($flaky)->attempts() > 1; });
+Poll::until(fn(): bool => { return Queue::stats($flaky)->attempts() > 1; });
 echo 'retried', "\n";
 
 // When every attempt fails, the job moves to the dead-letter table.
 // The row keeps its payload, its errors and their timing, and it stays there.
 // `stats` reports how many jobs are in that table.
-Poll::until(fn (): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
+Poll::until(fn(): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
 echo 'dead-lettered', "\n";

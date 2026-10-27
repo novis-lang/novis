@@ -7,7 +7,7 @@ $db->execute('create table orders (id integer primary key, customer text not nul
 $db->execute('create table totals (day text primary key, cents int not null, orders int not null)', []);
 $db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?), (?, ?)', ['Ana', 1200, 'Bo', 4500, 'Ana', 800, 'Cy', 300]);
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->transaction(fn(Core\Db\Transaction $tx): void => {
     // Only one row is in memory at a time, so this costs the same for four
     // orders and for four million.
     int $cents = 0;

@@ -13,7 +13,7 @@ class Bench
         int $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = ($total + 0x1F + 0b101 + 0o17 + 017 + 1_000) % 65_521;   // chained: $total is last round's
+            $total = ($total + 0x1F + 0b101 + 0o17 + 017 + 1_000) % 65_521; // chained: $total is last round's
             $i = $i + 1;
         }
         return $total;

@@ -31,7 +31,7 @@ class PaymentTest
         // The check moves the clock forward by 30 seconds before the loop starts.
         // The deadline has already passed, so the loop ends at once.
         Test::assertCompletes(
-            fn (): void => { Payment::sendUntil($deadline, false); },
+            fn(): void => { Payment::sendUntil($deadline, false); },
             { within: 30s },
         );
     }

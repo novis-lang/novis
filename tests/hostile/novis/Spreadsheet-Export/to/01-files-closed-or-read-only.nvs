@@ -38,32 +38,32 @@ $design->sheet('Invoice')->add(['{{shop}}']);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // 1. A file that is already closed, for an export and for a template.
-Attack::attempt(1, fn (): void => {
+Attack::attempt(1, fn(): void => {
     var $file = Core\IO::open($path, Core\IO::FileMode::Write);
     $file->close();
     Workbook::fromRows([['order' => 1]])->to($file);
 });
-Attack::attempt(1, fn (): void => {
+Attack::attempt(1, fn(): void => {
     var $file = Core\IO::open($path, Core\IO::FileMode::Write);
     $file->close();
     Template::open($template)->fill(['shop' => 'Shop'])->to($file);
 });
 
 // 2. A file that is open only for reading.
-Attack::attempt(2, fn (): void => {
+Attack::attempt(2, fn(): void => {
     var $file = Core\IO::open($path, Core\IO::FileMode::Read);
     Workbook::fromRows([['order' => 2]])->to($file);
 });
 
 // 3. The file is closed while the rows are still being written.
-Attack::attempt(3, fn (): void => {
+Attack::attempt(3, fn(): void => {
     var $file = Core\IO::open($path, Core\IO::FileMode::Write);
     Attack::$shared = $file;
     Workbook::fromRows(Attack::rows())->to($file);
 });
 
 // 4. Two exports and a template written to the same open file, one after another.
-Attack::attempt(4, fn (): void => {
+Attack::attempt(4, fn(): void => {
     var $file = Core\IO::open($path, Core\IO::FileMode::Write);
     Workbook::fromRows([['order' => 4]])->to($file);
     Workbook::fromRows([['order' => 5]], { format: 'csv' })->to($file);

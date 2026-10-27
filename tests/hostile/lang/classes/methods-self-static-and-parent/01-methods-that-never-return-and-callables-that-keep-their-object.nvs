@@ -18,7 +18,7 @@ final class Endless
 
     public function adder(): callable
     {
-        return fn (int $k): int => $this->depth + $k;
+        return fn(int $k): int => $this->depth + $k;
     }
 }
 

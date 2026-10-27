@@ -1447,7 +1447,7 @@
   },
   "/reference/config/deferred/": {
     "feature": "directive:deferred.max_concurrent",
-    "hash": "16c5be3998409acd",
+    "hash": "6a49bb69cb28d8c8",
     "questions": [
       "How long can background work run after the response is sent?",
       "Set a time limit for tasks that run after replying",
@@ -1491,7 +1491,7 @@
   },
   "/reference/config/extension-grants-what-a-component-may-reach/": {
     "feature": "tools:config/extension-grants-what-a-component-may-reach",
-    "hash": "384854e274e1b6d9",
+    "hash": "b90bd27e36bee37b",
     "questions": [
       "How do I let an extension read files in a folder?",
       "Allow an extension to send HTTP requests to one host",
@@ -1514,7 +1514,7 @@
   },
   "/reference/config/image/": {
     "feature": "directive:image.max_pixels",
-    "hash": "6d8b780afa9ad387",
+    "hash": "b351617397e297b3",
     "questions": [
       "How do I stop huge images from crashing the server?",
       "Protect against decompression bomb image uploads",
@@ -1545,7 +1545,7 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "d69a2c13b747c635",
+    "hash": "e937a3011458051d",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
@@ -1557,7 +1557,7 @@
   },
   "/reference/config/log/": {
     "feature": "directive:log",
-    "hash": "730735df05969098",
+    "hash": "a675fad20503212d",
     "questions": [
       "How do I write log records as JSON or plain text?",
       "Turn on debug logging for one request",
@@ -2939,7 +2939,7 @@
   },
   "/reference/core/cache-secretentry/of/": {
     "feature": "Core\\Cache\\SecretEntry::of",
-    "hash": "47315819b845f2e7",
+    "hash": "8263732125136a51",
     "questions": [
       "How do I create a cached secret with an expiry time?",
       "Use the token endpoint's expiry as the cache lifetime",
@@ -2979,7 +2979,7 @@
   },
   "/reference/core/cache-store/getsecret/": {
     "feature": "Core\\Cache\\Store::getSecret",
-    "hash": "a81ce4a80f4df12d",
+    "hash": "754203b105047b9b",
     "questions": [
       "How do I read an encrypted secret from the cache?",
       "Cache an access token and fetch it when missing",
@@ -3858,7 +3858,7 @@
   },
   "/reference/core/csv/rows/": {
     "feature": "Core\\Csv::rows",
-    "hash": "3bc3e4efddf8b50a",
+    "hash": "542d5d0b7aa6316d",
     "questions": [
       "How do I read a large CSV file line by line?",
       "Loop over CSV records without loading the whole file",
@@ -4097,7 +4097,7 @@
   },
   "/reference/core/db-connection/transaction/": {
     "feature": "Core\\Db\\Connection::transaction",
-    "hash": "cf693110a3551fb9",
+    "hash": "a5606e738e316dd7",
     "questions": [
       "How do I run several queries in a database transaction?",
       "Commit or roll back a group of database changes",
@@ -4497,7 +4497,7 @@
   },
   "/reference/core/db-transaction/execute/": {
     "feature": "Core\\Db\\Transaction::execute",
-    "hash": "d6d62988191c9c35",
+    "hash": "291414ccb641e10b",
     "questions": [
       "How do I insert a row inside a transaction?",
       "Update or delete rows as part of a transaction",
@@ -4508,7 +4508,7 @@
   },
   "/reference/core/db-transaction/executemany/": {
     "feature": "Core\\Db\\Transaction::executeMany",
-    "hash": "768955d5087b324f",
+    "hash": "b6c5a8e1c736addc",
     "questions": [
       "How do I insert many rows inside a transaction?",
       "Batch insert that is undone completely if one row fails",
@@ -4519,7 +4519,7 @@
   },
   "/reference/core/db-transaction/query/": {
     "feature": "Core\\Db\\Transaction::query",
-    "hash": "18a02856641e0822",
+    "hash": "30a441d04a1b4148",
     "questions": [
       "How do I select rows inside a transaction?",
       "Read the rows I just wrote before the transaction ends",
@@ -4530,7 +4530,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "3778d7624711489b",
+    "hash": "4e045190f41fb8f1",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4540,7 +4540,7 @@
   },
   "/reference/core/db-transaction/rollback/": {
     "feature": "Core\\Db\\Transaction::rollBack",
-    "hash": "61e8428ae61c9b06",
+    "hash": "c64323fe741f4815",
     "questions": [
       "How do I cancel a transaction and give a reason?",
       "Undo all database changes when a check fails",
@@ -4551,7 +4551,7 @@
   },
   "/reference/core/db-transaction/stream/": {
     "feature": "Core\\Db\\Transaction::stream",
-    "hash": "67c713f459635842",
+    "hash": "b670dcc0be5934ed",
     "questions": [
       "How do I read a very large result inside a transaction?",
       "Read rows one at a time while a transaction is open",
@@ -4562,7 +4562,7 @@
   },
   "/reference/core/db-transaction/streamas/": {
     "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "d557fb4d74d18bca",
+    "hash": "9196953d04ab363e",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -4572,7 +4572,7 @@
   },
   "/reference/core/db-transaction/transaction/": {
     "feature": "Core\\Db\\Transaction::transaction",
-    "hash": "be7585323c4b8017",
+    "hash": "19e97d7ecc019dee",
     "questions": [
       "How do I nest a transaction inside another one?",
       "Undo one step and keep the rest of the transaction",
@@ -5021,7 +5021,7 @@
   },
   "/reference/core/fatal/onlimit/": {
     "feature": "Core\\Fatal::onLimit",
-    "hash": "9a4e54f6940071e3",
+    "hash": "aa065b6925c84bcc",
     "questions": [
       "Run code when a request runs out of memory",
       "How do I log when the time limit is reached?",
@@ -5032,7 +5032,7 @@
   },
   "/reference/core/fatal/onuncaughtthrow/": {
     "feature": "Core\\Fatal::onUncaughtThrow",
-    "hash": "ae39e7d4ec22438e",
+    "hash": "d952e6bbb197a703",
     "questions": [
       "Handle an exception that nothing catches",
       "How do I set a global error handler?",
@@ -5169,7 +5169,7 @@
   },
   "/reference/core/heap/pop/": {
     "feature": "Core\\Heap::pop",
-    "hash": "7c24bc4826d53c89",
+    "hash": "b47ab914deb5207d",
     "questions": [
       "Remove and return the smallest item from a queue",
       "How do I take the most urgent task from a priority queue?",
@@ -5381,7 +5381,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "9ea22e9fbbad5e0c",
+    "hash": "39b2564310762d4a",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5687,7 +5687,7 @@
   },
   "/reference/core/http-socket/sendbytes/": {
     "feature": "Core\\Http\\Socket::sendBytes",
-    "hash": "bc8d30580500853a",
+    "hash": "e86f1bb507b1258c",
     "questions": [
       "How do I send binary data over a WebSocket?",
       "Send a binary WebSocket message",
@@ -5720,7 +5720,7 @@
   },
   "/reference/core/http-stream/events/": {
     "feature": "Core\\Http\\Stream::events",
-    "hash": "855d63ed04f74422",
+    "hash": "80d5cda233dcc43d",
     "questions": [
       "How do I parse a text/event-stream reply?",
       "Read server-sent events one at a time",
@@ -7463,7 +7463,7 @@
   },
   "/reference/core/ldap-entry/string/": {
     "feature": "Core\\Ldap\\Entry::string",
-    "hash": "21be8d41661618ac",
+    "hash": "110e552837e51ca0",
     "questions": [
       "Read one text attribute like mail",
       "Get the email address of a user",
@@ -9244,7 +9244,7 @@
   },
   "/reference/core/novis-pdf-document/created/": {
     "feature": "Novis\\Pdf\\Document::created",
-    "hash": "067959cbba509b4e",
+    "hash": "982625f61567b25d",
     "questions": [
       "Set the creation date of a PDF",
       "Why does PDF/A need a creation time?",
@@ -9419,7 +9419,7 @@
   },
   "/reference/core/novis-pdf-pages/merge/": {
     "feature": "Novis\\Pdf\\Pages::merge",
-    "hash": "16b358b191de1903",
+    "hash": "6ac78cbc268e3ffe",
     "questions": [
       "How do I merge several PDF files into one?",
       "Add terms and conditions to a contract PDF",
@@ -9430,7 +9430,7 @@
   },
   "/reference/core/novis-pdf-pages/of/": {
     "feature": "Novis\\Pdf\\Pages::of",
-    "hash": "beaad5b098f5d7b5",
+    "hash": "b1709189e3276058",
     "questions": [
       "Choose pages 1 and 3 of a PDF",
       "Reorder the pages of a PDF",
@@ -9451,7 +9451,7 @@
   },
   "/reference/core/novis-pdf-reader/attachments/": {
     "feature": "Novis\\Pdf\\Reader::attachments",
-    "hash": "1df89fa80b0e070f",
+    "hash": "bc0e1c369bbf43fe",
     "questions": [
       "List the files attached to a PDF",
       "Get embedded files from a PDF",
@@ -9461,7 +9461,7 @@
   },
   "/reference/core/novis-pdf-reader/invoicexml/": {
     "feature": "Novis\\Pdf\\Reader::invoiceXml",
-    "hash": "8e3564e8b6e9647b",
+    "hash": "7b23a9c8d3eecfaf",
     "questions": [
       "Read the XML from a ZUGFeRD or XRechnung invoice",
       "Check if an uploaded PDF is an electronic invoice",
@@ -9471,7 +9471,7 @@
   },
   "/reference/core/novis-pdf-reader/open/": {
     "feature": "Novis\\Pdf\\Reader::open",
-    "hash": "a191f1e6f480c77b",
+    "hash": "d9db42659fd5ac4c",
     "questions": [
       "Get the page count of an uploaded PDF",
       "Read the title and author of a PDF",
@@ -9481,7 +9481,7 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "d03509c582b2f28e",
+    "hash": "a656f980fcf41ba6",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
@@ -9694,7 +9694,7 @@
   },
   "/reference/core/novis-spreadsheet-export/save/": {
     "feature": "Novis\\Spreadsheet\\Export::save",
-    "hash": "af4b1e790e129270",
+    "hash": "756d197db1b09c8f",
     "questions": [
       "Save a spreadsheet to a file path",
       "Write an xlsx file to disk",
@@ -10516,7 +10516,7 @@
   },
   "/reference/core/out/capture/": {
     "feature": "Core\\Out::capture",
-    "hash": "60a347d47f6e86a2",
+    "hash": "a02fa50e7aca4607",
     "questions": [
       "How do I capture what a function prints with echo?",
       "Render a template into a variable and print it later",
@@ -10678,7 +10678,7 @@
   },
   "/reference/core/path/thisfile/": {
     "feature": "Core\\Path::thisFile",
-    "hash": "fea61cc561dac459",
+    "hash": "2347404cf346c176",
     "questions": [
       "How do I get the full path of the current source file?",
       "Print the name of the running script",
@@ -12672,7 +12672,7 @@
   },
   "/reference/core/script/finish/": {
     "feature": "Core\\Script::finish",
-    "hash": "11c8f780391accee",
+    "hash": "18733efd5440090e",
     "questions": [
       "How do I stop a script early without an error?",
       "End a request handler once the response is complete",
@@ -12683,7 +12683,7 @@
   },
   "/reference/core/script/onexit/": {
     "feature": "Core\\Script::onExit",
-    "hash": "7e48f78fe5d031ef",
+    "hash": "04e7151c019e3f90",
     "questions": [
       "How do I run code when the script ends?",
       "Add a shutdown function for cleanup",
@@ -12703,7 +12703,7 @@
   },
   "/reference/core/script-exitreport/error/": {
     "feature": "Core\\Script\\ExitReport::error",
-    "hash": "ca5d6f94894b01c5",
+    "hash": "ace29a2ba7dd24e6",
     "questions": [
       "Which exception ended the script?",
       "Send an alert with the message of a fatal uncaught error",
@@ -12713,7 +12713,7 @@
   },
   "/reference/core/script-exitreport/memorypeak/": {
     "feature": "Core\\Script\\ExitReport::memoryPeak",
-    "hash": "b04f1e15e7a6d37c",
+    "hash": "4145f5a6965b186a",
     "questions": [
       "How much memory did the script use at most?",
       "Log the peak memory of a job when it ends",
@@ -12723,7 +12723,7 @@
   },
   "/reference/core/script-exitreport/reason/": {
     "feature": "Core\\Script\\ExitReport::reason",
-    "hash": "b5fc4f9720de242c",
+    "hash": "c1079cabb25bd551",
     "questions": [
       "Did the script end normally, by exit or by an error?",
       "Find out why a script stopped",
@@ -12733,7 +12733,7 @@
   },
   "/reference/core/script-exitreport/status/": {
     "feature": "Core\\Script\\ExitReport::status",
-    "hash": "e6799e0979479c30",
+    "hash": "7c6e95bf41208a49",
     "questions": [
       "What exit code will the process return?",
       "Read the exit status in a shutdown function",
@@ -12896,7 +12896,7 @@
   },
   "/reference/core/session/getsecret/": {
     "feature": "Core\\Session::getSecret",
-    "hash": "05ffb61e9d638ca6",
+    "hash": "1a511260f84da72d",
     "questions": [
       "How do I read an encrypted value from the session?",
       "Load the user's access token for this request",
@@ -12969,7 +12969,7 @@
   },
   "/reference/core/signal/onshutdown/": {
     "feature": "Core\\Signal::onShutdown",
-    "hash": "742b3e2a5009f458",
+    "hash": "d42cad6842c855fe",
     "questions": [
       "How do I run code when someone presses Ctrl-C?",
       "Handle SIGTERM in a worker",
@@ -13785,7 +13785,7 @@
   },
   "/reference/core/task/afterresponse/": {
     "feature": "Core\\Task::afterResponse",
-    "hash": "a7cfb73c2db167fc",
+    "hash": "ddd6c4ee74a0bee6",
     "questions": [
       "How do I send an email after the response is sent?",
       "Run code in the background so the visitor does not wait",
@@ -13796,7 +13796,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "47f28800b81139c9",
+    "hash": "2d5981349c412c2d",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -13807,7 +13807,7 @@
   },
   "/reference/core/task/map/": {
     "feature": "Core\\Task::map",
-    "hash": "c42934b180fe56a4",
+    "hash": "11f17f18b6a18736",
     "questions": [
       "How do I process every item of a list in parallel?",
       "Check many URLs at the same time",
@@ -13900,7 +13900,7 @@
   },
   "/reference/core/test/assertcompletes/": {
     "feature": "Core\\Test::assertCompletes",
-    "hash": "b0956204e50a8ccf",
+    "hash": "73bc3fccda725e31",
     "questions": [
       "How do I test that code finishes within a time limit?",
       "Check a retry loop ends at its deadline without waiting",
@@ -13930,7 +13930,7 @@
   },
   "/reference/core/test/assertdoesnotthrow/": {
     "feature": "Core\\Test::assertDoesNotThrow",
-    "hash": "a75e6af16a09a2e8",
+    "hash": "2236905153e500e2",
     "questions": [
       "How do I test that code runs without an error?",
       "Check that a call does not throw an exception",
@@ -14000,7 +14000,7 @@
   },
   "/reference/core/test/assertthrows/": {
     "feature": "Core\\Test::assertThrows",
-    "hash": "c98dd2c0594a4cf6",
+    "hash": "aa7fd04d1a98f929",
     "questions": [
       "How do I test that code throws an exception?",
       "Check that an invalid payment gives an error",
@@ -14030,7 +14030,7 @@
   },
   "/reference/core/test/expectfailure/": {
     "feature": "Core\\Test::expectFailure",
-    "hash": "5dced67754f40e6f",
+    "hash": "43b5cece663b7468",
     "questions": [
       "How do I test my own custom check?",
       "Expect a check inside a test to fail",
@@ -14493,7 +14493,7 @@
   },
   "/reference/core/time-date/compareto/": {
     "feature": "Core\\Time\\Date::compareTo",
-    "hash": "6d30b1e6657798cc",
+    "hash": "0a27750e5d5964db",
     "questions": [
       "How do I check which of two dates comes first?",
       "Compare two dates without times",
@@ -15263,7 +15263,7 @@
   },
   "/reference/core/uri/compareto/": {
     "feature": "Core\\Uri::compareTo",
-    "hash": "6b87a88fd4844cae",
+    "hash": "39dccba4fb076ad4",
     "questions": [
       "How do I check if two URLs point to the same address?",
       "Sort a list of web addresses",
@@ -16003,7 +16003,7 @@
   },
   "/reference/types/arr-order/": {
     "feature": "Core\\Arr::Order",
-    "hash": "2d0458b6242decd7",
+    "hash": "86937bd062dac734",
     "questions": [
       "Sort a list from largest to smallest",
       "Sort in descending order",
@@ -16013,7 +16013,7 @@
   },
   "/reference/types/arr-seton/": {
     "feature": "Core\\Arr::SetOn",
-    "hash": "46d69d0210224291",
+    "hash": "8bc2f0bbf8ea1597",
     "questions": [
       "Compare arrays by keys instead of values",
       "Find entries where key and value both match",
@@ -16210,7 +16210,7 @@
   },
   "/reference/types/db-rolledback/": {
     "feature": "Core\\Db\\RolledBack",
-    "hash": "69f10b93250eb535",
+    "hash": "9306c2e62c0f6a2b",
     "questions": [
       "How do I cancel a transaction from inside it and give a reason?",
       "What error is thrown when my code rolls back a transaction?",
@@ -16442,7 +16442,7 @@
   },
   "/reference/types/mime-type/": {
     "feature": "Core\\Mime::Type",
-    "hash": "92b81430cfa86bfc",
+    "hash": "941886dc63454640",
     "questions": [
       "How do I detect the real file type of an upload?",
       "Check if uploaded bytes are a PNG or JPEG image",
@@ -16841,7 +16841,7 @@
   },
   "/reference/types/reflect-typekind/": {
     "feature": "Core\\Reflect::TypeKind",
-    "hash": "af173e69a497f944",
+    "hash": "c7a6de1ace71f4c0",
     "questions": [
       "How do I check what type a mixed value has at runtime?",
       "Is this value an int, a string or an array?",
@@ -16929,7 +16929,7 @@
   },
   "/reference/types/script-exitreport-reason/": {
     "feature": "Core\\Script\\ExitReport::Reason",
-    "hash": "df623c5feb4add41",
+    "hash": "42b9590e2188698b",
     "questions": [
       "How do I know how my script ended in a cleanup function?",
       "Did my script end with exit or an uncaught exception?",
@@ -16951,7 +16951,7 @@
   },
   "/reference/types/str-normalform/": {
     "feature": "Core\\Str::NormalForm",
-    "hash": "ed42ba1b64509daf",
+    "hash": "9eddf2b9ad7a1f8a",
     "questions": [
       "Difference between NFC and NFD normal forms",
       "How do I normalize Unicode text before comparing it?",
@@ -16973,7 +16973,7 @@
   },
   "/reference/types/test-failure/": {
     "feature": "Core\\Test\\Failure",
-    "hash": "a995f9ba57c52637",
+    "hash": "7d217df9dbac0bfc",
     "questions": [
       "What is thrown when a test check fails?",
       "Can a test hide a failed check by catching it?",
@@ -17006,7 +17006,7 @@
   },
   "/reference/types/timeouterror/": {
     "feature": "TimeoutError",
-    "hash": "15f97742d97eabd8",
+    "hash": "f772383fafeb2722",
     "questions": [
       "What error is thrown when a connection or query takes too long?",
       "Should I retry a payment after a timeout?",

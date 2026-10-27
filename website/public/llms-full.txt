@@ -2311,9 +2311,9 @@ S  Straße a…
 bytes $pngSignature = Core\Encoding::fromHex('89504e47');
 
 array<string> $uploads = [
-    'iVBORw0KGgo=',          // the first bytes of a PNG
-    'SGVsbG8sIHdvcmxkIQ==',  // a short note
-    'SGVsbG8s/w==',          // a note with one byte that is not text
+    'iVBORw0KGgo=', // the first bytes of a PNG
+    'SGVsbG8sIHdvcmxkIQ==', // a short note
+    'SGVsbG8s/w==', // a note with one byte that is not text
 ];
 
 foreach ($uploads as string $encoded) {
@@ -2910,7 +2910,7 @@ array<mixed> $lines = [
 decimal $total = 0.00;
 foreach ($lines as mixed $line) {
     try {
-        tainted string $sku =$line['sku'] as string;
+        tainted string $sku = $line['sku'] as string;
         uint $quantity = $line['quantity'] as uint;
         decimal $price = $line['price'] as decimal;
         $total = $total + $price * $quantity;
@@ -3680,7 +3680,7 @@ class Report
 }
 
 UserId $id = 1042;
-uint $plain = $id;          // the alias and `uint` are one type, in both directions
+uint $plain = $id; // the alias and `uint` are one type, in both directions
 
 echo Report::line($id, 7), "\n";
 echo Report::line($plain, 'maybe'), "\n";
@@ -3713,14 +3713,14 @@ final class Basket
     public function add(string $line): Lines
     {
         $this->lines[] = $line;
-        return $this->lines;      // inside the class: the short name
+        return $this->lines; // inside the class: the short name
     }
 }
 
 class Printer
 {
     public static function show(Basket::Lines $lines): void
-    {      // outside the class: the class name first
+    { // outside the class: the class name first
         foreach ($lines as string $line) {
             echo '- ', $line, "\n";
         }
@@ -15462,7 +15462,7 @@ Two `get` hooks may read each other, such as `get => $this->b` on `$a` and `get 
 class Volume
 {
     public int $level {
-        set (int $v) {
+        set(int $v) {
             if ($v < 0) {
                 throw new LogicError('a volume is never below 0');
             }
@@ -15552,7 +15552,7 @@ class User
 {
     public string $email {
         get => $this->email;
-        set (string $v) {
+        set(string $v) {
             string $clean = Core\Str::trim(Core\Str::lower($v));
             if (!Core\Str::contains($clean, '@')) {
                 throw new LogicError('that is not an e-mail address');
@@ -15611,7 +15611,7 @@ class Box
 {
     public array<int> $xs {
         get => $this->xs;
-        set (array<int> $v) {
+        set(array<int> $v) {
             $this->xs = $v;
         }
     }
@@ -16180,7 +16180,7 @@ class Record implements PropertyObserver
     // The `set` hook stores the lower case text. The observer is told what the
     // hook stored, not what was written.
     public string $slug {
-        set (string $v) {
+        set(string $v) {
             $this->slug = Core\Str::lower($v);
         }
     }
@@ -22542,7 +22542,7 @@ loading order 7
 
 // This anonymous function runs when a throw reaches the top of the program and nothing
 // caught it. The program still ends, and the exit status is still 1.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     echo 'import stopped: ', $e->message, "\n";
     echo "check your file, then run the import again\n";
 });
@@ -22585,7 +22585,7 @@ final class Counter
 
 // This anonymous function runs at every ending: a normal one, an `exit`, and an error
 // that nothing caught. `status()` is 1 for an ending an error caused.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo '--- rows written: ', Counter::$written, "\n";
     echo '--- exit status: ', $report->status(), "\n";
     echo '--- error: ', $report->error()?->message ?? 'none', "\n";
@@ -22905,7 +22905,7 @@ memory = "16M"
 // the limit that fired. The program still ends after it.
 // proof: exit 1
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 
@@ -22948,7 +22948,7 @@ final class Job
     public static string $current = 'none';
 }
 
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped on order ', Job::$current, ', limit: ', $report['limit'], "\n";
 });
 
@@ -23592,9 +23592,9 @@ of functions is `E0401` too.
 // job and returns one field per result, under the same names.
 
 var $page = Core\Task::all({
-    rows:  fn(): array<int> => [10, 20, 30],
-    label: fn(): string     => 'orders',
-    total: fn(): int        => 60,
+    rows: fn(): array<int> => [10, 20, 30],
+    label: fn(): string => 'orders',
+    total: fn(): int => 60,
 });
 
 // Each field already has the type its own function returns, so nothing needs converting.
@@ -23624,9 +23624,9 @@ class Stock
 var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
-    here:   fn(): string => 'written in place',
+    here: fn(): string => 'written in place',
     method: Stock::onHand,
-    kept:   $kept,
+    kept: $kept,
 });
 
 // This prints written in place, then 42, then from a variable.
@@ -23669,7 +23669,7 @@ class Catalog
 
 var $page = Core\Task::all({
     product: Catalog::product,
-    stock:   Catalog::stock,
+    stock: Catalog::stock,
     reviews: Catalog::reviews,
 });
 
@@ -25455,7 +25455,7 @@ class Orders
 var $page = Core\Task::all({
     total: Orders::total,
     title: Orders::title,
-    note:  fn(): string => 'ready',
+    note: fn(): string => 'ready',
 });
 
 // The results are ready on this line. `Core\Task::all` returns only when every
@@ -30210,11 +30210,11 @@ class Age
 }
 
 // The call throws `ParseError`, so this assertion passes and prints nothing.
-Test::assertThrows(fn (): void => { Age::fromText('tomorrow'); }, ParseError::class);
+Test::assertThrows(fn(): void => { Age::fromText('tomorrow'); }, ParseError::class);
 echo 'bad input throws', "\n";
 
 // The call returns a number, so this assertion passes too.
-Test::assertDoesNotThrow(fn (): void => { Age::fromText('41'); });
+Test::assertDoesNotThrow(fn(): void => { Age::fromText('41'); });
 echo 'good input does not throw', "\n";
 ```
 
@@ -30263,7 +30263,7 @@ try {
 }
 
 // A `ParseError` is a `RuntimeError`, so this assertion passes.
-Test::assertThrows(fn (): void => { throw new ParseError('bad input'); }, RuntimeError::class);
+Test::assertThrows(fn(): void => { throw new ParseError('bad input'); }, RuntimeError::class);
 echo 'a ParseError is a RuntimeError', "\n";
 ```
 
@@ -38103,7 +38103,7 @@ while (!$jobs->isEmpty()) {
     echo $job->name, "\n";
 }
 
-var $largest = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+var $largest = new Core\Heap<int>(fn(int $a, int $b): int => $b - $a);
 $largest->push(3);
 $largest->push(9);
 $largest->push(5);
@@ -39982,22 +39982,22 @@ it writes to stderr.
 
 ```nvs
 <?nvs
-var $captured = Core\Out::capture(fn (): void => {
+var $captured = Core\Out::capture(fn(): void => {
     echo 'a';
     echo 'b';
 });
 echo 'captured=[', $captured, "]\n";
 
-echo Core\Out::capture(fn (): void => {
+echo Core\Out::capture(fn(): void => {
     echo 'outer<';
-    echo Core\Out::capture(fn (): void => { echo 'inner'; });
+    echo Core\Out::capture(fn(): void => { echo 'inner'; });
     echo '>';
 }), "\n";
 
-echo '[', Core\Out::capture(fn (): void => {}), "]\n";
+echo '[', Core\Out::capture(fn(): void => {}), "]\n";
 
 try {
-    echo Core\Out::capture(fn (): void => {
+    echo Core\Out::capture(fn(): void => {
         echo 'lost';
         throw new RuntimeError('stop');
     });
@@ -40277,7 +40277,7 @@ final class CartTest
     public function refusesANegativePrice(): void
     {
         var $cart = new Cart();
-        Core\Test::assertThrows(fn (): void => { $cart->add(-1); }, LogicError::class);
+        Core\Test::assertThrows(fn(): void => { $cart->add(-1); }, LogicError::class);
         Core\Test::assertTrue($cart->total() == 0);
     }
 }
@@ -41148,8 +41148,8 @@ even a `catch`.
 ```nvs
 <?nvs
 var $page = Core\Task::all({
-    rows:  fn(): array<int> => [1, 2, 3],
-    label: fn(): string     => 'all',
+    rows: fn(): array<int> => [1, 2, 3],
+    label: fn(): string => 'all',
 });
 echo $page->label, '=', Core\Arr::count($page->rows), "\n";
 
@@ -41898,7 +41898,7 @@ until it is converted. Styling, colour and the rest of a terminal surface are no
 
 ```nvs
 <?nvs
-var $captured = Core\Out::capture(fn (): void => {
+var $captured = Core\Out::capture(fn(): void => {
     echo 'inner';
 });
 
@@ -44179,12 +44179,12 @@ runs nothing. The handler receives one array whose `limit` key names the directi
 
 ```nvs
 <?nvs
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 echo "handler registered\n";
 
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "a replacement that takes no report\n";
 });
 echo "handler replaced\n";
@@ -58055,8 +58055,8 @@ server reads.
 <?nvs
 // The proxy at 10.0.0.5 sent `X-Forwarded-For: 192.0.2.99, 203.0.113.7`
 // and `X-Forwarded-Proto: https`.
-?tainted string $client = Core\Request::clientIp();   // "203.0.113.7"
-tainted string $scheme = Core\Request::scheme();      // "https"
+?tainted string $client = Core\Request::clientIp(); // "203.0.113.7"
+tainted string $scheme = Core\Request::scheme(); // "https"
 ```
 
 `clientIp()` returns `null` when the proxy wrote `unknown` in place of the address. A port after

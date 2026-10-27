@@ -30,7 +30,7 @@ class Bench
             $written = $written + 1;
         }
         $db->executeMany('insert into notes (n) values (?)', $sets);
-        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        return $db->transaction(fn(Core\Db\Transaction $tx): uint => {
             uint $total = 0;
             uint $i = 0;
             while ($i < 64) {

@@ -7,7 +7,7 @@ class NotFound extends RuntimeError
 
 // `is` checks the class of the error. `NotFound` gets a short message.
 // Every other error prints its own message.
-Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+Core\Fatal::onUncaughtThrow(fn(Throwable $e): void => {
     if ($e is NotFound) {
         echo 'not found: ', $e->message, "\n";
     } else {

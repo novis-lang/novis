@@ -6,12 +6,16 @@ use Novis\Pdf\Reader;
 
 // The letterhead and the terms are PDF files that the shop already has.
 var $letterhead = Document::fromHtml('<p>Shop, 1 Example Street</p>')->render()->bytes;
-var $terms = Document::fromHtml('<style>p { break-after: page }</style>'
-    . '<p>Terms, part 1</p><p>Terms, part 2</p>')->render()->bytes;
+var $terms = Document::fromHtml(
+    '<style>p { break-after: page }</style>'
+        . '<p>Terms, part 1</p><p>Terms, part 2</p>',
+)->render()->bytes;
 
 // `background-image` draws the letterhead behind every page of the contract.
-var $contract = Document::fromHtml('<style>@page { background-image: url(letterhead.pdf) }</style>'
-    . '<h1>Contract</h1><p>Ada Lovelace rents a bike for one week.</p>')
+var $contract = Document::fromHtml(
+    '<style>@page { background-image: url(letterhead.pdf) }</style>'
+        . '<h1>Contract</h1><p>Ada Lovelace rents a bike for one week.</p>',
+)
     ->asset('letterhead.pdf', $letterhead)
     ->render()
     ->bytes;

@@ -23,10 +23,10 @@ class Account
 Account $account = new Account();
 
 // A payment of 250 is more than the balance, so `pay` throws `NotEnoughMoney`.
-Core\Test::assertThrows(fn (): void => { $account->pay(250); }, NotEnoughMoney::class);
+Core\Test::assertThrows(fn(): void => { $account->pay(250); }, NotEnoughMoney::class);
 
 // `NotEnoughMoney` extends `PaymentError`, so a check for the parent class passes too.
-Core\Test::assertThrows(fn (): void => { $account->pay(250); }, PaymentError::class);
+Core\Test::assertThrows(fn(): void => { $account->pay(250); }, PaymentError::class);
 
 // The failed payments did not change the balance.
 Core\Test::assertSame($account->balance, 100);

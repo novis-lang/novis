@@ -14,7 +14,7 @@ final class PagesTest
     #[Test(at: '2026-10-21T12:00:00Z')]
     public function theHomePageWithNoReportsSaysSo(): void
     {
-        var $page =PagesTest::page(Pages::home(PagesTest::totals(), Time::now()));
+        var $page = PagesTest::page(Pages::home(PagesTest::totals(), Time::now()));
         Test::assertTrue(Str::contains($page, 'No reports have arrived yet.'));
         Test::assertTrue(!Str::contains($page, '<svg'));
     }
@@ -24,7 +24,7 @@ final class PagesTest
     public function theHomePageShowsTwoWeeks(): void
     {
         var $totals = PagesTest::twoWeeks();
-        var $page =PagesTest::page(Pages::home($totals, Time::now()));
+        var $page = PagesTest::page(Pages::home($totals, Time::now()));
         Test::assertTrue(Str::contains($page, '<tr><td>2026-W37</td><td>1</td><td>1</td></tr>'));
         Test::assertTrue(Str::contains($page, '<tr><td>2026-W42 (still arriving)</td><td>2</td><td>0</td></tr>'));
         Test::assertTrue(Str::contains($page, '<h2>The week 2026-W42 (still arriving)</h2>'));
@@ -46,7 +46,7 @@ final class PagesTest
     #[Test]
     public function theCollectPageNamesTheAddressOfThisService(): void
     {
-        var $page =PagesTest::page(Pages::collect('https://telemetry.example.com'));
+        var $page = PagesTest::page(Pages::collect('https://telemetry.example.com'));
         Test::assertTrue(Str::contains($page, '<code>https://telemetry.example.com/v1/report</code>'));
         Test::assertTrue(Str::contains($page, '<code>days_active</code>'));
         Test::assertTrue(Str::contains($page, Pages::SOURCE));

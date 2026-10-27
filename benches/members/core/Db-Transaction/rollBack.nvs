@@ -18,7 +18,7 @@ class Bench
             try {
                 // The count so far is written into the row and into the reason,
                 // so neither the statement nor the give-up can be left out.
-                $db->transaction(fn (Transaction $tx): void => {
+                $db->transaction(fn(Transaction $tx): void => {
                     $tx->execute('insert into notes (n) values (?)', [$given as int]);
                     $tx->rollBack('round ' . $given);
                 });

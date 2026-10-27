@@ -29,7 +29,8 @@ echo $odd, " odd answers\n";
 // 2. A value is compared with itself, and with a copy built from its own count.
 int $same = 0;
 foreach ($edges as Core\Time\Duration $each) {
-    $same = $same + $each->compareTo($each)
+    $same = $same
+        + $each->compareTo($each)
         + $each->compareTo(Core\Time\Duration::nanoseconds($each->toNanoseconds()));
 }
 echo $same, "\n";

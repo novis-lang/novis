@@ -38,7 +38,7 @@ echo '3 create: ', $made->affected(), ', drop: ', $gone->affected(), "\n";
 // not in the table, and the write still answers the number it reported.
 var $kept = null;
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         var $write = $tx->execute('insert into notes (text) values (?), (?)', ['never saved', 'never saved either']);
         echo '4 inside the transaction: ', $write->affected(), "\n";
         $tx->rollBack('nothing worth keeping');

@@ -18,7 +18,7 @@ class Bench
         uint $i = 0;
         while ($i < 64) {
             uint $shift = $total % 3;
-            var $sizes = Core\Task::map($labels, fn (string $label): uint => Core\Str::length($label) + $shift, { limit: 8 });
+            var $sizes = Core\Task::map($labels, fn(string $label): uint => Core\Str::length($label) + $shift, { limit: 8 });
             $total = $total + Core\Arr::count($sizes) + $sizes['0'];
             $i = $i + 1;
         }

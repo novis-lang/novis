@@ -19,7 +19,7 @@ class Api
         // `wait` is how long this request waits while another request logs in.
         // Without it the setting `[cache.memory] fill_wait` decides.
         return $cache->getSecret('api-token', $keys, {
-            fill: fn (): Core\Cache\SecretEntry => Api::login(),
+            fill: fn(): Core\Cache\SecretEntry => Api::login(),
             wait: 3s,
         });
     }

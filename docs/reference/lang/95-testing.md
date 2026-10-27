@@ -1949,11 +1949,11 @@ class Age
 }
 
 // The call throws `ParseError`, so this assertion passes and prints nothing.
-Test::assertThrows(fn (): void => { Age::fromText('tomorrow'); }, ParseError::class);
+Test::assertThrows(fn(): void => { Age::fromText('tomorrow'); }, ParseError::class);
 echo 'bad input throws', "\n";
 
 // The call returns a number, so this assertion passes too.
-Test::assertDoesNotThrow(fn (): void => { Age::fromText('41'); });
+Test::assertDoesNotThrow(fn(): void => { Age::fromText('41'); });
 echo 'good input does not throw', "\n";
 ```
 
@@ -2002,7 +2002,7 @@ try {
 }
 
 // A `ParseError` is a `RuntimeError`, so this assertion passes.
-Test::assertThrows(fn (): void => { throw new ParseError('bad input'); }, RuntimeError::class);
+Test::assertThrows(fn(): void => { throw new ParseError('bad input'); }, RuntimeError::class);
 echo 'a ParseError is a RuntimeError', "\n";
 ```
 

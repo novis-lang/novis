@@ -16,7 +16,7 @@ final class TaskTreeTest
     public function itRunsInsideATaskOfTheRunners(): void
     {
         var $answers = Task::all({
-            first:  fn(): int => 1,
+            first: fn(): int => 1,
             second: fn(): int => 2,
         });
         Test::assertSame($answers->first + $answers->second, 3);

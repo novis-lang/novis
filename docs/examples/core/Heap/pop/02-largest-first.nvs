@@ -2,7 +2,7 @@
 // Shows how to make `pop` return the largest value first.
 
 // The comparator returns `$b - $a`, which is the opposite of the normal order.
-var $heap = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+var $heap = new Core\Heap<int>(fn(int $a, int $b): int => $b - $a);
 $heap->push(20);
 $heap->push(50);
 $heap->push(10);

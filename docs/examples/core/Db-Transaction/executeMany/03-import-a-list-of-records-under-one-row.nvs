@@ -10,7 +10,7 @@ $db->execute('create table people (id integer primary key, importId integer not 
 // In a real import these come from a file or an upload.
 array<string> $names = ['Ada', 'Bo', 'Chen'];
 
-uint $imported = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $imported = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     var $import = $tx->execute('insert into imports (source) values (?)', ['people.csv']);
     var $importId = $import->lastId() ?? 0;
     // One set per record. A `:name` in the statement takes its value from the

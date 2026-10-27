@@ -13,12 +13,12 @@ runs nothing. The handler receives one array whose `limit` key names the directi
 
 ```nvs
 <?nvs
-Core\Fatal::onLimit(fn (array<string> $report): void => {
+Core\Fatal::onLimit(fn(array<string> $report): void => {
     echo 'stopped by the ', $report['limit'], " limit\n";
 });
 echo "handler registered\n";
 
-Core\Fatal::onLimit(fn (): void => {
+Core\Fatal::onLimit(fn(): void => {
     echo "a replacement that takes no report\n";
 });
 echo "handler replaced\n";

@@ -22,7 +22,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($nodes[(($total + $i) % 4) as int]->name() != '') {   // chained: $total is last round's
+            if ($nodes[(($total + $i) % 4) as int]->name() != '') { // chained: $total is last round's
                 $total = $total + 4;
             }
             $i = $i + 1;

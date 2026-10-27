@@ -3,7 +3,7 @@
 
 // `Core\Out::capture` runs the function. The two `echo` lines print nothing yet.
 // The result is a `Core\Cli\Text`, or a `Core\Html\Markup` in a web request.
-var $greeting = Core\Out::capture(fn (): void => {
+var $greeting = Core\Out::capture(fn(): void => {
     echo 'Hello, ';
     echo 'world';
 });

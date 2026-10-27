@@ -7,7 +7,7 @@ final class Worker
     public static int $done = 0;
 }
 
-Core\Signal::onShutdown(fn (): void => {
+Core\Signal::onShutdown(fn(): void => {
     echo 'Asked to stop after ', Worker::$done, " jobs.\n";
 });
 

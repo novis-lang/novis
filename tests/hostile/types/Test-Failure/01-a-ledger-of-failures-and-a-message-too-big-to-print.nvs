@@ -69,7 +69,7 @@ final class Pile
         uint $done = 0;
         int $i = 0;
         while ($i < $rounds) {
-            Test::expectFailure(fn (): void => {
+            Test::expectFailure(fn(): void => {
                 Test::assertTrue(false, { message: 'expected to fail' });
             });
             $done = $done + 1;

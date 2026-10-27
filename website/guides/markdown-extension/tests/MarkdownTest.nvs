@@ -33,12 +33,12 @@ class MarkdownTest
     #[Test]
     public function renderRemovesAnUnsafeLink(): void
     {
-        Test::assertSame(Html::toSource(Document::render('[click](javascript:alert(1))'), 'comparing the HTML'),"<p><a>click</a></p>\n");
+        Test::assertSame(Html::toSource(Document::render('[click](javascript:alert(1))'), 'comparing the HTML'), "<p><a>click</a></p>\n");
     }
 
     #[Test]
     public function outlineListsTheTopTwoLevels(): void
     {
-        Test::assertSame(Html::toSource(Document::outline("# A\n## B\n### C"), 'comparing the HTML'),'<ul><li>A</li><li>B</li></ul>');
+        Test::assertSame(Html::toSource(Document::outline("# A\n## B\n### C"), 'comparing the HTML'), '<ul><li>A</li><li>B</li></ul>');
     }
 }

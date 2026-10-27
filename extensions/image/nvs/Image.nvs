@@ -30,9 +30,9 @@ final class Image
         metadata?: { keep: bool },
     };
     type Origin = { data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }
-        | { width: uint, height: uint, fill: Rgba }
-        | { width: uint, height: uint, pixels: bytes }
-        | { text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align };
+        |{ width: uint, height: uint, fill: Rgba }
+        |{ width: uint, height: uint, pixels: bytes }
+        |{ text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align };
     type Layer = { source: Origin, steps: array<Step> };
     type Plan = { steps: array<Step>, overlays: array<Layer>, output: Output };
     type Raw = { width: uint, height: uint, pixels: bytes };

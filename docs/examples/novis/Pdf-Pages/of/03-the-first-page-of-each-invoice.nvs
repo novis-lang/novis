@@ -8,8 +8,10 @@ use Novis\Pdf\Reader;
 array<int> $numbers = [1042, 1043, 1044];
 array<bytes> $invoices = [];
 foreach ($numbers as int $number) {
-    $invoices[] = Document::fromHtml('<style>h2 { break-before: page }</style>'
-        . "<h1>Invoice {$number}</h1><h2>Terms</h2><p>Pay within 14 days.</p>")->render()->bytes;
+    $invoices[] = Document::fromHtml(
+        '<style>h2 { break-before: page }</style>'
+            . "<h1>Invoice {$number}</h1><h2>Terms</h2><p>Pay within 14 days.</p>",
+    )->render()->bytes;
 }
 
 // `[1]` chooses page 1 of each file.

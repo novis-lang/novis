@@ -13,7 +13,7 @@ final class Checkout
     public static function place(Connection $db, string $sku, int $wanted): string
     {
         try {
-            $db->transaction(fn (Transaction $tx): void => {
+            $db->transaction(fn(Transaction $tx): void => {
                 var $row = $tx->query('select stock from items where sku = ?', [$sku])->first();
                 if ($row == null) {
                     $tx->rollBack('we do not stock that item');

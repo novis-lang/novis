@@ -14,7 +14,7 @@ array<array<mixed>> $rows = [
 ];
 
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+    $db->transaction(fn(Core\Db\Transaction $tx): uint =>
         $tx->executeMany('insert into people (name) values (?)', $rows));
 } catch (Core\Db\DbError $refused) {
     // This prints `the batch stopped`.

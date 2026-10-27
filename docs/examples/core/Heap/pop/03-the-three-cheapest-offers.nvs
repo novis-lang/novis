@@ -14,7 +14,7 @@ class Offer
 }
 
 // The comparator puts the lower price first.
-var $offers = new Core\Heap<Offer>(fn (Offer $a, Offer $b): int => $a->cents - $b->cents);
+var $offers = new Core\Heap<Offer>(fn(Offer $a, Offer $b): int => $a->cents - $b->cents);
 $offers->push(new Offer('Express', 1490));
 $offers->push(new Offer('Standard', 590));
 $offers->push(new Offer('Economy', 390));

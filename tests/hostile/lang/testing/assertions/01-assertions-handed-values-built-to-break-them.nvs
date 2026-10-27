@@ -59,7 +59,7 @@ try {
 // 4. The function given to `assertThrows` throws the failure type the
 //    assertion itself uses.
 try {
-    Test::assertThrows(fn (): void => { throw new Core\Test\Failure('from inside'); }, ParseError::class);
+    Test::assertThrows(fn(): void => { throw new Core\Test\Failure('from inside'); }, ParseError::class);
     echo 'step 4: the inner failure was accepted', "\n";
 } catch (Throwable $caught) {
     echo 'step 4 stopped', "\n";

@@ -11,7 +11,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             $body->end();
-            $total = $total + ($total % 3) + 1;   // chained: the next round depends on this one
+            $total = $total + ($total % 3) + 1; // chained: the next round depends on this one
             $i = $i + 1;
         }
         return $total;

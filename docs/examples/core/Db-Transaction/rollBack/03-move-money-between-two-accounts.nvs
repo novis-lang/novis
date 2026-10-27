@@ -12,7 +12,7 @@ class Bank
 {
     public static function move(Core\Db\Connection $db, int $from, int $to, int $cents): void
     {
-        $db->transaction(fn (Transaction $tx): void => {
+        $db->transaction(fn(Transaction $tx): void => {
             $tx->execute('update accounts set cents = cents - ? where id = ?', [$cents, $from]);
             $tx->execute('update accounts set cents = cents + ? where id = ?', [$cents, $to]);
 

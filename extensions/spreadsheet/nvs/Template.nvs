@@ -67,7 +67,7 @@ final class Template
         $this->found = [];
         $this->first = $filled->data;
         $this->order = $filled->lists;
-        return new Export(fn (Workbook $book): void => {}, null, fn (callable(bytes): void $send, bool $keep): Written => $this->write($send, $keep));
+        return new Export(fn(Workbook $book): void => {}, null, fn(callable(bytes): void $send, bool $keep): Written => $this->write($send, $keep));
     }
 
     // Adds a placeholder for each value in `$data` under `$prefix`, and keeps each list for `write`. A list inside a list throws.

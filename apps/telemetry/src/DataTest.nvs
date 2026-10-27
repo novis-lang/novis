@@ -15,16 +15,19 @@ final class DataTest
         var $totals = PagesTest::twoWeeks();
         var $json = Json::encode(Data::json($totals));
         // The fields of a JSON object are in the order of their names, so `counters` comes first.
-        Test::assertSame($json, "{\"counters\":["
-            . "{\"week\":\"2026-W37\",\"version\":\"0.3.0\",\"os\":\"macos\",\"arch\":\"aarch64\",\"counter\":\"invocation.serve\",\"total\":1,\"reports\":1},"
-            . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"internal-error.check\",\"total\":1,\"reports\":1},"
-            . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"invocation.check\",\"total\":5,\"reports\":1},"
-            . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"invocation.run\",\"total\":43,\"reports\":2}],"
-            . "\"reports\":["
-            . "{\"week\":\"2026-W37\",\"version\":\"0.3.0\",\"os\":\"macos\",\"arch\":\"aarch64\",\"reports\":1,\"first_reports\":1,"
-            . "\"active_1\":0,\"active_2\":1,\"active_3\":0,\"active_4\":0,\"active_5\":0,\"active_6\":0,\"active_7\":0},"
-            . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"reports\":2,\"first_reports\":0,"
-            . "\"active_1\":0,\"active_2\":0,\"active_3\":1,\"active_4\":0,\"active_5\":0,\"active_6\":0,\"active_7\":1}]}");
+        Test::assertSame(
+            $json,
+            "{\"counters\":["
+                . "{\"week\":\"2026-W37\",\"version\":\"0.3.0\",\"os\":\"macos\",\"arch\":\"aarch64\",\"counter\":\"invocation.serve\",\"total\":1,\"reports\":1},"
+                . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"internal-error.check\",\"total\":1,\"reports\":1},"
+                . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"invocation.check\",\"total\":5,\"reports\":1},"
+                . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"counter\":\"invocation.run\",\"total\":43,\"reports\":2}],"
+                . "\"reports\":["
+                . "{\"week\":\"2026-W37\",\"version\":\"0.3.0\",\"os\":\"macos\",\"arch\":\"aarch64\",\"reports\":1,\"first_reports\":1,"
+                . "\"active_1\":0,\"active_2\":1,\"active_3\":0,\"active_4\":0,\"active_5\":0,\"active_6\":0,\"active_7\":0},"
+                . "{\"week\":\"2026-W42\",\"version\":\"0.4.0\",\"os\":\"linux\",\"arch\":\"x86_64\",\"reports\":2,\"first_reports\":0,"
+                . "\"active_1\":0,\"active_2\":0,\"active_3\":1,\"active_4\":0,\"active_5\":0,\"active_6\":0,\"active_7\":1}]}",
+        );
     }
 
     #[Test]
@@ -43,13 +46,16 @@ final class DataTest
     {
         var $totals = PagesTest::twoWeeks();
         var $csv = Data::csv($totals);
-        Test::assertSame($csv, "table,week,version,os,arch,reports,first_reports,active_1,active_2,active_3,active_4,active_5,active_6,active_7,counter,total\n"
-            . "reports,2026-W37,0.3.0,macos,aarch64,1,1,0,1,0,0,0,0,0,,\n"
-            . "reports,2026-W42,0.4.0,linux,x86_64,2,0,0,0,1,0,0,0,1,,\n"
-            . "counters,2026-W37,0.3.0,macos,aarch64,1,,,,,,,,,invocation.serve,1\n"
-            . "counters,2026-W42,0.4.0,linux,x86_64,1,,,,,,,,,internal-error.check,1\n"
-            . "counters,2026-W42,0.4.0,linux,x86_64,1,,,,,,,,,invocation.check,5\n"
-            . "counters,2026-W42,0.4.0,linux,x86_64,2,,,,,,,,,invocation.run,43\n");
+        Test::assertSame(
+            $csv,
+            "table,week,version,os,arch,reports,first_reports,active_1,active_2,active_3,active_4,active_5,active_6,active_7,counter,total\n"
+                . "reports,2026-W37,0.3.0,macos,aarch64,1,1,0,1,0,0,0,0,0,,\n"
+                . "reports,2026-W42,0.4.0,linux,x86_64,2,0,0,0,1,0,0,0,1,,\n"
+                . "counters,2026-W37,0.3.0,macos,aarch64,1,,,,,,,,,invocation.serve,1\n"
+                . "counters,2026-W42,0.4.0,linux,x86_64,1,,,,,,,,,internal-error.check,1\n"
+                . "counters,2026-W42,0.4.0,linux,x86_64,1,,,,,,,,,invocation.check,5\n"
+                . "counters,2026-W42,0.4.0,linux,x86_64,2,,,,,,,,,invocation.run,43\n",
+        );
     }
 
     #[Test]

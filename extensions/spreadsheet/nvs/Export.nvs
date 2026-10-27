@@ -21,7 +21,7 @@ final class Export
         if ($this->fill != null) {
             Core\Response::setHeader('Content-Disposition', self::disposition($name));
             var $response = Core\Response::stream('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            $this->filled(fn (bytes $chunk): void => {
+            $this->filled(fn(bytes $chunk): void => {
                 $response->write($chunk);
             }, false);
             return;
@@ -35,7 +35,7 @@ final class Export
     {
         if ($this->fill != null) {
             var $file = Core\IO::open($path, Core\IO::FileMode::Write);
-            var $written = $this->filled(fn (bytes $chunk): void => {
+            var $written = $this->filled(fn(bytes $chunk): void => {
                 $file->write($chunk);
             }, false);
             $file->close();
@@ -48,7 +48,7 @@ final class Export
     public function to(Core\IO\File $file): Written
     {
         if ($this->fill != null) {
-            return $this->filled(fn (bytes $chunk): void => {
+            return $this->filled(fn(bytes $chunk): void => {
                 $file->write($chunk);
             }, false);
         }
@@ -59,7 +59,7 @@ final class Export
     public function bytes(): bytes
     {
         if ($this->fill != null) {
-            return $this->filled(fn (bytes $chunk): void => {}, true)->bytes ?? Core\Bytes::fill(0, 0);
+            return $this->filled(fn(bytes $chunk): void => {}, true)->bytes ?? Core\Bytes::fill(0, 0);
         }
         return $this->run(Workbook::createInMemory($this->options))->bytes ?? Core\Bytes::fill(0, 0);
     }

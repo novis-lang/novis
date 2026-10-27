@@ -35,5 +35,5 @@ try {
 }
 
 // A `ParseError` is a `RuntimeError`, so this assertion passes.
-Test::assertThrows(fn (): void => { throw new ParseError('bad input'); }, RuntimeError::class);
+Test::assertThrows(fn(): void => { throw new ParseError('bad input'); }, RuntimeError::class);
 echo 'a ParseError is a RuntimeError', "\n";

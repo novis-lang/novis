@@ -15,7 +15,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             int $slot = $carry % 4;
-            $tally[$slot] = $tally[$slot] + $carry;      // chained: $carry is last round's
+            $tally[$slot] = $tally[$slot] + $carry; // chained: $carry is last round's
             $carry = $tally[$slot] % 1000 + 1;
             $i = $i + 1;
         }

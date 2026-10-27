@@ -9,7 +9,7 @@ array<Core\Time\Date> $deliveries = [
 
 // `Core\Arr::sort` needs a function that compares two values, and `compareTo` is that function.
 array<Core\Time\Date> $sorted = Core\Arr::sort($deliveries, {
-    comparator: fn (Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
+    comparator: fn(Core\Time\Date $a, Core\Time\Date $b): int => $a->compareTo($b),
 });
 // This prints 2023-12-24, then 2024-02-09, then 2024-11-02.
 foreach ($sorted as Core\Time\Date $day) {

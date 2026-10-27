@@ -29,8 +29,11 @@ Attack::attempt(2, Core\Str::repeat('<table><tr><td>', 2000) . 'deep');
 Attack::attempt(3, Core\Str::repeat('<b><i><a><p><li><select><option><template>', 50000));
 
 // 4. A script, an iframe, a form and an object. None of them may run or load anything.
-Attack::attempt(4, "<script>while(true){}</script><iframe src=\"https://example.com/\"></iframe>"
-    . "<form action=\"https://example.com/\"><input value=\"x\"></form><object data=\"x.swf\"></object><p>Shop</p>");
+Attack::attempt(
+    4,
+    "<script>while(true){}</script><iframe src=\"https://example.com/\"></iframe>"
+        . "<form action=\"https://example.com/\"><input value=\"x\"></form><object data=\"x.swf\"></object><p>Shop</p>",
+);
 
 // 5. Text that is not valid: a NUL character, a character reference to a lone surrogate, and broken entities.
 Attack::attempt(5, "<p>a\u{0}b &#xD800; &#0; &#x110000; &bogus; &amp</p>");

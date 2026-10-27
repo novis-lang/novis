@@ -7,7 +7,7 @@ class Nest
 {
     public static function deeper(): void
     {
-        Core\Test::assertDoesNotThrow(fn (): void => { Nest::deeper(); });
+        Core\Test::assertDoesNotThrow(fn(): void => { Nest::deeper(); });
     }
 }
 
@@ -22,20 +22,20 @@ try {
 // Step 2: the code throws an error with a message of ten million characters.
 string $long = Core\Str::repeat('a', 10000000);
 try {
-    Core\Test::assertDoesNotThrow(fn (): void => { throw new LogicError($long); });
+    Core\Test::assertDoesNotThrow(fn(): void => { throw new LogicError($long); });
 } catch (Core\Test\Failure $failure) {
     echo 'long error: ', Core\Str::length($failure->message) > 10000000 ? 'kept' : 'cut', "\n";
 }
 
 // Step 3: a failed check inside the code makes the outer check fail too.
 try {
-    Core\Test::assertDoesNotThrow(fn (): void => { Core\Test::assertCount([1, 2], 3); });
+    Core\Test::assertDoesNotThrow(fn(): void => { Core\Test::assertCount([1, 2], 3); });
 } catch (Core\Test\Failure $failure) {
     echo "inner failure\n";
 }
 
 // Step 4: the code catches its own error, so it throws nothing and the check passes.
-Core\Test::assertDoesNotThrow(fn (): void => {
+Core\Test::assertDoesNotThrow(fn(): void => {
     try {
         throw new LogicError('caught inside');
     } catch (LogicError $caught) {
@@ -45,7 +45,7 @@ Core\Test::assertDoesNotThrow(fn (): void => {
 
 // Step 5: a `message` option of ten million characters.
 try {
-    Core\Test::assertDoesNotThrow(fn (): void => { throw new LogicError('no'); }, { message: $long });
+    Core\Test::assertDoesNotThrow(fn(): void => { throw new LogicError('no'); }, { message: $long });
 } catch (Core\Test\Failure $failure) {
     echo "long message\n";
 }

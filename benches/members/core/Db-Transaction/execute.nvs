@@ -10,7 +10,7 @@ class Bench
     {
         var $db = Core\Db::connect('notes');
         $db->execute('create table notes (id integer primary key, n integer not null)', []);
-        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        return $db->transaction(fn(Core\Db\Transaction $tx): uint => {
             uint $total = 0;
             uint $i = 0;
             while ($i < $rounds) {

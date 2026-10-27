@@ -14,7 +14,7 @@ class Bench
             Core\Topic::publish('room:lobby', $total % 7);
             ?Core\Socket\Message $message = $conn->receive();
             uint $posted = $message?->value() as uint;
-            $total = $total + $posted + 1;   // chained: the next post depends on this one
+            $total = $total + $posted + 1; // chained: the next post depends on this one
             $i = $i + 1;
         }
         return $total;

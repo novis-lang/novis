@@ -13,7 +13,7 @@ final class ReportTest
     public function theEncryptedReportCannotBeReadWithoutThePassword(): void
     {
         bytes $pdf = Report::render(Report::password())->bytes;
-        Test::assertThrows(fn (): void => { Reader::open($pdf); }, ParseError::class);
+        Test::assertThrows(fn(): void => { Reader::open($pdf); }, ParseError::class);
     }
 
     #[Test]

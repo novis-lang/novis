@@ -51,4 +51,4 @@ var $head = $rows['0'];
 echo 'first=' . $head['name'] . 'x' . $head['qty'] . "\n";
 
 echo 'email=' . (Core\Validate::isEmail('ada@example.test') ? 'valid' : 'invalid') . "\n";
-echo 'captured=[' . Core\Out::capture(fn (): void => { echo 'inner'; }) . "]\n";
+echo 'captured=[' . Core\Out::capture(fn(): void => { echo 'inner'; }) . "]\n";

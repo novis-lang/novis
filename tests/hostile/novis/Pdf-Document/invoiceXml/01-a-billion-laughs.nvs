@@ -45,12 +45,15 @@ Attack::attempt(3, "<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY % a \"<!ENTITY 
 Attack::attempt(4, $root . Core\Str::repeat('<a>', 100000) . Core\Str::repeat('</a>', 100000) . '</rsm:CrossIndustryInvoice>');
 
 // 5. A guideline id of 1 MB, which the render reads to find the profile.
-Attack::attempt(5, $root
-    . '<rsm:ExchangedDocumentContext><ram:GuidelineSpecifiedDocumentContextParameter '
-    . "xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\"><ram:ID>"
-    . Core\Str::repeat('urn:factur-x.eu:', 65536)
-    . '</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter>'
-    . '</rsm:ExchangedDocumentContext></rsm:CrossIndustryInvoice>');
+Attack::attempt(
+    5,
+    $root
+        . '<rsm:ExchangedDocumentContext><ram:GuidelineSpecifiedDocumentContextParameter '
+        . "xmlns:ram=\"urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100\"><ram:ID>"
+        . Core\Str::repeat('urn:factur-x.eu:', 65536)
+        . '</ram:ID></ram:GuidelineSpecifiedDocumentContextParameter>'
+        . '</rsm:ExchangedDocumentContext></rsm:CrossIndustryInvoice>',
+);
 
 // 6. An empty string, and XML that ends in the middle of a tag.
 Attack::attempt(6, '');

@@ -20,7 +20,7 @@ try {
 // 2. A lifetime of minus one second. The entry is over before it is built, so
 //    the store must keep nothing.
 try {
-    var $past = fn (): Core\Cache\SecretEntry =>
+    var $past = fn(): Core\Cache\SecretEntry =>
         Core\Cache\SecretEntry::of('t0ken', Core\Time\Duration::seconds(-1));
     $cache->getSecret('in-the-past', $keys, { fill: $past });
     echo 'step 2 left ', $cache->getSecret('in-the-past', $keys) == null ? 'a miss' : 'the secret', "\n";
@@ -31,7 +31,7 @@ try {
 // 3. A secret of ten million characters. Sealing it copies it, so the read must
 //    either answer or stop at the memory limit.
 try {
-    var $huge = fn (): Core\Cache\SecretEntry =>
+    var $huge = fn(): Core\Cache\SecretEntry =>
         Core\Cache\SecretEntry::of(Core\Str::repeat('x', 10000000), 1h);
     var $big = $cache->getSecret('huge', $keys, { fill: $huge });
     echo 'step 3 answered ', $big == null ? 'a miss' : 'the secret', "\n";
@@ -51,7 +51,7 @@ echo "step 4 built a million entries\n";
 // 5. One entry handed to two different reads. An entry is a value like any
 //    other, so the second read must work as well as the first.
 var $entry = Core\Cache\SecretEntry::of('shared', 1h);
-var $same = fn (): Core\Cache\SecretEntry => $entry;
+var $same = fn(): Core\Cache\SecretEntry => $entry;
 var $first = $cache->getSecret('name-a', $keys, { fill: $same });
 var $second = $cache->getSecret('name-b', $keys, { fill: $same });
 echo 'step 5 filled ',
@@ -60,7 +60,7 @@ echo 'step 5 filled ',
 // 6. A fill that builds an entry and throws afterwards. The entry is gone with
 //    the request, and the name must be left free for the next read.
 try {
-    var $thenThrows = fn (): Core\Cache\SecretEntry => {
+    var $thenThrows = fn(): Core\Cache\SecretEntry => {
         var $built = Core\Cache\SecretEntry::of('never-stored', 1h);
         throw new RuntimeError('the service is down');
     };
@@ -69,6 +69,6 @@ try {
 } catch (Throwable $e) {
     echo "step 6 stopped\n";
 }
-var $after = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('recovered', 1h);
+var $after = fn(): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('recovered', 1h);
 echo 'step 6 left the name free: ',
     $cache->getSecret('flaky', $keys, { fill: $after }) == null ? 'no' : 'yes', "\n";

@@ -8,7 +8,7 @@ class Deep
     public static function nest(int $depth): void
     {
         if ($depth > 0) {
-            Core\Test::assertThrows(fn (): void => { Deep::nest($depth - 1); }, LogicError::class);
+            Core\Test::assertThrows(fn(): void => { Deep::nest($depth - 1); }, LogicError::class);
         }
         throw new LogicError('level');
     }
@@ -16,20 +16,20 @@ class Deep
 
 // Step 1: the code throws an error with a message of ten million characters.
 string $long = Core\Str::repeat('a', 10000000);
-Core\Test::assertThrows(fn (): void => { throw new LogicError($long); }, LogicError::class);
+Core\Test::assertThrows(fn(): void => { throw new LogicError($long); }, LogicError::class);
 echo "long message, right class\n";
 
 // Step 2: the same error, but the check expects another class.
 // The failure message contains the long message.
 try {
-    Core\Test::assertThrows(fn (): void => { throw new LogicError($long); }, IOError::class);
+    Core\Test::assertThrows(fn(): void => { throw new LogicError($long); }, IOError::class);
 } catch (Core\Test\Failure $failure) {
     echo 'long message, wrong class: ', Core\Str::length($failure->message), "\n";
 }
 
 // Step 3: the code throws a `Core\Test\Failure` itself.
 try {
-    Core\Test::assertThrows(fn (): void => { Core\Test::assertSame(1, 2); }, LogicError::class);
+    Core\Test::assertThrows(fn(): void => { Core\Test::assertSame(1, 2); }, LogicError::class);
 } catch (Core\Test\Failure $failure) {
     echo "a failed check inside\n";
 }
@@ -37,7 +37,7 @@ try {
 // Step 4: a hundred thousand checks in a row, each one catching an error.
 int $i = 0;
 while ($i < 100000) {
-    Core\Test::assertThrows(fn (): void => { throw new LogicError('again'); }, Throwable::class);
+    Core\Test::assertThrows(fn(): void => { throw new LogicError('again'); }, Throwable::class);
     $i = $i + 1;
 }
 echo "many checks\n";

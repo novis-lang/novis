@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 $db->execute('create table orders (id integer primary key, item text not null)', []);
 
 try {
-    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $db->transaction(fn(Core\Db\Transaction $tx): void => {
         $tx->execute('insert into orders (item) values (?)', ['a red bicycle']);
         // The item turned out to be sold out, so this order must not be kept.
         $tx->rollBack('the item is sold out');

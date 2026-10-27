@@ -3,8 +3,8 @@
 
 try {
     var $result = Core\Task::all({
-        price: fn (): int => 1999,
-        stock: fn (): int => {
+        price: fn(): int => 1999,
+        stock: fn(): int => {
             throw new RuntimeError('the stock service is down');
         },
     });

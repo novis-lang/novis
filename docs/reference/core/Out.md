@@ -14,22 +14,22 @@ it writes to stderr.
 
 ```nvs
 <?nvs
-var $captured = Core\Out::capture(fn (): void => {
+var $captured = Core\Out::capture(fn(): void => {
     echo 'a';
     echo 'b';
 });
 echo 'captured=[', $captured, "]\n";
 
-echo Core\Out::capture(fn (): void => {
+echo Core\Out::capture(fn(): void => {
     echo 'outer<';
-    echo Core\Out::capture(fn (): void => { echo 'inner'; });
+    echo Core\Out::capture(fn(): void => { echo 'inner'; });
     echo '>';
 }), "\n";
 
-echo '[', Core\Out::capture(fn (): void => {}), "]\n";
+echo '[', Core\Out::capture(fn(): void => {}), "]\n";
 
 try {
-    echo Core\Out::capture(fn (): void => {
+    echo Core\Out::capture(fn(): void => {
         echo 'lost';
         throw new RuntimeError('stop');
     });

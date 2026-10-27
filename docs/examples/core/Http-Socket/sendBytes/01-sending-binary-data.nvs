@@ -13,6 +13,6 @@ $socket->close();
 
 // `Core\Test::sentSocket()` returns what the program sent. This prints `4 bytes: ffffffff`.
 foreach (Core\Test::sentSocket() as Core\Socket\Message $sent) {
-    tainted bytes $octets =$sent->bytes() ?? ('' as tainted bytes);
+    tainted bytes $octets = $sent->bytes() ?? ('' as tainted bytes);
     echo Core\Bytes::length($octets), ' bytes: ', Core\Encoding::toHex($octets), "\n";
 }

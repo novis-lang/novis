@@ -36,7 +36,7 @@ while (!$jobs->isEmpty()) {
     echo $job->name, "\n";
 }
 
-var $largest = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+var $largest = new Core\Heap<int>(fn(int $a, int $b): int => $b - $a);
 $largest->push(3);
 $largest->push(9);
 $largest->push(5);

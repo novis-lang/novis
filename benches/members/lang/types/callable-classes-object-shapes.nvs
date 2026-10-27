@@ -14,7 +14,7 @@ class Bench
         int $carry = 1;
         uint $i = 0;
         while ($i < $rounds) {
-            $carry = $step($carry) as int;        // chained: $carry is last round's
+            $carry = $step($carry) as int; // chained: $carry is last round's
             $i = $i + 1;
         }
         return $carry;

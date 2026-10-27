@@ -8,7 +8,7 @@ $db->execute('insert into accounts (owner, balance) values (?, ?), (?, ?)', ['Ad
 
 // Your function runs inside a transaction. When it returns, both writes are
 // saved together. When it throws an error, neither of them is saved.
-uint $moved = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+uint $moved = $db->transaction(fn(Core\Db\Transaction $tx): uint => {
     $tx->execute('update accounts set balance = balance - ? where owner = ?', [30, 'Ada']);
     $tx->execute('update accounts set balance = balance + ? where owner = ?', [30, 'Ben']);
     return 30;

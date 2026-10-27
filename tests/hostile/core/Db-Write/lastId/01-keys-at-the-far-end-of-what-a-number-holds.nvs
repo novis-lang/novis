@@ -55,7 +55,7 @@ echo '4 keys kept: ', $keys, "\n";
 // 5. The key of a write inside a transaction that was given up. The row is not
 // in the table, and the write still answers the key it reported.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->transaction(fn(Transaction $tx): void => {
         var $write = $tx->execute('insert into notes (text) values (?)', ['never saved']);
         echo '5 inside the transaction: ', $write->lastId() == null ? 'no key' : 'a key', "\n";
         $tx->rollBack('nothing worth keeping');

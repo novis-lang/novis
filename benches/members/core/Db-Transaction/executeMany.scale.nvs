@@ -15,7 +15,7 @@ class Bench
             $sets[] = [$row as int];
             $row = $row + 1;
         }
-        return $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        return $db->transaction(fn(Core\Db\Transaction $tx): uint => {
             uint $total = 0;
             uint $i = 0;
             while ($i < 16) {

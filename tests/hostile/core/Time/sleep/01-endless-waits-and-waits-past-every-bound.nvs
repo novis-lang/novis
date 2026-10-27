@@ -31,7 +31,7 @@ int $stopped = 0;
 int $round = 0;
 while ($round < 20) {
     try {
-        Core\Task::map($ids, fn (int $n): int => {
+        Core\Task::map($ids, fn(int $n): int => {
             Core\Time::sleep(1h);
             return $n;
         }, { deadline: 5ms, limit: 100 });

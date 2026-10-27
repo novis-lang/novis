@@ -75,7 +75,7 @@ int $plain = 0;
 array<string> $past = ['9999-12-30 22:01', '9999-12-31 23:59', '-9999-01-01 00:00', '-9999-01-02 01:59'];
 foreach ($past as string $pastText) {
     try {
-        Core\Time::parse($pastText,'uuuu-MM-dd HH:mm', $utc);
+        Core\Time::parse($pastText, 'uuuu-MM-dd HH:mm', $utc);
     } catch (ParseError $outside) {
         if (Core\Str::startsWith($outside->message, "Core\\Time::parse(): the time is outside ")) {
             $plain = $plain + 1;

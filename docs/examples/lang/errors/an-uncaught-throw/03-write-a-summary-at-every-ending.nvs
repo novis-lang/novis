@@ -9,7 +9,7 @@ final class Counter
 
 // This anonymous function runs at every ending: a normal one, an `exit`, and an error
 // that nothing caught. `status()` is 1 for an ending an error caused.
-Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+Core\Script::onExit(fn(Core\Script\ExitReport $report): void => {
     echo '--- rows written: ', Counter::$written, "\n";
     echo '--- exit status: ', $report->status(), "\n";
     echo '--- error: ', $report->error()?->message ?? 'none', "\n";

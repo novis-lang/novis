@@ -31,18 +31,30 @@ foreach ($standards as Document::Standard $standard) {
     Attack::attempt(2, "<html lang=\"en\"><head><title>𓀀𓀁</title></head><body><p>𓀀 \u{FFFF} \u{E000}</p></body></html>", $standard);
 
     // 3. A title of 1 MB, a language that does not exist, and text that changes direction.
-    Attack::attempt(3, "<html lang=\""
-        . Core\Str::repeat('x', 1000)
-        . "\"><head><title>"
-        . Core\Str::repeat('T', 1000000)
-        . "</title></head><body><p dir=\"rtl\">\u{202E}Shop\u{202C}</p></body></html>", $standard);
+    Attack::attempt(
+        3,
+        "<html lang=\""
+            . Core\Str::repeat('x', 1000)
+            . "\"><head><title>"
+            . Core\Str::repeat('T', 1000000)
+            . "</title></head><body><p dir=\"rtl\">\u{202E}Shop\u{202C}</p></body></html>",
+        $standard,
+    );
 
     // 4. A heading of every level in the wrong order, and a table with header cells everywhere.
-    Attack::attempt(4, "<html lang=\"en\"><head><title>Shop</title></head><body><h6>a</h6><h1>b</h1><h3>c</h3>"
-        . Core\Str::repeat('<table><tr><th><th><th></tr></table>', 500)
-        . '</body></html>', $standard);
+    Attack::attempt(
+        4,
+        "<html lang=\"en\"><head><title>Shop</title></head><body><h6>a</h6><h1>b</h1><h3>c</h3>"
+            . Core\Str::repeat('<table><tr><th><th><th></tr></table>', 500)
+            . '</body></html>',
+        $standard,
+    );
 
     // 5. A transparent image and a link with JavaScript, which PDF/A does not allow.
-    Attack::attempt(5, "<html lang=\"en\"><head><title>Shop</title></head><body><p style=\"opacity: 0.1\">x</p>"
-        . "<a href=\"javascript:alert(1)\">pay</a></body></html>", $standard);
+    Attack::attempt(
+        5,
+        "<html lang=\"en\"><head><title>Shop</title></head><body><p style=\"opacity: 0.1\">x</p>"
+            . "<a href=\"javascript:alert(1)\">pay</a></body></html>",
+        $standard,
+    );
 }

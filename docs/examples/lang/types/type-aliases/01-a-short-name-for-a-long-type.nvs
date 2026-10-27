@@ -15,7 +15,7 @@ class Report
 }
 
 UserId $id = 1042;
-uint $plain = $id;          // the alias and `uint` are one type, in both directions
+uint $plain = $id; // the alias and `uint` are one type, in both directions
 
 echo Report::line($id, 7), "\n";
 echo Report::line($plain, 'maybe'), "\n";
