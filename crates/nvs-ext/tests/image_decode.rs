@@ -2,6 +2,8 @@
 //! image component: `run` decodes each first-wave fixture under `extensions/image/fixtures/` in the
 //! guest, JPEG XL decodes and does not encode, a header over the cap is refused before a buffer is
 //! allocated, and bytes that are no image or carry a malformed IFD return `parse` rather than trap.
+//! `info` returns the EXIF fields of each format that carries a block, and `null` for a file with
+//! none.
 //! An SVG draws with nothing outside it read, and a PDF page rasterises at its `dpi` under the cap
 //! with `rule:core-classes/pdf-decode-refusals`' bomb corpus contained.
 
@@ -210,6 +212,81 @@ fn info_reads_the_header_and_never_a_pixel() {
         meter.charged() < 64 << 20,
         "`info` charged {} bytes",
         meter.charged()
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+/// The EXIF block of `exif.webp`, from its TIFF header on, as its `EXIF` chunk stores it.
+fn exif_block() -> Vec<u8> {
+    let webp = fixture("exif.webp");
+    let mut at = 12;
+    while at + 8 <= webp.len() {
+        let size = u32::from_le_bytes(webp[at + 4..at + 8].try_into().unwrap()) as usize;
+        if &webp[at..at + 4] == b"EXIF" {
+            return webp[at + 8..at + 8 + size].to_vec();
+        }
+        at += 8 + size + size % 2;
+    }
+    panic!("`exif.webp` has no `EXIF` chunk")
+}
+
+/// `gradient.jpg` with `exif` written as an APP1 segment right after its SOI.
+fn jpeg_with_exif(exif: &[u8]) -> Vec<u8> {
+    let mut jpeg = fixture("gradient.jpg");
+    let mut segment = vec![0xff, 0xe1];
+    segment.extend_from_slice(&u16::try_from(exif.len() + 8).unwrap().to_be_bytes());
+    segment.extend_from_slice(b"Exif\0\0");
+    segment.extend_from_slice(exif);
+    jpeg.splice(2..2, segment);
+    jpeg
+}
+
+#[test]
+fn info_returns_the_exif_fields_of_every_format_that_carries_them() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let exif_of = |data: Vec<u8>| {
+        let info = block_on(request.call_values(&extension, "info", vec![Value::Bytes(data)]))
+            .expect("`info` answers");
+        let Value::Array(fields) = info.expect("`info` returns a value") else {
+            panic!("a shape was expected")
+        };
+        fields
+            .into_iter()
+            .find(|(k, _)| *k == Key::String("exif".to_owned()))
+            .map(|(_, v)| v)
+            .expect("the shape has `exif`")
+    };
+    let tags = Value::Array(
+        [
+            ("Make", "Example"),
+            ("Model", "Camera One"),
+            ("Orientation", "row 0 at top and column 0 at left"),
+            ("Software", "Novis fixtures"),
+            ("DateTime", "2024:01:02 03:04:05"),
+        ]
+        .into_iter()
+        .map(|(tag, value)| (Key::String(tag.to_owned()), Value::String(value.to_owned())))
+        .collect(),
+    );
+    let block = exif_block();
+    assert_eq!(exif_of(jpeg_with_exif(&block)), tags, "exif.jpg");
+    for name in ["exif.png", "exif.webp", "exif.avif", "exif.jxl"] {
+        assert_eq!(exif_of(fixture(name)), tags, "{name}");
+    }
+    assert_eq!(exif_of(fixture("gradient.png")), Value::Null);
+    // The block's first IFD starts far past its end.
+    let mut malformed = b"MM\0\x2a".to_vec();
+    malformed.extend_from_slice(&0x7fff_0000u32.to_be_bytes());
+    let refused = block_on(request.call_values(
+        &extension,
+        "info",
+        vec![Value::Bytes(jpeg_with_exif(&malformed))],
+    ));
+    assert!(
+        matches!(&refused, Err(Failure::Error(Error::Parse(m))) if m.starts_with("the EXIF block is malformed")),
+        "{refused:?}"
     );
     block_on(request.end()).expect("the request ends");
 }

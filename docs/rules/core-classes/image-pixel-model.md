@@ -30,6 +30,7 @@ What a gd program becomes, one row per concept:
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
 **Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
-output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as `null`,
-because the component has no EXIF reader (`extensions/image/src/info.rs:5`); goal
-`image-second-wave` fills it.
+output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as the EXIF
+block's fields of a JPEG, PNG, WebP, AVIF or JPEG XL input, the image's own IFDs without the
+MakerNote, and `null` for a file with none (`extensions/image/src/info.rs`,
+`crates/nvs-ext/tests/image_decode.rs`).

@@ -1,14 +1,25 @@
 //! `info`: what an encoded image's header says, read without decoding a pixel.
 //!
 //! The decoder is constructed, which parses the header and the metadata segments before the pixel
-//! data, and is dropped before it reads further. Two fields are not read yet and carry a fixed
-//! value: `frames` is `1`, and `exif` is `None`. The EXIF reader and the animation frame count
-//! are goal `image-second-wave`'s. An SVG document is parsed whole, because its size is
-//! computed from its root element's attributes, and nothing is drawn.
+//! data, and is dropped before it reads further. An AVIF is read off its container (`avif`'s
+//! `info`) and a JPEG XL off its codestream header, and neither frame is decoded. `frames` is `1`:
+//! the animation frame count is goal `image-second-wave`'s. An SVG document is parsed whole,
+//! because its size is computed from its root element's attributes, and nothing is drawn.
+//!
+//! **`exif` is every field of the file's EXIF block**, each as its tag's name and its value as
+//! `kamadak-exif` names and prints them, in file order. The block is JPEG's APP1 segment, PNG's
+//! `eXIf` chunk and WebP's `EXIF` chunk through `image`, an AVIF's `Exif` item and a JPEG XL's
+//! `Exif` box. Only the image's own IFDs are listed, so the thumbnail's IFD and the MakerNote,
+//! which is a vendor's private format, are left out. A text value is its text, without the
+//! quotes `kamadak-exif` prints around it, so a date is `2024:01:02 03:04:05` as the file
+//! stores it. `None` is a file with no block. A block that does not parse returns `Parse`, as
+//! `decode` does.
 
 use std::io::Cursor;
 
+use exif::{In, Tag, Value};
 use image::{ImageDecoder, ImageFormat, ImageReader};
+use jxl_oxide::{AuxBoxData, JxlImage, PixelFormat};
 
 use crate::{Error, Format};
 
@@ -32,6 +43,8 @@ pub fn info(data: &[u8]) -> Result<Info, Error> {
     match crate::decode::sniff(data) {
         Ok(Format::Svg) => return crate::svg::info(data),
         Ok(Format::Pdf) => return crate::pdf::info(data),
+        Ok(Format::Avif) => return crate::avif::info(data),
+        Ok(Format::Jxl) => return jxl(data),
         _ => {}
     }
     let mut reader = ImageReader::new(Cursor::new(data))
@@ -60,6 +73,12 @@ pub fn info(data: &[u8]) -> Result<Info, Error> {
     let icc = decoder
         .icc_profile()
         .map_err(|err| Error::Parse(err.to_string()))?;
+    let exif = decoder
+        .exif_metadata()
+        .map_err(|err| Error::Parse(err.to_string()))?
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| exif_fields(&raw))
+        .transpose()?;
     Ok(Info {
         format,
         width: u64::from(width),
@@ -67,9 +86,59 @@ pub fn info(data: &[u8]) -> Result<Info, Error> {
         has_alpha,
         frames: 1,
         orientation: u64::from(orientation.to_exif()),
-        exif: None,
+        exif,
         has_icc: icc.is_some_and(|profile| !profile.is_empty()),
     })
+}
+
+/// The header of the JPEG XL file `data`. Its size is the stored one, before the orientation
+/// field turns it, as every other format's is.
+fn jxl(data: &[u8]) -> Result<Info, Error> {
+    fn parse(err: impl std::fmt::Display) -> Error {
+        Error::Parse(format!("the JPEG XL file does not parse: {err}"))
+    }
+    let image = JxlImage::builder().read(Cursor::new(data)).map_err(parse)?;
+    let header = image.image_header();
+    let exif = match image.aux_boxes().first_exif().map_err(parse)? {
+        AuxBoxData::Data(raw) => {
+            let tiff = &raw.payload()[raw.tiff_header_offset() as usize..];
+            Some(exif_fields(tiff)?)
+        }
+        AuxBoxData::Decoding | AuxBoxData::NotFound => None,
+    };
+    Ok(Info {
+        format: Format::Jxl,
+        width: u64::from(header.size.width),
+        height: u64::from(header.size.height),
+        has_alpha: matches!(image.pixel_format(), PixelFormat::Graya | PixelFormat::Rgba),
+        frames: 1,
+        orientation: u64::from(header.metadata.orientation),
+        exif,
+        has_icc: image.original_icc().is_some(),
+    })
+}
+
+/// The fields of the raw EXIF block `raw`, from its TIFF header on, as the module doc says. A
+/// block that does not parse returns `Parse`.
+pub(crate) fn exif_fields(raw: &[u8]) -> Result<Vec<(String, String)>, Error> {
+    let exif = exif::Reader::new()
+        .read_raw(raw.to_vec())
+        .map_err(|err| Error::Parse(format!("the EXIF block is malformed: {err}")))?;
+    Ok(exif
+        .fields()
+        .filter(|field| field.ifd_num == In::PRIMARY && field.tag != Tag::MakerNote)
+        .map(|field| {
+            let value = match &field.value {
+                Value::Ascii(lines) => lines
+                    .iter()
+                    .map(|line| String::from_utf8_lossy(line))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                _ => field.display_value().with_unit(&exif).to_string(),
+            };
+            (field.tag.to_string(), value)
+        })
+        .collect())
 }
 
 #[cfg(test)]

@@ -21,8 +21,8 @@
 //! box of type `prof` or `rICC`, whose RGB profile to sRGB converts through `moxcms`
 //! (`rule:core-classes/image-correct-by-default`). The walk reads only the `meta` box's `pitm`
 //! and `iprp`, each box bounded by its parent, and allocates only the primary item's list of
-//! property indices. A box that runs past its
-//! parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
+//! property indices. `info` walks `iinf` and `iloc` the same way for the `Exif` item, and copies
+//! that item alone, at most the file's length. A box that runs past its parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
 //! `imir` are the orientation browsers follow. Turning the frame holds a second frame beside it.
 
 use std::io::Cursor;
@@ -44,8 +44,8 @@ use rav1d::src::lib::{
 use image::{RgbaImage, imageops};
 use moxcms::{ColorProfile, DataColorSpace};
 
-use crate::Error;
 use crate::decode::{Pixels, check, srgb};
+use crate::{Error, Format, Info};
 
 fn parse(what: impl std::fmt::Display) -> Error {
     Error::Parse(format!("the AVIF file does not parse: {what}"))
@@ -132,6 +132,38 @@ pub(crate) fn decode(
     })
 }
 
+/// The header of the AVIF file `data`, read off its container without decoding a frame. The
+/// orientation is the EXIF value that names the turn `irot` and `imir` make, and `exif` is the
+/// `Exif` item's fields.
+pub(crate) fn info(data: &[u8]) -> Result<Info, Error> {
+    let avif =
+        avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
+    let meta = avif
+        .primary_item_metadata()
+        .map_err(|err| parse(format!("{err:?}")))?;
+    let properties = Properties::read(data)?;
+    let exif = match exif_item(data)? {
+        Some(item) => {
+            let offset = usize::try_from(be_u32(&item, 0)?).unwrap_or(usize::MAX);
+            let tiff = item
+                .get(4usize.saturating_add(offset)..)
+                .ok_or_else(|| parse("the `Exif` item's TIFF header is past its end"))?;
+            Some(crate::info::exif_fields(tiff)?)
+        }
+        None => None,
+    };
+    Ok(Info {
+        format: Format::Avif,
+        width: u64::from(meta.max_frame_width.get()),
+        height: u64::from(meta.max_frame_height.get()),
+        has_alpha: avif.alpha_item.is_some(),
+        frames: 1,
+        orientation: u64::from(properties.orientation()),
+        exif,
+        has_icc: properties.icc.is_some(),
+    })
+}
+
 /// The primary item's properties the decoder applies, borrowed from the file.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Properties<'a> {
@@ -186,6 +218,138 @@ impl<'a> Properties<'a> {
         }
         Ok(found)
     }
+
+    /// The EXIF orientation, `1` to `8`, that turns the stored frame as `irot` then `imir` do.
+    fn orientation(&self) -> u8 {
+        match (self.quarter_turns, self.mirror) {
+            (1, None) => 8,
+            (2, None) => 3,
+            (3, None) => 6,
+            (0, Some(0)) | (2, Some(1)) => 2,
+            (0, Some(_)) | (2, Some(_)) => 4,
+            (1, Some(1)) | (3, Some(0)) => 5,
+            (1, Some(_)) | (3, Some(_)) => 7,
+            _ => 1,
+        }
+    }
+}
+
+/// The bytes of the AVIF file `data`'s first item of type `Exif`, found through `iinf` and read
+/// through `iloc`, from the file or from `idat`. Its extents are joined, and together they are at
+/// most the file's length.
+fn exif_item(data: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+    let Some(meta) = find(data, b"meta")? else {
+        return Ok(None);
+    };
+    let meta = full_box(meta)?.1;
+    let Some(iinf) = find(meta, b"iinf")? else {
+        return Ok(None);
+    };
+    let (version, body) = full_box(iinf)?;
+    let entries = body
+        .get(if version == 0 { 2 } else { 4 }..)
+        .ok_or_else(|| parse("an `iinf` box is shorter than its count"))?;
+    let mut item = None;
+    for entry in Boxes(entries) {
+        let (name, infe) = entry?;
+        if name != b"infe" {
+            continue;
+        }
+        // Versions 2 and 3 name the item's type after its id and its protection index.
+        let (version, body) = full_box(infe)?;
+        let (id, at) = match version {
+            2 => (u32::from(be_u16(body, 0)?), 4),
+            3 => (be_u32(body, 0)?, 6),
+            _ => continue,
+        };
+        if body.get(at..at + 4) == Some(b"Exif") {
+            item = Some(id);
+            break;
+        }
+    }
+    let Some(item) = item else {
+        return Ok(None);
+    };
+    let Some(iloc) = find(meta, b"iloc")? else {
+        return Err(parse("the `Exif` item has no location"));
+    };
+    let (version, body) = full_box(iloc)?;
+    let sizes = u8_at(body, 0)?;
+    let more = u8_at(body, 1)?;
+    let (offset_size, length_size, base_size) = (sizes >> 4, sizes & 15, more >> 4);
+    let index_size = if version >= 1 { more & 15 } else { 0 };
+    let mut at = 2;
+    let count = if version < 2 {
+        u32::from(be_u16(body, at)?)
+    } else {
+        be_u32(body, at)?
+    };
+    at += if version < 2 { 2 } else { 4 };
+    for _ in 0..count {
+        let id = if version < 2 {
+            u32::from(be_u16(body, at)?)
+        } else {
+            be_u32(body, at)?
+        };
+        at += if version < 2 { 2 } else { 4 };
+        let method = if version >= 1 {
+            at += 2;
+            be_u16(body, at - 2)? & 15
+        } else {
+            0
+        };
+        // The data reference index, which names this file for every item a reader can open.
+        at += 2;
+        let base = sized(body, &mut at, base_size)?;
+        let extents = be_u16(body, at)?;
+        at += 2;
+        let source = match method {
+            0 => data,
+            1 => find(meta, b"idat")?.unwrap_or_default(),
+            _ => &[],
+        };
+        let mut bytes = Vec::new();
+        for _ in 0..extents {
+            sized(body, &mut at, index_size)?;
+            let offset = sized(body, &mut at, offset_size)?;
+            let length = sized(body, &mut at, length_size)?;
+            if id != item {
+                continue;
+            }
+            if method > 1 {
+                return Err(parse("the `Exif` item is stored in another item"));
+            }
+            let start = usize::try_from(base.saturating_add(offset)).unwrap_or(usize::MAX);
+            let end = match length {
+                0 => source.len(),
+                length => start.saturating_add(usize::try_from(length).unwrap_or(usize::MAX)),
+            };
+            let extent = source
+                .get(start..end)
+                .ok_or_else(|| parse("the `Exif` item runs past the end of the file"))?;
+            if bytes.len() + extent.len() > data.len() {
+                return Err(parse("the `Exif` item is longer than the file"));
+            }
+            bytes.extend_from_slice(extent);
+        }
+        if id == item {
+            return Ok(Some(bytes));
+        }
+    }
+    Err(parse("the `Exif` item has no location"))
+}
+
+/// The unsigned field of `size` bytes at `at` in an `iloc` body, `0` for a size of `0`, and `at`
+/// moved past it.
+fn sized(body: &[u8], at: &mut usize, size: u8) -> Result<u64, Error> {
+    let value = match size {
+        0 => 0,
+        4 => u64::from(be_u32(body, *at)?),
+        8 => u64::from(be_u32(body, *at)?) << 32 | u64::from(be_u32(body, *at + 4)?),
+        _ => return Err(parse("an `iloc` field is not 0, 4 or 8 bytes")),
+    };
+    *at += usize::from(size);
+    Ok(value)
 }
 
 /// The property indices `ipma` associates with `item`, without the essential bit. Index `0`

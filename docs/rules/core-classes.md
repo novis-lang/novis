@@ -3448,9 +3448,10 @@ What a gd program becomes, one row per concept:
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
 **Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
-output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as `null`,
-because the component has no EXIF reader (`extensions/image/src/info.rs:5`); goal
-`image-second-wave` fills it.
+output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as the EXIF
+block's fields of a JPEG, PNG, WebP, AVIF or JPEG XL input, the image's own IFDs without the
+MakerNote, and `null` for a file with none (`extensions/image/src/info.rs`,
+`crates/nvs-ext/tests/image_decode.rs`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster).</sub>
 
@@ -3555,13 +3556,15 @@ A profile that does not parse, or that is neither RGB nor CMYK, is ignored, as a
 the pixels are kept as decoded. A CMYK JPEG is read as Adobe stores it, inverted, whether its scan
 is CMYK or YCCK.
 
-**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG or WebP input,
-converts its RGB or CMYK profile to sRGB, and re-encodes JPEG, PNG, WebP, GIF and AVIF with no
-metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carries
-(`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
-`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image` builder's `open` turns both on unless
-its options say `false`. AVIF and JPEG XL inputs are neither oriented nor converted
-(`extensions/image/src/decode.rs:21`); goal `image-second-wave` builds both.
+An AVIF is oriented by its `irot` and `imir` boxes, which browsers follow, and an EXIF orientation
+inside it is not applied a second time. A JPEG XL is oriented by its codestream's own field.
+
+**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG, WebP, AVIF or
+JPEG XL input, converts its RGB profile to sRGB, and a JPEG's CMYK one too, and re-encodes JPEG,
+PNG, WebP, GIF and AVIF with no metadata unless a `metadata` step keeps the EXIF block, which an
+AVIF never carries (`extensions/image/src/decode.rs`, `extensions/image/src/avif.rs`,
+`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
+builder's `open` turns both on unless its options say `false`.
 
 **Declined:**
 - **Keep metadata by default, strip on request.** It is the least surprising default to someone who

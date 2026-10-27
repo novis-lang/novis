@@ -167,8 +167,9 @@ The placements the tests produce, beyond the `Core` classes the registry already
 **Partly on disk.** Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
-`extensions/pdf/` and `extensions/spreadsheet/`. The image component has no EXIF reader
-([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); it is goal `image-second-wave`'s.
+`extensions/pdf/` and `extensions/spreadsheet/`. The image component's `info` reads the EXIF
+block ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); decoding every frame of an animation is goal
+`image-second-wave`'s.
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).

@@ -10,7 +10,7 @@ stages:
     context: [extensions/image/src/decode.rs, extensions/image/src/avif.rs, crates/nvs-ext/tests/image_pipeline.rs, extensions/image/fixtures/README.md]
   - id: 2
     title: "`Image::info` returns the `exif` fields a file carries"
-    status: open
+    status: done
     context: [extensions/image/src/info.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 3
     title: "`Image::info`'s `frames` is an animated input's real count"
@@ -78,6 +78,15 @@ by a bounded box walk in the component when `avif-parse` or `jxl-oxide` does not
 field is `(tag name, display value)` as `kamadak-exif` names and prints it, in file order, MakerNote
 left out. Why: the dependency is already reviewed and in the guest; a second reader adds attack surface.
 
+**`exif` lists the image's own IFDs, and a text value is its bare text.** The thumbnail's IFD is
+left out, because its tags repeat the image's names and describe a picture `info` never returns.
+A text value is the text the file stores, so a date is `2024:01:02 03:04:05`, without the quotes
+`kamadak-exif` prints; every other value is `kamadak-exif`'s display with its unit. AVIF and JPEG
+XL's `info` read their own header: AVIF through `avif-parse` and the box walk, whose `irot` and
+`imir` give the EXIF orientation they amount to, and JPEG XL through `jxl-oxide`'s `aux_boxes`.
+Why: a program reads the date it would read in PHP or a viewer, and quoted text is a second
+parse for every caller.
+
 **`exif` is read from the header, and a malformed block is a `Parse` error**, as `decode` already
 treats one (`extensions/image/src/decode.rs:105`). `info` still decodes no pixel.
 
@@ -136,9 +145,9 @@ the standing decision says, and records each command in the README. It touches o
 **Does:** `info` on a JPEG, PNG, WebP, AVIF and JPEG XL fixture with an EXIF block returns its fields,
 `null` for a file with none, and a `Parse` error for a malformed block.
 
-- [ ] The EXIF block of each format, read from the header as the standing decision says, into `Info::exif` (`rule:core-classes/image-pixel-model`). `extensions/image/src/info.rs:31`, `extensions/image/src/info.rs:70`
-- [ ] The module doc says what `exif` holds now. `extensions/image/src/info.rs:5`
-- [ ] Tests: the five tagged fixtures give their fields, `gradient.png` gives `null`, and a malformed block built by the test is `Parse`. `crates/nvs-ext/tests/image_decode.rs:185`
+- [x] The EXIF block of each format, read from the header as the standing decision says, into `Info::exif` (`rule:core-classes/image-pixel-model`). `extensions/image/src/info.rs:31`, `extensions/image/src/info.rs:70`
+- [x] The module doc says what `exif` holds now. `extensions/image/src/info.rs:5`
+- [x] Tests: the five tagged fixtures give their fields, `gradient.png` gives `null`, and a malformed block built by the test is `Parse`. `crates/nvs-ext/tests/image_decode.rs:185`
 
 ### 3. `Image::info`'s `frames` is an animated input's real count
 
@@ -209,35 +218,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Every fixture of stages 1 to 3 is in `extensions/image/fixtures/`, each recorded
-in its README: `oriented.*`, `exif.*` (Make `Example`, Model `Camera One`, Orientation 1, Software
-`Novis fixtures`, DateTime `2024:01:02 03:04:05`, the same 130-byte block in all four) and
-`anim.*` (red, green, blue, 100 ms each). `oriented.jxl`'s orientation field was set by hand in its
-header, because no tool here writes it. `anim.avif` is a still primary item plus a `moov` track,
-and `anim.jxl` is a bare codestream. `exif.avif`'s item and `exif.jxl`'s box start with a 4-byte offset of 6, then `Exif\0\0`,
-then the TIFF header. `exif.webp` stores the bare block.
+Stages 1 and 2 are done. `Image::info` returns the EXIF fields of a JPEG, PNG, WebP, AVIF and
+JPEG XL input through `exif_fields` (`extensions/image/src/info.rs`), as the standing decision on
+IFDs and text values says. `info` now reads an AVIF (`avif::info`, `extensions/image/src/avif.rs:138`)
+and a JPEG XL (`jxl`, `extensions/image/src/info.rs:96`), which it returned `Parse` for before. The
+AVIF `Exif` item is found by `exif_item` (`extensions/image/src/avif.rs:240`), a walk of `iinf`
+and `iloc` beside `Properties::read`. `image-pixel-model` and `tier-roster` say what is on disk now.
 
-An AVIF's `irot`, `imir` and `colr` are read by the box walk `Properties::read` in
-`extensions/image/src/avif.rs`. Stage 2's `Exif` item and stage 3's track can reuse `Boxes` and
-`find` there. JPEG XL converts an embedded RGB profile through the component's `srgb`, not
-`jxl-oxide`'s `moxcms` feature: that feature rendered Display P3 red as `(236, 117, 0)`.
+The fixtures are as stage 1 left them: `anim.*` are red, green and blue, 100 ms each; `anim.avif`
+is a still primary item plus a `moov` track, and `anim.jxl` is a bare codestream. There is no
+`exif.jpg`: the test splices `exif.webp`'s block into `gradient.jpg` as an APP1 segment.
 
-No test is expected red. The new tests passed once by name:
-`an_avif_and_a_jpeg_xl_with_orientation_6_open_upright` and
-`an_avif_and_a_jpeg_xl_with_a_display_p3_profile_convert_to_srgb`.
+The sweep's findings are closed. `env-secret-proofs` is green on a rerun. The nightly's yanked
+`crypto-bigint` was fixed in the root lock by `c244b4b36`, and this session bumped `fuzz/Cargo.lock`
+too. Its Windows and macOS failure, `two_counted_runs_with_a_collection_print_the_same_line`, was
+fixed by `9c8b0fe16`, which the nightly's commit did not have yet.
+
+No test is expected red. The new test passed once by name:
+`info_returns_the_exif_fields_of_every_format_that_carries_them`.
 
 ### Next
 
-**Stage 2: `Image::info` returns the `exif` fields**, one file set: `extensions/image/src/info.rs`,
-`extensions/image/src/avif.rs` (the box walk, read only), `crates/nvs-ext/tests/image_decode.rs`.
-No gate.
+**Stage 3: `Image::info`'s `frames` is the real count**, one file set: `extensions/image/src/info.rs`,
+`extensions/image/src/avif.rs`, `crates/nvs-ext/tests/image_decode.rs`. No gate.
 
-- [ ] JPEG, PNG and WebP through `image`'s `exif_metadata`, AVIF's `Exif` item through `iinf` and `iloc` beside `Properties::read`, JPEG XL's `Exif` box, each into `Info::exif` as `kamadak-exif` names and prints it, MakerNote left out. `extensions/image/src/info.rs:31`, `extensions/image/src/info.rs:70`, `extensions/image/src/info.rs:101`
-- [ ] The module doc says what `exif` holds now. `extensions/image/src/info.rs:5`
-- [ ] Tests: the `exif.*` fixtures give the five fields, `gradient.png` gives `null`, and a malformed block built by the test is `Parse`. `crates/nvs-ext/tests/image_decode.rs:147`
+- [ ] APNG's `acTL` count, GIF's image descriptors (each one's LZW data skipped by its sub-block lengths), WebP's `ANMF` chunks, all read off the bytes beside the `image` decoder. `extensions/image/src/info.rs:87`
+- [ ] AVIF's sequence track: the sample count of the `moov` track's `stsz` (or `stz2`), through `Boxes` and `find`; a file with no `moov` is `1`. `extensions/image/src/avif.rs:160`
+- [ ] JPEG XL's frame count from `jxl-oxide`'s loaded frame headers (`num_loaded_keyframes`), with no frame rendered. `extensions/image/src/info.rs:114`
+- [ ] The module doc's `frames` sentence says what is read. `extensions/image/src/info.rs:4`
+- [ ] Tests: each `anim.*` gives `3`, and each `gradient.*` gives `1`, beside the EXIF test. `crates/nvs-ext/tests/image_decode.rs:245`
 
 ### Backlog
 
-- Stage 3 follows stage 2 on `info.rs`, with the `anim.*` fixtures. `extensions/image/src/info.rs:68`
 - Stages 4, 6 and 7 write the frame cost into the rules first. `docs/rules/core-classes/image-pixel-cap.md`
 - Stage 5 closes the rules. `docs/rules/core-api/tier-roster.md`
