@@ -742,10 +742,10 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "b7f6bce7a52c377c",
+    "hash": "5ebf20569f977afa",
     "questions": [
       "How do Novis, PHP, Bun and Go compare in requests per second and memory?",
-      "Can one request split its work over several CPU cores?",
+      "How do Novis, PHP, Bun and Go use more than one CPU core?",
       "Which web server features are built in and which need extra code?",
       "Does a slow request make other requests of the same session wait?",
       "Does a deploy cause failed requests or pages that mix old and new files?",
