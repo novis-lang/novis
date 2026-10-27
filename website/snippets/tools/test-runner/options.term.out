@@ -1,0 +1,21 @@
+$ nvs test cart.nvs --list
+CartTest::anEmptyCartCostsNothing  cart.nvs:21
+CartTest::itAddsTwoPrices  cart.nvs:27
+CartTest::itAddsTenThousandPrices  cart.nvs:33
+exit 0
+
+$ nvs test cart.nvs --filter itAdds
+  CartTest
+    ✓ itAddsTwoPrices                  0.3 ms
+    ✓ itAddsTenThousandPrices          1.7 ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky, 1 left out in 3 ms
+exit 0
+
+$ nvs test cart.nvs --skip-tag slow
+  CartTest
+    ✓ anEmptyCartCostsNothing          0.3 ms
+    ✓ itAddsTwoPrices                  0.2 ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky, 1 left out in 1 ms
+exit 0

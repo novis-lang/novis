@@ -1,0 +1,9 @@
+$ nvs test prices.nvs
+  PriceTest
+    ✓ addsTwentyPercent                0.3 ms
+    ✓ zeroStaysZero                    0.3 ms
+    - roundsHalfCents                  0.0 ms
+      skipped: rounding is not decided yet
+
+  0 failed, 2 passed, 1 skipped, 0 flaky in 1 ms
+exit 0

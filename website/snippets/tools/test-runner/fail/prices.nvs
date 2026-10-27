@@ -1,0 +1,27 @@
+<?nvs
+// The second test expects the wrong value, so it fails.
+use Core\Test;
+
+class Price
+{
+    // `withTax` adds 20 percent to a price in cents.
+    public static function withTax(int $cents): int
+    {
+        return $cents + Core\Math::intDiv($cents, 5);
+    }
+}
+
+final class PriceTest
+{
+    #[Test]
+    public function addsTwentyPercent(): void
+    {
+        Test::assertSame(Price::withTax(1000), 1200);
+    }
+
+    #[Test]
+    public function addsTwentyPercentToFiveEuros(): void
+    {
+        Test::assertSame(Price::withTax(500), 650);
+    }
+}

@@ -1,0 +1,1 @@
+nvs test prices.nvs --coverage-lcov coverage.lcov --coverage-clover coverage.xml

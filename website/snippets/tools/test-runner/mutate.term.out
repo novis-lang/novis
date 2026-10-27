@@ -1,0 +1,14 @@
+$ nvs test shipping.nvs --mutate
+  ShippingTest
+    ✓ aSmallOrderPaysForShipping       0.3 ms
+    ✓ aLargeOrderShipsFree             0.2 ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky in 1 ms
+  5 of 5 lines run (100.0%)
+
+  3 mutants: each one runs the tests that reach its line
+
+  mutants: 2 killed, 1 survived, 0 timed out, 0 not reached
+  mutation score: 66.7% (2 of 3 reached mutants made a test fail or time out)
+  survived  shipping.nvs:10  `>=` to `>`
+exit 0

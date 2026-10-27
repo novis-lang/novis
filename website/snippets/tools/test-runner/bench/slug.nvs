@@ -1,0 +1,31 @@
+<?nvs
+// A test and a bench for the same method.
+use Core\Test;
+use Core\Test\Bench;
+
+final class Slug
+{
+    // `of` turns a title into a lowercase slug with dashes.
+    public static function of(string $title): string
+    {
+        return Core\Str::replace(Core\Str::lower(Core\Str::trim($title)), ' ', '-');
+    }
+}
+
+final class SlugTest
+{
+    #[Test]
+    public function itJoinsTheWordsWithDashes(): void
+    {
+        Test::assertSame(Slug::of(' Hello World '), 'hello-world');
+    }
+
+    // A bench needs no assertion. `nvs test --bench` runs it once and counts its work.
+    #[Bench]
+    public function slugsOfOneHundredTitles(): void
+    {
+        for (int $i = 0; $i < 100; $i++) {
+            Slug::of('Release Notes ' . $i);
+        }
+    }
+}

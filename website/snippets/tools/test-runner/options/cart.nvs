@@ -1,0 +1,41 @@
+<?nvs
+// Three tests for a cart. One of them has the tag `slow`.
+use Core\Test;
+
+class Cart
+{
+    // `total` adds up the prices in cents.
+    public static function total(array<int> $prices): int
+    {
+        int $sum = 0;
+        foreach ($prices as int $price) {
+            $sum += $price;
+        }
+        return $sum;
+    }
+}
+
+final class CartTest
+{
+    #[Test]
+    public function anEmptyCartCostsNothing(): void
+    {
+        Test::assertSame(Cart::total([]), 0);
+    }
+
+    #[Test]
+    public function itAddsTwoPrices(): void
+    {
+        Test::assertSame(Cart::total([250, 1000]), 1250);
+    }
+
+    #[Test(tags: ['slow'])]
+    public function itAddsTenThousandPrices(): void
+    {
+        array<int> $prices = [];
+        for (int $i = 0; $i < 10000; $i++) {
+            $prices[] = 1;
+        }
+        Test::assertSame(Cart::total($prices), 10000);
+    }
+}

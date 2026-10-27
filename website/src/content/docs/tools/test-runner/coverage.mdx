@@ -1,8 +1,10 @@
 ---
 title: Coverage reports
-covers: []
+covers: ['tools:cli/nvs-test']
 description: See which lines of your code the tests run, and send the report to your build server.
 ---
+
+import Terminal from '@components/Terminal.astro'
 
 A coverage report lists each line of your code and how many times the tests ran it. A line with
 the count `0` is a line that no test reached.
@@ -10,33 +12,29 @@ the count `0` is a line that no test reached.
 ## Write a report
 
 `--coverage-lcov` writes the report in the lcov format. `--coverage-clover` writes it as Clover
-XML. Most build servers and editors read one of the two. You can write both in one run:
+XML. `--coverage-cobertura` writes it as Cobertura XML. Most build servers and editors read one of
+them. You can write all of them in one run. This run uses the program from
+[Running tests](/tools/test-runner/):
 
-```sh
-nvs test . --coverage-lcov coverage.lcov --coverage-clover coverage.xml
-```
+<Terminal src="tools/test-runner/coverage.term" />
 
-The output of `nvs test` then has one more line at the end:
+The output has one more line at the end. It counts the lines that the tests ran.
 
-```txt
-  0 failed, 2 passed, 1 skipped, 0 flaky in 1 ms
-  3 of 5 lines run (60.0%)
-```
-
-This is the start of the lcov file for the program on [Running tests](/tools/test-runner/).
-Each `DA` line is a line number and how many times it ran:
+These are lines from the lcov file. The `SF` line names the file. Each `DA` line is a line number
+and how many times it ran:
 
 ```txt
 SF:prices.nvs
-DA:8,2
-DA:15,1
-DA:20,1
-DA:26,0
-DA:31,0
+DA:10,2
+DA:19,1
+DA:25,1
+DA:32,0
+DA:37,0
 ```
 
-Line 26 is in the skipped test, so its count is `0`. Line 31 is outside every class. `nvs test` does
-not run the lines outside a class, so they always have the count `0`.
+Line 10 is in `withTax`, and the two tests that ran both call it. Line 32 is in the skipped test, so
+its count is `0`. Line 37 is outside every class. `nvs test` does not run the lines outside a
+class, so they always have the count `0`.
 
 ## Run it from the root of your project
 

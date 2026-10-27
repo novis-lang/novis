@@ -1,0 +1,8 @@
+$ nvs test volume.nvs
+  VolumeTest
+    ✗ itNeverGoesAboveTen              1.0 ms
+      Core\Test::assertTrue failed: `$actual` is false
+      call 8 of 100 failed. The smallest inputs that still fail are (11). The generated inputs were (39). Write `#[Property(seed: 7)]` to run the same inputs again.
+
+  1 failed, 0 passed, 0 skipped, 0 flaky in 2 ms
+exit 1

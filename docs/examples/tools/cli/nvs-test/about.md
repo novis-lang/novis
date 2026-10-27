@@ -12,5 +12,7 @@ is not zero when a test failed. A skipped test is not a failure.
 last run. `--watch` runs the tests again each time you save a file they use. `nvs test --help` lists
 every flag.
 
+`--tag` and `--skip-tag` select tests by their tags. `--bench` runs the benches and no test.
+
 **Good to know:** `--update` writes the new text into each failed `Core\Test::assertMatchesInline`
 snapshot. Those tests are still reported as failed, so run the tests again.

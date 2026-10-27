@@ -1,0 +1,30 @@
+<?nvs
+// Orders of 50.00 or more ship free. The tests use 20.00 and 80.00 only.
+use Core\Test;
+
+class Shipping
+{
+    // Prices are in cents.
+    public static function total(int $order): int
+    {
+        if ($order >= 5000) {
+            return $order;
+        }
+        return $order + 495;
+    }
+}
+
+final class ShippingTest
+{
+    #[Test]
+    public function aSmallOrderPaysForShipping(): void
+    {
+        Test::assertSame(Shipping::total(2000), 2495);
+    }
+
+    #[Test]
+    public function aLargeOrderShipsFree(): void
+    {
+        Test::assertSame(Shipping::total(8000), 8000);
+    }
+}

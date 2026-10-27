@@ -1,0 +1,3 @@
+nvs test cart.nvs --list
+nvs test cart.nvs --filter itAdds
+nvs test cart.nvs --skip-tag slow

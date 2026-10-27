@@ -1,0 +1,7 @@
+$ nvs test slug.nvs --bench
+  SlugTest
+    ✓ slugsOfOneHundredTitles          1.1 ms
+      count: statements=302 calls=400 allocations=505 bytes=26674 gc=0, wall 0.841 ms (advisory)
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in 2 ms
+exit 0

@@ -1,0 +1,8 @@
+$ nvs test prices.nvs
+  PriceTest
+    ✓ addsTwentyPercent                0.3 ms
+    ✗ addsTwentyPercentToFiveEuros     0.5 ms
+      Core\Test::assertSame failed: `$actual` is 600, `$expected` is 650
+
+  1 failed, 1 passed, 0 skipped, 0 flaky in 2 ms
+exit 1

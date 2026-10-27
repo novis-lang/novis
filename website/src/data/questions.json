@@ -1291,10 +1291,10 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "357b5f6837f6f81d",
+    "hash": "7c1e89e0ca017553",
     "questions": [
-      "How do I run my unit tests?",
       "Run only the tests whose name matches some text",
+      "Skip the slow tests that have a tag",
       "Produce a JUnit or JSON report for my CI pipeline",
       "Run only the tests that failed last time",
       "Run my tests again every time I save a file",
@@ -17802,19 +17802,19 @@
   },
   "/tools/test-runner/": {
     "feature": "tools/test-runner/index.mdx",
-    "hash": "e5d02f02defdfb33",
+    "hash": "e33a6f99b9f64f17",
     "questions": [
       "How do I write my first test and run it?",
       "What does the output look like when a test fails?",
-      "How do I run every test in my project at once?",
       "Run only the tests whose name contains some text",
-      "Why does a test without any assertion fail?",
-      "Write test results as JUnit XML for a CI server"
+      "Test a function with many random inputs",
+      "What does a survived mutant mean in mutation testing?",
+      "Count the work of a function in a bench"
     ]
   },
   "/tools/test-runner/coverage/": {
     "feature": "tools/test-runner/coverage.mdx",
-    "hash": "7a660e32f4d8c4ac",
+    "hash": "b1750257eee0c864",
     "questions": [
       "How do I see which lines my tests do not run?",
       "Send a test coverage report to my build server",
