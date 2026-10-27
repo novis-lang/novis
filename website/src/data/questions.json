@@ -335,13 +335,13 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "f28e4e9115c5c375",
+    "hash": "b5559edfaa377c75",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
       "Why does my service not start, and how do I see the error?",
       "Which folders can the service account write to?",
-      "Run my web server in production as its own user account",
+      "Why does the installer stop with E0607 for my config file?",
       "Install nvs serve as a Windows service"
     ]
   },
@@ -964,13 +964,14 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "43bc9c217b683320",
+    "hash": "993ee7bb23b4d585",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
       "Which folder permissions does Novis check before it starts?",
       "Why does nvs warn that it cannot use its data folder?",
-      "Set folder permissions for Novis on Windows with icacls"
+      "Set folder permissions for Novis on Windows with icacls",
+      "Check config file owners for the account my service runs as"
     ]
   },
   "/reference/": {
@@ -1109,12 +1110,12 @@
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
     "feature": "tools:cli/nvs-config-check-and-nvs-config-dump",
-    "hash": "2bd8081ced98b52c",
+    "hash": "fe4470964726222c",
     "questions": [
       "Validate my nvs.toml configuration before deploying",
       "Run a configuration check in my CI pipeline",
       "Print the resolved settings as a TOML file",
-      "Compare the resolved configuration of two environments",
+      "Check that my service account accepts the owner of each config file",
       "Find unknown keys or broken includes in my config",
       "See which file set each configuration value"
     ]
@@ -1268,13 +1269,13 @@
   },
   "/reference/cli/nvs-service/": {
     "feature": "tools:server/nvs-service",
-    "hash": "480bf3160f32a2bc",
+    "hash": "e63d98d055bee94c",
     "questions": [
       "Start my web server automatically when the machine boots",
       "Install my app as a systemd unit on Linux",
       "Run my server as a Windows service",
       "Restart my server automatically after it crashes",
-      "Where does the log go when the server runs in the background?",
+      "Why did my stopped service end, and what did it print?",
       "Preview the service file before installing it"
     ]
   },
