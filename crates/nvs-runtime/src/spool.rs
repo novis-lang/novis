@@ -1419,7 +1419,8 @@ mod tests {
     }
 
     /// The sealing task parks with no deadline, so the wake it names runs each time a file opens,
-    /// and only then.
+    /// and only then. `record` reads the real clock, so a slow run may pass [`SEAL_AFTER`] between
+    /// two records and open a second file: the wakes are counted against the files opened.
     #[test]
     fn the_wake_runs_when_a_file_opens_and_not_on_each_record() {
         let dir = nvs_repo::scratch("spool-wake");
@@ -1434,13 +1435,14 @@ mod tests {
         ctx.set_config(snapshot_of("[debug]\nstore = true\n"));
         super::record(&ctx, log("first"));
         super::record(&ctx, log("second"));
-        assert_eq!(woken.get(), 1);
+        let opened = files(&dir).len();
+        assert_eq!(woken.get(), opened, "{:?}", files(&dir));
         assert!(super::seal_due().is_some(), "a file is open");
 
         super::seal_now();
         assert_eq!(super::seal_due(), None);
         super::record(&ctx, log("third"));
-        assert_eq!(woken.get(), 2);
+        assert_eq!(woken.get(), opened + 1, "{:?}", files(&dir));
 
         super::seal_now();
         super::on_open(previous);
@@ -1636,6 +1638,10 @@ mod tests {
 
     /// A body up to [`BODY_INLINE`] stays in its `request` line. A longer one is written as `body`
     /// lines of at most [`BODY_CHUNK`], and the whole stops at the cap and says so.
+    #[cfg_attr(
+        miri,
+        ignore = "it renders two `BODY_CHUNK` lines, which Miri takes more than five minutes to do"
+    )]
     #[test]
     fn a_long_body_is_written_as_body_lines_and_cut_at_the_cap() {
         let dir = nvs_repo::scratch("spool-body-lines");
