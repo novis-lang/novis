@@ -17779,14 +17779,14 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "0bc45e1df3dde602",
+    "hash": "a309a8936b666a41",
     "questions": [
       "How do I install the VS Code extension from a .vsix file?",
-      "How do I build the VS Code extension from source?",
-      "Why does the extension not find my nvs program?",
-      "Which extension version works with my nvs version?",
-      "Show a sign next to tainted values in the editor",
-      "Run a file or its tests from the VS Code command palette"
+      "Rename a method in every file of my project at once",
+      "Which quick fixes and code actions does the editor offer?",
+      "How can I see which routes and tests use a method?",
+      "Show every method that calls this method",
+      "See where a tainted value came from in the editor"
     ]
   },
   "/tools/formatter/": {

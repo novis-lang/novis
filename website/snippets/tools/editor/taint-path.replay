@@ -1,0 +1,8 @@
+--START--
+<?nvs
+array<tainted string> $args = Core\Cli::arguments();
+tainted string $first = $args[0] ?? 'world';
+var $greeting = 'Hello, ' . $first;
+echo $gree<|>ting, "\n";
+--STEPS--
+card

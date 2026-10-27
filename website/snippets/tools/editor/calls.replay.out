@@ -1,0 +1,5 @@
+calls 1 14:23 Prices::total
+  in Checkout::isFree 1
+  in Checkout::receipt 1
+  out Prices::base 1
+  out Prices::tax 1

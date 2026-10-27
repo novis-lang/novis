@@ -1,0 +1,9 @@
+card 1 6:23
+  These are the grants of the whole program, from `nvs.toml`. Every route of the program has the same grants.
+
+  - `fs.read`: files in this file's directory, except `nvs.toml` and names that start with `.` (default)
+  - `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+  - `script.spawn`: files in this file's directory, outside its temporary directories (default)
+  - `net.connect`: `api.example.com`
+
+  No other grant is given.

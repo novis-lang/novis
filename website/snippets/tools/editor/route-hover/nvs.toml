@@ -1,0 +1,2 @@
+[capabilities.net]
+connect = ["api.example.com"]

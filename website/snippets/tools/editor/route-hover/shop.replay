@@ -1,0 +1,13 @@
+--START--
+<?nvs
+class Shop
+{
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function it<|>ems(): string
+    {
+        return 'pen, paper';
+    }
+}
+--STEPS--
+card

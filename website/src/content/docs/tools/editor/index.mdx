@@ -1,7 +1,7 @@
 ---
 title: The editor extension
-covers: []
-description: Install the Novis extension for VS Code, and the settings and commands it adds.
+covers: ['tools:editor/the-vs-code-extension', 'tools:editor/nvs-lsp']
+description: Install the Novis extension for VS Code, and use its completion, rename, quick fixes, code lenses, call hierarchy and hover cards.
 ---
 
 import { Code, Steps } from '@astrojs/starlight/components'
@@ -11,8 +11,11 @@ import Snippet from '@components/Snippet.astro'
 
 The Novis extension for VS Code colours `.nvs` files. It also shows errors while you type and
 completes the names of variables and methods. When the mouse pointer is over a method, it shows the
-documentation of that method. It gets all of
-this from `nvs lsp`, the language server that is part of the `nvs` program.
+documentation of that method. It renames methods and variables, fixes errors and writes code for
+you. It shows how often a method is used and where a value came from. It gets all of this from
+`nvs lsp`, the language server that is part of the `nvs` program.
+
+Each picture on this page shows what `nvs lsp` returned for the code next to it.
 
 ## Completion and errors
 
@@ -30,6 +33,73 @@ shows the error.
 `nvs check` reports the same error:
 
 <Snippet src="tools/editor/property-key-typo.nvs" />
+
+## Rename
+
+Put the cursor on a name and press **F2**. Type the new name, and the editor changes the declaration
+and every place that uses it. Here the method `add` becomes `addCents`, and both calls change too.
+
+<Replay src="tools/editor/rename.nvs" />
+
+Rename also changes the name in the other `.nvs` files of your folder.
+
+## Quick fixes and generated code
+
+When the cursor is on an error, press **Ctrl+.** (**Cmd+.** on macOS) to see the fixes for it. Here
+the constructor does not give the property `$name` a value, so `$name` has an error. The fix adds
+`$this->name = $name;` to the constructor.
+
+<Replay src="tools/editor/quick-fix.nvs" />
+
+The same list also has actions that write code. In a class, the editor offers to override each
+method of the parent class. The new method calls the parent method with `parent::`. You can then
+change its body.
+
+<Replay src="tools/editor/override.nvs" />
+
+Other actions write the methods that an interface needs, and declare a method that you called but
+did not write yet. They also add a missing `use` line, sort the `use` lines, and move code into a
+new method or variable.
+
+## How often a method is used
+
+Above each class and method, a grey line shows how often it is used. This line is a code lens. Above
+a method, a second lens counts the routes and the tests that use it.
+
+<Replay src="tools/editor/lens.nvs" />
+
+Here the route `GET /cart` calls `base` through the method `cart`. Both tests use `base`. The test
+`cartLoads` counts because it sends a request to `/cart`. A click on the lens runs the tests it
+counts.
+
+`(static)` means that the editor counted the calls in your code. After you run the tests with
+coverage in VS Code, the count comes from that run, and `(static)` is not shown. The setting
+`nvs.codeLens.enable` turns the lenses off.
+
+## Calls to and from a method
+
+Right-click a method and choose **Show Call Hierarchy**. The editor lists the methods that call it,
+and the methods that it calls. Here `total` is called by `receipt` and `isFree`. It calls `base` and
+`tax`.
+
+<Replay src="tools/editor/calls.nvs" />
+
+## Grants of a route
+
+When the mouse pointer is over the method of a route, the editor shows the grants of the program. A
+grant says which files, hosts and processes the program may use. The grants come from the
+`nvs.toml` next to the file. Every route of a program has the same grants.
+
+This `nvs.toml` allows connections to `api.example.com`:
+
+```toml
+[capabilities.net]
+connect = ["api.example.com"]
+```
+
+The other grants have their default values:
+
+<Replay src="tools/editor/route-hover/shop.nvs" />
 
 ## Install the extension
 
@@ -122,6 +192,16 @@ To choose the style yourself, add this to your `settings.json`:
 ```
 
 `"enabled": true` is needed for a theme that does not use the language server's colors.
+
+### Where a tainted value came from
+
+When the mouse pointer is over a tainted variable, the editor shows where its value came from. Each
+step has its line number. Here the value comes from the command-line arguments. Line 4 adds it to
+the text `'Hello, '`.
+
+<Replay src="tools/editor/taint-path.nvs" />
+
+The editor shows the same list for a `secret` variable.
 
 ## Commands
 

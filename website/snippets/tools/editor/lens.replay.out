@@ -1,0 +1,12 @@
+lens 1
+  5:7 2 references
+  7:21 2 references
+  7:21 used by 1 route, 2 tests (static)
+  13:7 no references
+  17:21 no references
+  17:21 used by 1 route, 1 test (static)
+  23:7 no references
+  26:21 no references
+  26:21 used by 0 routes, 1 test (static)
+  33:21 no references
+  33:21 used by 0 routes, 1 test (static)

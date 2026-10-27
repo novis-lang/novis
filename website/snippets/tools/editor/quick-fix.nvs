@@ -1,0 +1,14 @@
+<?nvs
+class User
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+        echo 'New user', "\n";
+    }
+}
+
+var $user = new User('Ada');
+echo $user->name, "\n";

@@ -1,0 +1,18 @@
+--START--
+<?nvs
+class Greeter
+{
+    public function greet(string $name): string
+    {
+        return 'Hello, ' . $name;
+    }
+}
+
+class LoudGreeter extends Greeter
+{
+    public string $mark = '!';<|>
+}
+
+echo new LoudGreeter()->greet('Ada'), "\n";
+--STEPS--
+action Override `greet` from `Greeter`

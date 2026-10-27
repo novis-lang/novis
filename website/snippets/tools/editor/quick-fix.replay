@@ -1,0 +1,16 @@
+--START--
+<?nvs
+class User
+{
+    public string $na<|>me;
+
+    public function constructor(string $name)
+    {
+        echo 'New user', "\n";
+    }
+}
+
+var $user = new User('Ada');
+echo $user->name, "\n";
+--STEPS--
+action assign `$this->name` from `$name`

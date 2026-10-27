@@ -1,0 +1,3 @@
+action 1 4:22
+  assign `$this->name` from `$name`
+edit 8:9-8:9 "$this->name = $name;\n        "

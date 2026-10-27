@@ -1,0 +1,34 @@
+<?nvs
+class Prices
+{
+    public function base(): int
+    {
+        return 1000;
+    }
+
+    public function tax(): int
+    {
+        return 200;
+    }
+
+    public function total(): int
+    {
+        return $this->base() + $this->tax();
+    }
+}
+
+class Checkout
+{
+    public function receipt(Prices $prices): string
+    {
+        return 'Total: ' . $prices->total();
+    }
+
+    public function isFree(Prices $prices): bool
+    {
+        return $prices->total() == 0;
+    }
+}
+
+var $checkout = new Checkout();
+echo $checkout->receipt(new Prices()), "\n";

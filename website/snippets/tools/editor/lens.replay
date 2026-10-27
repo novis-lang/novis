@@ -1,0 +1,40 @@
+--START--
+<?nvs
+use Core\Http\Method;
+use Core\Test;
+
+class Prices
+{
+    public function base(): int
+    {
+        return 3;
+    }
+}
+
+class Shop
+{
+    #[Core\Route(path: '/cart', method: Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function cart(): void
+    {
+        echo new Prices()->b<|>ase();
+    }
+}
+
+class ShopTest
+{
+    #[Test]
+    public function cartLoads(): void
+    {
+        var $page = Test::request(Method::Get, '/cart');
+        Test::assertEquals(200, $page->status());
+    }
+
+    #[Test]
+    public function baseIsThree(): void
+    {
+        Test::assertEquals(3, new Prices()->base());
+    }
+}
+--STEPS--
+lens

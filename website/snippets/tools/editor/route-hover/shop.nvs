@@ -1,0 +1,10 @@
+<?nvs
+class Shop
+{
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function items(): string
+    {
+        return 'pen, paper';
+    }
+}

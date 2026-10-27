@@ -1,0 +1,20 @@
+<?nvs
+class Greeter
+{
+    public function greet(string $name): string
+    {
+        return 'Hello, ' . $name;
+    }
+}
+
+class LoudGreeter extends Greeter
+{
+    public string $mark = '!';
+
+    public function greet(string $name): string
+    {
+        return parent::greet($name);
+    }
+}
+
+echo new LoudGreeter()->greet('Ada'), "\n";

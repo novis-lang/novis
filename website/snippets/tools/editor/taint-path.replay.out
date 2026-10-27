@@ -1,0 +1,8 @@
+card 1 5:11
+  **This value is `tainted`.** It comes from:
+
+  1. Line 2: `Core\Cli::arguments()` returns a `tainted` value.
+  2. Line 2: the value is assigned to `$args`.
+  3. Line 3: the value is assigned to `$first`.
+  4. Line 4: the value is joined with other text in `'Hello, ' . $first`.
+  5. Line 4: the value is assigned to `$greeting`.
