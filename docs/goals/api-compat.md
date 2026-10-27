@@ -20,7 +20,7 @@ stages:
         rules: [packaging/only-a-major-may-break-the-api]
   - id: 3
     title: a parameter that narrows and a return that widens are breaks
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/diff.rs, crates/nvs-types/src/ty.rs]
     extra:
       context:
@@ -130,6 +130,14 @@ differs breaks, so a newer document is never compared as if its new keys were ab
 standing decision errs towards breaking, and each of these breaks a caller or an implementing
 class that compiled before.
 
+**A type is covered only when it surely is, and in both documents.** `mixed` covers anything,
+`never` is covered by anything, `bool` covers `true` and `false`, and a class is covered by its
+closed parents. `float` does not cover `int`, and a generic argument, a shape, a signature or a
+class with an undeclared ancestor is undecidable, so a break. A class's ancestry must hold in the
+old and the new document, since a changed parent is itself reported on that class. Why: the
+standing decision errs towards breaking, and a wrongly additive line is the one error that lets a
+break through. The module doc of `crates/nvs-cli/src/package/diff.rs` § *Types* is the home.
+
 **Trade-offs.** No program changes, and nothing runs on the request path. A publish pays one compile
 of each version. A package author loses the freedom to break a stable API in a minor, which is the
 point. Simplicity: one check the user already expects from semantic versioning, applied by a tool
@@ -170,9 +178,9 @@ one directory per class in the standing decision's break list and each additive 
 
 **Does:** a type that changes direction is classified by which side of the call it is on.
 
-- [ ] Parameter types may only widen and return types may only narrow; a union that gains a member, a nullable that appears and a class replaced by its parent are each classified by the side, over the two documents as the standing decision says. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-types/src/ty.rs:29`
-- [ ] A change the comparison cannot decide is a break, and the line says so. `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] Tests: the type fixture pairs, one per direction and side, and one undecidable pair. `crates/nvs-cli/tests/package_api.rs:1`
+- [x] Parameter types may only widen and return types may only narrow; a union that gains a member, a nullable that appears and a class replaced by its parent are each classified by the side, over the two documents as the standing decision says. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-types/src/ty.rs:29`
+- [x] A change the comparison cannot decide is a break, and the line says so. `crates/nvs-cli/src/package/diff.rs:1`
+- [x] Tests: the type fixture pairs, one per direction and side, and one undecidable pair. `crates/nvs-cli/tests/package_api.rs:1`
 
 ### 4. the version step decides, and the commands have their feature proofs
 
@@ -207,35 +215,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs pkg diff <old> <new> [--json]` compares two package directories or
-two `nvs pkg api` documents (`crates/nvs-cli/src/package/diff.rs`), prints one line per change
-worst-first and a summary, and exits non-zero on any break. The version step is not read yet. A
-document of another `schema` is refused. Every stage 2 class is in the walk, and the new standing
-decision records the three breaks it adds. `crates/nvs-cli/tests/package_api.rs` runs the twelve
-fixture pairs of stages 2 and 3 that the walk already classifies, and the JSON-document side; all
-four tests pass, run once. Build and clippy are green.
+Stages 1, 2 and 3 are done. `nvs pkg diff <old> <new> [--json]` compares two package directories
+or two `nvs pkg api` documents (`crates/nvs-cli/src/package/diff.rs`), prints one line per change
+worst-first and a summary, and exits non-zero on any break. The version step is not read yet.
 
-The fixture pairs for stage 3 are on disk: `narrowed-parameter`, `widened-return`,
-`widened-parameter` and `narrowed-return` under `crates/nvs-cli/tests/fixtures/package-api/`. The
-last two are not in a test yet, because the walk calls every type change a break.
+Stage 3: a parameter's `type` is classified by `directed` with `Side::Passed` (may widen) and a
+method's `returns` with `Side::Returned` (may narrow); a property's, a constant's and an alias's
+type stay `same`. `Lineage::covers` splits on `|` and `&` and closes a class over the parents each
+document lists, and an answer must hold in both documents. An undecidable change is a break whose
+line ends "and the comparison cannot tell which way it moved". The module doc's § *Types* and the
+new standing decision record the rules. `each_change_between_two_versions_gets_its_class` now runs
+sixteen pairs, the new ones `widened-parameter`, `narrowed-return`, `parent-parameter` (a class
+replaced by its parent) and `undecidable-parameter` (`array<int>` to `array<int|string>`); it
+passed, run once. Build, clippy and rustfmt are green.
 
-The acceptance sweep's reds were already fixed on disk: `env-secret-proofs` exits 0, and the nightly
-run it names predates the commits that mark its Miri tests.
+The acceptance sweep's reds were already fixed on disk: `env-secret-proofs` exits 0 when run, and
+the nightly run 40474302703 is on `55b03e97a`, before `22f1e4ec4`, `e461612ce` and `c33a8b8f7`,
+which fix its three Miri jobs.
 
 Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
 (30 entries, not run), and any proofs or help-text check that counts subcommands.
 
 ### Next
 
-**Stage 3: types are classified by direction**, one file set: `crates/nvs-cli/src/package/diff.rs`,
-`crates/nvs-cli/tests/package_api.rs`, `crates/nvs-cli/tests/fixtures/package-api/`. No gate.
+**Stage 4, first group: the version step decides.** Files: `crates/nvs-cli/src/package/mod.rs`,
+`crates/nvs-cli/src/package/diff.rs`, a new `crates/nvs-cli/src/package/manifest.rs`,
+`crates/nvs-cli/tests/package_api.rs` and its fixtures. The about page, examples and attack follow
+in a second group, by writing subagents as the stage's `**Split:**` line says.
 
-- [ ] A type comparison over the two documents: split on `|` and `&`, a class covered by itself or an ancestor the document lists (close over `extends` and `implements`), an undeclared parent by name alone, undecidable as `None`. `crates/nvs-cli/src/package/diff.rs:467`
-- [ ] A parameter's `type` may only widen and a method's `returns` may only narrow; a property's and a constant's `type` stay `same`, and an undecidable change says so in its line. `crates/nvs-cli/src/package/diff.rs:306`, `crates/nvs-cli/src/package/diff.rs:278`
-- [ ] `widened-parameter` and `narrowed-return` as additive in `each_change_between_two_versions_gets_its_class`, and one undecidable pair. `crates/nvs-cli/tests/package_api.rs:66`
+- [ ] `manifest.rs` reads `version` alone from `<dir>/package.toml`, as `MAJOR.MINOR.PATCH`; a side given as a JSON document has no version unless `--from`/`--to` gives it. `crates/nvs-cli/src/package/mod.rs:40`
+- [ ] `--from <version>` and `--to <version>` on `Command::Diff`, replacing each side's read version. `crates/nvs-cli/src/package/mod.rs:40`
+- [ ] `run` exits non-zero only on a break the step forbids: `0.0.x` on either side is never checked, a major allows anything, a minor or patch allows additions only; no version at all keeps today's "any break fails". The summary line says which step was read. `crates/nvs-cli/src/package/diff.rs:87`
+- [ ] A test for each step, over an existing fixture pair with `--from`/`--to` and one pair with `package.toml` files. `crates/nvs-cli/tests/package_api.rs:86`
 
 ### Backlog
 
-- Stage 4 waits for `docs/reference/tools/35-packages.md` from goal `namespace-grants`; if it is absent, stage 4 creates the file with its own heading. `docs/goals/namespace-grants.md`
+- `docs/reference/tools/35-packages.md` exists now (goal `namespace-grants`); stage 4 adds its heading `# nvs pkg api and nvs pkg diff` there. `docs/reference/tools/35-packages.md:1`
 - The registry calls `nvs pkg diff` at publish in goal `registry-service` (`docs/goals/registry-service.md`).
 - The website shows the API diff per version in goal `registry-website` (`docs/goals/registry-website.md`).

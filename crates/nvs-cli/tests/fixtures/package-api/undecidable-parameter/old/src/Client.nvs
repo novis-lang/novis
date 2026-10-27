@@ -1,0 +1,10 @@
+<?nvs
+namespace Api;
+
+final class Client
+{
+    public function send(array<int> $ids): int
+    {
+        return 0;
+    }
+}

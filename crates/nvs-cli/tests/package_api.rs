@@ -102,7 +102,9 @@ fn each_change_between_two_versions_gets_its_class() {
         ),
         (
             "interface-method",
-            &["breaking: Api\\Sender::close() — new method on an interface, which every implementing class must write"],
+            &[
+                "breaking: Api\\Sender::close() — new method on an interface, which every implementing class must write",
+            ],
         ),
         (
             "abstract-method",
@@ -110,7 +112,9 @@ fn each_change_between_two_versions_gets_its_class() {
         ),
         (
             "enum-case",
-            &["breaking: Api\\Mode — new case `Paused`, which a `match` over every case does not cover"],
+            &[
+                "breaking: Api\\Mode — new case `Paused`, which a `match` over every case does not cover",
+            ],
         ),
         (
             "required-parameter",
@@ -118,11 +122,39 @@ fn each_change_between_two_versions_gets_its_class() {
         ),
         (
             "narrowed-parameter",
-            &["breaking: Api\\Client::send($id) — `type` changed from `int|string` to `int`"],
+            &[
+                "breaking: Api\\Client::send($id) — `type` changed from `int|string` to `int`, which no longer accepts every value it did",
+            ],
         ),
         (
             "widened-return",
-            &["breaking: Api\\Client::find() — `returns` changed from `string` to `null|string`"],
+            &[
+                "breaking: Api\\Client::find() — `returns` changed from `string` to `null|string`, which may return a value it did not before",
+            ],
+        ),
+        (
+            "undecidable-parameter",
+            &[
+                "breaking: Api\\Client::send($ids) — `type` changed from `array<int>` to `array<int|string>`, and the comparison cannot tell which way it moved",
+            ],
+        ),
+        (
+            "widened-parameter",
+            &[
+                "additive: Api\\Client::send($id) — `type` changed from `int` to `int|string`, which is wider",
+            ],
+        ),
+        (
+            "narrowed-return",
+            &[
+                "additive: Api\\Client::find() — `returns` changed from `null|string` to `string`, which is narrower",
+            ],
+        ),
+        (
+            "parent-parameter",
+            &[
+                "additive: Api\\Client::send($to) — `type` changed from `Api\\Admin` to `Api\\User`, which is wider",
+            ],
         ),
         ("new-class", &["additive: Api\\Server — new class"]),
         (
@@ -140,9 +172,9 @@ fn each_change_between_two_versions_gets_its_class() {
         let (ok, printed) = diff(&pair.join("old"), &pair.join("new"), &[]);
         let lines: Vec<&str> = printed.lines().collect();
         let breaks = want.iter().any(|line| line.starts_with("breaking"));
-        let fits = lines.split_last().is_some_and(|(summary, changes)| {
-            changes == *want && summary.ends_with(" additive")
-        });
+        let fits = lines
+            .split_last()
+            .is_some_and(|(summary, changes)| changes == *want && summary.ends_with(" additive"));
         if !fits || ok == breaks {
             wrong.push(format!("{name}: exit ok {ok}\n{printed}"));
         }

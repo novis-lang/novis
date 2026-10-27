@@ -1,0 +1,18 @@
+<?nvs
+namespace Api;
+
+class User
+{
+}
+
+final class Admin extends User
+{
+}
+
+final class Client
+{
+    public function send(User $to): int
+    {
+        return 0;
+    }
+}
