@@ -1967,7 +1967,7 @@ pub(crate) mod registration {
     /// property `rule:packaging/a-service-answers-its-manager` closes on — an uninstall leaves no key, no source, no unit
     /// and no granted ACL — is one a case can assert against the very install
     /// that granted them.
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub(crate) struct Stored {
         /// The identity the manager holds it under.
         pub(crate) name: String,
@@ -2079,7 +2079,9 @@ pub(crate) mod registration {
     /// The three verbs that act on an installed service rather than on its
     /// registration.
     ///
-    /// `Status` is the manager's own answer and nothing more.
+    /// `Status` is the manager's own answer. `nvs service status` then checks
+    /// the stored configuration for the service's account, which is not an
+    /// action of the manager's.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub(crate) enum Control {
         /// Start it now.
@@ -2234,10 +2236,6 @@ pub(crate) mod registration {
             Platform::Windows => account_of(plan),
             Platform::Linux => plan.account.clone().unwrap_or_else(|| "root".to_owned()),
         };
-        let account = site
-            .manager
-            .judged_for(&name)
-            .map_err(|why| crate::config::no_such_account(&why))?;
         let owned = match (site.platform, &plan.owner) {
             (Platform::Linux, Some(_)) => {
                 let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
@@ -2248,12 +2246,33 @@ pub(crate) mod registration {
             }
             _ => Vec::new(),
         };
+        judge_files(&named, &name, owned, site)
+    }
+
+    /// `rule:config/ownership-is-the-trust-boundary`'s check of the
+    /// configuration whose roots are `named`, made for the account `name`
+    /// names, passing each path in `owned` together with its directory.
+    ///
+    /// # Errors
+    ///
+    /// The first file's `E0607`, or any other diagnostic the resolution
+    /// gives, and `E0662` for an account this machine has not got.
+    pub(crate) fn judge_files(
+        named: &[PathBuf],
+        name: &str,
+        owned: Vec<PathBuf>,
+        site: &Site<'_>,
+    ) -> Result<(), Diagnostic> {
+        let account = site
+            .manager
+            .judged_for(name)
+            .map_err(|why| crate::config::no_such_account(&why))?;
         let files = Installing {
             judged: nvs_config::resolve::JudgedFor(account),
             owned,
         };
         let cwd = crate::config::working_directory()?;
-        let roots = crate::config::roots_in(&crate::config::named_roots(&[], &named), &cwd);
+        let roots = crate::config::roots_in(&crate::config::named_roots(&[], named), &cwd);
         nvs_config::resolve::resolve(&roots, &mut SourceMap::new(), &files).map(drop)
     }
 
@@ -4161,6 +4180,8 @@ pub(crate) mod registration {
         applied: Mutex<Vec<Action>>,
         /// A machine with no account but root, for the case about `E0654`.
         no_accounts: bool,
+        /// What [`Manager::stored`] gives, for a case about an installed service.
+        stored: Option<Stored>,
     }
 
     #[cfg(test)]
@@ -4173,6 +4194,14 @@ pub(crate) mod registration {
         pub(crate) fn without_accounts() -> Self {
             Self {
                 no_accounts: true,
+                ..Self::default()
+            }
+        }
+
+        /// A recording manager that holds `stored`, whatever name it is asked for.
+        pub(crate) fn holding(stored: Stored) -> Self {
+            Self {
+                stored: Some(stored),
                 ..Self::default()
             }
         }
@@ -4194,6 +4223,15 @@ pub(crate) mod registration {
                 .unwrap_or_else(PoisonError::into_inner)
                 .push(action.clone());
             Ok(None)
+        }
+
+        fn stored(&self, _name: &str, _unit_root: &Path) -> std::io::Result<Stored> {
+            self.stored.clone().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "this recording manager holds no registration",
+                )
+            })
         }
 
         fn account(&self, name: &str) -> std::io::Result<Account> {
@@ -4447,9 +4485,85 @@ pub(crate) fn stop(name: &str) -> ExitCode {
     answered(name, registration::Control::Stop)
 }
 
-/// `nvs service status <name>` — the manager's own answer.
+/// `nvs service status <name>` — the manager's own answer, then
+/// `rule:config/ownership-is-the-trust-boundary`'s check of the stored
+/// configuration for the account the service runs as. A refusal is the boot's
+/// `E0607` and exits `1`. A file this account cannot read is a warning, and
+/// the exit stays `0`.
 pub(crate) fn status(name: &str) -> ExitCode {
-    answered(name, registration::Control::Status)
+    let mut sources = SourceMap::new();
+    match at_host(|site| status_of(name, site)) {
+        Ok((answers, verdict)) => {
+            for answer in answers {
+                println!("{answer}");
+            }
+            match verdict {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(warning) if warning.severity == nvs_diagnostics::Severity::Warning => {
+                    let mut diags = Diagnostics::new();
+                    diags.report(warning);
+                    render_diagnostics(&mut diags, &sources);
+                    ExitCode::SUCCESS
+                }
+                Err(refusal) => refuse(refusal, &mut sources),
+            }
+        }
+        Err(refused) => report(refused, &mut sources),
+    }
+}
+
+/// What `nvs service status` prints: the manager's answer, and the verdict on
+/// every `--config` file the stored argv names, judged for the stored account.
+///
+/// The verdict is `E0605` downgraded to a warning when a file cannot be read
+/// from here. An unelevated prompt cannot read a service's private folder,
+/// and that says nothing about who can change the file. A manager that holds
+/// no registration to read gives the answer alone.
+///
+/// # Errors
+///
+/// The manager's own failure to answer, or to read back what it holds.
+fn status_of(
+    name: &str,
+    site: &registration::Site<'_>,
+) -> Result<(Vec<String>, Result<(), Diagnostic>), registration::Refused> {
+    let answers = registration::control(registration::Control::Status, name, site)?;
+    let stored = match site.manager.stored(name, site.unit_root) {
+        Ok(stored) => stored,
+        Err(error) if error.kind() == std::io::ErrorKind::Unsupported => {
+            return Ok((answers, Ok(())));
+        }
+        Err(_) => held(site, name)?,
+    };
+    let named: Vec<PathBuf> = values_of(&stored.argv, "--config")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    if named.is_empty() {
+        return Ok((answers, Ok(())));
+    }
+    let verdict = registration::judge_files(&named, &stored.account, Vec::new(), site)
+        .map_err(|diagnostic| {
+            if diagnostic.code != Some(code::E_UNREADABLE_CONFIG) {
+                return diagnostic;
+            }
+            let prompt = match site.platform {
+                registration::Platform::Windows => "from an administrator prompt",
+                registration::Platform::Linux => "with `sudo`",
+            };
+            Diagnostic {
+                severity: nvs_diagnostics::Severity::Warning,
+                ..diagnostic
+            }
+            .with_note(format!(
+                "`nvs service status` could not check who can change this file for `{}`.",
+                stored.account
+            ))
+            .with_help(format!(
+                "if the file exists, run `nvs service status {name}` {prompt} to check it"
+            ))
+        });
+    Ok((answers, verdict))
 }
 
 /// `nvs service run <name>` — the argv the platform holds under `name`, so
@@ -6849,6 +6963,71 @@ mod tests {
             );
             assert!(applied.is_empty(), "the manager was asked: {applied:?}");
         }
+        std::fs::remove_dir_all(&scratch).expect("a removed scratch directory");
+    }
+
+    /// `nvs service status` on an installed service judges its stored
+    /// configuration for the stored account, after the manager's answer: a
+    /// tree that account trusts passes, a file another account can write is
+    /// the boot's `E0607`, and a file it cannot read is a warning.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn status_on_a_stored_service_judges_its_configuration_for_its_account() {
+        let scratch = nvs_repo::scratch_private("service-status-judged");
+        let config = scratch.join("nvs.toml");
+        std::fs::write(&config, "").expect("a configuration file");
+        let root = unit_root("status-judged");
+        let status = |config: &Path| {
+            let manager = registration::Recording::holding(registration::Stored {
+                name: "shop".to_owned(),
+                argv: vec![
+                    "serve".to_owned(),
+                    absolute("app/index.nvs"),
+                    "--config".to_owned(),
+                    config.display().to_string(),
+                ],
+                account: "LocalSystem".to_owned(),
+                log_file: None,
+                cache_directory: None,
+                temp_root: None,
+                data_folder: None,
+                exe: None,
+            });
+            let site = registration::Site {
+                platform: registration::Platform::host(),
+                unit_root: &root,
+                manager: &manager,
+            };
+            let (_, verdict) = status_of("shop", &site).expect("the manager answers");
+            assert_eq!(
+                manager.applied(),
+                registration::control_actions(
+                    registration::Platform::host(),
+                    registration::Control::Status,
+                    "shop"
+                ),
+                "the manager was asked for the state first"
+            );
+            verdict
+        };
+
+        let verdict = status(&config);
+        assert!(verdict.is_ok(), "a tree the account trusts passes: {verdict:?}");
+
+        let missing = status(&scratch.join("gone.toml"));
+        let Err(warning) = missing else {
+            panic!("a file that cannot be read passed")
+        };
+        assert_eq!(coded(&warning), code::E_UNREADABLE_CONFIG, "{warning:?}");
+        assert_eq!(warning.severity, nvs_diagnostics::Severity::Warning);
+
+        open_to_others(&config);
+        let Err(refusal) = status(&config) else {
+            panic!("a file another account can write passed")
+        };
+        assert_eq!(coded(&refusal), code::E_UNTRUSTED_CONFIG, "{refusal:?}");
+        assert_eq!(refusal.severity, nvs_diagnostics::Severity::Error);
+        assert!(refusal.message.contains("nvs.toml"), "{}", refusal.message);
         std::fs::remove_dir_all(&scratch).expect("a removed scratch directory");
     }
 

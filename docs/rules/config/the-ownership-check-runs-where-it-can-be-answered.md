@@ -1,6 +1,7 @@
 The ownership check runs where its question can be answered: `nvs serve` and reload, on the host and
 as the account that will serve, `nvs config check --as <account>`, which names that account, and
-`nvs service install`, its `--dry-run` included, for the account the service runs as.
+`nvs service install`, its `--dry-run` included, and `nvs service status`, for the account the service
+runs as.
 Three readers resolve the tree without it, each for a reason of its own.
 
 `nvs run` executes a program the invoking account named, from a working directory that account chose,
@@ -28,7 +29,15 @@ not change its answer. `config dump` takes no `--as`: it lists keys, and `check`
 would refuse is that `E0607`, from a dry run as from a real install, before the data folder is
 prepared and before the service manager is asked for anything. A file that is not there yet is the
 template the install writes, and is not judged. On Linux a path the install gives to root or the
-account, with the directory that holds it, is judged as the install leaves it, so it passes.
+account, with the directory that holds it, is judged as the install leaves it, so it passes. On
+Windows an elevated install's data folder and the `nvs.toml` it writes there are owned by
+`Administrators`, which every service account trusts, so they pass at boot.
+
+**`nvs service status` asks it again for the installed service.** After the manager's state it judges
+every `--config` file of the argv the platform holds, for the account the platform holds the service
+under, through the same `JudgedFor`. A refused file is the boot's `E0607` and exits `1`. A file this
+prompt cannot read is `E0605` as a warning, and the exit stays `0`: an unelevated prompt cannot read a
+service's private folder, and that says nothing about who can change the file.
 
 `nvs serve` checks every file it reads, every time it reads it: the root, each include, each secret
 file and each `[[app]]` fold a request or a queue job asks for, at boot and at every reload. A boot

@@ -28,7 +28,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **A `bun nv linux-test` piped into `grep` is killed as a hang before it builds.** The mirror and the
   WSL build run inside the VM, where the watcher sees no CPU, and a filter that drops the `Compiling`
   lines leaves it no output either, so it kills the run at 90 s. Run it with `run_in_background`,
-  unfiltered, and grep its output file once it ends. `until: gone tools/nv/cmd/linux-test.ts:linux-test`
+  unfiltered, and grep its output file once it ends. See `tools/nv/cmd/linux-test.ts`. `until: gone tools/nv/cmd/linux-test.ts:linux-test`
 
 - **A `docs/reference/lang/` chapter is generated, so a wording change goes in the feature's
   `about.md` or `details.md`, then `bun nv render`.** An edit to the chapter itself is overwritten by

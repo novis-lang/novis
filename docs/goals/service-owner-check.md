@@ -20,7 +20,7 @@ stages:
         rules: [config/check-and-dump-audit-the-tree-offline, config/the-ownership-check-runs-where-it-can-be-answered]
   - id: 3
     title: "`nvs service install`, its `--dry-run` and `nvs service status` judge the configuration as the service's account"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/service.rs, docs/rules/packaging/a-service-runs-as-a-virtual-account.md, docs/rules/packaging/the-installer-is-a-sink.md]
     extra:
       context:
@@ -229,17 +229,17 @@ shape.
 - [x] `registration::install` judges the named configuration through the account's `Files` impl after `resolve_account` and before both the dry-run return and `prepare_data`, skipping the paths an `Own` action of this install sets. `crates/nvs-cli/src/service.rs:2224`, `crates/nvs-cli/src/service.rs:2263`
   - [x] `judge` resolves every `--config` that is a file, and looks no account up when there is none
   - [x] `Installing` passes a path an `Own` sets together with its directory
-- [ ] The data folder and the `nvs.toml` an install creates pass for the service's account; if not, the descriptor names an owner it trusts. `crates/nvs-config/src/data.rs:701`, `crates/nvs-cli/src/service.rs:781`
-- [ ] `status` reads `Manager::stored`, judges its configuration for its account, prints the state and then the `E0607`, and exits `1`; a file it cannot examine is a warning with exit `0`. `crates/nvs-cli/src/service.rs:4307`, `crates/nvs-cli/src/service.rs:2132`, `crates/nvs-cli/src/service.rs:2079`
-- [ ] Tests through the recording manager: a dry run and a real install over a configuration the service's account refuses both print `E0607` and touch no manager; the same tree for an account it passes installs; status on a stored service over such a tree prints the state and `E0607`. `crates/nvs-cli/src/service.rs:6802`
+- [x] The data folder and the `nvs.toml` an install creates pass for the service's account; if not, the descriptor names an owner it trusts. `crates/nvs-config/src/data.rs:701`, `crates/nvs-cli/src/service.rs:781`
+- [x] `status` reads `Manager::stored`, judges its configuration for its account, prints the state and then the `E0607`, and exits `1`; a file it cannot examine is a warning with exit `0`. `crates/nvs-cli/src/service.rs:4307`, `crates/nvs-cli/src/service.rs:2132`, `crates/nvs-cli/src/service.rs:2079`
+- [x] Tests through the recording manager: a dry run and a real install over a configuration the service's account refuses both print `E0607` and touch no manager; the same tree for an account it passes installs; status on a stored service over such a tree prints the state and `E0607`. `crates/nvs-cli/src/service.rs:6802`
   - [x] install: `an_install_over_a_configuration_the_service_account_refuses_is_e0607_before_the_manager`, green on Windows and in WSL
-  - [ ] status: `Recording` takes a seeded `Stored`, and a case over a tree opened to others prints the state and `E0607`
-- [ ] Amend `rule:packaging/a-service-runs-as-a-virtual-account` (install refuses what the account would refuse at boot) and `rule:config/the-ownership-check-runs-where-it-can-be-answered` (install and status run it). `docs/rules/packaging/a-service-runs-as-a-virtual-account.md:29`, `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:29`
+  - [x] status: `Recording` takes a seeded `Stored`, and a case over a tree opened to others prints the state and `E0607`
+- [x] Amend `rule:packaging/a-service-runs-as-a-virtual-account` (install refuses what the account would refuse at boot) and `rule:config/the-ownership-check-runs-where-it-can-be-answered` (install and status run it). `docs/rules/packaging/a-service-runs-as-a-virtual-account.md:29`, `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:29`
   - [x] install, in both rules, rendered
-  - [ ] status, in the ownership-check rule
-- [ ] `bun nv linux-test` runs the Linux cases once by name, because the change reads paths and accounts. `crates/nvs-cli/src/service.rs:6802`
+  - [x] status, in the ownership-check rule
+- [x] `bun nv linux-test` runs the Linux cases once by name, because the change reads paths and accounts. `crates/nvs-cli/src/service.rs:6802`
   - [x] the install case
-  - [ ] the status case
+  - [x] the status case
 
 ### 4. the website and the reference pages say which account each command checks for
 
@@ -288,32 +288,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3's install half is. `registration::install` calls `judge`
-(`crates/nvs-cli/src/service.rs:2224`) after `resolve_account` and before the dry-run return. It
-resolves every stored `--config` that is a file through `Installing` (`crates/nvs-cli/src/service.rs:2263`),
-which is `JudgedFor` the account `Manager::judged_for` (`crates/nvs-cli/src/service.rs:2170`) names,
-and passes a Linux path an `Own` of this install sets together with its directory. The account is
-`account_of` on Windows and `plan.account` or `root` on Linux. With no file to judge, no account is
-looked up, so the cases over `EXAMPLE\nvs-web` stay green. `Recording::judged_for` is
-`Account::current()`, so a case's verdict is its tree's alone; a refusing case opens the file to
-others. `config::no_such_account` is `pub(crate)` for `E0662`. Both rules say what install does and
-are rendered. The nightly Miri failures and `env-secret-proofs` were the run before `e461612ce` and
-`c33a8b8f7`; the log now shows exit 0. No test is expected to go red.
+Stages 1, 2 and 3 are done. Install judges its `--config` files through `judge` and
+`registration::judge_files` (`crates/nvs-cli/src/service.rs:2260`). `nvs service status`
+(`crates/nvs-cli/src/service.rs:4493`) prints the manager's state, and then `status_of`
+(`crates/nvs-cli/src/service.rs:4526`) judges every stored `--config` for `stored.account`. `E0607` is
+an error with exit `1`. `E0605` (a file this prompt cannot read) is turned into a warning, with a help
+that names an administrator prompt or `sudo`, and the exit is `0`. A manager whose `stored` is
+`Unsupported` gives the state alone. `Recording::holding(Stored)` seeds the case
+`status_on_a_stored_service_judges_its_configuration_for_its_account`, green on Windows and in WSL.
+On Windows, `data.rs`'s top folder names `O:BA` when `trust::administrator()` is true, and
+`data::give_to_administrators` (`crates/nvs-config/src/data.rs:619`) sets that owner on the template
+`config::write_default_in` writes and on a refreshed template. The test
+`a_folder_an_administrator_creates_passes_for_the_service_accounts` judges for `LocalSystem` and
+`NT SERVICE\Shop` only on an elevated token. This prompt is not elevated, so only CI's elevated
+Windows runner exercises that branch. Its first run there is the proof. The ownership-check rule says
+what install and status do, and is rendered. The acceptance sweep's Miri failures and
+`env-secret-proofs` came from a run on `55b03e97a`, before `e461612ce`, `c33a8b8f7` and `22f1e4ec4`.
+The check is green now. No test is expected to go red.
 
 ### Next
 
-**Stage 3's rest: the data folder, `status`, and their rule and tests**, one file set:
-`crates/nvs-cli/src/service.rs`, `crates/nvs-config/src/data.rs` and
-`docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md`. The stage's unticked items
-and checkpoints are the list.
-
-- [ ] Windows data folder: `data.rs`'s descriptor names `O:BA` when this token is an administrator, and a test judges a created folder for `LocalSystem`. `crates/nvs-config/src/data.rs:701`
-- [ ] `status` reads `held` (`crates/nvs-cli/src/service.rs:4313`), resolves the stored argv's configuration as `describe_host` names it (`crates/nvs-cli/src/service.rs:4509`), judges it for `stored.account`, prints the state, then `E0607`. `crates/nvs-cli/src/service.rs:4451`
-- [ ] `Control::Status`'s doc line rewritten. `crates/nvs-cli/src/service.rs:2082`
-- [ ] `Recording` takes a seeded `Stored` for the status case, then `bun nv linux-test <name>`. `crates/nvs-cli/src/service.rs:4160`
-- [ ] The status sentence in the ownership-check rule. `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:29`
-
-`judge` can be reused by status if it takes the argv and the account name instead of a `Plan`.
+**Stage 4: the website and the reference pages**, docs only. Follow the stage's `**Split:**` line:
+two writing subagents with disjoint files, each held to AGENTS.md § *Text an end user reads*. The
+stage's items are the list, and each one names its anchor. What the pages say about status: it prints
+the state, then the boot's `E0607` for a file the service's account would refuse, and exits `1`. A file
+the prompt cannot read is a warning. What they say about install: it refuses with that `E0607` before
+it changes anything, `--dry-run` included. On Windows an elevated install's data folder is owned by
+`Administrators`. Stage 5's last-run reading comes after this stage. Leave its sentences out of the
+pages for now.
 
 ### Backlog
 
