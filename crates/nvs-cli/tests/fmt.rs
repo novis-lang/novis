@@ -384,7 +384,11 @@ fn fmt_formats_a_file_that_is_hard_to_format_to_a_fixed_point() {
     assert_ne!(once, source, "the attack is not in the canonical layout");
 
     let (twice, err, code) = stdin(&once, &[]);
-    assert_eq!(code, Some(0), "the formatted attack is formatted again: {err}");
+    assert_eq!(
+        code,
+        Some(0),
+        "the formatted attack is formatted again: {err}"
+    );
     assert_eq!(twice, once, "a second run changes nothing");
 
     for kept in [

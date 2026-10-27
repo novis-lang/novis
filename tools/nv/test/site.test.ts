@@ -104,7 +104,7 @@ describe("nv site --check snippets", () => {
     ]);
   });
 
-  test("a replay shows its snippet, and one that names no snippet or no .replay is named", () => {
+  test("a replay shows its snippet, and one that names no snippet or no .replay or .dap is named", () => {
     const root = site().root;
     s.put(`${DOCS}/guides/a.mdx`, '---\ncovers: []\n---\n\n<Replay src="guides/a/01-key.nvs" />\n<Replay src="guides/a/02-plain.nvs" />\n<Replay src="guides/a/03-gone.nvs" />\n');
     s.put("website/snippets/guides/a/01-key.nvs", "<?nvs\necho 1;\n");
@@ -113,7 +113,7 @@ describe("nv site --check snippets", () => {
     s.put("website/snippets/guides/a/02-plain.nvs", "<?nvs\necho 2;\n");
     s.put("website/snippets/guides/a/02-plain.out", "2\n");
     expect(snippetShape(root).problems).toEqual([
-      `${DOCS}/guides/a.mdx: <Replay src="guides/a/02-plain.nvs"/>: the snippet has no .replay beside it`,
+      `${DOCS}/guides/a.mdx: <Replay src="guides/a/02-plain.nvs"/>: the snippet has no .replay or .dap beside it`,
       `${DOCS}/guides/a.mdx: <Replay src="guides/a/03-gone.nvs"/> names no file under website/snippets/`,
     ]);
   });
