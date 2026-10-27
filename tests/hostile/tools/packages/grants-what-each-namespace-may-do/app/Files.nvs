@@ -1,0 +1,11 @@
+<?nvs
+// This file is part of the application, so it may read files.
+namespace Shop;
+
+final class Files
+{
+    public static function read(string $path): string
+    {
+        return Core\IO::readText($path);
+    }
+}

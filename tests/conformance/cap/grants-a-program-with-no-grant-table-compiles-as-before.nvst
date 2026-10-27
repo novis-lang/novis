@@ -2,6 +2,7 @@
 with no `package.toml`, every namespace has the application's capabilities, so a namespaced file reads a file as before — `rule:security/an-unmatched-namespace-holds-the-application`
 --FILE--
 <?nvs
+// covers: tools:packages/grants-what-each-namespace-may-do
 // There is no `[grants]` table, so `Acme\Cache` can read files like the
 // application can.
 autoload 'Acme\Cache' from './cache';

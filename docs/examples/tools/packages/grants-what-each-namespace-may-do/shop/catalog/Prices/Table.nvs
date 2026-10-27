@@ -1,0 +1,11 @@
+<?nvs
+namespace Shop\Catalog\Prices;
+
+final class Table
+{
+    // The line for `Shop\Catalog\Prices` is empty, so this returns `false` for every capability.
+    public static function may(string $capability): bool
+    {
+        return Core\Cap::has($capability);
+    }
+}

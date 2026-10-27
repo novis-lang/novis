@@ -2,6 +2,7 @@
 a `Core\Config::set` in a package's namespace may lower a `[limits]` key and never raise one, while the application's own code on a command-line run raises `memory` freely — `rule:security/package-authority-is-granted-one-line-at-a-time`
 --FILE--
 <?nvs
+// covers: tools:packages/grants-what-each-namespace-may-do
 // `Acme\Cache` has a line in `[grants]`, so it is a package.
 autoload 'Acme\Cache' from './cache';
 

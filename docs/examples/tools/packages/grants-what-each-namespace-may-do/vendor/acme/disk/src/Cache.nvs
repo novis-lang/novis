@@ -1,0 +1,22 @@
+<?nvs
+namespace Acme\Disk;
+
+final class Cache
+{
+    // `fs.write` is optional for this package. So the package checks it first.
+    // If it may not write files, it keeps the text in memory.
+    public static function save(string $path, string $text): string
+    {
+        if (Core\Cap::has("fs.write")) {
+            Core\IO::write($path, $text);
+            return "saved to disk";
+        }
+        return "kept in memory";
+    }
+
+    // This call compiles. It throws a `RuntimeError` when it runs.
+    public static function forceSave(string $path, string $text): void
+    {
+        Core\IO::write($path, $text);
+    }
+}

@@ -1,0 +1,7 @@
+# The code in `Shop\Catalog` and in every namespace below it may read files.
+# `Shop\Catalog\Prices` has its own line. That line is empty, so its code may not read files.
+# The package `Acme\Disk` may read files, but it may not write files.
+[grants]
+'Shop\Catalog\*' = ["fs.read"]
+'Shop\Catalog\Prices' = []
+'Acme\Disk\*' = ["fs.read"]

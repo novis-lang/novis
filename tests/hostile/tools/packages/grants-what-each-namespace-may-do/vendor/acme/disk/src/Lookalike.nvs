@@ -1,0 +1,12 @@
+<?nvs
+// `Acme\Diskette` starts with the same letters as `Acme\Disk`, but it is another namespace.
+// No line in `[grants]` names it, so it would have every capability.
+namespace Acme\Diskette;
+
+final class Lookalike
+{
+    public static function read(string $path): string
+    {
+        return Core\IO::readText($path);
+    }
+}

@@ -2,6 +2,7 @@
 a capability a package lists as `optional` compiles where its namespace's `[grants]` line does not list it, the call throws a catchable `RuntimeError` when it is reached, and `Core\Cap::has` returns `false` for it in that package — `rule:security/optional-capability-degrades`
 --FILE--
 <?nvs
+// covers: tools:packages/grants-what-each-namespace-may-do
 autoload 'Acme\Disk' from './vendor/acme/disk/src';
 
 echo Acme\Disk\Store::save("note"), "\n";

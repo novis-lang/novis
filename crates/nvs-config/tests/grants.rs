@@ -144,6 +144,7 @@ fn names_are_compared_exactly() {
     assert_eq!(winner(&table, "acme\\http"), None);
 }
 
+// covers: tools:packages/grants-what-each-namespace-may-do
 #[test]
 fn the_longest_key_wins_and_an_exact_key_beats_a_subtree_key_of_its_length() {
     let table = table(concat!(

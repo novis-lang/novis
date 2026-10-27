@@ -1,0 +1,7 @@
+<?nvs
+// Attack: a package loads files from outside its own directory. A package may only load its own
+// files, so this program should not compile.
+// hostile: expect-refusal
+
+// 1. The file `boot.nvs` of `Acme\Zip` uses `..` in `require` and `autoload` to leave the package.
+require './vendor/acme/zip/boot.nvs';

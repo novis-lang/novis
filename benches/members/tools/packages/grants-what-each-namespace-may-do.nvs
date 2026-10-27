@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\Cap::has` in a namespace with a line in `[grants]`, as a package checks a capability before it uses it.
+// bench: iterations 2048
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+namespace Shop\Catalog;
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $capabilities = ["fs.read", "fs.write", "net.connect"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Cap::has($capabilities[(($total + $i) % 3) as int])) {
+                $total = $total + 3;
+            } else {
+                $total = $total + 6;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

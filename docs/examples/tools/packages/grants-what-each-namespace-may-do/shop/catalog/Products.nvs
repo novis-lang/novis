@@ -1,0 +1,17 @@
+<?nvs
+namespace Shop\Catalog;
+
+final class Products
+{
+    // The line for `Shop\Catalog\*` lists `fs.read`, so this call compiles.
+    public static function names(string $path): array<string>
+    {
+        return Core\Str::split(Core\Str::trim(Core\IO::readText($path)), "\n");
+    }
+
+    // This returns `true` when this namespace may use the capability.
+    public static function may(string $capability): bool
+    {
+        return Core\Cap::has($capability);
+    }
+}

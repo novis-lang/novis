@@ -269,8 +269,9 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
-- C.6 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
-- C.7 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
+- C.6 [Packages: grants and package files](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, and the rules every file of a package follows *(package.toml, grants, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code)*
+- C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
+- C.8 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
 # Part A — The language
 
@@ -56146,6 +56147,15 @@ Each change keeps the types of the code, so every mutant compiles. A test method
 inside it, never changes. A change that would give a value the wrong type is not made: `*` and `/`
 swap only on `float` and `decimal` values.
 
+Some conditions tell Novis the type of a value inside the `if`. These conditions are not changed:
+
+- an `is` test, such as `$x is int`
+- an `==` or `!=` that compares a value with `null`, a literal or a constant, when the value can
+  have more than one type, such as `?int`, `int|string` or `mixed`
+
+`if ($n == 10)` is changed when `$n` is an `int`. `if ($n == null)` is not changed when `$n` is a
+`?int`.
+
 Each mutant has one of four results:
 
 | Result | Meaning |
@@ -57083,7 +57093,8 @@ Two things about accounts:
   your own account the right by name, as in step 4.
 - A folder that you created is owned by your account. That passes while you run `nvs` yourself.
   When `nvs serve` runs as a service under another account, the owner must be that account,
-  `Administrators` or `SYSTEM`.
+  `Administrators` or `SYSTEM`. In a prompt started with **Run as administrator**,
+  `icacls <path> /setowner *S-1-5-32-544` makes `Administrators` the owner.
 
 ### Linux and macOS
 
@@ -57106,12 +57117,13 @@ it with `chmod go-w <path>`.
 ### When something is refused
 
 Every message names a path. **Change the permissions of that path**, also when it is not the
-folder you were working in.
+folder you were working in. The `help:` line under the message prints the command to run, with
+the path filled in.
 
 | Message | Meaning | What to do |
 |---|---|---|
 | `... grants write access to ...` (Windows), `... is group-writable`, `... is world-writable` or `... is group- and world-writable` (Linux and macOS) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
-| `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator |
+| `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator** |
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |
@@ -58539,8 +58551,126 @@ echo Stock::label(3), "\n";
 E0739
 ```
 
+<a id="tools-packages"></a>
+## C.6 Packages: grants and package files
+
+Keywords: package.toml, grants, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+
+### Grants: what each namespace may do
+
+The `[grants]` table says which capabilities the code in each namespace may use. A capability is a
+right such as `fs.read` or `net.connect`. The table is in the `package.toml` file of your
+application:
+
+```toml
+[grants]
+'Acme\Http\*' = ["net.connect"]
+'Acme\Cache'  = []
+```
+
+Novis finds this file in the directory of the entry file, or in the nearest directory above it. The
+entry file is the file you pass to `nvs run` or `nvs serve`. The current directory does not matter.
+
+Each key is a namespace. Each value is a list of capability names. `'Acme\Cache'` matches only the
+namespace `Acme\Cache`. `'Acme\Http\*'` matches `Acme\Http` and every namespace below it, such as
+`Acme\Http\Client`. An empty list gives the namespace no capability.
+
+The check happens when the program compiles. A call to a `Core` method that needs a capability
+compiles only if the namespace of the code that makes the call has that capability. The namespace is
+the one in the file's `namespace` line. An anonymous function has the namespace it is written in. A
+`use` line does not change anything. A missing capability is error `E0658`. The message shows the
+line to change.
+
+```toml file=package.toml
+[grants]
+'Acme\Cache' = []
+```
+```nvs file=lib/Store.nvs
+<?nvs
+namespace Acme\Cache;
+
+final class Store
+{
+    public static function load(): string
+    {
+        return Core\IO::readText("note.txt");
+    }
+}
+```
+```nvs error
+<?nvs
+autoload 'Acme\Cache' from './lib';
+
+echo Acme\Cache\Store::load(), "\n";
+```
+```output
+the namespace `Acme\Cache` does not have the capability `fs.read`
+```
+
+When several keys match a namespace, the longest key wins. Length is counted in namespace parts. A
+key without `\*` wins over a key with `\*` of the same length. Only the winning line applies. A
+longer key never adds to a shorter one.
+
+A namespace that no key matches has every capability of the application. So a program without a
+`[grants]` table compiles exactly as before. A namespace with a line has only what the line lists.
+
+The table can only take capabilities away. `nvs.toml` still decides what the program may do at
+all, and each path or host a call uses is still checked when the call runs. A call can do only what
+both files allow.
+
+These lines are errors:
+
+| Line | Error |
+|---|---|
+| a key that is not a namespace, a value that is not a list, an unknown capability | `E0655` |
+| `'\Acme\Http'` next to `'Acme\Http'`: a `\` at the start changes nothing, so both keys are the same | `E0656` |
+| a key that names `Core` or a namespace below it | `E0657` |
+
+#### A package's own `package.toml`
+
+A package is a directory with its own `package.toml`. Its name is a vendor and a name, such as
+`Acme\Disk`. The file lists the capabilities the package needs:
+
+```toml
+[package]
+name = 'Acme\Disk'
+
+[capabilities]
+required = ["fs.read"]
+optional = ["fs.write"]
+```
+
+This list grants nothing. It only tells you what to write in `[grants]`. A file of your program
+belongs to the package when the package's `package.toml` is in the file's directory or in a directory
+between the file and the entry file. A `package.toml` in the entry file's directory, or above it, is
+your application's own file. A bad package file is error `E0659`.
+
+A capability in `required` that the package's grant line does not list is error `E0658`, as above.
+A capability in `optional` that the line does not list compiles. A call that needs it throws a
+`RuntimeError` when it runs. Before the call, the package can check the capability with
+`Core\Cap::has`:
+
+```nvs skip
+if (Core\Cap::has("fs.write")) {
+    Core\IO::write("cache.txt", $text);
+}
+```
+
+`Core\Cap::has` returns `true` only when the grant line of the calling namespace and `nvs.toml`
+both allow the capability.
+
+#### The rules for a package's files
+
+Every file of a package declares the package's namespace or a namespace below it. A file of
+`Acme\Disk` may declare `namespace Acme\Disk;` or `namespace Acme\Disk\Index;`. Any other
+namespace is error `E0660`. So a package cannot use the grant line of your application or of another
+package.
+
+A `require` or `autoload` path in a package must stay inside the package's directory. A path that
+leaves it with `..`, with an absolute path or through a symbolic link is error `E0661`.
+
 <a id="tools-editor"></a>
-## C.6 The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension
+## C.7 The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension
 
 Keywords: nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand
 
@@ -59125,7 +59255,7 @@ The debugger is VS Code's own debug view over `nvs dap`. None of them is a panel
 maintains.
 
 <a id="tools-agents"></a>
-## C.7 Coding agents: nvs agent, and what nvs agent init installs
+## C.8 Coding agents: nvs agent, and what nvs agent init installs
 
 Keywords: nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 

@@ -1,0 +1,8 @@
+# The package `Acme\Disk` needs to read files.
+# It can also write files, but it works without that.
+[package]
+name = 'Acme\Disk'
+
+[capabilities]
+required = ["fs.read"]
+optional = ["fs.write"]

@@ -60,6 +60,7 @@ fn client_in(namespace: &str, manifest: Option<&str>) -> (String, bool) {
     check(&app.join("main.nvs"))
 }
 
+// covers: tools:packages/grants-what-each-namespace-may-do
 #[test]
 fn a_package_file_that_declares_a_namespace_outside_its_package_does_not_compile() {
     let (stderr, ok) = client_in("Acme\\Http", Some(MANIFEST));

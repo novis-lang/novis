@@ -32,6 +32,7 @@ final class Store
     }
 }
 --FILE package.toml--
+# covers: tools:packages/grants-what-each-namespace-may-do
 [grants]
 'Acme\Http\*' = ["net.connect"]
 'Acme\Cache' = []

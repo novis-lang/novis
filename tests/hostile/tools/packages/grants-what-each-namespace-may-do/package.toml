@@ -1,0 +1,4 @@
+[grants]
+'Shop\*' = ["fs.read"]
+'Acme\Disk\*' = []
+'Acme\Zip\*' = []

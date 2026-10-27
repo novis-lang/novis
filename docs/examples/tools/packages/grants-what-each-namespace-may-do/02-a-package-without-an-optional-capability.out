@@ -1,0 +1,2 @@
+kept in memory
+`Core\IO::write` needs `fs.write`

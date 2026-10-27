@@ -1,0 +1,3 @@
+# The code in the namespace `Shop\Catalog` may read files, and nothing else.
+[grants]
+'Shop\Catalog' = ["fs.read"]

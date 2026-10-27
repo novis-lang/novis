@@ -1,0 +1,12 @@
+<?nvs
+// This file is in the package `Acme\Disk`, but it says it is in `Shop`.
+// `Shop` may read files, and `Acme\Disk` may not.
+namespace Shop;
+
+final class Reader
+{
+    public static function read(string $path): string
+    {
+        return Core\IO::readText($path);
+    }
+}

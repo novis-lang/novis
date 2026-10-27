@@ -1,0 +1,15 @@
+<?nvs
+// Shows which line of `[grants]` applies when several keys match a namespace.
+
+autoload 'Shop\Catalog' from './shop/catalog';
+autoload 'Shop\Catalog\Prices' from './shop/catalog/Prices';
+
+// No line matches the namespace of this file. So it has every capability, and this prints `true`.
+echo 'this file: ', Core\Cap::has("fs.write") ? "true" : "false", "\n";
+
+// Only `Shop\Catalog\*` matches `Shop\Catalog`. Its line lists `fs.read`, so this prints `true`.
+echo 'Shop\Catalog: ', Shop\Catalog\Products::may("fs.read") ? "true" : "false", "\n";
+
+// `Shop\Catalog\*` and `Shop\Catalog\Prices` both match `Shop\Catalog\Prices`.
+// The longer key wins. Its line is empty, so this prints `false`.
+echo 'Shop\Catalog\Prices: ', Shop\Catalog\Prices\Table::may("fs.read") ? "true" : "false", "\n";

@@ -1,0 +1,13 @@
+<?nvs
+// Attack: a package says its files are in another namespace, to use that namespace's capabilities.
+// A package file must use the package's own namespace, so this program should not compile.
+// hostile: expect-refusal
+
+autoload 'Shop' from './vendor/acme/disk/src';
+autoload 'Acme\Diskette' from './vendor/acme/disk/src';
+
+// 1. A file of `Acme\Disk` says it is in `Shop`, which may read files.
+echo Shop\Reader::read('data/secret.txt');
+
+// 2. A file of `Acme\Disk` says it is in `Acme\Diskette`, which no grant line names.
+echo Acme\Diskette\Lookalike::read('data/secret.txt');

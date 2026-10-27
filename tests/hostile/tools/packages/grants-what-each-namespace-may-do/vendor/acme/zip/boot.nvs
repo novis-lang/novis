@@ -1,0 +1,8 @@
+<?nvs
+// This file is in the package `Acme\Zip`. It tries to load files outside the package.
+namespace Acme\Zip;
+
+require '../../../app/Files.nvs';
+autoload 'Acme\Zip\Spare' from '../disk/src';
+
+echo Shop\Files::read('data/secret.txt');

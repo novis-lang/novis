@@ -1,0 +1,17 @@
+<?nvs
+// Shows code in the namespace `Shop\Catalog` reading a file, because its line in `[grants]` lists `fs.read`.
+
+autoload 'Shop\Catalog' from './shop/catalog';
+
+// No line in `[grants]` matches this file, so it may write files.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'products.txt');
+Core\IO::write($path, "Lamp\nChair\nDesk\n");
+
+// `Products::names` reads the file. This prints three product names.
+foreach (Shop\Catalog\Products::names($path) as string $name) {
+    echo $name, "\n";
+}
+
+// The line for `Shop\Catalog` lists only `fs.read`. So this prints `true` and then `false`.
+echo Shop\Catalog\Products::may("fs.read") ? "true" : "false", "\n";
+echo Shop\Catalog\Products::may("fs.write") ? "true" : "false", "\n";

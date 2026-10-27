@@ -2,6 +2,7 @@
 an anonymous function written in the application keeps the application's capabilities when a namespace granted nothing calls it — `rule:security/authority-is-the-enclosing-namespace`
 --FILE--
 <?nvs
+// covers: tools:packages/grants-what-each-namespace-may-do
 // This file has no namespace, so it is the application. The function below
 // reads a file, and `Acme\Cache` calls it.
 autoload 'Acme\Cache' from './cache';
