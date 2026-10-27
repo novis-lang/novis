@@ -31,10 +31,11 @@
  *
  * Each theme lifts or darkens the brand colors by lightness alone, with
  * oklch(from …): the dark theme uses orange as drawn for borders and fills
- * and raises it to L 0.78 for text, the light theme darkens it to L 0.52 for
- * text and L 0.42 for text on an orange wash. The color-mix() values in front
- * of each @supports block are the fallback for a browser without relative
- * color syntax.
+ * and raises it to L 0.78 for text, the light theme darkens it to L 0.55 for
+ * text and L 0.46 for text on an orange wash, and turns those two 8 degrees
+ * toward crimson so they stay bright. The light theme also lifts crimson to
+ * L 0.55. The color-mix() values in front of each @supports block are the
+ * fallback for a browser without relative color syntax.
  *
  * Status colors (ok, warn, danger, and the asides) are Starlight's own green,
  * orange, red and blue, so a "danger" in a signature matches a danger aside.
@@ -111,7 +112,9 @@
   --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 69%, white);
 
   /* Crimson for a button fill and for text; orange darkened to a fill under
-     white text (6:1), in both themes; gold as text. */
+     white text (5.2:1), in both themes; gold as text. The fill turns 8
+     degrees toward crimson: at this lightness orange's own hue is brown,
+     and the turned hue keeps a fifth more chroma. */
   --nv-crimson-fill: color-mix(in oklab, var(--nv-crimson) 92%, white);
   --nv-crimson-text: color-mix(in oklab, var(--nv-crimson) 60%, white);
   --nv-orange-fill: color-mix(in oklab, var(--nv-orange) 76%, black);
@@ -194,7 +197,7 @@
     --sl-color-accent-high: oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h);
     --nv-crimson-fill: oklch(from var(--nv-crimson) 0.52 c h);
     --nv-crimson-text: oklch(from var(--nv-crimson) 0.66 c h);
-    --nv-orange-fill: oklch(from var(--nv-orange) 0.52 c h);
+    --nv-orange-fill: oklch(from var(--nv-orange) 0.55 0.172 calc(h - 8));
     --nv-grad-b: oklch(from var(--nv-orange) 0.74 calc(c * 0.8) h);
   }
 }
@@ -214,8 +217,8 @@
   --sl-color-bg-inline-code: var(--nv-code-bg);
 
   /* Orange as drawn is too light for text here (3:1), so -accent is the
-     orange fill, which is link text (5.7:1 on the page); -high is text on
-     an orange wash (8.6:1). */
+     orange fill, which is link text (5.1:1 on the page); -high is text on
+     an orange wash (7.6:1). */
   --sl-color-accent-low: color-mix(in oklab, var(--nv-orange) 10%, var(--nv-fog));
   --sl-color-accent: var(--nv-orange-fill);
   --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 62%, black);
@@ -224,8 +227,10 @@
   --nv-crimson-text: var(--nv-crimson);
   --nv-gold-text: color-mix(in oklab, var(--nv-gold) 58%, black);
 
-  --nv-grad-a: var(--nv-crimson);
-  --nv-grad-b: var(--sl-color-accent);
+  /* The gradient is large text only, so its orange end needs 3:1 and can
+     stay bright: 3.2:1. */
+  --nv-grad-a: var(--nv-crimson-text);
+  --nv-grad-b: color-mix(in oklab, var(--nv-orange) 94%, black);
 
   --nv-surface: color-mix(in oklab, white 70%, var(--nv-fog));
   --nv-surface-2: color-mix(in oklab, var(--nv-orange) 3%, white);
@@ -264,18 +269,24 @@
 @supports (color: oklch(from white l c h)) {
   :root[data-theme='light'] {
     --sl-color-accent-low: oklch(from var(--nv-orange) 0.95 calc(c * 0.1) h);
-    --sl-color-accent-high: oklch(from var(--nv-orange) 0.42 c h);
-    --nv-gold-text: oklch(from var(--nv-gold) 0.5 calc(c * 0.6) h);
+    --sl-color-accent-high: oklch(from var(--nv-orange) 0.46 0.144 calc(h - 8));
+    /* Crimson lifted from L 0.49 to 0.55 for a brighter red that still
+       carries white text and is text itself (5.3:1). */
+    --nv-crimson-fill: oklch(from var(--nv-crimson) 0.55 c h);
+    --nv-crimson-text: oklch(from var(--nv-crimson) 0.55 c h);
+    --nv-gold-text: oklch(from var(--nv-gold) 0.54 0.11 h);
+    --nv-grad-b: oklch(from var(--nv-orange) 0.66 c h);
   }
 }
 
-/* The signature gradient and the thin version that draws lines. */
+/* The signature gradient and the thin version that draws lines. The line
+   is decoration, so it takes each brand color at full strength. */
 :root {
   --nv-gradient: linear-gradient(110deg, var(--nv-grad-a) 0%, var(--nv-grad-b) 100%);
   --nv-gradient-line: linear-gradient(
     90deg,
-    var(--nv-crimson) 0%,
-    var(--sl-color-accent) 55%,
+    var(--nv-crimson-fill) 0%,
+    var(--nv-orange) 55%,
     var(--nv-gold) 100%
   );
 }
@@ -324,16 +335,14 @@
   }
 
   /* The space beside the column shows a quiet copy of the home page's
-     backdrop: a patch of the dot grid and two soft color fields on each
-     side. They do not move. Every one of them is a circle whose size is a
-     share of the space's width, so they keep their shape and only grow or
-     shrink with the window, and each fades out before the column.
-     The largest circle is as wide as the space. Below 300px it is not
-     shown, and from 300px to 500px it fades in. --nv-backdrop-in is that
-     share, a number from 0 to 1: tan(atan2(a, b)) is a / b, which is how
-     CSS divides one length by another. */
-  body::before,
-  body::after {
+     backdrop: a patch of the dot grid on each side. It does not move. Each
+     patch is a circle whose size is a share of the space's width, so it
+     keeps its shape and only grows or shrinks with the window, and it fades
+     out before the column. The circle is as wide as the space. Below 300px
+     it is not shown, and from 300px to 500px it fades in. --nv-backdrop-in
+     is that share, a number from 0 to 1: tan(atan2(a, b)) is a / b, which
+     is how CSS divides one length by another. */
+  body::before {
     --nv-side-left: calc(var(--nv-gutter) / 2);
     --nv-side-right: calc(100% - var(--nv-gutter) / 2);
     --nv-backdrop-in: clamp(0, tan(atan2(var(--nv-gutter) - 300px, 200px)), 1);
@@ -343,8 +352,6 @@
     inset: 0;
     pointer-events: none;
     opacity: var(--nv-backdrop-in);
-  }
-  body::before {
     background-image: radial-gradient(color-mix(in oklab, var(--sl-color-white) 11%, transparent) 1px, transparent 1.5px);
     background-size: 22px 22px;
     -webkit-mask-image:
@@ -354,38 +361,13 @@
       radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 48%, black 30%, transparent),
       radial-gradient(circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-right) 48%, black 30%, transparent);
   }
-  body::after {
-    background-image:
-      radial-gradient(
-        circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 30%,
-        color-mix(in oklab, var(--nv-orange) 16%, transparent),
-        transparent 70%
-      ),
-      radial-gradient(
-        circle calc(var(--nv-gutter) * 0.42) at var(--nv-side-left) 68%,
-        color-mix(in oklab, var(--nv-gold) 8%, transparent),
-        transparent 70%
-      ),
-      radial-gradient(
-        circle calc(var(--nv-gutter) * 0.42) at var(--nv-side-right) 28%,
-        color-mix(in oklab, var(--nv-orange) 12%, transparent),
-        transparent 70%
-      ),
-      radial-gradient(
-        circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-right) 66%,
-        color-mix(in oklab, var(--nv-crimson) 12%, transparent),
-        transparent 70%
-      );
-  }
-  :root[data-theme='light'] body::before,
-  :root[data-theme='light'] body::after {
+  :root[data-theme='light'] body::before {
     opacity: calc(var(--nv-backdrop-in) * 0.7);
   }
 }
 /* Like the home page's backdrop, this is only decoration. */
 @media (prefers-contrast: more), (prefers-reduced-transparency: reduce), (forced-colors: active), print {
-  body::before,
-  body::after {
+  body::before {
     display: none;
   }
 }

@@ -136,9 +136,12 @@ Each theme moves a brand color by **lightness alone**, keeping its hue:
 `oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h)` is the dark theme's link color, because
 mixing toward white would also wash out the hue. The dark theme uses orange as drawn for
 borders and fills and lifts it to L 0.78 for text, and crimson to L 0.66 for text. The light
-theme darkens orange to L 0.52 for text (`--nv-orange-fill`, which is also the fill under
-white text in both themes), L 0.42 for text on an orange wash, and gold to L 0.5 for text.
-Each relative color has a `color-mix()` fallback in front of an `@supports` block.
+theme darkens orange to L 0.55 for text (`--nv-orange-fill`, which is also the fill under
+white text in both themes) and L 0.46 for text on an orange wash, and turns both 8 degrees
+toward crimson, because orange's own hue is brown at that lightness. It lifts crimson to
+L 0.55, and gold sits at L 0.54 for text. The signature gradient is large text only, so its
+orange end stays bright at L 0.66 (3:1). Each relative color has a `color-mix()` fallback in
+front of an `@supports` block.
 
 Derived tokens a component reaches for: `--nv-surface` and `--nv-surface-2` (a card and a
 raised strip), `--nv-hairline` and `--nv-hairline-strong`, `--nv-wash` (an orange tint behind
