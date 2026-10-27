@@ -1,0 +1,13 @@
+{
+  "title": "Every expression kind and control structure has a broken layout or is listed as keeping its author's line breaks, and a test fails on one that is neither",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/fmt-never-reflows",
+    "tooling/fmt-every-binary-operator-breaks-operator-first",
+    "tooling/fmt-a-broken-ternary-has-a-line-per-branch",
+    "tooling/fmt-every-control-header-breaks-like-a-condition",
+    "tooling/fmt-one-run-between-two-tokens"
+  ],
+  "guardedBy": [],
+  "goal": "fmt-spacing"
+}

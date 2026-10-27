@@ -1,7 +1,7 @@
 ---
 looper: 1
-title: "`nvs fmt` decides every space on a line and every run of blank lines"
-summary: "Every run between two tokens on one line has one answer from a table of token roles, a run the table does not name is the author's only for a token kind the coverage test lists, a formatted file lexes to the token kinds its source did, a body has no blank line after its opening brace or before its closing one and no two blank lines in a row, every file and page the corpus holds is formatted, rules tooling/fmt-one-run-between-two-tokens and tooling/fmt-at-most-one-blank-line are shipped, and the checks below pass."
+title: "`nvs fmt` decides every space on a line, every run of blank lines and every broken construct"
+summary: "Every run between two tokens on one line has one answer from a table of token roles, a run the table does not name is the author's only for a token kind the coverage test lists, a formatted file lexes to the token kinds its source did, a body has no blank line after its opening brace or before its closing one and no two blank lines in a row, every binary operator chain breaks operator first with a nested broken chain one level further in and a `.` chain keeping its author's lines, a broken chain or ternary breaks the list that holds it, a broken ternary has a line per branch, every control header breaks like a condition, every expression kind and control structure is on one of the two layout lists, every file and page the corpus holds is formatted, the seven rules this goal designs are shipped, and the checks below pass."
 context: [crates/nvs-fmt/src/print.rs, crates/nvs-fmt/src/lib.rs, docs/rules/tooling/fmt-one-run-between-two-tokens.md, docs/agent/playbook/tooling/a-layout-rule-nvs-fmt-learns-is-green-only-if-the-corpus.md]
 stages:
   - id: 1
@@ -25,6 +25,34 @@ stages:
     extra:
       context:
         rules: [tooling/fmt-at-most-one-blank-line, tooling/fmt-base-style-is-per]
+  - id: 7
+    title: every binary operator chain breaks operator first, a nested one is one level in, and `.` keeps its lines
+    status: open
+    context: [crates/nvs-fmt/src/chain.rs, crates/nvs-fmt/tests/chain_layout.rs, docs/rules/tooling/fmt-every-binary-operator-breaks-operator-first.md]
+    extra:
+      context:
+        rules: [tooling/fmt-every-binary-operator-breaks-operator-first, tooling/fmt-a-broken-operator-chain-is-one-operand-per-line]
+  - id: 8
+    title: a broken ternary has a line per branch, and a broken item breaks its list
+    status: open
+    context: [crates/nvs-fmt/src/chain.rs, crates/nvs-fmt/src/list.rs, crates/nvs-fmt/tests/chain_layout.rs, crates/nvs-fmt/tests/list_layout.rs]
+    extra:
+      context:
+        rules: [tooling/fmt-a-broken-ternary-has-a-line-per-branch, tooling/fmt-a-broken-item-breaks-its-list, tooling/fmt-a-list-is-one-line-or-one-item-per-line]
+  - id: 9
+    title: every control header breaks like a condition
+    status: open
+    context: [crates/nvs-fmt/src/chain.rs, crates/nvs-fmt/tests/chain_layout.rs, docs/rules/tooling/fmt-every-control-header-breaks-like-a-condition.md]
+    extra:
+      context:
+        rules: [tooling/fmt-every-control-header-breaks-like-a-condition]
+  - id: 10
+    title: every construct is on one of the two layout lists, and the editor splits and joins the new ones
+    status: open
+    context: [crates/nvs-syntax/src/walk.rs, crates/nvs-fmt/src/split_join.rs, docs/rules/tooling/fmt-every-construct-has-a-broken-layout.md]
+    extra:
+      context:
+        rules: [tooling/fmt-every-construct-has-a-broken-layout, ide/a-list-splits-onto-lines-and-joins-onto-one]
   - id: 4
     title: every file and page the corpus holds is formatted
     status: open
@@ -32,7 +60,7 @@ stages:
   - id: 5
     title: the rules are shipped, and the `nvs fmt` page says what the command now does
     status: open
-    context: [docs/rules/tooling/fmt-base-style-is-per.md, docs/rules/tooling/fmt-novis-constructs.md, docs/examples/tools/cli/nvs-fmt/about.md]
+    context: [docs/rules/tooling/fmt-base-style-is-per.md, docs/rules/tooling/fmt-novis-constructs.md, docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md, docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md, docs/examples/tools/cli/nvs-fmt/about.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -42,6 +70,14 @@ checks:
     stage: 2
     name: every row of the spacing table and its coverage test pass
     run: [cargo, test, --test, token_gaps]
+  - id: chain-layout
+    stage: 9
+    name: every broken chain, ternary, list item and control header case passes
+    run: [cargo, test, --test, chain_layout]
+  - id: layout-coverage
+    stage: 10
+    name: every syntax node kind is on one of the two layout lists
+    run: [cargo, test, --test, layout_coverage]
   - id: corpus-formatted
     stage: 4
     name: every file and page the corpus holds is already formatted
@@ -54,7 +90,7 @@ checks:
     floor: false
 ---
 
-# `nvs fmt` decides every space on a line and every run of blank lines
+# `nvs fmt` decides every space on a line, every run of blank lines and every broken construct
 
 ## Why
 
@@ -67,6 +103,14 @@ in a body stay three. Two programs that differ only in spacing stay different, w
 `rule:tooling/fmt-is-one-canonical-style` exists to prevent. `rule:tooling/fmt-base-style-is-per`
 promises PER, and PER-CS fixes most of these runs.
 
+The line breaks have the same hole. A broken `&&`, `||`, `??` or `.` chain, a `->` chain, a list and
+an `if`, `elseif`, `while` or `do … while` condition have one layout each. A broken `+` or `>` chain, a
+ternary and a `match`, `switch`, `foreach` or `for` header are copied as written. A break inside a
+higher-precedence group leaves an `&&` under the `if` where it reads as top-level, and a broken
+concatenation inside a call leaves its `)` on its last operand's line. A `.` chain of short pieces
+becomes a column of one piece per line. Users write every construct the grammar accepts, whether the
+corpus has one or not, so every construct gets a layout or is listed as keeping its author's.
+
 ## Standing decisions
 
 **The table is `rule:tooling/fmt-one-run-between-two-tokens`'s, and the blank lines are
@@ -74,6 +118,25 @@ promises PER, and PER-CS fixes most of these runs.
 session implements a row and never chooses one. A pair the table does not name keeps the author's run.
 If a row turns out to break a corpus file's meaning, the safe fallback is to move that pair to the
 author's list, and to say so in the rule.
+
+**The line-break layouts are the five rules this goal designs, and the user chose each one**:
+`rule:tooling/fmt-every-binary-operator-breaks-operator-first`,
+`rule:tooling/fmt-a-broken-item-breaks-its-list`, `rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`,
+`rule:tooling/fmt-every-control-header-breaks-like-a-condition` and
+`rule:tooling/fmt-every-construct-has-a-broken-layout`. The `.` exception is the user's call: a broken
+`.` chain keeps its author's lines with each `.` first, and is never one operand per line. The
+formatter never adds parentheses to show a nested group; one more level of indentation shows it.
+
+**The line-break layouts live in `chain.rs` and `list.rs`, as the existing ones do.** `OPERATORS`
+(`crates/nvs-fmt/src/chain.rs:91`) grows to every binary operator, with `.` taking its own path, and
+`CONDITIONS` (`crates/nvs-fmt/src/chain.rs:94`) grows to every control structure. A ternary is a
+chain of two seams, `?` and `:`, and goes in `chain.rs` beside the operator chains. If `chain.rs`
+passes about 1,200 lines, the session moves the headers into `crates/nvs-fmt/src/header.rs`.
+
+**The coverage test reads the node kinds from `walk.rs`**, as `space.rs` already spells them, and the
+two lists are constants in `chain.rs`. A node kind found on neither list fails the test by name. A
+session that meets an unlisted kind puts it on the author's list, one level in, and adds it to the
+rule's list in the same slice.
 
 **One new module, `crates/nvs-fmt/src/gap.rs`, writes the table.** It hands the printer the same
 `(offset, run)` pairs every other stage does, so nothing in `print.rs` changes but one `extend`. Its
@@ -110,11 +173,16 @@ lex per file. Memory: one token vector and one list of type spans per file, both
 next file, which is O(one file) in a command-line tool and an editor request. Simplicity: one module
 and one table, held by a test that names every token kind. Usability: programs that differ only in
 spacing format to the same bytes, and hand-aligned columns become single spaces. The cost is one large
-corpus diff and one round of perf recording for the benches whose text changes.
+corpus diff and one round of perf recording for the benches whose text changes. The line-break
+layouts cost a walk over the nodes `chain.rs` already walks. A broken `.` chain has three layouts where
+every other construct has two, which is the price of not splitting a sentence into a column.
 
-**Lanes.** Stages 1 to 3 touch `crates/nvs-fmt` alone and run in order: 1 and 2 share `gap.rs`, and 3
-shares `print.rs`. Stage 3 is disjoint from `gap.rs` and may run beside stage 2 in its own worktree.
-Stage 4 needs stages 1 to 3 landed. Stage 5 touches docs alone and may run beside stage 4.
+**Lanes.** Every stage but 5 touches `crates/nvs-fmt` alone. Stages 1 and 2 share `gap.rs` and run in
+order. Stages 7, 8, 9 and 10 share `chain.rs` and run in order, after stage 3, since 3 and 7 both touch
+the code that writes a line's opening. Stages 1 and 2 are disjoint from 7 to 10 except one `extend` in
+`print.rs`, so they may run side by side in their own worktrees, and the second to land rebases over
+that line. Stage 4 needs stages 1 to 3 and 7 to 10 landed, so the corpus is formatted once. Stage 5
+touches docs alone and may run beside stage 4.
 
 ## Stages
 
@@ -150,6 +218,46 @@ that ends its line or before a closing one that starts its line.
 - [ ] The blank lines `rule:tooling/fmt-base-style-is-per` requires still win on their offset, as `print.rs` orders them now. `crates/nvs-fmt/src/print.rs:143`
 - [ ] Tests: three blank lines become one, a blank line after a method's `{` and before its `}` is deleted, and a heredoc's and a template's blank lines are kept. Run once by name with `cargo test --test base_style`. `crates/nvs-fmt/tests/base_style.rs:1`, `tests/fmt/input/blank.nvs:1`, `tests/fmt/formatted/blank.nvs:1`
 
+### 7. every binary operator chain breaks operator first, a nested one is one level in, and `.` keeps its lines
+
+**Does:** the operator chains cover every binary operator, a broken chain inside a broken chain is
+indented one more level, and `.` keeps the lines its author wrote.
+
+- [ ] `OPERATORS` names the arithmetic operators, the comparisons, `<=>`, the bitwise operators and `|>` beside `&&`, `||`, `??` and `.`, read from the `Binary` node's operator as `operator_of` reads it (`rule:tooling/fmt-every-binary-operator-breaks-operator-first`). `crates/nvs-fmt/src/chain.rs:91`, `crates/nvs-fmt/src/chain.rs:380`
+- [ ] A broken chain that is an operand of a broken chain opens its lines one level in from its first operand. `crates/nvs-fmt/src/chain.rs:555`, `crates/nvs-fmt/src/chain.rs:588`
+- [ ] A broken `.` chain writes a line break only where its author wrote one, and moves the `.` to the start of the line after it. `crates/nvs-fmt/src/chain.rs:400`, `crates/nvs-fmt/src/chain.rs:588`
+- [ ] The crate doc of `chain.rs` says what the module now does. `crates/nvs-fmt/src/chain.rs:1`
+- [ ] Tests: a broken `+` chain, a broken comparison, `||` over a broken `&&` group, a `.` chain broken after one operand and one broken before it, and a `.` chain with three lines. `crates/nvs-fmt/tests/chain_layout.rs:1`
+
+### 8. a broken ternary has a line per branch, and a broken item breaks its list
+
+**Does:** a ternary has its two layouts, and a broken chain or ternary inside a one-line list breaks
+the innermost list around it.
+
+- [ ] A `Ternary` with a line break at its own level opens a line for its `?` and its `:`, one level in from its condition's line, and a short ternary for its `?:` (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`). `crates/nvs-fmt/src/chain.rs:211`
+- [ ] A list item that is a broken operator chain, call chain or ternary breaks the innermost list holding it; an anonymous function's body, a nested list and a heredoc still do not (`rule:tooling/fmt-a-broken-item-breaks-its-list`). `crates/nvs-fmt/src/list.rs:246`, `crates/nvs-fmt/src/list.rs:286`
+- [ ] Tests: a ternary broken after its condition, one broken before its `:`, a short ternary, a broken concatenation as a call's only argument, a broken call chain as an argument, and an anonymous function's body that still leaves its list on one line. `crates/nvs-fmt/tests/chain_layout.rs:1`, `crates/nvs-fmt/tests/list_layout.rs:1`
+
+### 9. every control header breaks like a condition
+
+**Does:** `switch`, `match`, `foreach` and `for` headers take the condition layout, and a break inside
+a nested operator chain breaks the header.
+
+- [ ] `CONDITIONS` names `Switch`, `Match`, `Foreach` and `For` beside `If`, `While` and `DoWhile`, and `condition_of` finds each one's header between its `(` and `)` (`rule:tooling/fmt-every-control-header-breaks-like-a-condition`). `crates/nvs-fmt/src/chain.rs:94`, `crates/nvs-fmt/src/chain.rs:427`
+- [ ] A line break inside an operator chain at any depth of the header, outside brackets of its own, breaks the header. `crates/nvs-fmt/src/chain.rs:448`
+- [ ] A broken `foreach` header starts `as` and its binding on a line, with `$key => $value` kept together. A broken `for` header puts each clause on a line. `crates/nvs-fmt/src/chain.rs:567`
+- [ ] Tests: each header kind broken after its `(`, a broken `match` subject, a `foreach` with a key, a `for` header, and an `if` broken inside its `&&` group. `cargo test --test chain_layout` passes. `crates/nvs-fmt/tests/chain_layout.rs:1`
+
+### 10. every construct is on one of the two layout lists, and the editor splits and joins the new ones
+
+**Does:** a test proves every syntax node kind has a layout or is listed as the author's, and the
+editor's split and join actions cover the new constructs.
+
+- [ ] The two lists in `chain.rs`: each construct with a broken layout and the rule that gives it, and each construct whose breaks are the author's, as `rule:tooling/fmt-every-construct-has-a-broken-layout` lists them. `crates/nvs-fmt/src/chain.rs:82`
+- [ ] The coverage test reads every node kind `walk.rs` names and fails naming each that is on neither list. `cargo test --test layout_coverage` passes. `crates/nvs-fmt/tests/layout_coverage.rs:1`, `crates/nvs-syntax/src/walk.rs:1`
+- [ ] **Put on separate lines** and **Join onto one line** are offered on every binary operator chain, a ternary and a control header, and write what `nvs fmt` writes. Split on a `.` chain puts one operand per line (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`). `crates/nvs-fmt/src/split_join.rs:1`
+- [ ] Tests: split then format, and join then format, change nothing more for a `+` chain, a ternary and a `match` header. `crates/nvs-lsp/tests/actions.rs:154`
+
 ### 4. every file and page the corpus holds is formatted
 
 **Does:** the corpus is rewritten once with the new rules, and every file that quotes a position in
@@ -172,7 +280,11 @@ each. Writing subagents, one per tree, fix those comments side by side, and none
 - [ ] `rule:tooling/fmt-base-style-is-per` says every other blank line is the author's, but never more than one in a row, and cites `rule:tooling/fmt-at-most-one-blank-line`. `docs/rules/tooling/fmt-base-style-is-per.md:17`
 - [ ] `rule:tooling/fmt-novis-constructs`'s attribute line is rewritten: an attribute `#[...]` is spaced by `rule:tooling/fmt-one-run-between-two-tokens`'s `#[` row. `docs/rules/tooling/fmt-novis-constructs.md:27`
 - [ ] The `nvs fmt` page says in two plain sentences what is set inside a line and how many blank lines are kept, held to § *Text an end user reads* in `AGENTS.md`. `docs/examples/tools/cli/nvs-fmt/about.md:1`
-- [ ] Both rules are `shipped`, with `token_gaps.rs`, `base_style.rs` and `corpus.rs` in `guardedBy`, then `bun nv rules --render` and `bun nv owners --closes fmt-spacing`. `data/rules/tooling/fmt-one-run-between-two-tokens.json:3`, `data/rules/tooling/fmt-at-most-one-blank-line.json:3`
+- [ ] `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` says a `.` chain keeps its author's lines and every control header breaks as its condition does, citing the two rules that now say so. `docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md:1`
+- [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`'s exception for an item that spans lines names the items that break the list, citing `rule:tooling/fmt-a-broken-item-breaks-its-list`. `docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md:25`
+- [ ] `rule:ide/a-list-splits-onto-lines-and-joins-onto-one` names every construct stage 10 offers the actions on. `docs/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.md:1`
+- [ ] The `nvs fmt` page also says how a broken condition, chain and ternary are laid out, within the page's word limit. `docs/examples/tools/cli/nvs-fmt/about.md:1`
+- [ ] The seven rules are `shipped`: the two spacing rules with `token_gaps.rs`, `base_style.rs` and `corpus.rs` in `guardedBy`, and the five layout rules with `chain_layout.rs`, `list_layout.rs` and `layout_coverage.rs`. Then `bun nv rules --render` and `bun nv owners --closes fmt-spacing`. `data/rules/tooling/fmt-one-run-between-two-tokens.json:3`, `data/rules/tooling/fmt-at-most-one-blank-line.json:3`, `data/rules/tooling/fmt-every-binary-operator-breaks-operator-first.json:3`, `data/rules/tooling/fmt-a-broken-item-breaks-its-list.json:3`, `data/rules/tooling/fmt-a-broken-ternary-has-a-line-per-branch.json:3`, `data/rules/tooling/fmt-every-control-header-breaks-like-a-condition.json:3`, `data/rules/tooling/fmt-every-construct-has-a-broken-layout.json:3`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -191,10 +303,13 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. Both rules are written as `designed`, and `gap.rs` does not exist. The
-printer copies every whitespace run that no stage names (`crates/nvs-fmt/src/print.rs:74`), and
+The goal has not started. All seven rules are written as `designed`, and `gap.rs` does not exist.
+The printer copies every whitespace run that no stage names (`crates/nvs-fmt/src/print.rs:74`), and
 `space.rs` is the nearest stage in shape: it scans code runs and pushes `(offset, run)` pairs
-(`crates/nvs-fmt/src/space.rs:84`).
+(`crates/nvs-fmt/src/space.rs:84`). `chain.rs` lays out `&&`, `||`, `??` and `.` chains, `->` chains
+and the `If`, `While` and `DoWhile` conditions (`crates/nvs-fmt/src/chain.rs:91`,
+`crates/nvs-fmt/src/chain.rs:94`), and stages 7 to 10 widen it. The stages run 1, 2, 3, 7, 8, 9, 10,
+4, 5, 6.
 
 ### Next
 

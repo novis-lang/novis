@@ -1,0 +1,10 @@
+{
+  "title": "A ternary is on one line, or its `?` and its `:` each start a line one level in",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/fmt-every-binary-operator-breaks-operator-first",
+    "tooling/fmt-every-construct-has-a-broken-layout"
+  ],
+  "guardedBy": [],
+  "goal": "fmt-spacing"
+}

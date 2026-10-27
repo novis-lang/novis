@@ -3,7 +3,7 @@
 
 # Tooling
 
-*2 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 76 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -920,6 +920,242 @@ The first statement formats to the second. A condition written on one line stays
 an unbroken chain anywhere else does too.
 
 <sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line).</sub>
+
+<a id="tooling-fmt-every-binary-operator-breaks-operator-first"></a>
+
+## A broken chain of any binary operator has one operand per line with the operator first, a broken chain inside one is one level further in, and a `.` chain keeps its author's lines  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-every-binary-operator-breaks-operator-first`
+
+Every chain of a binary operator has the layout [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line)
+gives `&&`, `||` and `??`: on one line, or one operand per line with the operator at the start of the
+line, one level in from the line the first operand starts on. The operators are the arithmetic ones,
+the comparisons, `<=>`, the bitwise ones, `|>`, `&&`, `||`, `??` and `.`. A chain is the run at the
+lowest precedence, and it is broken by a line break its author wrote between two of its operands, on
+either side of an operator.
+
+```nvs
+$total = $total +
+    ((Core\Bytes::contains($message, $needles[($total % 3) as int]) ? 2 : 1) as uint);
+
+$total = $total
+    + ((Core\Bytes::contains($message, $needles[($total % 3) as int]) ? 2 : 1) as uint);
+```
+
+The first statement formats to the second. A comparison has two operands, so it is a chain of two:
+`$order->shippedAt() - $order->paidAt() >\n$policy->maxDelay()` puts `> $policy->maxDelay()` on a line
+of its own, and the subtraction, which is not broken, stays on one line.
+
+**A broken chain inside a broken chain is one level further in.** An operand made of higher-precedence
+operators is a chain of its own. When it is broken too, its operators start their lines one level in
+from its first operand, so the reader sees which operator binds tighter. The formatter never adds
+parentheses, because that would change the tokens ([`tooling/fmt-one-run-between-two-tokens`](tooling.md#tooling-fmt-one-run-between-two-tokens)).
+
+```nvs
+$free = $isMember
+    || $hasCoupon
+        && $price * $quantity > 50;
+```
+
+**`.` keeps its author's lines.** A broken `.` chain is not one operand per line. Every line break its
+author wrote between two operands stays, the `.` moves to the start of the line after it, and operands
+written on one line stay on that line. A message built from many short pieces stays as wide as its
+author wrote it:
+
+```nvs
+$message = 'Order ' . $order->id() . ' for ' . $customer->name() .
+    ' was paid on ' . $order->paidAt() . ' with ' . $order->method();
+
+$message = 'Order ' . $order->id() . ' for ' . $customer->name()
+    . ' was paid on ' . $order->paidAt() . ' with ' . $order->method();
+```
+
+So a broken `.` chain is the one construct with three layouts: one line, one operand per line, or the
+lines its author chose. The cost is accepted because a string is built from pieces of very different
+lengths, and one piece per line turns a sentence into a column of four-character lines.
+
+`is` and `as` are not chains. Their line breaks are the author's, as
+[`tooling/fmt-every-construct-has-a-broken-layout`](tooling.md#tooling-fmt-every-construct-has-a-broken-layout) lists.
+
+**Declined:**
+- **Leaving arithmetic and comparisons as written.** A trailing `+` and a leading `+` stay two
+  layouts of one program.
+- **Adding parentheses around a broken higher-precedence group.** It changes the tokens, and the
+  indentation shows the same grouping.
+- **One operand per line for `.` too.** It splits `'Order ' . $order->id()` into two lines that read as
+  one phrase.
+
+<sub>See also [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-every-construct-has-a-broken-layout`](tooling.md#tooling-fmt-every-construct-has-a-broken-layout).</sub>
+
+<a id="tooling-fmt-a-broken-item-breaks-its-list"></a>
+
+## A list item that is a broken operator chain, call chain or ternary breaks the innermost list that holds it  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-a-broken-item-breaks-its-list`
+
+A list item that is a broken operator chain, a broken `->` call chain or a broken ternary breaks the
+innermost list that holds it: the list's opener ends its line, as
+[`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line) lays out any broken list. The item then
+starts its own line one level in, and its lines follow from there.
+
+```nvs
+Reader $reader = Reader::open(Document::fromHtml('<style>p { break-after: page }</style>'
+    . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>')->render()->bytes);
+
+Reader $reader = Reader::open(Document::fromHtml(
+    '<style>p { break-after: page }</style>'
+    . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>',
+)->render()->bytes);
+```
+
+The first statement formats to the second. Only the innermost list breaks: `fromHtml`'s argument list
+holds the chain, so `Reader::open(` keeps its argument on its line.
+
+Every other item that spans lines keeps the exception the list rule already makes. An anonymous
+function with a multi-line body, a nested array, a nested call's arguments and a heredoc belong to the
+item, and do not break the list around them. The difference is where the item's lines start: a body
+or a nested list ends with its own closer, while a chain's next line starts with an operator, which
+inside an unbroken list sits under nothing.
+
+**Declined:**
+- **Leaving the list unbroken, as `nvs fmt` did.** The chain's continuation lines start inside a
+  call's parentheses, and its `)` closes on the last operand's line.
+- **Breaking every list up to the statement.** `Reader::open(` would end its line too, and two levels
+  of indentation buy nothing the innermost one does not.
+
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first).</sub>
+
+<a id="tooling-fmt-a-broken-ternary-has-a-line-per-branch"></a>
+
+## A ternary is on one line, or its `?` and its `:` each start a line one level in  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`
+
+A ternary is on one line, or its `?` and its `:` each start a line one level in from the line its
+condition starts on. A line break its author wrote anywhere at the ternary's own level breaks it:
+before or after the `?`, or before or after the `:`. A short ternary breaks the same way, with `?:`
+starting the line.
+
+```nvs
+echo $room * 2 > $limit ? "more than half of the limit is free\n"
+    : "less than half of the limit is free\n";
+
+echo $room * 2 > $limit
+    ? "more than half of the limit is free\n"
+    : "less than half of the limit is free\n";
+```
+
+The first statement formats to the second. A break inside the condition or inside a branch, such as
+inside a call's arguments, belongs to that part. A condition that is a broken operator chain keeps the
+layout [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first) gives it, and the `?` and `:`
+lines follow it at the same level.
+
+**Declined:**
+- **`?` at the end of the condition's line, as some styles write it.** The operator-first layout of
+  every other chain puts what joins two lines at the start of the second.
+
+<sub>See also [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first), [`tooling/fmt-every-construct-has-a-broken-layout`](tooling.md#tooling-fmt-every-construct-has-a-broken-layout).</sub>
+
+<a id="tooling-fmt-every-control-header-breaks-like-a-condition"></a>
+
+## Every control structure's header is on one line, or its `(` ends its line, its parts start lines one level in, and its `)` starts a line of its own  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-every-control-header-breaks-like-a-condition`
+
+The parenthesised header of every control structure — `if`, `elseif`, `while`, `do … while`,
+`switch`, `match`, `foreach` and `for` — has two layouts. It is on one line, or its `(` ends its line,
+its parts start lines one level in, and its `)` starts a line of its own, followed by ` {`.
+[`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line) gives this layout to a condition, and
+this rule gives it to every header.
+
+A header is broken by a line break its author wrote after the `(`, before the `)`, or inside an
+operator chain anywhere in the header that is not inside brackets of its own. A break inside a call's
+arguments, an array or an anonymous function's body belongs to that item, and leaves the header on
+its line. So a break inside a higher-precedence group breaks the condition too:
+
+```nvs
+if ($isMember || $hasCoupon &&
+    $price * $quantity > 50) {
+
+if (
+    $isMember
+    || $hasCoupon
+        && $price * $quantity > 50
+) {
+```
+
+The parts of each header:
+
+| Header | Its parts, one per line |
+|---|---|
+| `if`, `elseif`, `while`, `do … while`, `switch`, `match` | the expression, laid out as its own chain |
+| `foreach` | the expression, then `as` and the binding, with `as` starting its line |
+| `for` | each clause, ending in its `;`, and the last one without |
+
+```nvs
+foreach (
+    Core\Arr::filter($orders, fn(Order $order): bool => $order->isPaid())
+    as Order $order
+) {
+
+$label = match (
+    $order->state()
+    ?? $order->previousState()
+    ?? State::Unknown
+) {
+
+for (
+    $i = 0;
+    $i < Core\Arr::count($orders);
+    $i++
+) {
+```
+
+A `foreach` with a key keeps `$key => $value` together on the `as` line. The `for` layout is PER-CS's.
+
+**Declined:**
+- **The parenthesis layout for `if`, `elseif`, `while` and `do … while` alone.** A broken `match`
+  subject then leaves its `)` on its last operand's line, which is the layout this rule replaces.
+- **A break inside a higher-precedence group leaving the condition unbroken.** The group's operator
+  starts a line under the `if`, where it reads as part of the top-level chain.
+
+<sub>See also [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first), [`tooling/fmt-every-construct-has-a-broken-layout`](tooling.md#tooling-fmt-every-construct-has-a-broken-layout).</sub>
+
+<a id="tooling-fmt-every-construct-has-a-broken-layout"></a>
+
+## Every expression kind and control structure has a broken layout or is listed as keeping its author's line breaks, and a test fails on one that is neither  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-every-construct-has-a-broken-layout`
+
+Every expression kind and every control structure the grammar has is in exactly one of two lists in
+`nvs fmt`. One list has the constructs with a broken layout, each naming the rule that gives it. The
+other has the constructs whose line breaks are the author's. A test reads the node kinds from
+`crates/nvs-syntax/src/walk.rs` and fails naming each kind that is on neither list, so a new construct
+is never laid out by accident and never forgotten. What our own corpus happens to contain decides
+nothing: a user writes what the grammar accepts.
+
+The constructs with a broken layout are lists
+([`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line)), `->` call chains
+([`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line)), binary operator chains
+([`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first)), ternaries
+([`tooling/fmt-a-broken-ternary-has-a-line-per-branch`](tooling.md#tooling-fmt-a-broken-ternary-has-a-line-per-branch)), control headers
+([`tooling/fmt-every-control-header-breaks-like-a-condition`](tooling.md#tooling-fmt-every-control-header-breaks-like-a-condition)) and `match` arm lists
+([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
+
+The constructs whose line breaks are the author's are assignment and every compound assignment, `=>`
+between a key and its value, `is`, `as`, a unary operator, `new`, `clone`, `throw`, `return`, `yield`,
+`await`, an index, and everything inside a string, a heredoc, a template or inline HTML. A line that
+continues one of them starts one level in from the line the construct starts on. A construct that
+needs a layout later moves from the second list to the first with the rule that gives it.
+
+A kind that is not an expression or a control structure at all, such as a literal or a variable, is
+on the second list too, because it has no line break of its own to lay out.
+
+**Declined:**
+- **Rules written only for the shapes the corpus contains.** The corpus has no broken `match` or
+  `foreach` header, and users write both.
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first), [`tooling/fmt-a-broken-ternary-has-a-line-per-branch`](tooling.md#tooling-fmt-a-broken-ternary-has-a-line-per-branch), [`tooling/fmt-every-control-header-breaks-like-a-condition`](tooling.md#tooling-fmt-every-control-header-breaks-like-a-condition), [`tooling/fmt-one-run-between-two-tokens`](tooling.md#tooling-fmt-one-run-between-two-tokens).</sub>
 
 <a id="tooling-fmt-one-run-between-two-tokens"></a>
 
