@@ -5,7 +5,9 @@
 //! per `.nvs` file, in path order ([`crate::directory_entry`]). The entry is checked and nothing is
 //! run, so a top-level statement in a package file has no effect here
 //! (`rule:packaging/nothing-runs-before-the-program`). A package that does not check prints nothing
-//! and exits non-zero, as `nvs check` does.
+//! and exits non-zero, as `nvs check` does. A file outside `src`, such as a test, is not the API. A
+//! package whose source names another package's declarations does not check, because nothing here
+//! fetches its dependencies.
 //!
 //! ## What is written
 //!

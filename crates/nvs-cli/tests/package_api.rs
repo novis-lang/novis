@@ -1,6 +1,14 @@
 //! `nvs pkg api`, driven through the built binary
 //! (`rule:packaging/only-a-major-may-break-the-api`): the document is what the command prints, so
 //! the pinned bytes are the command's stdout.
+//!
+//! A fixture is a pair of package directories, `old/` and `new/`, per change class under
+//! `tests/fixtures/package-api/`. Not `fixtures/api/`: `openapi.rs` walks that directory as OpenAPI
+//! documents. The feature's attack is a program the hostile runner runs, so it cannot call
+//! `nvs pkg diff`: `a_type_written_many_ways_has_one_form` extracts it as a package, and a minor
+//! that tries to hide a removal behind its versions is
+//! `the_version_step_decides_whether_a_break_fails` and
+//! `each_side_reads_its_version_from_package_toml`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
