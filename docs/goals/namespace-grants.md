@@ -288,22 +288,18 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Every stage is done, and the goal is reached. The gate stage's first `bun nv affected --run` failed
-on four causes, and each is fixed: the rule pages were stale (`bun nv rules --render`); the new
-examples, the bench and two blocks of `35-packages.md` were not `nvs fmt`-clean (`bun nv nvs-fmt`);
-the packages chapter was missing from `nvs agent`'s `CHAPTERS` and from the worked session in
-`50-agents.md`; and two proxy cases in `crates/nvs-stdlib/src/http/transport.rs` ran past their
-connect budget under load, because Windows takes about two seconds to refuse a loopback IPv6
-connect. The fake proxy now dials only a target's IPv4 addresses and answers `502` at once where
-there are none. The third run is green, 23 of 23 steps. `bun nv verify --doc`, `bun nv owners
---closes namespace-grants`, `bun nv ci --check` and the `grants-proofs` check pass. `ci --check`
-first wanted fresh perf figures for `Core\Config` and `Core\Cap::has`, and three site pages
-restamped; both are committed. `Core\Config::set`'s figure records a mean of `0.0` ns beside a
-real median, as its 5 October record did. That is the perf tool's to explain, not this goal's.
-Every standing decision already has its home in a rule fragment or a module doc
+Every stage is done, and the goal is reached. The gate's `bun nv affected --run` is green, and so
+are `bun nv verify --doc`, `bun nv owners --closes namespace-grants`, `bun nv ci --check` and the
+`grants-proofs` check. Every standing decision has its home in a rule fragment or a module doc
 (`crates/nvs-config/src/grants.rs`, `package.rs`, `cache.rs`, `crates/nvs-stdlib/src/cap.rs`,
 `config.rs`, `crates/nvs-types/src/package.rs`, `capability.rs`, `crates/nvs-cli/src/script.rs`),
 so the file can be deleted when the driver retires the goal.
+
+The refused DONE's two floor checks are fixed in `d0b081498`: a grammar fixture was not `nvs
+fmt`-clean, which the `identity` test caught, and `website/public/llms-full.txt` was stale. Both
+pass now. `floor-debt`'s other atoms were owed only because the tree moved during its run.
+`env-secret-proofs` passes. Nightly run 40291801939's failures are fixed on HEAD: `c244b4b36`
+updates the yanked crate, and push run 40455321666 is green on every test runner.
 
 No test is expected to go red.
 
