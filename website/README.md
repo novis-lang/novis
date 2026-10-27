@@ -125,12 +125,13 @@ there and nowhere else. The one exception is the two `theme-color` meta tags in
 | `--nv-crimson` | `#b20038` | the logo's base color: primary buttons (the hero's primary action, the header's Install), the start of the signature gradient, brand moments. Never links or hovers |
 | `--nv-orange` | `#ef6c01` | the hue half way between crimson and gold, for everything interactive: links, the current sidebar item and header area, focus rings. Starlight's `--sl-color-accent*` scale is built from it, so Starlight's own components follow |
 | `--nv-gold` | `#ffb703` | the highlight, used sparingly: `<mark>`, `.nv-chip`, the table of contents' current-item marker. As a fill it carries dark text (11:1) |
-| `--nv-ink`, `--nv-fog` | near `#090b14`, white | the neutral ramp's two ends, each a few percent orange: a deep blue-black and a near-white |
+| `--nv-ink`, `--nv-fog` | `#0a0a0a`, `#fafafa` | the neutral ramp's two ends: a near-black and a near-white, both pure grays with no tint |
 
 The neutral ramp is fog mixed into ink in the steps Starlight's own grays use, mapped onto
 `--sl-color-white`, `-gray-1` to `-gray-7` and `-black`, which is what keeps Starlight's
-contrast ratios. The dark theme reads it from ink (the page ground) to fog (headings); the
-light theme reads it the other way round.
+contrast ratios. The dark theme reads it from `--nv-ground` (the page) toward fog, and its
+headings and body text are pure white; the light theme reads it the other way round, from fog
+(the page) to ink (headings), with body text on Starlight's gray-2 step.
 
 Each theme moves a brand color by **lightness alone**, keeping its hue:
 `oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h)` is the dark theme's link color, because

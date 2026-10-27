@@ -18,10 +18,10 @@
  *                 fill it carries dark text; as text on the light theme it is
  *                 darkened (--nv-gold-text).
  *   --nv-ink / --nv-fog  the two ends of the light theme's neutral ramp: a
- *                 deep blue-black and a near-white, both a few percent
- *                 orange. Ink is the light theme's text, and the ground of
+ *                 near-black and a near-white, both pure grays with no
+ *                 tint. Ink is the light theme's text, and the ground of
  *                 the blocks that stay dark in both themes; fog is the light
- *                 theme's ground and the dark theme's text.
+ *                 theme's ground. The dark theme's text is pure white.
  *   --nv-ground   the dark theme's page, a neutral #111 with no tint. The
  *                 dark theme's grays, surfaces and hairlines mix fog into it.
  *
@@ -55,8 +55,8 @@
   --nv-crimson: #b20038;
   --nv-orange: #ef6c01;
   --nv-gold: #ffb703;
-  --nv-ink: color-mix(in oklab, var(--nv-orange) 5%, #090b14);
-  --nv-fog: color-mix(in oklab, var(--nv-orange) 3%, #ffffff);
+  --nv-ink: #0a0a0a;
+  --nv-fog: #fafafa;
   --nv-ground: #111111;
 
   /* ---------------------------------------------------------------- scales */
@@ -91,8 +91,10 @@
   /* --------------------------------- dark theme (Starlight's :root default) */
 
   /* Neutral ramp: fog into ink in the steps Starlight's own grays use, which
-     is what keeps Starlight's contrast ratios. */
-  --sl-color-white: var(--nv-fog);
+     is what keeps Starlight's contrast ratios. Headings and body text are
+     pure white here; Starlight's own body text is the gray-2 step. */
+  --sl-color-white: white;
+  --sl-color-text: var(--sl-color-white);
   --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ground));
   --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ground));
   --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ground));
@@ -206,6 +208,7 @@
   /* The same ramp read from the other end: Starlight's light theme swaps it,
      so gray-1 is the darkest step and the page ground is -black. */
   --sl-color-white: var(--nv-ink);
+  --sl-color-text: var(--sl-color-gray-2);
   --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
   --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
   --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 34%, var(--nv-ink));
@@ -233,7 +236,7 @@
   --nv-grad-b: color-mix(in oklab, var(--nv-orange) 94%, black);
 
   --nv-surface: color-mix(in oklab, white 70%, var(--nv-fog));
-  --nv-surface-2: color-mix(in oklab, var(--nv-orange) 3%, white);
+  --nv-surface-2: color-mix(in oklab, var(--nv-ink) 2%, white);
   --nv-hairline: color-mix(in oklab, var(--nv-ink) 10%, var(--nv-fog));
   --nv-hairline-strong: color-mix(in oklab, var(--nv-ink) 20%, var(--nv-fog));
   --nv-glass: color-mix(in oklab, var(--nv-fog) 74%, transparent);
@@ -244,9 +247,9 @@
 
   --nv-shadow-sm: 0 1px 2px color-mix(in oklab, var(--nv-ink) 8%, transparent);
   --nv-shadow-md: 0 1px 2px color-mix(in oklab, var(--nv-ink) 6%, transparent),
-    0 8px 20px -8px color-mix(in oklab, var(--nv-orange) 18%, transparent);
+    0 8px 20px -8px color-mix(in oklab, var(--nv-ink) 12%, transparent);
   --nv-shadow-lg: 0 2px 4px color-mix(in oklab, var(--nv-ink) 6%, transparent),
-    0 20px 44px -16px color-mix(in oklab, var(--nv-orange) 26%, transparent);
+    0 20px 44px -16px color-mix(in oklab, var(--nv-ink) 18%, transparent);
   --nv-glow: 0 10px 30px -12px color-mix(in oklab, var(--nv-orange) 40%, transparent);
 
   --nv-quiet: color-mix(in oklab, var(--sl-color-gray-3) 60%, var(--sl-color-accent));
