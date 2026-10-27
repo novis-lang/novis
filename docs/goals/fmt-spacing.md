@@ -41,7 +41,7 @@ stages:
         rules: [tooling/fmt-a-broken-ternary-has-a-line-per-branch, tooling/fmt-a-broken-item-breaks-its-list, tooling/fmt-a-list-is-one-line-or-one-item-per-line]
   - id: 9
     title: every control header breaks like a condition
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/chain.rs, crates/nvs-fmt/tests/chain_layout.rs, docs/rules/tooling/fmt-every-control-header-breaks-like-a-condition.md]
     extra:
       context:
@@ -190,6 +190,14 @@ other broken chain does. `rule:tooling/fmt-a-broken-item-breaks-its-list`'s exam
 item's own column, and is corrected to match. Why: simplicity, one layout for a chain wherever it sits,
 and in a list of several items a `.` line at the item column reads as an item of its own.
 
+**`foreach` and `for` are a header of parts, not a condition.** Their headers hold no single
+expression between `(` and `)`, so `Header` (`crates/nvs-fmt/src/chain.rs`) lists `HEADERS` beside
+`CONDITIONS` and reads the parts itself: a `foreach`'s expression and its `as`, or each `for` clause
+found from the `;` outside every child node. `$key => $value` stays together because no part opens
+between them; a line break its author wrote there stays the author's, since the bindings are not
+nodes. Why: simplicity, one small struct where folding them into `Operators` would need operands
+with no node behind them.
+
 **Lanes.** Every stage but 5 touches `crates/nvs-fmt` alone. Stages 1 and 2 share `gap.rs` and run in
 order. Stages 7, 8, 9 and 10 share `chain.rs` and run in order, after stage 3, since 3 and 7 both touch
 the code that writes a line's opening. Stages 1 and 2 are disjoint from 7 to 10 except one `extend` in
@@ -256,10 +264,10 @@ the innermost list around it.
 **Does:** `switch`, `match`, `foreach` and `for` headers take the condition layout, and a break inside
 a nested operator chain breaks the header.
 
-- [ ] `CONDITIONS` names `Switch`, `Match`, `Foreach` and `For` beside `If`, `While` and `DoWhile`, and `condition_of` finds each one's header between its `(` and `)` (`rule:tooling/fmt-every-control-header-breaks-like-a-condition`). `crates/nvs-fmt/src/chain.rs:94`, `crates/nvs-fmt/src/chain.rs:427`
-- [ ] A line break inside an operator chain at any depth of the header, outside brackets of its own, breaks the header. `crates/nvs-fmt/src/chain.rs:448`
-- [ ] A broken `foreach` header starts `as` and its binding on a line, with `$key => $value` kept together. A broken `for` header puts each clause on a line. `crates/nvs-fmt/src/chain.rs:567`
-- [ ] Tests: each header kind broken after its `(`, a broken `match` subject, a `foreach` with a key, a `for` header, and an `if` broken inside its `&&` group. `cargo test --test chain_layout` passes. `crates/nvs-fmt/tests/chain_layout.rs:1`
+- [x] `CONDITIONS` names `Switch`, `Match`, `Foreach` and `For` beside `If`, `While` and `DoWhile`, and `condition_of` finds each one's header between its `(` and `)` (`rule:tooling/fmt-every-control-header-breaks-like-a-condition`). `crates/nvs-fmt/src/chain.rs:94`, `crates/nvs-fmt/src/chain.rs:427`
+- [x] A line break inside an operator chain at any depth of the header, outside brackets of its own, breaks the header. `crates/nvs-fmt/src/chain.rs:448`
+- [x] A broken `foreach` header starts `as` and its binding on a line, with `$key => $value` kept together. A broken `for` header puts each clause on a line. `crates/nvs-fmt/src/chain.rs:567`
+- [x] Tests: each header kind broken after its `(`, a broken `match` subject, a `foreach` with a key, a `for` header, and an `if` broken inside its `&&` group. `cargo test --test chain_layout` passes. `crates/nvs-fmt/tests/chain_layout.rs:1`
 
 ### 10. every construct is on one of the two layout lists, and the editor splits and joins the new ones
 
@@ -316,39 +324,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7 and 8 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test
+Stages 1, 2, 3, 7, 8 and 9 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test
 --test token_gaps` passes its 25 cases, the coverage test among them.
 
-- Operator chains: `OPERATORS` (`crates/nvs-fmt/src/chain.rs:122`) gives every `Binary` operator its
-  precedence level, and `flatten` joins one level. `Operators::opens_line` is the `.` exception.
-  `Operators::operators` holds each operator's start and end, so a short ternary's `?:` is one.
-  `operand_opening` places a chain's first operand from the broken chain or condition around it, and
-  `line_opening` (`crates/nvs-fmt/src/chain.rs:721`) from the broken list whose item it is. `|>` is
-  the author's.
-- Ternary: `ternary_operators` (`crates/nvs-fmt/src/chain.rs:518`), an `Operators` of its own.
-- A broken item: `chain::is_broken` (`crates/nvs-fmt/src/chain.rs:208`), read in `List::of`
-  (`crates/nvs-fmt/src/list.rs:177`). The rule's example now puts the `.` one level in, as Standing
-  decisions says.
-- `cargo test --test chain_layout` passes 19 and `--test list_layout` 19. The sweep's reds were
-  stale: nightly `55b03e97a` predates the Miri fixes, and `env-secret-proofs` exits 0.
+- Headers: `CONDITIONS` (`crates/nvs-fmt/src/chain.rs:163`) adds `Switch` and `Match`; `foreach`
+  and `for` are a `Header` of parts (`crates/nvs-fmt/src/chain.rs:607`). `nested_broken`
+  (`crates/nvs-fmt/src/chain.rs:596`) breaks a condition or header only.
+- Chains: `OPERATORS` (`crates/nvs-fmt/src/chain.rs:130`), `ternary_operators` (`:546`),
+  `operand_opening` (`:847`), `line_opening` (`:884`), and `is_broken` (`:227`) read in `List::of`.
+- `cargo test --test chain_layout` passes 23, `--test list_layout` 19. The sweep's reds were stale:
+  the nightly ran on `55b03e97a`, before the Miri fixes, and `env-secret-proofs` exits 0.
 
 Expected red until stage 4: `crates/nvs-fmt/tests/identity.rs`, and every corpus file and fixture
-with a binary chain or ternary broken at its own level, a broken chain or ternary inside a one-line
-list, a `.` ending a line, a pair, type or unary spaced another way
-(`tests/fmt/formatted/comments.nvs`), or a blank line the rule removes. The LSP suites calling
-`written_types_in` were built, not run; stage 6 runs them. `split_join.rs` now offers its chain
-actions on a ternary too, untested until stage 10.
+with a chain or ternary broken at its own level or inside a one-line list, a `.` ending a line, a
+pair spaced another way (`tests/fmt/formatted/comments.nvs`), a blank line the rule removes, or a
+control header broken after its `(` or inside a nested group. The LSP suites calling
+`written_types_in` were built, not run; stage 6 runs them. `split_join.rs`'s ternary actions are
+untested until stage 10.
 
 ### Next
 
-**Stage 9: every control header breaks like a condition**, one file set: `crates/nvs-fmt/src/chain.rs`,
-`crates/nvs-fmt/tests/chain_layout.rs`. The items are the stage's own, under `### 9.` above; stage 10
-follows in the same files. `chain.rs` is about 810 lines, so the headers may move to `header.rs`
-once it passes 1,200.
+**Stage 10: every construct is on one of the two layout lists, and the editor splits and joins the
+new ones**, files `crates/nvs-fmt/src/chain.rs`, `crates/nvs-fmt/src/split_join.rs`, a new
+`crates/nvs-fmt/tests/layout_coverage.rs` and `crates/nvs-lsp/tests/actions.rs`. `chain.rs` is 978
+lines: if the lists push it past 1,200, move `Header`, `condition_of`, `nested_broken` and
+`header_opening` to `crates/nvs-fmt/src/header.rs` first.
 
-- [ ] `CONDITIONS` grows to `Switch`, `Match`, `Foreach` and `For`, and `condition_of` finds each header's `(` and `)`; its keyword test reads only `if` and `while` today. `crates/nvs-fmt/src/chain.rs:151`, `crates/nvs-fmt/src/chain.rs:544`
-- [ ] A break inside a nested operator chain of the header breaks the header. `crates/nvs-fmt/src/chain.rs:565`
-- [ ] `foreach` and `for` header layouts, then the stage's tests, run once by name. `crates/nvs-fmt/src/chain.rs:752`, `crates/nvs-fmt/tests/chain_layout.rs:1`
+- [ ] The two lists beside `CONDITIONS` and `HEADERS`, and the coverage test over `walk.rs`'s kinds. `crates/nvs-fmt/src/chain.rs:163`, `crates/nvs-syntax/src/walk.rs:200`
+- [ ] `seams_on` gains a `foreach`/`for` header's seams, and a join of a condition broken only inside a nested group joins that group too; today `seams_on` names the top level alone. `crates/nvs-fmt/src/chain.rs:784`, `crates/nvs-fmt/src/split_join.rs:187`
+- [ ] The split and join tests for a `+` chain, a ternary and a `match` header. `crates/nvs-lsp/tests/actions.rs:1`
 
 ### Backlog
 

@@ -73,7 +73,9 @@ pub(crate) fn collapsed(indent: &Indent<'_>) -> Vec<(usize, String)> {
             let at_an_edge = start
                 .checked_sub(1)
                 .is_some_and(|before| matches!(bytes[before], b'{' | b'(' | b'['))
-                || bytes.get(end).is_some_and(|after| matches!(after, b'}' | b')' | b']'));
+                || bytes
+                    .get(end)
+                    .is_some_and(|after| matches!(after, b'}' | b')' | b']'));
             let most = if at_an_edge { 1 } else { 2 };
             if end == text.len() || run.matches('\n').count() <= most || in_text(index, start) {
                 return None;

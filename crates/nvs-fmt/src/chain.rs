@@ -75,16 +75,27 @@
 //! first code is such an item measures its lines from the item's own line,
 //! which the list opens even where its author did not.
 //!
-//! # A condition
+//! # A control header
 //!
-//! The condition of an `if`, `elseif`, `while` or `do … while` is the child
-//! expression written between a `(` that follows the keyword and the `)` that
-//! follows the expression. Its top-level chain is the expression's operator
-//! chain, or the expression alone. A line break after the `(`, between two of
-//! those operands or before the `)` breaks the condition. A broken condition's
-//! `(` ends its line, each operand starts a line one level in from the line
-//! the `(` is on, operator first after the first, and the `)` starts a line at
-//! that line's own depth. [`crate::brace`] then writes ` {` after it.
+//! Every control header has the condition layout
+//! (`rule:tooling/fmt-every-control-header-breaks-like-a-condition`). The
+//! condition of an `if`, `elseif`, `while`, `do … while`, `switch` or `match`
+//! is the child expression written between a `(` that follows the keyword and
+//! the `)` that follows the expression. Its top-level chain is the
+//! expression's operator chain, or the expression alone. A line break after the
+//! `(`, between two of those operands, before the `)`, or inside an operator
+//! chain or ternary at any depth below them that is not inside brackets of its
+//! own breaks the condition. A broken condition's `(` ends its line, each
+//! operand starts a line one level in from the line the `(` is on, operator
+//! first after the first, and the `)` starts a line at that line's own depth.
+//! [`crate::brace`] then writes ` {` after it.
+//!
+//! A `foreach` or `for` header is a [`Header`] of parts instead: a `foreach`'s
+//! expression and its `as` with the bindings after it, or each clause of a
+//! `for`. A line break in front of a part or the `)`, or inside an operator
+//! chain of the header, breaks it, and each part then starts a line one level
+//! in, as a condition's operands do. A chain in a part is laid out as its own,
+//! one level further in.
 //!
 //! [`seams_on`] names every place a line break sits at a chain's own level,
 //! which is what the editor actions in [`crate::split_join`] add or remove.
@@ -147,8 +158,16 @@ const CONCAT: u8 = 8;
 /// The production that writes `?` and `:` between its operands.
 const TERNARY: &str = "Ternary";
 
-/// The control structures whose condition a broken chain lays out.
-const CONDITIONS: &[&str] = &["If", "While", "DoWhile"];
+/// The control structures whose header is one expression, laid out as a
+/// condition.
+const CONDITIONS: &[&str] = &["If", "While", "DoWhile", "Switch", "Match"];
+
+/// The keywords that write a header [`condition_of`] reads.
+const CONDITION_KEYWORDS: &[&str] = &["if", "while", "switch", "match"];
+
+/// The control structures whose header has parts of its own, with the keyword
+/// each is written with. Each part opens a line where the header is broken.
+const HEADERS: &[(&str, &str)] = &[("Foreach", "foreach"), ("For", "for")];
 
 /// One call chain, read from the lossless tree.
 struct Chain {
@@ -205,7 +224,12 @@ impl Chain {
 
 /// Whether `item`, a list's item, is a broken call chain, operator chain or
 /// ternary at its own top, which breaks the list that holds it.
-pub(crate) fn is_broken(index: &SyntaxIndex, text: &str, trivia: &[Trivia], item: IndexNode) -> bool {
+pub(crate) fn is_broken(
+    index: &SyntaxIndex,
+    text: &str,
+    trivia: &[Trivia],
+    item: IndexNode,
+) -> bool {
     if LINKS.contains(&item.kind) {
         return Chain::of(index, text, trivia, item).is_some_and(|chain| chain.broken);
     }
@@ -250,6 +274,7 @@ pub(crate) fn opening(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -
     arrow_opening(indent, nodes, offset)
         .or_else(|| operator_opening(indent, nodes, offset))
         .or_else(|| condition_opening(indent, nodes, offset))
+        .or_else(|| header_opening(indent, nodes, offset))
 }
 
 /// What opens the line at `offset` where it is an arrow of a broken call chain,
@@ -402,6 +427,9 @@ impl Operators {
             || condition.is_some_and(|(open, close)| {
                 breaks(open + 1, operands[0].span.start as usize)
                     || breaks(code_before(trivia, close), close)
+                    || operands
+                        .iter()
+                        .any(|&operand| nested_broken(index, text, trivia, operand))
             });
         Some(Self {
             operands,
@@ -557,7 +585,141 @@ fn condition_of(
         return None;
     }
     let keyword = &text[..code_before(trivia, open)];
-    (keyword.ends_with("if") || keyword.ends_with("while")).then_some((open, close))
+    CONDITION_KEYWORDS
+        .iter()
+        .any(|word| keyword.ends_with(word))
+        .then_some((open, close))
+}
+
+/// Whether an operator chain or a ternary in `node`, at any depth outside
+/// brackets of its own, is broken.
+fn nested_broken(index: &SyntaxIndex, text: &str, trivia: &[Trivia], node: IndexNode) -> bool {
+    Operators::of(index, text, trivia, node, None).is_some_and(|chain| {
+        chain.broken
+            || chain
+                .operands
+                .iter()
+                .any(|&operand| nested_broken(index, text, trivia, operand))
+    })
+}
+
+/// The header of a `foreach` or a `for`, read from the lossless tree.
+struct Header {
+    /// The header's `(`.
+    open: usize,
+    /// The header's `)`.
+    close: usize,
+    /// The first byte of each part: a `foreach`'s expression and its `as`, or
+    /// each clause of a `for` that is not empty at the end.
+    parts: Vec<usize>,
+    /// Whether a line break sits after the `(`, before a part or the `)`, or
+    /// inside an operator chain of the header.
+    broken: bool,
+}
+
+impl Header {
+    /// The header `holder` writes, where it is a structure in [`HEADERS`].
+    fn of(index: &SyntaxIndex, text: &str, trivia: &[Trivia], holder: IndexNode) -> Option<Self> {
+        let &(_, keyword) = HEADERS.iter().find(|&&(kind, _)| kind == holder.kind)?;
+        let start = holder.span.start as usize;
+        if !text.get(start..)?.starts_with(keyword) {
+            return None;
+        }
+        let bytes = text.as_bytes();
+        let open = code_after(trivia, start + keyword.len());
+        let mut children = index.children_of(holder);
+        children.sort_by_key(|child| child.span.start);
+        let body = children.pop()?;
+        let close = code_before(trivia, body.span.start as usize).checked_sub(1)?;
+        if bytes.get(open) != Some(&b'(') || bytes.get(close) != Some(&b')') {
+            return None;
+        }
+        let mut parts = vec![code_after(trivia, open + 1)];
+        if keyword == "foreach" {
+            let subject = children.first()?;
+            let as_ = code_after(trivia, subject.span.end as usize);
+            if !text.get(as_..)?.starts_with("as") {
+                return None;
+            }
+            parts.push(as_);
+        } else {
+            // A `;` is between two clauses, never inside one, save the one a
+            // declaration ends its own span with.
+            let inside = |at: usize| {
+                children
+                    .iter()
+                    .any(|child| (child.span.start as usize..child.span.end as usize).contains(&at))
+            };
+            let ends = children
+                .iter()
+                .map(|child| child.span.end as usize - 1)
+                .filter(|&at| bytes.get(at) == Some(&b';'));
+            let between = (open + 1..close)
+                .filter(|&at| bytes[at] == b';' && !inside(at) && !commented(trivia, at));
+            let mut semicolons: Vec<usize> = ends.chain(between).collect();
+            semicolons.sort_unstable();
+            parts.extend(
+                semicolons
+                    .iter()
+                    .map(|&semicolon| code_after(trivia, semicolon + 1))
+                    .filter(|&part| part != close),
+            );
+        }
+        let breaks = |at: usize| text[code_before(trivia, at)..at].contains('\n');
+        let broken = parts.iter().chain([&close]).any(|&at| breaks(at))
+            || children
+                .iter()
+                .any(|&child| nested_broken(index, text, trivia, child));
+        Some(Self {
+            open,
+            close,
+            parts,
+            broken,
+        })
+    }
+
+    /// The broken header whose parentheses hold `offset`, of the innermost
+    /// structure in [`HEADERS`] on `nodes`, a path innermost first.
+    fn around(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -> Option<Self> {
+        let (index, text, trivia) = indent.parse();
+        nodes
+            .iter()
+            .filter_map(|&node| Self::of(index, text, trivia, node))
+            .find(|header| header.open < offset && offset <= header.close)
+            .filter(|header| header.broken)
+    }
+
+    /// Records the runs this broken header requires: each part and the `)`
+    /// open a line.
+    fn lay_out(&self, wanted: &mut Vec<(usize, String)>, indent: &Indent<'_>, line_break: &str) {
+        let (_, text, trivia) = indent.parse();
+        let closing = indent.opening_of(self.open);
+        let base = closing.clone() + UNIT;
+        for &part in &self.parts {
+            if !text[code_before(trivia, part)..part].contains('\n') {
+                wanted.push((part, format!("{line_break}{base}")));
+            }
+        }
+        if !text[code_before(trivia, self.close)..self.close].contains('\n') {
+            wanted.push((self.close, format!("{line_break}{closing}")));
+        }
+    }
+}
+
+/// What opens the line at `offset` where it is a part or the `)` of a broken
+/// `foreach` or `for` header, or a comment in front of one.
+fn header_opening(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -> Option<String> {
+    let (_, _, trivia) = indent.parse();
+    let header = Header::around(indent, nodes, offset)?;
+    let beside = |at: usize| (code_before(trivia, at)..=at).contains(&offset);
+    if beside(header.close) {
+        return Some(indent.opening_of(header.open));
+    }
+    header
+        .parts
+        .iter()
+        .any(|&part| beside(part))
+        .then(|| indent.opening_of(header.open) + UNIT)
 }
 
 /// The chain the operator node `nodes[at]` belongs to, read from its top: each
@@ -693,10 +855,7 @@ fn operand_opening(indent: &Indent<'_>, start: usize) -> String {
     for at in 0..nodes.len() {
         let chain = operators_on(index, text, trivia, nodes, at).filter(|chain| chain.broken);
         let follows = chain.as_ref().and_then(|chain| {
-            let at = chain
-                .operators
-                .iter()
-                .position(|&(_, end)| end == before)?;
+            let at = chain.operators.iter().position(|&(_, end)| end == before)?;
             chain.opens_line(text, trivia, at).then_some(chain)
         });
         if let Some(chain) = follows {
@@ -710,6 +869,10 @@ fn operand_opening(indent: &Indent<'_>, start: usize) -> String {
             .and_then(|parens| Operators::of(index, text, trivia, nodes[at], Some(parens)));
         if let Some(chain) = condition.filter(|chain| chain.broken) {
             return chain.operator_base(indent);
+        }
+        let header = Header::of(index, text, trivia, nodes[at]).filter(|header| header.broken);
+        if let Some(header) = header.filter(|header| header.parts.contains(&start)) {
+            return indent.opening_of(header.open) + UNIT;
         }
     }
     line_opening(indent, start)
@@ -787,6 +950,14 @@ fn operator_runs(
         };
         if nodes.iter().any(|node| OPAQUE.contains(&node.kind)) {
             continue;
+        }
+        if byte == b'(' {
+            let header = Header::of(index, text, trivia, innermost)
+                .filter(|header| header.open == offset && header.broken);
+            if let Some(header) = header {
+                header.lay_out(wanted, indent, line_break);
+                continue;
+            }
         }
         let chain = if byte == b'(' {
             index.children_of(innermost).into_iter().find_map(|child| {

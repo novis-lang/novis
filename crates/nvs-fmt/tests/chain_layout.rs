@@ -5,7 +5,9 @@
 //! `.` chain keeps its author's lines
 //! (`rule:tooling/fmt-every-binary-operator-breaks-operator-first`). A
 //! ternary is on one line or has a line for its `?` and one for its `:`
-//! (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`).
+//! (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`). Every control
+//! header is on one line or has its `(` end a line and each part on a line
+//! (`rule:tooling/fmt-every-control-header-breaks-like-a-condition`).
 //!
 //! Each case is the smallest file that shows one half of the rule: what counts
 //! as a break in a chain, what does not, and the one layout a broken chain
@@ -121,7 +123,8 @@ fn a_broken_comparison_is_a_chain_of_two() {
 
 #[test]
 fn a_broken_chain_inside_a_broken_chain_is_one_level_further_in() {
-    let canonical = "<?nvs\n$free = $isMember\n    || $hasCoupon\n        && $price * $quantity > 50;\n";
+    let canonical =
+        "<?nvs\n$free = $isMember\n    || $hasCoupon\n        && $price * $quantity > 50;\n";
     formats_to(
         "<?nvs\n$free = $isMember ||\n$hasCoupon &&\n$price * $quantity > 50;\n",
         canonical,
@@ -212,6 +215,54 @@ fn a_break_inside_one_operand_does_not_break_the_condition() {
 }
 
 #[test]
+fn every_header_broken_after_its_parenthesis_puts_it_on_lines_of_its_own() {
+    formats_to(
+        "<?nvs\nwhile (\n$queue->hasNext()) {\n    $queue->next();\n}\n",
+        "<?nvs\nwhile (\n    $queue->hasNext()\n) {\n    $queue->next();\n}\n",
+    );
+    formats_to(
+        "<?nvs\nswitch (\n$order->state()) {\n    case 'open':\n        break;\n}\n",
+        "<?nvs\nswitch (\n    $order->state()\n) {\n    case 'open':\n        break;\n}\n",
+    );
+    formats_to(
+        "<?nvs\nforeach (\n$orders as string $order) {\n    echo $order;\n}\n",
+        "<?nvs\nforeach (\n    $orders\n    as string $order\n) {\n    echo $order;\n}\n",
+    );
+    formats_to(
+        "<?nvs\nfor (\nint $i = 0; $i < 3; $i++) {\n    echo $i;\n}\n",
+        "<?nvs\nfor (\n    int $i = 0;\n    $i < 3;\n    $i++\n) {\n    echo $i;\n}\n",
+    );
+    let one_line = "<?nvs\nfor (int $i = 0; $i < 3; $i++) {\n    echo $i;\n}\n";
+    formats_to(one_line, one_line);
+}
+
+#[test]
+fn a_broken_match_subject_is_one_operand_per_line() {
+    formats_to(
+        "<?nvs\n$label = match ($order->state()\n?? $order->previousState()) {\n    'open' => 'Open',\n    default => 'Closed',\n};\n",
+        "<?nvs\n$label = match (\n    $order->state()\n    ?? $order->previousState()\n) {\n    'open' => 'Open',\n    default => 'Closed',\n};\n",
+    );
+}
+
+#[test]
+fn a_broken_foreach_header_starts_as_on_its_own_line_with_key_and_value_together() {
+    formats_to(
+        "<?nvs\nforeach ($orders as int $id => string $order\n) {\n    echo $id;\n}\n",
+        "<?nvs\nforeach (\n    $orders\n    as int $id => string $order\n) {\n    echo $id;\n}\n",
+    );
+    let one_line = "<?nvs\nforeach ($orders as int $id => string $order) {\n    echo $id;\n}\n";
+    formats_to(one_line, one_line);
+}
+
+#[test]
+fn a_break_inside_a_nested_group_breaks_the_condition() {
+    formats_to(
+        "<?nvs\nif ($isMember || $hasCoupon &&\n$price * $quantity > 50) {\n    echo 'free';\n}\n",
+        "<?nvs\nif (\n    $isMember\n    || $hasCoupon\n        && $price * $quantity > 50\n) {\n    echo 'free';\n}\n",
+    );
+}
+
+#[test]
 fn a_broken_chain_is_a_fixed_point() {
     let condition = "\
 <?nvs
@@ -245,7 +296,8 @@ $rows = $query
 
 #[test]
 fn a_ternary_on_one_line_stays_on_one_line() {
-    let wide = "<?nvs\necho $room * 2 > $limit ? 'more than half is free' : 'less than half is free';\n";
+    let wide =
+        "<?nvs\necho $room * 2 > $limit ? 'more than half is free' : 'less than half is free';\n";
     formats_to(wide, wide);
     let short = "<?nvs\n$name = $given ?: 'nobody';\n";
     formats_to(short, short);
