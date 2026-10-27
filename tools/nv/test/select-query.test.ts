@@ -5,7 +5,7 @@ import { failedLabels, seedable } from "../select/seed.ts";
 import { proofFiles } from "../select/atoms.ts";
 import { advance } from "../select/record.ts";
 import { type FileItems, scanItems } from "../keys/scan.ts";
-import { type ChangeSet, changedItems, computeChange, counts, discover, explain, isGlobal, query } from "../select/select.ts";
+import { addsDependenciesOnly, type ChangeSet, changedItems, computeChange, counts, discover, explain, isGlobal, query } from "../select/select.ts";
 import { SelectStore } from "../select/store.ts";
 import { join } from "node:path";
 import { scratch } from "./scratch.ts";
@@ -75,6 +75,25 @@ describe("the reverse-index query", () => {
     expect([...none.selected.keys()].sort()).toEqual(["test:new lib new", "test:red lib red"]);
     expect(isGlobal("Cargo.lock") && isGlobal("crates/nvs-cli/Cargo.toml") && isGlobal("tools/nv-scan/src/items.rs")).toBe(true);
     expect(isGlobal("crates/nvs-cli/src/main.rs")).toBe(false);
+  });
+
+  test("a manifest or lock edit that only adds a workspace dependency selects nothing on its own, and any other edit selects every atom", () => {
+    const manifest = `[package]\nname = "cfg"\n\n[dependencies]\nlibc.workspace = true\n\n[target.'cfg(windows)'.dependencies]\nwindows.workspace = true\n`;
+    const path = "crates/cfg/Cargo.toml";
+    const add = (m: string, line: string) => m.replace("libc.workspace = true\n", `libc.workspace = true\n${line}\n`);
+    expect(addsDependenciesOnly(path, manifest, add(manifest, "# SHA-1 names a service.\nsha1.workspace = true"))).toBe(true);
+    expect(addsDependenciesOnly(path, manifest, manifest.replace("windows.workspace = true\n", "windows.workspace = true\nsha1.workspace = true\n"))).toBe(true);
+    expect(addsDependenciesOnly(path, manifest, add(manifest, `sha1 = "0.10"`))).toBe(false);
+    expect(addsDependenciesOnly(path, manifest, add(manifest, `sha1 = { workspace = true, features = ["asm"] }`))).toBe(false);
+    expect(addsDependenciesOnly(path, manifest, manifest.replace("libc.workspace = true\n", ""))).toBe(false);
+    expect(addsDependenciesOnly(path, manifest, manifest.replace(`name = "cfg"`, `name = "cfg"\nedition = "2024"`))).toBe(false);
+    expect(addsDependenciesOnly("Cargo.toml", manifest, add(manifest, "sha1.workspace = true"))).toBe(false);
+    const lock = `version = 4\n\n[[package]]\nname = "cfg"\nversion = "0.1.0"\ndependencies = [\n "libc",\n]\n\n[[package]]\nname = "sha1"\nversion = "0.10.6"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\nchecksum = "abc"\n`;
+    expect(addsDependenciesOnly("Cargo.lock", lock, lock.replace(` "libc",\n`, ` "libc",\n "sha1",\n`))).toBe(true);
+    expect(addsDependenciesOnly("Cargo.lock", lock, lock.replace(` "libc",\n`, ""))).toBe(false);
+    expect(addsDependenciesOnly("Cargo.lock", lock, lock.replace(`"0.10.6"`, `"0.10.7"`))).toBe(false);
+    expect(addsDependenciesOnly("Cargo.lock", lock, lock.replace(`checksum = "abc"`, `checksum = "abd"`))).toBe(false);
+    expect(addsDependenciesOnly("Cargo.lock", lock, `${lock}\n[[package]]\nname = "sha2"\nversion = "0.10.8"\n`)).toBe(false);
   });
 
   test("a replayed change counts every atom whose definition it touches as redefined", () => {

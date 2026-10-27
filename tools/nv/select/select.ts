@@ -10,7 +10,8 @@
 //         + atoms marked diverged: a recording run that ended differently from the judged run
 //         + atoms whose definition changed
 //         + atoms indexed under any changed key
-//         + every atom, when a global file changed
+//         + every atom, when a global file changed, other than by adding a dependency the workspace
+//           already resolves (`addsDependenciesOnly`)
 //         + every proof program, when code only an optimized build compiles changed and has no twin
 //
 // A run counts the moment it is recorded, not when the run ends: an atom whose last run was recorded
@@ -27,6 +28,7 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { type FileItems, type Item, scanItems } from "../keys/scan.ts";
 import { landsIn, metadata, type Graph, dependencySet, testBinaries } from "../keys/graph.ts";
 import { COVWS_TARGET, hostTriple } from "../lib/covws.ts";
@@ -45,7 +47,8 @@ import { blockPaths, configKeys } from "./config.ts";
 import { type AtomKind, kindOfAtom, type Overlay, type RunTree, type SelectStore } from "./store.ts";
 
 /** Files whose change selects every atom: the toolchain, the lock file, a manifest, and the two tools
- * every footprint's meaning rests on. */
+ * every footprint's meaning rests on. An edit of the lock file or a member's manifest that only adds a
+ * dependency the workspace already resolves is the exception (`globalOf`). */
 export function isGlobal(path: string): boolean {
   return (
     path === "rust-toolchain.toml" ||
@@ -56,6 +59,87 @@ export function isGlobal(path: string): boolean {
     path.startsWith("tools/nv-scan/") ||
     path.startsWith("tools/covwrap/")
   );
+}
+
+const DEP_TABLES = ["dependencies", "dev-dependencies", "build-dependencies"];
+
+type Toml = Record<string, unknown>;
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const table = (v: unknown): Toml => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Toml) : {});
+
+/** Whether dependency table `after` is `before` with entries added, each exactly `{ workspace = true }`:
+ * a crate the workspace already resolves, with the features the root manifest gives it. */
+function addsWorkspaceDeps(before: Toml, after: Toml): boolean {
+  for (const [name, spec] of Object.entries(before)) if (!same(spec, after[name])) return false;
+  for (const [name, spec] of Object.entries(after)) if (!(name in before) && !same(spec, { workspace: true })) return false;
+  return true;
+}
+
+/** `doc` without its dependency tables, at the top and under each `[target.<cfg>]`. */
+function withoutDeps(doc: Toml): Toml {
+  const rest: Toml = { ...doc };
+  for (const t of DEP_TABLES) delete rest[t];
+  if (rest.target !== undefined) {
+    rest.target = Object.fromEntries(Object.entries(table(rest.target)).map(([cfg, v]) => [cfg, Object.fromEntries(Object.entries(table(v)).filter(([k]) => !DEP_TABLES.includes(k)))]));
+  }
+  return rest;
+}
+
+/**
+ * Whether a global file's edit from `before` to `after` only adds dependencies the workspace already
+ * resolves, and so changes no compiled code that the item diff does not see: the code that uses such a
+ * crate is a changed item of its own. A member's `Cargo.toml` qualifies when every other table is the
+ * same and each new entry is `{ workspace = true }`; `Cargo.lock` when the same packages stand at the
+ * same versions and sources, and a package's `dependencies` only grew. Every other edit, and every other
+ * global file, selects every atom. What it costs: a crate the workspace held only as another crate's
+ * dependency, with fewer features than the root manifest gives it, can compile differently, and nightly
+ * CI is what runs that.
+ */
+export function addsDependenciesOnly(path: string, before: string, after: string): boolean {
+  let a: Toml;
+  let b: Toml;
+  try {
+    a = parseToml(before) as Toml;
+    b = parseToml(after) as Toml;
+  } catch {
+    return false;
+  }
+  if (path === "Cargo.lock") {
+    const key = (p: Toml) => `${p.name}@${p.version}@${p.source ?? ""}`;
+    const was = new Map((Array.isArray(a.package) ? (a.package as Toml[]) : []).map((p) => [key(p), p]));
+    const now = Array.isArray(b.package) ? (b.package as Toml[]) : [];
+    if (now.length !== was.size || !same({ ...a, package: [] }, { ...b, package: [] })) return false;
+    return now.every((p) => {
+      const old = was.get(key(p));
+      if (!old || !same({ ...old, dependencies: [] }, { ...p, dependencies: [] })) return false;
+      const deps = new Set((p.dependencies as string[] | undefined) ?? []);
+      return ((old.dependencies as string[] | undefined) ?? []).every((d) => deps.has(d));
+    });
+  }
+  if (!path.endsWith("/Cargo.toml")) return false;
+  if (!same(withoutDeps(a), withoutDeps(b))) return false;
+  const scopes = (d: Toml) => [d, ...Object.values(table(d.target)).map(table)];
+  const [was, now] = [scopes(a), scopes(b)];
+  if (Object.keys(table(a.target)).join() !== Object.keys(table(b.target)).join()) return false;
+  return was.every((s, i) => DEP_TABLES.every((t) => addsWorkspaceDeps(table(s[t]), table(now[i]![t]))));
+}
+
+/** The first global file of `changes` whose edit selects every atom, or null. A modified `Cargo.lock` or
+ * member manifest is read on both sides (`addsDependenciesOnly`), unless the base side is a recorded
+ * tree's overlay, whose text is not kept. */
+async function globalOf(changes: Change[], since: string, until: string | null, overlay: Overlay, root: string): Promise<string | null> {
+  const text = (b: Uint8Array | null) => (b === null ? null : new TextDecoder().decode(b));
+  for (const c of changes) {
+    if (!isGlobal(c.path)) continue;
+    const readable = c.status === "modified" && !(c.path in overlay) && (c.path === "Cargo.lock" || (c.path.endsWith("/Cargo.toml") && c.path !== "Cargo.toml"));
+    if (readable) {
+      const before = text(await blobAt(since, c.path, root));
+      const after = until ? text(await blobAt(until, c.path, root)) : existsSync(join(root, c.path)) ? readFileSync(join(root, c.path), "utf8") : null;
+      if (before !== null && after !== null && addsDependenciesOnly(c.path, before, after)) continue;
+    }
+    return c.path;
+  }
+  return null;
 }
 
 /** What changed, as keys. */
@@ -281,7 +365,7 @@ export async function computeChange(store: SelectStore, opts: ChangeOptions = {}
   const emit = (key: string, origin: Origin) => {
     if (!moved.has(key)) moved.set(key, origin);
   };
-  const global = changes.find((c) => isGlobal(c.path))?.path ?? null;
+  const global = await globalOf(changes, since, until, fromBase || from ? overlay : {}, root);
   for (const c of changes) for (const k of pathKeys(c.path, c.status !== "modified")) emit(k, { path: c.path, how: "path" });
   const components = builtinComponents(root);
   for (const c of changes) for (const k of componentKeys(c.path, components)) emit(k, { path: c.path, how: "path" });
