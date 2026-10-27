@@ -184,6 +184,18 @@ unit and nothing per request, where an object field would cost 16 bytes per eval
 reference, including the many that are never links. `#` cannot start a declared name, so nothing
 collides.
 
+**A value-form link makes the written link's checks at run time, and an instance-method reference
+needs an object unless it is folded** (stage 3, decided by the session that built the value form).
+The unfolded helpers throw for a `$params` key that is no capture and no `#[Query]` parameter, and
+for a capture value its conversion does not match. The prepared helpers leave a computed value to
+the router's `404`. Here the row is already in hand, so the check is one comparison per key. The
+link is built from the runtime row's own parsed segments, so § 2's grammar keeps one runtime
+reader. A reference such as `callable $f = Shop::show;` to an instance method with no `$this` is
+`E0778` with a reference wording, because the callable has no object to store. Only a reference the
+checker folds (a link target, an attribute retrieval, `assertCalled`'s method) is exempt. So a menu
+of instance-method handlers writes `$shop->show(...)`, and a static handler writes `Shop::home`.
+Why: the old exemption let every method reference through and `nvs-ir` panicked on the value form.
+
 **Lanes.** Stages 1 to 4 run in order: the rules first, then the parser and checker, then the route
 table and links, then the readers of the match. Stage 5 (editor) touches only `crates/nvs-lsp/` and
 `tests/lsp/` and may run as a side goal once stage 4 lands. Stage 6's batches of `.nvs` files are
@@ -236,14 +248,14 @@ Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `t
 - [x] `check_table`: two `#[Route]`s on one method with different paths are a new code with both sites and the `{x?}` or second-method hint; `E0749` is retired in `types_e07.rs`. `crates/nvs-types/src/routes.rs:3398`, `crates/nvs-diagnostics/src/code/types_e07.rs:963`
 - [x] The first parameter of `url`, `urlAbsolute` and `urlSigned` is `$route`, a `CoreTy::Callable` (see § *Standing decisions*), and `$params` is optional with `[]` on `url` and `urlAbsolute`. `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-stdlib/src/router.rs:323`, `crates/nvs-stdlib/src/router.rs:332`
 - [x] `links.rs` resolves a written reference to its route row: a method with no `#[Route]` replaces `E0754`'s unknown name, and the key and `E0772` checks read the row as before. Inside a link the reference needs no object and skips the visibility check. `crates/nvs-types/src/links.rs:156`, `crates/nvs-types/src/links.rs:343`, `crates/nvs-types/src/links.rs:491`
-- [ ] The runtime link functions take the row a written reference folds to, and resolve a reference passed as a value by its method, throwing `no_such_route` when it has none. `crates/nvs-stdlib/src/router.rs:1535`, `crates/nvs-stdlib/src/router.rs:1555`, `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1968`
+- [x] The runtime link functions take the row a written reference folds to, and resolve a reference passed as a value by its method, throwing `no_such_route` when it has none. `crates/nvs-stdlib/src/router.rs:1535`, `crates/nvs-stdlib/src/router.rs:1555`, `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1968`
   - [x] a written reference reaches the prepared-path helpers as before; an omitted `$params` lowers to an empty `ArrayNew` (`lower_route_link`)
-  - [ ] the method-reference thunk carries its target `Class::method` where the runtime can read it (`lower_method_ref`, `crates/nvs-ir/src/lower/expr.rs:3313`)
-  - [ ] the unfolded helpers `nvs_core_router_url`/`_absolute`/`_signed` find the row by `ctx.routes()` and `Route::handler`, build the link as the prepared helpers do, and throw `no_such_route` only for a method with no route
-- [ ] Tests in `routes.rs` rewritten from names to references, plus: two paths on one method, a method with no route, an instance method linked without an object, a private method linked from another class, and a reference passed as a value that throws. `crates/nvs-types/tests/routes.rs:525`, `crates/nvs-types/tests/routes.rs:864`, `crates/nvs-types/tests/routes.rs:909`
+  - [x] the method-reference thunk carries its target `Class::method` where the runtime can read it (`lower_method_ref`, `crates/nvs-ir/src/lower/expr.rs:3313`)
+  - [x] the unfolded helpers `nvs_core_router_url`/`_absolute`/`_signed` find the row by `ctx.routes()` and `Route::handler`, build the link as the prepared helpers do, and throw `no_such_route` only for a method with no route
+- [x] Tests in `routes.rs` rewritten from names to references, plus: two paths on one method, a method with no route, an instance method linked without an object, a private method linked from another class, and a reference passed as a value that throws. `crates/nvs-types/tests/routes.rs:525`, `crates/nvs-types/tests/routes.rs:864`, `crates/nvs-types/tests/routes.rs:909`
   - [x] the link tests use references; a method with no route, an instance method without an object, a private method from outside, a value left to run time, an omitted `$params` (`a_link_to_a_method_with_no_route_is_a_diagnostic` and the three after it)
   - [x] two paths on one method, with the `check_table` item (`one_method_with_two_paths_does_not_compile`)
-  - [ ] a reference passed as a value that throws, as a run-time test once the thunk carries its target
+  - [x] a reference passed as a value that throws, as a run-time test once the thunk carries its target (`router-url-finds-the-route-of-a-method-reference-passed-as-a-value.nvst`)
 - [x] The help text of the three members (`URL_DOC`, `URL_ABSOLUTE_DOC`, `URL_SIGNED_DOC`) and the class card, held to § *Text an end user reads*. `crates/nvs-stdlib/src/router.rs:288`, `crates/nvs-stdlib/src/router.rs:435`
 
 ### 4. `Match::is`, signed links, the `operationId` and the metrics label read the method or the path
@@ -299,15 +311,17 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's link half (`f3cb545c7`) and table half (`387b79acb`) have landed:
-the link members take a written `Class::method` checked while compiling, and two paths on one method
-are `E0891` (`types_e08.rs`). `E0749` is retired. A reference passed as a value still reaches the
-unfolded helpers, which throw `no_such_route` for every value. The nightly Miri failures were already
-fixed on `main` after the tested commit, and `env-secret-proofs` passes when rerun.
+Stages 1 and 2 are done; stage 3 lacks only the `name` removal. The value form landed
+(`03ac235e7`): a forwarding reference's class carries the private constant `fn#target`, and the
+unfolded router helpers find the row by it (`value_route`, `check_value_params`, `value_template`).
+`Core\Reflect` skips the constant. An instance-method reference made into a callable with no `$this`
+is now `E0778` instead of an `nvs-ir` panic; only folded references are exempt
+(`crates/nvs-types/src/expr/calls.rs:633`). A corpus file that does this now fails, and stage 7
+names any. The sweep's Miri and `env-secret-proofs` reds were stale (fixed in `cea10a7cd`).
 
 `Route::name`, `RouteTable::named` and the `name:` roster row still exist, and `row.name` is
 still read by `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`,
-`crates/nvs-lsp/src/completion.rs:1239`/`1270` and `Match::name` in `crates/nvs-stdlib/src/router.rs`.
+`crates/nvs-lsp/src/completion.rs:1239`/`1334` and `Match::name` (`router.rs:858`, `:2500`).
 
 Expected red until stage 6 and 7: every `.nvs`, `.nvst`, `.lspt` and Rust test source that calls
 `Core\Router::url`/`urlAbsolute`/`urlSigned` with a quoted route name, including the router tests in
@@ -320,9 +334,10 @@ passes whole.
 
 ### Next
 
-**Stage 3, the value form.**
+**Stage 4's readers first, then stage 3's last item.**
 
-- [ ] The value form, as § *Standing decisions* says (a `fn#target` class constant). `anon_fn::thunk_class` (`crates/nvs-ir/src/lower/anon_fn.rs:1104`) sets `constants` to one `nvs_types::ClassConstant { name: "fn#target", public: false, protected: false, secret: false, value: ConstValue::Str(..) }` for a `ThunkTarget::Forward`. Its value is the target rendered the way `Route::handler` is (`ExprTypeTable::method_label`). Check first that `ResolvedCall.class` gives the same string. Then check that `Core\Reflect\ClassInfo` cannot reach a thunk class, or skips a constant whose name has `#`. The unfolded helpers `nvs_core_router_url`/`_absolute`/`_signed` (`crates/nvs-stdlib/src/router.rs:1984`) read the callable's descriptor `constants()` (`crates/nvs-runtime/src/object.rs:1596`) and find the row in `ctx.routes()` (`crates/nvs-runtime/src/ctx/wiring.rs:522`, row `crates/nvs-runtime/src/routes.rs:372`) by handler. Then they build the link as the prepared helpers do (`router.rs:1535`, `1555`, `1694`), with the key and value checks at run time, and throw `no_such_route` only when nothing matches. A run-time row may need the handler string; see whether `routes.rs:372` carries one. Then add a run-time test of a value that links and one that throws.
-- [ ] Then `name` leaves `OPTIONS`, `struct Route`, `RouteTable::named` and the runtime row, once stage 4 has moved `openapi.rs`, `main.rs`, `completion.rs` and `Match::name` off it. If those readers are still there, do stage 4's `Match::is` and `operationId` items first. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/src/routes.rs:390`
+- [ ] `Match::is(<method reference>): bool` replaces `Match::name` (stage 4's first item). A written reference folds to the row index, like a link target: mark it in `Env::link_target_args` (or a sibling set) so `E0778` and visibility skip it (`crates/nvs-types/src/expr/calls.rs:572`). A value compares by handler, through `nvs_runtime::callable_target`, as `value_route` does (`crates/nvs-stdlib/src/router.rs`). `crates/nvs-stdlib/src/router.rs:858`, `crates/nvs-stdlib/src/router.rs:2500`
+- [ ] The `operationId` item: `base_id` becomes `Class.method`, with the verb suffix for several verbs, and `#[Api]` gets an optional `operationId`. `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`
+- [ ] Then `name` leaves `OPTIONS`, `struct Route`, `RouteTable::named` and the runtime row (`Route::new`'s `name` argument, `crates/nvs-runtime/src/routes.rs:410`). `completion.rs:1239`/`1334` move in stage 5, or read the handler in the meantime. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/src/routes.rs:390`
 
 ### Backlog
