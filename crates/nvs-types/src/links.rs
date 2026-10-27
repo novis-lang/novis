@@ -167,9 +167,9 @@ struct CaseArg {
 /// test [`crate::retrieval::is_retrieval`] makes, against a resolved [`QName`]
 /// rather than against what the call site spelled.
 ///
-/// Public because `nvs-lsp` offers the table's route names at the name
-/// argument of exactly these calls, and asks this rather than keeping a second
-/// list of them.
+/// Public because `nvs-lsp` offers the routed methods at the route argument
+/// of exactly these calls, and asks this rather than keeping a second list of
+/// them.
 #[must_use]
 pub fn is_link(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && matches!(member, "url" | ABSOLUTE | SIGNED)
@@ -185,8 +185,10 @@ pub(crate) fn is_dispatch(owner: &QName, member: &str) -> bool {
 }
 
 /// Whether `owner::member` is `Core\Router\Match::is`, whose written target
-/// [`record_site`] records as it records a link's.
-pub(crate) fn is_match_is(owner: &QName, member: &str) -> bool {
+/// [`record_site`] records as it records a link's. Public for [`is_link`]'s
+/// reason: `nvs-lsp` offers the routed methods at its route argument too.
+#[must_use]
+pub fn is_match_is(owner: &QName, member: &str) -> bool {
     owner.to_string() == MATCH_OWNER && member == IS
 }
 

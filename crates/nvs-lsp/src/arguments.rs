@@ -49,7 +49,7 @@ use std::path::{Path, PathBuf};
 use nvs_diagnostics::{BytePos, Span};
 use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
-use nvs_syntax::walk;
+use nvs_syntax::{NodePath, walk};
 use nvs_types::expr_table::ArgSlot;
 use nvs_types::{CoreShapeField, ExprInfo, ResolvedCall, Ty, TypeId};
 
@@ -200,6 +200,62 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
         return None;
     };
     Some((literal, format!("{}::{}", target.class, target.method)))
+}
+
+/// Whether the cursor at `offset` writes the method reference that names the
+/// route of a `Core\Router` link or of `Core\Router\Match::is`.
+///
+/// The call is the innermost one in `path` whose argument list the cursor is
+/// inside. A link whose route the table holds is recorded as
+/// `nvs_types::ExprInfo::RouteLink` or `RouteIs` over the call, and carries
+/// the call it was recorded over; any other is a resolved call. The argument
+/// the cursor is in fills the parameter called `route`. A cursor in no written
+/// argument is writing the first one where no argument ends before it.
+pub(crate) fn route_argument_at(analysed: &Analysed, path: &NodePath, offset: BytePos) -> bool {
+    let Some(node) = path.nodes().iter().find(|node| CALLS.contains(&node.kind)) else {
+        return false;
+    };
+    let children: Vec<Span> = analysed
+        .index
+        .children_of(*node)
+        .iter()
+        .map(|child| child.span)
+        .collect();
+    let Some(open) = opens_at(analysed, node.span, &children) else {
+        return false;
+    };
+    if offset <= open {
+        return false;
+    }
+    let call = match analysed.exprs.lookup(node.span) {
+        Some(ExprInfo::RouteLink { call, .. } | ExprInfo::RouteIs { call, .. }) => call,
+        _ => match call_at(analysed, node.span) {
+            Some(call) => call,
+            None => return false,
+        },
+    };
+    if !nvs_types::is_link(&call.class, &call.method)
+        && !nvs_types::is_match_is(&call.class, &call.method)
+    {
+        return false;
+    }
+    let written: Vec<Span> = children
+        .into_iter()
+        .filter(|child| child.start >= open)
+        .collect();
+    match written
+        .iter()
+        .position(|child| child.start <= offset && offset <= child.end)
+    {
+        Some(at) => match call.arg_slots.get(at) {
+            Some(ArgSlot::Param(index)) => call
+                .param_names
+                .get(*index)
+                .is_some_and(|name| name == "route"),
+            _ => at == 0,
+        },
+        None => !written.iter().any(|child| child.end <= offset),
+    }
 }
 
 /// Every string literal argument the entry document writes, named by its

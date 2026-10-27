@@ -1,0 +1,30 @@
+--TEST--
+a method that carries a `#[Route]` answers its declaration and every link and `Match::is` check that names it, because each names the route by an ordinary method reference, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Shop
+{
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function sh<|>ow(uint $id): string
+    {
+        return "item";
+    }
+
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string
+    {
+        $match = Core\Request::route();
+        $here = $match !== null && $match->is(Shop::show);
+        return Core\Router::url(Shop::show, ['id' => 3])
+            . Core\Router::urlAbsolute(Shop::show, ['id' => 4]);
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:6:21
+case.nvs:16:53
+case.nvs:17:39
+case.nvs:18:46

@@ -205,6 +205,40 @@ fn a_link_params_key_is_offered_the_routes_parameters() {
     assert!(items.iter().all(|item| item.label != "id"));
 }
 
+/// The route argument of a link and of `Match::is` is offered every method
+/// that carries a `#[Route]`, ranked before anything else, and the `$params`
+/// argument of the same link is offered none of them.
+#[test]
+fn a_links_route_argument_is_offered_the_routed_methods_first() {
+    for link in [
+        "$u = Core\\Router::url(<|>);",
+        "$u = Core\\Router::url(Po<|>);",
+        "$u = Core\\Router::urlAbsolute(params: [], route: <|>);",
+        "class Menu { public function here(): string { return Core\\Router::url(<|>); } }",
+        "class Menu { public function here(Core\\Router\\Match $m): bool { return $m->is(<|>); } }",
+    ] {
+        let items = offered_with_routes(&routed(link));
+        let mut routed: Vec<&CompletionItem> = items
+            .iter()
+            .filter(|item| item.kind == Some(CompletionItemKind::METHOD))
+            .collect();
+        routed.sort_by(|left, right| left.sort_text.cmp(&right.sort_text));
+        let labels: Vec<&str> = routed.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(labels, ["Posts::about", "Posts::list", "Posts::show"], "{link}");
+        assert_eq!(
+            named(&items, "Posts::show").detail.as_deref(),
+            Some("GET /posts/{id}")
+        );
+        let first = items
+            .iter()
+            .min_by(|left, right| left.sort_text.cmp(&right.sort_text))
+            .expect("the position offers something");
+        assert_eq!(first.kind, Some(CompletionItemKind::METHOD), "{link}");
+    }
+    let items = offered_with_routes(&routed("$u = Core\\Router::url(Posts::show, <|>);"));
+    assert!(items.iter().all(|item| item.label != "Posts::show"));
+}
+
 /// A field name in the `{…}` bag `Core\Html::later` takes is offered the
 /// member's options, and accepting one writes its name and `: ` over what was
 /// typed. A field's value is offered none of them.

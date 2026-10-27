@@ -1,0 +1,24 @@
+--TEST--
+the method reference a link names its route by answers the method that carries the `#[Route]`, not the stub of the `Core\Router` method the link calls, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Shop
+{
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return "item";
+    }
+
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string
+    {
+        return Core\Router::url(Shop::sh<|>ow, ['id' => 3]);
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:6:21

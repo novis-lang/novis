@@ -13,10 +13,11 @@
 //! at a path parameter, the namespaces the workspace declares in an
 //! `autoload` prefix, the classes that are a `T` in the operand of `as
 //! class<T>`, loaded or loadable, the classes the program loads at a
-//! class-name parameter, and the names the route table holds at the name
-//! argument of a `Core\Router` link and that route's parameters at a key of
-//! its `$params`, and the security schemes the program declares in an entry
-//! of a `#[Core\Api]` `security` list ([`scheme_at`]). Outside a string, a
+//! class-name parameter, the parameters of a link's route at a key of its
+//! `$params`, and the security schemes the program declares in an entry of a
+//! `#[Core\Api]` `security` list ([`scheme_at`]). At the route argument of a
+//! `Core\Router` link or of `Match::is`, a bare position offers the methods
+//! that carry a `#[Route]` first ([`routed_methods`]). Outside a string, a
 //! field name in the `{…}` options bag a `Core` member takes last is offered
 //! that member's options ([`option_key_at`]), and a field name in a compiler
 //! attribute's payload the fields its card lists ([`attribute_key_at`]).
@@ -2031,6 +2032,9 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             }
             placed @ (Written::Statement | Written::Expression | Written::Other) => {
                 let mut items = statement_words(cursor, placed);
+                if crate::arguments::route_argument_at(cursor.analysed, path, cursor.offset) {
+                    items.extend(routed_methods(cursor));
+                }
                 items.extend(in_scope(cursor));
                 items.extend(followed(
                     cursor,
@@ -2677,13 +2681,15 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
 ///
 /// A client orders a list by how well each label matches what was typed and
 /// breaks a tie on `sortText`, so this decides the order of an empty prefix and
-/// of every tie: what this body declared, then the types this file already
-/// reaches — imported, in its own namespace, written somewhere in it — then
-/// the rest of `Core`, the rest of the workspace, and last the reserved words.
-/// Every input is a table an arm below already reads. A member list has no tiers:
-/// every row of one is as likely as the next, and its order is its labels'.
+/// of every tie: at the route argument of a link the routed methods, then what
+/// this body declared, then the types this file already reaches — imported, in
+/// its own namespace, written somewhere in it — then the rest of `Core`, the
+/// rest of the workspace, and last the reserved words. Every input is a table
+/// an arm below already reads. A member list has no tiers: every row of one is
+/// as likely as the next, and its order is its labels'.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Tier {
+    Route,
     Variable,
     Imported,
     SameNamespace,
@@ -2702,6 +2708,39 @@ impl Tier {
             ..item
         }
     }
+}
+
+/// The methods that carry a `#[Route]`, as the method references a link or
+/// `Core\Router\Match::is` takes at its route argument.
+///
+/// The rows are the route table's, so a method is offered exactly where the
+/// checker would resolve a link to it. Each method is one item however many
+/// verbs it serves, its class written the shortest way that resolves at the
+/// cursor ([`written_as`]), and its detail the verbs and the one path its
+/// routes share.
+fn routed_methods(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let analysed = cursor.analysed;
+    let short: FxHashMap<String, String> = imports_of(analysed)
+        .iter()
+        .map(|(name, target)| (target.to_string(), name.clone()))
+        .collect();
+    let here = namespace_at(analysed, cursor.offset);
+    let mut methods: BTreeMap<&str, (Vec<String>, &str)> = BTreeMap::new();
+    for row in analysed.exprs.routes().rows() {
+        let (verbs, _) = methods
+            .entry(row.handler.as_str())
+            .or_insert_with(|| (Vec::new(), row.path.as_str()));
+        verbs.push(row.verb.to_uppercase());
+    }
+    methods
+        .into_iter()
+        .filter_map(|(handler, (verbs, path))| {
+            let (class, method) = handler.rsplit_once("::")?;
+            let label = format!("{}::{method}", written_as(class, &here, &short));
+            let detail = format!("{} {path}", verbs.join(" "));
+            Some(Tier::Route.ranks(item(label, CompletionItemKind::METHOD, detail)))
+        })
+        .collect()
 }
 
 /// The variables the body the cursor is in declared, with the type each was

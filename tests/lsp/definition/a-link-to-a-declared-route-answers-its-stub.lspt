@@ -9,12 +9,12 @@ class Page
         return $body;
     }
 
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'shop.index')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function render(): Core\Html\Markup
     {
         return $this->document(html`<h1>Shop</h1>
-<p><a href="<?= Core\Router::u<|>rl('shop.index', []) ?>">back</a></p>
+<p><a href="<?= Core\Router::u<|>rl(Page::render) ?>">back</a></p>
 `);
     }
 }

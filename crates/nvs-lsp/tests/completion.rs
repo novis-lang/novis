@@ -573,7 +573,7 @@ const SOURCED: [(&str, &str); 44] = [
     ("paths", "autoload::entries_of("),
     ("prefixes", "declarations_in("),
     ("class_names", "hierarchy::implements_interface("),
-    ("route_names", "exprs.routes()"),
+    ("routed_methods", "exprs.routes()"),
     ("route_keys", "exprs.routes()"),
     ("option_keys", "&[CoreOption]"),
     ("attribute_keys", "&AttributeDoc"),
