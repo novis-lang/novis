@@ -1354,6 +1354,10 @@ mod tests {
         assert_eq!(all.len(), 1, "no `dropped` line: {all:?}");
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "it renders a record of `LINE_MAX` bytes, which Miri takes more than five minutes to do"
+    )]
     #[test]
     fn a_record_too_long_for_a_line_is_written_elided() {
         let dir = nvs_repo::scratch("spool-elided");
