@@ -249,6 +249,11 @@ Green after it: `bun nv verify --doc`, `bun nv owners --closes api-compat`, `bun
 ten pre-push legs), and `looper check`'s `compat-proofs`. `env-secret-proofs` is green when run now;
 the nightly Miri reds predate their fixes `22f1e4ec4`, `e461612ce` and `c33a8b8f7`.
 
+The first DONE was refused because `floor-debt` was red. Its 55-minute run paid four `nvtest` atoms,
+then a commit made during the run owed them again, and `payDebt` never re-planned an atom an earlier
+round had planned. `be0bc4d07` fixes that in `tools/nv/cmd/debt.ts`, with a test. `floor-debt` is
+green now, and so is `env-secret-proofs`.
+
 The decisions only this file held moved in `c076a315d`: `package/api.rs`'s module doc says a file
 outside `src` is not the API and a package with dependencies does not check, and
 `tests/package_api.rs`'s says where the fixtures live and which tests hold the attack's version-step
