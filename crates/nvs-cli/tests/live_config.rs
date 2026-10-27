@@ -525,6 +525,19 @@ fn write_file(path: &Path, text: &str) {
     });
 }
 
+/// Puts `text` in place of `path`'s content in one rename. A server whose
+/// `settle` is `0s` compiles the file it reads at once, and a plain write
+/// empties the file before it writes it, so that compile can see an empty
+/// program and write a cache file of its own.
+fn replace_file(path: &Path, text: &str) {
+    let name = path.file_name().expect("the path names a file");
+    let temp = path.with_file_name(format!(".{}.tmp", name.to_string_lossy()));
+    write_file(&temp, text);
+    std::fs::rename(&temp, path).unwrap_or_else(|error| {
+        panic!("`{}` could not be replaced: {error}", path.display());
+    });
+}
+
 /// An `[[app]]` block for `app.nvs` whose origin is `origin`.
 fn app_at(origin: &str) -> String {
     format!("[[app]]\nentry = \"app.nvs\"\norigin = \"{origin}\"\n")
@@ -1999,7 +2012,8 @@ fn open_to_everyone(dir: &Path) {
 /// compile writes its program to the new directory, and nothing more is
 /// written to the old one. A directory that every account may write to is
 /// not used: the reload logs the key and names it as not applied, and the
-/// directory in force stays.
+/// directory in force stays. Each edit is one rename, so no compile reads a
+/// half-written file and writes a third cache file.
 #[test]
 fn a_changed_file_cache_dir_applies_to_the_next_compile() {
     let server = Server::start(
@@ -2028,7 +2042,7 @@ fn a_changed_file_cache_dir_applies_to_the_next_compile() {
         report.contains("applied: opcache.file_cache_dir\n"),
         "the reload did not name `opcache.file_cache_dir` as applied: {report}"
     );
-    write_file(&dir("app.nvs"), &saying("two"));
+    replace_file(&dir("app.nvs"), &saying("two"));
     server.awaits("/", "the edit, written to the new directory", |answer| {
         answer.body == "two" && artifacts(&dir("two")) == 1
     });
@@ -2049,7 +2063,7 @@ fn a_changed_file_cache_dir_applies_to_the_next_compile() {
         said.contains("open"),
         "the record does not name the directory that was written: {said}"
     );
-    write_file(&dir("app.nvs"), &saying("three"));
+    replace_file(&dir("app.nvs"), &saying("three"));
     server.awaits(
         "/",
         "the edit, written to the directory in force",
