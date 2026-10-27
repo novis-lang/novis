@@ -708,6 +708,10 @@ mod tests {
     /// (`rule:core-api/reserved-namespace`, `E0217`). The parser reports that
     /// and keeps going, every declaration under it is in the tree, and the
     /// server publishes nothing for a stub in any case.
+    ///
+    /// The same holds for `E0247` on a member named `is`
+    /// (`Core\Router\Match::is`). A program may not declare that name, but a
+    /// call writes it after `->`, and the parser keeps the declaration.
     #[test]
     fn every_stub_parses() {
         let mut failed = Vec::new();
@@ -716,9 +720,11 @@ mod tests {
             let id = map.add(file.path.clone(), file.text.clone());
             let mut diags = Diagnostics::new();
             let _ = nvs_syntax::parse_file(map.file(id), &mut diags);
-            let first = diags
-                .iter()
-                .find(|diagnostic| diagnostic.code != Some(code::E_RESERVED_CORE_NAMESPACE));
+            let first = diags.iter().find(|diagnostic| {
+                diagnostic.code != Some(code::E_RESERVED_CORE_NAMESPACE)
+                    && !(diagnostic.code == Some(code::E_RESERVED_FOR_FUTURE_USE)
+                        && diagnostic.message == "`is` is a reserved spelling")
+            });
             if let Some(first) = first {
                 failed.push(format!("{}: {}", file.path, first.message));
             }

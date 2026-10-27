@@ -19,5 +19,6 @@ completion
 --EXPECT--
 errors  field     array<{status: int, type: string}> (optional)
 example field     object (optional)
+operationId field     string (optional)
 security field     array<string> (optional)
 tags    field     array<string> (optional)

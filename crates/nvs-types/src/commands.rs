@@ -365,8 +365,7 @@ pub struct Command {
     /// the key [`CommandTable::named`] answers.
     pub name: String,
     /// The span that wrote [`Self::name`], because a duplicate is reported at
-    /// the field rather than at the attribute — [`crate::routes::Route::name`]
-    /// carries its span for the same reason.
+    /// the field rather than at the attribute.
     pub name_span: Span,
     /// `rule:tooling/commands-are-compiled`'s `about:`, the line `Core\Command::help` renders beside the name.
     /// `None` where the author wrote none, and nothing is derived from the

@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
             band.pop(),
-            Some(35),
+            Some(37),
             "the newest code is no longer the band's highest, so the number after \
              it is no longer the next free one",
         );

@@ -26,7 +26,8 @@ interface, trait, enum, enum case, constant, method or `type` alias — through 
 constructor parameter included, in `parse_param` (`crates/nvs-syntax/src/parser/expr.rs:2048`). The
 name is kept after the report, so the parse goes on and nothing else is reported for it. A member
 reference after `->` or `::` still admits both words, since it declares nothing and no declaration
-can match it.
+can match it. That is how `Core\Router\Match::is` is called: `Core` declares it, which a program
+cannot, and the editor's stub of it is the one declaration the parser reports and keeps.
 
 **Declined:**
 - **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the

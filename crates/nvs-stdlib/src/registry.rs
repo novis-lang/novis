@@ -4474,11 +4474,7 @@ mod tests {
     /// `every_member_parameter_carries_a_qualifier_classification` fails on a
     /// member that is here *and* classified, so an entry cannot go stale and a
     /// new member cannot be added to it.
-    const UNCLASSIFIED: &[(&str, &str)] = &[
-        ("Core\\Router", "url"),
-        ("Core\\Router", "urlAbsolute"),
-        ("Core\\Csv", "format"),
-    ];
+    const UNCLASSIFIED: &[(&str, &str)] = &[("Core\\Csv", "format")];
 
     /// `rule:security/unclassified-parameter-refuses-tainted`: every `string`/`bytes` parameter of a `Core` member
     /// carries a qualifier classification, and a member that ships without one
@@ -4939,8 +4935,8 @@ mod tests {
             }
         }
         unspelled.sort_unstable();
-        // `Core\Router`'s three link members take the method a route is
-        // declared on, which the link never calls.
+        // `Core\Router`'s three link members and `Core\Router\Match::is` take
+        // the method a route is declared on, which they never call.
         assert_eq!(
             unspelled,
             [
@@ -4949,6 +4945,7 @@ mod tests {
                 r"Core\Router::url",
                 r"Core\Router::urlAbsolute",
                 r"Core\Router::urlSigned",
+                r"Core\Router\Match::is",
             ],
             "a `Core` callback writes `CoreTy::CallableSig`; a bare `callable` \
              parameter is either a reference to a declaration or a row that \
