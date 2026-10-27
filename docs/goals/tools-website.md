@@ -69,7 +69,7 @@ stages:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/website-pages-are-stamped]
   - id: 10
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: site-check
@@ -291,47 +291,34 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 7, 2, 8, 3, 4, 5, 9 and 6 are done, and only stage 10, the gate, is left.
-`bun nv site --check --nvs target/debug/nvs.exe` passes every part, `bun nv owners --closes
-tools-website` passes, and in a browser the five header areas sit on one row from 800px up.
+Every stage is done, and the goal is reached. The second `bun nv affected --run` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes tools-website`, `bun nv ci --check` and the whole
+`bun nv site --check`. Every standing decision is held by one of the goal's four rules under
+`docs/rules/testing/`, so the file can be deleted.
 
-- **The home page** links each `nvs` row of its Tooling card to its tool page, or to its reference page
-  where no tool page is about it (`nvs run`, `nvs serve`, `nvs build --compile`). It adds rows for the
-  profiler, the debug viewer and the debugger, and "All the tools" links the overview.
-  `website/src/components/home/Tooling.astro:13`, `website/src/components/home/Tooling.astro:88`
-- **The overview** has one `## [tool](/tools/<tool>/)` section per tool, each with one line and one
-  checked picture. `toolsProblems` (`tools/nv/cmd/site.ts:861`) fails a missing section and a section
-  with no picture, and `tools/nv/test/site.test.ts:291` tests both.
-- **`rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`**, guarded by `site.ts` and its
-  test.
-- **The whole check had two reds that no CI job runs.** `syntax` named 47 uncovered features. The new
-  enums are in `syntax/values/enums.mdx`'s `covers:`, the three new error classes in
-  `syntax/errors/error-types.mdx` with a table row each, the router's gate types in
-  `syntax/attributes/routes.mdx`, and the property and bench features have a `<FeatureSection>` in
-  `syntax/testing/`. `roadmap` wanted "Debugging and profiling" before "Web APIs".
+- **The gate found two causes.** `tools/nv/test/site.test.ts:115` still expected the message from
+  before `.dap` replays. `scheme.nvs` and `api/shop.nvs` under `website/snippets/tools/api-document/`
+  were not in `nvs fmt`'s layout (`{ status: ... }`), which `crates/nvs-fmt/tests/identity.rs`
+  failed; `scheme.replay` and its `.replay.out` follow the formatted text.
+- **`bun nv site --check` without `--nvs` can pick a stale binary.** Run mid-session, right after
+  verify's coverage build, it failed 27 snippets; after `cargo build` it passes every part.
 - The sweep's reds were already fixed: nightly run 40291801939 ran on `d6f131752`, before `c244b4b36`,
   `e384a0ae8` and `0288e849d`, and `env-secret-proofs` passes.
 
 ### Next
 
-**Stage 10: the goal is verified once.** Start `bun nv affected --run` with `run_in_background`,
-group its failures by cause, fix them in one pass and run it again. Then the goal-end gates:
-`bun nv verify --doc`, `bun nv owners --closes tools-website` and `bun nv ci --check`.
+Nothing is left. The driver retires the goal, and `query-binding` is next on the chain.
+`docs/rules/testing/the-tools-area-has-a-page-for-each-tool.md:1`
 
-- [ ] `bun nv affected --run` has run once, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green, and the goal-end gates pass. `tools/nv/cmd/verify.ts:1`
-
-No test is expected to go red. The "nv site --check tools" tests in `tools/nv/test/site.test.ts`
-changed with `toolsProblems` and pass.
+No test is expected to go red.
 
 ### Backlog
 
