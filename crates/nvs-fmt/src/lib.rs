@@ -101,6 +101,7 @@ mod split_join;
 mod statement;
 mod tokens;
 
+pub use chain::{AUTHORS_BREAKS, LAID_OUT};
 pub use split_join::{Relayout, Toggle};
 
 /// A file `nvs fmt` will not rewrite, because its parse reported an error

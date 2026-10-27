@@ -1,7 +1,8 @@
 Every expression kind and every control structure the grammar has is in exactly one of two lists in
-`nvs fmt`. One list has the constructs with a broken layout, each naming the rule that gives it. The
-other has the constructs whose line breaks are the author's. A test reads the node kinds from
-`crates/nvs-syntax/src/walk.rs` and fails naming each kind that is on neither list, so a new construct
+`nvs fmt`, `LAID_OUT` and `AUTHORS_BREAKS` in `crates/nvs-fmt/src/chain.rs`. One list has the
+constructs with a broken layout, each naming the rule that gives it. The other has the constructs whose
+line breaks are the author's. A test reads the node kinds from `crates/nvs-syntax/src/walk.rs` and
+fails naming each kind that is on neither list or on both, so a new construct
 is never laid out by accident and never forgotten. What our own corpus happens to contain decides
 nothing: a user writes what the grammar accepts.
 
@@ -14,8 +15,10 @@ The constructs with a broken layout are lists
 (`rule:tooling/fmt-novis-constructs`).
 
 The constructs whose line breaks are the author's are assignment and every compound assignment, `=>`
-between a key and its value, `is`, `as`, a unary operator, `new`, `clone`, `throw`, `return`, `yield`,
-`await`, an index, `|>`, and everything inside a string, a heredoc, a template or inline HTML. `|>`
+between a key and its value, `is`, `as`, a unary operator, `clone`, `throw`, `return`, `yield`,
+`await`, an index, `|>`, the operands of `isset`, `unset`, `echo` and `print`, a destructuring
+pattern, `try` and `catch`, and everything inside a string, a heredoc, a template or inline HTML. A
+`new`'s arguments are a list, and a line break between `new` and its class is the author's. `|>`
 is here because the parser rewrites a pipeline into the nested call it stands for, so no node is left
 that says where one stage ends. A line that
 continues one of them starts one level in from the line the construct starts on. A construct that

@@ -1,20 +1,25 @@
 //! *Put on separate lines* and *Join onto one line*: the edit that adds or
-//! removes the line breaks at the own level of a list, a call chain or an
-//! operator chain, written the way `nvs fmt` lays it out afterwards
+//! removes the line breaks at the own level of a list, a call chain, an
+//! operator chain, a ternary or a control header, written the way `nvs fmt`
+//! lays it out afterwards
 //! (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`).
 //!
 //! The construct is the innermost one around the cursor that [`crate::list`]
-//! or [`crate::chain`] lays out. A list on one line is split: each item starts
+//! or [`crate::chain`] lays out, and a header is offered only with the cursor
+//! inside its parentheses. A list on one line is split: each item starts
 //! a line one level in from the opener's line, a trailing comma follows the
 //! last, and the closer starts a line of its own. A chain on one line is split
 //! at every seam [`chain::seams_on`] names: each arrow or operator starts a
-//! line one level in, and a condition's `(` ends its line and its `)` starts
-//! one. Broken, either is joined: every line break at its own level goes, a
+//! line one level in, a `.` chain's too, and a condition's or header's `(`
+//! ends its line, each part of a header starts one, and its `)` starts one.
+//! Broken, either is joined: every line break at its own level goes, a
 //! list's trailing comma goes, and a block comment at that level stays beside
-//! the code it was written next to. A construct with a line comment at its own
+//! the code it was written next to. A broken condition or header is joined
+//! whole, the broken chains inside it with it, since any of them breaks it.
+//! A construct with a line comment at its own
 //! level is offered no join, because the code after the comment would become
-//! comment text. A line break inside an item or an operand belongs to it and
-//! is never touched.
+//! comment text. Otherwise a line break inside an item or an operand belongs
+//! to it and is never touched.
 //!
 //! # Decision: the formatter writes the final layout
 //!
@@ -95,7 +100,11 @@ pub(crate) fn at(file: &SourceFile, offset: usize) -> Option<Relayout> {
             .filter(|list| (list.opener..=list.closer).contains(&offset));
         match list {
             Some(list) => Some(Construct::List(node, list)),
-            None => chain::seams_on(index, text, trivia, nodes, at).map(Construct::Chain),
+            // A header's seams are offered inside its parentheses alone, never
+            // in the body below them.
+            None => chain::seams_on(index, text, trivia, nodes, at)
+                .filter(|seams| (seams.anchor..=seams.end).contains(&offset))
+                .map(Construct::Chain),
         }
     })?;
 

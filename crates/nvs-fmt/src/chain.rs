@@ -97,8 +97,16 @@
 //! in, as a condition's operands do. A chain in a part is laid out as its own,
 //! one level further in.
 //!
-//! [`seams_on`] names every place a line break sits at a chain's own level,
-//! which is what the editor actions in [`crate::split_join`] add or remove.
+//! [`seams_on`] names every place a line break sits at a chain's or a header's
+//! own level, which is what the editor actions in [`crate::split_join`] add or
+//! remove.
+//!
+//! # The two layout lists
+//!
+//! [`LAID_OUT`] names every syntax node kind with a broken layout and the rule
+//! that gives it, and [`AUTHORS_BREAKS`] every kind whose line breaks are the
+//! author's (`rule:tooling/fmt-every-construct-has-a-broken-layout`).
+//! `tests/layout_coverage.rs` fails on a kind that is on neither.
 //!
 //! # What it spends
 //!
@@ -168,6 +176,126 @@ const CONDITION_KEYWORDS: &[&str] = &["if", "while", "switch", "match"];
 /// The control structures whose header has parts of its own, with the keyword
 /// each is written with. Each part opens a line where the header is broken.
 const HEADERS: &[(&str, &str)] = &[("Foreach", "foreach"), ("For", "for")];
+
+/// The rule that lays out a list.
+const LIST_RULE: &str = "rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line";
+
+/// The rule that lays out a `->` call chain.
+const CALL_RULE: &str = "rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line";
+
+/// The rule that lays out a binary operator chain.
+const OPERATOR_RULE: &str = "rule:tooling/fmt-every-binary-operator-breaks-operator-first";
+
+/// The rule that lays out a ternary.
+const TERNARY_RULE: &str = "rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch";
+
+/// The rule that lays out a control header.
+const HEADER_RULE: &str = "rule:tooling/fmt-every-control-header-breaks-like-a-condition";
+
+/// The rule that lays out a `match` arm list.
+const ARMS_RULE: &str = "rule:tooling/fmt-novis-constructs";
+
+/// Every syntax node kind with a broken layout, spelled as
+/// `crates/nvs-syntax/src/walk.rs` spells it, with the rule that gives the
+/// layout. A kind with two layouts is named once for each
+/// (`rule:tooling/fmt-every-construct-has-a-broken-layout`).
+pub const LAID_OUT: &[(&str, &str)] = &[
+    ("AnonObject", LIST_RULE),
+    ("ArrayLiteral", LIST_RULE),
+    ("Attribute", LIST_RULE),
+    ("Binary", OPERATOR_RULE),
+    ("Call", LIST_RULE),
+    ("DoWhile", HEADER_RULE),
+    ("EnumDecl", LIST_RULE),
+    ("Fn", LIST_RULE),
+    ("For", HEADER_RULE),
+    ("Foreach", HEADER_RULE),
+    ("Function", LIST_RULE),
+    ("If", HEADER_RULE),
+    ("Match", HEADER_RULE),
+    ("Match", ARMS_RULE),
+    ("Method", LIST_RULE),
+    ("MethodCall", CALL_RULE),
+    ("MethodCall", LIST_RULE),
+    ("New", LIST_RULE),
+    ("PropertyAccess", CALL_RULE),
+    ("ShapeType", LIST_RULE),
+    ("StaticCall", LIST_RULE),
+    ("Switch", HEADER_RULE),
+    ("Ternary", TERNARY_RULE),
+    ("While", HEADER_RULE),
+];
+
+/// Every syntax node kind whose line breaks are the author's: a construct
+/// with no broken layout yet, and a kind with no line break of its own to lay
+/// out. A line that continues one starts one level in from the line it starts
+/// on (`rule:tooling/fmt-every-construct-has-a-broken-layout`).
+pub const AUTHORS_BREAKS: &[&str] = &[
+    "Assign",
+    "AutoloadDecl",
+    "Await",
+    "Block",
+    "Bool",
+    "Break",
+    "Case",
+    "Catch",
+    "ClassConstAccess",
+    "ClassDecl",
+    "ClassNameConst",
+    "Clone",
+    "Const",
+    "ConstFetch",
+    "Continue",
+    "Conversion",
+    "Destructure",
+    "Duration",
+    "Echo",
+    "Empty",
+    "EnumCase",
+    "Error",
+    "Exit",
+    "Expr",
+    "File",
+    "Float",
+    "Global",
+    "Goto",
+    "HtmlTemplate",
+    "Index",
+    "InlineHtml",
+    "Int",
+    "InterfaceDecl",
+    "Interpolated",
+    "IsInit",
+    "Isset",
+    "LocalDecl",
+    "NamespaceDecl",
+    "Null",
+    "Paren",
+    "ParentExpr",
+    "PostIncDec",
+    "PreIncDec",
+    "Print",
+    "Property",
+    "PropertyHook",
+    "Require",
+    "Return",
+    "SelfExpr",
+    "SpawnScript",
+    "StaticExpr",
+    "StaticLocal",
+    "StaticPropertyAccess",
+    "Str",
+    "Throw",
+    "Try",
+    "TypeAliasDecl",
+    "TypeTest",
+    "Unary",
+    "Unset",
+    "UseDecl",
+    "Variable",
+    "Yield",
+    "YieldFrom",
+];
 
 /// One call chain, read from the lossless tree.
 struct Chain {
@@ -460,6 +588,16 @@ impl Operators {
             || text[end..operand].contains('\n')
     }
 
+    /// The seams in front of and after each operator, in source order.
+    fn own_seams(&self, trivia: &[Trivia]) -> Vec<(SeamKind, usize, usize)> {
+        let mut seams = Vec::with_capacity(self.operators.len() * 2);
+        for (&(operator, end), operand) in self.operators.iter().zip(&self.operands[1..]) {
+            seams.push((SeamKind::Operator, code_before(trivia, operator), operator));
+            seams.push((SeamKind::Operand, end, operand.span.start as usize));
+        }
+        seams
+    }
+
     /// Records the runs this broken chain requires.
     fn lay_out(&self, wanted: &mut Vec<(usize, String)>, indent: &Indent<'_>, line_break: &str) {
         let (_, text, trivia) = indent.parse();
@@ -615,6 +753,8 @@ struct Header {
     /// Whether a line break sits after the `(`, before a part or the `)`, or
     /// inside an operator chain of the header.
     broken: bool,
+    /// The nodes written between the parentheses.
+    inside: Vec<IndexNode>,
 }
 
 impl Header {
@@ -675,7 +815,33 @@ impl Header {
             close,
             parts,
             broken,
+            inside: children,
         })
+    }
+
+    /// The seams of this header: after the `(`, in front of each later part,
+    /// and in front of the `)`. A broken header's seams include those of every
+    /// broken chain inside it, so a join puts the whole header on one line.
+    fn seams(&self, index: &SyntaxIndex, text: &str, trivia: &[Trivia]) -> Seams {
+        let mut seams = vec![(SeamKind::Open, self.open + 1, self.parts[0])];
+        seams.extend(
+            self.parts[1..]
+                .iter()
+                .map(|&part| (SeamKind::Operator, code_before(trivia, part), part)),
+        );
+        seams.push((SeamKind::Close, code_before(trivia, self.close), self.close));
+        if self.broken {
+            for &node in &self.inside {
+                nested_seams(index, text, trivia, node, &mut seams);
+            }
+            seams.sort_unstable_by_key(|&(_, from, _)| from);
+        }
+        Seams {
+            anchor: self.open,
+            end: self.close + 1,
+            broken: self.broken,
+            seams,
+        }
     }
 
     /// The broken header whose parentheses hold `offset`, of the innermost
@@ -806,19 +972,26 @@ pub(crate) fn seams_on(
     if nodes.iter().any(|node| OPAQUE.contains(&node.kind)) {
         return None;
     }
+    if let Some(header) = Header::of(index, text, trivia, nodes[at]) {
+        return Some(header.seams(index, text, trivia));
+    }
     let chain = operators_on(index, text, trivia, nodes, at)?;
     let first = chain.operands[0].span.start as usize;
     let mut seams = Vec::new();
     if let Some((open, _)) = chain.condition {
         seams.push((SeamKind::Open, open + 1, first));
     }
-    for (&(operator, end), operand) in chain.operators.iter().zip(&chain.operands[1..]) {
-        seams.push((SeamKind::Operator, code_before(trivia, operator), operator));
-        seams.push((SeamKind::Operand, end, operand.span.start as usize));
-    }
+    seams.extend(chain.own_seams(trivia));
     let last = chain.operands.last()?.span.end as usize;
     if let Some((_, close)) = chain.condition {
         seams.push((SeamKind::Close, code_before(trivia, close), close));
+        // A broken condition is joined whole, its nested chains with it.
+        if chain.broken {
+            for &operand in &chain.operands {
+                nested_seams(index, text, trivia, operand, &mut seams);
+            }
+            seams.sort_unstable_by_key(|&(_, from, _)| from);
+        }
     }
     Some(Seams {
         anchor: chain.condition.map_or(first, |(open, _)| open),
@@ -826,6 +999,26 @@ pub(crate) fn seams_on(
         broken: chain.broken,
         seams,
     })
+}
+
+/// Appends the seams of every broken operator chain or ternary in `node`, at
+/// any depth outside brackets of its own, as [`nested_broken`] finds them.
+fn nested_seams(
+    index: &SyntaxIndex,
+    text: &str,
+    trivia: &[Trivia],
+    node: IndexNode,
+    seams: &mut Vec<(SeamKind, usize, usize)>,
+) {
+    let Some(chain) = Operators::of(index, text, trivia, node, None) else {
+        return;
+    };
+    if chain.broken {
+        seams.extend(chain.own_seams(trivia));
+    }
+    for &operand in &chain.operands {
+        nested_seams(index, text, trivia, operand, seams);
+    }
 }
 
 /// What opens the line at `offset` where it is an operator of a broken

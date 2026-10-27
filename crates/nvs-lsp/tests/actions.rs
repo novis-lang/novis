@@ -328,3 +328,97 @@ fn narrowing_is_not_offered_without_a_literal_that_states_the_type() {
         assert_eq!(narrowed(source, actions::Kind::QuickFix), None, "{source}");
     }
 }
+
+/// `source` with the split or join offered at `needle` applied, and which of
+/// the two it was.
+fn relaid(source: &str, needle: &str) -> (nvs_fmt::Toggle, String) {
+    let mut map = nvs_diagnostics::SourceMap::new();
+    let id = map.add("case.nvs", source);
+    let edit = nvs_fmt::relayout(map.file(id), cursor(source, needle) as usize)
+        .unwrap_or_else(|| panic!("a split or join is offered at {needle:?} in:\n{source}"));
+    let applied = format!(
+        "{}{}{}",
+        &source[..edit.start],
+        edit.replacement,
+        &source[edit.end..]
+    );
+    (edit.toggle, applied)
+}
+
+/// What `nvs fmt` writes for `source`.
+fn formatted(source: &str) -> String {
+    let mut map = nvs_diagnostics::SourceMap::new();
+    let id = map.add("case.nvs", source);
+    nvs_fmt::format(map.file(id)).expect("the case formats")
+}
+
+/// `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`: a split of the
+/// formatted `joined` at `needle` writes `split`, the join of that writes
+/// `joined` again, and formatting either changes nothing more.
+fn splits_and_joins(joined: &str, needle: &str, split: &str) {
+    assert_eq!(formatted(joined), joined, "the joined case is formatted");
+    let (toggle, written) = relaid(joined, needle);
+    assert_eq!(toggle, nvs_fmt::Toggle::Split);
+    assert_eq!(written, split);
+    assert_eq!(
+        formatted(&written),
+        written,
+        "the split is what `nvs fmt` writes"
+    );
+    let (toggle, written) = relaid(split, needle);
+    assert_eq!(toggle, nvs_fmt::Toggle::Join);
+    assert_eq!(written, joined);
+}
+
+#[test]
+fn a_plus_chain_splits_and_joins_as_nvs_fmt_lays_it_out() {
+    splits_and_joins(
+        "<?nvs\nint $a = 1;\nint $b = 2;\nint $total = $a + $b + 3;\necho $total;\n",
+        "+ 3",
+        "<?nvs\nint $a = 1;\nint $b = 2;\nint $total = $a\n    + $b\n    + 3;\necho $total;\n",
+    );
+}
+
+#[test]
+fn a_ternary_splits_and_joins_as_nvs_fmt_lays_it_out() {
+    splits_and_joins(
+        "<?nvs\nint $a = 1;\nstring $label = $a > 0 ? 'more' : 'less';\necho $label;\n",
+        "'more'",
+        "<?nvs\nint $a = 1;\nstring $label = $a > 0\n    ? 'more'\n    : 'less';\necho $label;\n",
+    );
+}
+
+#[test]
+fn a_match_header_splits_and_joins_as_nvs_fmt_lays_it_out() {
+    splits_and_joins(
+        "<?nvs\nint $a = 1;\nint $b = 2;\nstring $size = match ($a + $b) {\n    3 => 'small',\n    \
+         default => 'large',\n};\necho $size;\n",
+        "+ $b",
+        "<?nvs\nint $a = 1;\nint $b = 2;\nstring $size = match (\n    $a\n    + $b\n) {\n    \
+         3 => 'small',\n    default => 'large',\n};\necho $size;\n",
+    );
+}
+
+#[test]
+fn a_foreach_header_splits_and_joins_as_nvs_fmt_lays_it_out() {
+    splits_and_joins(
+        "<?nvs\narray<int> $rows = [1, 2];\nforeach ($rows as int $row) {\n    echo $row;\n}\n",
+        "as int",
+        "<?nvs\narray<int> $rows = [1, 2];\nforeach (\n    $rows\n    as int $row\n) {\n    \
+         echo $row;\n}\n",
+    );
+}
+
+/// A condition broken only inside a nested chain is joined whole, the nested
+/// chain with it.
+#[test]
+fn a_condition_broken_inside_a_nested_chain_joins_whole() {
+    let broken = "<?nvs\nint $a = 1;\nint $b = 2;\nif (\n    $a > 0\n    && $b\n        + 1 > 2\n) {\n    \
+                  echo $a;\n}\n";
+    let (toggle, written) = relaid(broken, "&& $b");
+    assert_eq!(toggle, nvs_fmt::Toggle::Join);
+    assert_eq!(
+        written,
+        "<?nvs\nint $a = 1;\nint $b = 2;\nif ($a > 0 && $b + 1 > 2) {\n    echo $a;\n}\n"
+    );
+}

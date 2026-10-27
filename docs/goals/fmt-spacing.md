@@ -48,7 +48,7 @@ stages:
         rules: [tooling/fmt-every-control-header-breaks-like-a-condition]
   - id: 10
     title: every construct is on one of the two layout lists, and the editor splits and joins the new ones
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/walk.rs, crates/nvs-fmt/src/split_join.rs, docs/rules/tooling/fmt-every-construct-has-a-broken-layout.md]
     extra:
       context:
@@ -274,10 +274,10 @@ a nested operator chain breaks the header.
 **Does:** a test proves every syntax node kind has a layout or is listed as the author's, and the
 editor's split and join actions cover the new constructs.
 
-- [ ] The two lists in `chain.rs`: each construct with a broken layout and the rule that gives it, and each construct whose breaks are the author's, as `rule:tooling/fmt-every-construct-has-a-broken-layout` lists them. `crates/nvs-fmt/src/chain.rs:82`
-- [ ] The coverage test reads every node kind `walk.rs` names and fails naming each that is on neither list. `cargo test --test layout_coverage` passes. `crates/nvs-fmt/tests/layout_coverage.rs:1`, `crates/nvs-syntax/src/walk.rs:1`
-- [ ] **Put on separate lines** and **Join onto one line** are offered on every binary operator chain, a ternary and a control header, and write what `nvs fmt` writes. Split on a `.` chain puts one operand per line (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`). `crates/nvs-fmt/src/split_join.rs:1`
-- [ ] Tests: split then format, and join then format, change nothing more for a `+` chain, a ternary and a `match` header. `crates/nvs-lsp/tests/actions.rs:154`
+- [x] The two lists in `chain.rs`: each construct with a broken layout and the rule that gives it, and each construct whose breaks are the author's, as `rule:tooling/fmt-every-construct-has-a-broken-layout` lists them. `crates/nvs-fmt/src/chain.rs:202`
+- [x] The coverage test reads every node kind `walk.rs` names and fails naming each that is on neither list. `cargo test --test layout_coverage` passes. `crates/nvs-fmt/tests/layout_coverage.rs:1`, `crates/nvs-syntax/src/walk.rs:1`
+- [x] **Put on separate lines** and **Join onto one line** are offered on every binary operator chain, a ternary and a control header, and write what `nvs fmt` writes. Split on a `.` chain puts one operand per line (`rule:ide/a-list-splits-onto-lines-and-joins-onto-one`). `crates/nvs-fmt/src/split_join.rs:1`
+- [x] Tests: split then format, and join then format, change nothing more for a `+` chain, a ternary and a `match` header. `crates/nvs-lsp/tests/actions.rs:374`
 
 ### 4. every file and page the corpus holds is formatted
 
@@ -303,7 +303,7 @@ each. Writing subagents, one per tree, fix those comments side by side, and none
 - [ ] The `nvs fmt` page says in two plain sentences what is set inside a line and how many blank lines are kept, held to § *Text an end user reads* in `AGENTS.md`. `docs/examples/tools/cli/nvs-fmt/about.md:1`
 - [ ] `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` says a `.` chain keeps its author's lines and every control header breaks as its condition does, citing the two rules that now say so. `docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md:1`
 - [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`'s exception for an item that spans lines names the items that break the list, citing `rule:tooling/fmt-a-broken-item-breaks-its-list`. `docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md:25`
-- [ ] `rule:ide/a-list-splits-onto-lines-and-joins-onto-one` names every construct stage 10 offers the actions on. `docs/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.md:1`
+- [x] `rule:ide/a-list-splits-onto-lines-and-joins-onto-one` names every construct stage 10 offers the actions on. `docs/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.md:1`
 - [ ] The `nvs fmt` page also says how a broken condition, chain and ternary are laid out, within the page's word limit. `docs/examples/tools/cli/nvs-fmt/about.md:1`
 - [ ] The seven rules are `shipped`: the two spacing rules with `token_gaps.rs`, `base_style.rs` and `corpus.rs` in `guardedBy`, and the five layout rules with `chain_layout.rs`, `list_layout.rs` and `layout_coverage.rs`. Then `bun nv rules --render` and `bun nv owners --closes fmt-spacing`. `data/rules/tooling/fmt-one-run-between-two-tokens.json:3`, `data/rules/tooling/fmt-at-most-one-blank-line.json:3`, `data/rules/tooling/fmt-every-binary-operator-breaks-operator-first.json:3`, `data/rules/tooling/fmt-a-broken-item-breaks-its-list.json:3`, `data/rules/tooling/fmt-a-broken-ternary-has-a-line-per-branch.json:3`, `data/rules/tooling/fmt-every-control-header-breaks-like-a-condition.json:3`, `data/rules/tooling/fmt-every-construct-has-a-broken-layout.json:3`
 
@@ -324,35 +324,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 8 and 9 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test
---test token_gaps` passes its 25 cases, the coverage test among them.
+Stages 1, 2, 3, 7, 8, 9 and 10 are done, and stage 5's `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
+item with them. Every formatter change the goal designs has landed; what is left is the corpus sweep
+(4), the rules' status and the `nvs fmt` page (5), and the verify (6).
 
-- Headers: `CONDITIONS` (`crates/nvs-fmt/src/chain.rs:163`) adds `Switch` and `Match`; `foreach`
-  and `for` are a `Header` of parts (`crates/nvs-fmt/src/chain.rs:607`). `nested_broken`
-  (`crates/nvs-fmt/src/chain.rs:596`) breaks a condition or header only.
-- Chains: `OPERATORS` (`crates/nvs-fmt/src/chain.rs:130`), `ternary_operators` (`:546`),
-  `operand_opening` (`:847`), `line_opening` (`:884`), and `is_broken` (`:227`) read in `List::of`.
-- `cargo test --test chain_layout` passes 23, `--test list_layout` 19. The sweep's reds were stale:
-  the nightly ran on `55b03e97a`, before the Miri fixes, and `env-secret-proofs` exits 0.
+- Lists: `LAID_OUT` (`crates/nvs-fmt/src/chain.rs:202`) and `AUTHORS_BREAKS` (`:233`), re-exported
+  from `nvs_fmt`. `cargo test --test layout_coverage` passes 3, reading `nvs_syntax::walk::KINDS`.
+  The rule's author list now names `isset`, `unset`, `echo`, `print`, a destructuring pattern, `try`
+  and `catch`, and says a `new`'s arguments are a list.
+- Split and join: `seams_on` (`crates/nvs-fmt/src/chain.rs:950`) gives a `foreach`/`for` header's
+  seams through `Header::seams`, and a broken condition or header adds every nested broken chain's
+  seams (`nested_seams`, `:1006`), so a join is whole. `split_join.rs` offers a chain only with the
+  cursor between its anchor and its end, which keeps a header's action out of its body.
+- The five new tests in `crates/nvs-lsp/tests/actions.rs:374` ran by name, all green.
+- The sweep's reds were stale: the nightly ran on `55b03e97a`, before the Miri fixes
+  (`22f1e4ec4`, `e461612ce`, `c33a8b8f7`), and `env-secret-proofs` exits 0.
 
 Expected red until stage 4: `crates/nvs-fmt/tests/identity.rs`, and every corpus file and fixture
 with a chain or ternary broken at its own level or inside a one-line list, a `.` ending a line, a
 pair spaced another way (`tests/fmt/formatted/comments.nvs`), a blank line the rule removes, or a
 control header broken after its `(` or inside a nested group. The LSP suites calling
-`written_types_in` were built, not run; stage 6 runs them. `split_join.rs`'s ternary actions are
-untested until stage 10.
+`written_types_in`, and the rest of `actions.rs` and the `tests/lsp/actions/` cases, were built, not
+run; stage 6 runs them.
 
 ### Next
 
-**Stage 10: every construct is on one of the two layout lists, and the editor splits and joins the
-new ones**, files `crates/nvs-fmt/src/chain.rs`, `crates/nvs-fmt/src/split_join.rs`, a new
-`crates/nvs-fmt/tests/layout_coverage.rs` and `crates/nvs-lsp/tests/actions.rs`. `chain.rs` is 978
-lines: if the lists push it past 1,200, move `Header`, `condition_of`, `nested_broken` and
-`header_opening` to `crates/nvs-fmt/src/header.rs` first.
+**Stage 4: every file and page the corpus holds is formatted**, as its `**Split:**` line says. Stage
+5's docs items may run beside it.
 
-- [ ] The two lists beside `CONDITIONS` and `HEADERS`, and the coverage test over `walk.rs`'s kinds. `crates/nvs-fmt/src/chain.rs:163`, `crates/nvs-syntax/src/walk.rs:200`
-- [ ] `seams_on` gains a `foreach`/`for` header's seams, and a join of a condition broken only inside a nested group joins that group too; today `seams_on` names the top level alone. `crates/nvs-fmt/src/chain.rs:784`, `crates/nvs-fmt/src/split_join.rs:187`
-- [ ] The split and join tests for a `+` chain, a ternary and a `match` header. `crates/nvs-lsp/tests/actions.rs:1`
+- [ ] `bun nv nvs-fmt --bless`, then `bun nv nvs-fmt --check` names nothing. `tools/nv/cmd/nvs-fmt.ts:7`, `tools/data/nvs-fmt-corpus.txt:1`
+- [ ] The pinned positions it names (`PIN_RE`) checked and fixed, by a `reader` and writing subagents per tree. `tools/nv/cmd/nvs-fmt.ts:39`
+- [ ] The `.replay` files beside rewritten snippets, then the `AFTER` follow-ups in order. `tools/nv/cmd/nvs-fmt.ts:48`
 
 ### Backlog
 

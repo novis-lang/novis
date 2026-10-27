@@ -930,8 +930,9 @@ an unbroken chain anywhere else does too.
 Every chain of a binary operator has the layout [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line)
 gives `&&`, `||` and `??`: on one line, or one operand per line with the operator at the start of the
 line, one level in from the line the first operand starts on. The operators are the arithmetic ones,
-the comparisons, `<=>`, the bitwise ones, `|>`, `&&`, `||`, `??` and `.`. A chain is the run at the
-lowest precedence, and it is broken by a line break its author wrote between two of its operands, on
+the comparisons, `<=>`, the bitwise ones, `&&`, `||`, `??` and `.`. Operators of one precedence
+level make one chain, so `+` and `-` are one chain. A chain is the run at the lowest precedence, and
+it is broken by a line break its author wrote between two of its operands, on
 either side of an operator.
 
 ```nvs
@@ -1004,12 +1005,14 @@ Reader $reader = Reader::open(Document::fromHtml('<style>p { break-after: page }
 
 Reader $reader = Reader::open(Document::fromHtml(
     '<style>p { break-after: page }</style>'
-    . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>',
+        . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>',
 )->render()->bytes);
 ```
 
 The first statement formats to the second. Only the innermost list breaks: `fromHtml`'s argument list
-holds the chain, so `Reader::open(` keeps its argument on its line.
+holds the chain, so `Reader::open(` keeps its argument on its line. The chain's operators are one
+level in from the item's line, as [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first)
+places them anywhere, so `. '<p>…` never reads as an item of its own.
 
 Every other item that spans lines keeps the exception the list rule already makes. An anonymous
 function with a multi-line body, a nested array, a nested call's arguments and a heredoc belong to the
@@ -1128,9 +1131,10 @@ A `foreach` with a key keeps `$key => $value` together on the `as` line. The `fo
 `rule:tooling/fmt-every-construct-has-a-broken-layout`
 
 Every expression kind and every control structure the grammar has is in exactly one of two lists in
-`nvs fmt`. One list has the constructs with a broken layout, each naming the rule that gives it. The
-other has the constructs whose line breaks are the author's. A test reads the node kinds from
-`crates/nvs-syntax/src/walk.rs` and fails naming each kind that is on neither list, so a new construct
+`nvs fmt`, `LAID_OUT` and `AUTHORS_BREAKS` in `crates/nvs-fmt/src/chain.rs`. One list has the
+constructs with a broken layout, each naming the rule that gives it. The other has the constructs whose
+line breaks are the author's. A test reads the node kinds from `crates/nvs-syntax/src/walk.rs` and
+fails naming each kind that is on neither list or on both, so a new construct
 is never laid out by accident and never forgotten. What our own corpus happens to contain decides
 nothing: a user writes what the grammar accepts.
 
@@ -1143,8 +1147,12 @@ The constructs with a broken layout are lists
 ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
 
 The constructs whose line breaks are the author's are assignment and every compound assignment, `=>`
-between a key and its value, `is`, `as`, a unary operator, `new`, `clone`, `throw`, `return`, `yield`,
-`await`, an index, and everything inside a string, a heredoc, a template or inline HTML. A line that
+between a key and its value, `is`, `as`, a unary operator, `clone`, `throw`, `return`, `yield`,
+`await`, an index, `|>`, the operands of `isset`, `unset`, `echo` and `print`, a destructuring
+pattern, `try` and `catch`, and everything inside a string, a heredoc, a template or inline HTML. A
+`new`'s arguments are a list, and a line break between `new` and its class is the author's. `|>`
+is here because the parser rewrites a pipeline into the nested call it stands for, so no node is left
+that says where one stage ends. A line that
 continues one of them starts one level in from the line the construct starts on. A construct that
 needs a layout later moves from the second list to the first with the rule that gives it.
 
