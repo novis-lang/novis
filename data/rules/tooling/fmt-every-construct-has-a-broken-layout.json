@@ -1,6 +1,6 @@
 {
   "title": "Every expression kind and control structure has a broken layout or is listed as keeping its author's line breaks, and a test fails on one that is neither",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-every-binary-operator-breaks-operator-first",
@@ -8,6 +8,8 @@
     "tooling/fmt-every-control-header-breaks-like-a-condition",
     "tooling/fmt-one-run-between-two-tokens"
   ],
-  "guardedBy": [],
-  "goal": "fmt-spacing"
+  "guardedBy": [
+    "crates/nvs-fmt/tests/layout_coverage.rs",
+    "crates/nvs-fmt/tests/chain_layout.rs"
+  ]
 }

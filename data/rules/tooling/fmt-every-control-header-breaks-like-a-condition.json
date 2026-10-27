@@ -1,11 +1,12 @@
 {
   "title": "Every control structure's header is on one line, or its `(` ends its line, its parts start lines one level in, and its `)` starts a line of its own",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
     "tooling/fmt-every-binary-operator-breaks-operator-first",
     "tooling/fmt-every-construct-has-a-broken-layout"
   ],
-  "guardedBy": [],
-  "goal": "fmt-spacing"
+  "guardedBy": [
+    "crates/nvs-fmt/tests/chain_layout.rs"
+  ]
 }

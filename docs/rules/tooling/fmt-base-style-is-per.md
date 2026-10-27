@@ -17,6 +17,8 @@ above the comment, and a comment that ends a member's last line stays on that li
 Every other blank line is the author's: between two members when either has no body, inside the `use`
 block, and between a comment and the member it describes. A blank line between two simple properties
 groups them, PER fixes no grouping, and a formatter that deleted it would delete what the author meant.
+The author's blank lines are never more than one in a row, and none sits at the inside edge of a body
+(`rule:tooling/fmt-at-most-one-blank-line`).
 
 A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
 its statements sit one level in from the hook's line, and its `}` on the hook's.

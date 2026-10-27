@@ -4,7 +4,9 @@ array literal; an anonymous object; a shape type; and an enum's case list.
 
 A list is **broken** when a line break its author wrote sits at the list's own level: after the
 opener, between two items, or before the closer. A break inside an item — a function body, a nested
-array, a nested call, a heredoc — belongs to that item and never breaks the list around it.
+array, a nested call, a heredoc — belongs to that item and never breaks the list around it. The one
+exception is an item that is a broken operator chain, call chain or ternary: it breaks the innermost
+list holding it (`rule:tooling/fmt-a-broken-item-breaks-its-list`).
 
 | Written | Formatted |
 |---|---|
@@ -22,9 +24,9 @@ $order = Shop::place(
 );
 ```
 
-The first statement formats to the second. An item that spans several lines moves in with its first
-line and keeps the layout its own rules give it, so a call whose last argument is a function with a
-multi-line body and no break between its arguments stays as written:
+The first statement formats to the second. Any other item that spans several lines moves in with its
+first line and keeps the layout its own rules give it, so a call whose last argument is a function with
+a multi-line body and no break between its arguments stays as written:
 
 ```nvs
 array<string> $names = Core\Arr::map($users, fn(User $user): string => {

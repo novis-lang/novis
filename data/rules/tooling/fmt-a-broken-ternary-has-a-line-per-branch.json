@@ -1,10 +1,11 @@
 {
   "title": "A ternary is on one line, or its `?` and its `:` each start a line one level in",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-every-binary-operator-breaks-operator-first",
     "tooling/fmt-every-construct-has-a-broken-layout"
   ],
-  "guardedBy": [],
-  "goal": "fmt-spacing"
+  "guardedBy": [
+    "crates/nvs-fmt/tests/chain_layout.rs"
+  ]
 }

@@ -55,11 +55,11 @@ stages:
         rules: [tooling/fmt-every-construct-has-a-broken-layout, ide/a-list-splits-onto-lines-and-joins-onto-one]
   - id: 4
     title: every file and page the corpus holds is formatted
-    status: open
+    status: done
     context: [tools/nv/cmd/nvs-fmt.ts, tools/data/nvs-fmt-corpus.txt]
   - id: 5
     title: the rules are shipped, and the `nvs fmt` page says what the command now does
-    status: open
+    status: done
     context: [docs/rules/tooling/fmt-base-style-is-per.md, docs/rules/tooling/fmt-novis-constructs.md, docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md, docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md, docs/examples/tools/cli/nvs-fmt/about.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -288,24 +288,24 @@ it is made true again.
 name a line number (`tools/nv/cmd/nvs-fmt.ts:152`) and returns `file:line` and the right number for
 each. Writing subagents, one per tree, fix those comments side by side, and none of them builds.
 
-- [ ] `bun nv nvs-fmt --bless` over the corpus, then `bun nv nvs-fmt --check` names nothing. `tools/nv/cmd/nvs-fmt.ts:1`, `tools/data/nvs-fmt-corpus.txt:1`
-- [ ] Every expectation file it names that quotes a line or a column is checked against the program, and every comment it names that cites a moved line is rewritten. `tools/nv/cmd/nvs-fmt.ts:144`, `tools/nv/cmd/nvs-fmt.ts:152`
-- [ ] A `.replay` file beside a rewritten website snippet repeats the snippet's text, so it is fixed by hand. `website/snippets/guides/how-to-use/field-paths/01-complete-a-path.replay:1`
-- [ ] The follow-ups the tool prints, in its order: `bun nv render && bun nv render --website`, then `bun nv site --check stale questions` and each restamp it names. `tools/nv/cmd/nvs-fmt.ts:48`
-- [ ] Once the sweep is committed, `bun nv proofs --record-perf --group <g>` for each group that `bun nv proofs --gate --limit 0` names stale, one group at a time. `tools/nv/cmd/nvs-fmt.ts:52`
+- [x] `bun nv nvs-fmt --bless` over the corpus, then `bun nv nvs-fmt --check` names nothing. `tools/nv/cmd/nvs-fmt.ts:1`, `tools/data/nvs-fmt-corpus.txt:1`
+- [x] Every expectation file it names that quotes a line or a column is checked against the program, and every comment it names that cites a moved line is rewritten. `tools/nv/cmd/nvs-fmt.ts:144`, `tools/nv/cmd/nvs-fmt.ts:152`
+- [x] A `.replay` file beside a rewritten website snippet repeats the snippet's text, so it is fixed by hand. `website/snippets/guides/how-to-use/field-paths/01-complete-a-path.replay:1`
+- [x] The follow-ups the tool prints, in its order: `bun nv render && bun nv render --website`, then `bun nv site --check stale questions` and each restamp it names. `tools/nv/cmd/nvs-fmt.ts:48`
+- [x] Once the sweep is committed, `bun nv proofs --record-perf --group <g>` for each group that `bun nv proofs --gate --limit 0` names stale, one group at a time. `tools/nv/cmd/nvs-fmt.ts:52`
 
 ### 5. the rules are shipped, and the `nvs fmt` page says what the command now does
 
 **Does:** the rules say what the code does, and the page an end user reads matches it.
 
-- [ ] `rule:tooling/fmt-base-style-is-per` says every other blank line is the author's, but never more than one in a row, and cites `rule:tooling/fmt-at-most-one-blank-line`. `docs/rules/tooling/fmt-base-style-is-per.md:17`
-- [ ] `rule:tooling/fmt-novis-constructs`'s attribute line is rewritten: an attribute `#[...]` is spaced by `rule:tooling/fmt-one-run-between-two-tokens`'s `#[` row. `docs/rules/tooling/fmt-novis-constructs.md:27`
-- [ ] The `nvs fmt` page says in two plain sentences what is set inside a line and how many blank lines are kept, held to § *Text an end user reads* in `AGENTS.md`. `docs/examples/tools/cli/nvs-fmt/about.md:1`
-- [ ] `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` says a `.` chain keeps its author's lines and every control header breaks as its condition does, citing the two rules that now say so. `docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md:1`
-- [ ] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`'s exception for an item that spans lines names the items that break the list, citing `rule:tooling/fmt-a-broken-item-breaks-its-list`. `docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md:25`
+- [x] `rule:tooling/fmt-base-style-is-per` says every other blank line is the author's, but never more than one in a row, and cites `rule:tooling/fmt-at-most-one-blank-line`. `docs/rules/tooling/fmt-base-style-is-per.md:17`
+- [x] `rule:tooling/fmt-novis-constructs`'s attribute line is rewritten: an attribute `#[...]` is spaced by `rule:tooling/fmt-one-run-between-two-tokens`'s `#[` row. `docs/rules/tooling/fmt-novis-constructs.md:27`
+- [x] The `nvs fmt` page says in two plain sentences what is set inside a line and how many blank lines are kept, held to § *Text an end user reads* in `AGENTS.md`. `docs/examples/tools/cli/nvs-fmt/about.md:1`
+- [x] `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line` says a `.` chain keeps its author's lines and every control header breaks as its condition does, citing the two rules that now say so. `docs/rules/tooling/fmt-a-broken-operator-chain-is-one-operand-per-line.md:1`
+- [x] `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`'s exception for an item that spans lines names the items that break the list, citing `rule:tooling/fmt-a-broken-item-breaks-its-list`. `docs/rules/tooling/fmt-a-list-is-one-line-or-one-item-per-line.md:25`
 - [x] `rule:ide/a-list-splits-onto-lines-and-joins-onto-one` names every construct stage 10 offers the actions on. `docs/rules/ide/a-list-splits-onto-lines-and-joins-onto-one.md:1`
-- [ ] The `nvs fmt` page also says how a broken condition, chain and ternary are laid out, within the page's word limit. `docs/examples/tools/cli/nvs-fmt/about.md:1`
-- [ ] The seven rules are `shipped`: the two spacing rules with `token_gaps.rs`, `base_style.rs` and `corpus.rs` in `guardedBy`, and the five layout rules with `chain_layout.rs`, `list_layout.rs` and `layout_coverage.rs`. Then `bun nv rules --render` and `bun nv owners --closes fmt-spacing`. `data/rules/tooling/fmt-one-run-between-two-tokens.json:3`, `data/rules/tooling/fmt-at-most-one-blank-line.json:3`, `data/rules/tooling/fmt-every-binary-operator-breaks-operator-first.json:3`, `data/rules/tooling/fmt-a-broken-item-breaks-its-list.json:3`, `data/rules/tooling/fmt-a-broken-ternary-has-a-line-per-branch.json:3`, `data/rules/tooling/fmt-every-control-header-breaks-like-a-condition.json:3`, `data/rules/tooling/fmt-every-construct-has-a-broken-layout.json:3`
+- [x] The `nvs fmt` page also says how a broken condition, chain and ternary are laid out, within the page's word limit. `docs/examples/tools/cli/nvs-fmt/about.md:1`
+- [x] The seven rules are `shipped`: the two spacing rules with `token_gaps.rs`, `base_style.rs` and `corpus.rs` in `guardedBy`, and the five layout rules with `chain_layout.rs`, `list_layout.rs` and `layout_coverage.rs`. Then `bun nv rules --render` and `bun nv owners --closes fmt-spacing`. `data/rules/tooling/fmt-one-run-between-two-tokens.json:3`, `data/rules/tooling/fmt-at-most-one-blank-line.json:3`, `data/rules/tooling/fmt-every-binary-operator-breaks-operator-first.json:3`, `data/rules/tooling/fmt-a-broken-item-breaks-its-list.json:3`, `data/rules/tooling/fmt-a-broken-ternary-has-a-line-per-branch.json:3`, `data/rules/tooling/fmt-every-control-header-breaks-like-a-condition.json:3`, `data/rules/tooling/fmt-every-construct-has-a-broken-layout.json:3`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -324,38 +324,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 8, 9 and 10 are done, and stage 5's `rule:ide/a-list-splits-onto-lines-and-joins-onto-one`
-item with them. Every formatter change the goal designs has landed; what is left is the corpus sweep
-(4), the rules' status and the `nvs fmt` page (5), and the verify (6).
+Stages 1 to 5 and 7 to 10 are done. Stage 6, the verify, is all that is left.
 
-- Lists: `LAID_OUT` (`crates/nvs-fmt/src/chain.rs:202`) and `AUTHORS_BREAKS` (`:233`), re-exported
-  from `nvs_fmt`. `cargo test --test layout_coverage` passes 3, reading `nvs_syntax::walk::KINDS`.
-  The rule's author list now names `isset`, `unset`, `echo`, `print`, a destructuring pattern, `try`
-  and `catch`, and says a `new`'s arguments are a list.
-- Split and join: `seams_on` (`crates/nvs-fmt/src/chain.rs:950`) gives a `foreach`/`for` header's
-  seams through `Header::seams`, and a broken condition or header adds every nested broken chain's
-  seams (`nested_seams`, `:1006`), so a join is whole. `split_join.rs` offers a chain only with the
-  cursor between its anchor and its end, which keeps a header's action out of its body.
-- The five new tests in `crates/nvs-lsp/tests/actions.rs:374` ran by name, all green.
-- The sweep's reds were stale: the nightly ran on `55b03e97a`, before the Miri fixes
-  (`22f1e4ec4`, `e461612ce`, `c33a8b8f7`), and `env-secret-proofs` exits 0.
+- Stage 4: `bun nv nvs-fmt --bless` rewrote 393 files and 29 page blocks, and `--check` names nothing.
+  No expectation file moved, no comment cites a moved line, and no `.replay` sits beside the one
+  snippet it rewrote (`website/snippets/home/tasks.nvs`). The render, the restamps and the perf
+  records for the five re-rendered chapters are committed; `proofs --gate --limit 0` owes nothing.
+- The sweep found one bug: `gap.rs` wrote `{ width:?int }`, since the type row emptied the run after
+  an object type's `:`. A `:` inside a type now takes the `:` row (`crates/nvs-fmt/src/gap.rs:311`),
+  with `a_colon_inside_a_type_keeps_its_space_before_a_nullable_type` in `token_gaps.rs`, run green.
+- Stage 5: the seven rules are `shipped` with their tests in `guardedBy`, the four older rules cite
+  them, and the `nvs fmt` page and `website/src/content/docs/tools/formatter/index.mdx` say what is set
+  inside a line, the blank lines and the broken layouts. `rules --check` and `owners --closes` are clean.
+- The sweep's reds were stale again: the nightly ran at 09:33 +0100 on `55b03e97a`, before the Miri
+  fixes (10:17), and the `env-secret-proofs` log shows exit 0.
 
-Expected red until stage 4: `crates/nvs-fmt/tests/identity.rs`, and every corpus file and fixture
-with a chain or ternary broken at its own level or inside a one-line list, a `.` ending a line, a
-pair spaced another way (`tests/fmt/formatted/comments.nvs`), a blank line the rule removes, or a
-control header broken after its `(` or inside a nested group. The LSP suites calling
-`written_types_in`, and the rest of `actions.rs` and the `tests/lsp/actions/` cases, were built, not
-run; stage 6 runs them.
+Expected red in stage 6: tests that quote formatter output by text, such as the LSP suites calling
+`written_types_in`, the rest of `crates/nvs-lsp/tests/actions.rs` and the `tests/lsp/actions/` cases,
+which were built, not run. `crates/nvs-fmt/tests/identity.rs` should now be green.
 
 ### Next
 
-**Stage 4: every file and page the corpus holds is formatted**, as its `**Split:**` line says. Stage
-5's docs items may run beside it.
+**Stage 6: the goal is verified once, and every failure is fixed**, as its `**Split:**` line says.
 
-- [ ] `bun nv nvs-fmt --bless`, then `bun nv nvs-fmt --check` names nothing. `tools/nv/cmd/nvs-fmt.ts:7`, `tools/data/nvs-fmt-corpus.txt:1`
-- [ ] The pinned positions it names (`PIN_RE`) checked and fixed, by a `reader` and writing subagents per tree. `tools/nv/cmd/nvs-fmt.ts:39`
-- [ ] The `.replay` files beside rewritten snippets, then the `AFTER` follow-ups in order. `tools/nv/cmd/nvs-fmt.ts:48`
+- [ ] `bun nv affected --run` with `run_in_background`, then group the failures by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Fix every failure in one pass, then the second run is green. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes fmt-spacing`, `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
-- A test that the editor's split and join (`crates/nvs-fmt/src/split_join.rs`) writes what `gap.rs` would, if stage 4 finds a joined list it re-spaces.
+- A test that the editor's split and join (`crates/nvs-fmt/src/split_join.rs`) writes what `gap.rs` would. Stage 4 found no joined list it re-spaced, so it is not owed by this goal.

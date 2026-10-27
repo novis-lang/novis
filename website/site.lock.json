@@ -389,7 +389,7 @@
     "tools:editor/the-vs-code-extension": "a43e04b74734879e"
   },
   "tools/formatter/index.mdx": {
-    "tools:cli/nvs-fmt": "938dea536a25bec4"
+    "tools:cli/nvs-fmt": "40c3168ce48f141c"
   },
   "tools/profiler/index.mdx": {
     "tools:cli/profiling": "c1eeaaa3521cc23b"

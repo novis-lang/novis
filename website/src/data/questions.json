@@ -1188,7 +1188,7 @@
   },
   "/reference/cli/nvs-fmt/": {
     "feature": "tools:cli/nvs-fmt",
-    "hash": "938dea536a25bec4",
+    "hash": "40c3168ce48f141c",
     "questions": [
       "Which options does nvs fmt have?",
       "What exit code does the formatter return when a file is not formatted?",
@@ -17832,13 +17832,14 @@
   },
   "/tools/formatter/": {
     "feature": "tools/formatter/index.mdx",
-    "hash": "cc6a30979dc27c7d",
+    "hash": "879f4c97e849f6ad",
     "questions": [
       "How do I format my Novis code?",
       "Is there an automatic code formatter like gofmt or prettier?",
       "Check in CI that every file is formatted",
       "See what the formatter would change before it writes",
-      "Can I change the indentation or the code style?"
+      "Can I change the indentation or the code style?",
+      "How does the formatter lay out a long condition that I split over several lines?"
     ]
   },
   "/tools/profiler/": {

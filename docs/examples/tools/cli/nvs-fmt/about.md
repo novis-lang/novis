@@ -1,17 +1,18 @@
 `nvs fmt` rewrites Novis files in one fixed layout. A body is indented by four spaces. Each statement
-and each closing brace is on its own line. A plain string uses single quotes.
+and closing brace is on its own line.
 
-The command has no style options, so every project gets the same layout. It does not move a line break
-that you wrote, and it has no line width. Running it on a formatted file changes nothing.
+Inside a line, the two tokens decide if there is one space or no space between them. `$a+$b` becomes
+`$a + $b`. Several blank lines in a row become one.
 
-`nvs fmt app.nvs` formats one file in place. `nvs fmt src` formats every `.nvs` file in the folder
-`src` and in its subfolders.
+The command has no style options and no line width. A line break that you wrote stays. If you break a
+condition, a ternary or a chain of `+`, `&&` or another operator, each part gets its own line, with the
+operator at the start. A `.` chain keeps your lines. A formatted file stays the same.
 
-`--check` writes nothing. It prints the name of each file that would change. `--diff` also writes
-nothing, and it prints the changes as a diff. The exit status is `0` when nothing would change and `1`
-when a file would change. A build server runs `nvs fmt --check` and fails the build on status `1`.
+`nvs fmt app.nvs` formats one file in place. `nvs fmt src` formats every `.nvs` file in `src` and its
+subfolders.
 
-A file with a syntax error is not changed. `nvs fmt` prints the error, and the exit status is `2`.
+`--check` and `--diff` write nothing. `--check` prints the name of each file that would change, and
+`--diff` prints the changes. The exit status is `1` when a file would change, and `0` otherwise. A file
+with a syntax error is not changed, and the status is `2`.
 
-`--stdin` reads a file from standard input and prints the formatted text. An editor uses it to format
-a file that is not saved yet.
+`--stdin` formats standard input and prints the result. An editor uses it for a file that is not saved.

@@ -1,11 +1,12 @@
 {
   "title": "A broken chain of any binary operator has one operand per line with the operator first, a broken chain inside one is one level further in, and a `.` chain keeps its author's lines",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-a-broken-operator-chain-is-one-operand-per-line",
     "tooling/fmt-never-reflows",
     "tooling/fmt-every-construct-has-a-broken-layout"
   ],
-  "guardedBy": [],
-  "goal": "fmt-spacing"
+  "guardedBy": [
+    "crates/nvs-fmt/tests/chain_layout.rs"
+  ]
 }

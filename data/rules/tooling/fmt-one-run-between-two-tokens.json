@@ -1,6 +1,6 @@
 {
   "title": "Every run between two tokens on one line is nothing or one space, decided by the two tokens' roles, and a formatted file lexes to the token kinds its source did",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "tooling/fmt-base-style-is-per",
     "tooling/fmt-never-reflows",
@@ -8,6 +8,8 @@
     "tooling/fmt-is-one-canonical-style",
     "tooling/fmt-is-idempotent"
   ],
-  "guardedBy": [],
-  "goal": "fmt-spacing"
+  "guardedBy": [
+    "crates/nvs-fmt/tests/token_gaps.rs",
+    "crates/nvs-fmt/tests/corpus.rs"
+  ]
 }

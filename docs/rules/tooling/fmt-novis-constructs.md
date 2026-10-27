@@ -24,7 +24,8 @@ Each construct with no PER precedent has one layout, chosen once:
   (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`). Only its leading whitespace
   moves, and that whitespace is code, so nothing the program prints changes: a `?>` is never moved onto
   or off a line, and the markup after it is the editor's to lay out, never `nvs fmt`'s.
-- Attributes need no rule, since Novis has no annotation syntax.
+- An attribute `#[...]` is spaced by `rule:tooling/fmt-one-run-between-two-tokens`'s `#[` row: nothing
+  after the `#[` and nothing before its `]`, as in `#[Route('/cart')]`.
 
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.

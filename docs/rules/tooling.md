@@ -3,8 +3,6 @@
 
 # Tooling
 
-*7 of 76 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="tooling-shebang-opens-code-mode"></a>
 
 ## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
@@ -716,6 +714,8 @@ above the comment, and a comment that ends a member's last line stays on that li
 Every other blank line is the author's: between two members when either has no body, inside the `use`
 block, and between a comment and the member it describes. A blank line between two simple properties
 groups them, PER fixes no grouping, and a formatter that deleted it would delete what the author meant.
+The author's blank lines are never more than one in a row, and none sits at the inside edge of a body
+([`tooling/fmt-at-most-one-blank-line`](tooling.md#tooling-fmt-at-most-one-blank-line)).
 
 A property's hooks sit one level in from the property's line, and a hook's block is a body of its own:
 its statements sit one level in from the hook's line, and its `}` on the hook's.
@@ -794,7 +794,9 @@ array literal; an anonymous object; a shape type; and an enum's case list.
 
 A list is **broken** when a line break its author wrote sits at the list's own level: after the
 opener, between two items, or before the closer. A break inside an item — a function body, a nested
-array, a nested call, a heredoc — belongs to that item and never breaks the list around it.
+array, a nested call, a heredoc — belongs to that item and never breaks the list around it. The one
+exception is an item that is a broken operator chain, call chain or ternary: it breaks the innermost
+list holding it ([`tooling/fmt-a-broken-item-breaks-its-list`](tooling.md#tooling-fmt-a-broken-item-breaks-its-list)).
 
 | Written | Formatted |
 |---|---|
@@ -812,9 +814,9 @@ $order = Shop::place(
 );
 ```
 
-The first statement formats to the second. An item that spans several lines moves in with its first
-line and keeps the layout its own rules give it, so a call whose last argument is a function with a
-multi-line body and no break between its arguments stays as written:
+The first statement formats to the second. Any other item that spans several lines moves in with its
+first line and keeps the layout its own rules give it, so a call whose last argument is a function with
+a multi-line body and no break between its arguments stays as written:
 
 ```nvs
 array<string> $names = Core\Arr::map($users, fn(User $user): string => {
@@ -887,9 +889,11 @@ The first statement formats to the second. A chain written on one line stays on 
 
 `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`
 
-A run of `&&`, `||`, `??` or `.` has two layouts: on one line, or one operand per line with the
-operator at the start of the line. It is broken when a line break its author wrote sits between two of
-its operands, on either side of an operator.
+A run of `&&`, `||` or `??` has two layouts: on one line, or one operand per line with the operator at
+the start of the line. It is broken when a line break its author wrote sits between two of its
+operands, on either side of an operator. [`tooling/fmt-every-binary-operator-breaks-operator-first`](tooling.md#tooling-fmt-every-binary-operator-breaks-operator-first)
+gives the same layout to every other binary operator but `.`: a broken `.` chain keeps its author's
+lines, with each `.` at the start of its line.
 
 A broken chain keeps its first operand where it was and starts each following operand on a line one
 level in, operator first. When a run mixes operators of different precedence, the chain is the run at
@@ -899,7 +903,9 @@ The condition of an `if`, `elseif`, `while` or `do … while` takes one more ste
 `(` ends its line, each operand of the condition's top-level chain starts a line one level in, and the
 `)` starts a line of its own, followed by ` {` where a block follows. A line break after the `(`,
 between two operands of that top-level chain, or before the `)` breaks the condition. A break inside
-one operand, such as inside a call's arguments, belongs to that operand.
+a call's arguments belongs to that call. Every control header breaks as a condition does, and a break
+inside a higher-precedence group of the condition breaks it too
+([`tooling/fmt-every-control-header-breaks-like-a-condition`](tooling.md#tooling-fmt-every-control-header-breaks-like-a-condition)).
 
 ```nvs
 if ($user->isActive() &&
@@ -923,7 +929,7 @@ an unbroken chain anywhere else does too.
 
 <a id="tooling-fmt-every-binary-operator-breaks-operator-first"></a>
 
-## A broken chain of any binary operator has one operand per line with the operator first, a broken chain inside one is one level further in, and a `.` chain keeps its author's lines  *(designed — owned by goal fmt-spacing)*
+## A broken chain of any binary operator has one operand per line with the operator first, a broken chain inside one is one level further in, and a `.` chain keeps its author's lines
 
 `rule:tooling/fmt-every-binary-operator-breaks-operator-first`
 
@@ -990,7 +996,7 @@ lengths, and one piece per line turns a sentence into a column of four-character
 
 <a id="tooling-fmt-a-broken-item-breaks-its-list"></a>
 
-## A list item that is a broken operator chain, call chain or ternary breaks the innermost list that holds it  *(designed — owned by goal fmt-spacing)*
+## A list item that is a broken operator chain, call chain or ternary breaks the innermost list that holds it
 
 `rule:tooling/fmt-a-broken-item-breaks-its-list`
 
@@ -1030,7 +1036,7 @@ inside an unbroken list sits under nothing.
 
 <a id="tooling-fmt-a-broken-ternary-has-a-line-per-branch"></a>
 
-## A ternary is on one line, or its `?` and its `:` each start a line one level in  *(designed — owned by goal fmt-spacing)*
+## A ternary is on one line, or its `?` and its `:` each start a line one level in
 
 `rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`
 
@@ -1061,7 +1067,7 @@ lines follow it at the same level.
 
 <a id="tooling-fmt-every-control-header-breaks-like-a-condition"></a>
 
-## Every control structure's header is on one line, or its `(` ends its line, its parts start lines one level in, and its `)` starts a line of its own  *(designed — owned by goal fmt-spacing)*
+## Every control structure's header is on one line, or its `(` ends its line, its parts start lines one level in, and its `)` starts a line of its own
 
 `rule:tooling/fmt-every-control-header-breaks-like-a-condition`
 
@@ -1126,7 +1132,7 @@ A `foreach` with a key keeps `$key => $value` together on the `as` line. The `fo
 
 <a id="tooling-fmt-every-construct-has-a-broken-layout"></a>
 
-## Every expression kind and control structure has a broken layout or is listed as keeping its author's line breaks, and a test fails on one that is neither  *(designed — owned by goal fmt-spacing)*
+## Every expression kind and control structure has a broken layout or is listed as keeping its author's line breaks, and a test fails on one that is neither
 
 `rule:tooling/fmt-every-construct-has-a-broken-layout`
 
@@ -1167,7 +1173,7 @@ on the second list too, because it has no line break of its own to lay out.
 
 <a id="tooling-fmt-one-run-between-two-tokens"></a>
 
-## Every run between two tokens on one line is nothing or one space, decided by the two tokens' roles, and a formatted file lexes to the token kinds its source did  *(designed — owned by goal fmt-spacing)*
+## Every run between two tokens on one line is nothing or one space, decided by the two tokens' roles, and a formatted file lexes to the token kinds its source did
 
 `rule:tooling/fmt-one-run-between-two-tokens`
 
@@ -1197,7 +1203,7 @@ punctuation, not an operator.
 | the `:` of a return type, a named argument, an anonymous object's field and an enum's backing type | nothing before it, one space after it |
 | the `:` that ends a `case` or `default` label | nothing before it |
 | `->`, `?->` and `::` and each side | nothing |
-| inside a written type: `?`, `\|`, `&`, `<`, `>`, `(` and `)` and their neighbours | nothing; a `,` inside a type's arguments is the `,` row |
+| inside a written type: `?`, `\|`, `&`, `<`, `>`, `(` and `)` and their neighbours | nothing; a `,` inside a type's arguments is the `,` row, and a `:` inside a type, of an object type's field or a `callable`'s return type, is the `:` row, so `{ width: ?int }` keeps its space |
 | `#[` and what follows it, and what precedes its `]` | nothing |
 | a keyword and the word, variable, literal, `(` or `{` after it: `return $x`, `new Cart`, `class Cart`, `public int`, `namespace Shop`, `extends`, `throw`, `echo`, `yield` | one space; nothing before `;` or `::` |
 | two words: a type and a variable, a modifier and a type, a name and `extends` | one space |
@@ -1236,7 +1242,7 @@ walks, and nothing of it runs outside `nvs fmt` and the editor's formatting requ
 
 <a id="tooling-fmt-at-most-one-blank-line"></a>
 
-## No two blank lines follow each other in code, and no blank line sits at the inside edge of a body, a list or a match arm list  *(designed — owned by goal fmt-spacing)*
+## No two blank lines follow each other in code, and no blank line sits at the inside edge of a body, a list or a match arm list
 
 `rule:tooling/fmt-at-most-one-blank-line`
 
@@ -1374,7 +1380,8 @@ Each construct with no PER precedent has one layout, chosen once:
   ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)). Only its leading whitespace
   moves, and that whitespace is code, so nothing the program prints changes: a `?>` is never moved onto
   or off a line, and the markup after it is the editor's to lay out, never `nvs fmt`'s.
-- Attributes need no rule, since Novis has no annotation syntax.
+- An attribute `#[...]` is spaced by [`tooling/fmt-one-run-between-two-tokens`](tooling.md#tooling-fmt-one-run-between-two-tokens)'s `#[` row: nothing
+  after the `#[` and nothing before its `]`, as in `#[Route('/cart')]`.
 
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.

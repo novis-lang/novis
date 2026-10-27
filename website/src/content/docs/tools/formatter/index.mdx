@@ -9,8 +9,13 @@ import Terminal from '@components/Terminal.astro'
 `nvs fmt` rewrites Novis files in one fixed layout. A body is indented by four spaces. Each statement
 and each closing brace is on its own line. A plain string uses single quotes.
 
-The command has no style options, so every project gets the same layout. It does not move a line break
-that you wrote, and it has no line width. Running it on a formatted file changes nothing.
+Inside a line, the two tokens decide if there is one space or no space between them. `$a+$b` becomes
+`$a + $b`. Several blank lines in a row become one.
+
+The command has no style options, so every project gets the same layout. It has no line width, and a
+line break that you wrote stays. If you break a condition, a ternary or a chain of `+`, `&&` or another
+operator, each part gets its own line, with the operator at the start. A `.` chain keeps your lines.
+Running `nvs fmt` on a formatted file changes nothing.
 
 ## Format a file or a folder
 
