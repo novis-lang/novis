@@ -397,7 +397,10 @@ A method whose repeated `#[Route]`s serve several verbs is one endpoint everywhe
 - **The generated `operationId` is `Class.method`, with the lowercased verb appended when the method
   serves several verbs** — `App.receive.post`, `App.receive.put`. OpenAPI requires the id to be unique
   per operation, and `(path, method)` is unique by the duplicate-route rule, so the suffix is
-  deterministic and needs no counter. A method that serves one verb is emitted bare. `#[Api]`'s
+  deterministic and needs no counter. A method that serves one verb is emitted bare. The class is
+  written with its namespace, each `\` a `.`, so `App\Shop::show` is `App.Shop.show`: two namespaces
+  may each declare a `Shop`, and the qualified name keeps their ids apart with no collision rule
+  (`nvs_types::routes::Route::operation_base` is the one reader). `#[Api]`'s
   `operationId` replaces the derived id
   ([`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table)).
 - **The metrics `route` label is the one path pattern for every verb**

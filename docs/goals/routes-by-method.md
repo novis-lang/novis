@@ -45,7 +45,7 @@ stages:
     context: [docs/examples/core/Router, docs/examples/core/Router-Match, docs/examples/lang/attributes/core-route-and-core-access-the-route-table, website/snippets]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: router-proofs
@@ -336,38 +336,35 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stage 6 is done and its checks pass. The whole roster owes no proof (`proofs --gate --limit
-0`), and `site --check stale questions snippets shots prose` passes. `Match::is` allocates
-nothing per call. The sweep's reds were stale: the nightly Miri run predates `22f1e4ec4`,
-`e461612ce` and `c33a8b8f7`.
+Every stage is done and the goal is reached. The second `bun nv affected --run` is green: 23 of
+23 verify steps, 3144 conformance cases, and 1196 benches judged with none red. `bun nv verify
+--doc`, `bun nv owners --closes routes-by-method`, `bun nv ci --check`, `bun nv proofs --gate
+--limit 0` and the three acceptance checks pass.
 
-Expected red at stage 7's first run, each a double report the earlier stages added:
-- `reject/a-constructor-runs-only-through-new-and-parent`: `Box::constructor` gets `E0778` beside `E0885`.
-- `reject/a-spawn-entry-method-is-static`: `Job::run` gets `E0778` beside `E0802`.
-- `reject/an-attributes-retrieval-target-and-member-name-are-written-out`: `callable $reference = Target::run;` is now `E0778`, which the design wants; update the expectation.
-- `reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer`: `$m->value(...);` gets `E0137` beside `E0732`.
-Decide each: one report per mistake, so the first two and the last suppress the second code
-where the first already fired. Also expected red: three attacks time out under a parallel run
-and pass alone (`tests/hostile/core/Request/query/01-a-name-nested-a-hundred-deep.nvs`, the two
-`lang/attributes` payload and retrieval attacks); `benches/scaling/app/modules.nvs` and
-`editor.nvs` generate programs with `E0403` on `Core\Json::encode`, unrelated to routes.
-A fix in stage 7 that moves a feature's help, about, examples or implementation makes its
-perf and its pages stale again. Rerun `bun nv proofs --gate --limit 0` and `bun nv site
---check stale questions` after the fix pass, and record or restamp what they name.
+The fix pass, by cause:
+- A constructor reference and a `spawn script` entry no longer add `E0778` beside `E0885` and
+  `E0802` (`Env::spawn_entry_args`, `crates/nvs-types/src/expr/calls.rs`).
+- Two reject cases held a line that made a second mistake. The retrieval case takes its callable
+  from `(new Target())->run(...)`, and the `mixed` case assigns its reference.
+- The registry, parser-band, stub and editor suites were brought up to `Match::is`, `E0137`,
+  `#[Api]`'s `operationId` and the moved `url` stub line. The stub of `Match::is` earns one
+  `E0247`, which `rule:statements/let-and-is-are-reserved` now states.
+- `rule:routing/a-method-is-one-endpoint-everywhere` now records the namespace-qualified
+  `operationId`, the one session decision that lived only in this file.
+
+The sweep's reds were stale: nightly run 40474302703 ran at `55b03e97a`, before the three Miri
+fixes `22f1e4ec4`, `e461612ce` and `c33a8b8f7`, and `env-secret-proofs` exits 0.
 
 ### Next
 
-**Stage 7.**
-
-- [ ] `bun nv affected --run`, then fix the reds above and every other red in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes routes-by-method`, `bun nv ci --check`, and the proofs and site checks above. `tools/nv/cmd/verify.ts:8`
+Nothing. The goal is reached; the driver retires it.
 
 ### Backlog
