@@ -107,15 +107,25 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 `origin/main` is at `55b03e97a`. Its CI run 40455321666 (39 jobs) and its Website run
 40455321488 are both green. The run carries `ff918f7b7`, so the `tsan` fix of run 40445599454
 held: `crates/nvs-host/src/blocking.rs:calls_one_after_another_use_one_thread_and_allocate_the_same`
-parks its task once before it counts. Nothing this goal committed waits for a push.
+parks its task once before it counts.
 
-Before the watch, at `c3f5e33c5`, `bun nv proofs --gate --limit 0` owed nothing and `bun nv site
---check stale questions` was green.
+`2bcc7da11` waits for the next goal end's push. `565d7951c` changed `crates/nvs-stdlib/src/cap.rs`,
+so `Core\Cap::has`'s figure was stale, and measuring it failed: the bench declared `calls 0` and made
+1. Since `ece7b500f` every Core call passes the call probes and counts as a call, so each bench
+declares the Core calls it makes. `benches/members/core/Cap/has.nvs` now says `calls 1`, and its
+figure is recorded. A bench that still declares `calls 0` around a Core call fails the same way the
+next time its file changes: change its `// bench: calls` line, never the counter.
 
-`.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci`, `wt-cig` and `wt-rec` are stray folders
-that Windows keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write.
-`wt-csv` has a `target/` with a release `nvs.exe` built at `b358c465f`. Delete them all once
-looper is stopped.
+At `7d7e7dd37`, `bun nv site --check stale questions` was green. Once `2bcc7da11` landed,
+`bun nv proofs --gate --limit 0` owed only four `Core\Config` figures. They are stale from the main
+loop's uncommitted edit to `crates/nvs-stdlib/src/config.rs`, which is its open work.
+
+`.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci`, `wt-cig`, `wt-rec` and `wt-cap` are stray
+folders that Windows keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not
+write. `wt-csv` has a `target/` with a release `nvs.exe` built at `7d7e7dd37`. `--record-perf`
+checks for the binary at the worktree's own `target/release/nvs.exe`. With `CARGO_TARGET_DIR`
+pointing at `wt-csv/target`, copy the built `nvs.exe` there first. Delete them all once looper is
+stopped.
 
 ### Next
 
