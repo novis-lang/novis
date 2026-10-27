@@ -1780,10 +1780,9 @@ fn code_lens(
                 .into_iter()
                 .map(|occurrence| &occurrence.site)
                 .collect();
-            let run_by_runner =
-                declared.test || test_classes.contains(&declared.symbol.as_str());
-            let counted = (!run_by_runner || !uses.is_empty())
-                .then(|| (reference_count(uses.len()), uses));
+            let run_by_runner = declared.test || test_classes.contains(&declared.symbol.as_str());
+            let counted =
+                (!run_by_runner || !uses.is_empty()).then(|| (reference_count(uses.len()), uses));
             // A test reaches only itself, and the test view runs it already.
             let extent = declared.extent.filter(|_| !declared.test);
             let reached = extent.map(|(start, end)| {
