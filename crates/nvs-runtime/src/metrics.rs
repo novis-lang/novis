@@ -723,10 +723,10 @@ impl Registry {
 
     /// `rule:observability/default-series`'s two request series, recorded together from what the door
     /// already knows: the verb, the status that went back, and the **route's
-    /// declared name** (`nvs_server::route::label`).
+    /// path pattern** (`nvs_server::route::label`).
     ///
     /// `route` is the label § 1 says would otherwise be unbounded, and this is
-    /// the one place its value is chosen. It is a name out of `rule:routing/routes-are-compiled-not-registered`'s
+    /// the one place its value is chosen. It is a pattern out of `rule:routing/routes-are-compiled-not-registered`'s
     /// compile-time table and never the request's path, so the label's set is
     /// closed by the compile that produced the table. **A request that matched
     /// nothing carries the label empty rather than not at all**: an exposition
@@ -758,8 +758,8 @@ impl Registry {
     /// Records one finished request's memory peak, in bytes, under its route.
     ///
     /// `nvs_request_memory_peak_bytes` from `rule:observability/default-series`,
-    /// labelled the way [`Registry::request`] labels its two: the declared
-    /// route name, or empty for a request that matched none. Nothing is
+    /// labelled the way [`Registry::request`] labels its two: the route's path
+    /// pattern, or empty for a request that matched none. Nothing is
     /// returned, for that method's reason — the family is seeded by
     /// [`DEFAULT`], so the only refusal left is § 7's counted no-op.
     pub fn request_peak(&mut self, route: Option<&str>, peak: usize) {
@@ -1591,19 +1591,19 @@ mod tests {
     }
 
     /// `rule:observability/default-series`'s two request series are recorded together, carrying
-    /// `rule:observability/route-label-is-the-path-pattern`'s declared name — and a request that matched nothing carries the label
+    /// `rule:observability/route-label-is-the-path-pattern`'s path pattern — and a request that matched nothing carries the label
     /// empty rather than not at all.
     #[test]
-    fn a_request_records_both_series_under_the_routes_declared_name() {
+    fn a_request_records_both_series_under_the_routes_path_pattern() {
         let mut registry = Registry::new(64);
-        registry.request("GET", 200, Some("products.show"), Duration::from_millis(30));
-        registry.request("GET", 200, Some("products.show"), Duration::from_millis(30));
+        registry.request("GET", 200, Some("/products/{id}"), Duration::from_millis(30));
+        registry.request("GET", 200, Some("/products/{id}"), Duration::from_millis(30));
         registry.request("POST", 404, None, Duration::from_millis(2));
 
         let matched = [
             ("method", "GET"),
             ("status", "200"),
-            ("route", "products.show"),
+            ("route", "/products/{id}"),
         ];
         assert_eq!(
             registry.read("nvs_requests_total", &matched),
@@ -1696,11 +1696,11 @@ mod tests {
     #[test]
     fn a_request_peak_is_bucketed_in_bytes_under_its_route() {
         let mut registry = Registry::new(64);
-        registry.request_peak(Some("user.show"), 300_000);
-        registry.request_peak(Some("user.show"), 2_000_000);
+        registry.request_peak(Some("/users/{id}"), 300_000);
+        registry.request_peak(Some("/users/{id}"), 2_000_000);
         registry.request_peak(None, 10);
         let Some(Value::Histogram(histogram)) =
-            registry.read("nvs_request_memory_peak_bytes", &[("route", "user.show")])
+            registry.read("nvs_request_memory_peak_bytes", &[("route", "/users/{id}")])
         else {
             panic!("the seeded histogram, under the route");
         };

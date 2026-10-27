@@ -770,12 +770,13 @@ impl Match {
         self.index
     }
 
-    /// § 1's declared name, which
+    /// The matched row's path pattern as its `#[Route]` wrote it, such as
+    /// `/users/{id}`, which
     /// `rule:observability/route-label-is-the-path-pattern`'s `route`
-    /// label reads. `None` where the route declares none.
+    /// label reads. Every row has one, so every matched request is labelled.
     #[must_use]
-    pub fn name(&self) -> Option<&str> {
-        self.route.name()
+    pub fn pattern(&self) -> &str {
+        self.route.path()
     }
 
     /// Every capture the path filled, in path order.
@@ -1150,7 +1151,7 @@ mod tests {
     fn every_capture_form_matches_the_shape_its_grammar_declares() {
         let routes = table();
         let matched = routes.match_request("GET", "/users/42").expect("a match");
-        assert_eq!(matched.name(), Some("user.show"));
+        assert_eq!(matched.pattern(), "/users/{id}");
         assert_eq!(matched.param("id"), Some(&Param::Uint(42)));
 
         assert_eq!(

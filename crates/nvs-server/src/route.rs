@@ -480,25 +480,23 @@ fn decoded(text: &[u8]) -> Option<String> {
 }
 
 /// `rule:observability/route-label-is-the-path-pattern`'s `route` label for this request: the matched route's
-/// **declared name**.
+/// **path pattern** as its `#[Route]` wrote it, such as `/users/{id}`.
 ///
 /// The one label of that table which would otherwise be unbounded, which is why
 /// it is read off the match and computed nowhere else — its value comes from
 /// the compile-time table, a closed set, and never from the request's own path,
 /// whose cardinality the client chooses.
 ///
-/// `None` in all three of the absences, which are one case: nothing matched, no
-/// table to match against, and a matched row that declared no `name`. A label
-/// is a name the table chose, so a row that chose none has no label — falling
-/// back to the path is the cardinality bomb the rule exists to prevent, and it
-/// is not offered as an option.
+/// `None` in the two absences, which are one case: nothing matched, and no
+/// table to match against. Every row has a pattern, so every matched request
+/// is labelled.
 ///
 /// [`crate::serve`] is the caller, once per request it ran, off the carrier the
 /// reply is still holding — `nvs_host::Isolate::answering_request` owns why the
 /// door reads it there and not after the isolate has started.
 #[must_use]
 pub fn label(inbound: &Inbound) -> Option<&str> {
-    inbound.route()?.name()
+    Some(inbound.route()?.pattern())
 }
 
 #[cfg(test)]
@@ -532,7 +530,7 @@ mod tests {
     /// application would read and not a carrier the door still owns.
     fn handler(inbound: Inbound) -> Option<(String, Vec<(String, Param)>)> {
         let matched = inbound.route()?;
-        Some((matched.name()?.to_owned(), matched.params().to_vec()))
+        Some((matched.route().handler().to_owned(), matched.params().to_vec()))
     }
 
     /// `rule:routing/matched-once-before-the-handler`: the match is taken before the handler, it is taken once,
@@ -553,7 +551,7 @@ mod tests {
         assert_eq!(
             handler(inbound),
             Some((
-                "user.show".to_owned(),
+                "App\\Users::show".to_owned(),
                 vec![("id".to_owned(), Param::Uint(42))]
             ))
         );
@@ -623,9 +621,9 @@ mod tests {
         // `rule:routing/table-is-opt-in`: nothing matched declares no handler to protect.
         assert!(!super::csrf_required(&unmatched));
 
-        assert_eq!(super::label(&checked_post), Some("orders.create"));
-        assert_eq!(super::label(&exempt), Some("hooks.stripe"));
-        assert_eq!(super::label(&safe), Some("orders.index"));
+        assert_eq!(super::label(&checked_post), Some("/orders"));
+        assert_eq!(super::label(&exempt), Some("/hooks/stripe"));
+        assert_eq!(super::label(&safe), Some("/orders"));
         assert_eq!(super::label(&unmatched), None);
     }
 
@@ -1103,19 +1101,20 @@ mod tests {
         );
     }
 
-    /// `rule:observability/route-label-is-the-path-pattern`'s label carries the route's **declared name** and never the
-    /// request's path, so a matched row that declared none has no label — the
-    /// case a fallback would silently turn into the cardinality bomb that rule
-    /// exists to prevent.
+    /// `rule:observability/route-label-is-the-path-pattern`'s label carries the route's **path pattern** and never
+    /// the request's path, so two requests to one route share one series.
     #[test]
-    fn a_matched_route_with_no_declared_name_has_no_label() {
+    fn a_matched_route_is_labelled_with_its_pattern_and_not_the_requests_path() {
         let routes = table();
-        let mut inbound = Inbound::new("GET", "/users/new", "");
-        super::take(&routes, &mut inbound);
-        drop(routes);
+        let label = |path: &str| {
+            let mut inbound = Inbound::new("GET", path, "");
+            super::take(&routes, &mut inbound);
+            super::label(&inbound).map(str::to_owned)
+        };
 
-        assert!(inbound.route().is_some());
-        assert_eq!(super::label(&inbound), None);
+        assert_eq!(label("/users/42").as_deref(), Some("/users/{id}"));
+        assert_eq!(label("/users/7").as_deref(), Some("/users/{id}"));
+        assert_eq!(label("/users/new").as_deref(), Some("/users/new"));
     }
 
     /// § 1's `null`: nothing matched is a served request like any other, and

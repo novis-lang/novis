@@ -9738,7 +9738,7 @@ pub(crate) mod tests {
 
     /// A handler over a one-row route table, so that the request it answers
     /// carries `rule:routing/matched-once-before-the-handler`'s match — which
-    /// is the only thing a declared name can be read off.
+    /// is the only thing a route's path pattern can be read off.
     ///
     /// The table is built here rather than handed in because it is the door's
     /// own: [`crate::route::take`] runs where the unit and the request are both
@@ -9838,7 +9838,7 @@ pub(crate) mod tests {
         let labels = [
             ("method", "GET"),
             ("status", "200"),
-            ("route", "products.show"),
+            ("route", "/products/{id}"),
         ];
         assert_eq!(
             registry.read("nvs_requests_total", &labels),

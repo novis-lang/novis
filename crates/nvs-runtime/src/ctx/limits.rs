@@ -177,8 +177,7 @@ impl Ctx {
         let route = self
             .inbound()
             .and_then(crate::Inbound::route)
-            .and_then(crate::routes::Match::name)
-            .map(str::to_owned);
+            .map(|matched| matched.pattern().to_owned());
         crate::metrics::count_request_peak(route.as_deref(), peak);
         let ceiling = self.memory_limit.saturating_add(self.fatal_reserve);
         if self.memory_limit == 0 {
