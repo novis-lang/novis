@@ -93,7 +93,7 @@ const ROW_DETAILS: Record<string, string> = {
   deploy: 'deploying-a-new-version',
   'deploy-big': 'deploying-a-new-version',
   'deploy-switch': 'deploying-a-new-version',
-  cores: 'many-requests-at-once',
+  cores: 'scaling-with-more-cores',
   loop: 'runaway-requests',
   memory: 'runaway-requests',
   session: 'one-visitor-two-requests',

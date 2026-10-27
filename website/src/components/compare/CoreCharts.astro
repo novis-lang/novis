@@ -1,13 +1,14 @@
 ---
 /**
  * The comparison page's charts for more than one core, from the `cores` and
- * `parallel` rows of the feature table, all four peers ranked together.
- * `many-requests` is each peer's throughput with four cores against the best
- * peer's, with its throughput on one core beside it. `one-request` gives each
+ * `parallel` rows of the feature table. `many-requests` is how many times its
+ * throughput on one core each peer reaches with four, against four times, best
+ * first. Its bars have no place: the row asks whether a peer uses the cores,
+ * and the loop's throughput is a language's arithmetic speed, which the speed
+ * cases measure better. `one-request` gives each
  * peer two bars: the seconds one part took, then the seconds four parts at
  * once took, both against the longest time in the chart. Only the four-part
- * times have a place, and every one in place 1 takes the accent colour. In
- * `many-requests` every bar has a place.
+ * times have a place, and every one in place 1 takes the accent colour.
  */
 import Bars from './Bars.astro'
 import { manyRequests, oneRequest, overLeast, places, positions, record } from '~/lib/compare'
@@ -18,24 +19,24 @@ export interface Props {
 
 const { chart } = Astro.props
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
+// The cores the `cores` row gives each peer. A peer whose throughput grows by this factor fills its bar.
+const CORES = 4
 const seconds = (n: number) => `${n.toFixed(2)} s`
 
 const groups = (() => {
   if (chart === 'many-requests') {
-    const fours = manyRequests.map((s) => s.four)
-    const best = Math.max(...fours)
-    const place = places(fours, false)
-    const position = positions(fours, false)
-    const bars = manyRequests.map((s, i) => ({
-      peer: s.peer,
-      label: s.label,
-      place: place[i]!,
-      position: position[i]!,
-      share: best > 0 ? s.four / best : 0,
-      best: place[i] === 1,
-      value: number(s.four),
-      figures: `requests per second, ${number(s.one)} with one core`,
-    }))
+    const times = (s: (typeof manyRequests)[number]) => (s.one > 0 ? s.four / s.one : 0)
+    const bars = [...manyRequests]
+      .sort((a, b) => times(b) - times(a))
+      .map((s) => ({
+        peer: s.peer,
+        label: s.label,
+        share: times(s) / CORES,
+        best: false,
+        value: `${times(s).toFixed(2)}×`,
+        compared: '',
+        figures: `${number(s.four)} requests per second with four cores, ${number(s.one)} with one core`,
+      }))
     return [{ bars }]
   }
   const longest = Math.max(...oneRequest.map((s) => Math.max(s.one, s.four)))

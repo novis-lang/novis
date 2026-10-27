@@ -80,19 +80,26 @@ containers.
 A server can use more than one CPU core in two ways. It can answer many requests at the same time,
 each on its own core. Or one request can split its own work into parts that run at the same time.
 
-### Many requests at once
+### Scaling with more cores
 
-In this test, each request runs a loop that takes about one millisecond of CPU time. The test runs
-it with one core and then with four cores for each server. Each bar shows a server's requests per
-second with four cores, as a share of the fastest server.
+This test checks if a server gets faster when it has more CPU cores. Each request runs a loop that
+takes about one millisecond of CPU time. The test runs each server with one core and then with four
+cores.
+
+Each bar shows how many times more requests per second the server answers with four cores than with
+one. With four cores, four times is the most possible, and that is the full bar. The line under the bar has the requests per
+second.
+
+The loop only does arithmetic. So the requests per second show how fast each language runs a loop,
+and not how fast it handles a request. The tests in "Speed and memory" measure that.
 
 The HTML page test is not used here. Some servers answer it so fast that nginx becomes the limit
 with four cores. The test would then measure nginx and not the server.
 
 <CoreCharts chart="many-requests" />
 
-Novis, PHP and Go use all the cores with no extra code. One Bun process runs your code on one core.
-So the Bun program starts one Bun process for each core itself.
+All four servers use the cores. Novis, PHP and Go do it with no extra code. One Bun process runs your
+code on one core. So the Bun program starts one Bun process for each core itself.
 
 ### One request in four parts
 
