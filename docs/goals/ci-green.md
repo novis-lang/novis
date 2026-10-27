@@ -104,18 +104,14 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `1467fa8f6`. Its push run 40484733037 and its Website run 40484733002 are
-green. The namespace-grants goal end's push was refused on a stale editor page (`a7e387aea`) and a
-rustfmt diff in `nvs-lsp/src/server.rs` (`1467fa8f6`); both are fixed and this session pushed. It
-carries the three Miri skips of nightly run 40474302703, which the next nightly checks.
+`origin/main` is at `8a2010e41`. Its push run 40527872659 (37 jobs) and its Website run
+40527872398 are green. It carries `6178594a4`, the cancelled-run handling of `bun nv ci`. Before
+the watch, `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0` were clean at
+`HEAD`. The local `main` is six `nvs-fmt` commits ahead, out with the next goal end.
 
-`proofs / windows-x86_64` passed every step, then hung in `Post Run actions/checkout` until the
-1h30 job limit, and a rerun went green. Earlier runs spend 3 s in that step. A second such hang is
-not noise: look for a process the proofs leave running that holds the checkout.
-
-`6178594a4`, not pushed: `bun nv ci` counts a cancelled run on `origin/main`'s commit as red, and
-prints a cancelled job's annotations. Before it, `--watch` passed over the timed-out run and reported
-the old nightly one.
+`proofs / windows-x86_64` once hung in `Post Run actions/checkout` until the 1h30 job limit, and
+a rerun went green. Earlier runs spend 3 s in that step. A second such hang is not noise: look for
+a process the proofs leave running that holds the checkout.
 
 A new test that renders megabytes or uses the spare stack needs the Miri skip.
 
