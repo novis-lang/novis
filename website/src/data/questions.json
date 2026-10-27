@@ -964,7 +964,7 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "e87d7162d3881558",
+    "hash": "43bc9c217b683320",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
@@ -985,7 +985,7 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "811548eda7e035bb",
+    "hash": "4e6a4c43658d5396",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",
@@ -1303,7 +1303,7 @@
   },
   "/reference/cli/nvs-test-mutate/": {
     "feature": "tools:cli/nvs-test-mutate",
-    "hash": "d726fdeeddd2ce7e",
+    "hash": "1705dd0279f352bc",
     "questions": [
       "How do I check that my tests would notice a bug?",
       "What is mutation testing and how do I run it?",

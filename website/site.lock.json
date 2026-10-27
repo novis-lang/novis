@@ -404,6 +404,6 @@
     "lang:testing/running-tests-nvs-test": "60bf36930e87485b",
     "lang:testing/test-options": "4bbccf20a7433053",
     "tools:cli/nvs-test": "7c1e89e0ca017553",
-    "tools:cli/nvs-test-mutate": "d726fdeeddd2ce7e"
+    "tools:cli/nvs-test-mutate": "1705dd0279f352bc"
   }
 }
