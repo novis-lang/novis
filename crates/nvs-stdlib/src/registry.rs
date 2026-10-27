@@ -2212,7 +2212,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::db::NAME, "quoteIdentifier", None),
     // `rule:core-classes/db-capabilities`'s split again, for a directory: `connect`
     // reaches a block an operator wrote, and `open` a server the program names.
-    (crate::ldap::NAME, "connect", Some(nvs_config::Cap::LdapConnect)),
+    (
+        crate::ldap::NAME,
+        "connect",
+        Some(nvs_config::Cap::LdapConnect),
+    ),
     (crate::ldap::NAME, "open", Some(nvs_config::Cap::LdapOpen)),
     // `rule:core-classes/schema-apply-capability`'s split, and the reason `Core\Db\Schema` is a
     // capability-bearing class at all: reaching a database is not permission to

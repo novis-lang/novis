@@ -329,19 +329,22 @@ fn every_capability_bearing_member_declares_its_capability() {
                  saying what it reaches instead. There is no allowlist to add it to \
                  (rule:testing/capability-completeness-test): a member that is hard to classify \
                  is a member whose capability has not been thought about",
-                class.name, member.name,
+                class.name,
+                member.name,
             );
             assert!(
                 rows.len() == 1 || rows.iter().all(Option::is_some),
                 "`{}::{}` has a `None` row beside others. A member that needs nothing has that \
                  one row, and a member that needs several has a row naming each",
-                class.name, member.name,
+                class.name,
+                member.name,
             );
             for (at, cap) in rows.iter().enumerate() {
                 assert!(
                     !rows[..at].contains(cap),
                     "`{}::{}` names {cap:?} twice",
-                    class.name, member.name,
+                    class.name,
+                    member.name,
                 );
             }
         }
@@ -575,7 +578,10 @@ fn every_door_names_the_capability_its_member_declares() {
         let Some(name) = line.strip_prefix("pub fn ") else {
             continue;
         };
-        let name: String = name.chars().take_while(|ch| ch.is_alphanumeric() || *ch == '_').collect();
+        let name: String = name
+            .chars()
+            .take_while(|ch| ch.is_alphanumeric() || *ch == '_')
+            .collect();
         let after = shipped
             .iter()
             .skip_while(|(number, _)| number < at)
@@ -619,7 +625,10 @@ fn every_door_names_the_capability_its_member_declares() {
                 let asked: Vec<Cap> = if name == "require" {
                     let named = args.get(1).and_then(|cap| cap.rsplit_once("Cap::"));
                     let Some(cap) = named.and_then(|(_, variant)| {
-                        Cap::ALL.iter().copied().find(|cap| format!("{cap:?}") == variant)
+                        Cap::ALL
+                            .iter()
+                            .copied()
+                            .find(|cap| format!("{cap:?}") == variant)
                     }) else {
                         continue;
                     };
@@ -628,7 +637,10 @@ fn every_door_names_the_capability_its_member_declares() {
                     let access = args.get(2).map_or("", String::as_str);
                     match name.as_str() {
                         "open" if access.ends_with("Access::Read") => vec![Cap::FsRead],
-                        "open" if access.ends_with("Access::Write") || access.ends_with("Access::Append") => {
+                        "open"
+                            if access.ends_with("Access::Write")
+                                || access.ends_with("Access::Append") =>
+                        {
                             vec![Cap::FsWrite]
                         }
                         _ => caps.to_vec(),
@@ -637,7 +649,8 @@ fn every_door_names_the_capability_its_member_declares() {
                     continue;
                 };
                 let before = text.lines().take(*number).collect::<Vec<_>>().join("\n");
-                let Some((class, member)) = args.last().and_then(|last| member_named(last, &before))
+                let Some((class, member)) =
+                    args.last().and_then(|last| member_named(last, &before))
                 else {
                     continue;
                 };
@@ -653,7 +666,11 @@ fn every_door_names_the_capability_its_member_declares() {
                          that member's rows say {}",
                         file.display(),
                         cap.name(),
-                        if declared.is_empty() { "none" } else { &declared },
+                        if declared.is_empty() {
+                            "none"
+                        } else {
+                            &declared
+                        },
                     ));
                 }
                 checked.push(format!("{class}::{member}"));
@@ -811,7 +828,10 @@ fn no_member_dispatches_on_a_uri_scheme() {
     fn module_of(src: &Path, class: &str) -> std::path::PathBuf {
         let mut segments = class.split('\\').skip(1).map(str::to_ascii_lowercase);
         let first = segments.next().expect("a class name has a segment");
-        let mut candidates = vec![src.join(format!("{first}.rs")), src.join(&first).join("mod.rs")];
+        let mut candidates = vec![
+            src.join(format!("{first}.rs")),
+            src.join(&first).join("mod.rs"),
+        ];
         let mut directory = src.join(&first);
         for segment in segments {
             candidates.insert(0, directory.join(format!("{segment}.rs")));

@@ -1972,9 +1972,17 @@ exists to prevent. A skip is for a proof that *cannot exist*, never for one that
 `rule:testing/capability-completeness-test`
 
 A class is **capability-bearing** when any of its members has a row in the capability table. For
-such a class **every member owes exactly one row**, and a member that genuinely needs no
+such a class **every member owes a row**, and a member that genuinely needs no
 capability — one that manipulates a string and touches no disk — declares that by entering the table
-with *no capability*, rather than by staying out of it.
+with *no capability*, rather than by staying out of it. A member whose door asks a different
+capability by its argument, such as `Core\IO::open` by its mode, has one row for each, and a row with
+no capability is a member's only row.
+
+A second test holds every door to its member's rows: each call to a door whose member is written on
+the call, as a literal or a constant, asks only capabilities that member's rows name. The checker
+reads the rows to hold a call to its namespace's grants
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), so a door asking more than its rows would
+compile in a namespace never granted it.
 
 There is no allowlist, and that is the point. A member that is hard to classify is a member whose
 capability has not been thought about, and the answer is to think about it, not to exempt it — so
@@ -3183,7 +3191,9 @@ about what a `Core` member costs is a number with no guard test.
 
 `nvs run --count` prints the same rows at exit, `gc=` last on the line (`DebugFlags::COUNT` in
 `crates/nvs-runtime/src/ctx/mod.rs`, the line in `crates/nvs-cli/src/main.rs`). A GC cycle is one run of
-the in-flight collector, counted in `Ctx::collect_if_asked`. The attribute's options are
+the in-flight collector, counted in `Ctx::collect_if_asked`. A counted run starts no queue worker
+and no slice clock, because both run on the counted thread at moments set by the clock, so its tasks
+switch only where they wait. The attribute's options are
 `crates/nvs-types/src/testing.rs`'s `BENCH_OPTIONS`, and a bench's rows are
 `crates/nvs-cli/src/runner.rs`'s `Rows`.
 
