@@ -1,0 +1,11 @@
+<?nvs
+class Orders
+{
+    /// Shows one order.
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string
+    {
+        return 'order ' . $id;
+    }
+}

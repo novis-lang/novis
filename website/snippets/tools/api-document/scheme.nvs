@@ -1,0 +1,20 @@
+<?nvs
+use Core\Api;
+use Core\Api\KeyIn;
+use Core\Api\Scheme;
+use Core\Api\SchemeType;
+
+// Each `#[Scheme]` declares a security scheme. This class declares `bearer` and `key`.
+#[Scheme(name: 'bearer', type: SchemeType::Http, scheme: 'bearer')]
+#[Scheme(name: 'key', type: SchemeType::ApiKey, in: KeyIn::Header, parameter: 'X-Api-Key')]
+class Orders
+{
+    /// Shows one order.
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Api(tags: ['Orders'], errors: [{status: 404, type: RuntimeError::class}], security: ['bearer'])]
+    public function show(uint $id): string
+    {
+        return 'order ' . $id;
+    }
+}

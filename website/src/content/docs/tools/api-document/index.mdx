@@ -1,0 +1,120 @@
+---
+title: The API document
+covers: ['tools:cli/nvs-build-openapi', 'tools:cli/nvs-api-diff']
+description: Write the OpenAPI document of a Novis web program, describe its routes with #[Core\Api], and find changes that break clients.
+---
+
+import Replay from '@components/Replay.astro'
+import Terminal from '@components/Terminal.astro'
+
+An API document describes the routes of a web program. It lists each path, its HTTP method, its
+parameters and its responses. Other teams read it, and many tools generate a client from it.
+
+`nvs build --openapi` writes this document for a Novis program. The document uses OpenAPI 3.1, a
+common format for API documents. You do not write the document by hand. It comes from the code, so it
+always matches the code.
+
+## Write the document
+
+`nvs build --openapi` reads a program and prints its API document as JSON. The program does not run.
+
+This `shop.nvs` has one route, `GET /orders/{id}`. Its method `show` has the parameter `uint $id` and
+returns a `string`. The comment `/// Shows one order.` is above the method.
+
+<Terminal src="tools/api-document/build.term" />
+
+The document has one entry in `paths` for each route. Each entry has these parts:
+
+- `operationId` is the `name:` of the route.
+- `parameters` lists the parameters in the path. A `uint` is an `integer` with a `minimum` of `0`.
+- `responses` has the `200` response. Its schema is the return type when that is a simple type, such
+  as `string` or `int`.
+- `summary` is the first sentence of the `///` comment above the method.
+
+`title` is the name of the file without `.nvs`. `version` is always `0.0.0`.
+
+The command prints to standard output. To keep the document, write it to a file:
+
+```sh
+nvs build --openapi shop.nvs > openapi.json
+```
+
+A program with no `#[Core\Route]` writes no document. The command prints a message, and the exit code
+is `0`. A program with a compile error writes no document either. The command prints the errors, and
+the exit code is `1`.
+
+## Describe a route with `#[Core\Api]`
+
+Some facts are not in the code. Examples are the group of a route, the errors it returns and how a
+client proves who it is. `#[Core\Api]` adds these facts to the document. It goes on a method that has
+a `#[Core\Route]`. After `use Core\Api;`, you can write it as `#[Api(...)]`.
+
+`#[Core\Api]` has four fields, and every field is optional:
+
+| Field | What it adds to the document |
+|---|---|
+| `tags` | names that put routes into groups |
+| `errors` | error responses, each with a status code and a class |
+| `security` | the security schemes that a client must use |
+| `example` | an example of a response |
+
+Novis checks each field when it compiles the program. A class in `errors` must exist. Each key in
+`example` must be a property of the return type.
+
+A security scheme says how a client proves who it is, for example with a token. You declare it with
+`#[Core\Api\Scheme]` on a class. Its `name:` is the name that `security` uses. A name in `security`
+that no scheme declares does not compile.
+
+The editor completes these names. Inside `#[Core\Api(...)]`, it suggests the four fields. In a string
+in the `security` list, it suggests the security schemes of the program. Here it suggests `bearer` and
+`key`:
+
+<Replay src="tools/api-document/scheme.nvs" />
+
+This is the document for the same program:
+
+<Terminal src="tools/api-document/api.term" />
+
+Four parts are new:
+
+- `components` lists the two security schemes.
+- `responses` has a `404` response. Its `description` is the name of the class.
+- `security` names the scheme `bearer`.
+- `tags` has the group `Orders`.
+
+## Find changes that break clients
+
+A client is a program that calls your API. When a route changes, an old client may stop working.
+`nvs api diff` compares two API documents and prints each change. Give it the document of your last
+release first, and then the new document from `nvs build --openapi`.
+
+Each line starts with one of three words:
+
+| Word | Meaning | Examples |
+|---|---|---|
+| `breaking` | A client may stop working. | A path is removed. A parameter is removed or becomes required. A status code is removed. |
+| `additive` | Something is new, and clients still work. | A new route. A new optional parameter. |
+| `cosmetic` | The change does not affect a client. | A changed title, version, summary or tag. |
+
+The last line counts the changes. When the two documents are the same, the command prints
+`no change`.
+
+The three documents below are for the route above. In `v2.json`, the method has a new parameter:
+`#[Core\Query] string $currency = 'EUR'`. A client may leave it out, because it has a default value.
+In `v3.json`, the parameter has no default value, so every client must send it:
+
+<Terminal src="tools/api-document/diff.term" />
+
+The exit code tells you what `nvs api diff` found:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | No change is breaking. |
+| `1` | A change is breaking, or a file is not an API document that can be read. |
+
+On a build server, run `nvs api diff` with the document of your last release. Most build servers stop
+the build when a command exits with a code that is not `0`. A change that breaks clients then stops the
+build.
+
+Read more in [Reference: nvs build --openapi](/reference/cli/nvs-build-openapi/) and
+[Reference: nvs api diff](/reference/cli/nvs-api-diff/).

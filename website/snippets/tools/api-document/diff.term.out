@@ -1,0 +1,13 @@
+$ nvs api diff v1.json v2.json
+additive: paths./orders/{id}.get.query.currency — optional parameter added
+1 change(s): 0 breaking, 1 additive, 0 cosmetic
+exit 0
+
+$ nvs api diff v2.json v3.json
+breaking: paths./orders/{id}.get.query.currency — optional parameter became required
+1 change(s): 1 breaking, 0 additive, 0 cosmetic
+exit 1
+
+$ nvs api diff v3.json v3.json
+no change
+exit 0
