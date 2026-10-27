@@ -104,20 +104,16 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `b12214b33`. Its Website run is green. Its CI run 40432495152 ended red on
-four jobs and nothing else, and each is fixed in a local commit, not yet pushed:
-`dc8ff66e9` gives the shrinking property fixture `seed: 7` (macOS drew `11` itself).
-`dd773711a` shoots in `en-US` and masks its dates (`proofs`' "Website screenshots").
-`c7f684405` finds an exception stop by its event, since late stdout can follow it (linux dap).
-`b358c465f` replaces `app.nvs` in one rename in `live_config.rs:a_changed_file_cache_dir_applies_to_the_next_compile`
-(linux-aarch64). With `settle = "0s"`, a compile read the file that `fs::write` had just emptied,
-and wrote a third `.nvsc`, so the wait for two never ended. It passes on Windows and in WSL.
+`origin/main` is at `f71846dd1`. Its Website run is green. Its CI run 40445599454 ended red on
+`tsan` alone, and every other job of 37 is green, so the four fixes of run 40432495152 held.
+`ff918f7b7` fixes `tsan`, and it is not yet pushed:
+`crates/nvs-host/src/blocking.rs:calls_one_after_another_use_one_thread_and_allocate_the_same`
+counted `[1001, 1000, 1000, 1000]`. Its warm-up call can return before the task parks, and the
+scheduler's `parked` map (`TaskMap::default()`) allocates on its first insert, inside batch one.
+The warm-up now parks the task once on a wake it sent itself. It passes on Windows.
 
-`fc3208d72` records the 68 `Core\Uri`, `Core\Router` and `Core\Request` figures that the main
-loop's `b72efccfb` staled. Handed to the main loop with `loop say`, as its live goal's open work:
-`Router-Refusal/about.md` is 201 words (the bound is 200), `syntax/attributes/routes.mdx` is stale
-on the route table and `Core\Router\Refusal`, and `/reference/types/router-refusal/`'s questions
-are stale. If the goal end ships them unfixed, CI's `proofs` job goes red on them.
+At `HEAD` before the fix, `bun nv proofs --gate --limit 0` owed nothing and `bun nv site --check
+stale questions` was green, so the router work handed to the main loop is done.
 
 `.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci`, `wt-cig` and `wt-rec` are stray folders
 that Windows keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write.
@@ -129,7 +125,9 @@ looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  Run 40432495152's reds are all fixed in local commits.
+  Run 40445599454's one red is fixed in a local commit. If `tsan`'s allocation test fails
+  again with a different batch off by one, the first-use allocation is elsewhere on the core:
+  compare `crates/nvs-host/src/scheduler.rs:Scheduler::new`'s empty collections with the parked path.
   If the cache dir test fails again, the edit is now one rename, so print `artifacts(&dir("two"))`
   in its wait message and start at `crates/nvs-cli/src/script.rs:1468`. If a
   dap test reads stdout late at a stop again, give it `Client::until_output`, and find the stop
