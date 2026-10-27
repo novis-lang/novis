@@ -6833,6 +6833,11 @@ mod tests {
     /// [`secret_spans`] finds are the values that land in a `secret` property, in a nested class
     /// and in a list of them, and under a key written twice. A body that is not one document is
     /// withheld where the class has a `secret` property, and an empty one has nothing to replace.
+    #[cfg_attr(
+        miri,
+        ignore = "the first body is longer than `IN_PLACE_BYTES`, so it is walked on the spare \
+                  stack, whose guard page needs `mprotect`, which Miri does not emulate"
+    )]
     #[test]
     fn secret_spans_names_each_value_a_secret_property_takes() {
         let (login, plain) = secret_classes();
