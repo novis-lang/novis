@@ -41,7 +41,7 @@ stages:
         rules: [ide/completion-offers-only-what-the-compiler-derived]
   - id: 6
     title: every example, page and proof writes routes and links the new way, and the rules are shipped
-    status: open
+    status: done
     context: [docs/examples/core/Router, docs/examples/core/Router-Match, docs/examples/lang/attributes/core-route-and-core-access-the-route-table, website/snippets]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -320,10 +320,11 @@ user reads*. A link that loops over a list of names becomes a list of method ref
 - [x] The corpus rewrite in **Split**, including `apps/notes/src/App.nvs` and `apps/notes/src/Pages.nvs`. `apps/notes/src/App.nvs:18`, `apps/notes/src/Pages.nvs:24`
 - [x] The `Match::name` feature becomes `Match::is`: its examples, bench and attack move to `Router-Match/is/`, and the menu example marks the open page with `is`. `docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`, `docs/examples/core/Request/route/03-marking-the-current-page-in-a-menu.nvs:1`, `benches/members/core/Router-Match/name.nvs:1`, `tests/hostile/core/Router-Match/name/01-names-read-from-many-matches.nvs:1`
 - [x] `about.md` of the route table, `url`, `urlAbsolute`, `urlSigned`, `signedRoute` and `lang:expressions/calls`, and the reference chapters that show a route or a `(...)` reference. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`, `docs/reference/lang/90-attributes.md:1`
-- [ ] `bun nv proofs --id` owes nothing for each feature in the `router-proofs` check. `docs/examples/core/Router/url/03-the-links-of-a-menu.nvs:1`
+- [x] `bun nv proofs --id` owes nothing for each feature in the `router-proofs` check. `docs/examples/core/Router/url/03-the-links-of-a-menu.nvs:1`
   - [x] Every feature has its about, examples, tests and attack; only perf is owed.
-  - [ ] `Match::is` makes no allocation per call, as its bench claims (`allocations 0`); `nvs run --count` shows one of about 12 bytes. `crates/nvs-stdlib/src/router.rs:2547`, `benches/members/core/Router-Match/is.nvs:4`
-  - [ ] `bun nv proofs --record-perf` over the eight features, once the words and the code are settled.
+  - [x] `Match::is` makes no allocation per call, as its bench claims (`allocations 0`); `nvs run --count` shows one of about 12 bytes. `crates/nvs-stdlib/src/router.rs:2547`, `benches/members/core/Router-Match/is.nvs:4`
+  - [x] `bun nv proofs --record-perf` over every feature the gate names stale: 131 in the whole roster, not only the eight, because the method-reference commits moved `reflect.rs`, `router.rs`, `socket.rs` and five reference chapters. `bun nv proofs --gate --limit 0` passes.
+- [x] `bun nv site --check stale questions` passes: the 30 handwritten pages that cover a changed feature are reread and stamped, and the 37 question entries are rewritten and stamped, with `router-match/name` replaced by `router-match/is`. `website/site.lock.json:1`, `website/src/data/questions.json:1`
 - [x] Every rule stage 1 set `designed` is `shipped` with the tests that guard it, and `bun nv owners --closes routes-by-method` passes. `data/rules/routing/route-attribute.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -343,15 +344,10 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 6 is done but for perf. No file outside `docs/goals/`, `data/perf/` and the generated
-website data writes a route `name:`, a link by a quoted name or `Match::name` (`d46037f05` ships
-the 30 rules, `9fadbcf69` rewrites 292 corpus files). `Router-Match/name/` is now
-`Router-Match/is/` in examples, bench and attack. `rules --check` and `owners --closes
-routes-by-method` pass. The `router-proofs` gate owes only stale perf. The sweep's reds were stale.
-
-`6dc1ccfeb` fixes a stage 2 panic: `Core\Test::assertCalled($d, Mailer::send)` reached
-`lower_static_call` with a folded `ExprInfo::ClassConst` and no arm for it
-(`crates/nvs-ir/src/lower/expr.rs:330`). The four `assertCalled` cases pass again.
+Stage 6 is done and its checks pass. The whole roster owes no proof (`proofs --gate --limit
+0`), and `site --check stale questions snippets shots prose` passes. `Match::is` allocates
+nothing per call. The sweep's reds were stale: the nightly Miri run predates `22f1e4ec4`,
+`e461612ce` and `c33a8b8f7`.
 
 Expected red at stage 7's first run, each a double report the earlier stages added:
 - `reject/a-constructor-runs-only-through-new-and-parent`: `Box::constructor` gets `E0778` beside `E0885`.
@@ -363,14 +359,15 @@ where the first already fired. Also expected red: three attacks time out under a
 and pass alone (`tests/hostile/core/Request/query/01-a-name-nested-a-hundred-deep.nvs`, the two
 `lang/attributes` payload and retrieval attacks); `benches/scaling/app/modules.nvs` and
 `editor.nvs` generate programs with `E0403` on `Core\Json::encode`, unrelated to routes.
-The generated website `core.json` and `llms-full.txt` are rebuilt at the goal end.
+A fix in stage 7 that moves a feature's help, about, examples or implementation makes its
+perf and its pages stale again. Rerun `bun nv proofs --gate --limit 0` and `bun nv site
+--check stale questions` after the fix pass, and record or restamp what they name.
 
 ### Next
 
-**Stage 6's last item, then stage 7.**
+**Stage 7.**
 
-- [ ] `Match::is` allocates about 12 bytes per call (`nvs run --count` on its bench), and its bench claims `allocations 0`. Find the allocation in the written-reference path and remove it; the label is a constant. `crates/nvs-stdlib/src/router.rs:2547`, `benches/members/core/Router-Match/is.nvs:4`
-- [ ] `bun nv proofs --record-perf` over the eight `router-proofs` features, then the gate passes. `docs/examples/core/Router-Match/is/about.md:1`
-- [ ] Stage 7: `bun nv affected --run`, fix the reds above in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv affected --run`, then fix the reds above and every other red in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes routes-by-method`, `bun nv ci --check`, and the proofs and site checks above. `tools/nv/cmd/verify.ts:8`
 
 ### Backlog
