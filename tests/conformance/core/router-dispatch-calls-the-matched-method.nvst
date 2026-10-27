@@ -5,14 +5,14 @@
 // `Core\Router::dispatch` calls the method of the route that matched the request.
 // The gate decides first if that method may run.
 class Posts {
-    #[Core\Route(path: "/posts", method: Core\Http\Method::Get, name: "Posts::index")]
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function index(): void {
         echo "index ran\n";
     }
 
     // `$id` is an `int`, so the text `42` from the path arrives as the number 42.
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(int $id): void {
         echo "show ran, and id + 1 is ", $id + 1, "\n";
@@ -22,7 +22,7 @@ class Posts {
 // This gate allows every route. It prints a line each time it runs.
 class OpenGate implements Core\Router\Gate {
     public function allows(Core\Router\Match $route): bool {
-        echo "allows ", $route->name() ?? "unnamed", "\n";
+        echo "allows ", $route->is(Posts::index) ? "Posts::index" : ($route->is(Posts::show) ? "Posts::show" : "another route"), "\n";
         return true;
     }
 

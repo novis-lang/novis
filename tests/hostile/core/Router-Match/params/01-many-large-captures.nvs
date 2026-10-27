@@ -4,7 +4,7 @@
 
 class Search
 {
-    #[Core\Route(path: '/s/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}', method: Core\Http\Method::Get, name: 'Search::deep')]
+    #[Core\Route(path: '/s/{a}/{b}/{c}/{d}/{e}/{f}/{g}/{h}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function deep(string $a, string $b, string $c, string $d, string $e, string $f, string $g, string $h): string
     {

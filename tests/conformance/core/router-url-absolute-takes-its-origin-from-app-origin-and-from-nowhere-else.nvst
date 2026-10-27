@@ -24,11 +24,11 @@
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[Core\Route(path: "/docs/{page}", method: Core\Http\Method::Get, name: "Docs::show")]
+    #[Core\Route(path: "/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $page, #[Core\Query] string $q = ""): string { return $page; }
 
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 }
@@ -42,9 +42,9 @@ array<string> $decoys = [
 ];
 
 array<string> $built = [
-    Core\Router::urlAbsolute("Docs::show", ["page" => "intro"]),
-    Core\Router::urlAbsolute("Docs::show", ["page" => "intro", "q" => "a b"]),
-    Core\Router::urlAbsolute("Docs::home", []),
+    Core\Router::urlAbsolute(Docs::show, ["page" => "intro"]),
+    Core\Router::urlAbsolute(Docs::show, ["page" => "intro", "q" => "a b"]),
+    Core\Router::urlAbsolute(Docs::home, []),
 ];
 
 // Every link carries the configured origin, and not one carries either of the

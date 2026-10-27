@@ -6,7 +6,7 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::download')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(string $name): string
     {
@@ -20,13 +20,13 @@ class Bench
     {
         bytes $raw = 'example-key-for-signed-links-001' as bytes;
         array<secret bytes> $keys = [$raw as secret bytes];
-        string $link = Core\Router::urlSigned('Files::download', ['name' => Core\Str::repeat('a', $size)], { keys: $keys, until: null });
+        string $link = Core\Router::urlSigned(Files::download, ['name' => Core\Str::repeat('a', $size)], { keys: $keys, until: null });
         array<string> $parts = Core\Str::split($link, '?');
         array<string> $lines = [
             '<?nvs',
             '',
             'class Files {',
-            '    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Files::download")]',
+            '    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get)]',
             '    #[Core\Access(allow: Core\Audience::Public)]',
             '    public function download(string $name): string { return "one file"; }',
             '}',

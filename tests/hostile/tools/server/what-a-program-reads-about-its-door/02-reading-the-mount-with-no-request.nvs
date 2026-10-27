@@ -5,7 +5,7 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
     {
@@ -50,7 +50,7 @@ echo 'errors: ', $thrown, "\n";
 
 // 2. Builds a link. The program has no mount, so the link has no prefix.
 //    This prints "link: /files/report".
-echo 'link: ', Core\Router::url('Files::show', ['name' => 'report']), "\n";
+echo 'link: ', Core\Router::url(Files::show, ['name' => 'report']), "\n";
 
 // 3. Reads the mount 100000 times and keeps the message of every error.
 //    This step uses a lot of memory.
@@ -67,4 +67,4 @@ while ($i < 100000) {
 echo 'errors kept: ', Core\Arr::count($messages), "\n";
 
 // 4. Builds the link again. This prints the same link as step 2.
-echo 'link: ', Core\Router::url('Files::show', ['name' => 'report']), "\n";
+echo 'link: ', Core\Router::url(Files::show, ['name' => 'report']), "\n";

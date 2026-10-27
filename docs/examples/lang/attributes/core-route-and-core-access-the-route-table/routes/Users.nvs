@@ -4,14 +4,14 @@ namespace App;
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {

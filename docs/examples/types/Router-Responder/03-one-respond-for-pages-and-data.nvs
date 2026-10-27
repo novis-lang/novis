@@ -6,7 +6,7 @@ use Core\Http\Method;
 class Shop
 {
     // This method returns a page.
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): Core\Html\Markup
     {
@@ -14,7 +14,7 @@ class Shop
     }
 
     // This method returns data: a list of product names.
-    #[Core\Route(path: '/api/products', method: Core\Http\Method::Get, name: 'Shop::products')]
+    #[Core\Route(path: '/api/products', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function products(): array<string>
     {
@@ -23,7 +23,7 @@ class Shop
 
     // This method is `void`, so it writes its own response.
     // `respond` does not run for it.
-    #[Core\Route(path: '/health', method: Core\Http\Method::Get, name: 'Shop::health')]
+    #[Core\Route(path: '/health', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function health(): void
     {

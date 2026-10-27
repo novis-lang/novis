@@ -2,7 +2,7 @@
 // Declares `POST /change` as a route that changes the account, and prints `changed`.
 class Account
 {
-    #[Core\Route(path: '/change', method: Core\Http\Method::Post, name: 'Account::change')]
+    #[Core\Route(path: '/change', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function change(): string
     {

@@ -5,14 +5,14 @@
 
 class Orders
 {
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::list')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'list';
     }
 
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Post, name: 'Orders::create')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {

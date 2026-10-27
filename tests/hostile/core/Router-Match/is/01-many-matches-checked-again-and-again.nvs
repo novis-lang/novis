@@ -1,10 +1,10 @@
 <?nvs
-// Attack: a program keeps many matches, and reads their names again and again.
-// Each read should return the same name, and no memory should be lost.
+// Attack: a program keeps many matches, and checks their methods again and again.
+// Each check should give the same result, and no memory should be lost.
 
 class Pages
 {
-    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get, name: 'Pages::show')]
+    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug): string
     {
@@ -13,9 +13,15 @@ class Pages
 
     #[Core\Route(path: '/pages', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function create(): string
+    public static function create(): string
     {
         return 'a new page';
+    }
+
+    // This method has no route.
+    public static function helper(): string
+    {
+        return 'not a page';
     }
 }
 
@@ -31,30 +37,60 @@ while ($i < 10000) {
 }
 echo Core\Arr::count($kept), ' kept', "\n";
 
-// 2. Every kept match is asked for its name one hundred times.
+// 2. Every kept match is checked one hundred times. Each check is `true`.
 uint $same = 0;
 foreach ($kept as Core\Router\Match $match) {
     uint $j = 0;
     while ($j < 100) {
-        if ($match->name() == 'Pages::show') {
+        if ($match->is(Pages::show)) {
             $same = $same + 1;
         }
         $j = $j + 1;
     }
 }
-echo $same, ' names read', "\n";
+echo $same, ' checks were true', "\n";
 
-// 3. A route with no name is read one million times. Each result is `null`.
-?Core\Router\Match $unnamed = Core\Router::match(Core\Http\Method::Post, '/pages');
-uint $nulls = 0;
-if ($unnamed != null) {
-    Core\Router\Match $bare = $unnamed;
+// 3. One match is checked one million times against another route. Each check is `false`.
+?Core\Router\Match $created = Core\Router::match(Core\Http\Method::Post, '/pages');
+uint $wrong = 0;
+if ($created != null) {
+    Core\Router\Match $bare = $created;
     uint $k = 0;
     while ($k < 1000000) {
-        if ($bare->name() == null) {
-            $nulls = $nulls + 1;
+        if ($bare->is(Pages::show)) {
+            $wrong = $wrong + 1;
         }
         $k = $k + 1;
     }
 }
-echo $nulls, ' null names', "\n";
+echo $wrong, ' checks were true', "\n";
+
+// 4. The methods come from an array, so they are only known while the program runs.
+// The method with no route throws an error, which is caught so the next step still runs.
+array<callable> $methods = [Pages::create, Pages::helper];
+uint $true = 0;
+uint $errors = 0;
+uint $round = 0;
+while ($round < 1000) {
+    foreach ($methods as callable $method) {
+        try {
+            if ($created != null && $created->is($method)) {
+                $true = $true + 1;
+            }
+        } catch (Throwable $e) {
+            $errors = $errors + 1;
+        }
+    }
+    $round = $round + 1;
+}
+echo $true, ' checks were true, ', $errors, ' errors', "\n";
+
+// 5. An instance method, written as a value, is checked against every kept match.
+var $pages = new Pages();
+uint $hits = 0;
+foreach ($kept as Core\Router\Match $match) {
+    if ($match->is($pages->show(...))) {
+        $hits = $hits + 1;
+    }
+}
+echo $hits, ' checks were true', "\n";

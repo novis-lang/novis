@@ -3,7 +3,7 @@
 
 class Reports
 {
-    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get, name: 'Reports::download')]
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(uint $year): string
     {
@@ -20,6 +20,7 @@ array<secret bytes> $keys = [$raw as secret bytes];
 // `signedRoute` checks the signature and returns the route that matched.
 Core\Router\Match $matched = Core\Router::signedRoute($keys);
 
+// `is` checks which method the route belongs to.
 // This prints `Reports::download` and then `year 2024`.
-echo $matched->name() ?? '', "\n";
+echo $matched->is(Reports::download) ? 'Reports::download' : 'another route', "\n";
 echo 'year ', $matched->param('year') as uint, "\n";

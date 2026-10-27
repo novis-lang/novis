@@ -5,7 +5,7 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
     {
@@ -56,7 +56,7 @@ uint $wrong = 0;
 uint $refused = 0;
 foreach ($values as tainted string $value) {
     try {
-        tainted string $link = Core\Router::url('Files::show', ['name' => $value]);
+        tainted string $link = Core\Router::url(Files::show, ['name' => $value]);
         echo 'link: ', $link, "\n";
         if (!Core\Str::startsWith($link, $prefix . '/files/')) {
             $wrong = $wrong + 1;
@@ -101,7 +101,7 @@ array<tainted string> $links = [];
 uint $j = 0;
 while ($j < 50000) {
     try {
-        $links[] = Core\Router::url('Files::show', ['name' => $captures[$j % $count]]);
+        $links[] = Core\Router::url(Files::show, ['name' => $captures[$j % $count]]);
     } catch (Throwable $error) {
         $refused = $refused + 1;
     }

@@ -20,7 +20,7 @@ class Item
 
 class Items
 {
-    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get, name: 'Items::show')]
+    #[Core\Route(path: '/items/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
         tags: ['Items'],
@@ -37,7 +37,7 @@ class Items
     // four are additions, so this operation carries none of the four members
     // rather than empty ones — and the two rows sit in one document so a reader
     // of the emitter's output sees both answers at once.
-    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): uint
     {

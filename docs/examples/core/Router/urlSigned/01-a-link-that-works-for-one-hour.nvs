@@ -3,7 +3,7 @@
 
 class Reports
 {
-    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get, name: 'Reports::download')]
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(uint $year): string
     {
@@ -18,8 +18,8 @@ array<secret bytes> $keys = [$key];
 // `until` is the time when the link stops working.
 Core\Time\Instant $until = Core\Time::now()->plus(1h);
 
-string $plain = Core\Router::url('Reports::download', ['year' => 2024]);
-string $signed = Core\Router::urlSigned('Reports::download', ['year' => 2024], { keys: $keys, until: $until });
+string $plain = Core\Router::url(Reports::download, ['year' => 2024]);
+string $signed = Core\Router::urlSigned(Reports::download, ['year' => 2024], { keys: $keys, until: $until });
 
 // This prints `/reports/2024`.
 echo $plain, "\n";

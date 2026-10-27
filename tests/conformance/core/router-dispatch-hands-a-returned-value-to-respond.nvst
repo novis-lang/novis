@@ -7,7 +7,7 @@
 // The gate implements `Core\Router\Responder`, so its `respond` method sends the page.
 
 class Pages {
-    #[Core\Route(path: "/home", method: Core\Http\Method::Get, name: "home")]
+    #[Core\Route(path: "/home", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function home(): Core\Html\Markup {
         string $name = "<Ann>";
@@ -15,14 +15,14 @@ class Pages {
     }
 
     // `null` is a value too, so `respond` gets it.
-    #[Core\Route(path: "/maybe", method: Core\Http\Method::Get, name: "maybe")]
+    #[Core\Route(path: "/maybe", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function maybe(): ?Core\Html\Markup {
         return null;
     }
 
     // A `void` method returns no value, so `respond` does not run.
-    #[Core\Route(path: "/plain", method: Core\Http\Method::Get, name: "plain")]
+    #[Core\Route(path: "/plain", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function plain(): void {
         echo "plain ran";
@@ -46,7 +46,7 @@ class Gate implements Core\Router\Responder {
         if ($value is Core\Html\Markup) {
             Core\Response::html($value);
         } else {
-            echo "respond got null for ", $route->name();
+            echo "respond got null for ", $route->is(Pages::maybe) ? "maybe" : "another route";
         }
     }
 }

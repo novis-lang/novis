@@ -3,7 +3,7 @@ error[E0454]: `colour` is not an option of `#[Route]`
   |
 8 |     #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
   |                                                            ^^^^^^^^^^^^^ no such option
-  = help: the options are: path: string, method: Core\Http\Method, name: string, slotted: bool
+  = help: the options are: path: string, method: Core\Http\Method, slotted: bool
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -21,7 +21,7 @@ final class Pages
         var $list = html``;
         foreach ($notes as Note $note) {
             // `Core\Router::url` builds the path of the route `App::show`, such as `/notes/3`.
-            string $link = Core\Router::url('App::show', ['id' => $note->id]);
+            string $link = Core\Router::url(App::show, ['id' => $note->id]);
             tainted string $noteTitle = $note->title;
             $list = $list + html`<li><a href="{$link}">{$noteTitle}</a></li>`;
         }

@@ -9,7 +9,7 @@ An expired signed route is the one refusal `Core\Router::signedRoute` names apar
 // sentence, and telling them the link ran out rather than that they are being
 // attacked is why an application catches it.
 class Shop {
-    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(int $id): string { return $id as string; }
 }
@@ -22,9 +22,9 @@ Core\Time\Instant $hence = Core\Time::now()->plus(1h);
 // the state a signed URL reaches by sitting in a chat unfurl for a day.
 Core\Time\Instant $ago = Core\Time::now()->minus(1h);
 
-string $live = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: $hence});
-string $stale = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: $ago});
-string $forever = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring, until: null});
+string $live = Core\Router::urlSigned(Shop::show, ["id" => 7], {keys: $ring, until: $hence});
+string $stale = Core\Router::urlSigned(Shop::show, ["id" => 7], {keys: $ring, until: $ago});
+string $forever = Core\Router::urlSigned(Shop::show, ["id" => 7], {keys: $ring, until: null});
 // A live token on a capture it was not signed for, to hold the other refusal up
 // against the named one.
 string $forged = "/shop/8?_sig=" . (Core\Str::after($live, "_sig=") as string);
@@ -32,7 +32,7 @@ string $forged = "/shop/8?_sig=" . (Core\Str::after($live, "_sig=") as string);
 if (Core\Env::context() == Core\Env::Context::Request) {
     try {
         var $matched = Core\Router::signedRoute($ring);
-        echo "verified ", $matched->name() ?? "unnamed";
+        echo "verified ", $matched->is(Shop::show) ? "Shop::show" : "another route";
     } catch (RuntimeError $no) {
         echo $no->message;
     }

@@ -6,14 +6,14 @@ enum Role { Admin }
 
 class Pages
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return '200 Welcome';
     }
 
-    #[Core\Route(path: '/admin/reports', method: Core\Http\Method::Get, name: 'Pages::reports')]
+    #[Core\Route(path: '/admin/reports', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function reports(): string
     {
@@ -36,11 +36,10 @@ class FrontController
             return '403 Forbidden';
         }
         var $pages = new Pages();
-        switch ($matched->name()) {
-            case 'Pages::home':
-                return $pages->home();
-            case 'Pages::reports':
-                return $pages->reports();
+        if ($matched->is(Pages::home)) {
+            return $pages->home();
+        } else if ($matched->is(Pages::reports)) {
+            return $pages->reports();
         }
         return '404 Not Found';
     }

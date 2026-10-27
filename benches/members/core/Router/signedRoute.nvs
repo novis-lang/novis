@@ -5,7 +5,7 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{id}', method: Core\Http\Method::Get, name: 'Files::download')]
+    #[Core\Route(path: '/files/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(uint $id): string
     {

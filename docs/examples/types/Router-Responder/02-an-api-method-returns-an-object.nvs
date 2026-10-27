@@ -20,7 +20,7 @@ class Product
 class Shop
 {
     // This method returns the product. It does not send it.
-    #[Core\Route(path: '/api/product', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/api/product', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(): Product
     {

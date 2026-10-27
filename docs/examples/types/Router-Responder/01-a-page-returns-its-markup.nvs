@@ -6,7 +6,7 @@ use Core\Http\Method;
 class Blog
 {
     // This method returns the page. It does not send it.
-    #[Core\Route(path: '/post', method: Core\Http\Method::Get, name: 'Blog::post')]
+    #[Core\Route(path: '/post', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function post(): Core\Html\Markup
     {

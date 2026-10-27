@@ -14,7 +14,7 @@ class NotFound extends RuntimeError
 class Payments
 {
     /// Show one payment. Returns the amount in cents.
-    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get, name: 'Payments::show')]
+    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
         tags: ['Payments'],

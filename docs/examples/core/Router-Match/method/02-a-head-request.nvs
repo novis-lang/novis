@@ -3,7 +3,7 @@
 
 class Reports
 {
-    #[Core\Route(path: '/reports/daily', method: Core\Http\Method::Get, name: 'Reports::daily')]
+    #[Core\Route(path: '/reports/daily', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function daily(): string
     {

@@ -5,14 +5,14 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name, #[Core\Query] string $q = ''): string
     {
         return 'one file';
     }
 
-    #[Core\Route(path: '/docs/{rest...}', method: Core\Http\Method::Get, name: 'Files::docs')]
+    #[Core\Route(path: '/docs/{rest...}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function docs(string $rest): string
     {
@@ -21,23 +21,23 @@ class Files
 }
 
 // 1. A capture of one million characters.
-string $long = Core\Router::url('Files::show', ['name' => Core\Str::repeat('a', 1000000)]);
+string $long = Core\Router::url(Files::show, ['name' => Core\Str::repeat('a', 1000000)]);
 echo 'long: ', Core\Str::length($long), "\n";
 
 // 2. Text that tries to leave its segment and its query value.
-echo Core\Router::url('Files::show', ['name' => '../../etc/passwd?x=1#top', 'q' => 'a&b=c#d']), "\n";
+echo Core\Router::url(Files::show, ['name' => '../../etc/passwd?x=1#top', 'q' => 'a&b=c#d']), "\n";
 
 // 3. A rest capture with one hundred thousand `../` steps. A browser would move
 // that link to another path, so this throws a `RuntimeError`.
 try {
-    Core\Router::url('Files::docs', ['rest' => Core\Str::repeat('../', 100000)]);
+    Core\Router::url(Files::docs, ['rest' => Core\Str::repeat('../', 100000)]);
     echo 'dots: built', "\n";
 } catch (RuntimeError $e) {
     echo 'dots: error', "\n";
 }
 
 // 4. A rest capture with one hundred thousand segments.
-string $deep = Core\Router::url('Files::docs', ['rest' => Core\Str::repeat('a/', 100000)]);
+string $deep = Core\Router::url(Files::docs, ['rest' => Core\Str::repeat('a/', 100000)]);
 echo 'deep: ', Core\Str::length($deep), "\n";
 
 // 5. A query value that is an array nested ten thousand levels deep.
@@ -48,7 +48,7 @@ while ($level < 10000) {
     $level = $level + 1;
 }
 try {
-    string $link = Core\Router::url('Files::show', ['name' => 'n', 'q' => $nested]);
+    string $link = Core\Router::url(Files::show, ['name' => 'n', 'q' => $nested]);
     echo 'nested: ', Core\Str::length($link), "\n";
 } catch (RuntimeError $e) {
     echo 'nested: error', "\n";
@@ -57,7 +57,7 @@ try {
 // 6. A `$params` array without the capture that the path needs. This throws a `RuntimeError`.
 array<mixed> $empty = [];
 try {
-    Core\Router::url('Files::show', $empty);
+    Core\Router::url(Files::show, $empty);
     echo 'missing: built', "\n";
 } catch (RuntimeError $e) {
     echo 'missing: error', "\n";
@@ -67,7 +67,7 @@ try {
 uint $built = 0;
 uint $i = 0;
 while ($i < 100000) {
-    string $each = Core\Router::url('Files::show', ['name' => 'report ' . ($i as string)]);
+    string $each = Core\Router::url(Files::show, ['name' => 'report ' . ($i as string)]);
     $built = $built + Core\Str::length($each);
     $i = $i + 1;
 }

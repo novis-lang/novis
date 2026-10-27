@@ -3838,7 +3838,7 @@ final class Slug implements Parses
 
 class Posts
 {
-    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug, #[Core\Query] Slug $tag): string
     {
@@ -3875,7 +3875,7 @@ class Tag
 
 class Posts
 {
-    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
+    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Tag $tag): string
     {
@@ -3888,7 +3888,7 @@ class Posts
 error[E0752]: `Tag` is not a type `{tag}` can arrive at
    --> main.nvs:13:18
    |
-13 |     #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
+13 |     #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get)]
    |                  -------------------- the capture bound here
 ...
 15 |     public function show(Tag $tag): string

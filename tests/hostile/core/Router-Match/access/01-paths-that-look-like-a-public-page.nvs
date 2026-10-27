@@ -9,14 +9,14 @@ enum Role { Admin }
 
 class Site
 {
-    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get, name: 'Site::page')]
+    #[Core\Route(path: '/pages/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(string $slug): string
     {
         return 'a page';
     }
 
-    #[Core\Route(path: '/pages/admin/settings', method: Core\Http\Method::Get, name: 'Site::settings')]
+    #[Core\Route(path: '/pages/admin/settings', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function settings(): string
     {
@@ -43,7 +43,7 @@ foreach ($paths as string $path) {
         if ($found == null) {
             echo $path, ' -> no route', "\n";
         } else {
-            echo $path, ' -> ', $found->name() ?? 'no name', ' ', $found->access() ?? 'denied', "\n";
+            echo $path, ' -> ', ($found->is(Site::settings) ? 'Site::settings' : 'Site::page'), ' ', $found->access() ?? 'denied', "\n";
         }
     } catch (RuntimeError $e) {
         echo $path, ' -> error', "\n";

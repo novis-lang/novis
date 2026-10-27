@@ -15,14 +15,14 @@ class Item {
 }
 
 class Pages {
-    #[Core\Route(path: "/text", method: Core\Http\Method::Get, name: "text")]
+    #[Core\Route(path: "/text", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function text(): string {
         echo "text ran\n";
         return "this string is not sent";
     }
 
-    #[Core\Route(path: "/count/{n}", method: Core\Http\Method::Get, name: "count")]
+    #[Core\Route(path: "/count/{n}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function count(uint $n): uint {
         echo "count ran\n";
@@ -32,7 +32,7 @@ class Pages {
 
 // An instance method works the same way.
 class Items {
-    #[Core\Route(path: "/item", method: Core\Http\Method::Get, name: "item")]
+    #[Core\Route(path: "/item", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function item(): Item {
         echo "item ran\n";

@@ -11,7 +11,7 @@ A typed capture is converted from the segment as it arrived, so `%34` is not a `
 // off the two implementations.
 class Counter
 {
-    #[Core\Route(path:"/count/{n}", method: Core\Http\Method::Get, name: "Counter::show")]
+    #[Core\Route(path:"/count/{n}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $n): string
     {

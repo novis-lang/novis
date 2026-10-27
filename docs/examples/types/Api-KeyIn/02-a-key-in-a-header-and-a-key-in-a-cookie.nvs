@@ -10,7 +10,7 @@ class Auth
 class Products
 {
     /// List the products.
-    #[Core\Route(path: '/products', method: Core\Http\Method::Get, name: 'Products::list')]
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     // A partner sends its key in a header. A browser sends the session cookie.
     #[Core\Api(security: ['partnerKey', 'session'])]

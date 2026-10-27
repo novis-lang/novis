@@ -6,7 +6,7 @@
 class Orders
 {
     /// Lists every open order.
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::index')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -15,7 +15,7 @@ class Orders
 
     /// Shows one order.
     /// The document says that `id` is a whole number of 0 or more, because the parameter is a `uint`.
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -24,4 +24,4 @@ class Orders
 }
 
 // Run with `nvs run`, the program only prints a link to one order: `/orders/1042`.
-echo Core\Router::url('Orders::show', ['id' => 1042]), "\n";
+echo Core\Router::url(Orders::show, ['id' => 1042]), "\n";

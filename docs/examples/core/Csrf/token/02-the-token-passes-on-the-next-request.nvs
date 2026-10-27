@@ -4,7 +4,7 @@ use Core\Http\Method;
 
 class Contact
 {
-    #[Core\Route(path: '/contact', method: Method::Get, name: 'Contact::form')]
+    #[Core\Route(path: '/contact', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
@@ -12,7 +12,7 @@ class Contact
         echo Core\Csrf::token();
     }
 
-    #[Core\Route(path: '/contact', method: Method::Post, name: 'Contact::send')]
+    #[Core\Route(path: '/contact', method: Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function send(): void
     {

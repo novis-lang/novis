@@ -4,21 +4,21 @@ A gate reads a setting of the matched route's method with `$route->attribute<{se
 <?nvs
 // covers: Core\Router\Match::attribute
 class Pages {
-    #[Core\Route(path: "/news", method: Core\Http\Method::Get, name: "news")]
+    #[Core\Route(path: "/news", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 60}]
     public static function news(): void {
         echo "news ran\n";
     }
 
-    #[Core\Route(path: "/about", method: Core\Http\Method::Get, name: "about")]
+    #[Core\Route(path: "/about", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{seconds: 3600, label: "long"}]
     public static function about(): void {
         echo "about ran\n";
     }
 
-    #[Core\Route(path: "/live", method: Core\Http\Method::Get, name: "live")]
+    #[Core\Route(path: "/live", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function live(): void {
         echo "live ran\n";
@@ -26,12 +26,19 @@ class Pages {
 }
 
 class Gate implements Core\Router\Gate {
+    private function label(Core\Router\Match $route): string {
+        if ($route->is(Pages::news)) {
+            return "news";
+        }
+        return $route->is(Pages::about) ? "about" : "live";
+    }
+
     public function allows(Core\Router\Match $route): bool {
         ?{seconds: int} $cache = $route->attribute<{seconds: int}>();
         if ($cache != null) {
-            echo "cache ", $cache->seconds as string, " for ", $route->name() ?? "?", "\n";
+            echo "cache ", $cache->seconds as string, " for ", $this->label($route), "\n";
         } else {
-            echo "no cache for ", $route->name() ?? "?", "\n";
+            echo "no cache for ", $this->label($route), "\n";
         }
         return true;
     }

@@ -7,14 +7,14 @@ csrf_key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc"
 <?nvs
 // covers: Core\Csrf::token
 class Notes {
-    #[Core\Route(path: "/form", method: Core\Http\Method::Get, name: "form")]
+    #[Core\Route(path: "/form", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function form(): void {
         Core\Session::start();
         echo Core\Csrf::token();
     }
 
-    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function save(): void {
         echo "saved";

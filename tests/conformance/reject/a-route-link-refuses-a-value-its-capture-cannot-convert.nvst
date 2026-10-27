@@ -3,13 +3,13 @@
 --FILE--
 <?nvs
 class Shop {
-    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "items.show")]
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, #[Core\Query] int $page = 1): string {
         return "";
     }
 
-    #[Core\Route(path: "/prices/{amount}", method: Core\Http\Method::Get, name: "prices.show")]
+    #[Core\Route(path: "/prices/{amount}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function price(decimal $amount): string {
         return "";
@@ -17,25 +17,25 @@ class Shop {
 }
 
 // Each of these converts, so none is in the error list below.
-echo Core\Router::url("items.show", ["id" => 7]), "\n";
-echo Core\Router::url("items.show", ["id" => "12", "page" => -2]), "\n";
-echo Core\Router::url("prices.show", ["amount" => 2.5]), "\n";
-echo Core\Router::url("prices.show", ["amount" => "19.90"]), "\n";
+echo Core\Router::url(Shop::show, ["id" => 7]), "\n";
+echo Core\Router::url(Shop::show, ["id" => "12", "page" => -2]), "\n";
+echo Core\Router::url(Shop::price, ["amount" => 2.5]), "\n";
+echo Core\Router::url(Shop::price, ["amount" => "19.90"]), "\n";
 
 // A `uint` capture does not convert text, a negative number or a fraction.
-echo Core\Router::url("items.show", ["id" => "x"]), "\n";
-echo Core\Router::url("items.show", ["id" => -3]), "\n";
-echo Core\Router::url("items.show", ["id" => 2.5]), "\n";
+echo Core\Router::url(Shop::show, ["id" => "x"]), "\n";
+echo Core\Router::url(Shop::show, ["id" => -3]), "\n";
+echo Core\Router::url(Shop::show, ["id" => 2.5]), "\n";
 
 // A `#[Query]` parameter is checked the same way.
-echo Core\Router::url("items.show", ["id" => 1, "page" => "two"]), "\n";
+echo Core\Router::url(Shop::show, ["id" => 1, "page" => "two"]), "\n";
 
 // A `decimal` capture does not convert text that is not a number.
-echo Core\Router::url("prices.show", ["amount" => "cheap"]), "\n";
+echo Core\Router::url(Shop::price, ["amount" => "cheap"]), "\n";
 
 // A computed value is not checked here.
 var $id = "x";
-echo Core\Router::url("items.show", ["id" => $id]), "\n";
+echo Core\Router::url(Shop::show, ["id" => $id]), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--

@@ -3,15 +3,15 @@
 --FILE--
 <?nvs
 class Blog {
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Delete, name: "Blog::destroy")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function destroy(uint $id): string { return "gone"; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Blog::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "one post"; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Patch, name: "Blog::edit")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Patch)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function edit(uint $id): string { return "edited"; }
 }

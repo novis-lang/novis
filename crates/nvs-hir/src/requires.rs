@@ -3367,18 +3367,15 @@ class Unreached {}
         fs::create_dir_all(dir.path.join("src")).expect("create root");
         dir.write(
             "Bootstrap.nvs",
-            "<?nvs\nautoload 'Framework' from './src';\n",
+            "<?nvs\nautoload 'Framework' from './src';\nclass Users { public static function show(): void {} }\n",
         );
         dir.write(
             "src/Mailer.nvs",
             "<?nvs\nnamespace Framework;\nclass Mailer {}\n",
         );
         for (file, call) in [
-            ("url.nvs", r"Core\Router::url('Users::show', [])"),
-            (
-                "absolute.nvs",
-                r"Core\Router::urlAbsolute('Users::show', [])",
-            ),
+            ("url.nvs", r"Core\Router::url(Users::show)"),
+            ("absolute.nvs", r"Core\Router::urlAbsolute(Users::show)"),
             (
                 "match.nvs",
                 r"Core\Router::match(Core\Http\Method::Get, '/')",

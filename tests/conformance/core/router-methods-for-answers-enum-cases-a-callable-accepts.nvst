@@ -8,14 +8,14 @@
 // fails every reader below that checks the tag.
 class Pages
 {
-    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::list")]
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return "";
     }
 
-    #[Core\Route(path: "/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {

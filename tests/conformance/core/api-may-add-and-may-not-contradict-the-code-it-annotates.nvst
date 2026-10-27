@@ -24,19 +24,19 @@ class Order {
 class Orders {
     // 1. `errors:` naming something no handler can produce. The name resolves,
     //    and an interface is still not a class a `throw` ever answers with.
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(errors: [{status: 404, type: OrderFault::class}])]
     public function show(uint $id): Order { return new Order(); }
 
     // 2. `example:` naming a key the return type does not declare.
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: {quantity: 3})]
     public function index(): Order { return new Order(); }
 
     // 3. A `security:` entry that is not a name.
-    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get, name: "Orders::count")]
+    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(security: [404])]
     public function count(): uint { return 0; }

@@ -3,14 +3,14 @@
 
 class Tasks
 {
-    #[Core\Route(path: '/tasks', method: Core\Http\Method::Get, name: 'Tasks::list')]
+    #[Core\Route(path: '/tasks', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'all tasks';
     }
 
-    #[Core\Route(path: '/tasks', method: Core\Http\Method::Post, name: 'Tasks::create')]
+    #[Core\Route(path: '/tasks', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -23,6 +23,6 @@ class Tasks
 if ($found != null) {
     // `method()` returns a `Core\Http\Method` case. This prints `Post`.
     echo $found->method() == Core\Http\Method::Post ? 'Post' : 'not Post', "\n";
-    // This prints `Tasks::create`.
-    echo $found->name() ?? 'no name', "\n";
+    // The route belongs to the method `create`. This prints `Tasks::create`.
+    echo $found->is(Tasks::create) ? 'Tasks::create' : 'another route', "\n";
 }

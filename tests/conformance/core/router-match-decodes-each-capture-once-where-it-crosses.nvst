@@ -9,7 +9,7 @@ A route capture is percent-decoded exactly once as it crosses into the program, 
 // handler reads is decoded once however the match was taken.
 class Pages
 {
-    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug): string
     {

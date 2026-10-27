@@ -9,7 +9,7 @@ interface Page
 
 class Home implements Page
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function render(): string
     {
@@ -19,7 +19,7 @@ class Home implements Page
 
 class Contact implements Page
 {
-    #[Core\Route(path: '/contact', method: Core\Http\Method::Get, name: 'contact')]
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function render(): string
     {

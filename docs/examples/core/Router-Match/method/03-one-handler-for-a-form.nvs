@@ -3,9 +3,9 @@
 
 class Newsletter
 {
-    // The two routes have the same path and the same name.
-    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Get, name: 'Newsletter::signup')]
-    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Post, name: 'Newsletter::signup')]
+    // The two routes have the same path, and both belong to `signup`.
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function signup(): string
     {

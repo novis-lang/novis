@@ -23,36 +23,46 @@ class Tag implements Parses {
 }
 
 class Pages {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "items")]
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function items(): void {
         echo "items ran\n";
     }
 
-    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "admin")]
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function admin(): void {
         echo "admin ran\n";
     }
 
-    #[Core\Route(path: "/tags/{tag}", method: Core\Http\Method::Get, name: "tag")]
+    #[Core\Route(path: "/tags/{tag}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function tag(Tag $tag): void {
         echo "tag ran\n";
     }
 
-    #[Core\Route(path: "/boom", method: Core\Http\Method::Get, name: "boom")]
+    #[Core\Route(path: "/boom", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function boom(): void {
         throw new RuntimeError("the method failed");
     }
 }
 
-// This gate allows every route except the one named `admin`.
+// This gate allows every route except the route of `Pages::admin`.
 // It prints what it receives.
 class Gate implements Core\Router\Gate {
+    private function label(?Core\Router\Match $route): string {
+        if ($route == null) {
+            return "no route";
+        }
+        if ($route->is(Pages::admin)) {
+            return "admin";
+        }
+        return $route->is(Pages::boom) ? "boom" : "another route";
+    }
+
     public function allows(Core\Router\Match $route): bool {
-        return $route->name() != "admin";
+        return !$route->is(Pages::admin);
     }
 
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
@@ -63,11 +73,11 @@ class Gate implements Core\Router\Gate {
             Core\Router\Refusal::BadCapture => "BadCapture",
             default => "other",
         };
-        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+        echo "refused ", $why, " for ", $this->label($route), "\n";
     }
 
     public function failed(?Core\Router\Match $route, ?Throwable $error): void {
-        echo "failed ", $route?->name() ?? "no route", ": ", $error?->message ?? "no error", "\n";
+        echo "failed ", $this->label($route), ": ", $error?->message ?? "no error", "\n";
     }
 }
 

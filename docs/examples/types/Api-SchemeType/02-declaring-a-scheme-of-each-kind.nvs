@@ -23,7 +23,7 @@ class Auth
 class Orders
 {
     /// Show one order.
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     // A client may use the key or the bearer token. Every name here must be a declared scheme.
     #[Core\Api(security: ['key', 'bearer'])]

@@ -1,5 +1,5 @@
-/ -> Shop::home
-/products/red-shoes -> Shop::product
+/ -> ok
+/products/red-shoes -> ok
 /basket -> BROKEN
-/cart -> Shop::cart
+/cart -> ok
 1 broken link(s)

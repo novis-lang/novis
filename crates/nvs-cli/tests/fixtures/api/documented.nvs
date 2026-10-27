@@ -13,7 +13,7 @@ class Notes
     /// reaches `summary` is one line however the comment was written.
     ///
     /// A second paragraph, to pin that the description keeps its breaks.
-    #[Core\Route(path: '/notes', method: Core\Http\Method::Get, name: 'Notes::index')]
+    #[Core\Route(path: '/notes', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -21,7 +21,7 @@ class Notes
     }
 
     /// One sentence and no more.
-    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Get, name: 'Notes::show')]
+    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -31,7 +31,7 @@ class Notes
     // A line comment is not a doc comment -- this text describes the fixture
     // and must not reach the document. Exactly three slashes open a doc
     // comment and two open a note to the next reader.
-    #[Core\Route(path: '/notes', method: Core\Http\Method::Post, name: 'Notes::create')]
+    #[Core\Route(path: '/notes', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -39,7 +39,7 @@ class Notes
     }
 
     /* Not a doc comment either: one star opens an ordinary block comment. */
-    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Delete, name: 'Notes::destroy')]
+    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function destroy(uint $id): string
     {
@@ -47,7 +47,7 @@ class Notes
     }
 
     /** The PHPDoc shape is an ordinary block comment too, and documents nothing. */
-    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Put, name: 'Notes::restore')]
+    #[Core\Route(path: '/notes/{id}', method: Core\Http\Method::Put)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function restore(uint $id): string
     {

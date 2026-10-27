@@ -15,7 +15,7 @@ use ParseError;
 final class App
 {
     // Shows the form and every note.
-    #[Route(path: '/', method: Method::Get, name: 'App::home')]
+    #[Route(path: '/', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
@@ -23,7 +23,7 @@ final class App
     }
 
     // Saves the note from the form. If the form is not valid, it shows the form again with the problems.
-    #[Route(path: '/notes', method: Method::Post, name: 'App::save')]
+    #[Route(path: '/notes', method: Method::Post)]
     #[Access(allow: Audience::Public)]
     public static function save(): void
     {
@@ -45,11 +45,11 @@ final class App
         }
         $store->add($draft);
         // After a form is saved, the browser goes back to the home page.
-        Response::redirect(Core\Router::url('App::home', []));
+        Response::redirect(Core\Router::url(App::home));
     }
 
     // Shows one note.
-    #[Route(path: '/notes/{id}', method: Method::Get, name: 'App::show')]
+    #[Route(path: '/notes/{id}', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function show(uint $id): void
     {
@@ -63,7 +63,7 @@ final class App
     }
 
     // Returns every note as JSON.
-    #[Route(path: '/api/notes', method: Method::Get, name: 'App::apiList')]
+    #[Route(path: '/api/notes', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function apiList(): void
     {
@@ -71,7 +71,7 @@ final class App
     }
 
     // Returns one note as JSON.
-    #[Route(path: '/api/notes/{id}', method: Method::Get, name: 'App::apiShow')]
+    #[Route(path: '/api/notes/{id}', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function apiShow(uint $id): void
     {
@@ -85,7 +85,7 @@ final class App
     }
 
     // Saves a note from a JSON body such as `{"title": "Milk", "body": "Buy two"}`.
-    #[Route(path: '/api/notes', method: Method::Post, name: 'App::apiAdd')]
+    #[Route(path: '/api/notes', method: Method::Post)]
     #[Access(allow: Audience::Public)]
     public static function apiAdd(): void
     {

@@ -10,7 +10,7 @@ use Core\Api\SchemeType;
 class Orders
 {
     /// Shows one order.
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Api(tags: ['Orders'], errors: [{ status: 404, type: RuntimeError::class }], security: ['bearer'])]
     public function show(uint $id): string

@@ -5,7 +5,8 @@
 // `Shop\Catalog` is written nowhere in this program, and no `Core\Router` or
 // `Core\Program` call appears. The table only has its route if `route()` makes
 // the program scan the `Shop` root. Without the scan the child prints
-// `the table claimed nothing` and the body says so.
+// `the table claimed nothing` and the body says so. The child prints no method
+// reference either, because writing `Shop\Catalog::index` would name the class.
 //
 // The `if` branch is the child: the program answering an in-process request is
 // this same program, and `Core\Env::context()` is `Request` in that run.
@@ -16,7 +17,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if ($matched == null) {
         echo "the table claimed nothing";
     } else {
-        echo $matched->name() ?? "unnamed";
+        echo "the table claimed GET /catalog";
     }
 } else {
     var $answered = Core\Test::request(Core\Http\Method::Get, "/catalog");
@@ -29,7 +30,7 @@ namespace Shop;
 
 class Catalog
 {
-    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get, name: "Catalog::index")]
+    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -38,4 +39,4 @@ class Catalog
 }
 --EXPECT--
 status 200
-body Catalog::index
+body the table claimed GET /catalog

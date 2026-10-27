@@ -4253,7 +4253,7 @@ fn a_defaulting_assignment_starts_from_a_constant_of_the_target_representation()
 /// This arm builds its arguments by hand instead of through
 /// [`Lowering::lower_call_args`], so it is the only `Core` call site where
 /// [`Lowering::account_for_arg`] can be forgotten — and forgetting it leaks
-/// one array header per `Core\Router::url("…", ["id" => 7])`, which only the
+/// one array header per `Core\Router::url(T::show, ["id" => 7])`, which only the
 /// `examples/` valgrind sweep sees, because a leak is invisible to the
 /// program that causes it. Asserted over the array's own `ValueId` rather than
 /// by counting releases, so a release of the *template* beside it cannot stand
@@ -4262,13 +4262,13 @@ fn a_defaulting_assignment_starts_from_a_constant_of_the_target_representation()
 fn a_resolved_route_link_releases_its_params_array() {
     let (f, map, file) = lower_script_src(concat!(
         "<?nvs\nclass T {\n",
-        r#"  #[Core\Route(path:"/users/{id}", method: Core\Http\Method::Get, "#,
-        "name: \"Users::show\")]\n",
+        r#"  #[Core\Route(path:"/users/{id}", method: Core\Http\Method::Get)]"#,
+        "\n",
         r#"  #[Core\Access(allow: Core\Audience::Public)]"#,
         "\n",
         "  public function show(uint $id): string { return \"u\"; }\n",
         "}\n",
-        r#"echo Core\Router::url("Users::show", ["id" => 7]);"#,
+        r#"echo Core\Router::url(T::show, ["id" => 7]);"#,
         "\n",
     ));
     let insts = || f.blocks.iter().flat_map(|b| b.insts.iter());

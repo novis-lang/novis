@@ -3,6 +3,6 @@ GET
 --PATH--
 /reports/2024
 --QUERY--
-_sig=KB_8EVvXMeb593O513_TCCrJ5o1knMem5x31GwpANLwBAwAJAgcGcGFyYW1zCQEHBHllYXIHBDIwMjQHBXJvdXRlBxFSZXBvcnRzOjpkb3dubG9hZA
+_sig=32MH2ddIBDssXif-J4Zgy0XjRZlCsCR9_wWjejrtw-YBAwAJAgcGcGFyYW1zCQEHBHllYXIHBDIwMjQHBXJvdXRlBw8vcmVwb3J0cy97eWVhcn0
 --HEADERS--
 host: shop.example.com

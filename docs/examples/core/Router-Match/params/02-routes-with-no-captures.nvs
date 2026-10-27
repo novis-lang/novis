@@ -3,14 +3,14 @@
 
 class Pages
 {
-    #[Core\Route(path: '/about', method: Core\Http\Method::Get, name: 'Pages::about')]
+    #[Core\Route(path: '/about', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function about(): string
     {
         return 'about us';
     }
 
-    #[Core\Route(path: '/archive/{page?}', method: Core\Http\Method::Get, name: 'Pages::archive')]
+    #[Core\Route(path: '/archive/{page?}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function archive(uint $page = 1): string
     {

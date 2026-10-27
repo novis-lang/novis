@@ -10,14 +10,14 @@
 // all. Matching still dispatches nothing: neither method below is called.
 class Pages
 {
-    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug): string
     {
         return $slug;
     }
 
-    #[Core\Route(path:"/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Route(path:"/pages", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -25,11 +25,12 @@ class Pages
     }
 }
 
-// A hit answers the name the `#[Route]` declared, which is the unit's own text
-// and never anything the caller supplied.
+// A hit is the route of the method whose `#[Route]` claimed the pair, and `is`
+// checks it against a method reference the unit wrote.
 ?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, "/pages/intro");
 if ($shown != null) {
-    echo "name: ", $shown->name() ?? "unnamed", "\n";
+    echo "show: ", $shown->is(Pages::show) ? "yes" : "no", "\n";
+    echo "create: ", $shown->is(Pages::create) ? "yes" : "no", "\n";
 }
 
 // The same path under another verb is a different route, not the same one
@@ -42,7 +43,7 @@ if ($posted == null) {
 // And the verb that does claim its own path answers a route with no captures.
 ?Core\Router\Match $created = Core\Router::match(Core\Http\Method::Post, "/pages");
 if ($created != null) {
-    echo "name: ", $created->name() ?? "unnamed", "\n";
+    echo "create: ", $created->is(Pages::create) ? "yes" : "no", "\n";
     echo "captures: ", Core\Arr::count($created->params()) as string, "\n";
 }
 
@@ -53,8 +54,9 @@ if ($missing == null) {
     echo "unclaimed path: null", "\n";
 }
 --EXPECT--
-name: Pages::show
+show: yes
+create: no
 post at a get-only path: null
-name: Pages::create
+create: yes
 captures: 0
 unclaimed path: null

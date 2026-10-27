@@ -6,7 +6,7 @@ use Core\Router\Refusal;
 
 class Books
 {
-    #[Core\Route(path: '/books', method: Core\Http\Method::Get, name: 'Books::list')]
+    #[Core\Route(path: '/books', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): void
     {
@@ -14,7 +14,7 @@ class Books
     }
 
     // The value of `{id}` in the path goes to the parameter `$id`.
-    #[Core\Route(path: '/books/{id}', method: Core\Http\Method::Get, name: 'Books::show')]
+    #[Core\Route(path: '/books/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): void
     {

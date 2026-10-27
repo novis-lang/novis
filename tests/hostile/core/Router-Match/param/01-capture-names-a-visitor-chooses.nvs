@@ -4,7 +4,7 @@
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}/{tab?}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}/{tab?}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, string $tab = 'profile'): string
     {

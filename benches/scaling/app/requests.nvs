@@ -8,7 +8,7 @@
 
 class Shop
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::index')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {

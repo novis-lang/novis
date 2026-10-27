@@ -5,19 +5,19 @@ every `#[Route]` the program declares has a row in the compile-time table, and `
 // The sibling cases each ask one question of one route. This asks the whole
 // table one question, and it asks it twice over:
 //
-//   * **Completeness is the compilation.** An unknown literal name is a
-//     compile error (`rule:routing/matching-is-not-dispatching`), so a route whose row the table never grew
+//   * **Completeness is the compilation.** A written reference to a method
+//     with no route is a compile error (`rule:routing/link-target-and-params-are-checked`), so a route whose row the table never grew
 //     does not reach the runtime at all — this file failing to compile is the
 //     failure, and there is no line below that could report it. Eight routes
 //     are declared and eight are linked to.
 //   * **Correctness is counted, not read off a line.** A table that answered
-//     plausibly for one name still fails the sweep: every link is rooted, no
+//     plausibly for one route still fails the sweep: every link is rooted, no
 //     link still carries a `{`, and no two links are the same text, which is
 //     what a lookup collapsing two rows onto one row would print.
 //
 // The labelled lines are the third failure mode the counters cannot see — a
-// *permutation*, where every row answers and one name is answered by another
-// name's row. Distinct, rooted and substituted are all still true of it.
+// *permutation*, where every row answers and one method is answered by another
+// method's row. Distinct, rooted and substituted are all still true of it.
 //
 // Between them the eight paths spell every form of § 2's grammar: a literal
 // path with no capture at all, one required capture, an optional one, two
@@ -27,19 +27,19 @@ every `#[Route]` the program declares has a row in the compile-time table, and `
 class Posts {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Posts::home")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "post " . $id; }
 
-    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[Core\Route(path: "/posts/{id}/comments/{comment}", method: Core\Http\Method::Get, name: "Posts::comment")]
+    #[Core\Route(path: "/posts/{id}/comments/{comment}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function comment(uint $id, uint $comment): string { return "comment"; }
 }
@@ -47,15 +47,15 @@ class Posts {
 // A second class, because `rule:routing/table-is-opt-in` builds the table out of Stage 0's
 // whole-program enumeration rather than out of one declaration site.
 class Admin {
-    #[Core\Route(path: "/admin/users", method: Core\Http\Method::Get, name: "Admin::users")]
+    #[Core\Route(path: "/admin/users", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function users(): string { return "users"; }
 
-    #[Core\Route(path: "/admin/users/{id}", method: Core\Http\Method::Get, name: "Admin::edit")]
+    #[Core\Route(path: "/admin/users/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function edit(uint $id): string { return "edit"; }
 
-    #[Core\Route(path: "/admin/users/{id}/delete", method: Core\Http\Method::Delete, name: "Admin::delete")]
+    #[Core\Route(path: "/admin/users/{id}/delete", method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function delete(uint $id): string { return "delete"; }
 }
@@ -72,14 +72,14 @@ array<string> $names = [
 ];
 
 array<string> $links = [
-    Core\Router::url("Posts::home", []),
-    Core\Router::url("Posts::show", ["id" => 7]),
-    Core\Router::url("Posts::list", ["page" => 3]),
-    Core\Router::url("Posts::comment", ["id" => 7, "comment" => 2]),
-    Core\Router::url("Files::download", ["path" => "a/b/c.txt"]),
-    Core\Router::url("Admin::users", []),
-    Core\Router::url("Admin::edit", ["id" => 9]),
-    Core\Router::url("Admin::delete", ["id" => 9]),
+    Core\Router::url(Posts::home, []),
+    Core\Router::url(Posts::show, ["id" => 7]),
+    Core\Router::url(Posts::list, ["page" => 3]),
+    Core\Router::url(Posts::comment, ["id" => 7, "comment" => 2]),
+    Core\Router::url(Files::download, ["path" => "a/b/c.txt"]),
+    Core\Router::url(Admin::users, []),
+    Core\Router::url(Admin::edit, ["id" => 9]),
+    Core\Router::url(Admin::delete, ["id" => 9]),
 ];
 
 int $rooted = 0;
@@ -113,9 +113,10 @@ for (; $i < $n; ) {
     $i = $i + 1;
 }
 
-// A `name:` may write the two arguments in either order, and the link is the
-// same. A call that read them by position would pass the array as the name.
-echo "named=", Core\Router::url(params: ["id" => 7], name: "Posts::show"), "\n";
+// A call may name the two arguments and write them in either order, and the
+// link is the same. A call that read them by position would pass the array as
+// the route.
+echo "named=", Core\Router::url(params: ["id" => 7], route: Posts::show), "\n";
 
 // Declared *after* every statement that links to it, which is the whole point
 // of the table being built from the program enumeration (`rule:programs/implementing`'s scan,
@@ -124,7 +125,7 @@ echo "named=", Core\Router::url(params: ["id" => 7], name: "Posts::show"), "\n";
 // else — every remaining segment as one value, its own `/`s left alone while
 // each segment between them is still encoded.
 class Files {
-    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "Files::download")]
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(string $path): string { return "file " . $path; }
 }

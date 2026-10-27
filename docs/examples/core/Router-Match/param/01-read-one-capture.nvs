@@ -3,7 +3,7 @@
 
 class Profiles
 {
-    #[Core\Route(path: '/users/{username}', method: Core\Http\Method::Get, name: 'Profiles::show')]
+    #[Core\Route(path: '/users/{username}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $username): string
     {

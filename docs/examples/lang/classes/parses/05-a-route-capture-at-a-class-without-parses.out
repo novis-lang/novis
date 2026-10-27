@@ -1,7 +1,7 @@
 error[E0752]: `Tag` is not a type `{tag}` can arrive at
    --> 05-a-route-capture-at-a-class-without-parses.nvs:13:18
    |
-13 |     #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
+13 |     #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get)]
    |                  -------------------- the capture bound here
 ...
 15 |     public function show(Tag $tag): string

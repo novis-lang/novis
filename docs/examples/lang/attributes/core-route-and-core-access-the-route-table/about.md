@@ -5,8 +5,9 @@ A path has fixed segments and captures. `{id}` matches one segment. `{id?}` matc
 none, and must come last. `{path...}` matches all remaining segments. Each capture goes to
 the parameter with the same name, converted to its type.
 
-Novis collects every route into one table at compile time. `Core\Router::url` builds a
-link from the name of a route. An unknown route name or a missing capture is a compile error.
+Novis collects every route into one table at compile time. `Core\Router::url` builds a link to
+the route of a method. You write the method without brackets, such as `Shop::show`. An unknown
+method, a method with no route, or a missing capture is a compile error.
 
 The server matches each request to a route before your program runs. Your entry file calls
 `Core\Router::dispatch`, which calls that route's method. A program can also read the match with
@@ -15,6 +16,5 @@ The server matches each request to a route before your program runs. Your entry 
 A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A bad
 value is a `400`.
 
-**The examples below** show a route and its link, the three captures, product lists, routes in
-another file, calling a route method yourself, a route with no `#[Core\Access]`, and a bad query
-value.
+**The examples below** show links, the three captures, routes in another file, calling a route
+method yourself, a missing `#[Core\Access]`, and a bad query value.

@@ -3,14 +3,14 @@
 
 class Pages
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return 'home';
     }
 
-    #[Core\Route(path: '/help/{topic}', method: Core\Http\Method::Get, name: 'Pages::help')]
+    #[Core\Route(path: '/help/{topic}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function help(string $topic): string
     {
@@ -20,13 +20,14 @@ class Pages
 
 echo "<urlset>\n";
 
-// The home page has the path `/`, so this link is `https://www.example.com/`.
-echo '  <url><loc>', Core\Router::urlAbsolute('Pages::home', []), "</loc></url>\n";
+// The home page has no captures, so it needs no values.
+// Its path is `/`, so this link is `https://www.example.com/`.
+echo '  <url><loc>', Core\Router::urlAbsolute(Pages::home), "</loc></url>\n";
 
 // Each topic is percent-encoded, so "gift cards" becomes `gift%20cards`.
 array<string> $topics = ['shipping', 'returns', 'gift cards'];
 foreach ($topics as string $topic) {
-    string $link = Core\Router::urlAbsolute('Pages::help', ['topic' => $topic]);
+    string $link = Core\Router::urlAbsolute(Pages::help, ['topic' => $topic]);
     echo '  <url><loc>', $link, "</loc></url>\n";
 }
 

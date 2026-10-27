@@ -13,11 +13,11 @@ class Posts {
     // than nullable by accident.
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[Core\Route(path: "/posts/{id}/edit", method: Core\Http\Method::Get, name: "Posts::edit")]
+    #[Core\Route(path: "/posts/{id}/edit", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function edit(uint $id): string { return "edit " . $id; }
 }
@@ -26,13 +26,13 @@ class Posts {
 // and present, on the same route. A `url` that treated `{page?}` like `{id}`
 // would not compile at all, and one that dropped a supplied value would print
 // the first line twice.
-echo "absent=", Core\Router::url("Posts::list", []), "\n";
-echo "present=", Core\Router::url("Posts::list", ["page" => 3]), "\n";
+echo "absent=", Core\Router::url(Posts::list, []), "\n";
+echo "present=", Core\Router::url(Posts::list, ["page" => 3]), "\n";
 
 // The other side of the same rule, on the route next to it: a *required*
 // capture supplied is substituted rather than dropped, so "an absent segment
 // disappears" is a property of `?` and not of the substitution.
-echo "required=", Core\Router::url("Posts::edit", ["id" => 7]), "\n";
+echo "required=", Core\Router::url(Posts::edit, ["id" => 7]), "\n";
 --EXPECT--
 absent=/posts
 present=/posts/3

@@ -5,7 +5,7 @@
 
 class Users
 {
-    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
     public function index(): string
     {
         return 'users';

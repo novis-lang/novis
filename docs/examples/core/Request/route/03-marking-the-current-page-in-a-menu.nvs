@@ -3,32 +3,31 @@
 
 class Shop
 {
-    #[Core\Route(path: '/products', method: Core\Http\Method::Get, name: 'Shop::products')]
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function products(): string
+    public static function products(): string
     {
         return 'products';
     }
 
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Shop::orders')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function orders(): string
+    public static function orders(): string
     {
         return 'orders';
     }
 }
 
-// Each menu entry is the name of a route and the text to show.
-array<string> $menu = ['Shop::products' => 'Products', 'Shop::orders' => 'Orders'];
+// Each menu entry is the text to show and the method of its page.
+// `Shop::products` is written without `()`, so nothing is called here.
+array<callable> $menu = ['Products' => Shop::products, 'Orders' => Shop::orders];
 
-// The address is `/orders`, so the route name is "Shop::orders".
-string $current = '';
+// The address is `/orders`, so the route belongs to `Shop::orders`.
 ?Core\Router\Match $matched = Core\Request::route();
-if ($matched != null) {
-    $current = $matched->name() ?? '';
-}
 
+// `is` checks whether the route belongs to the method of the entry.
 // This prints "  Products" and then "> Orders".
-foreach ($menu as string $route => string $label) {
-    echo $route == $current ? '> ' : '  ', $label, "\n";
+foreach ($menu as string $label => callable $route) {
+    bool $open = $matched != null && $matched->is($route);
+    echo $open ? '> ' : '  ', $label, "\n";
 }

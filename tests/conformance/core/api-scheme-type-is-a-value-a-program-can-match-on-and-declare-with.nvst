@@ -19,7 +19,7 @@ class Auth {}
 
 class Orders
 {
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::list")]
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(security: ["key", "bearer", "basic", "certificate", "login", "openid"])]
     public function list(): string

@@ -1,31 +1,37 @@
 --TEST--
-A matched route's declared name is the unit's own literal and its captures are the peer's, so only one of the two refuses a plain `string` — `rule:routing/matched-once-before-the-handler`, `rule:security/tainted-qualifier`
+What a matched route says about which route it is comes from the unit and its captures are the peer's, so only the captures refuse a plain `string` — `rule:routing/matched-once-before-the-handler`, `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // Agreement, asked of the two things one `Core\Router\Match` carries: what
 // decides the qualifier is where the value came from, and nothing about which
-// member answered it. `name()` is the string the unit's own `#[Route(name: …)]`
-// wrote, so a plain `string` target takes it and the first binding below
-// compiles; a capture is a segment of the path the request arrived with, so the
-// same target refuses it and the last one does not.
+// member answered it. `is` compares the match with a method reference the unit
+// wrote, so its `bool` is the unit's own and the first binding below compiles;
+// a capture is a segment of the path the request arrived with, so a plain
+// `string` target refuses it and the last binding does not compile.
 //
-// Both halves are load-bearing. A match that marked the name as well would make
-// a route's own name unusable at every sink it was declared for -- the metric
-// label and the link builder -- and one that marked neither would launder the
-// request path through the route table, which is the direction that costs.
+// Both halves are load-bearing. A match whose identity were tainted would make
+// a route unusable at every branch that picks a handler, and one that marked
+// neither would launder the request path through the route table, which is the
+// direction that costs.
+class Posts {
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(uint $id): string { return "post"; }
+}
+
 var $matched = Core\Request::route();
 if ($matched != null) {
-    string $named = $matched->name() ?? "";
+    bool $isShow = $matched->is(Posts::show);
     foreach ($matched->params() as mixed $each) {
     }
     string $segment = $matched->param("id") ?? "0";
 }
-// covers: Core\Router\Match::name, Core\Router\Match::params, Core\Router\Match::param
+// covers: Core\Router\Match::is, Core\Router\Match::params, Core\Router\Match::param
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string`, found `string|uint|int|decimal|tainted string|Core\Uuid|Parses`
-   --> case.nvs:18:23
+   --> case.nvs:24:23
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -13,7 +13,7 @@ class Bench
         uint $i = 0;
         while ($i < $size) {
             $lines[] = "class Page{$i} {";
-            $lines[] = "    #[Core\\Route(path: \"/p{$i}\", method: Core\\Http\\Method::Get, name: \"Page{$i}::index\")]";
+            $lines[] = "    #[Core\\Route(path: \"/p{$i}\", method: Core\\Http\\Method::Get)]";
             $lines[] = "    #[Core\\Access(allow: Core\\Audience::Public)]";
             $lines[] = '    public function index(): string {';
             $lines[] = "        string \$code = \"TEA-{$i}\";";

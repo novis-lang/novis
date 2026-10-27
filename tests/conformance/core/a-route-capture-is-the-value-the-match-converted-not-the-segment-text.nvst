@@ -20,7 +20,6 @@ var $matched = Core\Request::route();
 if ($matched != null) {
     foreach ($matched->params() as tainted string $capture) {
     }
-    echo $matched->name() ?? "none", "\n";
     echo $matched->param("id") ?? "none", "\n";
 }
 --EXPECT--

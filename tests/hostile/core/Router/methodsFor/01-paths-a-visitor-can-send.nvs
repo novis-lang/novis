@@ -5,22 +5,22 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'Files::show')]
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Delete, name: 'Files::show')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $name): string
     {
         return 'one file';
     }
 
-    #[Core\Route(path: '/docs/{rest...}', method: Core\Http\Method::Get, name: 'Files::docs')]
+    #[Core\Route(path: '/docs/{rest...}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function docs(string $rest): string
     {
         return 'a page';
     }
 
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Files::order')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function order(uint $id): string
     {

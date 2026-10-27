@@ -11,11 +11,11 @@ enum Shelf { New, Sale, Clearance }
 
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
-    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "docs.page")]
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang::De|Lang::En $lang): string { return "page"; }
 
-    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "docs.shelf")]
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function shelf(Shelf::New|Shelf::Sale $shelf): string { return "shelf"; }
 }
@@ -25,21 +25,21 @@ class Docs {
 // What each of these builds is
 // `core/router-url-writes-an-enum-cases-spelling-in-a-link.nvst`, which is the
 // half a program that does not compile cannot show.
-echo Core\Router::url("docs.page", ["lang" => Lang::En]), "\n";
-echo Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]), "\n";
+echo Core\Router::url(Docs::page, ["lang" => Lang::En]), "\n";
+echo Core\Router::url(Docs::shelf, ["shelf" => Shelf::Sale]), "\n";
 
 // The first refused: a case of the same enum the subset leaves out. The segment
 // it would build names no admitted case, so the request would fall through to a
 // `404` and the link is dead before the program runs.
-echo Core\Router::url("docs.page", ["lang" => Lang::Fr]), "\n";
-echo Core\Router::url("docs.shelf", ["shelf" => Shelf::Clearance]), "\n";
+echo Core\Router::url(Docs::page, ["lang" => Lang::Fr]), "\n";
+echo Core\Router::url(Docs::shelf, ["shelf" => Shelf::Clearance]), "\n";
 
 // The other half of the bound: an admitted case, written as the spelling its
 // own subset did not take. `De` is admitted and `/p/De` still matches nothing,
 // because that subset is spelled by value; `1` is `Shelf::Sale`'s value and
 // `/s/1` matches nothing, because that one is spelled by name.
-echo Core\Router::url("docs.page", ["lang" => "De"]), "\n";
-echo Core\Router::url("docs.shelf", ["shelf" => 1]), "\n";
+echo Core\Router::url(Docs::page, ["lang" => "De"]), "\n";
+echo Core\Router::url(Docs::shelf, ["shelf" => 1]), "\n";
 --EXPECTF-ERROR--
 error[E0772]: `Docs::page` admits `7`, `9` for `lang`, and this link supplies `Lang::Fr`
 %A

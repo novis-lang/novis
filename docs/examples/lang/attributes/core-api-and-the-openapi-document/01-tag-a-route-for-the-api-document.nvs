@@ -8,7 +8,7 @@ class Invoices
 {
     // The `///` line below is the summary and the description of this operation.
     /// Show one invoice. Looks the invoice up by its number.
-    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['Invoices'])]
     public function show(uint $number): string

@@ -12,7 +12,7 @@ use Core\Route;
 final class App
 {
     // Shows a link to each document.
-    #[Route(path: '/', method: Method::Get, name: 'App::home')]
+    #[Route(path: '/', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
@@ -20,7 +20,7 @@ final class App
     }
 
     // Sends the invoice.
-    #[Route(path: '/invoice.pdf', method: Method::Get, name: 'App::invoice')]
+    #[Route(path: '/invoice.pdf', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function invoice(): void
     {
@@ -29,7 +29,7 @@ final class App
 
     // Sends the report. A PDF viewer needs the password before it shows the report.
     // This app shows the password on the home page. A real app gets it from the person who requests the report.
-    #[Route(path: '/report.pdf', method: Method::Get, name: 'App::report')]
+    #[Route(path: '/report.pdf', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function report(): void
     {
@@ -37,7 +37,7 @@ final class App
     }
 
     // Sends the tickets of one order as one file.
-    #[Route(path: '/tickets.pdf', method: Method::Get, name: 'App::tickets')]
+    #[Route(path: '/tickets.pdf', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function tickets(): void
     {

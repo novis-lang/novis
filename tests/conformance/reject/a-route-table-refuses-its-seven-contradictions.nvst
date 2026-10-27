@@ -9,13 +9,13 @@ The route table's seven contradictions, refused in one compilation — `rule:rou
 // duplicate would look identical on any single-error case.
 
 // 1. `rule:routing/path-grammar`: a path is matched by shape, so two rows claiming one path
-// and one verb are one route declared twice, whatever their names.
+// and one verb are one route declared twice, whatever their methods.
 class Dup {
-    #[Core\Route(path: "/dup", method: Core\Http\Method::Get, name: "dup.first")]
+    #[Core\Route(path: "/dup", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function first(): string { return ""; }
 
-    #[Core\Route(path: "/dup", method: Core\Http\Method::Get, name: "dup.second")]
+    #[Core\Route(path: "/dup", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function second(): string { return ""; }
 }
@@ -23,7 +23,7 @@ class Dup {
 // 2. `rule:security/route-capture-is-laundered-by-its-type`: every capture has somewhere to arrive, and the method that
 // declares no parameter at all is the shortest way to have nowhere.
 class Unbound {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "unbound.show")]
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return ""; }
 }
@@ -31,7 +31,7 @@ class Unbound {
 // 3. `rule:routing/a-trailing-segment-may-be-absent`: `{name?}` matches one segment or none, and "or none" only
 // has an answer where nothing follows it.
 class Middle {
-    #[Core\Route(path: "/posts/{page?}/comments", method: Core\Http\Method::Get, name: "middle.show")]
+    #[Core\Route(path: "/posts/{page?}/comments", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $page = 1): string { return ""; }
 }
@@ -39,7 +39,7 @@ class Middle {
 // 4. `rule:routing/a-trailing-segment-may-be-absent` again, and the refusal is about the *default* rather than the
 // type: the default is what makes the absent segment well-typed.
 class NoDefault {
-    #[Core\Route(path: "/drafts/{page?}", method: Core\Http\Method::Get, name: "nodefault.page")]
+    #[Core\Route(path: "/drafts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(uint $page): string { return ""; }
 }
@@ -47,7 +47,7 @@ class NoDefault {
 // 5. `rule:routing/a-query-parameter-is-declared-like-a-capture` is a closed list, and `float` is the first type outside it a
 // language that guesses would have converted.
 class BadType {
-    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "badtype.show")]
+    #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(float $id): string { return ""; }
 }
@@ -55,19 +55,21 @@ class BadType {
 // The one well-formed row. The two link errors below are asked against it, so
 // that neither of them is really a complaint about the route.
 class Orders {
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "orders.show")]
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, #[Core\Query] uint $page = 1): string { return ""; }
+
+    public function format(uint $id): string { return ""; }
 }
 
-// 6. `rule:routing/link-target-and-params-are-checked`: a *literal* name is checked against the compiled table. A
-// computed one is not checked here at all and throws at run time instead.
-echo Core\Router::url("orders.missing", ["id" => 1]), "\n";
+// 6. `rule:routing/link-target-and-params-are-checked`: a *written* method reference is checked against the compiled
+// table. A value reference is not checked here at all and throws at run time instead.
+echo Core\Router::url(Orders::format, ["id" => 1]), "\n";
 
 // 7. `rule:routing/a-leftover-link-key-is-a-query-string`: every key that is not a capture becomes the link's query
 // string, so a misspelling ships as `?pge=2` and nothing says so — which is why
 // this could not be refused before `#[Query]` said which keys are legitimate.
-echo Core\Router::url("orders.show", ["id" => 1, "pge" => 2]), "\n";
+echo Core\Router::url(Orders::show, ["id" => 1, "pge" => 2]), "\n";
 
 echo "unreachable\n";
 --EXPECT--
@@ -88,11 +90,11 @@ error[E0753]: `$page` has no default, so `{page?}` has nothing to be when it is 
 error[E0752]: `float` is not a type `{id}` can arrive at
    --> case.nvs:47:18
 %A
-error[E0754]: `Core\Router::url` names the route `orders.missing`, and no `#[Route]` claims it
-   --> case.nvs:62:23
+error[E0754]: `Core\Router::url` links to `Orders::format`, and that method has no `#[Route]`
+   --> case.nvs:64:23
 %A
 error[E0759]: `Orders::show`'s path `/orders/{id}` has no `pge`, and `Orders::show` declares no `#[Query]` parameter of that name
-   --> case.nvs:67:6
+   --> case.nvs:69:6
 %A
 error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

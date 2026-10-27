@@ -1,13 +1,13 @@
 <?nvs
 // Shows that the route table also has the routes of every file that `autoload`
-// can reach. This file never names the class `App\Users`.
+// can reach. The class `App\Users` is in the file `routes/Users.nvs`.
 
 autoload 'App' from './routes';
 
 // This prints `/users/7` and then `/users`.
-echo Core\Router::url('Users::show', ['id' => 7]), "\n";
-echo Core\Router::url('Users::create', []), "\n";
+echo Core\Router::url(App\Users::show, ['id' => 7]), "\n";
+echo Core\Router::url(App\Users::create), "\n";
 
 // `urlAbsolute` puts the `origin` setting from `nvs.toml` in front of the path.
 // This prints `https://example.test/users/7`.
-echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";
+echo Core\Router::urlAbsolute(App\Users::show, ['id' => 7]), "\n";

@@ -8,7 +8,7 @@
 // grows here — `$signedParams`, `$except` — which is where the bypasses live,
 // and the way to rule it out is to show there is nothing to exclude.
 class Shop {
-    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(int $id, #[Core\Query] string $q = "", #[Core\Query] string $page = ""): string {
         return $q;
@@ -28,12 +28,12 @@ array<mixed> $second = ["id" => 7, "q" => "x", "page" => "3"];
 array<mixed> $dropped = ["id" => 7, "q" => "x"];
 array<mixed> $reordered = ["page" => "2", "id" => 7, "q" => "x"];
 
-string $signedBase = Core\Router::urlSigned("Shop::show", $base, {keys: $ring, until: null});
-string $signedCapture = Core\Router::urlSigned("Shop::show", $capture, {keys: $ring, until: null});
-string $signedQuery = Core\Router::urlSigned("Shop::show", $query, {keys: $ring, until: null});
-string $signedSecond = Core\Router::urlSigned("Shop::show", $second, {keys: $ring, until: null});
-string $signedDropped = Core\Router::urlSigned("Shop::show", $dropped, {keys: $ring, until: null});
-string $signedReordered = Core\Router::urlSigned("Shop::show", $reordered, {keys: $ring, until: null});
+string $signedBase = Core\Router::urlSigned(Shop::show, $base, {keys: $ring, until: null});
+string $signedCapture = Core\Router::urlSigned(Shop::show, $capture, {keys: $ring, until: null});
+string $signedQuery = Core\Router::urlSigned(Shop::show, $query, {keys: $ring, until: null});
+string $signedSecond = Core\Router::urlSigned(Shop::show, $second, {keys: $ring, until: null});
+string $signedDropped = Core\Router::urlSigned(Shop::show, $dropped, {keys: $ring, until: null});
+string $signedReordered = Core\Router::urlSigned(Shop::show, $reordered, {keys: $ring, until: null});
 
 // The *token* rather than the link, throughout: the link also carries the
 // parameters in the order they were written, so comparing whole links would

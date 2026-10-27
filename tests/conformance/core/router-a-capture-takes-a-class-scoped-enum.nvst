@@ -13,11 +13,11 @@ final class Docs {
     enum Lang: uint { De = 7, En = 9 }
     enum Shelf { New, Sale }
 
-    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang $lang): string { return "page"; }
 
-    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "Docs::shelf")]
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function shelf(Docs::Shelf $shelf): string { return "shelf"; }
 }
@@ -30,7 +30,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if ($matched == null) {
         echo "no match";
     } else {
-        echo $matched->name() ?? "unnamed",
+        echo $matched->is(Docs::page) ? "Docs::page" : ($matched->is(Docs::shelf) ? "Docs::shelf" : "another route"),
              " lang=", $matched->param("lang") ?? "-",
              " shelf=", $matched->param("shelf") ?? "-";
     }
@@ -41,8 +41,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     echo "written ", $written->body(), "\n";
     echo "outside ", $outside->body(), "\n";
     echo "counted ", $counted->body(), "\n";
-    echo "link ", Core\Router::url("Docs::page", ["lang" => Docs::Lang::En]), "\n";
-    echo "link ", Core\Router::url("Docs::shelf", ["shelf" => Docs::Shelf::Sale]), "\n";
+    echo "link ", Core\Router::url(Docs::page, ["lang" => Docs::Lang::En]), "\n";
+    echo "link ", Core\Router::url(Docs::shelf, ["shelf" => Docs::Shelf::Sale]), "\n";
 }
 --EXPECT--
 written Docs::page lang=7 shelf=-

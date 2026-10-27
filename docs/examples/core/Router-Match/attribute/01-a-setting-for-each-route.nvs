@@ -3,7 +3,7 @@
 
 class Pages
 {
-    #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
+    #[Core\Route(path: '/news', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 60 }]
     public function news(): string
@@ -11,7 +11,7 @@ class Pages
         return 'news';
     }
 
-    #[Core\Route(path: '/live', method: Core\Http\Method::Get, name: 'Pages::live')]
+    #[Core\Route(path: '/live', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function live(): string
     {

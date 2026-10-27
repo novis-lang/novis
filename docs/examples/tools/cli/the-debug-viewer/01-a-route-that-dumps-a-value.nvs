@@ -3,7 +3,7 @@
 
 class Carts
 {
-    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Carts::show')]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string
     {

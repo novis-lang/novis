@@ -9,7 +9,7 @@ class Policy
 
 class Office
 {
-    #[Core\Route(path: '/office', method: Core\Http\Method::Get, name: 'Office::home')]
+    #[Core\Route(path: '/office', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Policy::STAFF)]
     public function home(): string
     {

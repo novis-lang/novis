@@ -7,7 +7,7 @@
 
 class Products
 {
-    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get, name: 'product')]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $sku): string
     {
@@ -25,7 +25,7 @@ class Bench
         while ($i < $rounds) {
             // Chained: the product linked this round is picked with the length
             // counted in the round before.
-            string $url = Core\Router::url('product', ['sku' => $skus[($total % 3) as int]]);
+            string $url = Core\Router::url(Products::show, ['sku' => $skus[($total % 3) as int]]);
             $total = $total + Core\Str::length($url);
             $i = $i + 1;
         }

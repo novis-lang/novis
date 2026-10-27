@@ -36,14 +36,14 @@ class Slug implements Parses
 
 class Posts
 {
-    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{slug}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug): string
     {
         return "one post";
     }
 
-    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get, name: "Posts::byId")]
+    #[Core\Route(path: "/posts/by-id/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): string
     {
@@ -54,7 +54,7 @@ class Posts
 // The row the shape claims, and the value it hands over.
 ?Core\Router\Match $good = Core\Router::match(Core\Http\Method::Get, "/posts/hello-world");
 if ($good != null) {
-    echo "a segment the class accepts is the match ", $good->name() ?? "none", "\n";
+    echo "a segment the class accepts is the match ", $good->is(Posts::show) ? "Posts::show" : "of another route", "\n";
 }
 
 // The same row, claimed by the same shape, refused by the class where the match

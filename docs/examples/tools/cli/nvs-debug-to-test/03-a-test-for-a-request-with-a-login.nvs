@@ -5,7 +5,7 @@ use Core\Test;
 
 class Orders
 {
-    #[Core\Route(path: '/orders', method: Method::Post, name: 'Orders::create')]
+    #[Core\Route(path: '/orders', method: Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): void
     {

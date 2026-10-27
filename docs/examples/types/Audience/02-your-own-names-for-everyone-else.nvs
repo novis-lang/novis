@@ -9,7 +9,7 @@ class Plan
 
 class Site
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Site::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
@@ -17,7 +17,7 @@ class Site
     }
 
     // A case of your own enum. Novis checks that the name exists, nothing more.
-    #[Core\Route(path: '/account', method: Core\Http\Method::Get, name: 'Site::account')]
+    #[Core\Route(path: '/account', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Gate::Role::Member)]
     public function account(): string
     {
@@ -25,7 +25,7 @@ class Site
     }
 
     // A class constant is a name too, so it works here just as well.
-    #[Core\Route(path: '/reports', method: Core\Http\Method::Get, name: 'Site::reports')]
+    #[Core\Route(path: '/reports', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Plan::PAID)]
     public function reports(): string
     {
@@ -48,7 +48,7 @@ class Gate
     }
 }
 
-echo Core\Router::url('Site::home', []), "\n";
-echo Core\Router::url('Site::account', []), "\n";
+echo Core\Router::url(Site::home), "\n";
+echo Core\Router::url(Site::account), "\n";
 echo 'admin sees ', Gate::sees(Gate::Role::Admin), "\n";
 echo 'member sees ', Gate::sees(Gate::Role::Member), "\n";

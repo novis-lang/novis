@@ -12,15 +12,15 @@ enum Level: uint {
 
 class Docs
 {
-    #[Core\Route(path: "/docs", method: Core\Http\Method::Get, name: "Docs::read")]
+    #[Core\Route(path: "/docs", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Level::Reader)]
     public function read(): string { return "read"; }
 
-    #[Core\Route(path: "/docs/settings", method: Core\Http\Method::Get, name: "Docs::settings")]
+    #[Core\Route(path: "/docs/settings", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Level::Owner)]
     public function settings(): string { return "settings"; }
 
-    #[Core\Route(path: "/docs/public", method: Core\Http\Method::Get, name: "Docs::open")]
+    #[Core\Route(path: "/docs/public", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function open(): string { return "open"; }
 }

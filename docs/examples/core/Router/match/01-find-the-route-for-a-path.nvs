@@ -3,7 +3,7 @@
 
 class Articles
 {
-    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get, name: 'Articles::show')]
+    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -12,11 +12,11 @@ class Articles
 }
 
 // `Core\Router::match` checks the path against every `#[Route]` in the program.
-// The result is a `Core\Router\Match` with the route's name and its captures.
+// The result is a `Core\Router\Match` with the route and its captures.
 ?Core\Router\Match $found = Core\Router::match(Core\Http\Method::Get, '/articles/42');
 if ($found != null) {
-    // This prints `Articles::show`.
-    echo $found->name() ?? 'no name', "\n";
+    // `is` checks which method the route belongs to. This prints `Articles::show`.
+    echo $found->is(Articles::show) ? 'Articles::show' : 'another route', "\n";
     // `{id}` is a `uint` in `show`, so the capture is the number 42.
     echo $found->param('id'), "\n";
 }

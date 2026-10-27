@@ -8,14 +8,14 @@ use Core\Router\Refusal;
 
 class Shop
 {
-    #[Core\Route(path: '/shop/admin', method: Core\Http\Method::Get, name: 'Shop::admin')]
+    #[Core\Route(path: '/shop/admin', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function admin(): Core\Html\Markup
     {
         return html`<p>secret-admin-page</p>`;
     }
 
-    #[Core\Route(path: '/shop/broken', method: Core\Http\Method::Get, name: 'Shop::broken')]
+    #[Core\Route(path: '/shop/broken', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function broken(): Core\Html\Markup
     {
@@ -29,7 +29,7 @@ class Shop
 
 class Blog
 {
-    #[Core\Route(path: '/blog', method: Core\Http\Method::Get, name: 'Blog::index')]
+    #[Core\Route(path: '/blog', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function index(): Core\Html\Markup
     {
@@ -43,7 +43,7 @@ class Gate implements Core\Router\Responder
 {
     public function allows(Core\Router\Match $route): bool
     {
-        return $route->name() != 'Shop::admin';
+        return !$route->is(Shop::admin);
     }
 
     public function refused(Refusal $reason, ?Core\Router\Match $route): void
@@ -58,7 +58,7 @@ class Gate implements Core\Router\Responder
 
     public function respond(Core\Router\Match $route, mixed $value): void
     {
-        if ($route->name() == 'Blog::index') {
+        if ($route->is(Blog::index)) {
             throw new RuntimeError('respond failed');
         }
         echo 'respond ran';

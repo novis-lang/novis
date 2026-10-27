@@ -5,21 +5,21 @@ page=2
 --FILE--
 <?nvs
 // The case's request is `GET /`, which the first route claims. The second
-// route shares the path under another method, so a match that ignored the
-// method would name it instead.
+// route shares the path under another verb, so a match that ignored the verb
+// could be the route of `Home::submit` instead.
 class Home {
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Home::index")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string { return "home"; }
 
-    #[Core\Route(path: "/", method: Core\Http\Method::Post, name: "Home::submit")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function submit(): string { return "sent"; }
 }
 
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    echo $matched->name() ?? "no name", "\n";
+    echo $matched->is(Home::index) ? "Home::index" : "", $matched->is(Home::submit) ? "Home::submit" : "", "\n";
 } else {
     echo "no route\n";
 }

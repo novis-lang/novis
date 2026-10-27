@@ -7,8 +7,8 @@
 
 class Newsletter
 {
-    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Get, name: 'Newsletter::signup')]
-    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Post, name: 'Newsletter::signup')]
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/newsletter', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function signup(): string
     {

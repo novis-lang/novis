@@ -5,14 +5,14 @@
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -37,12 +37,13 @@ class App
             return '403';
         }
 
+        // `is` checks whether the match is the route of the method you name.
         var $users = new Users();
-        switch ($match->name()) {
-            case 'Users::show':
-                return $users->show($match->param('id') as uint);
-            case 'Users::create':
-                return $users->create();
+        if ($match->is(Users::show)) {
+            return $users->show($match->param('id') as uint);
+        }
+        if ($match->is(Users::create)) {
+            return $users->create();
         }
         return '404';
     }

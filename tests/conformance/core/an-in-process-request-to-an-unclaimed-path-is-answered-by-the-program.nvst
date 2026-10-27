@@ -12,7 +12,7 @@ an in-process request to a path the compiled table does not claim still runs the
 // The `if` branch is the child, for the reason the sibling case's comment
 // states in full: `Core\Env::context()` is `Request` in the run that answers.
 class Api {
-    #[Core\Route(path: "/claimed", method: Core\Http\Method::Get, name: "Api::claimed")]
+    #[Core\Route(path: "/claimed", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function claimed(): string { return "claimed"; }
 }
@@ -24,7 +24,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         Core\Response::setStatus(404);
         echo "the table claimed nothing";
     } else {
-        echo "unexpectedly matched ", $matched->name() ?? "unnamed";
+        echo "unexpectedly matched";
     }
 } else {
     var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");

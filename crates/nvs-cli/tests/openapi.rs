@@ -58,9 +58,9 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
     for fragment in [
         "\"/users\"",
         "\"/users/{id}\"",
-        "\"operationId\": \"Users.index\"",
-        "\"operationId\": \"Users.create\"",
-        "\"operationId\": \"Users.show\"",
+        "\"operationId\": \"App.Users.index\"",
+        "\"operationId\": \"App.Users.create\"",
+        "\"operationId\": \"App.Users.show\"",
     ] {
         assert_eq!(
             doc.matches(fragment).count(),

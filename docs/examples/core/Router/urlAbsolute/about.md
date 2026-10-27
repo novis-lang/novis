@@ -1,6 +1,7 @@
 Builds the full URL of one of your routes. `Core\Router::urlAbsolute` works like `Core\Router::url`:
-you give it the name of a `#[Route]` and an array of values. The result has the origin of your site
-in front, for example `https://www.example.com/articles/42`.
+you give it the method that has the `#[Route]`, such as `Articles::show`, and an array of values. The
+result has the origin of your site in front, for example `https://www.example.com/articles/42`. A
+route with no captures needs no values: `Core\Router::urlAbsolute(Pages::home)`.
 
 You need a full URL wherever the link is read outside your site: in an email, a sitemap, or a
 message to another service.

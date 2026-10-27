@@ -20,21 +20,21 @@ a configured origin's trailing `/` is dropped exactly once, so `Core\Router::url
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 
-    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $rest): string { return $rest; }
 }
 
 class Posts {
-    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, #[Core\Query] string $sort = ""): string { return "post " . $id; }
 }
@@ -52,19 +52,19 @@ string $joined = "https://example.test:8443";
 // the path to a single segment; and a query string, which puts a second
 // non-segment character into the answer.
 array<string> $relative = [
-    Core\Router::url("Docs::home", []),
-    Core\Router::url("Docs::file", ["rest" => "a/b c"]),
-    Core\Router::url("Posts::list", []),
-    Core\Router::url("Posts::list", ["page" => 3]),
-    Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]),
+    Core\Router::url(Docs::home, []),
+    Core\Router::url(Docs::file, ["rest" => "a/b c"]),
+    Core\Router::url(Posts::list, []),
+    Core\Router::url(Posts::list, ["page" => 3]),
+    Core\Router::url(Posts::show, ["id" => 7, "sort" => "new"]),
 ];
 
 array<string> $absolute = [
-    Core\Router::urlAbsolute("Docs::home", []),
-    Core\Router::urlAbsolute("Docs::file", ["rest" => "a/b c"]),
-    Core\Router::urlAbsolute("Posts::list", []),
-    Core\Router::urlAbsolute("Posts::list", ["page" => 3]),
-    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "sort" => "new"]),
+    Core\Router::urlAbsolute(Docs::home, []),
+    Core\Router::urlAbsolute(Docs::file, ["rest" => "a/b c"]),
+    Core\Router::urlAbsolute(Posts::list, []),
+    Core\Router::urlAbsolute(Posts::list, ["page" => 3]),
+    Core\Router::urlAbsolute(Posts::show, ["id" => 7, "sort" => "new"]),
 ];
 
 // One count per way the join can be wrong, over the same table, so a cell that

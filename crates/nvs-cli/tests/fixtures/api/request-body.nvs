@@ -40,21 +40,21 @@ class Search
 
 class Notes
 {
-    #[Core\Route(path: '/notes/json', method: Core\Http\Method::Post, name: 'Notes::json')]
+    #[Core\Route(path: '/notes/json', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function json(): void
     {
         var $note = Core\Request::jsonAs<NewNote>();
     }
 
-    #[Core\Route(path: '/notes/form', method: Core\Http\Method::Post, name: 'Notes::form')]
+    #[Core\Route(path: '/notes/form', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
         var $note = Core\Request::postAs<NewNote>();
     }
 
-    #[Core\Route(path: '/notes/both', method: Core\Http\Method::Post, name: 'Notes::both')]
+    #[Core\Route(path: '/notes/both', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function both(): void
     {
@@ -62,7 +62,7 @@ class Notes
         var $search = Core\Request::postAs<Search>();
     }
 
-    #[Core\Route(path: '/notes/either', method: Core\Http\Method::Post, name: 'Notes::either')]
+    #[Core\Route(path: '/notes/either', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function either(): void
     {
@@ -71,21 +71,21 @@ class Notes
         var $again = Core\Request::jsonAs<NewNote>();
     }
 
-    #[Core\Route(path: '/notes/search', method: Core\Http\Method::Post, name: 'Notes::search')]
+    #[Core\Route(path: '/notes/search', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function search(): void
     {
         var $search = Core\Request::postAs<Search>();
     }
 
-    #[Core\Route(path: '/notes/helper', method: Core\Http\Method::Post, name: 'Notes::helper')]
+    #[Core\Route(path: '/notes/helper', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function helper(): void
     {
         $this->read();
     }
 
-    #[Core\Route(path: '/notes/field', method: Core\Http\Method::Post, name: 'Notes::field')]
+    #[Core\Route(path: '/notes/field', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function field(): void
     {

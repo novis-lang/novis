@@ -5,7 +5,7 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{id}', method: Core\Http\Method::Get, name: 'Files::download')]
+    #[Core\Route(path: '/files/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(uint $id): string
     {
@@ -22,7 +22,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $link = Core\Router::urlSigned('Files::download', ['id' => $total % 1000], { keys: $keys, until: null });
+            string $link = Core\Router::urlSigned(Files::download, ['id' => $total % 1000], { keys: $keys, until: null });
             // chained: the next id depends on this result
             $total = $total + Core\Str::length($link) % 7 + 1;
             $i = $i + 1;

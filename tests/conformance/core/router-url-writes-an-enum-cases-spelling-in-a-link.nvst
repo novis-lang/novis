@@ -13,31 +13,31 @@ enum Shelf { New, Sale }
 
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
-    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "docs.page")]
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang $lang): string { return "page"; }
 
-    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "docs.shelf")]
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function shelf(Shelf $shelf): string { return "shelf"; }
 }
 
 // A case written at the call site, under each of the two spellings.
-echo "written=", Core\Router::url("docs.page", ["lang" => Lang::De]), "\n";
-echo "counted=", Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]), "\n";
+echo "written=", Core\Router::url(Docs::page, ["lang" => Lang::De]), "\n";
+echo "counted=", Core\Router::url(Docs::shelf, ["shelf" => Shelf::Sale]), "\n";
 
 // A case the compile-time pass never read, because it is held in a variable.
 // The conversion is the link's own rather than the call site's, so a computed
 // case builds the segment a written one builds — which is what makes the
 // spelling a property of the route and not of how the program reached it.
 var $held = Shelf::New;
-echo "computed=", Core\Router::url("docs.shelf", ["shelf" => $held]), "\n";
+echo "computed=", Core\Router::url(Docs::shelf, ["shelf" => $held]), "\n";
 
 // A case is its backing integer by the time it is a value
 // (`rule:enums/no-class-machinery`), so a program writing the segment itself
 // reaches the same link: the rows the link carries convert a value and leave a
 // segment alone.
-echo "spelled=", Core\Router::url("docs.shelf", ["shelf" => "Sale"]), "\n";
+echo "spelled=", Core\Router::url(Docs::shelf, ["shelf" => "Sale"]), "\n";
 
 // The agreement the spelling exists for, counted rather than read off a line:
 // every admitted case has exactly one link, and it is the segment this route's
@@ -45,8 +45,8 @@ echo "spelled=", Core\Router::url("docs.shelf", ["shelf" => "Sale"]), "\n";
 // spelling moves this number without moving any single expectation above.
 array<string> $segments = ["New", "Sale"];
 array<string> $built = [
-    Core\Router::url("docs.shelf", ["shelf" => Shelf::New]),
-    Core\Router::url("docs.shelf", ["shelf" => Shelf::Sale]),
+    Core\Router::url(Docs::shelf, ["shelf" => Shelf::New]),
+    Core\Router::url(Docs::shelf, ["shelf" => Shelf::Sale]),
 ];
 var $agree = 0;
 foreach ($segments as string $segment) {

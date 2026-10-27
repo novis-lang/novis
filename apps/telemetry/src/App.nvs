@@ -18,7 +18,7 @@ final class App
 {
     // Checks one report and adds it to the weekly totals.
     // The request has no cookie and no session, so the route does not need a CSRF token.
-    #[Route(path: '/v1/report', method: Method::Post, name: 'App::report')]
+    #[Route(path: '/v1/report', method: Method::Post)]
     #[Access(allow: Audience::Public, csrf: false)]
     public static function report(): void
     {
@@ -47,7 +47,7 @@ final class App
     }
 
     // The home page: the reports of every week, and the details of the newest week.
-    #[Route(path: '/', method: Method::Get, name: 'App::home')]
+    #[Route(path: '/', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
@@ -55,7 +55,7 @@ final class App
     }
 
     // The page that says what a report contains. The address of the service is built from this request.
-    #[Route(path: '/collect', method: Method::Get, name: 'App::collect')]
+    #[Route(path: '/collect', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function collect(): void
     {
@@ -64,7 +64,7 @@ final class App
     }
 
     // The page with the list of downloads.
-    #[Route(path: '/data', method: Method::Get, name: 'App::data')]
+    #[Route(path: '/data', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function data(): void
     {
@@ -72,7 +72,7 @@ final class App
     }
 
     // The stylesheet of the pages.
-    #[Route(path: '/style.css', method: Method::Get, name: 'App::style')]
+    #[Route(path: '/style.css', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function style(): void
     {
@@ -80,7 +80,7 @@ final class App
     }
 
     // Both tables as JSON.
-    #[Route(path: '/data/totals.json', method: Method::Get, name: 'App::totalsJson')]
+    #[Route(path: '/data/totals.json', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function totalsJson(): void
     {
@@ -88,7 +88,7 @@ final class App
     }
 
     // Both tables as CSV.
-    #[Route(path: '/data/totals.csv', method: Method::Get, name: 'App::totalsCsv')]
+    #[Route(path: '/data/totals.csv', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function totalsCsv(): void
     {
@@ -96,7 +96,7 @@ final class App
     }
 
     // The rows of one week as JSON, such as `/data/2026-W42.json`. A week with no rows gets 404.
-    #[Route(path: '/data/{file}', method: Method::Get, name: 'App::week')]
+    #[Route(path: '/data/{file}', method: Method::Get)]
     #[Access(allow: Audience::Public)]
     public static function week(tainted string $file): void
     {

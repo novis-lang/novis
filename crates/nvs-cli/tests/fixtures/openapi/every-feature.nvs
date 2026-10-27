@@ -113,7 +113,7 @@ class Orders
     /// Returns one order.
     ///
     /// The order is found by its number. A missing order gives a `404` error.
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
         tags: ['Orders'],
@@ -127,7 +127,7 @@ class Orders
     }
 
     /// Lists the orders, sorted by one field.
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::index')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['Orders'], security: ['key'])]
     public function index(#[Core\Query] int $page, #[Core\Query] string $sort = 'title'): array<Order>
@@ -136,7 +136,7 @@ class Orders
     }
 
     /// Returns the number of open orders for one customer, if the customer exists.
-    #[Core\Route(path: '/customers/{name}/open', method: Core\Http\Method::Get, name: 'Orders::open')]
+    #[Core\Route(path: '/customers/{name}/open', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(security: ['mtls'])]
     public function open(string $name): ?int
@@ -145,7 +145,7 @@ class Orders
     }
 
     /// Returns the status of one order.
-    #[Core\Route(path: '/orders/{id}/status', method: Core\Http\Method::Get, name: 'Orders::status')]
+    #[Core\Route(path: '/orders/{id}/status', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(security: ['openid'])]
     public function status(int $id): OrderStatus
@@ -154,7 +154,7 @@ class Orders
     }
 
     /// Creates an order from a JSON body.
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Post, name: 'Orders::create')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['Orders'], security: ['bearer'])]
     public function create(): void
@@ -163,7 +163,7 @@ class Orders
     }
 
     /// Creates an order from a form.
-    #[Core\Route(path: '/orders/form', method: Core\Http\Method::Post, name: 'Orders::form')]
+    #[Core\Route(path: '/orders/form', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
@@ -171,7 +171,7 @@ class Orders
     }
 
     /// Creates an order from a JSON body or from a form.
-    #[Core\Route(path: '/orders/either', method: Core\Http\Method::Post, name: 'Orders::either')]
+    #[Core\Route(path: '/orders/either', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function either(): void
     {
@@ -183,7 +183,7 @@ class Orders
 class Catalog
 {
     /// Returns a file from the catalog.
-    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get, name: 'Catalog::file')]
+    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $path): string
     {
@@ -191,7 +191,7 @@ class Catalog
     }
 
     /// Lists the products, one page at a time. Without a page number, it lists page 1.
-    #[Core\Route(path: '/products/page/{page?}', method: Core\Http\Method::Get, name: 'Catalog::page')]
+    #[Core\Route(path: '/products/page/{page?}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(uint $page = 1): string
     {
@@ -199,7 +199,7 @@ class Catalog
     }
 
     /// Lists the shops in one region.
-    #[Core\Route(path: '/regions/{region}', method: Core\Http\Method::Get, name: 'Catalog::region')]
+    #[Core\Route(path: '/regions/{region}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function region(Region $region): string
     {
@@ -207,7 +207,7 @@ class Catalog
     }
 
     /// Lists the orders with one status.
-    #[Core\Route(path: '/statuses/{status}', method: Core\Http\Method::Get, name: 'Catalog::byStatus')]
+    #[Core\Route(path: '/statuses/{status}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byStatus(OrderStatus $status): string
     {
@@ -215,7 +215,7 @@ class Catalog
     }
 
     /// Returns one product by its id.
-    #[Core\Route(path: '/products/by-id/{id}', method: Core\Http\Method::Get, name: 'Catalog::byId')]
+    #[Core\Route(path: '/products/by-id/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): string
     {
@@ -223,7 +223,7 @@ class Catalog
     }
 
     /// Returns one product by its stock code.
-    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get, name: 'Catalog::bySku')]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function bySku(Sku $sku, #[Core\Query] Sku $related): string
     {

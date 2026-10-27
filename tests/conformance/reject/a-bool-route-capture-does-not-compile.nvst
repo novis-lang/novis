@@ -3,26 +3,26 @@ A route capture or a `#[Query]` parameter declared `bool` is `E0752`, so no rout
 --FILE--
 <?nvs
 class Blog {
-    #[Core\Route(path: "/posts/{draft}", method: Core\Http\Method::Get, name: "posts.list")]
+    #[Core\Route(path: "/posts/{draft}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(bool $draft): string {
         return $draft ? "drafts" : "published";
     }
 
-    #[Core\Route(path: "/feed", method: Core\Http\Method::Get, name: "feed")]
+    #[Core\Route(path: "/feed", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function feed(#[Core\Query] bool $full = false): string {
         return "";
     }
 
-    #[Core\Route(path: "/only/{flag}", method: Core\Http\Method::Get, name: "only")]
+    #[Core\Route(path: "/only/{flag}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function only(true $flag): string {
         return "";
     }
 }
 
-echo Core\Router::url("posts.list", ["draft" => false]), "\n";
+echo Core\Router::url(Blog::list, ["draft" => false]), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--

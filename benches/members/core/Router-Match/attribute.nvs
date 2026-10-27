@@ -6,7 +6,7 @@
 
 class Pages
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 60 }]
     public function home(): string
@@ -14,7 +14,7 @@ class Pages
         return 'home';
     }
 
-    #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
+    #[Core\Route(path: '/news', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 300 }]
     public function news(): string
@@ -22,7 +22,7 @@ class Pages
         return 'news';
     }
 
-    #[Core\Route(path: '/account', method: Core\Http\Method::Get, name: 'Pages::account')]
+    #[Core\Route(path: '/account', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function account(): string
     {

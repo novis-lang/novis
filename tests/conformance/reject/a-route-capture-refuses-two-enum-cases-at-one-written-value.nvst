@@ -12,7 +12,7 @@ A capture whose enum admits two cases carrying one written value is refused, bec
 enum Lang: uint { De = 7, Deutsch = 7 }
 
 class Docs {
-    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang $lang): string { return "page"; }
 }

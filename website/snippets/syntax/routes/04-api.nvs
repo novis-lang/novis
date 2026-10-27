@@ -4,7 +4,7 @@
 class Users
 {
     /// Show one user. Looks the user up by id.
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['users'])]
     public function show(uint $id): string
@@ -13,4 +13,4 @@ class Users
     }
 }
 
-echo Core\Router::url('Users::show', ['id' => 7]), "\n";
+echo Core\Router::url(Users::show, ['id' => 7]), "\n";

@@ -6,11 +6,11 @@
 // `%2e` as `.` too. `/docs/../admin` is a link to `/admin`, so the member throws.
 // A dot that is part of a longer segment is ordinary text and still encodes.
 class Docs {
-    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Route(path: "/docs/{rest...}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(string $rest): string { return "page"; }
 
-    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $name): string { return "file"; }
 }
@@ -18,7 +18,7 @@ class Docs {
 array<string> $rests = ["../admin", "a/./b", "a/..", ".."];
 foreach ($rests as string $rest) {
     try {
-        echo Core\Router::url("Docs::page", ["rest" => $rest]), "\n";
+        echo Core\Router::url(Docs::page, ["rest" => $rest]), "\n";
     } catch (RuntimeError $e) {
         echo "rest ", $rest, ": error\n";
     }
@@ -27,7 +27,7 @@ foreach ($rests as string $rest) {
 array<string> $names = ["..", ".", "...", ".env", "a..b"];
 foreach ($names as string $name) {
     try {
-        echo Core\Router::url("Docs::file", ["name" => $name]), "\n";
+        echo Core\Router::url(Docs::file, ["name" => $name]), "\n";
     } catch (RuntimeError $e) {
         echo "name ", $name, ": error\n";
     }
@@ -36,7 +36,7 @@ foreach ($names as string $name) {
 // `urlAbsolute` builds the same path, so it throws for the same value. No origin
 // is configured here either, which is a different throw: the message says which.
 try {
-    echo Core\Router::urlAbsolute("Docs::file", ["name" => ".."]), "\n";
+    echo Core\Router::urlAbsolute(Docs::file, ["name" => ".."]), "\n";
 } catch (RuntimeError $e) {
     echo "absolute leaves its route: ", Core\Str::contains($e->message, "leave its route"), "\n";
 }

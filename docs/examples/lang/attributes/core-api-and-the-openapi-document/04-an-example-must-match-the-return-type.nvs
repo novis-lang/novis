@@ -10,7 +10,7 @@ class Order
 
 class Orders
 {
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: { id: 7, price: 4250 })]
     public function show(uint $id): Order

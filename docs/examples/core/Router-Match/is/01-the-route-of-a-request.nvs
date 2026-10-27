@@ -1,9 +1,16 @@
 <?nvs
-// Shows how to read the name of the route that the request matched.
+// Shows how to check which method the route of the current request belongs to.
 
 class Articles
 {
-    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get, name: 'Articles::show')]
+    #[Core\Route(path: '/articles', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string
+    {
+        return 'all articles';
+    }
+
+    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -14,6 +21,8 @@ class Articles
 // The request is `GET /articles/42`. `Core\Request::route()` returns its match.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    // `name()` returns the name from the `#[Route]`. This prints `Articles::show`.
-    echo $matched->name() ?? 'no name', "\n";
+    // `Articles::show` is written without `()`, so nothing is called.
+    // The route belongs to `show`, so this prints `true` and then `false`.
+    echo $matched->is(Articles::show) ? 'true' : 'false', "\n";
+    echo $matched->is(Articles::list) ? 'true' : 'false', "\n";
 }

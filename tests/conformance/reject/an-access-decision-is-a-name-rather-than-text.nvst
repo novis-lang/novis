@@ -10,7 +10,7 @@ An `#[Access]` whose `allow` is text rather than a name is refused, because what
 // dispatches to it mean the same thing by the word. A misspelt string would
 // open a route quietly, and a misspelt name does not compile.
 class Pricing {
-    #[Core\Route(path: "/pricing", method: Core\Http\Method::Get, name: "Pricing::show")]
+    #[Core\Route(path: "/pricing", method: Core\Http\Method::Get)]
     #[Core\Access(allow: "public")]
     public function show(): string { return "p"; }
 }
@@ -19,7 +19,7 @@ class Pricing {
 // the refusal above is a fact about the text and not about this route, this
 // path or this attribute.
 class Help {
-    #[Core\Route(path: "/help", method: Core\Http\Method::Get, name: "Help::show")]
+    #[Core\Route(path: "/help", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return "h"; }
 }

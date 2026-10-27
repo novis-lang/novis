@@ -1,7 +1,6 @@
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
-`Core\Http\Method` is `E0401`. A route with no `name:` still matches a request. Its `name()` is
-`null`, and `Core\Router::url` cannot build a link to it.
+`Core\Http\Method` is `E0401`.
 
 Two routes with the same path and the same HTTP method are `E0748`. This is true when they are in two
 classes, and when their captures only have different names, such as `/users/{id}` and
@@ -56,11 +55,17 @@ it with `as`. A `string` capture gives a `tainted string`. A name that is not a 
 `access()` returns the full name of the `allow:` value, such as `Role::Staff` or `Users::ADMIN`.
 `accessAs<Core\Audience>()` on a route with `allow: Role::Staff` returns `null`.
 
-`Core\Router::url` with an unknown name is `E0754`. A params array that leaves out a capture is
-`E0755`. A key that is neither a capture nor a `#[Core\Query]` parameter is `E0759`. A value outside a
-closed set, such as `"fr"` for `"en"|"de"`, is `E0772`. These checks need the name and the array
-written directly in the code. A name in a variable throws a `RuntimeError`. A params array in a
-variable that leaves out a capture throws a `RuntimeError` too.
+`Core\Router::url` with a method that has no `#[Core\Route]` is `E0754`. A method the class does not
+have is `E0309`. A params array that leaves out a capture is `E0755`. A key that is neither a capture
+nor a `#[Core\Query]` parameter is `E0759`. A value outside a closed set, such as `"fr"` for
+`"en"|"de"`, is `E0772`. These checks need the method reference and the array written directly in
+the code.
+
+A method reference written in the call works for a static method and an instance method. The link
+does not call the method. You can also pass a method reference in a variable, such as an
+`array<callable>` for a menu. A static method goes in as `Shop::products`. An instance method goes
+in as `$shop->order(...)`. A `callable` with no route throws a `RuntimeError` when the program runs.
+A params array in a variable that leaves out a capture throws a `RuntimeError` too.
 
 The compiler does not check the type of a value. `"x"` for a `uint` capture gives the link `/x`, and
 that link does not match the route. A value of a class that implements `Parses` is given as text,

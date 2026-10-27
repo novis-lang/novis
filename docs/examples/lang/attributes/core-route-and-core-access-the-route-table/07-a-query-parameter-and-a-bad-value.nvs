@@ -6,7 +6,7 @@ class Shop
 {
     // `#[Core\Query]` takes `$sort` and `$page` from the query string.
     // `$sort` has no default value, so every request must send it.
-    #[Core\Route(path: '/products', method: Method::Get, name: 'Shop::products')]
+    #[Core\Route(path: '/products', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
     {

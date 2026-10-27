@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 class Notes {
-    #[Core\Route(path: "/notes", method: Core\Http\Method::Post, name: "save")]
+    #[Core\Route(path: "/notes", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function save(): void {
         echo "save ran\n";
@@ -17,7 +17,7 @@ class Gate implements Core\Router\Gate {
 
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void {
         string $why = $reason == Core\Router\Refusal::Csrf ? "Csrf" : "other";
-        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+        echo "refused ", $why, " for ", $route == null ? "no route" : "a route", "\n";
     }
 
     public function failed(?Core\Router\Match $route, ?Throwable $error): void {

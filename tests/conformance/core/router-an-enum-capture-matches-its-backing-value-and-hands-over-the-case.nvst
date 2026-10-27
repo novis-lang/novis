@@ -13,11 +13,11 @@ enum Lang: uint { De = 7, En = 9 }
 enum Shelf { New, Sale }
 
 class Docs {
-    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang $lang): string { return "page"; }
 
-    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "Docs::shelf")]
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function shelf(Shelf $shelf): string { return "shelf"; }
 }
@@ -41,7 +41,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         // `1` is `Shelf::Sale`'s, which is what "the handler receives the case"
         // means for an enum whose case is its backing integer
         // (`rule:enums/no-class-machinery`).
-        echo $matched->name() ?? "unnamed",
+        echo $matched->is(Docs::page) ? "Docs::page" : ($matched->is(Docs::shelf) ? "Docs::shelf" : "another route"),
              " lang=", $matched->param("lang") ?? "-",
              " shelf=", $matched->param("shelf") ?? "-";
     }

@@ -10,14 +10,14 @@ enum Role { Admin }
 
 class Pages
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return 'home';
     }
 
-    #[Core\Route(path: '/admin', method: Core\Http\Method::Get, name: 'Pages::admin')]
+    #[Core\Route(path: '/admin', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function admin(): string
     {

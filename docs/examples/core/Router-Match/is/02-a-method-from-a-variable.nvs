@@ -1,33 +1,33 @@
 <?nvs
-// Shows that `name()` returns `null` when the route has no name.
+// Shows `is` with a method that is in a variable, and a method with two routes.
 
 class Feedback
 {
-    // This route has a name.
-    #[Core\Route(path: '/feedback', method: Core\Http\Method::Get, name: 'Feedback::form')]
+    // One method has two routes: `GET` shows the form and `POST` sends it.
+    #[Core\Route(path: '/feedback', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/feedback', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function form(): string
+    public static function form(): string
     {
         return 'the form';
     }
 
-    // This route has no `name:`.
-    #[Core\Route(path: '/feedback/send', method: Core\Http\Method::Post)]
+    #[Core\Route(path: '/help', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function send(): string
+    public static function help(): string
     {
-        return 'thank you';
+        return 'the help page';
     }
 }
 
-?Core\Router\Match $form = Core\Router::match(Core\Http\Method::Get, '/feedback');
-if ($form != null) {
-    // This prints `Feedback::form`.
-    echo $form->name() ?? 'no name', "\n";
-}
+// A variable of type `callable` can contain a method. Nothing is called here.
+callable $form = Feedback::form;
+callable $help = Feedback::help;
 
-?Core\Router\Match $sent = Core\Router::match(Core\Http\Method::Post, '/feedback/send');
+?Core\Router\Match $sent = Core\Router::match(Core\Http\Method::Post, '/feedback');
 if ($sent != null) {
-    // The route has no name, so the result is `null`. This prints `no name`.
-    echo $sent->name() ?? 'no name', "\n";
+    // The `POST` route also belongs to `form`. This prints `true`.
+    echo $sent->is($form) ? 'true' : 'false', "\n";
+    // The route does not belong to `help`. This prints `false`.
+    echo $sent->is($help) ? 'true' : 'false', "\n";
 }

@@ -9,7 +9,7 @@
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required
     // sibling, and `Core\Audience::Public` is the case for a route that is open.
-    #[Core\Route(path: "/page/{slug}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Route(path: "/page/{slug}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(string $slug): string { return $slug; }
 }
@@ -19,7 +19,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // below (`rule:testing/in-process-request`). What it echoes is the response
     // body the parent prints — one link, written under whichever mount the
     // request arrived through.
-    echo Core\Router::url("Docs::page", ["slug" => "intro"]);
+    echo Core\Router::url(Docs::page, ["slug" => "intro"]);
 } else {
     // Two synthetic requests describing the same path through two doors: one
     // whose mount stripped nothing, and one served under `/ModuleA`. The target
@@ -30,7 +30,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // The parent is a program run off the command line: it is mounted nowhere,
     // and having no request at all answers the same link as a request whose
     // mount stripped nothing.
-    echo "run ", Core\Router::url("Docs::page", ["slug" => "intro"]), "\n";
+    echo "run ", Core\Router::url(Docs::page, ["slug" => "intro"]), "\n";
     echo "rooted ", $rooted->body(), "\n";
     echo "mounted ", $mounted->body(), "\n";
 }

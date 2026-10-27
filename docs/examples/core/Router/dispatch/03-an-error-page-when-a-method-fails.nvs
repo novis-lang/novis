@@ -6,7 +6,7 @@ use Core\Router\Refusal;
 
 class Reports
 {
-    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get, name: 'Reports::show')]
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $year): void
     {
@@ -30,17 +30,21 @@ class Gate implements Core\Router\Gate
     }
 
     // `dispatch` has set the status to 500. `$error` is the error the method threw.
-    // The page names the route. It does not show the message to the visitor.
+    // `is` checks which method the route belongs to, so the page can say which page failed.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        echo 'the page ', $route?->name() ?? '', ' failed';
+        if ($route != null && $route->is(Reports::show)) {
+            echo 'the report page failed';
+        } else {
+            echo 'a page failed';
+        }
     }
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Router::dispatch(new Gate());
 } else {
-    // This prints `200 report for 2024`, then `500 the page Reports::show failed`.
+    // This prints `200 report for 2024`, then `500 the report page failed`.
     var $good = Core\Test::request(Method::Get, '/reports/2024');
     echo $good->status(), ' ', $good->body(), "\n";
     var $bad = Core\Test::request(Method::Get, '/reports/1999');

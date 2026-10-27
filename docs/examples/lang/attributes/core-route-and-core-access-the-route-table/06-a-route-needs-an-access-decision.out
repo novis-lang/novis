@@ -1,8 +1,8 @@
 error[E0762]: the route `Users::index` declares no access decision
   --> 06-a-route-needs-an-access-decision.nvs:8:7
   |
-8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
-  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
+8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
   = help: § 3 gives an omission no default, because a route that is open by decision and one that is open by oversight would otherwise read alike — write `#[Access(allow: Core\Audience::Public)]` on the method if it is genuinely open
 
 error: aborting due to 1 error

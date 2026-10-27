@@ -6,14 +6,14 @@ enum Role { Editor }
 
 class Articles
 {
-    #[Core\Route(path: '/articles', method: Core\Http\Method::Get, name: 'Articles::list')]
+    #[Core\Route(path: '/articles', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'all articles';
     }
 
-    #[Core\Route(path: '/articles/edit', method: Core\Http\Method::Get, name: 'Articles::edit')]
+    #[Core\Route(path: '/articles/edit', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Editor)]
     public function edit(): string
     {

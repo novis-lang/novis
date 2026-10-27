@@ -4,14 +4,14 @@
 
 class Pages
 {
-    #[Core\Route(path: '/pricing', method: Core\Http\Method::Get, name: 'Pages::pricing')]
+    #[Core\Route(path: '/pricing', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function pricing(): string
     {
         return 'our prices';
     }
 
-    #[Core\Route(path: '/help/{topic}', method: Core\Http\Method::Get, name: 'Pages::help')]
+    #[Core\Route(path: '/help/{topic}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function help(string $topic): string
     {
@@ -19,9 +19,9 @@ class Pages
     }
 }
 
-// Links to those two pages, built from the names the routes were given.
-echo Core\Router::url('Pages::pricing', []), "\n";
-echo Core\Router::url('Pages::help', ['topic' => 'billing']), "\n";
+// Links to those two pages. This prints `/pricing` and then `/help/billing`.
+echo Core\Router::url(Pages::pricing), "\n";
+echo Core\Router::url(Pages::help, ['topic' => 'billing']), "\n";
 
 // The case is an ordinary value as well. You can keep it in a variable and
 // compare it, which is what code of your own that sorts routes by audience does.

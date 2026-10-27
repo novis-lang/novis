@@ -11,7 +11,7 @@ class Auth {}
 
 class Items
 {
-    #[Core\Route(path: "/items", method: Core\Http\Method::Get, name: "Items::list")]
+    #[Core\Route(path: "/items", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(security: ["inQuery", "inHeader", "inCookie"])]
     public function list(): string

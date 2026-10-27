@@ -3,7 +3,7 @@
 
 class Contact
 {
-    #[Core\Route(path: '/contact', method: Core\Http\Method::Get, name: 'Contact::form')]
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): string
     {

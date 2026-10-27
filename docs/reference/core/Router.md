@@ -1,15 +1,18 @@
 ---
-summary: reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims
-keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405
+summary: reverse routing — a link to a route by its method, as a rooted path or with the configured origin in front — and the verbs a path claims
+keywords: route, url, link, reverse routing, route method, method reference, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405
 ---
 
-`Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
-`{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
+`Core\Router::url` builds a link to the route of a method, written `Users::show` with no `(...)`:
+each `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment, and
+`$params` may be left out for a route with no captures. It is
 only meaningful in a program that declares routes — the attributes chapter owns the declaration, and
-every `#[Core\Route]` needs a sibling `#[Core\Access]`. The name must be a string written directly in
-the code, and an unknown one is a compile error, as is a `$params` array missing a capture or carrying a key that is neither
-a capture nor a handler parameter declared `#[Core\Query]` — a declared one becomes the link's query
-string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
+every `#[Core\Route]` needs a sibling `#[Core\Access]`. A method written directly in the code is
+checked while compiling, and a method with no route is a compile error. A method from a variable,
+such as an `array<callable>` or `$users->show(...)`, is checked while the program runs, and the call
+throws an error when it has no route. A `$params` array missing a capture or carrying a key that is neither
+a capture nor a handler parameter declared `#[Core\Query]` is a compile error. A key that is
+declared `#[Core\Query]` becomes the link's query string, `/users/7?page=2`. `urlAbsolute` is `url` with the `[[app]] origin` from `nvs.toml` in
 front, and throws `RuntimeError` when none is configured.
 
 `methodsFor` asks the table the other question, the one `Core\Request::route()` leaves open when it
@@ -28,21 +31,21 @@ origin = "https://example.test"
 <?nvs
 class Users
 {
-    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
         return 'every user';
     }
 
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users/{id}/files/{path...}', method: Core\Http\Method::Get, name: 'Users::file')]
+    #[Core\Route(path: '/users/{id}/files/{path...}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(uint $id, string $path): string
     {
@@ -50,10 +53,10 @@ class Users
     }
 }
 
-echo Core\Router::url('Users::index', []), "\n";
-echo Core\Router::url('Users::show', ['id' => 7]), "\n";
-echo Core\Router::url('Users::file', ['id' => 7, 'path' => 'a b/c.txt']), "\n";
-echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";
+echo Core\Router::url(Users::index), "\n";
+echo Core\Router::url(Users::show, ['id' => 7]), "\n";
+echo Core\Router::url(Users::file, ['id' => 7, 'path' => 'a b/c.txt']), "\n";
+echo Core\Router::urlAbsolute(Users::show, ['id' => 7]), "\n";
 ```
 ```output
 /users

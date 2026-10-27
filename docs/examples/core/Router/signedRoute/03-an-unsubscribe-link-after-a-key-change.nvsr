@@ -3,6 +3,6 @@ GET
 --PATH--
 /unsubscribe/17
 --QUERY--
-_sig=xmRW8FnWbRLtN4dWj-dCgjmgBp9pVL53B1NBl8Kun5MBAwAJAgcGcGFyYW1zCQEHBnJlYWRlcgcCMTcHBXJvdXRlBxdOZXdzbGV0dGVyOjp1bnN1YnNjcmliZQ
+_sig=Mu9mzl228VJyM44vtvtpT_fCK7rLnCGpIx0Ui5gFdBEBAwAJAgcGcGFyYW1zCQEHBnJlYWRlcgcCMTcHBXJvdXRlBxUvdW5zdWJzY3JpYmUve3JlYWRlcn0
 --HEADERS--
 host: news.example.com

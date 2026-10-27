@@ -3,7 +3,7 @@
 
 class Search
 {
-    #[Core\Route(path: '/search', method: Core\Http\Method::Get, name: 'Search::results')]
+    #[Core\Route(path: '/search', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 30, shared: true }]
     #[{ perMinute: 20 }]

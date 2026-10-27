@@ -3,14 +3,14 @@
 
 class Comments
 {
-    #[Core\Route(path: '/comments', method: Core\Http\Method::Get, name: 'Comments::list')]
+    #[Core\Route(path: '/comments', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'all comments';
     }
 
-    #[Core\Route(path: '/comments', method: Core\Http\Method::Post, name: 'Comments::add')]
+    #[Core\Route(path: '/comments', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function add(): string
     {

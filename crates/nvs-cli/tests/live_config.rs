@@ -546,12 +546,12 @@ fn app_at(origin: &str) -> String {
 /// A program that declares one route and prints the absolute link to it.
 const LINKING: &str = r#"<?nvs
 class Docs {
-    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function here(): string { return "here"; }
 }
 
-echo Core\Router::urlAbsolute("Docs::here", []);
+echo Core\Router::urlAbsolute(Docs::here);
 "#;
 
 /// `[[app]] origin` is folded into the row a request selects, so a reload that
@@ -2213,7 +2213,7 @@ fn changed_anchors_judge_the_next_outbound_connection() {
 /// A program with one `POST` route, which the door checks for a CSRF token.
 const FORM: &str = r#"<?nvs
 class Form {
-    #[Core\Route(path: "/form", method: Core\Http\Method::Post, name: "Form::send")]
+    #[Core\Route(path: "/form", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function send(): string { return "sent"; }
 }

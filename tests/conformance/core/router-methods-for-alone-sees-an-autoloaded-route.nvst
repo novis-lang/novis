@@ -14,7 +14,7 @@ namespace Shop;
 
 class Catalog
 {
-    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get, name: "Catalog::index")]
+    #[Core\Route(path: "/catalog", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {

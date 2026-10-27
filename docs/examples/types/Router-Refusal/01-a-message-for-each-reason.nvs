@@ -5,14 +5,14 @@ use Core\Router\Refusal;
 
 class Shop
 {
-    #[Core\Route(path: '/products/{id}', method: Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{id}', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(int $id): void
     {
         echo 'product ', $id;
     }
 
-    #[Core\Route(path: '/admin', method: Method::Get, name: 'Shop::admin')]
+    #[Core\Route(path: '/admin', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function admin(): void
     {
@@ -25,7 +25,7 @@ class Gate implements Core\Router\Gate
     // This gate does not allow the admin page.
     public function allows(Core\Router\Match $route): bool
     {
-        return $route->name() != 'Shop::admin';
+        return !$route->is(Shop::admin);
     }
 
     // `dispatch` already set the status for the reason. This method writes only the body.

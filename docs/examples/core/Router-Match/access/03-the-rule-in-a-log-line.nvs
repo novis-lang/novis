@@ -6,7 +6,7 @@ enum Role { Admin }
 
 class Reports
 {
-    #[Core\Route(path: '/admin/reports', method: Core\Http\Method::Get, name: 'Reports::list')]
+    #[Core\Route(path: '/admin/reports', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function list(): string
     {
@@ -18,5 +18,6 @@ class Reports
 // This prints `Reports::list needs App\Role::Admin`.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    echo $matched->name() ?? 'no name', ' needs ', $matched->access() ?? 'nothing', "\n";
+    string $page = $matched->is(Reports::list) ? 'Reports::list' : 'another page';
+    echo $page, ' needs ', $matched->access() ?? 'nothing', "\n";
 }

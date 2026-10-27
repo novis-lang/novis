@@ -1,9 +1,9 @@
 <?nvs
-// Shows how to write one log line with the route name and every capture of the request.
+// Shows how to write one log line with the HTTP method and every capture of the request.
 
 class Orders
 {
-    #[Core\Route(path: '/orders/{order}/items/{item}', method: Core\Http\Method::Get, name: 'Orders::item')]
+    #[Core\Route(path: '/orders/{order}/items/{item}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function item(uint $order, uint $item): string
     {
@@ -14,9 +14,9 @@ class Orders
 // The request is `GET /orders/1042/items/3`.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    // The loop adds each capture as `name=value`.
-    // This prints `Orders::item order=1042 item=3`.
-    echo $matched->name() ?? 'unnamed';
+    // `Core\Http::methodName` converts the method to text.
+    // The loop adds each capture as `name=value`. This prints `GET order=1042 item=3`.
+    echo Core\Http::methodName($matched->method());
     foreach ($matched->params() as tainted string $name => mixed $value) {
         echo ' ', $name, '=', $value as string;
     }

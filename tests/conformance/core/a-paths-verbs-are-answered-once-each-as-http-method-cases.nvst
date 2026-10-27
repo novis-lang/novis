@@ -6,21 +6,21 @@
 // beats — so a member that answered one entry per matching *row* rather than
 // one per verb spells `Allow: GET, GET` here.
 class Users {
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Delete, name: "Users::destroy")]
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function destroy(string $id): string { return "gone " . $id; }
 
-    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $id): string { return "user " . $id; }
 
-    #[Core\Route(path: "/users/me", method: Core\Http\Method::Get, name: "Users::me")]
+    #[Core\Route(path: "/users/me", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function me(): string { return "me"; }
 
     // A row of the table that claims a *different* path, so the walk has
     // something to skip and an answer including `POST` is a failure.
-    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::create")]
+    #[Core\Route(path: "/users", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string { return "created"; }
 }

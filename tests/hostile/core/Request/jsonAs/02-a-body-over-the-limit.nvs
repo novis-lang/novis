@@ -18,7 +18,7 @@ class Draft
 
 class Notes
 {
-    #[Core\Route(path: '/notes/json', method: Core\Http\Method::Post, name: 'Notes::json')]
+    #[Core\Route(path: '/notes/json', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function json(): void
     {
@@ -30,7 +30,7 @@ class Notes
         }
     }
 
-    #[Core\Route(path: '/notes/form', method: Core\Http\Method::Post, name: 'Notes::form')]
+    #[Core\Route(path: '/notes/form', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {

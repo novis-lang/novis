@@ -5,7 +5,7 @@
 
 class Blog
 {
-    #[Core\Route(path: '/post/{slug}', method: Core\Http\Method::Get, name: 'Blog::post')]
+    #[Core\Route(path: '/post/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function post(string $slug): Core\Html\Markup
     {

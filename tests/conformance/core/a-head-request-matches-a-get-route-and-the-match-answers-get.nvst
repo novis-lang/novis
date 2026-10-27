@@ -8,7 +8,7 @@
 // the request, and a program that wants to know which route matched reads this.
 class Pages
 {
-    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string { return "index"; }
 }
@@ -17,7 +17,7 @@ class Pages
 if ($head == null) {
     echo "head: no match", "\n";
 } else {
-    echo "head matched: ", $head->name() ?? "unnamed", "\n";
+    echo "head matched: ", $head->is(Pages::index) ? "Pages::index" : "another route", "\n";
     echo "declared get: ", $head->method() == Core\Http\Method::Get ? "yes" : "no", "\n";
     echo "answers head: ", $head->method() == Core\Http\Method::Head ? "yes" : "no", "\n";
 }

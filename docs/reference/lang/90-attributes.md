@@ -672,7 +672,7 @@ error[E0454]: `colour` is not an option of `#[Route]`
   |
 8 |     #[Core\Route(path: '/', method: Core\Http\Method::Get, colour: 'red')]
   |                                                            ^^^^^^^^^^^^^ no such option
-  = help: the options are: path: string, method: Core\Http\Method, name: string, slotted: bool
+  = help: the options are: path: string, method: Core\Http\Method, slotted: bool
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -1043,8 +1043,9 @@ A path has fixed segments and captures. `{id}` matches one segment. `{id?}` matc
 none, and must come last. `{path...}` matches all remaining segments. Each capture goes to
 the parameter with the same name, converted to its type.
 
-Novis collects every route into one table at compile time. `Core\Router::url` builds a
-link from the name of a route. An unknown route name or a missing capture is a compile error.
+Novis collects every route into one table at compile time. `Core\Router::url` builds a link to
+the route of a method. You write the method without brackets, such as `Shop::show`. An unknown
+method, a method with no route, or a missing capture is a compile error.
 
 The server matches each request to a route before your program runs. Your entry file calls
 `Core\Router::dispatch`, which calls that route's method. A program can also read the match with
@@ -1053,14 +1054,12 @@ The server matches each request to a route before your program runs. Your entry 
 A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A bad
 value is a `400`.
 
-**The examples below** show a route and its link, the three captures, product lists, routes in
-another file, calling a route method yourself, a route with no `#[Core\Access]`, and a bad query
-value.
+**The examples below** show links, the three captures, routes in another file, calling a route
+method yourself, a missing `#[Core\Access]`, and a bad query value.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
-`Core\Http\Method` is `E0401`. A route with no `name:` still matches a request. Its `name()` is
-`null`, and `Core\Router::url` cannot build a link to it.
+`Core\Http\Method` is `E0401`.
 
 Two routes with the same path and the same HTTP method are `E0748`. This is true when they are in two
 classes, and when their captures only have different names, such as `/users/{id}` and
@@ -1115,11 +1114,17 @@ it with `as`. A `string` capture gives a `tainted string`. A name that is not a 
 `access()` returns the full name of the `allow:` value, such as `Role::Staff` or `Users::ADMIN`.
 `accessAs<Core\Audience>()` on a route with `allow: Role::Staff` returns `null`.
 
-`Core\Router::url` with an unknown name is `E0754`. A params array that leaves out a capture is
-`E0755`. A key that is neither a capture nor a `#[Core\Query]` parameter is `E0759`. A value outside a
-closed set, such as `"fr"` for `"en"|"de"`, is `E0772`. These checks need the name and the array
-written directly in the code. A name in a variable throws a `RuntimeError`. A params array in a
-variable that leaves out a capture throws a `RuntimeError` too.
+`Core\Router::url` with a method that has no `#[Core\Route]` is `E0754`. A method the class does not
+have is `E0309`. A params array that leaves out a capture is `E0755`. A key that is neither a capture
+nor a `#[Core\Query]` parameter is `E0759`. A value outside a closed set, such as `"fr"` for
+`"en"|"de"`, is `E0772`. These checks need the method reference and the array written directly in
+the code.
+
+A method reference written in the call works for a static method and an instance method. The link
+does not call the method. You can also pass a method reference in a variable, such as an
+`array<callable>` for a menu. A static method goes in as `Shop::products`. An instance method goes
+in as `$shop->order(...)`. A `callable` with no route throws a `RuntimeError` when the program runs.
+A params array in a variable that leaves out a capture throws a `RuntimeError` too.
 
 The compiler does not check the type of a value. `"x"` for a `uint` capture gives the link `/x`, and
 that link does not match the route. A value of a class that implements `Parses` is given as text,
@@ -1147,11 +1152,11 @@ origin = "https://example.test"
 <?nvs
 // Shows how to declare a route and build a link to it. `#[Core\Route]` gives a
 // method a path, and `#[Core\Access]` says who may reach it. Every route needs
-// both. `Core\Router::url` builds the link for a route from its name.
+// both. `Core\Router::url` builds the link to the route of a method.
 
 class Users
 {
-    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -1160,7 +1165,7 @@ class Users
 
     // `{id}` is a capture. It fills one segment of the path, and the parameter
     // `$id` says the value there is a whole number.
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -1168,9 +1173,10 @@ class Users
     }
 }
 
-// This prints `/users` and then `/users/7`.
-echo Core\Router::url('Users::index', []), "\n";
-echo Core\Router::url('Users::show', ['id' => 7]), "\n";
+// `Users::index` without brackets is a method reference. It names the method
+// and does not call it. This prints `/users` and then `/users/7`.
+echo Core\Router::url(Users::index), "\n";
+echo Core\Router::url(Users::show, ['id' => 7]), "\n";
 
 // A route method is an ordinary method. You can call it yourself.
 echo (new Users())->show(7), "\n";
@@ -1203,7 +1209,7 @@ class Docs
 
     // `{page?}` matches one segment or none, so `$page` needs a default value.
     // `#[Core\Query]` fills `$q` from the query string instead of the path.
-    #[Core\Route(path: '/{lang}/docs/{page?}', method: Core\Http\Method::Get, name: 'docs')]
+    #[Core\Route(path: '/{lang}/docs/{page?}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ''): string
     {
@@ -1211,7 +1217,7 @@ class Docs
     }
 
     // `{path...}` matches everything that is left, the `/` characters included.
-    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get, name: 'file')]
+    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $path): string
     {
@@ -1220,14 +1226,14 @@ class Docs
 }
 
 // A value you leave out drops its segment. This prints `/De/docs`.
-echo Core\Router::url('docs', ['lang' => Docs::Lang::De]), "\n";
+echo Core\Router::url(Docs::page, ['lang' => Docs::Lang::De]), "\n";
 
 // A key that is not a capture becomes the query string, and the space in `a b`
 // is encoded. This prints `/En/docs/3?q=a+b`.
-echo Core\Router::url('docs', ['lang' => Docs::Lang::En, 'page' => 3, 'q' => 'a b']), "\n";
+echo Core\Router::url(Docs::page, ['lang' => Docs::Lang::En, 'page' => 3, 'q' => 'a b']), "\n";
 
 // This prints `/files/a/b%20c.txt`.
-echo Core\Router::url('file', ['path' => 'a/b c.txt']), "\n";
+echo Core\Router::url(Docs::file, ['path' => 'a/b c.txt']), "\n";
 ```
 
 ```output
@@ -1252,14 +1258,14 @@ namespace App;
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -1277,14 +1283,14 @@ enum Role { Customer, Staff }
 
 class Products
 {
-    #[Core\Route(path: '/products', method: Core\Http\Method::Get, name: 'products')]
+    #[Core\Route(path: '/products', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Customer)]
     public function list(#[Core\Query] uint $page = 1, #[Core\Query] string $sort = 'name'): string
     {
         return 'products';
     }
 
-    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get, name: 'product')]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Customer)]
     public function show(string $sku): string
     {
@@ -1293,7 +1299,7 @@ class Products
 
     // `allow:` takes any constant, and `Role::Staff` is this program's own.
     // Novis records the decision and does not read what it means.
-    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Delete, name: 'product.delete')]
+    #[Core\Route(path: '/products/{sku}', method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Role::Staff)]
     public function delete(string $sku): string
     {
@@ -1304,12 +1310,12 @@ class Products
 uint $page = 2;
 
 // The link to the next page of the list, sorted by price.
-echo Core\Router::url('products', ['page' => $page + 1, 'sort' => 'price']), "\n";
+echo Core\Router::url(Products::list, ['page' => $page + 1, 'sort' => 'price']), "\n";
 
 // The link to one product, and the link that deletes it. Both paths are the
 // same, because the two routes differ in their HTTP method.
-echo Core\Router::url('product', ['sku' => 'cup-01']), "\n";
-echo Core\Router::url('product.delete', ['sku' => 'cup-01']), "\n";
+echo Core\Router::url(Products::show, ['sku' => 'cup-01']), "\n";
+echo Core\Router::url(Products::delete, ['sku' => 'cup-01']), "\n";
 ```
 
 ```output
@@ -1334,14 +1340,14 @@ namespace App;
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -1353,17 +1359,17 @@ class Users
 ```nvs
 <?nvs
 // Shows that the route table also has the routes of every file that `autoload`
-// can reach. This file never names the class `App\Users`.
+// can reach. The class `App\Users` is in the file `routes/Users.nvs`.
 
 autoload 'App' from './routes';
 
 // This prints `/users/7` and then `/users`.
-echo Core\Router::url('Users::show', ['id' => 7]), "\n";
-echo Core\Router::url('Users::create', []), "\n";
+echo Core\Router::url(App\Users::show, ['id' => 7]), "\n";
+echo Core\Router::url(App\Users::create), "\n";
 
 // `urlAbsolute` puts the `origin` setting from `nvs.toml` in front of the path.
 // This prints `https://example.test/users/7`.
-echo Core\Router::urlAbsolute('Users::show', ['id' => 7]), "\n";
+echo Core\Router::urlAbsolute(App\Users::show, ['id' => 7]), "\n";
 ```
 
 ```output
@@ -1389,14 +1395,14 @@ origin = "https://example.test"
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
         return 'user ' . $id;
     }
 
-    #[Core\Route(path: '/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {
@@ -1421,12 +1427,13 @@ class App
             return '403';
         }
 
+        // `is` checks whether the match is the route of the method you name.
         var $users = new Users();
-        switch ($match->name()) {
-            case 'Users::show':
-                return $users->show($match->param('id') as uint);
-            case 'Users::create':
-                return $users->create();
+        if ($match->is(Users::show)) {
+            return $users->show($match->param('id') as uint);
+        }
+        if ($match->is(Users::create)) {
+            return $users->create();
         }
         return '404';
     }
@@ -1463,7 +1470,7 @@ origin = "https://example.test"
 
 class Users
 {
-    #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
     public function index(): string
     {
         return 'users';
@@ -1475,8 +1482,8 @@ class Users
 error[E0762]: the route `Users::index` declares no access decision
   --> main.nvs:8:7
   |
-8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get, name: 'Users::index')]
-  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
+8 |     #[Core\Route(path: '/users', method: Core\Http\Method::Get)]
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this route has no sibling `#[Access]`
   = help: § 3 gives an omission no default, because a route that is open by decision and one that is open by oversight would otherwise read alike — write `#[Access(allow: Core\Audience::Public)]` on the method if it is genuinely open
 
 error: aborting due to 1 error
@@ -1501,7 +1508,7 @@ class Shop
 {
     // `#[Core\Query]` takes `$sort` and `$page` from the query string.
     // `$sort` has no default value, so every request must send it.
-    #[Core\Route(path: '/products', method: Method::Get, name: 'Shop::products')]
+    #[Core\Route(path: '/products', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
     {
@@ -1583,9 +1590,10 @@ exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
-the same file give the same bytes. Each operation's `operationId` is the route's `name:`. When several
-routes share one name, each `operationId` gets the method after a dot, such as `hook.post` and
-`hook.put`.
+the same file give the same bytes. Each operation's `operationId` is the full name of its method,
+with dots: `Shop.show`, or `App.Shop.show` in the namespace `App`. When one method has several
+routes, each `operationId` gets the HTTP method in lowercase after a dot, such as `Hook.receive.post`
+and `Hook.receive.put`. `#[Core\Api(operationId: 'listOrders')]` sets the `operationId` yourself.
 
 The first sentence of the `///` comment is the `summary`. The rest of the comment is the
 `description`, and a blank `///` line in it stays a blank line. A comment with no full stop is all
@@ -1601,8 +1609,8 @@ The `200` response has the schema of the return type when it is `string`, `int`,
 `bool` or `decimal`. Every other return type has the empty schema `{}`. This includes a class, an
 array, an enum and a `?int`. A `void` method has a `200` response with no content.
 
-`#[Core\Api]` has four fields: `tags`, `security`, `errors` and `example`. Every field is optional,
-and `#[Core\Api]` with no list is allowed. Any other field is `E0454`. Each value must be written
+`#[Core\Api]` has five fields: `tags`, `security`, `errors`, `example` and `operationId`. Every
+field is optional, and `#[Core\Api]` with no list is allowed. Any other field is `E0454`. Each value must be written
 directly in the code, so `"a" . "b"` in `tags` is `E0725`. You can write `#[Api(...)]` after `use
 Core\Api;`. A `static` route method takes `#[Core\Api]` too.
 
@@ -1633,7 +1641,7 @@ class Invoices
 {
     // The `///` line below is the summary and the description of this operation.
     /// Show one invoice. Looks the invoice up by its number.
-    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['Invoices'])]
     public function show(uint $number): string
@@ -1671,7 +1679,7 @@ class NotFound extends RuntimeError
 class Payments
 {
     /// Show one payment. Returns the amount in cents.
-    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get, name: 'Payments::show')]
+    #[Core\Route(path: '/payments/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
         tags: ['Payments'],
@@ -1730,7 +1738,7 @@ class Order
 class Orders
 {
     /// Count the open orders. Returns how many are waiting to be shipped.
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::index')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['Orders'], security: ['bearer'])]
     public function index(): uint
@@ -1739,7 +1747,7 @@ class Orders
     }
 
     /// Show one order. Looks the order up by its id.
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(
         tags: ['Orders'],
@@ -1787,7 +1795,7 @@ class Order
 
 class Orders
 {
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: { id: 7, price: 4250 })]
     public function show(uint $id): Order
@@ -2623,7 +2631,7 @@ interface Page
 
 class Index implements Page
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'index')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function render(): string
     {
@@ -2633,7 +2641,7 @@ class Index implements Page
 
 class Contact implements Page
 {
-    #[Core\Route(path: '/contact', method: Core\Http\Method::Get, name: 'contact')]
+    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function render(): string
     {

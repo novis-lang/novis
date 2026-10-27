@@ -6,7 +6,7 @@ class Notes
 {
     /// Lists "all" notes \ every one of them.
     /// A tab is here:	and "}, "paths": {"/admin": {}}, "x": " tries to add a path.
-    #[Core\Route(path: '/notes', method: Core\Http\Method::Get, name: 'Notes::index')]
+    #[Core\Route(path: '/notes', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -14,7 +14,7 @@ class Notes
     }
 
     /// Shows one note </script><!-- and ends a script block ✓ ünïcödé 🗒.
-    #[Core\Route(path: '/notes/{id}/{version}', method: Core\Http\Method::Get, name: 'Notes::show')]
+    #[Core\Route(path: '/notes/{id}/{version}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id, uint $version): string
     {
@@ -23,4 +23,4 @@ class Notes
 }
 
 // 1. Run as a program, it only prints the address of one note. The id is the largest `int`.
-echo Core\Router::url('Notes::show', ['id' => 9223372036854775807, 'version' => 0]), "\n";
+echo Core\Router::url(Notes::show, ['id' => 9223372036854775807, 'version' => 0]), "\n";

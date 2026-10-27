@@ -6,21 +6,21 @@
 
 class Files
 {
-    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get, name: 'file')]
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function one(string $name): string
     {
         return $name;
     }
 
-    #[Core\Route(path: '/admin/{area}/{page}', method: Core\Http\Method::Get, name: 'admin')]
+    #[Core\Route(path: '/admin/{area}/{page}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function admin(string $area, uint $page): string
     {
         return $area;
     }
 
-    #[Core\Route(path: '/search', method: Core\Http\Method::Get, name: 'search')]
+    #[Core\Route(path: '/search', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function search(#[Core\Query] string $q = ''): string
     {
@@ -63,9 +63,9 @@ class Attack
             // Chained: the value used this round is picked with the count from
             // the round before.
             string $value = $values[$safe % 7];
-            $safe = $safe + Attack::inside(Core\Router::url('file', ['name' => $value]), '/files/');
-            $safe = $safe + Attack::inside(Core\Router::url('admin', ['area' => $value, 'page' => 2]), '/admin/');
-            $safe = $safe + Attack::inside(Core\Router::url('search', ['q' => $value]), '/search');
+            $safe = $safe + Attack::inside(Core\Router::url(Files::one, ['name' => $value]), '/files/');
+            $safe = $safe + Attack::inside(Core\Router::url(Files::admin, ['area' => $value, 'page' => 2]), '/admin/');
+            $safe = $safe + Attack::inside(Core\Router::url(Files::search, ['q' => $value]), '/search');
             $i = $i + 1;
         }
         return $safe;
@@ -75,7 +75,7 @@ class Attack
 // 5. A single value far longer than any real one, so one segment is as large
 //    as the program can make it.
 string $huge = Core\Str::repeat('../', 40000);
-echo Core\Str::length(Core\Router::url('file', ['name' => $huge])), "\n";
+echo Core\Str::length(Core\Router::url(Files::one, ['name' => $huge])), "\n";
 
 echo Attack::run(50000), "\n";
 echo "still standing\n";

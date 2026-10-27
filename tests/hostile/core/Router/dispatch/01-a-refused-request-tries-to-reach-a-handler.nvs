@@ -8,21 +8,21 @@ use Core\Router\Refusal;
 
 class Accounts
 {
-    #[Core\Route(path: '/accounts/{id}', method: Core\Http\Method::Get, name: 'Accounts::show')]
+    #[Core\Route(path: '/accounts/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): void
     {
         echo 'the method ran';
     }
 
-    #[Core\Route(path: '/accounts/{id}', method: Core\Http\Method::Post, name: 'Accounts::update')]
+    #[Core\Route(path: '/accounts/{id}', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function update(uint $id): void
     {
         echo 'the method ran';
     }
 
-    #[Core\Route(path: '/admin', method: Core\Http\Method::Get, name: 'Accounts::admin')]
+    #[Core\Route(path: '/admin', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function admin(): void
     {
@@ -35,7 +35,7 @@ class Gate implements Core\Router\Gate
 {
     public function allows(Core\Router\Match $route): bool
     {
-        return $route->name() != 'Accounts::admin';
+        return !$route->is(Accounts::admin);
     }
 
     public function refused(Refusal $reason, ?Core\Router\Match $route): void

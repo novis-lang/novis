@@ -5225,12 +5225,12 @@ mod tests {
             format!(
                 r#"<?nvs
 class Docs {{
-    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function here(): string {{ return "here"; }}
 }}
 
-echo Core\Router::{member}("Docs::here", []);
+echo Core\Router::{member}(Docs::here);
 "#
             ),
         )

@@ -9,7 +9,7 @@ class Users
 {
     // The `{id}` part of the path is converted to `uint`, so `/users/abc` does not match.
     // The conversion is checked, so `$id` is not `tainted`. Every route must say who may call it.
-    #[Core\Route(path:'/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path:'/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -20,7 +20,7 @@ class Users
     // segment beats a `{name}` capture — so `/users` and `/users/{id}` coexist
     // with no ordering rule to remember, and moving either declaration between
     // files cannot change which one wins.
-    #[Core\Route(path:'/users', method: Core\Http\Method::Get, name: 'Users::index')]
+    #[Core\Route(path:'/users', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string
     {
@@ -30,7 +30,7 @@ class Users
     // The same path under a different verb is a different route, not a
     // duplicate: § 3's duplicate-route error is over the `method` and the path
     // *shape* together.
-    #[Core\Route(path:'/users', method: Core\Http\Method::Post, name: 'Users::create')]
+    #[Core\Route(path:'/users', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {

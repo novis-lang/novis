@@ -7,7 +7,7 @@
 // A class with one route. A program in one file has routes like any other program.
 class Pages
 {
-    #[Core\Route(path:'/pages/{slug}', method: Core\Http\Method::Get, name: 'Pages::show')]
+    #[Core\Route(path:'/pages/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug): string
     {

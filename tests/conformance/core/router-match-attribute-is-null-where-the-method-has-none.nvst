@@ -4,11 +4,11 @@
 <?nvs
 // covers: Core\Router\Match::attribute
 class Shop {
-    #[Core\Route(path: "/shop", method: Core\Http\Method::Get, name: "shop")]
+    #[Core\Route(path: "/shop", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): void {}
 
-    #[Core\Route(path: "/cart", method: Core\Http\Method::Get, name: "cart")]
+    #[Core\Route(path: "/cart", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{limit: 10}]
     public function cart(): void {}

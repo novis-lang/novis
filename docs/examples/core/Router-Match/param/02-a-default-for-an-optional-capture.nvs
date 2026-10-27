@@ -3,7 +3,7 @@
 
 class Search
 {
-    #[Core\Route(path: '/search/{page?}', method: Core\Http\Method::Get, name: 'Search::results')]
+    #[Core\Route(path: '/search/{page?}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function results(uint $page = 1): string
     {

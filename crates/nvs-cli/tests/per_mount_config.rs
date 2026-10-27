@@ -377,12 +377,12 @@ fn each_mount_reads_its_own_app_mode() {
 /// A program that declares one route and prints the absolute link to it.
 const LINKING: &str = r#"<?nvs
 class Docs {
-    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function here(): string { return "here"; }
 }
 
-echo Core\Router::urlAbsolute("Docs::here", []);
+echo Core\Router::urlAbsolute(Docs::here);
 "#;
 
 /// The two `[[app]] origin` blocks, for `one` and `two`.
@@ -432,13 +432,13 @@ fn a_mount_no_block_matches_runs_under_the_global_configuration() {
 /// one route.
 const LINKING_AND_MODE: &str = r#"<?nvs
 class Docs {
-    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function here(): string { return "here"; }
 }
 
 echo Core\Env::mode() == Core\Env::Mode::Production ? "production" : "development", " ";
-echo Core\Router::urlAbsolute("Docs::here", []);
+echo Core\Router::urlAbsolute(Docs::here);
 "#;
 
 /// `nvs serve one/index.nvs` over a mount table only checks that the file is
@@ -510,14 +510,14 @@ fn two_mounts_do_not_share_memory_tier_cache_entries() {
 /// absolute link to its one route.
 const READING_ALL: &str = r#"<?nvs
 class Docs {
-    #[Core\Route(path: "/here", method: Core\Http\Method::Get, name: "Docs::here")]
+    #[Core\Route(path: "/here", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function here(): string { return "here"; }
 }
 
 echo Core\Env::mode() == Core\Env::Mode::Production ? "production" : "development", " ";
 echo Core\Config::get("limits.memory") ?? "unset", " ";
-echo Core\Router::urlAbsolute("Docs::here", []);
+echo Core\Router::urlAbsolute(Docs::here);
 "#;
 
 /// The `[[app]]` block for `two`, which neither case below changes.

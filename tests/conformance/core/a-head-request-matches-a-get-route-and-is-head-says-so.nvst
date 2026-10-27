@@ -25,7 +25,7 @@ a `HEAD` request matches the `Get` route the table holds, `Core\Request::method`
 class Pages {
     // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every
     // `#[Route]`. Only `Get` is declared, and that is the point.
-    #[Core\Route(path: "/page", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Route(path: "/page", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return "shown"; }
 }
@@ -38,7 +38,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if ($matched == null) {
         echo "unmatched";
     } else {
-        echo $matched->name() ?? "unnamed";
+        echo $matched->is(Pages::show) ? "Pages::show" : "another route";
     }
     // `rule:enums/no-class-machinery`: a case is its integer constant, so the comparison is
     // between two constants and never between two spellings.

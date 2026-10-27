@@ -5,7 +5,7 @@ use Core\Test;
 
 class Orders
 {
-    #[Core\Route(path: '/orders/{id}', method: Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): void
     {

@@ -3,7 +3,7 @@
 
 class Articles
 {
-    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get, name: 'Articles::show')]
+    #[Core\Route(path: '/articles/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -12,8 +12,8 @@ class Articles
 }
 
 // `Core\Router::url` returns only the path. This prints `/articles/42`.
-echo Core\Router::url('Articles::show', ['id' => 42]), "\n";
+echo Core\Router::url(Articles::show, ['id' => 42]), "\n";
 
 // `Core\Router::urlAbsolute` puts the `origin` from `nvs.toml` in front.
 // This prints `https://www.example.com/articles/42`.
-echo Core\Router::urlAbsolute('Articles::show', ['id' => 42]), "\n";
+echo Core\Router::urlAbsolute(Articles::show, ['id' => 42]), "\n";

@@ -3,7 +3,7 @@
 
 class Blog
 {
-    #[Core\Route(path: '/blog/{year}/{slug}', method: Core\Http\Method::Get, name: 'Blog::post')]
+    #[Core\Route(path: '/blog/{year}/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function post(uint $year, string $slug): string
     {

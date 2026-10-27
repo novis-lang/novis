@@ -6,7 +6,7 @@ use RuntimeError;
 
 class Site
 {
-    #[Core\Route(path: '/public', method: Core\Http\Method::Get, name: 'Site::open')]
+    #[Core\Route(path: '/public', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 3600 }]
     public function open(): string
@@ -14,7 +14,7 @@ class Site
         return 'open';
     }
 
-    #[Core\Route(path: '/private', method: Core\Http\Method::Get, name: 'Site::closed')]
+    #[Core\Route(path: '/private', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 0, role: 'admin' }]
     public function closed(): string
@@ -22,7 +22,7 @@ class Site
         return 'closed';
     }
 
-    #[Core\Route(path: '/plain', method: Core\Http\Method::Get, name: 'Site::plain')]
+    #[Core\Route(path: '/plain', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function plain(): string
     {

@@ -5,15 +5,15 @@
 
 class Shop
 {
-    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Shop::cart')]
-    #[Core\Route(path: '/cart', method: Core\Http\Method::Post, name: 'Shop::cart')]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function cart(): string
     {
         return 'the cart';
     }
 
-    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(uint $id): string
     {

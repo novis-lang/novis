@@ -3,9 +3,13 @@ Checks that a request arrived with a signed link that your program made.
 arrives. You give it the same keys, newest first. It returns the route that the request matched,
 with its values.
 
-The check covers the route name, every value and the time when the link stops working. If
-somebody changes a value, removes the `_sig` parameter or adds a second one, `signedRoute` throws a
-`RuntimeError`. A link that is too old also throws a `RuntimeError`, with its own message.
+The check covers the route's path, such as `/unsubscribe/{reader}`, every value and the time when
+the link stops working. If somebody changes a value, removes the `_sig` parameter or adds a second
+one, `signedRoute` throws a `RuntimeError`. A link that is too old also throws a `RuntimeError`,
+with its own message.
+
+The method's name is not part of the check. If you rename the method, old links still work. If
+you change the path in its `#[Route]`, old links stop working.
 
 Nothing checks a signature for you. Call `signedRoute` at the start of each handler that needs a
 signed link, and decide there what the visitor sees when the check fails.

@@ -15,19 +15,19 @@ class Policy
 
 class Pages
 {
-    #[Core\Route(path: "/pages", method: Core\Http\Method::Get, name: "Pages::index")]
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function index(): string { return "index"; }
 
-    #[Core\Route(path: "/admin", method: Core\Http\Method::Get, name: "Pages::admin")]
+    #[Core\Route(path: "/admin", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function admin(): string { return "admin"; }
 
-    #[Core\Route(path: "/editor", method: Core\Http\Method::Get, name: "Pages::editor")]
+    #[Core\Route(path: "/editor", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Editor)]
     public function editor(): string { return "editor"; }
 
-    #[Core\Route(path: "/staff", method: Core\Http\Method::Get, name: "Pages::staff")]
+    #[Core\Route(path: "/staff", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Policy::STAFF)]
     public function staff(): string { return "staff"; }
 }

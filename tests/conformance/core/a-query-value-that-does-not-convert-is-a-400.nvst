@@ -7,7 +7,7 @@
 // convert means no route matched: the result is `404`. A query value does not
 // choose the route, so a bad one is bad input to a route that matched: `400`.
 class Orders {
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "order")]
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function show(Core\Uuid $id): void {
         echo "show ran\n";
@@ -15,7 +15,7 @@ class Orders {
 
     // `$sort` has no default, so the key `sort` is required. `$page` has a
     // default, so the key `page` is optional.
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "orders")]
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public static function list(#[Core\Query] "new"|"old" $sort, #[Core\Query] uint $page = 1): void {
         echo "page ", $page, ", sort ", $sort, "\n";
@@ -24,8 +24,12 @@ class Orders {
 
 // This gate allows every route and prints each refusal it receives.
 class Gate implements Core\Router\Gate {
+    private function label(Core\Router\Match $route): string {
+        return $route->is(Orders::list) ? "orders" : "show";
+    }
+
     public function allows(Core\Router\Match $route): bool {
-        echo "allows ", $route->name() ?? "no name", "\n";
+        echo "allows ", $this->label($route), "\n";
         return true;
     }
 
@@ -35,7 +39,7 @@ class Gate implements Core\Router\Gate {
             Core\Router\Refusal::BadCapture => "BadCapture",
             default => "other",
         };
-        echo "refused ", $why, " for ", $route?->name() ?? "no route", "\n";
+        echo "refused ", $why, " for ", $route == null ? "no route" : $this->label($route), "\n";
     }
 
     public function failed(?Core\Router\Match $route, ?Throwable $error): void {

@@ -11,7 +11,7 @@
 // does not match, so what a bad link produces is a `404` and not an error.
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
-    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 }
@@ -19,13 +19,13 @@ class Docs {
 // Held in a variable, which is the whole difference between this and the
 // compile error: § 5's check reads what the call site wrote.
 var $lang = "xx";
-echo "built=", Core\Router::url("docs.show", ["lang" => $lang, "page" => "intro"]), "\n";
+echo "built=", Core\Router::url(Docs::show, ["lang" => $lang, "page" => "intro"]), "\n";
 
 // It threw nothing, asserted rather than implied — a member that grew a runtime
 // set check would take this branch instead.
 var $outcome = "built";
 try {
-    Core\Router::url("docs.show", ["lang" => $lang, "page" => "intro"]);
+    Core\Router::url(Docs::show, ["lang" => $lang, "page" => "intro"]);
 } catch (RuntimeError $e) {
     $outcome = "threw";
 }
@@ -34,7 +34,7 @@ echo "outcome=", $outcome, "\n";
 // § 4's launder is unchanged by any of it: the value still cannot climb out of
 // its segment, so a bad link is a dead URL and never a path traversal.
 var $hostile = "../../etc";
-echo "encoded=", Core\Router::url("docs.show", ["lang" => $hostile, "page" => "intro"]), "\n";
+echo "encoded=", Core\Router::url(Docs::show, ["lang" => $hostile, "page" => "intro"]), "\n";
 --EXPECT--
 built=/xx/docs/intro
 outcome=built

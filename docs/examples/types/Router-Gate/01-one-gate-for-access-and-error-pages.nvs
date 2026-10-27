@@ -6,14 +6,14 @@ use Core\Router\Refusal;
 
 class Shop
 {
-    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Shop::cart')]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function cart(): void
     {
         echo 'your cart';
     }
 
-    #[Core\Route(path: '/report', method: Core\Http\Method::Get, name: 'Shop::report')]
+    #[Core\Route(path: '/report', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function report(): void
     {

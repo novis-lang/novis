@@ -11,7 +11,7 @@
 // entry would print plausibly against any single line.
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
-    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 }
@@ -20,9 +20,9 @@ class Docs {
 // site wrote, so a loop over a variable would be a link the compiler never
 // looked at and would assert nothing about the set.
 array<string> $built = [
-    Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => "de", "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => "fr", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "en", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "de", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "fr", "page" => "intro"]),
 ];
 
 // The invariant, counted rather than read off a line: every value the type
@@ -43,7 +43,7 @@ echo "agree=", $agree as string, "/", Core\Arr::count($set) as string, "\n";
 // One of them written out, so the shape the count is over is visible rather
 // than inferred — the closed set narrows which segment may be built, and
 // changes nothing about how it is built (`rule:routing/an-absolute-link-takes-a-configured-origin`).
-echo "first=", Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]), "\n";
+echo "first=", Core\Router::url(Docs::show, ["lang" => "en", "page" => "intro"]), "\n";
 --EXPECT--
 agree=3/3
 first=/en/docs/intro

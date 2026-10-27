@@ -12,15 +12,15 @@
 class Posts {
     // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every
     // `#[Route]`, and `Core\Audience::Public` is § 1a's open case.
-    #[Core\Route(path: "/posts", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string { return "list"; }
 
-    #[Core\Route(path: "/posts", method: Core\Http\Method::Post, name: "Posts::create")]
+    #[Core\Route(path: "/posts", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string { return "created"; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Delete, name: "Posts::destroy")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function destroy(uint $id): string { return "gone " . $id; }
 }

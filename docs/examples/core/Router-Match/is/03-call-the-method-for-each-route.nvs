@@ -3,14 +3,14 @@
 
 class Shop
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return 'Welcome to the shop';
     }
 
-    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(uint $id): string
     {
@@ -24,16 +24,13 @@ if ($matched == null) {
     echo 'Page not found', "\n";
 } else {
     var $shop = new Shop();
-    // A `switch` on the route name picks the method to call.
+    // Each `is` checks one method. The first one that returns `true` is called.
     // This prints `Product number 7`.
-    switch ($matched->name()) {
-        case 'Shop::home':
-            echo $shop->home(), "\n";
-            break;
-        case 'Shop::product':
-            echo $shop->product($matched->param('id') as uint), "\n";
-            break;
-        default:
-            echo 'Page not found', "\n";
+    if ($matched->is(Shop::home)) {
+        echo $shop->home(), "\n";
+    } else if ($matched->is(Shop::product)) {
+        echo $shop->product($matched->param('id') as uint), "\n";
+    } else {
+        echo 'Page not found', "\n";
     }
 }

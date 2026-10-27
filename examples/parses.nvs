@@ -54,7 +54,7 @@ class Posts
     // is a constant of the declared type, so a class-typed `#[Query]` has none
     // and its key is required: a request without `tag` is a `400`
     // (`rule:routing/a-bad-query-value-is-a-400`).
-    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
+    #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Slug $slug, #[Core\Query] Slug $tag): void
     {
@@ -65,7 +65,7 @@ class Posts
     // The engine's own class built from text, at the same site, for the
     // contrast this program's last line pins: `Core\Uuid` is one of the
     // conversions the matcher performs itself.
-    #[Core\Route(path: '/posts/by-id/{id}', method: Core\Http\Method::Get, name: 'Posts::byId')]
+    #[Core\Route(path: '/posts/by-id/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function byId(Core\Uuid $id): void
     {

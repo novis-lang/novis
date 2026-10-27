@@ -3,7 +3,7 @@
 
 class Shop
 {
-    #[Core\Route(path: '/shop/{category}', method: Core\Http\Method::Get, name: 'Shop::category')]
+    #[Core\Route(path: '/shop/{category}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function category(string $category): string
     {
@@ -13,9 +13,9 @@ class Shop
 
 array<string> $categories = ['Books', 'Tea & Coffee', 'Toys'];
 
-// Each link is built from the route name, so it changes when the `#[Route]` path changes.
+// Each link is built from the method `Shop::category`, so it follows the path in its `#[Route]`.
 // The `&` in "Tea & Coffee" is encoded as `%26`, so the link still works.
 foreach ($categories as string $category) {
-    string $link = Core\Router::url('Shop::category', ['category' => $category]);
+    string $link = Core\Router::url(Shop::category, ['category' => $category]);
     echo "<a href=\"", $link, "\">", $category, "</a>\n";
 }

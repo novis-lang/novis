@@ -4,15 +4,15 @@
 
 class Tasks
 {
-    #[Core\Route(path: '/tasks', method: Core\Http\Method::Get, name: 'Tasks::list')]
-    #[Core\Route(path: '/tasks', method: Core\Http\Method::Post, name: 'Tasks::list')]
+    #[Core\Route(path: '/tasks', method: Core\Http\Method::Get)]
+    #[Core\Route(path: '/tasks', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'all tasks';
     }
 
-    #[Core\Route(path: '/tasks/{id}', method: Core\Http\Method::Delete, name: 'Tasks::remove')]
+    #[Core\Route(path: '/tasks/{id}', method: Core\Http\Method::Delete)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function remove(uint $id): string
     {

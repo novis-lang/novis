@@ -8,7 +8,7 @@
 // would still print a plausible message on every line of every other case and
 // would fail only here.
 class Shop {
-    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get, name: "Shop::show")]
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(int $id, #[Core\Query] string $page = ""): string { return "shown"; }
 }
@@ -21,9 +21,9 @@ array<secret bytes> $ring = [$key];
 secret bytes $other = Core\Bytes::fill(32, 66);
 array<secret bytes> $theirs = [$other];
 
-string $link = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $ring, until: null});
+string $link = Core\Router::urlSigned(Shop::show, ["id" => 7, "page" => "2"], {keys: $ring, until: null});
 string $token = Core\Str::after($link, "_sig=") as string;
-string $foreign = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $theirs, until: null});
+string $foreign = Core\Router::urlSigned(Shop::show, ["id" => 7, "page" => "2"], {keys: $theirs, until: null});
 
 // A live token moved onto a query parameter that was not signed, onto a capture
 // that was not signed, and a link with the parameter stripped off entirely.
@@ -36,7 +36,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // each time: the match, or the one sentence.
     try {
         var $matched = Core\Router::signedRoute($ring);
-        echo "verified ", $matched->name() ?? "unnamed";
+        echo "verified ", $matched->is(Shop::show) ? "Shop::show" : "another route";
     } catch (RuntimeError $no) {
         echo $no->message;
     }

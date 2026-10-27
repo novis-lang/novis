@@ -11,7 +11,7 @@ class Missing extends RuntimeError
 //    values a single `tags:` list may hold.
 class Crowded
 {
-    #[Core\Route(path: '/crowded', method: Core\Http\Method::Get, name: 'Crowded::show')]
+    #[Core\Route(path: '/crowded', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: [
         't001',
@@ -153,7 +153,7 @@ class Crowded
 //    the classes the program declares, so this tries to make that check slow.
 class Failing
 {
-    #[Core\Route(path: '/failing', method: Core\Http\Method::Get, name: 'Failing::show')]
+    #[Core\Route(path: '/failing', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(errors: [
         { status: 400, type: Missing::class },
@@ -243,7 +243,7 @@ class Wide
 
 class Bulky
 {
-    #[Core\Route(path: '/bulky', method: Core\Http\Method::Get, name: 'Bulky::show')]
+    #[Core\Route(path: '/bulky', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: {
         text: '00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999',
@@ -266,7 +266,7 @@ class Bulky
 #[Core\Api\Scheme(name: 'bearer', type: Core\Api\SchemeType::Http, scheme: 'bearer')]
 class Many
 {
-    #[Core\Route(path: '/many/01', method: Core\Http\Method::Get, name: 'Many::r01')]
+    #[Core\Route(path: '/many/01', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r01(): uint
@@ -274,7 +274,7 @@ class Many
         return 1;
     }
 
-    #[Core\Route(path: '/many/02', method: Core\Http\Method::Get, name: 'Many::r02')]
+    #[Core\Route(path: '/many/02', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r02(): uint
@@ -282,7 +282,7 @@ class Many
         return 2;
     }
 
-    #[Core\Route(path: '/many/03', method: Core\Http\Method::Get, name: 'Many::r03')]
+    #[Core\Route(path: '/many/03', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r03(): uint
@@ -290,7 +290,7 @@ class Many
         return 3;
     }
 
-    #[Core\Route(path: '/many/04', method: Core\Http\Method::Get, name: 'Many::r04')]
+    #[Core\Route(path: '/many/04', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r04(): uint
@@ -298,7 +298,7 @@ class Many
         return 4;
     }
 
-    #[Core\Route(path: '/many/05', method: Core\Http\Method::Get, name: 'Many::r05')]
+    #[Core\Route(path: '/many/05', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r05(): uint
@@ -306,7 +306,7 @@ class Many
         return 5;
     }
 
-    #[Core\Route(path: '/many/06', method: Core\Http\Method::Get, name: 'Many::r06')]
+    #[Core\Route(path: '/many/06', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r06(): uint
@@ -314,7 +314,7 @@ class Many
         return 6;
     }
 
-    #[Core\Route(path: '/many/07', method: Core\Http\Method::Get, name: 'Many::r07')]
+    #[Core\Route(path: '/many/07', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r07(): uint
@@ -322,7 +322,7 @@ class Many
         return 7;
     }
 
-    #[Core\Route(path: '/many/08', method: Core\Http\Method::Get, name: 'Many::r08')]
+    #[Core\Route(path: '/many/08', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r08(): uint
@@ -330,7 +330,7 @@ class Many
         return 8;
     }
 
-    #[Core\Route(path: '/many/09', method: Core\Http\Method::Get, name: 'Many::r09')]
+    #[Core\Route(path: '/many/09', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r09(): uint
@@ -338,7 +338,7 @@ class Many
         return 9;
     }
 
-    #[Core\Route(path: '/many/10', method: Core\Http\Method::Get, name: 'Many::r10')]
+    #[Core\Route(path: '/many/10', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r10(): uint
@@ -346,7 +346,7 @@ class Many
         return 10;
     }
 
-    #[Core\Route(path: '/many/11', method: Core\Http\Method::Get, name: 'Many::r11')]
+    #[Core\Route(path: '/many/11', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r11(): uint
@@ -354,7 +354,7 @@ class Many
         return 11;
     }
 
-    #[Core\Route(path: '/many/12', method: Core\Http\Method::Get, name: 'Many::r12')]
+    #[Core\Route(path: '/many/12', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r12(): uint
@@ -362,7 +362,7 @@ class Many
         return 12;
     }
 
-    #[Core\Route(path: '/many/13', method: Core\Http\Method::Get, name: 'Many::r13')]
+    #[Core\Route(path: '/many/13', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r13(): uint
@@ -370,7 +370,7 @@ class Many
         return 13;
     }
 
-    #[Core\Route(path: '/many/14', method: Core\Http\Method::Get, name: 'Many::r14')]
+    #[Core\Route(path: '/many/14', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r14(): uint
@@ -378,7 +378,7 @@ class Many
         return 14;
     }
 
-    #[Core\Route(path: '/many/15', method: Core\Http\Method::Get, name: 'Many::r15')]
+    #[Core\Route(path: '/many/15', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r15(): uint
@@ -386,7 +386,7 @@ class Many
         return 15;
     }
 
-    #[Core\Route(path: '/many/16', method: Core\Http\Method::Get, name: 'Many::r16')]
+    #[Core\Route(path: '/many/16', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ['many'], security: ['bearer'])]
     public function r16(): uint

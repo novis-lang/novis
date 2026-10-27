@@ -5,9 +5,10 @@ exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
-the same file give the same bytes. Each operation's `operationId` is the route's `name:`. When several
-routes share one name, each `operationId` gets the method after a dot, such as `hook.post` and
-`hook.put`.
+the same file give the same bytes. Each operation's `operationId` is the full name of its method,
+with dots: `Shop.show`, or `App.Shop.show` in the namespace `App`. When one method has several
+routes, each `operationId` gets the HTTP method in lowercase after a dot, such as `Hook.receive.post`
+and `Hook.receive.put`. `#[Core\Api(operationId: 'listOrders')]` sets the `operationId` yourself.
 
 The first sentence of the `///` comment is the `summary`. The rest of the comment is the
 `description`, and a blank `///` line in it stays a blank line. A comment with no full stop is all
@@ -23,8 +24,8 @@ The `200` response has the schema of the return type when it is `string`, `int`,
 `bool` or `decimal`. Every other return type has the empty schema `{}`. This includes a class, an
 array, an enum and a `?int`. A `void` method has a `200` response with no content.
 
-`#[Core\Api]` has four fields: `tags`, `security`, `errors` and `example`. Every field is optional,
-and `#[Core\Api]` with no list is allowed. Any other field is `E0454`. Each value must be written
+`#[Core\Api]` has five fields: `tags`, `security`, `errors`, `example` and `operationId`. Every
+field is optional, and `#[Core\Api]` with no list is allowed. Any other field is `E0454`. Each value must be written
 directly in the code, so `"a" . "b"` in `tags` is `E0725`. You can write `#[Api(...)]` after `use
 Core\Api;`. A `static` route method takes `#[Core\Api]` too.
 

@@ -3,21 +3,21 @@
 
 class Shop
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Shop::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return 'home';
     }
 
-    #[Core\Route(path: '/products/{slug}', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{slug}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(string $slug): string
     {
         return 'one product';
     }
 
-    #[Core\Route(path: '/cart', method: Core\Http\Method::Get, name: 'Shop::cart')]
+    #[Core\Route(path: '/cart', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function cart(): string
     {
@@ -29,7 +29,7 @@ class Shop
 array<string> $menu = ['/', '/products/red-shoes', '/basket', '/cart'];
 
 // A deploy script or a test runs this loop before the menu goes live.
-// Each link prints the name of its route, or `BROKEN`.
+// Each link prints `ok` when a route matches it, or `BROKEN` when no route does.
 uint $broken = 0;
 foreach ($menu as string $link) {
     ?Core\Router\Match $page = Core\Router::match(Core\Http\Method::Get, $link);
@@ -37,7 +37,7 @@ foreach ($menu as string $link) {
         echo $link, ' -> BROKEN', "\n";
         $broken = $broken + 1;
     } else {
-        echo $link, ' -> ', $page->name() ?? 'no name', "\n";
+        echo $link, ' -> ok', "\n";
     }
 }
 echo $broken, ' broken link(s)', "\n";

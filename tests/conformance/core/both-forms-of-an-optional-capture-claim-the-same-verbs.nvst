@@ -7,7 +7,7 @@
 // path would answer for `/posts/3` and not for `/posts`, and the two forms
 // would then be a `405` and a `404` for one route.
 class Posts {
-    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::page")]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function page(uint $page = 1): string { return "page " . $page; }
 }
@@ -16,7 +16,7 @@ class Posts {
 // same rule: every remaining segment as one value means at least one segment,
 // so the bare prefix is claimed by nobody.
 class Files {
-    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Files::send")]
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function send(string $rest): string { return "file " . $rest; }
 }

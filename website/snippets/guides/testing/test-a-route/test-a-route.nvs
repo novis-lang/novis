@@ -5,7 +5,7 @@ use Core\Test;
 
 class Shop
 {
-    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(uint $id): void
     {

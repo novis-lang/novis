@@ -3,7 +3,7 @@
 
 class Newsletter
 {
-    #[Core\Route(path: '/unsubscribe/{reader}', method: Core\Http\Method::Get, name: 'Newsletter::unsubscribe')]
+    #[Core\Route(path: '/unsubscribe/{reader}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function unsubscribe(uint $reader): string
     {

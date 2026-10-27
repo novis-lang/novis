@@ -12,14 +12,14 @@ enum Role
 
 class Pages
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Pages::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Visitor)]
     public function home(): void
     {
         echo 'home page';
     }
 
-    #[Core\Route(path: '/admin', method: Core\Http\Method::Get, name: 'Pages::admin')]
+    #[Core\Route(path: '/admin', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function admin(): void
     {

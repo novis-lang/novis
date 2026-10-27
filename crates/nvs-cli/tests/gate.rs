@@ -31,7 +31,7 @@ const BOOT: Duration = Duration::from_secs(60);
 
 /// The route every program declares: a `POST`, so the CSRF check covers it.
 const ROUTE: &str = "class Notes {\n\
-    #[Core\\Route(path: \"/notes\", method: Core\\Http\\Method::Post, name: \"create\")]\n\
+    #[Core\\Route(path: \"/notes\", method: Core\\Http\\Method::Post)]\n\
     #[Core\\Access(allow: Core\\Audience::Public)]\n\
     public static function create(): void {\n\
         echo \"handler ran\";\n\
@@ -51,8 +51,9 @@ const GATE: &str = "class Gate implements Core\\Router\\Gate {\n\
             Core\\Router\\Refusal::BodyTooLarge => \"BodyTooLarge\",\n\
             default => \"other\",\n\
         };\n\
-        echo \"refused \", $why, \" for \", $route?->name() ?? \"no route\";\n\
-        echo \" with \", Core\\Request::route()?->name() ?? \"no match\";\n\
+        echo \"refused \", $why, \" for \", $route == null ? \"no route\" : ($route->is(Notes::create) ? \"create\" : \"another route\");\n\
+        ?Core\\Router\\Match $current = Core\\Request::route();\n\
+        echo \" with \", $current == null ? \"no match\" : ($current->is(Notes::create) ? \"create\" : \"another route\");\n\
         {refused}\n\
     }\n\
     public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {\n\
@@ -311,7 +312,7 @@ class Endless {\n\
     }\n\
 }\n\
 class Notes {\n\
-    #[Core\\Route(path: \"/notes\", method: Core\\Http\\Method::Get, name: \"list\")]\n\
+    #[Core\\Route(path: \"/notes\", method: Core\\Http\\Method::Get)]\n\
     #[Core\\Access(allow: Core\\Audience::Public)]\n\
     public static function list(): void {\n\
         echo \"handler started\";\n\
@@ -327,7 +328,7 @@ class Gate implements Core\\Router\\Gate {\n\
     }\n\
     public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {\n\
         {failed}\n\
-        echo \"failed for \", $route?->name() ?? \"no route\";\n\
+        echo \"failed for \", $route == null ? \"no route\" : ($route->is(Notes::list) ? \"list\" : \"another route\");\n\
         echo \" with \", $error?->message ??\"no error\";\n\
     }\n\
 }\n\

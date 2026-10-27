@@ -13,27 +13,27 @@ class Order {
 }
 
 class Orders {
-    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(errors: [{status: 404, type: Report::class}])]
     public static function show(uint $id): Order { return new Order($id, new Address("Graz")); }
 
-    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(errors: [{status: 200, type: Core\NotFound::class}, {status: 404, type: Core\NotFound::class}, {status: 404, type: Core\NotFound::class}])]
     public static function index(): Order { return new Order(1, new Address("Graz")); }
 
-    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get, name: "Orders::count")]
+    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: {count: 3})]
     public static function count(): string { return "3"; }
 
-    #[Core\Route(path: "/orders/first", method: Core\Http\Method::Get, name: "Orders::first")]
+    #[Core\Route(path: "/orders/first", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(example: {id: "seven", address: {city: "Graz", street: "Main"}})]
     public static function first(): Order { return new Order(1, new Address("Graz")); }
 
-    #[Core\Route(path: "/orders/last", method: Core\Http\Method::Get, name: "Orders::last")]
+    #[Core\Route(path: "/orders/last", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Core\Api(tags: ["Orders"])]
     #[Core\Api(tags: ["Shop"])]

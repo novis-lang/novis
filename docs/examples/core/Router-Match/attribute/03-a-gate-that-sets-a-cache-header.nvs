@@ -6,7 +6,7 @@ use Core\Router\Refusal;
 
 class Pages
 {
-    #[Core\Route(path: '/news', method: Core\Http\Method::Get, name: 'Pages::news')]
+    #[Core\Route(path: '/news', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[{ seconds: 60 }]
     public function news(): void
@@ -14,7 +14,7 @@ class Pages
         echo 'news';
     }
 
-    #[Core\Route(path: '/account', method: Core\Http\Method::Get, name: 'Pages::account')]
+    #[Core\Route(path: '/account', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function account(): void
     {

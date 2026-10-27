@@ -5,7 +5,7 @@
 // § 18's first mechanism: no socket and no port, and the table it matches
 // against is the one this file's own `#[Route]` declarations compiled to. What
 // is asserted is that the *match* crossed -- the child reads
-// `Core\Request::route()` and finds the row named below, which is the whole of
+// `Core\Request::route()` and finds the row of the method below, which is the whole of
 // "dispatches through the compiled route table". Nothing here dispatches: what
 // a match means is the program's (`rule:routing/the-servers-match-dispatches-nothing`), and the program is the
 // `if` branch below.
@@ -15,7 +15,7 @@
 // and `Core\Env::context()` is `Request` in that run
 // (`rule:core-classes/env-context`), so one file holds both sides.
 class Api {
-    #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
+    #[Core\Route(path: "/users/1", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return "shown"; }
 }
@@ -29,7 +29,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if ($matched == null) {
         echo "the table claimed nothing";
     } else {
-        echo $matched->name() ?? "unnamed";
+        echo $matched->is(Api::show) ? "Api::show" : "another route";
     }
 } else {
     var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");

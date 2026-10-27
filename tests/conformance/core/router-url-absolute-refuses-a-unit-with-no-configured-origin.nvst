@@ -2,7 +2,7 @@
 `Core\Router::urlAbsolute` throws on a route it resolved when the unit has no configured origin, where `Core\Router::url` answers — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
-// The pair asserted on both sides: the *same* name, resolved by the same
+// The pair asserted on both sides: the *same* route, resolved by the same
 // § 4 lookup, answered by one member and refused by the other. What separates
 // them is only `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, and a CLI run has none — § 6 puts the
 // origin on the mount and there is no mount off the command line to expand,
@@ -17,14 +17,14 @@ class Posts {
     // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required sibling, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely
     // open.
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "post " . $id; }
 }
 
 // The side that answers. Nothing about the route is unusual, which is what
 // makes the other side about the origin and not about the lookup.
-echo "relative=", Core\Router::url("Posts::show", ["id" => 1]), "\n";
+echo "relative=", Core\Router::url(Posts::show, ["id" => 1]), "\n";
 
 // The side that refuses. The message is frozen whole rather than counted: it
 // is the one place a program is told *where* to configure the origin, and a
@@ -34,13 +34,13 @@ echo "relative=", Core\Router::url("Posts::show", ["id" => 1]), "\n";
 // argument as it reaches it, so an inline call would have printed the label
 // before the throw and this case would be pinning the order of two writes.
 try {
-    var $absolute = Core\Router::urlAbsolute("Posts::show", ["id" => 1]);
+    var $absolute = Core\Router::urlAbsolute(Posts::show, ["id" => 1]);
     echo "absolute=", $absolute, "\n";
 } catch (RuntimeError $e) {
     echo "threw: ", $e->message, "\n";
 }
 
-// And the refusal is the origin's, not the name's: the same unknown name is
+// And the refusal is the origin's, not the route's: a method with no route is
 // refused by both members (which
 // `router-url-and-url-absolute-refuse-the-same-unknown-names.nvst` pins), so
 // a `urlAbsolute` that had simply stopped resolving would print the same

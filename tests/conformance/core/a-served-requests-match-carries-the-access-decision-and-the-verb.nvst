@@ -14,7 +14,7 @@ enum Role { Admin }
 
 class Api
 {
-    #[Core\Route(path: "/reports", method: Core\Http\Method::Post, name: "Api::report")]
+    #[Core\Route(path: "/reports", method: Core\Http\Method::Post)]
     #[Core\Access(allow: Role::Admin, csrf: false)]
     public function report(): string { return "reported"; }
 }

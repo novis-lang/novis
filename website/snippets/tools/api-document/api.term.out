@@ -21,7 +21,7 @@ $ nvs build --openapi shop.nvs
   "paths": {
     "/orders/{id}": {
       "get": {
-        "operationId": "Orders::show",
+        "operationId": "Orders.show",
         "parameters": [
           {
             "in": "path",

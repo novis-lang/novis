@@ -19,11 +19,11 @@ enum Tier: uint {
 
 class Docs
 {
-    #[Core\Route(path: "/docs", method: Core\Http\Method::Get, name: "Docs::read")]
+    #[Core\Route(path: "/docs", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Level::Reader)]
     public function read(): string { return "read"; }
 
-    #[Core\Route(path: "/plans", method: Core\Http\Method::Get, name: "Docs::plans")]
+    #[Core\Route(path: "/plans", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Tier::Free)]
     public function plans(): string { return "plans"; }
 }

@@ -1,9 +1,9 @@
 <?nvs
-// Shows how a program reads the route that the request matched, with its name and its captured value.
+// Shows how a program reads the route that the request matched, with its method and its captured value.
 
 class Users
 {
-    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get, name: 'Users::show')]
+    #[Core\Route(path: '/users/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -15,8 +15,8 @@ class Users
 // `Core\Request::route()` returns that match.
 ?Core\Router\Match $matched = Core\Request::route();
 if ($matched != null) {
-    // `{id}` is declared as `uint`, so the text "42" is already the number 42.
-    // This prints "Users::show" and then "id 42".
-    echo $matched->name() ?? '', "\n";
+    // `is` checks which method the route belongs to. This prints "Users::show".
+    echo $matched->is(Users::show) ? 'Users::show' : 'another route', "\n";
+    // `{id}` is declared as `uint`, so the text "42" is the number 42. This prints "id 42".
     echo 'id ', $matched->param('id') as uint, "\n";
 }

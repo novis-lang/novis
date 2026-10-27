@@ -10,7 +10,7 @@ class Tag
 
 class Posts
 {
-    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get, name: 'Posts::show')]
+    #[Core\Route(path: '/posts/{tag}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(Tag $tag): string
     {

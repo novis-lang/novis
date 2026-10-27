@@ -5,7 +5,7 @@
 
 class Shop
 {
-    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get, name: 'Shop::product')]
+    #[Core\Route(path: '/products/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function product(uint $id): string
     {
@@ -20,7 +20,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            string $link = Core\Router::urlAbsolute('Shop::product', ['id' => $total % 1000]);
+            string $link = Core\Router::urlAbsolute(Shop::product, ['id' => $total % 1000]);
             // chained: the next id depends on this result
             if ($link == 'https://www.example.com/products/7') {
                 $total = $total + 2;

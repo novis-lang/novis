@@ -9,7 +9,7 @@
 // `Request` only in the run that answers one (`rule:core-classes/env-context`).
 class Api
 {
-    #[Core\Route(path: '/users/1', method: Core\Http\Method::Get, name: 'Api::show')]
+    #[Core\Route(path: '/users/1', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string
     {
@@ -40,6 +40,6 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         echo 'unclaimed';
     } else {
         Core\Response::setStatus(201);
-        echo $matched->name() ?? 'unnamed';
+        echo $matched->is(Api::show) ? 'Api::show' : 'another route';
     }
 }

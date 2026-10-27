@@ -6,14 +6,14 @@ enum Role { Admin }
 
 class Site
 {
-    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'Site::home')]
+    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string
     {
         return 'home';
     }
 
-    #[Core\Route(path: '/admin', method: Core\Http\Method::Get, name: 'Site::admin')]
+    #[Core\Route(path: '/admin', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Role::Admin)]
     public function admin(): string
     {

@@ -13,7 +13,7 @@ class Auth
 
 class Items
 {
-    #[Core\Route(path: '/items', method: Core\Http\Method::Get, name: 'Items::index')]
+    #[Core\Route(path: '/items', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     #[Api(security: ['beraer'])]
     public function index(): uint

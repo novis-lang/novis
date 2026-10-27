@@ -7,14 +7,14 @@ use Core\Http\Method;
 
 class Pages
 {
-    #[Core\Route(path: '/pages', method: Method::Get, name: 'Pages::list')]
+    #[Core\Route(path: '/pages', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(#[Core\Query] uint $page = 1): void
     {
         echo 'the method ran';
     }
 
-    #[Core\Route(path: '/search', method: Method::Get, name: 'Pages::search')]
+    #[Core\Route(path: '/search', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function search(#[Core\Query] string $q = ''): void
     {

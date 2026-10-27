@@ -4,7 +4,7 @@ use Core\Http\Method;
 
 class Contact
 {
-    #[Core\Route(path: '/contact', method: Method::Get, name: 'Contact::form')]
+    #[Core\Route(path: '/contact', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {

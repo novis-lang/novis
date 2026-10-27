@@ -3,7 +3,7 @@
 
 class Invoices
 {
-    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get, name: 'Invoices::show')]
+    #[Core\Route(path: '/invoices/{number}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $number): string
     {

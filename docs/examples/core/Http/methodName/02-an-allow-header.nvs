@@ -3,14 +3,14 @@
 
 class Invoices
 {
-    #[Core\Route(path: '/invoices', method: Core\Http\Method::Get, name: 'Invoices::list')]
+    #[Core\Route(path: '/invoices', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(): string
     {
         return 'all invoices';
     }
 
-    #[Core\Route(path: '/invoices', method: Core\Http\Method::Post, name: 'Invoices::create')]
+    #[Core\Route(path: '/invoices', method: Core\Http\Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function create(): string
     {

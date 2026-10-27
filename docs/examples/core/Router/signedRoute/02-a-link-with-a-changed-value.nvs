@@ -3,7 +3,7 @@
 
 class Reports
 {
-    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get, name: 'Reports::download')]
+    #[Core\Route(path: '/reports/{year}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function download(uint $year): string
     {

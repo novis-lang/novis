@@ -6,7 +6,7 @@ use Core\Http\Method;
 
 class Notes
 {
-    #[Core\Route(path: '/form', method: Method::Get, name: 'Notes::form')]
+    #[Core\Route(path: '/form', method: Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
@@ -14,7 +14,7 @@ class Notes
         echo Core\Csrf::token();
     }
 
-    #[Core\Route(path: '/notes', method: Method::Post, name: 'Notes::save')]
+    #[Core\Route(path: '/notes', method: Method::Post)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function save(): void
     {

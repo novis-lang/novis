@@ -9,7 +9,7 @@ $db->execute('insert into orders (id, customer) values (101, 1), (102, 2), (103,
 
 class Orders
 {
-    #[Core\Route(path: '/orders', method: Core\Http\Method::Get, name: 'Orders::list')]
+    #[Core\Route(path: '/orders', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(Core\Db\Connection $db): void
     {

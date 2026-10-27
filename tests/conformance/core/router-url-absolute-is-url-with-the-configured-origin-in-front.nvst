@@ -22,31 +22,31 @@
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
-    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
+    #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 
     // `rule:routing/path-grammar`'s `{rest...}`, whose value keeps its own `/`s — the one
     // capture form the encoder treats differently, and so the row most likely
     // to part between two passes.
-    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
+    #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function file(string $rest): string { return $rest; }
 
     // The root, whose whole relative form is `/`. It is here because it is
     // where a join that trimmed one slash too many or too few shows up as a
     // different URL rather than as a cosmetic difference.
-    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
 }
 
 class Posts {
-    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
+    #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }
 
-    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
+    #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(
         uint $id,
@@ -72,36 +72,36 @@ var $hostile = "../../etc";
 // a leftover `params` key that becomes a query string, and a nested one beside
 // a `null` that is dropped.
 //
-// The name is a literal at every call site because it has to be: `rule:routing/matching-is-not-dispatching`
-// resolves the link while compiling, and a computed name reaches the helper
-// that throws. So the table is written twice rather than looped over once, and
-// the two halves are the same eleven rows in the same order.
+// The method reference is written at every call site so that
+// `rule:routing/link-target-and-params-are-checked` checks each link's `$params`
+// while compiling. So the table is written twice rather than looped over once,
+// and the two halves are the same eleven rows in the same order.
 array<string> $relative = [
-    Core\Router::url("docs.show", ["lang" => "en", "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => "de", "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => "fr", "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => $outside, "page" => "intro"]),
-    Core\Router::url("docs.show", ["lang" => "en", "page" => $hostile]),
-    Core\Router::url("Docs::file", ["rest" => "a/b c/d"]),
-    Core\Router::url("Docs::home", []),
-    Core\Router::url("Posts::list", []),
-    Core\Router::url("Posts::list", ["page" => 3]),
-    Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]),
-    Core\Router::url("Posts::show", ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+    Core\Router::url(Docs::show, ["lang" => "en", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "de", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "fr", "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => $outside, "page" => "intro"]),
+    Core\Router::url(Docs::show, ["lang" => "en", "page" => $hostile]),
+    Core\Router::url(Docs::file, ["rest" => "a/b c/d"]),
+    Core\Router::url(Docs::home, []),
+    Core\Router::url(Posts::list, []),
+    Core\Router::url(Posts::list, ["page" => 3]),
+    Core\Router::url(Posts::show, ["id" => 7, "sort" => "new"]),
+    Core\Router::url(Posts::show, ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
 ];
 
 array<string> $absolute = [
-    Core\Router::urlAbsolute("docs.show", ["lang" => "en", "page" => "intro"]),
-    Core\Router::urlAbsolute("docs.show", ["lang" => "de", "page" => "intro"]),
-    Core\Router::urlAbsolute("docs.show", ["lang" => "fr", "page" => "intro"]),
-    Core\Router::urlAbsolute("docs.show", ["lang" => $outside, "page" => "intro"]),
-    Core\Router::urlAbsolute("docs.show", ["lang" => "en", "page" => $hostile]),
-    Core\Router::urlAbsolute("Docs::file", ["rest" => "a/b c/d"]),
-    Core\Router::urlAbsolute("Docs::home", []),
-    Core\Router::urlAbsolute("Posts::list", []),
-    Core\Router::urlAbsolute("Posts::list", ["page" => 3]),
-    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "sort" => "new"]),
-    Core\Router::urlAbsolute("Posts::show", ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
+    Core\Router::urlAbsolute(Docs::show, ["lang" => "en", "page" => "intro"]),
+    Core\Router::urlAbsolute(Docs::show, ["lang" => "de", "page" => "intro"]),
+    Core\Router::urlAbsolute(Docs::show, ["lang" => "fr", "page" => "intro"]),
+    Core\Router::urlAbsolute(Docs::show, ["lang" => $outside, "page" => "intro"]),
+    Core\Router::urlAbsolute(Docs::show, ["lang" => "en", "page" => $hostile]),
+    Core\Router::urlAbsolute(Docs::file, ["rest" => "a/b c/d"]),
+    Core\Router::urlAbsolute(Docs::home, []),
+    Core\Router::urlAbsolute(Posts::list, []),
+    Core\Router::urlAbsolute(Posts::list, ["page" => 3]),
+    Core\Router::urlAbsolute(Posts::show, ["id" => 7, "sort" => "new"]),
+    Core\Router::urlAbsolute(Posts::show, ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
 ];
 
 // The count, which is the case. `rule:types/arrays`: an `array<T>`'s stored key type

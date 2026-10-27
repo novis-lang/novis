@@ -8,7 +8,7 @@
 
 class Orders
 {
-    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get, name: 'Orders::show')]
+    #[Core\Route(path: '/orders/{id}', method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string
     {
@@ -30,4 +30,4 @@ tainted string $customer = $mount->captures()[0];
 echo 'customer: ', $customer, "\n";
 
 // `Core\Router::url` adds the prefix to each link. This prints "link: /acme/orders/17".
-echo 'link: ', Core\Router::url('Orders::show', ['id' => 17]), "\n";
+echo 'link: ', Core\Router::url(Orders::show, ['id' => 17]), "\n";
