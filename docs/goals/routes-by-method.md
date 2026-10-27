@@ -326,17 +326,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done; stage 3 lacks only the `name` removal. The value form landed
-(`03ac235e7`): a forwarding reference's class carries the private constant `fn#target`, and the
-unfolded router helpers find the row by it (`value_route`, `check_value_params`, `value_template`).
-`Core\Reflect` skips the constant. An instance-method reference made into a callable with no `$this`
-is now `E0778` instead of an `nvs-ir` panic; only folded references are exempt
-(`crates/nvs-types/src/expr/calls.rs:633`). A corpus file that does this now fails, and stage 7
-names any. The sweep's Miri and `env-secret-proofs` reds were stale (fixed in `cea10a7cd`).
+Stages 1 and 2 are done; stage 3 lacks only the `name` removal. `Match::is` landed (`8d7e09bea`):
+a written reference is an `is` site in `nvs_types::links`, folded to `ExprInfo::RouteIs { handler }`
+and lowered by `lower_route_is` (`crates/nvs-ir/src/lower/expr.rs`) to
+`nvs_core_router_match_is_route`; a value goes to `nvs_core_router_match_is`. `Match::name` and its
+slot are gone. The router unit tests (`cargo test --lib router::tests`) pass whole, including the two
+signed-route tests, whose minted link now signs the path pattern. The sweep's reds were stale.
 
 `Route::name`, `RouteTable::named` and the `name:` roster row still exist, and `row.name` is
 still read by `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`,
-`crates/nvs-lsp/src/completion.rs:1239`/`1334` and `Match::name` (`router.rs:858`, `:2500`).
+`crates/nvs-lsp/src/completion.rs:1239`/`1334`, and the runtime's `Match::name`, which the metrics
+label reads (`crates/nvs-runtime/src/ctx/limits.rs:180`). `website/src/data/core.json` and
+`website/public/llms-full.txt` still quote the old `Match::name` card; they are generated and are
+rebuilt with the website at the goal end.
 
 Expected red until stage 6 and 7: every `.nvs`, `.nvst`, `.lspt` and Rust test source that calls
 `Core\Router::url`/`urlAbsolute`/`urlSigned` with a quoted route name, including the router tests in
@@ -351,7 +353,7 @@ passes whole.
 
 **Stage 4's readers first, then stage 3's last item.**
 
-- [ ] `Match::is(<method reference>): bool` replaces `Match::name` (stage 4's first item). A written reference folds to the row index, like a link target: mark it in `Env::link_target_args` (or a sibling set) so `E0778` and visibility skip it (`crates/nvs-types/src/expr/calls.rs:572`). A value compares by handler, through `nvs_runtime::callable_target`, as `value_route` does (`crates/nvs-stdlib/src/router.rs`). `crates/nvs-stdlib/src/router.rs:858`, `crates/nvs-stdlib/src/router.rs:2500`
+- [ ] The metrics `route` label carries the path pattern: `crates/nvs-runtime/src/ctx/limits.rs:180` reads `Match::name` today; read `route().path()` instead, and find the other writers of the label first. `crates/nvs-runtime/src/ctx/limits.rs:180`
 - [ ] The `operationId` item: `base_id` becomes `Class.method`, with the verb suffix for several verbs, and `#[Api]` gets an optional `operationId`. `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`
 - [ ] Then `name` leaves `OPTIONS`, `struct Route`, `RouteTable::named` and the runtime row (`Route::new`'s `name` argument, `crates/nvs-runtime/src/routes.rs:410`). `completion.rs:1239`/`1334` move in stage 5, or read the handler in the meantime. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/src/routes.rs:390`
 
