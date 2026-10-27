@@ -7,7 +7,8 @@
 //! ```text
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 //! built_in_hash      = BLAKE3(count ‖ sha256 of each built-in component, in the binary's order)
-//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ built_in_hash ‖ extension_set_hash)
+//! grants_hash        = BLAKE3(each [grants] line of package.toml, sorted by key)
+//! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ built_in_hash ‖ extension_set_hash ‖ grants_hash)
 //! content_hash       = BLAKE3(each file's name ‖ text ‖ folder, in program order)
 //! probe_hash         = BLAKE3(each path the unit's autoload resolution probed, in probe order)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
@@ -85,6 +86,7 @@ use std::time::Duration;
 
 use nvs_diagnostics::{Diagnostic, code};
 
+use crate::grants::Grants;
 use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Setting};
 use crate::value::{Quantity, Unit};
@@ -165,18 +167,28 @@ impl fmt::Display for ProgramId {
 /// Of each entry only its pin is read. An entry's `grants` decide what a guest may reach at a
 /// call, never what a unit compiles to, so narrowing a grant on reload recompiles nothing.
 ///
-pub fn env_hash(config: &Config) -> EnvHash {
-    env_hash_of(config, build_stamp())
+/// `grants` is the application's `[grants]` table, which does decide what a unit compiles to:
+/// a `Core` call its namespace was not granted does not compile. Only its lines are hashed
+/// ([`Grants::digest`]), so an edited grant line is an ordinary miss and an edit anywhere else
+/// in `package.toml` keeps every key. The empty table is a caller with no `package.toml`.
+///
+pub fn env_hash(config: &Config, grants: &Grants) -> EnvHash {
+    env_hash_of(config, grants, build_stamp())
 }
 
 /// [`env_hash`] with the compiler build named rather than read, which is the seam a test drives:
 /// two stamps are two builds, and [`None`] is a compiler that could not examine its own binary.
-fn env_hash_of(config: &Config, build: Option<Digest>) -> EnvHash {
-    env_hash_with(config, build, built_in())
+fn env_hash_of(config: &Config, grants: &Grants, build: Option<Digest>) -> EnvHash {
+    env_hash_with(config, grants, build, built_in())
 }
 
 /// [`env_hash_of`] with the built-in components' digest named too.
-fn env_hash_with(config: &Config, build: Option<Digest>, built_in: Digest) -> EnvHash {
+fn env_hash_with(
+    config: &Config,
+    grants: &Grants,
+    build: Option<Digest>,
+    built_in: Digest,
+) -> EnvHash {
     let mut hasher = blake3::Hasher::new();
     // The triple, spelled from what the process can actually read. `rustc`'s own target string
     // needs a build script to reach, and the fields below distinguish the same set of hosts.
@@ -199,6 +211,7 @@ fn env_hash_with(config: &Config, build: Option<Digest>, built_in: Digest) -> En
     }
     hasher.update(built_in.as_bytes());
     hasher.update(extension_set_hash(config).as_bytes());
+    hasher.update(&grants.digest());
     EnvHash(Digest(*hasher.finalize().as_bytes()))
 }
 
@@ -783,19 +796,20 @@ mod tests {
     #[test]
     fn two_builds_of_one_release_version_key_their_units_apart() {
         let config = Config::default();
+        let grants = Grants::default();
         // Everything but the build stamp is this process's: one version, one target, one extension
         // set. Only the compiler binary differs, which is the case the package version misses.
         assert_ne!(
-            env_hash_of(&config, Some(unit(1))),
-            env_hash_of(&config, Some(unit(2))),
+            env_hash_of(&config, &grants, Some(unit(1))),
+            env_hash_of(&config, &grants, Some(unit(2))),
         );
         assert_eq!(
-            env_hash_of(&config, Some(unit(1))),
-            env_hash_of(&config, Some(unit(1))),
+            env_hash_of(&config, &grants, Some(unit(1))),
+            env_hash_of(&config, &grants, Some(unit(1))),
         );
         assert_ne!(
-            env_hash_of(&config, None),
-            env_hash_of(&config, Some(unit(1)))
+            env_hash_of(&config, &grants, None),
+            env_hash_of(&config, &grants, Some(unit(1)))
         );
     }
 
@@ -803,7 +817,9 @@ mod tests {
     fn two_builds_with_different_built_in_component_bytes_key_apart() {
         let config = Config::default();
         // One compiler stamp, so only the embedded components differ.
-        let with = |pins: &[[u8; 32]]| env_hash_with(&config, Some(unit(1)), built_in_hash(pins));
+        let grants = Grants::default();
+        let with =
+            |pins: &[[u8; 32]]| env_hash_with(&config, &grants, Some(unit(1)), built_in_hash(pins));
         assert_ne!(with(&[[1; 32]]), with(&[[2; 32]]));
         assert_ne!(with(&[]), with(&[[1; 32]]));
         assert_eq!(with(&[[1; 32]]), with(&[[1; 32]]));
@@ -817,8 +833,8 @@ mod tests {
             build_stamp().expect("the stamp is held, not recomputed")
         );
         assert_eq!(
-            env_hash(&Config::default()),
-            env_hash_of(&Config::default(), Some(first))
+            env_hash(&Config::default(), &Grants::default()),
+            env_hash_of(&Config::default(), &Grants::default(), Some(first))
         );
     }
 

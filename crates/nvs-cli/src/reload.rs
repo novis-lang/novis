@@ -454,8 +454,10 @@ impl Process {
             drop(writer.write(&restart_pending(fresh)));
         }
         *lock(&self.refused) = None;
-        self.compiler
-            .rekey(nvs_config::cache::env_hash(&serving.config));
+        self.compiler.rekey(nvs_config::cache::env_hash(
+            &serving.config,
+            &nvs_config::grants::Grants::default(),
+        ));
         if let Recache::Swap(cache) = recache {
             self.compiler.recache(cache);
         }

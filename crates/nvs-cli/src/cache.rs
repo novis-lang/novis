@@ -1762,7 +1762,10 @@ fn placed_unless(
             None => return Ok(None),
         },
     };
-    match Cache::new(dir, env_hash(config)) {
+    match Cache::new(
+        dir,
+        env_hash(config, &nvs_config::grants::Grants::default()),
+    ) {
         Ok(cache) => Ok(Some(cache.with_eviction(eviction_of(opcache)))),
         Err(why) => match written {
             Some(written) => Err((written.to_owned(), why)),
@@ -1883,7 +1886,7 @@ mod tests {
 
     /// The environment this test process compiles for, with no extensions configured.
     fn env() -> EnvHash {
-        env_hash(&Config::default())
+        env_hash(&Config::default(), &nvs_config::grants::Grants::default())
     }
 
     /// Every name directly inside `dir`, sorted.
@@ -2507,7 +2510,7 @@ mod tests {
         let config: Config =
             toml::from_str("[[extension]]\npath = \"an-extension-this-one-lacks\"")
                 .expect("a tree carrying one extension");
-        env_hash(&config)
+        env_hash(&config, &nvs_config::grants::Grants::default())
     }
 
     /// The whole front end over `source`, lowered, beside § 1's content hash of the program it

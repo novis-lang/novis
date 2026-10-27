@@ -616,7 +616,7 @@ impl Compiler {
             paths: RwLock::new(HashMap::new()),
             units: RwLock::new(HashMap::new()),
             traces: RwLock::new(HashMap::new()),
-            env: RwLock::new(env_hash(config)),
+            env: RwLock::new(env_hash(config, &nvs_config::grants::Grants::default())),
             revalidation: RwLock::new(Revalidation::from_config(config)),
             watcher: Mutex::new(Weak::new()),
             cache: RwLock::new(crate::cache::from_config(config)),

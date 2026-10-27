@@ -84,8 +84,11 @@ pub fn reload(
     applied.sort();
     applied.dedup();
     let (was_env, now_env) = (
-        crate::cache::env_hash(&before.config),
-        crate::cache::env_hash(&published.snapshot.config),
+        crate::cache::env_hash(&before.config, &crate::grants::Grants::default()),
+        crate::cache::env_hash(
+            &published.snapshot.config,
+            &crate::grants::Grants::default(),
+        ),
     );
     let invalidated =
         usize::from(was_env.digest().as_bytes() != now_env.digest().as_bytes()) * held;

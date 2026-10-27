@@ -638,12 +638,15 @@ capability is not a promise about any one argument; the scope is asked every tim
 `rule:security/capability-declaration-is-one-table`
 
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the completeness test reads it, and
+capability, with one row for each capability a member can ask. **The table is never read at run
+time.** The checker reads it while compiling, to hold each call to its namespace's grants
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), the completeness test reads it, and
 the metadata command renders it as a roster of its own, which is how any renderer that wants a
 member's capability beside its card gets one ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers); the join is
-on `(class, member)` at render time). Enforcement is the doors
-([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so the table cannot be the
-thing an attacker edits to gain a permission.
+on `(class, member)` at render time). The operator's grant is enforced at the doors
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so no edit to the table
+widens what the operator granted. A row that understated its door would widen what a namespace
+compiles, which is why [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test) holds every door to its rows.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
@@ -757,8 +760,9 @@ namespace that inherits the standard library's own authority.
   it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
   the clause has no single namespace to attach to.
 
-**Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
-table, and the diagnostics this rule needs do not exist.
+**Partly on disk.** `nvs_config::grants` reads the table, refuses an unknown capability (`E0655`) and a
+key under `Core` (`E0657`), and its lines fold into every unit's key. Nothing reads the table while
+compiling yet, and no call site is checked against it.
 
 <sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 
@@ -783,7 +787,8 @@ thing costs two extra characters and is visible in review as its own token.
 - **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
   default, so a grant would silently extend to modules that did not exist when it was written.
 
-**Not on disk.** No grant table is keyed this way in the tree.
+**On disk.** `nvs_config::grants::Grants::lookup` is the lookup, and the tie is `E0656`. No call site
+is checked against it yet.
 
 <sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 

@@ -81,6 +81,7 @@ pub mod errors;
 pub mod export;
 pub mod extension;
 pub mod file;
+pub mod grants;
 pub mod http;
 pub mod image;
 pub mod ldap;

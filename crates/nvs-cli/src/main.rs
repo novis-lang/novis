@@ -2067,7 +2067,10 @@ fn run_run(
     ctx.set_program_id(
         nvs_config::cache::program_id(
             &cache::unit_digests(&checked.program_files()),
-            nvs_config::cache::env_hash(&for_compiler.config),
+            nvs_config::cache::env_hash(
+                &for_compiler.config,
+                &nvs_config::grants::Grants::default(),
+            ),
         )
         .to_string()
         .into(),

@@ -145,13 +145,16 @@ mod tests {
     /// directory, and the path of each entry.
     fn filled(name: &str, cap: u64, units: u8) -> (nvs_repo::Scratch, Cache, Vec<PathBuf>) {
         let dir = nvs_repo::scratch_private(name);
-        let cache = Cache::new(dir.path(), env_hash(&Config::default()))
-            .expect("a scratch directory of this test's own")
-            .with_eviction(Eviction {
-                max_size: cap,
-                probability: 0,
-                divisor: 0,
-            });
+        let cache = Cache::new(
+            dir.path(),
+            env_hash(&Config::default(), &nvs_config::grants::Grants::default()),
+        )
+        .expect("a scratch directory of this test's own")
+        .with_eviction(Eviction {
+            max_size: cap,
+            probability: 0,
+            divisor: 0,
+        });
         let mut paths = Vec::new();
         for unit in 0..units {
             let payload = vec![unit; 1024];
@@ -252,8 +255,11 @@ mod tests {
     #[test]
     fn a_missing_folder_and_no_cache_remove_nothing() {
         let dir = nvs_repo::scratch_private("cache-cmd-missing");
-        let cache = Cache::new(dir.path().join("cache"), env_hash(&Config::default()))
-            .expect("a scratch directory of this test's own");
+        let cache = Cache::new(
+            dir.path().join("cache"),
+            env_hash(&Config::default(), &nvs_config::grants::Grants::default()),
+        )
+        .expect("a scratch directory of this test's own");
         for cache in [Some(&cache), None] {
             let (text, code) = printed(cache, Cache::clear, true);
             assert_eq!(code, ExitCode::SUCCESS);

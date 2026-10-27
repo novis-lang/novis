@@ -13,6 +13,7 @@ use std::time::Duration;
 use nvs_config::cache::{
     ProbeHash, Revalidation, UnitKey, Validate, artifact_key, content_hash, env_hash, probe_hash,
 };
+use nvs_config::grants::Grants;
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::snapshot::{AppBlocks, Current, Published, Snapshot};
 use nvs_config::trust::Untrusted;
@@ -887,9 +888,10 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
 /// passed through.
 #[test]
 fn env_hash_is_carried_by_both_cache_keys() {
-    let one = env_hash(&pinned(&["aa", "bb"]).config);
-    let reordered = env_hash(&pinned(&["bb", "aa"]).config);
-    let changed = env_hash(&pinned(&["aa", "cc"]).config);
+    let grants = Grants::default();
+    let one = env_hash(&pinned(&["aa", "bb"]).config, &grants);
+    let reordered = env_hash(&pinned(&["bb", "aa"]).config, &grants);
+    let changed = env_hash(&pinned(&["aa", "cc"]).config, &grants);
     assert_eq!(
         one, reordered,
         "§ 4 hashes the pins sorted, so the set is order-independent"
@@ -897,7 +899,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
     assert_ne!(one, changed, "a changed pin is a changed environment");
     assert_ne!(
         one,
-        env_hash(&pinned(&["aa"]).config),
+        env_hash(&pinned(&["aa"]).config, &grants),
         "a dropped extension is one too",
     );
 
@@ -950,7 +952,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
 /// result without respelling the other three.
 #[test]
 fn a_units_key_carries_what_its_autoload_resolution_probed() {
-    let env = env_hash(&pinned(&["aa", "bb"]).config);
+    let env = env_hash(&pinned(&["aa", "bb"]).config, &Grants::default());
     let source = content_hash(b"<?nvs\necho 1;\n");
     let path = p("srv/www/index.nvs");
 

@@ -5290,7 +5290,7 @@ echo Core\Router::{member}("Docs::here", []);
         drop(dir);
         let expected = nvs_config::cache::program_id(
             &[nvs_config::cache::content_hash(source.as_bytes())],
-            nvs_config::cache::env_hash(&config),
+            nvs_config::cache::env_hash(&config, &nvs_config::grants::Grants::default()),
         )
         .to_string();
         assert!(done.ok, "the request ends without a throw");

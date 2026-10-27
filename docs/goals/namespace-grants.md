@@ -13,7 +13,7 @@ stages:
         rules: [security/authority-is-the-enclosing-namespace, security/capability-check-at-the-door, testing/capability-completeness-test]
   - id: 2
     title: the grant table is read, keyed on namespace prefixes, and the longest prefix wins
-    status: open
+    status: done
     context: [crates/nvs-config/src/cache.rs, crates/nvs-config/src/resolve.rs, docs/rules/security/grants-are-keyed-on-a-namespace.md, docs/rules/security/longest-prefix-wins.md, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/config/the-extension-set-is-in-every-unit-key.md]
     extra:
       context:
@@ -116,6 +116,20 @@ and nothing else; goal `package-client`'s manifest reader calls it for them. Thi
 manager, so the tests build the layout by hand and this goal does not wait for goal
 `package-client`. Hand-copied code with no manifest gets the grant check and no file check.
 
+**A grant key is written `'Vendor\Package'` or `'Vendor\Package\*'`, and the subtree form covers its
+own namespace too.** A value is a list of capability names and never a scope; the scope is the
+operator's. `'Acme\Http\*'` matches `Acme\Http` and every depth below it, so the one line `nvs pkg
+add` writes covers a whole package, and an exact `'Acme\Http'` beside it wins for `Acme\Http` alone
+because an exact key beats a subtree key at equal length. Length is counted in segments. A leading
+`\` is allowed and means nothing, so writing a key with and without it is the one tie (`E0656`). A
+first segment `Core` is refused in any case (`E0657`), as `nvs_hir`'s `is_core` compares it; every
+other comparison is exact. The rest of a key's shape, a value that is not a list, an unknown
+capability and a file that is not TOML are `E0655`.
+
+**`nvs_config::cache::env_hash` takes the grant table as a second argument**, so no caller can key a
+unit without one. Every caller passes `Grants::default()` until stage 3 reads the table where the
+compiler runs, and the empty table is what a tree with no `package.toml` reads.
+
 **The diagnostics take the next free codes of the `E06xx` band**, after `E0654`
 (`crates/nvs-diagnostics/src/code/config.rs:822`), and each message names the namespace, the
 capability and the grant line that would fix it.
@@ -154,11 +168,11 @@ as `file.rs:NN`, the member string and the `Cap` it passes.
 **Does:** the grant table parses, every capability in it is on the roster, and a lookup returns the
 grants of the longest matching key.
 
-- [ ] The reader of `[grants]` in the application's `package.toml`, found by walking up as `git` finds `.git`, with an unknown capability an error (`rule:packaging/package-toml-is-a-tool-input`, `rule:security/grants-are-keyed-on-a-namespace`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-config/src/resolve.rs:392`
-- [ ] The grant table alone folds into every compiled unit's cache key, so an edited grant line is an ordinary cache miss (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-config/src/cache.rs:179`
-- [ ] A bare key grants that namespace's own declarations, a subtree key grants every depth, the longest key wins, and two keys that match identically are an error naming both (`rule:security/longest-prefix-wins`). `crates/nvs-config/src/grants.rs:1`
-- [ ] A key under `Core` is an error. `crates/nvs-config/src/grants.rs:1`
-- [ ] Tests: each of the four items above, with the `package.toml` written by the test. `crates/nvs-config/tests/grants.rs:1`
+- [x] The reader of `[grants]` in the application's `package.toml`, found by walking up as `git` finds `.git`, with an unknown capability an error (`rule:packaging/package-toml-is-a-tool-input`, `rule:security/grants-are-keyed-on-a-namespace`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-config/src/resolve.rs:392`
+- [x] The grant table alone folds into every compiled unit's cache key, so an edited grant line is an ordinary cache miss (`rule:config/the-extension-set-is-in-every-unit-key`). `crates/nvs-config/src/cache.rs:179`
+- [x] A bare key grants that namespace's own declarations, a subtree key grants every depth, the longest key wins, and two keys that match identically are an error naming both (`rule:security/longest-prefix-wins`). `crates/nvs-config/src/grants.rs:1`
+- [x] A key under `Core` is an error. `crates/nvs-config/src/grants.rs:1`
+- [x] Tests: each of the four items above, with the `package.toml` written by the test. `crates/nvs-config/tests/grants.rs:1`
 
 ### 3. every `Core` call site is checked against the grants of its enclosing namespace
 
@@ -228,36 +242,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done (`565d7951c`). `nvs_stdlib::cap::needs(class, member)` is an iterator over a
-member's rows (`crates/nvs-stdlib/src/cap.rs:177`), and a member may have several rows, each naming
-one capability. `every_door_names_the_capability_its_member_declares`
-(`crates/nvs-stdlib/tests/capability.rs:570`) found six members whose rows understated their doors, and
-each now has its rows: `Core\IO::open`, `Core\IO::copy`, `Core\Zip::extract`, `Core\Db::open`, and
-`Core\Ldap::connect` and `::open`, which had none. The scan checks a door call whose member is a
-literal or a `const`. A call whose member is a forwarded parameter (`http.rs`'s `pin`, `mail.rs`'s
-`endpoint_of`, `cache.rs`'s `open_configured`) is not resolved. Nothing reads a per-namespace grant
-table yet, and nothing reads `package.toml`.
+Stages 1 and 2 are done. `nvs_stdlib::cap::needs(class, member)` gives a member's capability rows
+(`crates/nvs-stdlib/src/cap.rs:177`). `nvs_config::grants::Grants::read(start, sources)` walks up
+from `start` to the nearest `package.toml` and reads its `[grants]` alone
+(`crates/nvs-config/src/grants.rs:137`), `Grants::lookup(namespace)` gives the winning line or
+`None` for an unmatched namespace (`:186`), and `Grant::grants(cap)` answers for one capability.
+`E0655`–`E0657` are its refusals (`crates/nvs-diagnostics/src/code/config.rs:834`). The syntax is the
+standing decision *A grant key is written ...*. `env_hash(config, grants)` folds `Grants::digest`
+into every unit's key (`crates/nvs-config/src/cache.rs:175`), and every caller passes the empty table
+for now. `crates/nvs-config/tests/grants.rs` has 13 tests, all green. Nothing reads the table while
+compiling, and no call site is checked.
 
-This session also fixed the nightly's `--count` test (`238f23a49`): a counted run starts no slice
-clock. Nightly run 40291801939's supply chain and Windows failures were already fixed on HEAD
-(`c244b4b36`, `9c8b0fe16`). Its Linux jobs were cancelled at the run's end, most likely by fail-fast.
-The `env-secret-proofs` acceptance check passes when run directly.
+The rule fragments `security/grants-are-keyed-on-a-namespace` and `security/longest-prefix-wins`
+now say what is on disk, and both rules stay designed until stage 6. Stage 1 had left its two
+`nvs-stdlib` files unformatted and two chapters unrendered, fixed in `84a9a0728`.
 
-No test is expected to go red. The `nvs agent` index now joins a member's capabilities with `, `.
-A test pinning `[fs.write]` beside `Core\IO::open` would go red, and none was found.
+The sweep's `env-secret-proofs` finding is a stale log from 22 October: that check is no longer
+defined, and its last log reads exit 0. Nightly run 40291801939's failures were fixed on HEAD before
+the last session. Push CI's `tsan` failure on `f71846dd1` was
+`calls_one_after_another_use_one_thread_and_allocate_the_same`, fixed by `ff918f7b7`. The
+`b12214b33` failures were the `--count` test, fixed by `238f23a49`.
+
+No test is expected to go red.
 
 ### Next
 
-**Stage 2: the grant table reader**, one file set: `crates/nvs-config/src/grants.rs` (new),
-`crates/nvs-config/src/cache.rs`, `crates/nvs-config/tests/grants.rs` (new). No gate.
+**Stage 3: the call-site check**, in `nvs-types`, then the CLI. Read the table where the compiler
+runs and hold each `Core` call to it.
 
-- [ ] The `[grants]` reader of the application's `package.toml`, found by walking up from the working directory. `crates/nvs-config/src/grants.rs:1`, `crates/nvs-config/src/resolve.rs:392`
-- [ ] The grant table in every unit's cache key. `crates/nvs-config/src/cache.rs:179`
-- [ ] The longest-prefix lookup, and the refusals of a tie and of a key under `Core`. `crates/nvs-config/src/grants.rs:1`
-- [ ] The tests, with `package.toml` written by each test. `crates/nvs-config/tests/grants.rs:1`
+- [ ] Read the grant table once per compiler run from the working directory, and pass it to every `env_hash` caller in place of `Grants::default()`. `crates/nvs-cli/src/main.rs:2070`, `crates/nvs-cli/src/script.rs:619`, `crates/nvs-cli/src/serve.rs:5293`
+- [ ] Carry the table into the checker and find each call's enclosing namespace. `crates/nvs-types/src/expr/calls.rs:506`, `crates/nvs-types/src/capability.rs:49`
+- [ ] A required capability not granted is the next free code, `E0658`, naming the namespace, the capability and the grant line. `crates/nvs-diagnostics/src/code/config.rs:834`
+- [ ] The `Core\Config::set` item and the conformance cases, as stage 3 lists them. `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
 
 ### Backlog
 
-- Stage 2 (`nvs-config`) and stage 5 (`nvs-hir`) can run beside stage 1 as side goals. `crates/nvs-config/src/grants.rs`
+- Stage 5 (`nvs-hir`, `nvs-config/src/package.rs`) can run beside stage 3. `crates/nvs-config/src/package.rs:1`
 - `nvs pkg fetch` writes the grant lines for fetched packages in goal `package-client` (`docs/goals/package-client.md`).
 - The audit warning for an unmatched autoload root is goal `package-audit`'s (`docs/goals/package-audit.md`).

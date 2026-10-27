@@ -295,7 +295,7 @@ fn an_extension_grant_does_not_change_the_env_hash() {
             "nvs.toml",
             &format!("[[extension]]\npath = \"geo.nvsx\"\nsha256 = \"{PIN}\"\n{grants}"),
         )]);
-        env_hash(&tree.config)
+        env_hash(&tree.config, &nvs_config::grants::Grants::default())
     };
 
     let none = with("");
@@ -313,7 +313,7 @@ fn an_extension_grant_does_not_change_the_env_hash() {
         ),
     )]);
     assert_ne!(
-        env_hash(&other_pin.config),
+        env_hash(&other_pin.config, &nvs_config::grants::Grants::default()),
         none,
         "the pin still moves it, so the equality above is not a hash that ignores the entry",
     );

@@ -44,5 +44,6 @@ namespace that inherits the standard library's own authority.
   it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
   the clause has no single namespace to attach to.
 
-**Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
-table, and the diagnostics this rule needs do not exist.
+**Partly on disk.** `nvs_config::grants` reads the table, refuses an unknown capability (`E0655`) and a
+key under `Core` (`E0657`), and its lines fold into every unit's key. Nothing reads the table while
+compiling yet, and no call site is checked against it.

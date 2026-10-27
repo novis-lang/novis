@@ -824,4 +824,32 @@ codes! {
          the service. The service runs as this account. Create the account first, for example \
          with `useradd --system`, or name an account that exists.",
     );
+
+    /// A `[grants]` table in the application's `package.toml` that
+    /// `nvs_config::grants` cannot read: the file is not TOML, a key is not a
+    /// namespace, a value is not a list, or a name in it is not a capability
+    /// (`rule:security/grants-are-keyed-on-a-namespace`). An unknown name is
+    /// refused because a grant line that grants nothing by a typo looks like
+    /// one that works.
+    pub const E_BAD_GRANT: Code = Code::new("E0655").card(
+        "A line in the `[grants]` table of `package.toml` is not valid. Each key is a namespace, \
+         such as `'Acme\\Http'`. Add `\\*` to the end of the key to also grant every namespace \
+         below it. Each value is a list of capability names, such as `[\"net.connect\"]`. The \
+         message shows the line and, for a wrong name, the list of capabilities.",
+    );
+
+    /// Two keys of `[grants]` that match the same namespaces, such as
+    /// `'\Acme\Http'` and `'Acme\Http'`. `rule:security/longest-prefix-wins`
+    /// refuses the tie, because neither key could win.
+    pub const E_GRANT_KEYS_TIE: Code = Code::new("E0656").card(
+        "Two keys in the `[grants]` table of `package.toml` name the same namespace. A `\\` at \
+         the start of a key does not change the key. Keep one of the two lines.",
+    );
+
+    /// A key of `[grants]` under `Core`. The namespace is reserved
+    /// (`rule:core-api/reserved-namespace`), so no line can grant it anything.
+    pub const E_GRANT_UNDER_CORE: Code = Code::new("E0657").card(
+        "A key in the `[grants]` table of `package.toml` names `Core` or a namespace below it. \
+         `Core` is the standard library, and you cannot grant it capabilities. Delete the line.",
+    );
 }

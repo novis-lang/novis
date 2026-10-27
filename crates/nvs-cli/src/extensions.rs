@@ -1160,7 +1160,10 @@ impl Modules {
     /// `file_cache_dir` is no cache here, and the program path is the one that reports it.
     fn placed(config: &Config) -> Option<Self> {
         let mut cache = crate::cache::placed(config).ok().flatten()?;
-        cache.rekey(env_hash(&Config::default()));
+        cache.rekey(env_hash(
+            &Config::default(),
+            &nvs_config::grants::Grants::default(),
+        ));
         Some(Self { cache })
     }
 
@@ -1227,8 +1230,11 @@ mod tests {
     #[test]
     fn a_compiled_component_is_an_artifact_keyed_by_its_pin_and_the_engine() {
         let dir = nvs_repo::scratch_private("ext-modules");
-        let cache = Cache::new(dir.path(), env_hash(&Config::default()))
-            .expect("a scratch directory of this test's own");
+        let cache = Cache::new(
+            dir.path(),
+            env_hash(&Config::default(), &nvs_config::grants::Grants::default()),
+        )
+        .expect("a scratch directory of this test's own");
         let modules = Modules { cache };
         let pin = "a".repeat(64);
         modules.put(&key(&pin, "engine"), b"compiled");
