@@ -40,6 +40,7 @@ describe("a .term", () => {
   test("is compared with its values that differ per run masked", () => {
     expect(mask("took 12ms at 2026-10-26T10:00:01Z on 127.0.0.1:51234, id 0af7651916cd43dd8448eb211c80319c")).toBe("took <duration> at <date> on 127.0.0.1:<port>, id <id>");
     expect(mask("in 1.5s, file /tmp/nv-91/a.nvs\r\n  ")).toBe("in <duration>, file <tmp>");
+    expect(mask("started 10/27/2026, 2:49:48 AM")).toBe("started <date>, <time>");
     expect(sameTerm("$ nvs test\n3 passed in 41ms\nexit 0\n", "$ nvs test\n3 passed in 7ms\nexit 0")).toBe(true);
     expect(sameTerm("$ nvs test\n3 passed\nexit 0\n", "$ nvs test\n2 passed\nexit 0\n")).toBe(false);
   });

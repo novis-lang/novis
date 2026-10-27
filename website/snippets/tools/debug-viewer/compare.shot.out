@@ -15,9 +15,9 @@ Exceptions
 Back to the request list
 Compare two requests
 Original
-GET /notes/18446744073709551615 500 started 27.10.2026, <time>
+GET /notes/18446744073709551615 500 started <date>, <time>
 Other
-GET /notes/1 404 started 27.10.2026, <time>
+GET /notes/1 404 started <date>, <time>
 
 6 rows differ.
 

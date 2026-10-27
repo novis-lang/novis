@@ -30,6 +30,9 @@ export const SPEEDSCOPE = "editors/vscode/node_modules/speedscope/dist/release";
 /** The window every shot is taken in, in CSS pixels. */
 const WIDTH = 1280;
 const HEIGHT = 800;
+/** The locale every shot's page formats its dates and numbers in, so a shot taken on any machine shows
+ * the website's language and records the same text. */
+const LOCALE = "en-US";
 /** How long a server, the index or one step may take before the run fails. */
 const WAIT_MS = 60_000;
 
@@ -169,6 +172,7 @@ async function until<T>(what: string, probe: () => Promise<T | null | undefined>
 async function takeSteps(browser: Browser, base: string, steps: Step[], ready: string): Promise<{ text: string; png: Uint8Array }> {
   const { sessionId } = await browser.tab();
   await browser.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.send("Emulation.setLocaleOverride", { locale: LOCALE }, sessionId);
   const js = JSON.stringify;
   const present = (selector: string) => until(`\`${selector}\` was not on the page`, async () => ((await browser.eval(`!!document.querySelector(${js(selector)})`, sessionId)) ? true : null));
   for (const step of steps) {

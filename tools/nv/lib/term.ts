@@ -57,7 +57,8 @@ function rewrite(text: string, from: string, to: string): string {
 const MASKS: [RegExp, string][] = [
   [/(?:\/tmp|\/var\/folders)\/[^\s'"]*/g, "<tmp>"],
   [/\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?/g, "<date>"],
-  [/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/g, "<time>"],
+  [/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, "<date>"],
+  [/\b\d{1,2}:\d{2}:\d{2}(?:\.\d+)?(?: [AP]M)?\b/g, "<time>"],
   [/\b[0-9a-f]{32}\b|\b[0-9a-f]{16}\b/g, "<id>"],
   [/\b(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):\d{1,5}\b/g, "$1:<port>"],
   [/\bport \d{1,5}\b/g, "port <port>"],
