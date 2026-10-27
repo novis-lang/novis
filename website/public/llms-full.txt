@@ -26641,9 +26641,14 @@ The server matches each request to a route before your program runs. Your entry 
 `Core\Router::dispatch`, which calls that route's method. A program can also read the match with
 `Core\Request::route()`.
 
+A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A
+parameter with a default value makes its key optional. If the key is missing, the parameter has the
+default value. A value that does not convert, a missing key with no default and a key sent twice are
+each a `400`. The route method does not run.
+
 **The examples below** show a route and its link, the three captures, product list links, routes in
-another file, calling a route method yourself, and a route with no `#[Core\Access]`, which does not
-compile.
+another file, calling a route method yourself, a route with no `#[Core\Access]`, which does not
+compile, and a query parameter with a bad value.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
@@ -26662,6 +26667,11 @@ A capture with no parameter of the same name is `E0751`. A `float` parameter is 
 `{name...}` parameter that is not a `string`. A `{name?}` parameter with no default value is `E0753`.
 A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
 `#[Core\Query]` on a method with no route is `E0765`.
+
+`Core\Router::dispatch` reads the query string key with the same name as the parameter. A key with
+brackets, such as `page[]=1`, is a `400` too. For each `400`, `refused` gets
+`Core\Router\Refusal::BadCapture` and the match. A path capture that does not convert is a `404`,
+because then no route matches the request.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
@@ -27057,6 +27067,79 @@ error[E0762]: the route `Users::index` declares no access decision
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 07: a query parameter and a bad value
+
+```toml file=nvs.toml
+### `Core\Router::urlAbsolute` puts this origin in front of a path.
+[[app]]
+root = "."
+origin = "https://example.test"
+```
+
+```nvs
+<?nvs
+// Shows a route that reads typed values from the query string, and what a request with a bad value gets.
+use Core\Http\Method;
+
+class Shop
+{
+    // `#[Core\Query]` takes `$sort` and `$page` from the query string.
+    // `$sort` has no default value, so every request must send it.
+    #[Core\Route(path: '/products', method: Method::Get, name: 'Shop::products')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
+    {
+        echo 'page ', $page, ' sorted by ', $sort;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `page` is missing, so `$page` is `1`. This prints `200`.
+    var $first = Core\Test::request(Method::Get, '/products?sort=name');
+    echo $first->status(), ' ', $first->body(), "\n";
+
+    // This prints `200` and page 3.
+    var $third = Core\Test::request(Method::Get, '/products?sort=price&page=3');
+    echo $third->status(), ' ', $third->body(), "\n";
+
+    // `three` is not a whole number. This prints `400`.
+    var $word = Core\Test::request(Method::Get, '/products?sort=name&page=three');
+    echo $word->status(), ' ', $word->body(), "\n";
+
+    // `sort` is missing, and it has no default value. This prints `400`.
+    var $missing = Core\Test::request(Method::Get, '/products?page=2');
+    echo $missing->status(), ' ', $missing->body(), "\n";
+}
+```
+
+```output
+200 page 1 sorted by name
+200 page 3 sorted by price
+400 The address is not valid.
+400 The address is not valid.
 ```
 
 ### `#[Core\Api]` and the OpenAPI document
@@ -55052,7 +55135,7 @@ The reason `Core\Router::dispatch` did not call the method of a route. Your `Cor
 | `Core\Router\Refusal::Denied` | `allows()` returned `false` or threw an error. The status is `403`. |
 | `Core\Router\Refusal::Csrf` | The server did not accept the CSRF token or the origin of the request. The status is `403`. |
 | `Core\Router\Refusal::BodyTooLarge` | The request body is larger than the limit of the server. The status is `413`. |
-| `Core\Router\Refusal::BadCapture` | A value in the path cannot be converted to the type of its parameter. For example, the `parse` method of its class threw an error. The status is `400`. |
+| `Core\Router\Refusal::BadCapture` | A value in the path or in the query string cannot be converted to the type of its parameter. For example, the `parse` method of its class threw an error. A required query key that is missing, or a query key that is written twice, gives this case too. The status is `400`. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`

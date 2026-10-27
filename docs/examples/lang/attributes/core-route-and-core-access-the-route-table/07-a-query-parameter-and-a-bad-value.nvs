@@ -1,0 +1,54 @@
+<?nvs
+// Shows a route that reads typed values from the query string, and what a request with a bad value gets.
+use Core\Http\Method;
+
+class Shop
+{
+    // `#[Core\Query]` takes `$sort` and `$page` from the query string.
+    // `$sort` has no default value, so every request must send it.
+    #[Core\Route(path: '/products', method: Method::Get, name: 'Shop::products')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function products(#[Core\Query] 'name'|'price' $sort, #[Core\Query] uint $page = 1): void
+    {
+        echo 'page ', $page, ' sorted by ', $sort;
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    // A bad query value gives `Refusal::BadCapture`, and the route method does not run.
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'The address is not valid.';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'Something went wrong.';
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // `page` is missing, so `$page` is `1`. This prints `200`.
+    var $first = Core\Test::request(Method::Get, '/products?sort=name');
+    echo $first->status(), ' ', $first->body(), "\n";
+
+    // This prints `200` and page 3.
+    var $third = Core\Test::request(Method::Get, '/products?sort=price&page=3');
+    echo $third->status(), ' ', $third->body(), "\n";
+
+    // `three` is not a whole number. This prints `400`.
+    var $word = Core\Test::request(Method::Get, '/products?sort=name&page=three');
+    echo $word->status(), ' ', $word->body(), "\n";
+
+    // `sort` is missing, and it has no default value. This prints `400`.
+    var $missing = Core\Test::request(Method::Get, '/products?page=2');
+    echo $missing->status(), ' ', $missing->body(), "\n";
+}

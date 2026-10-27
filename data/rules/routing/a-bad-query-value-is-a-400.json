@@ -1,6 +1,6 @@
 {
   "title": "A `#[Query]` value that does not convert is a `400`, where a path capture the matcher cannot convert is a `404`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/a-query-parameter-is-declared-like-a-capture",
     "security/route-capture-is-laundered-by-its-type"

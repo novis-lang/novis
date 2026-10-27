@@ -4,13 +4,9 @@
 // have handed on.
 //
 // This leg runs under `nvs run --request examples/parses.nvsr`, so the method,
-// the path and the query read below are one real request's — that file
-// describes it in the format `crates/nvs-test/src/request.rs` owns. `nvs run`
-// installs the route table but matches nothing against it, because a program
-// run off the command line is answering no request, so the walk the door takes
-// is spelled here over that request's own method and path. A served request
-// takes the same walk once, before any handler exists
-// (`rule:routing/matched-once-before-the-handler`).
+// the path and the query `dispatch` reads below are one real request's — that
+// file describes it in the format `crates/nvs-test/src/request.rs` owns. The
+// two walks after it are `Core\Router::match` over paths written here.
 
 // `Parses` is one of the interfaces the compiler declares for every program:
 // there is no `use` to write and no file to reach, and the class owes one
@@ -51,24 +47,19 @@ class Slug implements Parses
 
 class Posts
 {
-    // The text a handler is handed for a `tag` the request did not send. It is
-    // written here rather than as the parameter's own default because a
-    // parameter default must be written directly in the code with the declared type, so a
-    // class-typed `#[Query]` cannot carry one; the *text* is defaulted and the
-    // class builds the value out of it, which is what the two `tag` lines
-    // below spell.
-    public const string TAG_DEFAULT = 'absent';
-
     // `Slug` stands in the capture and in the `#[Query]` alike: a query
     // parameter is declared with a capture's type list
     // (`rule:routing/a-query-parameter-is-declared-like-a-capture`), and that
-    // list's last entry is now "a class implementing `Parses`" rather than
-    // `Core\Uuid` written out by name.
+    // list's last entry is "a class implementing `Parses`". A parameter default
+    // is a constant of the declared type, so a class-typed `#[Query]` has none
+    // and its key is required: a request without `tag` is a `400`
+    // (`rule:routing/a-bad-query-value-is-a-400`).
     #[Core\Route(path: '/posts/{slug}', method: Core\Http\Method::Get, name: 'Posts::show')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function show(Slug $slug, #[Core\Query] Slug $tag): string
+    public function show(Slug $slug, #[Core\Query] Slug $tag): void
     {
-        return 'one post';
+        echo 'slug is ', $slug->text, "\n";
+        echo 'tag is ', $tag->text, "\n";
     }
 
     // The engine's own class built from text, at the same site, for the
@@ -76,31 +67,35 @@ class Posts
     // conversions the matcher performs itself.
     #[Core\Route(path: '/posts/by-id/{id}', method: Core\Http\Method::Get, name: 'Posts::byId')]
     #[Core\Access(allow: Core\Audience::Public)]
-    public function byId(Core\Uuid $id): string
+    public function byId(Core\Uuid $id): void
     {
-        return 'one post';
+        echo 'one post', "\n";
     }
 }
 
-// The capture, converted where the match crosses into the program rather than
-// at the door. `Core\Router\Match::param` answers the union every capture
-// converts to, whose last arm is `Parses`, so the value is narrowed to the
-// class the route declared before anything reads it.
-?Core\Router\Match $matched = Core\Router::match(Core\Request::method(), Core\Request::path());
-if ($matched != null) {
-    var $capture = $matched->param('slug');
-    if ($capture != null) {
-        Slug $slug = $capture as Slug;
-        echo 'slug is ', $slug->text, "\n";
+// A gate that lets every route run and reports what it refused.
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused', "\n";
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed: ', $error?->message ?? 'no error', "\n";
     }
 }
 
-// The `#[Query]`, spelled by hand: nothing binds a query parameter to a
-// declared one yet, so both readings go through the same `parse` the binding
-// will call — the fallback text for a key the request did not send, then the
-// text this request did send.
-echo 'tag is ', Slug::parse(Posts::TAG_DEFAULT)->text, "\n";
-echo 'tag is ', Slug::parse(Core\Request::query('tag') ?? '')->text, "\n";
+// Both halves of `show`, converted where the match crosses into the program
+// rather than at the door: `dispatch` builds the `{slug}` capture and the
+// `#[Query]` key `tag` through the same `Slug::parse`, then calls the method.
+Core\Router::dispatch(new Gate());
 
 // A segment the class refuses fails over a route that *did* match, so it is a
 // `400` and never a `404`: the shape claimed the row, and the refusal happened

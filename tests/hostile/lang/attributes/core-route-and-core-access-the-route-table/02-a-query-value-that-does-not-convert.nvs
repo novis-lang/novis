@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a request sends query values that cannot be read as the type the route method needs.
+// Every request below should get the status `400`, and the route method should never run.
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+
+class Pages
+{
+    #[Core\Route(path: '/pages', method: Method::Get, name: 'Pages::list')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(#[Core\Query] uint $page = 1): void
+    {
+        echo 'the method ran';
+    }
+
+    #[Core\Route(path: '/search', method: Method::Get, name: 'Pages::search')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(#[Core\Query] string $q = ''): void
+    {
+        echo 'the method ran';
+    }
+}
+
+class Gate implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed';
+    }
+}
+
+class Attack
+{
+    // This returns 1 when the request got `400` and the method did not run.
+    public static function held(string $target): uint
+    {
+        var $answer = Core\Test::request(Method::Get, $target);
+        if ($answer->status() == 400 && $answer->body() == 'refused') {
+            return 1;
+        }
+        echo 'not refused: ', Core\Str::length($target), ' bytes, status ', $answer->status(), "\n";
+        return 0;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Gate());
+} else {
+    // 1. A good value. The method runs, so the `400` results below come from the bad values.
+    var $good = Core\Test::request(Method::Get, '/pages?page=2');
+    echo $good->status(), ' ', $good->body(), "\n";
+
+    array<string> $targets = [
+        // 2. The same key twice, with two good values.
+        '/pages?page=1&page=2',
+        // 3. A number one larger than the largest `uint`.
+        '/pages?page=18446744073709551616',
+        // 4. A number with 500 digits.
+        '/pages?page=' . Core\Str::repeat('9', 500),
+        // 5. A `%` that is not followed by two hexadecimal digits.
+        '/pages?page=%zz',
+        '/pages?page=%',
+        '/pages?page=1%',
+        // 6. Bytes that are not valid UTF-8 after decoding, for a number and for a string.
+        '/pages?page=%E0%80',
+        '/pages?page=1%FF',
+        '/search?q=%E0%80',
+        '/search?q=a%FFb',
+        '/search?q=%C0%AF',
+        // 7. A key with brackets, which some languages read as an array.
+        '/pages?page[]=1',
+        '/pages?page[a]=1',
+        '/search?q[]=a',
+    ];
+
+    // 8. Every request again, many times, to check that each round gives the same result.
+    uint $held = 0;
+    uint $sent = 0;
+    uint $round = 0;
+    while ($round < 300) {
+        foreach ($targets as string $target) {
+            $held = $held + Attack::held($target);
+            $sent = $sent + 1;
+        }
+        $round = $round + 1;
+    }
+    echo $held, ' of ', $sent, " requests got 400\n";
+
+    // 9. A value with 100000 digits, so the query is far longer than any real one.
+    echo Attack::held('/pages?page=' . Core\Str::repeat('9', 100000)), " long request got 400\n";
+    echo "still standing\n";
+}
