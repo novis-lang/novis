@@ -1357,14 +1357,36 @@ fn constructor_accepts_everything(
 /// A bounded variable (`MethodSig::type_bounds`) is its bound here: no argument
 /// binds it at a reference, so `Core\Math::abs(...)` is
 /// `callable(int|float|decimal): int|float|decimal`.
+///
+/// **The list stops before a `Core` options bag.** A bag is a literal written
+/// at a call site, and a call through a `callable` writes none, so
+/// `Core\Str::split(...)` is `callable(string, string): array<string>` and
+/// the thunk passes the bag's defaults ([`method_ref_arity`]).
 fn method_ref_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
+    let arity = method_ref_arity(&sig.params, env.interner);
     if sig.type_bounds.is_empty() {
-        return env.interner.callable_sig(sig.params.clone(), sig.return_ty);
+        return env
+            .interner
+            .callable_sig(sig.params[..arity].to_vec(), sig.return_ty);
     }
     let bindings: crate::generics::Bindings = sig.type_bounds.iter().cloned().collect();
     let bounded = sig.clone().substituted(&bindings, env.interner);
     env.interner
-        .callable_sig(bounded.params.clone(), bounded.return_ty)
+        .callable_sig(bounded.params[..arity].to_vec(), bounded.return_ty)
+}
+
+/// How many of a member's parameters a method reference forwards: every one
+/// before the first [`Ty::CoreShape`], which is the options bag where the
+/// member has one. The checker's callable type and `nvs-ir`'s thunk both read
+/// it, so the two arities cannot disagree. A shape a call must write is
+/// refused before this is asked ([`reject_unforwardable_method_ref`]), so
+/// every parameter past the count has a default.
+#[must_use]
+pub fn method_ref_arity(params: &[TypeId], interner: &crate::ty::TypeInterner) -> usize {
+    params
+        .iter()
+        .position(|&id| matches!(interner.get(id), Ty::CoreShape(_)))
+        .unwrap_or(params.len())
 }
 
 /// Refuses `new C(...)` — the method-reference sentinel written on `new`
@@ -1399,6 +1421,11 @@ fn reject_unforwardable_method_ref(
         "an `inout` parameter"
     } else if sig.variadic {
         "a variadic parameter"
+    } else if sig.required() > method_ref_arity(&sig.params, env.interner) {
+        // A `Core` shape a call must write, such as `Core\Db::connect`'s
+        // settings: the thunk has no literal to flatten and no default to
+        // pass in its place.
+        "a required settings object"
     } else {
         return false;
     };
@@ -1410,8 +1437,8 @@ fn reject_unforwardable_method_ref(
         .with_primary(span, format!("this method declares {offending}"))
         .with_help(
             "a `callable` has no parameter list. A call through it cannot pass a variable \
-             by reference or collect variadic arguments. Write an anonymous function that \
-             calls the method with the arguments you pass"
+             by reference, collect variadic arguments or write a `{...}` settings object. \
+             Write an anonymous function that calls the method with the arguments you pass"
                 .to_owned(),
         ),
     );

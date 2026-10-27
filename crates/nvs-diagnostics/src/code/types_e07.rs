@@ -1570,7 +1570,10 @@ codes! {
     );
 
     /// `rule:types/callable-values`'s `(...)` naming a member whose parameter list a
-    /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
+    /// `callable` cannot carry — one declared `inout $x`, a variadic tail, or
+    /// a `Core` shape parameter a call must write, such as `Core\Db::connect`'s
+    /// settings. An options bag is not on the list: the reference stops before
+    /// it, and the thunk passes its defaults.
     ///
     /// `rule:types/callable-is-the-only-function-type` gives `callable` no parameter list, so a call *through* one passes
     /// what it was written with and nothing else: there is no site that could
@@ -1583,9 +1586,9 @@ codes! {
     /// other spelling — that code refuses the parameter where an anonymous
     /// function *declares* it, this one refuses naming a member that already has one.
     pub const E_METHOD_REF_UNFORWARDABLE: Code = Code::new("E0793").card(
-        "`method(...)` cannot make a `callable` from a method with an `inout` parameter or a \
-         variadic parameter (`...$rest`). Write an anonymous function with `fn` that calls the \
-         method instead.",
+        "`method(...)` cannot make a `callable` from a method with an `inout` parameter, a \
+         variadic parameter (`...$rest`) or a required `{...}` settings object. Write an \
+         anonymous function with `fn` that calls the method instead.",
     );
 
     /// `rule:classes/constructor-compatibility`: a `new` through a `class<T>` whose `T` has an implementor

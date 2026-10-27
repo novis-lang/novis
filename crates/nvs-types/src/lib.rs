@@ -221,6 +221,7 @@ pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
 pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
+pub use expr::calls::method_ref_arity;
 pub use expr::members::{
     HoleKind, hole_kind, is_written_class_side, path_step_class, string_holes_key,
 };

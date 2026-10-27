@@ -3,9 +3,8 @@
 //! as `nvs_stdlib::registry::QUERY_SITE_MEMBERS`' last argument.
 //!
 //! The site is the call and not its SQL, so two calls with one statement text
-//! are two sites. A callable reference would pass the zero id, but
-//! `$db->query(...)` does not lower yet: its options bag panics the thunk, so
-//! that path has no case here.
+//! are two sites. A callable reference, `$db->query(...)`, passes the zero
+//! id, because the statement goes out wherever the callable is invoked.
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_ir::ir::{InstKind, Program};
@@ -164,4 +163,20 @@ fn the_table_has_one_row_per_site_across_every_function() {
     lines.sort_unstable();
     assert_eq!(lines, [4, 9], "a call through the interface is a site too");
     assert_eq!(program.query_sites().len(), 2);
+}
+
+#[test]
+fn a_callable_reference_passes_the_zero_site() {
+    let (program, map) = compile(
+        "<?nvs\n\
+         var $db = Core\\Db::connect('main');\n\
+         callable $query = $db->query(...);\n",
+    );
+    assert_eq!(site_constants(&program), [false]);
+    assert_eq!(
+        last_arguments_are_sites(&program, "nvs_core_db_connection_query"),
+        1,
+        "the thunk forwards to the member, past the options bag's defaults"
+    );
+    assert!(program.query_site_table(&map).is_empty());
 }

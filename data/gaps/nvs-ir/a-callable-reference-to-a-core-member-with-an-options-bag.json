@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-ir/src/lower/mod.rs",
-  "title": "A callable reference to a `Core` member that takes an options bag, such as `Core\\Str::split(...)` or `$db->query(...)`, passes `nvs check` and then panics the lowering.",
-  "text": "`anon_fn::lower_callable` builds the thunk's parameters through `erase_checked_ty`, whose `CheckedTy::CoreShape` arm panics. Either the checker refuses such a reference with a diagnostic, or the thunk passes the bag's defaults. Once it lowers, `crates/nvs-ir/tests/query_sites.rs` gains the case where the thunk passes the zero site id.",
-  "goal": "query-binding"
-}

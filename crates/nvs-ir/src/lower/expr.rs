@@ -3315,12 +3315,8 @@ impl<'a> Lowering<'a> {
         // an Novis identifier, so no declaration can collide with it — the
         // same guarantee `shape_class_label` relies on.
         let class = format!("{}$fcc{}", self.fn_label, self.callables.len());
-        let params: Vec<Ty> = call
-            .param_tys
-            .iter()
-            .map(|&id| erase_checked_ty(id, self.checked_types))
-            .collect();
-        let obj = self.emit_thunk_object(&class, &params, call.param_names.join(","), env, cur);
+        let (params, names) = self.forwarded_params(call);
+        let obj = self.emit_thunk_object(&class, &params, names, env, cur);
         let takes_receiver = !call.is_static;
         if takes_receiver {
             // `rule:types/implicit-capture`'s "by value at the point the anonymous function is
@@ -3387,12 +3383,8 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let class = format!("{}$fcc{}", self.fn_label, self.callables.len());
-        let params: Vec<Ty> = call
-            .param_tys
-            .iter()
-            .map(|&id| erase_checked_ty(id, self.checked_types))
-            .collect();
-        let obj = self.emit_thunk_object(&class, &params, call.param_names.join(","), env, cur);
+        let (params, names) = self.forwarded_params(call);
+        let obj = self.emit_thunk_object(&class, &params, names, env, cur);
         self.emit_field_set(*cur, obj, class.clone(), FCC_DESC.to_owned(), desc);
         self.callables.push(PendingCallable {
             class,
@@ -3405,6 +3397,19 @@ impl<'a> Lowering<'a> {
             span: expr.span,
         });
         (obj, Ty::Object)
+    }
+
+    /// The parameters a forwarding thunk for `call` takes, erased, and their
+    /// names: every one [`nvs_types::method_ref_arity`] counts. A `Core`
+    /// options bag and everything past it are left out, and
+    /// [`super::anon_fn::lower_callable`] passes their defaults.
+    fn forwarded_params(&self, call: &ResolvedCall) -> (Vec<Ty>, String) {
+        let arity = nvs_types::method_ref_arity(&call.param_tys, self.checked_types);
+        let params = call.param_tys[..arity]
+            .iter()
+            .map(|&id| erase_checked_ty(id, self.checked_types))
+            .collect();
+        (params, call.param_names[..arity].join(","))
     }
 
     /// The object every [`PendingCallable`] is: a new instance of `class` with

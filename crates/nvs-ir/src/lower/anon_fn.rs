@@ -795,7 +795,17 @@ pub(crate) fn lower_callable(
             );
         }
     };
-    let value = if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
+    let core_symbol = nvs_types::core_symbol_of(&call.class, &call.method);
+    // The parameters the reference left out, a `Core` options bag and
+    // anything after it, pass the defaults a direct call that omits them
+    // passes. A `Core` member borrows them and a compiled one takes them
+    // over, as for the thunk's own parameters.
+    let ownership = match core_symbol {
+        Some(_) => ArgOwnership::Borrowed,
+        None => ArgOwnership::Transferred,
+    };
+    pass_omitted_defaults(&mut low, call, &mut args, ownership, &mut env, &mut cur);
+    let value = if let Some(symbol) = core_symbol {
         // A Tier 0 `Core` member borrows every argument, receiver included,
         // so what this frame staged it also releases — see `InstKind::CoreCall`.
         let written = nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
@@ -990,6 +1000,28 @@ pub(crate) fn lower_callable(
         },
         classes,
     )
+}
+
+/// Appends to `args` the default of every parameter of `call` past the ones
+/// the thunk takes, through [`Lowering::lower_default_arg`]. So an omitted
+/// options bag flattens into one constant per option, exactly as at a direct
+/// call that does not write it. `nvs_types::method_ref_arity` makes sure each
+/// of these parameters has a default.
+fn pass_omitted_defaults(
+    low: &mut Lowering<'_>,
+    call: &ResolvedCall,
+    args: &mut Vec<ValueId>,
+    ownership: ArgOwnership,
+    env: &mut Env,
+    cur: &mut BlockId,
+) {
+    let sig = ArgSig::of(call);
+    let checked_types = low.checked_types;
+    let mut rest = LoweredArgs::default();
+    for index in args.len()..sig.param_tys.len() {
+        low.lower_default_arg(index, &sig, checked_types, ownership, env, cur, &mut rest);
+    }
+    args.extend(rest.values);
 }
 
 /// [`ThunkTarget::Build`]'s body: `new built(<args>)`, with `ctor`'s defaults

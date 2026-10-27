@@ -1,0 +1,15 @@
+--TEST--
+A method reference to a `Core` member whose settings object a call must write is refused — `rule:types/callable-values`; the thunk has no literal to flatten and no default to pass instead
+--FILE--
+<?nvs
+// `Core\Db::open` takes a `{...}` settings object that has no default. A call
+// through a `callable` writes no literal, so nothing could fill it.
+callable $open = Core\Db::open(...);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0793]: `Core\Db::open` cannot be used as a method reference
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
