@@ -922,8 +922,9 @@ fn until_stop_or_end(client: &mut Client) -> Vec<Value> {
     }
 }
 
-/// Fails unless `ran` ends in a stop for an exception described as `description`, at `line`,
-/// where `$n` is `n`. `exceptionInfo` names `RuntimeError` and its message.
+/// Fails unless the stop or end in `ran` is a stop for an exception described as `description`,
+/// at `line`, where `$n` is `n`. `exceptionInfo` names `RuntimeError` and its message. Stdout
+/// that [`Client::until_output`] read after the stop may follow it in `ran`.
 fn assert_exception_stop(
     client: &mut Client,
     ran: &[Value],
@@ -931,7 +932,14 @@ fn assert_exception_stop(
     line: u32,
     n: &str,
 ) {
-    let stopped = ran.last().expect("a message");
+    let stopped = ran
+        .iter()
+        .rev()
+        .find(|frame| {
+            frame["type"] == "event"
+                && (frame["event"] == "stopped" || frame["event"] == "terminated")
+        })
+        .expect("a stop or the end");
     assert_eq!(stopped["event"], "stopped", "{ran:#?}");
     assert_eq!(stopped["body"]["reason"], "exception", "{ran:#?}");
     assert_eq!(stopped["body"]["description"], description, "{ran:#?}");
