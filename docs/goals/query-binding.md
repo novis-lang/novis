@@ -6,14 +6,14 @@ context: [docs/rules/routing/a-bad-query-value-is-a-400.md, docs/rules/routing/a
 stages:
   - id: 1
     title: "`dispatch` fills a `#[Query]` parameter from the query string"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-runtime/src/routes.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/uri.rs]
     extra:
       context:
         rules: [routing/a-query-parameter-is-declared-like-a-capture, routing/a-bad-query-value-is-a-400, security/route-capture-is-laundered-by-its-type]
   - id: 2
     title: "a value that does not convert, or a missing required key, is a `400`"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/router.rs, tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst, docs/rules/errors/ambiguous-input-refused.md]
     extra:
       context:
@@ -45,7 +45,7 @@ checks:
 A route method can declare a `#[Query]` parameter, and the compiler checks it: the marker, its type
 list and its optional bit (`rule:routing/a-query-parameter-is-declared-like-a-capture`). The API
 document reads it too. But nothing delivers the value. The route table drops every query parameter
-where it crosses into the runtime (`crates/nvs-cli/src/main.rs:1377`), so a handler reads
+where it crosses into the runtime (`crates/nvs-types/src/crossing.rs:43`), so a handler reads
 `Core\Request::query()` and converts the value itself. This goal finishes the feature that
 `rule:routing/a-bad-query-value-is-a-400` specifies. It was owned by M16, which is gone: Novis ships no
 framework (`rule:programs/no-first-party-framework`), and this binding is `Core\Router` work.
@@ -71,6 +71,15 @@ owner for the marker: add the proofs there and say so in the commit.
 (`crate::uri::parse_query`, `crates/nvs-stdlib/src/uri.rs:3181`). One parser means one reading of a
 bracket key or a bad escape, which is the security call; a second, faster parser is not written.
 
+**An absent optional key's default crosses already converted.** `nvs_types::routes::RouteParam`
+carries the folded default, and `crates/nvs-types/src/crossing.rs:179` (`query_default`) converts it
+once at boot through the parameter's own `CaptureConv` into `nvs_runtime::routes::QueryParam::default`.
+So a default and a written value are one value, and no constant lattice crosses into the runtime.
+
+**A query refusal tells `refused` the match.** A path capture's `400` hands `refused` a `null` route,
+because no match was built. A query value fails after the match exists, so the gate receives it. A
+query value is decoded once, by the query parser, and never again by `decode_capture`.
+
 **Lanes.** One lane: stages 1 and 2 share `crates/nvs-stdlib/src/router.rs` and run as one group in
 one session. Stage 3 follows them, because its examples print what the binding returns.
 
@@ -87,18 +96,18 @@ says.
 **Does:** a route method's `#[Query]` parameter receives the key's value, converted to its declared
 type. An absent optional key gives the parameter's default.
 
-- [ ] The crossing carries each `ParamIn::Query` parameter with its `CaptureConv` beside the path captures, in a list of its own on `Route` (`rule:routing/a-query-parameter-is-declared-like-a-capture`). `crates/nvs-cli/src/main.rs:1377`, `crates/nvs-cli/src/main.rs:1437`, `crates/nvs-runtime/src/routes.rs:304`, `crates/nvs-runtime/src/routes.rs:214`
-- [ ] `dispatch` reads the query once through `crate::uri::parse_query`, only for a row that declares a query parameter, and converts each key by `Route::convert`'s table. `crates/nvs-stdlib/src/uri.rs:3181`, `crates/nvs-stdlib/src/request.rs:1833`, `crates/nvs-runtime/src/routes.rs:546`
-- [ ] `call_handler` fills a query parameter from the converted value, and an absent optional key from the parameter's default. `crates/nvs-stdlib/src/router.rs:2612`, `crates/nvs-stdlib/src/router.rs:2645`
-- [ ] Rust tests beside the router's: a converted `uint`, an enum, a `Parses` class, and an absent optional key that gives the default. `crates/nvs-stdlib/src/router.rs:3860`
+- [x] The crossing carries each `ParamIn::Query` parameter with its `CaptureConv` beside the path captures, in a list of its own on `Route` (`rule:routing/a-query-parameter-is-declared-like-a-capture`). `crates/nvs-types/src/crossing.rs:43`, `crates/nvs-runtime/src/routes.rs:278`
+- [x] `dispatch` reads the query once through `crate::uri::parse_query`, only for a row that declares a query parameter, and converts each key by `Route::convert`'s table. `crates/nvs-stdlib/src/router.rs:2752`, `crates/nvs-stdlib/src/request.rs:1867`
+- [x] `call_handler` fills a query parameter from the converted value, and an absent optional key from the parameter's default. `crates/nvs-stdlib/src/router.rs:2823`
+- [x] Rust tests beside the router's: a converted `uint`, an enum, a `Parses` class, and an absent optional key that gives the default. `crates/nvs-stdlib/src/router.rs:4798`
 
 ### 2. a value that does not convert, or a missing required key, is a `400`
 
 **Does:** the request is answered `400`, and neither `allows` nor the handler runs. A conformance case
 pins it beside the path capture's `404`, as the rule asks.
 
-- [ ] A value that does not convert, a required key that is absent, and a repeated key for a scalar parameter each refuse with `refusal::BAD_CAPTURE` before `allows` runs (`rule:routing/a-bad-query-value-is-a-400`, `rule:errors/ambiguous-input-refused`). `crates/nvs-stdlib/src/router.rs:2399`, `crates/nvs-stdlib/src/router.rs:2527`
-- [ ] A conformance case that asserts a path capture's `404` and a query value's `400` on one signature side by side, and that neither `allows` nor the handler ran, named in the rule's `guardedBy`. `tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst:1`, `data/rules/routing/a-bad-query-value-is-a-400.json:8`
+- [x] A value that does not convert, a required key that is absent, and a repeated key for a scalar parameter each refuse with `refusal::BAD_CAPTURE` before `allows` runs (`rule:routing/a-bad-query-value-is-a-400`, `rule:errors/ambiguous-input-refused`). `crates/nvs-stdlib/src/router.rs:2780`
+- [x] A conformance case that asserts a path capture's `404` and a query value's `400` on one signature side by side, and that neither `allows` nor the handler ran, named in the rule's `guardedBy`. `tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst:1`, `data/rules/routing/a-bad-query-value-is-a-400.json:8`
 
 ### 3. the binding has its feature proofs, and the rule is shipped
 
@@ -130,22 +139,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. The declaration side is built and tested; the runtime side has not started. The
-route table filters out query parameters at the crossing, and `call_handler` fills parameters from the
-path captures alone.
+Stages 1 and 2 are done. `Core\Router::dispatch` binds each `#[Query]` parameter from the query
+string, an absent optional key from its default, and answers `400` (`BadCapture`, told the match) for
+a value that does not convert, a missing required key, a repeated key and a bracketed list. Four Rust
+tests in `router.rs`'s `dispatching` module and the conformance case
+`tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst` pass, and the case is in
+the rule's `guardedBy`. The rule fragment's last paragraph says what is built; its status is still
+`designed`. The `BadCapture` card and `docs/examples/types/Router-Refusal/about.md` name the query.
+
+The acceptance sweep's reds were already fixed on disk: `crypto-bigint` is 0.7.10 (c244b4b36), the
+count test runs in one folder, and `env-secret-proofs` exits 0 when rerun.
 
 ### Next
 
-**Stages 1 and 2, one group**, on `crates/nvs-cli/src/main.rs`, `crates/nvs-runtime/src/routes.rs`
-and `crates/nvs-stdlib/src/router.rs`. No gate.
+**Stage 3**, as its `**Split:**` line says. No gate.
 
-- [ ] Carry `ParamIn::Query` params across with their `CaptureConv` (`rule:routing/a-query-parameter-is-declared-like-a-capture`). `crates/nvs-cli/src/main.rs:1377`, `crates/nvs-runtime/src/routes.rs:304`
-- [ ] Read the query once through `crate::uri::parse_query` and convert each key. `crates/nvs-stdlib/src/uri.rs:3181`, `crates/nvs-runtime/src/routes.rs:546`
-- [ ] Fill each parameter in the handler call, an absent optional key from its default. `crates/nvs-stdlib/src/router.rs:2612`
-- [ ] Rust tests: `uint`, enum, `Parses` class, absent optional key. `crates/nvs-stdlib/src/router.rs:3860`
-- [ ] A bad value, a missing required key and a repeated key refuse like `BAD_CAPTURE` (`rule:routing/a-bad-query-value-is-a-400`, `rule:errors/ambiguous-input-refused`). `crates/nvs-stdlib/src/router.rs:2399`, `crates/nvs-stdlib/src/router.rs:2527`
-- [ ] The conformance case pairing the capture's `404` with the query's `400`, in `guardedBy`. `tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst:1`, `data/rules/routing/a-bad-query-value-is-a-400.json:8`
+- [ ] Example 07 in the route-table feature, reading a typed query parameter and showing the `400`. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/02-captures-that-convert-and-a-query-parameter.nvs:1`, `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
+- [ ] The attack under `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/`: a repeated key, an overlong number, a bad escape. `tests/hostile/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration:1`
+- [ ] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`. `docs/reference/lang/90-attributes.md:1072`
+- [ ] `examples/parses.nvs` still says nothing binds a query parameter; rewrite it to bind `#[Core\Query] Slug $tag`. `examples/parses.nvs:98`
+- [ ] The rule record `shipped`. `data/rules/routing/a-bad-query-value-is-a-400.json:3`
+- [ ] `owners-closes`: the gap record `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json` names this goal; close it or give it another owner. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:5`
 
 ### Backlog
 
-- Stage 3's proofs and the rule flip follow in their own session. `docs/rules/routing/a-bad-query-value-is-a-400.md`
+- Stage 4's gate. Expect `website/public/llms-full.txt` to need a re-render for the `BadCapture` card,
+  and the Rust suites of `nvs-types`, `nvs-runtime` and `nvs-stdlib` to stay green; no test is
+  expected to go red.
