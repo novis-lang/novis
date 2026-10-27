@@ -953,17 +953,9 @@ codes! {
          the routes.",
     );
 
-    /// Two `#[Route]`s claim the same `name`.
-    ///
-    /// `rule:security/route-capture-is-laundered-by-its-type`'s second table-wide error, and the one § 4 rests on:
-    /// `Core\Router::url` reverses the table by name, so a name that means two
-    /// routes is a link with no answer. Reported at the second declaration,
-    /// like [`E_DUPLICATE_ROUTE`], and at the `name:` field rather than at the
-    /// whole attribute, because the rest of the attribute is fine.
-    pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749").card(
-        "Two routes have the same `name`. `Core\\Router::url` finds a route by its name, so each \
-         name must be unique. Rename one of the routes.",
-    );
+    // `E0749` is retired and is never reused: it refused two routes claiming
+    // one `name`, and a route has no name now. It is named by its method, and
+    // one method's routes sharing a path is `E_ROUTE_PATHS_ON_ONE_METHOD`.
 
     /// A `#[Route]`'s `path` is not one `rule:routing/path-grammar`'s grammar admits.
     ///
@@ -1233,7 +1225,7 @@ codes! {
     /// compile errors, and the one only the whole program's enumeration can
     /// answer.
     ///
-    /// [`E_DUPLICATE_ROUTE_NAME`]'s sibling, reported over the collected table
+    /// [`E_DUPLICATE_ROUTE`]'s sibling, reported over the collected table
     /// for its reason: a command line naming a word two methods answer to has
     /// no answer, and which of them ran would depend on the order the files
     /// were walked in.

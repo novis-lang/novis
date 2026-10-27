@@ -487,20 +487,15 @@ fn the_warning_names_three_route_methods_and_counts_the_rest() {
 }
 
 #[test]
-fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
+fn every_route_on_one_method_becomes_a_row_and_they_share_its_path() {
     // `rule:attributes/repeatable`'s repetition, read as `rule:routing/route-attribute` writes it: one method
-    // serving three verbs declares three routes rather than one. `rule:routing/routes-are-compiled-not-registered`
-    // then lets them carry the same `name`, because they carry the same path
-    // and `url()` therefore has one answer to give.
-    let webhook = |name: &str| {
-        format!(
-            "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post, name: \"{name}\")]\n  \
-             #[Route(path: \"/webhook\", method: Core\\Http\\Method::Put, name: \"{name}\")]\n  \
-             #[Route(path: \"/webhook\", method: Core\\Http\\Method::Delete, name: \"{name}\")]\n  \
-             public function receive(): string {{ return \"\"; }}\n"
-        )
-    };
-    let (diags, exprs) = check_src_table(&route_src(&webhook("webhook")));
+    // serving three verbs declares three routes rather than one, all on the
+    // one path `rule:routing/routes-are-compiled-not-registered` gives a method.
+    let webhook = "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
+                   #[Route(path: \"/webhook\", method: Core\\Http\\Method::Put)]\n  \
+                   #[Route(path: \"/webhook\", method: Core\\Http\\Method::Delete)]\n  \
+                   public function receive(): string { return \"\"; }\n";
+    let (diags, exprs) = check_src_table(&route_src(webhook));
     assert!(!diags.has_errors(), "{diags:?}");
     let table = exprs.routes();
     assert_eq!(table.rows().len(), 3);
@@ -515,27 +510,9 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
         assert_eq!(row.access.as_deref(), Some("Core\\Audience::Public"));
     }
 
-    // § 1's exception has two halves and needs both. The same name on two
-    // *methods* is the copy-paste the original rule was written for.
-    let (diags, _) = check_src_table(&route_src(&format!(
-        "{}  #[Route(path: \"/other\", method: Core\\Http\\Method::Get, name: \"webhook\")]\n  \
-         public function other(): string {{ return \"\"; }}\n",
-        webhook("webhook")
-    )));
-    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
-
-    // And one method whose repetitions carry different paths is the ambiguity
-    // itself: `url()` would have two answers and no ground to prefer one.
-    let (diags, _) = check_src_table(&route_src(
-        "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post, name: \"webhook\")]\n  \
-         #[Route(path: \"/hook\", method: Core\\Http\\Method::Post, name: \"webhook\")]\n  \
-         public function receive(): string { return \"\"; }\n",
-    ));
-    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
-
-    // The duplicate-*route* rule is untouched by that exception: two
+    // The duplicate-*route* rule still holds inside one method: two
     // attributes sharing both `path` and `method` are one route however they
-    // are grouped, so nothing enters through the door a shared name opens.
+    // are grouped.
     let (diags, _) = check_src_table(&route_src(
         "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
          #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
@@ -679,20 +656,28 @@ fn a_shape_keeps_the_capture_form_it_erases_the_name_of() {
 }
 
 #[test]
-fn a_route_name_names_one_route() {
-    // § 4's `url` reverses the table by name, so a name meaning two routes is
-    // a link with no answer — a question about the enumeration, which is why
-    // it is asked once every file has been walked rather than per declaration.
+fn one_method_with_two_paths_does_not_compile() {
+    // A link names its route by the method, so the method's routes must agree
+    // on the path `url()` builds. The second attribute is the error, the first
+    // its secondary label, and the help names the two ways out.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
-         public function index(): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
-         public function show(uint $id): string { return \"\"; }\n",
+        "  #[Route(path: \"/webhook\", method: Core\\Http\\Method::Post)]\n  \
+         #[Route(path: \"/hook\", method: Core\\Http\\Method::Get)]\n  \
+         public function receive(): string { return \"\"; }\n",
     ));
-    assert!(reported(&diags, code::E_DUPLICATE_ROUTE_NAME), "{diags:?}");
+    assert_eq!(count(&diags, code::E_ROUTE_PATHS_ON_ONE_METHOD), 1, "{diags:?}");
+    let error = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_ROUTE_PATHS_ON_ONE_METHOD))
+        .unwrap();
+    assert_eq!(
+        error.message,
+        "`Users::receive` already has the path `/webhook`, and this route gives `/hook`"
+    );
+    assert_eq!(error.labels.len(), 2, "{error:?}");
+    assert!(error.notes.iter().any(|note| note.contains("{name?}")), "{error:?}");
 
-    // Two rows with no `name` at all collide over nothing: § 1 leaves it
-    // optional, and an absent name is not a name two routes share.
+    // Two methods with two paths are two routes, and nothing collides.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          public function index(): string { return \"\"; }\n  \

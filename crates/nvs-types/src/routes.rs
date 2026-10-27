@@ -31,7 +31,7 @@
 //! per-class walk reaches it,
 //! and [`check_table`] then holds the collected rows to the two of § 1-§ 3's
 //! four compile errors that are questions about the *enumeration* — a duplicate
-//! route and a duplicate `name`. A row needs a `path` and a `method` to exist
+//! route and one method's routes with two paths. A row needs a `path` and a `method` to exist
 //! at all, so this is also where an attribute that named neither is refused.
 //!
 //! Between the two, and inside [`collect_route`], the path is read twice: once
@@ -923,10 +923,8 @@ impl RouteTable {
     /// The row § 1's `name` names, or `None` where no route claims it — § 4's
     /// `url`/`urlAbsolute` reverse the table by exactly this question.
     ///
-    /// The first match, and never an ambiguous one: two rows may share a name
-    /// only when they share a path (`rule:routing/routes-are-compiled-not-registered`),
-    /// so name-to-path is a function and every other duplicate is
-    /// [`code::E_DUPLICATE_ROUTE_NAME`] and does not compile.
+    /// The first match. Nothing checks a name for duplicates any more: a route
+    /// is named by its method, and this lookup leaves with the `name` field.
     #[must_use]
     pub fn named(&self, name: &str) -> Option<&Route> {
         self.rows.iter().find(|row| {
@@ -3390,9 +3388,9 @@ pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
 }
 
 /// The two of § 1-§ 3's compile errors that are questions about the whole
-/// enumeration: one route declared twice, and one `name` claimed twice. Then
-/// [`check_security`]'s two, which are the same kind of question about the
-/// security schemes.
+/// enumeration: one route declared twice, and one method's routes with two
+/// paths. Then [`check_security`]'s two, which are the same kind of question
+/// about the security schemes.
 ///
 /// Run once, after every file has been walked, because a route in the entry
 /// file collides with one in a file § 5's scan found and neither declaration
@@ -3400,17 +3398,14 @@ pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
 /// load order, so which of two colliding declarations is named does not depend
 /// on the filesystem.
 ///
-/// The `name` half carries
-/// `rule:routing/routes-are-compiled-not-registered`
-/// 's exception — repetitions on one method sharing a path share a name —
-/// and it is asked here rather than in [`check_class_routes`] because it is the
-/// same question the rest of this walk asks: two rows, and whether they are the
-/// one endpoint `Core\Router::url` can answer for. The duplicate-*route* rule
-/// above is untouched by it, so two attributes sharing both `path` and `method`
-/// stay an error however they are grouped.
+/// The two-paths half is `rule:routing/routes-are-compiled-not-registered`'s
+/// one-path-per-method rule: a link names its route by the method, so the
+/// method's rows must agree on the path `Core\Router::url` builds. The
+/// duplicate-*route* rule is separate, so two attributes sharing both `path`
+/// and `method` stay an error however they are grouped.
 pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
     let mut routes: FxHashMap<(&str, String), &Route> = FxHashMap::default();
-    let mut names: FxHashMap<&str, &Route> = FxHashMap::default();
+    let mut paths: FxHashMap<&str, &Route> = FxHashMap::default();
     for row in &table.rows {
         if let Some(prior) = routes.insert((row.verb.as_str(), shape(&row.path)), row) {
             let (verb, path, handler) = (&row.verb, &row.path, &prior.handler);
@@ -3428,31 +3423,24 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             );
             routes.insert((row.verb.as_str(), shape(&row.path)), prior);
         }
-        let Some((name, span)) = &row.name else {
-            continue;
-        };
-        if let Some(prior) = names.insert(name.as_str(), row) {
-            // `rule:routing/routes-are-compiled-not-registered`'s exception: repetitions on one method may share a
-            // name when they share a path, because then `url()` has one answer
-            // to give. Both halves are required — the same name on two methods
-            // is the copy-paste the rule was written for, and one method whose
-            // repetitions carry different paths is the ambiguity itself.
-            if prior.handler == row.handler && prior.path == row.path {
-                continue;
-            }
-            let handler = &prior.handler;
+        // A route is named by its method, so one method's routes share one
+        // path and `url()` has one answer. The first row keeps the method's
+        // path, and each later row with another path is reported against it.
+        let first = *paths.entry(row.handler.as_str()).or_insert(row);
+        if first.path != row.path {
+            let (handler, path, prior) = (&row.handler, &row.path, &first.path);
             diags.report(
                 Diagnostic::error(
-                    code::E_DUPLICATE_ROUTE_NAME,
-                    format!("the route name `{name}` is already `{handler}`'s"),
+                    code::E_ROUTE_PATHS_ON_ONE_METHOD,
+                    format!("`{handler}` already has the path `{prior}`, and this route gives `{path}`"),
                 )
-                .with_primary(*span, "this name is claimed twice")
+                .with_primary(row.span, "this route has a second path")
+                .with_secondary(first.span, "the method's first path")
                 .with_help(
-                    "a name is what `Core\\Router::url` reverses the table by, so it names one \
-                     route or it names nothing",
+                    "make the end of the path optional with `{name?}`, or serve the second path \
+                     from a second method",
                 ),
             );
-            names.insert(name.as_str(), prior);
         }
     }
     check_security(table, diags);

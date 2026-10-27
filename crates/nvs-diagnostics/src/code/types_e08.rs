@@ -1153,4 +1153,15 @@ codes! {
          interface, so change the parameter's type. A `gen:` entry names a parameter and gives \
          a range, such as `gen: { age: \"0..120\" }`. The message says which part does not fit.",
     );
+
+    /// Two `#[Route]`s on one method with different paths
+    /// (`rule:routing/routes-are-compiled-not-registered`). A route is named by its method, so
+    /// `Core\Router::url(Class::method)` would have two answers. Reported over the collected
+    /// table at the second attribute, with the first as a secondary label, like
+    /// [`crate::code::E_DUPLICATE_ROUTE`].
+    pub const E_ROUTE_PATHS_ON_ONE_METHOD: Code = Code::new("E0891").card(
+        "All `#[Route]` attributes on one method must have the same `path`. A link to the \
+         method uses this path. To make the end of a path optional, write `{name?}`, such as \
+         `/posts/{page?}`. To serve a different path, write a second method.",
+    );
 }

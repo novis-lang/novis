@@ -5,8 +5,8 @@ segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` th
 
 Two routes with the same path and the same HTTP method are `E0748`. This is true when they are in two
 classes, and when their captures only have different names, such as `/users/{id}` and
-`/users/{key}`. Two routes with one name are `E0749`. One method with several `#[Core\Route]` lines
-may give them all the same name when they all have the same path.
+`/users/{key}`. One method may have several `#[Core\Route]` lines, one for each HTTP method. They
+must all have the same path. Two different paths on one method are `E0891`.
 
 A capture parameter may be a `string`, `int`, `uint`, `decimal`, `bool` or an enum. It may also be a
 set of allowed values such as `"en"|"de"`, or a class that implements `Parses`.
