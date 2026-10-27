@@ -421,7 +421,6 @@ fn templates(path: &str) -> Vec<(String, Option<&str>)> {
     vec![(bare.to_owned(), Some(name)), (full, None)]
 }
 
-
 /// One operation object.
 ///
 /// `parameters` is omitted rather than written empty where the route declares

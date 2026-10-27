@@ -224,7 +224,11 @@ fn a_links_route_argument_is_offered_the_routed_methods_first() {
             .collect();
         routed.sort_by(|left, right| left.sort_text.cmp(&right.sort_text));
         let labels: Vec<&str> = routed.iter().map(|item| item.label.as_str()).collect();
-        assert_eq!(labels, ["Posts::about", "Posts::list", "Posts::show"], "{link}");
+        assert_eq!(
+            labels,
+            ["Posts::about", "Posts::list", "Posts::show"],
+            "{link}"
+        );
         assert_eq!(
             named(&items, "Posts::show").detail.as_deref(),
             Some("GET /posts/{id}")

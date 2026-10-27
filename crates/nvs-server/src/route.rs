@@ -529,7 +529,10 @@ mod tests {
     /// application would read and not a carrier the door still owns.
     fn handler(inbound: Inbound) -> Option<(String, Vec<(String, Param)>)> {
         let matched = inbound.route()?;
-        Some((matched.route().handler().to_owned(), matched.params().to_vec()))
+        Some((
+            matched.route().handler().to_owned(),
+            matched.params().to_vec(),
+        ))
     }
 
     /// `rule:routing/matched-once-before-the-handler`: the match is taken before the handler, it is taken once,

@@ -178,7 +178,9 @@ fn a_written_name_is_an_unknown_option() {
         .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
         .expect("`name` on `#[Route]` is E0454");
     assert!(
-        refusal.message.contains("`name` is not an option of `#[Route]`"),
+        refusal
+            .message
+            .contains("`name` is not an option of `#[Route]`"),
         "{}",
         refusal.message
     );
@@ -1580,7 +1582,10 @@ fn core_uuid_reaches_the_roster_through_the_interface_and_not_its_name() {
     assert!(!diags.has_errors(), "{diags:?}");
 
     let table = exprs.routes();
-    let mine = &table.handled_by("Posts::show").expect("the user's route").params[0];
+    let mine = &table
+        .handled_by("Posts::show")
+        .expect("the user's route")
+        .params[0];
     let engines = &table
         .handled_by("Posts::byId")
         .expect("the engine's route")

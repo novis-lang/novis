@@ -4722,45 +4722,33 @@ mod tests {
                 Route::new("Get", "/value/{id}", "App\\Shop::show", None, id())
                     .with_static_handler()
                     .with_returned_value(),
-                Route::new(
-                    "Get",
-                    "/search",
-                    "App\\Shop::search",
-                    None,
-                    Vec::new(),
-                )
-                .with_static_handler()
-                .with_queries(vec![
-                    QueryParam {
-                        name: "page".to_owned(),
-                        conv: CaptureConv::Uint,
-                        default: Some(Param::Uint(1)),
-                    },
-                    QueryParam {
-                        name: "mode".to_owned(),
-                        conv: CaptureConv::Enum {
-                            class: "App\\Mode".to_owned(),
-                            cases: vec![
-                                ("fast".to_owned(), CaseValue::Int(10)),
-                                ("slow".to_owned(), CaseValue::Int(20)),
-                            ],
+                Route::new("Get", "/search", "App\\Shop::search", None, Vec::new())
+                    .with_static_handler()
+                    .with_queries(vec![
+                        QueryParam {
+                            name: "page".to_owned(),
+                            conv: CaptureConv::Uint,
+                            default: Some(Param::Uint(1)),
                         },
+                        QueryParam {
+                            name: "mode".to_owned(),
+                            conv: CaptureConv::Enum {
+                                class: "App\\Mode".to_owned(),
+                                cases: vec![
+                                    ("fast".to_owned(), CaseValue::Int(10)),
+                                    ("slow".to_owned(), CaseValue::Int(20)),
+                                ],
+                            },
+                            default: None,
+                        },
+                    ]),
+                Route::new("Get", "/tagged", "App\\Shop::tagged", None, Vec::new())
+                    .with_static_handler()
+                    .with_queries(vec![QueryParam {
+                        name: "tag".to_owned(),
+                        conv: CaptureConv::Parses("App\\Tag".to_owned()),
                         default: None,
-                    },
-                ]),
-                Route::new(
-                    "Get",
-                    "/tagged",
-                    "App\\Shop::tagged",
-                    None,
-                    Vec::new(),
-                )
-                .with_static_handler()
-                .with_queries(vec![QueryParam {
-                    name: "tag".to_owned(),
-                    conv: CaptureConv::Parses("App\\Tag".to_owned()),
-                    default: None,
-                }]),
+                    }]),
             ])
         }
 

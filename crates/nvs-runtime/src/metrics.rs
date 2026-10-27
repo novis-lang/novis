@@ -1596,8 +1596,18 @@ mod tests {
     #[test]
     fn a_request_records_both_series_under_the_routes_path_pattern() {
         let mut registry = Registry::new(64);
-        registry.request("GET", 200, Some("/products/{id}"), Duration::from_millis(30));
-        registry.request("GET", 200, Some("/products/{id}"), Duration::from_millis(30));
+        registry.request(
+            "GET",
+            200,
+            Some("/products/{id}"),
+            Duration::from_millis(30),
+        );
+        registry.request(
+            "GET",
+            200,
+            Some("/products/{id}"),
+            Duration::from_millis(30),
+        );
         registry.request("POST", 404, None, Duration::from_millis(2));
 
         let matched = [

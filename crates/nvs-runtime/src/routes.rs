@@ -568,7 +568,6 @@ impl Route {
         &self.path
     }
 
-
     /// `Class::method` the attribute was attached to.
     #[must_use]
     pub fn handler(&self) -> &str {
@@ -1085,34 +1084,10 @@ mod tests {
             conv: CaptureConv::Text,
         };
         let routes = Routes::new(vec![
-            super::Route::new(
-                "Get",
-                "/{lang}/posts",
-                "A::lang",
-                None,
-                vec![text("lang")],
-            ),
-            super::Route::new(
-                "Get",
-                "/en/{page}",
-                "A::page",
-                None,
-                vec![text("page")],
-            ),
-            super::Route::new(
-                "Get",
-                "/en/{slug}",
-                "A::slug",
-                None,
-                vec![text("slug")],
-            ),
-            super::Route::new(
-                "Get",
-                "/{rest...}",
-                "A::rest",
-                None,
-                vec![text("rest")],
-            ),
+            super::Route::new("Get", "/{lang}/posts", "A::lang", None, vec![text("lang")]),
+            super::Route::new("Get", "/en/{page}", "A::page", None, vec![text("page")]),
+            super::Route::new("Get", "/en/{slug}", "A::slug", None, vec![text("slug")]),
+            super::Route::new("Get", "/{rest...}", "A::rest", None, vec![text("rest")]),
         ]);
         let handler = |path: &str| {
             routes
@@ -1258,13 +1233,7 @@ mod tests {
                 None,
                 text("id"),
             ),
-            super::Route::new(
-                "Get",
-                "/users/{id}",
-                "App\\Users::show",
-                None,
-                text("id"),
-            ),
+            super::Route::new("Get", "/users/{id}", "App\\Users::show", None, text("id")),
             super::Route::new("Get", "/users/me", "App\\Users::me", None, vec![]),
         ]);
         assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);

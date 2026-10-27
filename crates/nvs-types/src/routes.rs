@@ -3480,7 +3480,11 @@ fn check_operation_ids(table: &RouteTable, diags: &mut Diagnostics) {
         if first.handler == row.handler {
             continue;
         }
-        let at = |row: &Route| row.operation_id.as_ref().map_or(row.span, |(_, span)| *span);
+        let at = |row: &Route| {
+            row.operation_id
+                .as_ref()
+                .map_or(row.span, |(_, span)| *span)
+        };
         diags.report(
             Diagnostic::error(
                 code::E_API_CONTRADICTS_THE_CODE,
@@ -3493,7 +3497,9 @@ fn check_operation_ids(table: &RouteTable, diags: &mut Diagnostics) {
             )
             .with_primary(at(row), "this `operationId` is already used")
             .with_secondary(at(first), "the first method with this `operationId`")
-            .with_help("Each operation needs its own `operationId`. Change it on one of the two methods."),
+            .with_help(
+                "Each operation needs its own `operationId`. Change it on one of the two methods.",
+            ),
         );
     }
 }
