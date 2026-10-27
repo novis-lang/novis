@@ -34,7 +34,7 @@ stages:
         rules: [routing/a-match-is-not-invocable, core-classes/router-signed-url, routing/api-document-is-generated-from-the-route-table, observability/route-label-is-the-path-pattern]
   - id: 5
     title: the editor follows a link to its method
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/definition.rs]
     extra:
       context:
@@ -301,9 +301,9 @@ Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `t
 
 **Does:** the editor treats the link's first argument as the method reference it is.
 
-- [ ] Completion in the first argument of `url`, `urlAbsolute`, `urlSigned` and `Match::is` offers the methods that carry a `#[Route]` first (`route_names` is already deleted); `route_keys` already reads the route of the written reference. `crates/nvs-lsp/src/completion.rs:744`, `crates/nvs-lsp/src/completion.rs:1222`
-- [ ] The `RouteLink`/`RouteIs` go-to-definition reads the reference; find-references and rename on a route method include its links. `crates/nvs-lsp/src/arguments.rs:152`, `crates/nvs-lsp/src/definition.rs:901`
-- [ ] Tests: a first-argument completion test, the `.lspt` case rewritten, plus a find-references case over a link. `crates/nvs-lsp/tests/completion_edits.rs:184`, `tests/lsp/definition/a-link-to-a-declared-route-answers-its-stub.lspt:1`
+- [x] Completion in the first argument of `url`, `urlAbsolute`, `urlSigned` and `Match::is` offers the methods that carry a `#[Route]` first (`route_names` is already deleted); `route_keys` already reads the route of the written reference. `crates/nvs-lsp/src/completion.rs:744`, `crates/nvs-lsp/src/completion.rs:1222`
+- [x] The `RouteLink`/`RouteIs` go-to-definition reads the reference; find-references and rename on a route method include its links. `crates/nvs-lsp/src/arguments.rs:152`, `crates/nvs-lsp/src/definition.rs:901`
+- [x] Tests: a first-argument completion test, the `.lspt` case rewritten, plus a find-references case over a link. `crates/nvs-lsp/tests/completion_edits.rs:184`, `tests/lsp/definition/a-link-to-a-declared-route-answers-its-stub.lspt:1`
 
 ### 6. every example, page and proof writes routes and links the new way, and the rules are shipped
 
@@ -340,14 +340,12 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. The metrics label is `Match::pattern`, the `operationId` is
-`Route::operation_base`, and `name` is gone from the roster, both route rows and `Route::new`.
-These pass when run by name: `crates/nvs-types/tests/routes.rs` (whole), `cargo test --lib
-router::tests`, `routes::tests` and `route::tests`, the two new openapi tests, and
-`a_link_params_key_is_offered_the_routes_parameters`. The sweep's reds were stale.
-`env-secret-proofs` passes, and the three nightly Miri failures (run 40474302703, commit
-`55b03e97a`) were fixed by `22f1e4ec4`, `e461612ce` and `c33a8b8f7`.
-
+Stages 1 to 5 are done. The editor offers routed methods at a link's route argument
+(`completion::routed_methods`, `Tier::Route`); definition, references and rename follow the
+reference with no new code, since it is an ordinary `CallableRef`. Passing when run by name:
+the new completion test, `every_completion_source_names_a_compiler_table`, and the four link
+`.lspt` cases. The sweep's reds are stale: `env-secret-proofs`' log says exit 0, and Miri run
+40474302703 predates the fixes `22f1e4ec4`, `e461612ce` and `c33a8b8f7`.
 `crates/nvs-cli/src/main.rs:1562` is the command table's `name`, not a route's, and stays.
 
 Expected red until stages 6 and 7: every `.nvs`, `.nvst`, `.lspt` and Rust test source that writes
@@ -362,12 +360,13 @@ still quote `Match::name`, and they are rebuilt at the goal end.
 
 ### Next
 
-**Stage 5, the editor.** It touches only `crates/nvs-lsp/` and `tests/lsp/`.
+**Stage 6, the corpus.** Follow its `**Split:**` line: an `Explore` subagent lists the files by
+folder, then writing subagents take one folder each, side by side, and none of them builds.
+The session builds once they all end.
 
-- [ ] Completion in a link's first argument and in `Match::is` offers the methods that carry a `#[Route]` first. `crates/nvs-lsp/src/completion.rs:744`
-- [ ] Go-to-definition, find-references and rename follow the reference in a link. `crates/nvs-lsp/src/definition.rs:901`, `crates/nvs-lsp/src/arguments.rs:152`
-- [ ] Rewrite `tests/lsp/definition/a-link-to-a-declared-route-answers-its-stub.lspt` and add a find-references case over a link. `crates/nvs-lsp/tests/completion_edits.rs:184`
-
-Then stage 6: rewrite the `.nvs` corpus by folder with writing subagents, as its `**Split:**` line says.
+- [ ] The corpus rewrite, `apps/notes/` included. `apps/notes/src/App.nvs:18`, `apps/notes/src/Pages.nvs:24`
+- [ ] `Router-Match/name/` becomes `Router-Match/is/`. `docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`
+- [ ] The `about.md` files and reference chapters. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
+- [ ] The rules stage 1 set `designed` are `shipped`. `data/rules/routing/route-attribute.json:1`
 
 ### Backlog
