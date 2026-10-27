@@ -1,5 +1,5 @@
 A string is never a `callable`. `callable $f = "strlen";` is the error `E0418`. Write a method
-reference such as `Core\Str::length(...)` instead.
+reference such as `Core\Str::length` instead.
 
 Any class instance can be assigned to an `object` variable. You can read a property through it by
 name, and the result is `mixed`. A property the object does not have throws a `RuntimeError`.

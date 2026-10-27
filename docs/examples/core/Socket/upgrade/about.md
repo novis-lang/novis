@@ -1,7 +1,7 @@
 Turns a request into a WebSocket connection. A WebSocket connection stays open, so the client and
 the server can send each other messages at any time.
 
-You name what the connection runs: the path of a file, or a static method written `Chat::run(...)`.
+You name what the connection runs: the path of a file, or a static method written `Chat::run`.
 The connection starts when the request ends. It runs in its own isolate (a separate copy of the
 program that shares no memory with the request). `args:` copies values into it.
 

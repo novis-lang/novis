@@ -73,8 +73,8 @@ class User
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
-// when the class carries none. `User::constructor(...)` names the class itself.
-?Table $table = Core\Attributes::get<Table>(User::constructor(...));
+// when the class carries none. `User::constructor` names the class itself.
+?Table $table = Core\Attributes::get<Table>(User::constructor);
 if ($table != null) {
     // This prints `users`.
     echo $table->name, "\n";
@@ -84,7 +84,7 @@ if ($table != null) {
 class Session
 {}
 
-?Table $none = Core\Attributes::get<Table>(Session::constructor(...));
+?Table $none = Core\Attributes::get<Table>(Session::constructor);
 echo $none == null ? "no table name\n" : "a table name\n";
 ```
 
@@ -118,7 +118,7 @@ class Invoice
 
 // `Core\Attributes::all` returns every attached value that fits the shape, in
 // the order you wrote them. This prints 2, `billing` and `nightly`.
-array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor(...));
+array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor);
 echo Core\Arr::count($tags), "\n";
 foreach ($tags as Tag $tag) {
     echo $tag->label, "\n";
@@ -126,14 +126,14 @@ foreach ($tags as Tag $tag) {
 
 // A property and a parameter can carry an attribute too. The second argument is
 // the name of the property or the parameter. This prints `money`.
-?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor(...), 'cents');
+?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor, 'cents');
 if ($onProperty != null) {
     echo $onProperty->label, "\n";
 }
 
 // The attribute on the parameter `$to` was written without a name. You read it
 // back by writing the shape you expect. This prints `config`.
-?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send(...), 'to');
+?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send, 'to');
 if ($onParameter != null) {
     echo $onParameter->from, "\n";
 }
@@ -204,9 +204,9 @@ class ChargeCards implements Job
 }
 
 array<Job::Meta> $schedule = [];
-$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor) ?? throw new RuntimeError('no job');
 
 foreach ($schedule as Job::Meta $job) {
     string $mark = $job->level == Job::Level::Urgent ? ' (urgent)' : '';
@@ -259,8 +259,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 returns the one attribute that matches the shape you write, or `null` when nothing matches. `all`
 returns every match, in the order the attributes are written, and an empty list when nothing matches.
 
-You name the declaration with a method reference: `Users::show(...)` for a method, and
-`Users::constructor(...)` for the class itself. A second argument names one property or one parameter of
+You name the declaration with a method reference: `Users::show` for a method, and
+`Users::constructor` for the class itself. A second argument names one property or one parameter of
 that declaration, and you then get the attributes on that one. This name must be written out. If you
 write a variable there, the result is `null` or an empty list.
 
@@ -275,21 +275,21 @@ there is no lookup while the program runs.
 The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
 for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
 
-Every class has a constructor, even when you do not write one. So `Users::constructor(...)` always
+Every class has a constructor, even when you do not write one. So `Users::constructor` always
 names the class.
 
 The first argument must be a method reference written in the call. A variable that contains one is
 `E0730`. A method that is `private` is `E0471` outside its class. A static method is named the same
-way, as `Orders::show(...)`.
+way, as `Orders::show`.
 
 A property or parameter name written in quotes is checked. A name that the class or the method does
-not have is `E0798`. For the parameters of the constructor, use `Users::constructor(...)` and the
+not have is `E0798`. For the parameters of the constructor, use `Users::constructor` and the
 parameter's name. For a promoted constructor parameter, you get the attributes on the parameter and
 on the property together.
 
-A subclass does not get its parent's attributes. `B::constructor(...)` finds nothing when only the
-parent class `A` has the attribute. `B::show(...)` also finds nothing when `show` is declared in `A`,
-even if `B` does not override it. An interface method's attributes are read with `I::m(...)`.
+A subclass does not get its parent's attributes. `B::constructor` finds nothing when only the
+parent class `A` has the attribute. `B::show` also finds nothing when `show` is declared in `A`,
+even if `B` does not override it. An interface method's attributes are read with `I::m`.
 
 `all<{}>` returns every attribute on the declaration, also the attributes Novis reads itself, such as
 `#[Core\Json\Derive]`.
@@ -328,13 +328,13 @@ class Article
 }
 
 // This prints `news`, `sport` and `local`, one per line, in that order.
-array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish(...));
+array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish);
 foreach ($tags as Tag $tag) {
     echo $tag->name, "\n";
 }
 
 // `archive` carries no attribute. The result is an empty list, so this prints 0.
-array<Tag> $none = Core\Attributes::all<Tag>(Article::archive(...));
+array<Tag> $none = Core\Attributes::all<Tag>(Article::archive);
 echo Core\Arr::count($none), "\n";
 ```
 
@@ -366,16 +366,16 @@ class Product
     }
 }
 
-// A property of a class. `Product::constructor(...)` names the class, and
+// A property of a class. `Product::constructor` names the class, and
 // `"title"` names the property. This prints `product_title`.
-?Column $column = Core\Attributes::get<Column>(Product::constructor(...), 'title');
+?Column $column = Core\Attributes::get<Column>(Product::constructor, 'title');
 if ($column != null) {
     echo $column->name, "\n";
 }
 
-// A parameter of a method. `Product::discount(...)` names the method, and
+// A parameter of a method. `Product::discount` names the method, and
 // `"percent"` names the parameter. This prints `0 to 90`.
-?Range $range = Core\Attributes::get<Range>(Product::discount(...), 'percent');
+?Range $range = Core\Attributes::get<Range>(Product::discount, 'percent');
 if ($range != null) {
     echo $range->min, ' to ', $range->max, "\n";
 }
@@ -383,7 +383,7 @@ if ($range != null) {
 // The name must be written out, as it is above. If you write a variable there,
 // the result is `null`.
 string $field = 'title';
-?Column $computed = Core\Attributes::get<Column>(Product::constructor(...), $field);
+?Column $computed = Core\Attributes::get<Column>(Product::constructor, $field);
 echo $computed == null ? "null\n" : "a column name\n";
 ```
 
@@ -443,9 +443,9 @@ array<string> $granted = ['orders.read'];
 
 // This prints one line per action: `show` is allowed, `cancel` needs a
 // permission this user does not have, and `ping` needs none at all.
-echo Access::check('show', Core\Attributes::get<Requires>(Orders::show(...)), $granted), "\n";
-echo Access::check('cancel', Core\Attributes::get<Requires>(Orders::cancel(...)), $granted), "\n";
-echo Access::check('ping', Core\Attributes::get<Requires>(Orders::ping(...)), $granted), "\n";
+echo Access::check('show', Core\Attributes::get<Requires>(Orders::show), $granted), "\n";
+echo Access::check('cancel', Core\Attributes::get<Requires>(Orders::cancel), $granted), "\n";
+echo Access::check('ping', Core\Attributes::get<Requires>(Orders::ping), $granted), "\n";
 ```
 
 ```output
@@ -469,15 +469,15 @@ type Tag = { label: string };
 class Engine
 {}
 
-?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
+?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
 ```
 
 ```output
 error[E0728]: `Engine::constructor` has 2 attribute payloads that match this shape
    --> main.nvs:13:13
    |
-13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
+13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: write `Core\Attributes::all<T>(â€¦)`, which returns every match
 
 error: aborting due to 1 error
@@ -515,7 +515,7 @@ Novis does not read an attribute without a name. `#[{ name: "deploy", about: "â€
 metadata, even when its fields are the same as a `Core\Command`.
 
 Your code can still read these attributes with `Core\Attributes`. For example,
-`Core\Attributes::get<{ path: string }>(Home::show(...))` returns the `path` of a `#[Core\Route]`.
+`Core\Attributes::get<{ path: string }>(Home::show)` returns the `path` of a `#[Core\Route]`.
 
 Each of these attributes belongs on one kind of declaration. A `#[Core\Command]` belongs on a
 `static` method, and on a method that is not `static` it is `E0789`.
@@ -557,8 +557,8 @@ class Help
 }
 
 // This prints one line per command.
-echo Help::line(Core\Attributes::get<Row>(Jobs::import(...))), "\n";
-echo Help::line(Core\Attributes::get<Row>(Jobs::export(...))), "\n";
+echo Help::line(Core\Attributes::get<Row>(Jobs::import)), "\n";
+echo Help::line(Core\Attributes::get<Row>(Jobs::export)), "\n";
 ```
 
 ```output
@@ -593,7 +593,7 @@ class Reports
     {}
 }
 
-?Command $mine = Core\Attributes::get<Command>(Reports::daily(...));
+?Command $mine = Core\Attributes::get<Command>(Reports::daily);
 
 // This prints `import runs every night`.
 if ($mine != null) {
@@ -636,7 +636,7 @@ var $payment = new Payment('PAY-1042', 2599);
 echo Core\Json::encode($payment), "\n";
 
 // Your own attribute is read with `Core\Attributes::get`.
-?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor(...));
+?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor);
 if ($owner != null) {
     echo 'owned by ', $owner->by, ' since ', $owner->since, "\n";
 }
@@ -1881,7 +1881,7 @@ class Backup
 // You can read the table back with `Core\Attributes::get`. This prints
 // `backup: Copy the database to a file`.
 type Command = { name: string, about: string };
-?Command $command = Core\Attributes::get<Command>(Backup::backup(...));
+?Command $command = Core\Attributes::get<Command>(Backup::backup);
 if ($command != null) {
     echo $command->name, ': ', $command->about, "\n";
 }
@@ -1925,8 +1925,8 @@ class Serve
 array<Option> $options = [];
 // Write the parameter name here. A name you compute is not looked up, and the
 // result is `null`.
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'listenPort') ?? throw new RuntimeError('no option');
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'silent') ?? throw new RuntimeError('no option');
+$options[] = Core\Attributes::get<Option>(Serve::serve, 'listenPort') ?? throw new RuntimeError('no option');
+$options[] = Core\Attributes::get<Option>(Serve::serve, 'silent') ?? throw new RuntimeError('no option');
 
 foreach ($options as Option $option) {
     echo '  -', $option->short, ', --', $option->long, '  ', $option->about, "\n";
@@ -2026,13 +2026,13 @@ foreach (Core\Program::implementing<Tool>() as Tool $tool) {
     // from the attribute rather than from a second string.
     ?Command $command = null;
     if ($name == 'migrate') {
-        $command = Core\Attributes::get<Command>(Migrate::migrate(...));
+        $command = Core\Attributes::get<Command>(Migrate::migrate);
     }
     if ($name == 'purge') {
-        $command = Core\Attributes::get<Command>(Purge::purge(...));
+        $command = Core\Attributes::get<Command>(Purge::purge);
     }
     if ($name == 'seed') {
-        $command = Core\Attributes::get<Command>(Seed::seed(...));
+        $command = Core\Attributes::get<Command>(Seed::seed);
     }
     if ($command != null) {
         echo '  ', Core\Str::padEnd($command->name, 10), $command->about, "\n";
@@ -2399,7 +2399,7 @@ finds the attributes on the constructor. A property is written without the `$`, 
 double quotes, `"$total"` is a variable in the string, so it is `E0301` when no such variable
 exists. A promoted constructor parameter is a property, and its name gives the attributes written
 on that parameter. A constructor parameter that is not promoted is not found. To read its
-attributes, use `Core\Attributes::get` with `Report::constructor(...)` and the parameter's name.
+attributes, use `Core\Attributes::get` with `Report::constructor` and the parameter's name.
 
 A name that one of the classes does not have is `E0798`, and the message names that class. A
 method that a class inherits counts as one it has. Its attributes are not read, so that row's

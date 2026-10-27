@@ -1,7 +1,7 @@
 Turns a request into an event stream that stays open after the request ends. The server can then
 send the client new events at any time, for example each time something is published on a topic.
 
-You name what the stream runs: the path of a file, or a static method written `Feed::run(...)`.
+You name what the stream runs: the path of a file, or a static method written `Feed::run`.
 The stream starts when the request ends. It runs in its own isolate (a separate copy of the program
 that shares no memory with the request). `args:` copies values into it. Inside the stream,
 `Core\Sse::current()` returns the stream to send on.

@@ -2,8 +2,8 @@
 returns the one attribute that matches the shape you write, or `null` when nothing matches. `all`
 returns every match, in the order the attributes are written, and an empty list when nothing matches.
 
-You name the declaration with a method reference: `Users::show(...)` for a method, and
-`Users::constructor(...)` for the class itself. A second argument names one property or one parameter of
+You name the declaration with a method reference: `Users::show` for a method, and
+`Users::constructor` for the class itself. A second argument names one property or one parameter of
 that declaration, and you then get the attributes on that one. This name must be written out. If you
 write a variable there, the result is `null` or an empty list.
 

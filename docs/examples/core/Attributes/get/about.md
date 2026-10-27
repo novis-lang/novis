@@ -5,9 +5,9 @@ You write the shape between `<` and `>` at the call. An attribute matches when i
 that shape names, even when it has more. Test the result against `null` before you read a field out
 of it.
 
-Name the declaration by writing it with `(...)` in place of its arguments. `User::constructor(...)`
-names the class `User` itself, and `User::save(...)` names its method `save`. For a property or a
-parameter, add its name as a second argument.
+Name the declaration with a method reference, which is the method's name without a call.
+`User::constructor` names the class `User` itself, and `User::save` names its method `save`. For a
+property or a parameter, add its name as a second argument.
 
 **Good to know:** two matching attributes on one declaration do not compile, and the error names
 `Core\Attributes::all` as the member that returns both. Novis reads the attributes while it compiles

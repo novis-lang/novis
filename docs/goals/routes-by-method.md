@@ -13,7 +13,7 @@ stages:
         rules: [expressions/method-reference, routing/route-attribute, routing/routes-are-compiled-not-registered, routing/a-method-is-one-endpoint-everywhere, routing/matching-is-not-dispatching, routing/a-match-is-not-invocable, routing/link-target-and-params-are-checked, routing/link-carries-the-mount-prefix, routing/api-document-is-generated-from-the-route-table, core-classes/router-signed-url, observability/route-label-is-the-path-pattern, types/callable-values]
   - id: 2
     title: "`Class::method` without `(...)` is a method reference everywhere"
-    status: open
+    status: done
     context: [crates/nvs-syntax/src/parser/expr.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/members.rs, crates/nvs-hir/src/members.rs]
     extra:
       context:
@@ -198,10 +198,10 @@ Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `t
 - [x] `Class::method(...)`, `self::method(...)` and `static::method(...)` are refused with a new code and a fix that drops the `(...)`; `$obj->method(...)` is unchanged. `crates/nvs-syntax/src/parser/expr.rs:1132`, `crates/nvs-types/src/expr/calls.rs:240`, `crates/nvs-diagnostics/src/code/types_e07.rs:1`
 - [x] A method reference as an expression statement is refused with a new code and the fix `Class::method()`; a reference where a non-callable type is expected adds the same hint to its message. `crates/nvs-types/src/expr/calls.rs:1`
 - [x] Conformance cases: a bare reference called through a variable, `self::` and `static::` references, the refused `(...)` form, and the dropped reference. `tests/conformance/core/a-bare-method-reference-is-a-callable.nvst:1`, `tests/conformance/reject/a-static-method-reference-with-dots-is-refused.nvst:1`, `tests/conformance/reject/a-dropped-method-reference-is-refused.nvst:1`
-- [ ] The corpus rewrite in **Split**. `docs/examples/lang/expressions/calls/04-every-way-to-write-a-call.nvs:1`
+- [x] The corpus rewrite in **Split**. `docs/examples/lang/expressions/calls/04-every-way-to-write-a-call.nvs:1`
   - [x] every `.nvs`, `.nvst` and Rust test source, and every diagnostic's help, writes the bare form
-  - [ ] every `.md` under `docs/` that shows a reference writes the bare form; a call with elided arguments keeps `(...)`
-  - [ ] every website page under `website/src/content/docs/` does too, and the generated `website/src/data/core.json` and `website/public/llms-full.txt` are written again
+  - [x] every `.md` under `docs/` that shows a reference writes the bare form; a call with elided arguments keeps `(...)`
+  - [x] every website page under `website/src/content/docs/` does too, and the generated `website/src/data/core.json` and `website/public/llms-full.txt` are written again
 
 ### 3. `#[Route]` has no `name`, and a link names its route by a method reference
 

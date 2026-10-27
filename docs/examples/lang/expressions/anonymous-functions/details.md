@@ -23,9 +23,9 @@ parameters and return type. Outside the function, `fact` is the error `E0320`.
 
 `$this` outside a method, or inside a `static` method, is the error `E0779`.
 
-A method reference names a method with `(...)` in place of the arguments. `Core\Str::length(...)`,
-`$p->add(...)`, `self::f(...)` and `static::f(...)` each give a callable. A method that does not
-exist is the error `E0405`.
+A method reference names a method without calling it. `Core\Str::length`, `self::f` and
+`static::f` each give a callable. On an object, write `(...)` in place of the arguments:
+`$p->add(...)`. A method that does not exist is the error `E0405`.
 
 `bindTo`, `bind` and `call` can throw a `LogicError` for the wrong object. Its message starts
 ``this callable uses `$this`, so it can only be bound to an object of class `A` ``. A function that does not use `$this` is returned unchanged, so any object works. A second

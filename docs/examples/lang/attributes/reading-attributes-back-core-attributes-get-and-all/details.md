@@ -3,21 +3,21 @@
 The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
 for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
 
-Every class has a constructor, even when you do not write one. So `Users::constructor(...)` always
+Every class has a constructor, even when you do not write one. So `Users::constructor` always
 names the class.
 
 The first argument must be a method reference written in the call. A variable that contains one is
 `E0730`. A method that is `private` is `E0471` outside its class. A static method is named the same
-way, as `Orders::show(...)`.
+way, as `Orders::show`.
 
 A property or parameter name written in quotes is checked. A name that the class or the method does
-not have is `E0798`. For the parameters of the constructor, use `Users::constructor(...)` and the
+not have is `E0798`. For the parameters of the constructor, use `Users::constructor` and the
 parameter's name. For a promoted constructor parameter, you get the attributes on the parameter and
 on the property together.
 
-A subclass does not get its parent's attributes. `B::constructor(...)` finds nothing when only the
-parent class `A` has the attribute. `B::show(...)` also finds nothing when `show` is declared in `A`,
-even if `B` does not override it. An interface method's attributes are read with `I::m(...)`.
+A subclass does not get its parent's attributes. `B::constructor` finds nothing when only the
+parent class `A` has the attribute. `B::show` also finds nothing when `show` is declared in `A`,
+even if `B` does not override it. An interface method's attributes are read with `I::m`.
 
 `all<{}>` returns every attribute on the declaration, also the attributes Novis reads itself, such as
 `#[Core\Json\Derive]`.

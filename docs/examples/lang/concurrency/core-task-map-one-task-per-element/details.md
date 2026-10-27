@@ -5,7 +5,7 @@ must have the type of the array's elements.
 The result is an array of the function's return type. `Core\Task::map([1, 2], fn(int $v): int => …)`
 returns an `array<int>`.
 
-The function can be written in place, or be a method reference such as `Prices::of(...)`. A
+The function can be written in place, or be a method reference such as `Prices::of`. A
 variable of type `callable(int): int` works too. A variable of type `callable`, with no signature,
 is `E0401`.
 

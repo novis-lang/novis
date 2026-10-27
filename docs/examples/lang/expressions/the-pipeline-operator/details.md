@@ -16,7 +16,7 @@ second pipeline in an argument, or an anonymous function in an argument that use
 
 These are the three errors:
 
-- A step without `$_` is the error `E0129`. A method reference such as `Core\Str::upper(...)` and an
+- A step without `$_` is the error `E0129`. A method reference such as `Core\Str::upper` and an
   anonymous function are steps without `$_` too.
 - A step with `$_` twice is the error `E0130`. Store the value in a variable first.
 - `$_` anywhere else is the error `E0131`. This includes `$_` as a parameter name, and the second

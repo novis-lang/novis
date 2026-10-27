@@ -2,7 +2,7 @@ The types for things that are not plain values: a function you can pass around, 
 object, and an object described by the fields it has.
 
 A `callable` is an anonymous function written with `fn`, or a method reference such as
-`Core\Str::length(...)`. A class, interface or enum name is a type, and `object` is the type every
+`Core\Str::length`. A class, interface or enum name is a type, and `object` is the type every
 instance fits. A shape describes an object by its fields. `as Point` checks that a value has those
 fields and throws an error if not. `is Point` gives `true` or `false`.
 

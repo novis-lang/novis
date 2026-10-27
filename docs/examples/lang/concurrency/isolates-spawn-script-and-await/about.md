@@ -7,7 +7,7 @@ file returned, and you convert it with `as`. `output` is what the file printed, 
 
 A path in quotes starts at the folder of the file that contains it. A path you build at run time
 must be a full path, or `spawn script` throws `RuntimeError`. Build one with `Core\Path::join`. You
-can also start a static method, written `Class::method(...)`.
+can also start a static method, written `Class::method`.
 
 A static method and a file inside your application folder need no capability. A file outside that
 folder needs the `script.spawn` capability. You can await one handle once. A second `await` of the

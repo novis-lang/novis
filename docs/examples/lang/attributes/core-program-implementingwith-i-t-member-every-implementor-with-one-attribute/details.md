@@ -14,7 +14,7 @@ finds the attributes on the constructor. A property is written without the `$`, 
 double quotes, `"$total"` is a variable in the string, so it is `E0301` when no such variable
 exists. A promoted constructor parameter is a property, and its name gives the attributes written
 on that parameter. A constructor parameter that is not promoted is not found. To read its
-attributes, use `Core\Attributes::get` with `Report::constructor(...)` and the parameter's name.
+attributes, use `Core\Attributes::get` with `Report::constructor` and the parameter's name.
 
 A name that one of the classes does not have is `E0798`, and the message names that class. A
 method that a class inherits counts as one it has. Its attributes are not read, so that row's

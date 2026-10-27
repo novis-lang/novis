@@ -701,7 +701,7 @@ The types for things that are not plain values: a function you can pass around, 
 object, and an object described by the fields it has.
 
 A `callable` is an anonymous function written with `fn`, or a method reference such as
-`Core\Str::length(...)`. A class, interface or enum name is a type, and `object` is the type every
+`Core\Str::length`. A class, interface or enum name is a type, and `object` is the type every
 instance fits. A shape describes an object by its fields. `as Point` checks that a value has those
 fields and throws an error if not. `is Point` gives `true` or `false`.
 
@@ -716,7 +716,7 @@ report class from a name in quotes and from a setting. The last two get the clas
 back, and show a shape without a name as a compile error.
 
 A string is never a `callable`. `callable $f = "strlen";` is the error `E0418`. Write a method
-reference such as `Core\Str::length(...)` instead.
+reference such as `Core\Str::length` instead.
 
 Any class instance can be assigned to an `object` variable. You can read a property through it by
 name, and the result is `mixed`. A property the object does not have throws a `RuntimeError`.
@@ -5013,7 +5013,7 @@ because `<` does not compare strings. `"3" == 3` is `E0466`, because a `string` 
 `list($a, $b) = $pair;` does not compile (`E0230`). Write `[int $a, int $b] = $pair;`.
 
 A string is never a `callable`, so `callable $c = "strlen";` is `E0418`. A `callable` is an
-anonymous function such as `fn (int $n) => $n + 1`, or a method reference such as `Foo::bar(...)`. A
+anonymous function such as `fn (int $n) => $n + 1`, or a method reference such as `Foo::bar`. A
 handle, such as an open file or a database connection, is a `Core` object.
 
 A conversion never cuts off a fraction. `3.9 as int` throws an `ArithmeticError`, and `3.9 as ?int`

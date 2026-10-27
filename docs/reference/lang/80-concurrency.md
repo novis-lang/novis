@@ -147,8 +147,8 @@ class Store
 
 // Neither answer needs the other, so both are asked for at the same time.
 var $page = Core\Task::all({
-    customer: Store::customer(...),
-    orders: Store::orders(...),
+    customer: Store::customer,
+    orders: Store::orders,
 });
 
 echo $page->customer, "\n";
@@ -242,7 +242,7 @@ var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
     here:   fn(): string => 'written in place',
-    method: Stock::onHand(...),
+    method: Stock::onHand,
     kept:   $kept,
 });
 
@@ -285,9 +285,9 @@ class Catalog
 }
 
 var $page = Core\Task::all({
-    product: Catalog::product(...),
-    stock:   Catalog::stock(...),
-    reviews: Catalog::reviews(...),
+    product: Catalog::product,
+    stock:   Catalog::stock,
+    reviews: Catalog::reviews,
 });
 
 echo $page->product, "\n";
@@ -351,7 +351,7 @@ must have the type of the array's elements.
 The result is an array of the function's return type. `Core\Task::map([1, 2], fn(int $v): int => …)`
 returns an `array<int>`.
 
-The function can be written in place, or be a method reference such as `Prices::of(...)`. A
+The function can be written in place, or be a method reference such as `Prices::of`. A
 variable of type `callable(int): int` works too. A variable of type `callable`, with no signature,
 is `E0401`.
 
@@ -987,7 +987,7 @@ file returned, and you convert it with `as`. `output` is what the file printed, 
 
 A path in quotes starts at the folder of the file that contains it. A path you build at run time
 must be a full path, or `spawn script` throws `RuntimeError`. Build one with `Core\Path::join`. You
-can also start a static method, written `Class::method(...)`.
+can also start a static method, written `Class::method`.
 
 A static method and a file inside your application folder need no capability. A file outside that
 folder needs the `script.spawn` capability. You can await one handle once. A second `await` of the
@@ -1459,7 +1459,7 @@ var $sum = await spawn script 'jobs/add-up.nvs' with(args: [10, 20, 30]);
 echo 'total: ', $sum->value as int, "\n";
 
 // Each key of the array is the name of one parameter.
-var $report = await spawn script Report::title(...) with(args: ['month' => 'July', 'year' => 2026]);
+var $report = await spawn script Report::title with(args: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";
 ```
 
@@ -2070,8 +2070,8 @@ class Orders
 // No function here is marked `async`, and none of them returns a promise.
 // Each field is a function that takes no arguments.
 var $page = Core\Task::all({
-    total: Orders::total(...),
-    title: Orders::title(...),
+    total: Orders::total,
+    title: Orders::title,
     note:  fn(): string => 'ready',
 });
 
@@ -2111,9 +2111,9 @@ class Report
 // The first kind of entry is a file. The path starts at the folder of this file.
 var $file = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 
-// The second kind is a static method, written `Class::method(...)`. `args:` gives it
+// The second kind is a static method, written `Class::method`. `args:` gives it
 // the values its parameters need.
-var $method = spawn script Report::build(...) with(args: ['days' => 7]);
+var $method = spawn script Report::build with(args: ['days' => 7]);
 
 // An anonymous function is not allowed as the entry, because it captures variables.
 // A spawned file shares nothing with your program except compiled code.

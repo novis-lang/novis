@@ -11,7 +11,7 @@ Novis does not read an attribute without a name. `#[{ name: "deploy", about: "â€
 metadata, even when its fields are the same as a `Core\Command`.
 
 Your code can still read these attributes with `Core\Attributes`. For example,
-`Core\Attributes::get<{ path: string }>(Home::show(...))` returns the `path` of a `#[Core\Route]`.
+`Core\Attributes::get<{ path: string }>(Home::show)` returns the `path` of a `#[Core\Route]`.
 
 Each of these attributes belongs on one kind of declaration. A `#[Core\Command]` belongs on a
 `static` method, and on a method that is not `static` it is `E0789`.

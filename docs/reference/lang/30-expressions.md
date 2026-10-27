@@ -2741,7 +2741,7 @@ second pipeline in an argument, or an anonymous function in an argument that use
 
 These are the three errors:
 
-- A step without `$_` is the error `E0129`. A method reference such as `Core\Str::upper(...)` and an
+- A step without `$_` is the error `E0129`. A method reference such as `Core\Str::upper` and an
   anonymous function are steps without `$_` too.
 - A step with `$_` twice is the error `E0130`. Store the value in a variable first.
 - `$_` anywhere else is the error `E0131`. This includes `$_` as a parameter name, and the second
@@ -2860,15 +2860,15 @@ a-b-c 10
 // proof: compile-error
 
 string $s = "hi";
-echo $s |> Core\Str::upper(...), "\n";
+echo $s |> Core\Str::upper, "\n";
 ```
 
 ```output
 error[E0129]: the right side of `|>` needs the hole `$_`
   --> main.nvs:6:12
   |
-6 | echo $s |> Core\Str::upper(...), "\n";
-  |            ^^^^^^^^^^^^^^^^^^^^ no `$_` here, so the piped value has nowhere to go
+6 | echo $s |> Core\Str::upper, "\n";
+  |            ^^^^^^^^^^^^^^^ no `$_` here, so the piped value has nowhere to go
   = help: write the hole where the value goes — `Str::trim($_)`
   = note: PHP 8.5's `|>` applies a callable; Novis's substitutes `$_` at compile time
 
@@ -2951,9 +2951,9 @@ parameters and return type. Outside the function, `fact` is the error `E0320`.
 
 `$this` outside a method, or inside a `static` method, is the error `E0779`.
 
-A method reference names a method with `(...)` in place of the arguments. `Core\Str::length(...)`,
-`$p->add(...)`, `self::f(...)` and `static::f(...)` each give a callable. A method that does not
-exist is the error `E0405`.
+A method reference names a method without calling it. `Core\Str::length`, `self::f` and
+`static::f` each give a callable. On an object, write `(...)` in place of the arguments:
+`$p->add(...)`. A method that does not exist is the error `E0405`.
 
 `bindTo`, `bind` and `call` can throw a `LogicError` for the wrong object. Its message starts
 ``this callable uses `$this`, so it can only be bound to an object of class `A` ``. A function that does not use `$this` is returned unchanged, so any object works. A second

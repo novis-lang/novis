@@ -7,7 +7,7 @@ keywords: attribute, metadata, annotation, #[...], read attributes, attribute ar
 shape `T` written at the call site, or `null`; `all<T>` returns every one in declaration order, as
 `array<T>`. Retrieval is structural. A payload object attached bare (`#[{ audit: true }]`) or under a
 `type` name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
-is a class's `Class::constructor(...)` or a method's `Class::method(...)` reference, and the second
+is a class's `Class::constructor` or a method's `Class::method` reference, and the second
 argument names one of its properties or parameters; the call is resolved in `nvs check`, so a
 computed member name answers nothing, and two matches for `get` is a compile error naming `all`.
 
@@ -29,17 +29,17 @@ class Controller
     }
 }
 
-?Route $route = Core\Attributes::get<Route>(Controller::constructor(...));
+?Route $route = Core\Attributes::get<Route>(Controller::constructor);
 echo 'class: ', $route?->path ?? 'none', "\n";
-?{ audit: bool } $audit = Core\Attributes::get<{ audit: bool }>(Controller::constructor(...));
+?{ audit: bool } $audit = Core\Attributes::get<{ audit: bool }>(Controller::constructor);
 echo 'audit: ', ($audit != null ? 'yes' : 'no'), "\n";
-?{ column: string } $column = Core\Attributes::get<{ column: string }>(Controller::constructor(...), 'name');
+?{ column: string } $column = Core\Attributes::get<{ column: string }>(Controller::constructor, 'name');
 echo 'column: ', $column?->column ?? 'none', "\n";
-?Route $method = Core\Attributes::get<Route>(Controller::show(...));
+?Route $method = Core\Attributes::get<Route>(Controller::show);
 echo 'method: ', $method?->path ?? 'none', "\n";
-?{ inject: string } $param = Core\Attributes::get<{ inject: string }>(Controller::show(...), 'id');
+?{ inject: string } $param = Core\Attributes::get<{ inject: string }>(Controller::show, 'id');
 echo 'param: ', $param?->inject ?? 'none', "\n";
-array<Route> $none = Core\Attributes::all<Route>(Controller::show(...), 'id');
+array<Route> $none = Core\Attributes::all<Route>(Controller::show, 'id');
 echo 'none: ', Core\Arr::count($none), "\n";
 ```
 ```output
