@@ -27,7 +27,7 @@ stages:
         rules: [testing/feature-proofs, routing/a-bad-query-value-is-a-400, testing/hostile-case-contract]
   - id: 4
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: owners-closes
@@ -149,51 +149,35 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done. The last stage 3 item landed in `6171124eb`. A method reference to a
-`Core` member stops before its options bag. The checker types `Core\Str::split(...)` as
-`callable(string, string): array<string>`, and the thunk passes each option's default through
-`Lowering::lower_default_arg`, as a direct call that omits the bag does. `nvs_types::method_ref_arity`
-(`crates/nvs-types/src/expr/calls.rs`) is the one count both read. A required `Core` shape, such as
-`Core\Db::open`'s settings, is now `E0793`, with its card and help text widened. The gap record and its
-playbook trap are deleted. `bun nv owners --closes query-binding` exits 0.
+Every stage is done, and the goal is reached. The gate's fixes landed in `0c0b81a70`. The first
+`bun nv affected --run` found three causes, fixed in one pass:
 
-`f3623661a` fixed the user's two CI reds. `Core\Router\Refusal`'s `about.md` was 201 words, and its
-rows are shorter now. `syntax/attributes/routes.mdx` names the query `400`, and the page and the
-questions of `/reference/types/router-refusal/` and `/syntax/attributes/routes/` are restamped.
-`bun nv ci --check` is green on every line.
+- The shipped rule `routing/a-bad-query-value-is-a-400` still named the goal (`nv check`). Its record
+  names none now, and `docs/rules/routing.md` and `docs/ground-rules.md` are rendered again.
+- `conformance_coverage` found the four throws in `query_value` asserted by no case. `dispatch`
+  catches each and answers `400`, so no program reads the message. Each site now says "no case can
+  reach this" and names `a_query_value_that_does_not_bind_is_a_400_before_allows`.
+- `crates/nvs-types/tests/provenance.rs` climbed from `CARGO_MANIFEST_DIR`. It reads `crates`
+  through `nvs_repo::path` now.
 
-The sweep's reds are not this tree's. `env-secret-proofs` passes when rerun. The nightly run
-40291801939 tested `d6f13175`, 222 commits back. Its failures were already fixed on main: the
-yanked `crypto-bigint` in `c244b4b36`, the counted-run test in `9c8b0fe16` and `e384a0ae8`, and the
-Linux dap hang in `d44a2343e`, `b4bdd3af6`, `0288e849d` and `c7f684405`.
+The second run is green, 23 of 23, and the two image cases passed in it. No `E0793` pin went red.
+`bun nv verify --doc`, `bun nv owners --closes query-binding` and `bun nv ci --check` are green.
 
-`cargo test --test query_sites` passes. The whole conformance tree ran once, and two image cases are red:
-`tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst` and
-`tests/conformance/novis/image-each-adjustment-changes-the-pixels-it-should.nvst`. This goal does
-not touch the image code.
+The sweep's reds were not this tree's. `env-secret-proofs`'s log shows exit 0. The nightly run
+40291801939 tested `d6f13175`, whose failures main had already fixed.
 
 ### Next
 
-**Stage 4, the gate.** Start `bun nv affected --run` with `run_in_background`, then end the turn to
-wait. Group the failures by cause, and fix them in one pass.
-
-- [ ] `bun nv affected --run` has run once over the whole goal. `tools/nv/cmd/verify.ts:1`
-- [ ] The two image cases above: run each alone first. If they are red on main without this goal, they belong to `image-second-wave`. Otherwise fix them here. `tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst:1`
-- [ ] A test that pins the `E0793` card or help text may go red, because both changed. Update it to the new text. `crates/nvs-diagnostics/src/code/types_e07.rs:1588`
-- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes query-binding` and `bun nv ci --check`. `tools/nv/cmd/ci.ts:1`
+Nothing. The goal is reached, and the driver retires it.
 
 ### Backlog
 
-- The Rust suites of `nvs-types`, `nvs-runtime`, `nvs-stdlib` and `nvs-ir`, and the `examples` test
-  over `examples/parses.nvs`, should stay green. The only tests expected to go red are a pin of
-  `E0793`'s text and the two image cases above.
-- `bun nv suite <tree> --case <path>` ran the whole tree. Check whether that is intended before you
-  rely on it to run one case.
+- No test is expected to go red.
