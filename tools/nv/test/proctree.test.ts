@@ -41,6 +41,13 @@ describe("which processes a tree holds", () => {
     expect(refused.map(([pid]) => pid)).toEqual([10, 9, 8, 20, 21]);
     expect(screen([22], table, 10, null).kill).toEqual([]);
   });
+
+  test("a child that holds the id of an exited ancestor's creator is not an ancestor", () => {
+    // 5 started long ago and names 30 as its creator; 30 exited, and the id went to this process's child.
+    const table = [row(5, 30, 1), row(9, 5, 90), row(10, 9, 100), row(30, 10, 150)];
+    expect(screen([30], table, 10, 100n).kill).toEqual([30]);
+    expect(screen([5], table, 10, 100n).refused.map(([, why]) => why)).toEqual(["it is an ancestor of this process"]);
+  });
 });
 
 describe("a live tree", () => {

@@ -210,12 +210,21 @@ export function descendants(root: number, rootStarted: bigint, table: Proc[]): n
 /**
  * Which of `pids` this tool may kill, and why each of the others may not: `self`, every ancestor of
  * `self` in `table`, and every process that started before `selfStarted` or whose start is unknown are
- * refused. An ancestor is found by creator ids alone, so a reused id refuses more, never less.
+ * refused. An ancestor is found by creator ids, and the walk stops at a creator id held by a process
+ * that started after the one naming it: a long-exited creator's id given to a later process, such as the
+ * very child a hang watch must kill. Where either start is unknown the walk goes on, so it refuses more.
  */
 export function screen(pids: number[], table: Proc[], self: number, selfStarted: bigint | null): { kill: number[]; refused: [number, string][] } {
   const byPid = new Map(table.map((p) => [p.pid, p]));
   const ancestors = new Set<number>();
-  for (let p = byPid.get(self)?.parent; p !== undefined && p !== self && !ancestors.has(p); p = byPid.get(p)?.parent) ancestors.add(p);
+  for (let child = byPid.get(self); child !== undefined; ) {
+    const p = child.parent;
+    if (p === self || ancestors.has(p)) break;
+    const holder = byPid.get(p);
+    if (holder !== undefined && holder.started !== null && child.started !== null && holder.started > child.started) break;
+    ancestors.add(p);
+    child = holder;
+  }
   const kill: number[] = [];
   const refused: [number, string][] = [];
   for (const pid of pids) {
