@@ -30,6 +30,9 @@ const SLOT = "meta.embedded.line.nvs";
 const CLASS_KEYWORD = "storage.type.class.nvs";
 const FUNCTION_KEYWORD = "storage.type.function.nvs";
 const OTHER = "keyword.other.nvs";
+const MODIFIER = "storage.modifier.nvs";
+const TYPE_NAME = "entity.name.type.nvs";
+const INHERITED = "entity.other.inherited-class.nvs";
 
 let spans: Span[];
 
@@ -48,16 +51,6 @@ function all(text: string): Span[] {
 function coloured(text: string, scope: string): void {
   for (const found of all(text)) {
     assert.ok(found.scopes.includes(scope), `${text} is ${found.scopes.join(" ")}, wanted ${scope}`);
-  }
-}
-
-/** Asserts nothing reading `text` is coloured as a name or a construct of any kind. */
-function plain(text: string): void {
-  for (const found of all(text)) {
-    for (const scope of found.scopes) {
-      assert.ok(!/^(entity|keyword|storage|constant|variable|support)\./.test(scope),
-                `${JSON.stringify(text)} is coloured ${scope}`);
-    }
   }
 }
 
@@ -87,9 +80,7 @@ describe("the name a declaration introduces", () => {
     assert.deepEqual(carrying(ENUM_NAME), ["Status", "Suit"]);
   });
 
-  it("colours a name only where something declares it", () => {
-    // `Base` is a name this file mentions rather than introduces, and layer two is what resolves it.
-    plain(" Base {");
+  it("colours a name as a declaration only where something declares it", () => {
     assert.deepEqual(carrying(CLASS_NAME), ["Order"]);
     assert.deepEqual(carrying(FUNCTION_NAME), ["total", "checkout"]);
   });
@@ -100,6 +91,30 @@ describe("the name a declaration introduces", () => {
     coloured("fn", FUNCTION_KEYWORD);
     coloured("$amount", VARIABLE);
     assert.equal(carrying(FUNCTION_NAME).length, 2, "an anonymous function was read as a declaration");
+  });
+});
+
+describe("the names a declaration builds on, and the path an import names", () => {
+  it("colours every name after extends or implements, over as many lines as the list takes", () => {
+    // Both words are reserved and stand nowhere else, so the word before the list says what it is.
+    assert.deepEqual(carrying(INHERITED),
+                     ["Base", "\\App\\Shared\\Priced", "Feed", "Countable", "Sized"]);
+    for (const word of ["extends", "implements"]) {
+      for (const found of all(word)) {
+        assert.ok(found.scopes.includes(MODIFIER), `${word} lost its own scope to the list`);
+      }
+    }
+  });
+
+  it("colours a type argument as a type, and a delegated field as a property", () => {
+    coloured("Line", TYPE_NAME);
+    coloured("by", OTHER);
+    coloured("$feed", PROPERTY);
+  });
+
+  it("colours an import's whole path as a type", () => {
+    coloured("App\\Shared\\Base", TYPE_NAME);
+    assert.ok(all("use").every((s) => s.scopes.includes(OTHER)), "use lost its keyword scope");
   });
 });
 

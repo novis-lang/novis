@@ -19,6 +19,22 @@ call to make in someone else's editor, which is also what
 `rule:ide/tainted-has-no-default-decoration` applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
 
+The extension does turn semantic highlighting on for `.nvs` documents, with the `configurationDefaults`
+entry `"[nvs]": { "editor.semanticHighlighting.enabled": true }`. VS Code's own default,
+`configuredByTheme`, lets a theme that sets `"semanticHighlighting": false` discard every semantic
+token, and many popular themes set it. Under such a theme layer two is gone: an attribute's class, a
+named argument and a resolved type show as body text, and the `tainted` underline and the `secret`
+emphasis never appear. Turning the setting on ships names and no colour. Without
+`semanticTokenColors` of its own, a theme colours each semantic token through the TextMate scope VS
+Code maps its type to, so the theme still decides every colour. The setting is read per language, so
+no other language's highlighting changes, and a user's own `[nvs]` setting wins over the default.
+
+**Declined:**
+
+- **Leaving the setting to the theme.** The cost is the whole of layer two under every theme that
+  opts out, and the user who meets it sees a half-coloured file with no hint of the cause.
+
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
-legend, the `semanticTokenScopes` contribution, and no colour defaults in `editors/vscode/package.json`;
-`editors/vscode/test/contributions/contributions.test.ts` asserts the last two.
+legend, the `semanticTokenScopes` contribution, the semantic highlighting default, and no colour
+defaults in `editors/vscode/package.json`; `editors/vscode/test/contributions/contributions.test.ts`
+asserts the last three.

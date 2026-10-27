@@ -13,4 +13,12 @@ endif;
 foreach ($rows as $row):
     echo $row;
 endforeach;
+use Shop\Models\{Buyer, Seller};
+use Shop\Models\Buyer as Member;
+use function Shop\helper;
+use Shop\Order::Status;
+enum Suit: string implements Labelled {}
+class Basket {
+    use Countable;
+}
 ?>

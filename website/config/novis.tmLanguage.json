@@ -131,6 +131,44 @@
       },
       "patterns": [
         {
+          "include": "#comments"
+        },
+        {
+          "include": "#attribute-arguments"
+        },
+        {
+          "match": "(::)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.accessor.nvs"
+            },
+            "2": {
+              "name": "entity.name.type.nvs"
+            }
+          }
+        },
+        {
+          "name": "entity.name.type.nvs",
+          "match": "(?<![$\\w\\\\])\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "attribute-arguments": {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "match": "(?:(?<=[(,])|^)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:(?!:))",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.nvs"
+            }
+          }
+        },
+        {
+          "include": "#attribute-arguments"
+        },
+        {
           "include": "#code"
         }
       ]
@@ -184,13 +222,37 @@
           }
         },
         {
-          "match": "(?<![$\\w])(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "(?<![$\\w])(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:(\\s*:\\s*[A-Za-z_][A-Za-z0-9_]*)?\\s+(implements)\\b(\\s*\\\\?[A-Za-z_][A-Za-z0-9_\\\\]*(?:\\s*,\\s*\\\\?[A-Za-z_][A-Za-z0-9_\\\\]*)*)?)?",
           "captures": {
             "1": {
               "name": "storage.type.class.nvs"
             },
             "2": {
               "name": "entity.name.type.enum.nvs"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#keywords"
+                }
+              ]
+            },
+            "4": {
+              "name": "storage.modifier.nvs"
+            }
+          }
+        },
+        {
+          "include": "#inherited"
+        },
+        {
+          "match": "^(use)\\s+(\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=;)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.nvs"
+            },
+            "2": {
+              "name": "entity.name.type.nvs"
             }
           }
         },
@@ -234,6 +296,46 @@
         {
           "name": "variable.other.nvs",
           "match": "\\$[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "inherited": {
+      "begin": "(?<![$\\w])(?<!->)(?<!::)(extends|implements)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "storage.modifier.nvs"
+        }
+      },
+      "end": "(?=[{;])|(?=\\?>)|(?=(?<![$\\w])implements\\b)",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#type-arguments"
+        },
+        {
+          "include": "#contextual-keywords"
+        },
+        {
+          "name": "variable.other.property.nvs",
+          "match": "\\$[A-Za-z_][A-Za-z0-9_]*"
+        },
+        {
+          "name": "entity.other.inherited-class.nvs",
+          "match": "(?<![$\\w\\\\])\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "type-arguments": {
+      "begin": "<",
+      "end": ">",
+      "patterns": [
+        {
+          "include": "#type-arguments"
+        },
+        {
+          "include": "#type"
         }
       ]
     },

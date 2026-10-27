@@ -43,7 +43,8 @@
       "[nvs]": {
         "editor.pasteAs.preferences": [
           "text.updateImports"
-        ]
+        ],
+        "editor.semanticHighlighting.enabled": true
       }
     },
     "languages": [

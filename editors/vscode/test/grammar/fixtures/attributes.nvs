@@ -1,0 +1,11 @@
+<?nvs
+class Orders {
+    #[Core\Route(path: '/orders', tags: [], method: Method::Get), Cached]
+    #[Shop\Owner::Alias]
+    #[Access(
+        allow: Audience::Public,
+        reason: $ready ? first : second,
+    )]
+    public function list(): void {}
+}
+?>

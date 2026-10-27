@@ -1,7 +1,9 @@
 <?nvs
 namespace App\Orders;
 
-final class Order extends Base {
+use App\Shared\Base;
+
+final class Order extends Base implements \App\Shared\Priced, Feed<Line> by $feed {
     enum Status { Draft, Paid }
 
     public string $label = "unnamed";
@@ -13,7 +15,8 @@ final class Order extends Base {
     }
 }
 
-interface Reader {}
+interface Reader extends Countable,
+    Sized {}
 enum Suit {}
 
 function checkout($order) {

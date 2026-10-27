@@ -509,11 +509,16 @@ describe("what the extension may depend on", () => {
 
 describe("the colour the extension does not contribute", () => {
   it("ships no colour-customization default and no theme", () => {
-    // The one default contributed is the paste preference for Novis documents, which names no
-    // colour: it is what makes a paste apply its `use` lines rather than offer them in a widget
-    // (`rule:ide/a-pasted-type-carries-its-use-line`).
+    // Two defaults are contributed for Novis documents, and neither names a colour. The paste
+    // preference makes a paste apply its `use` lines rather than offer them in a widget
+    // (`rule:ide/a-pasted-type-carries-its-use-line`). Semantic highlighting on means the server's
+    // names reach the theme even where the theme turns them off, and the theme still colours them
+    // (`rule:ide/novis-ships-names-not-colours`).
     assert.deepEqual(manifest.contributes.configurationDefaults, {
-      "[nvs]": { "editor.pasteAs.preferences": ["text.updateImports"] },
+      "[nvs]": {
+        "editor.pasteAs.preferences": ["text.updateImports"],
+        "editor.semanticHighlighting.enabled": true,
+      },
     });
     assert.equal(manifest.contributes.themes, undefined);
     for (const key of ["tokenColorCustomizations", "semanticTokenColorCustomizations", "colors"]) {

@@ -62,7 +62,7 @@
       ]
     },
     "attribute": {
-      "comment": "`#[` opens an attribute and the lexer's `#` comment branch breaks out on exactly that pair: crates/nvs-syntax/src/lexer.rs:466. A grammar that misses the distinction colours every attribute in the file, and often the rest of its line, as a comment. The body is `#code` so that a `]` inside a string stops ending the attribute as soon as the string family lands.",
+      "comment": "`#[` opens an attribute and the lexer's `#` comment branch breaks out on exactly that pair: crates/nvs-syntax/src/lexer.rs:466. A grammar that misses the distinction colours every attribute in the file, and often the rest of its line, as a comment. Its own body is names: the attribute class, which the server's layer colours as a type too, so the two layers agree before the server has started. The argument list is `#code`, so a `]` inside a string or an array does not end the attribute.",
       "name": "meta.attribute.nvs",
       "begin": "(#\\[)",
       "beginCaptures": {
@@ -72,7 +72,36 @@
       "endCaptures": {
         "1": { "name": "punctuation.definition.attribute.end.nvs" }
       },
-      "patterns": [{ "include": "#code" }]
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#attribute-arguments" },
+        {
+          "comment": "The member form `#[Owner::Name]` names an alias the owner declares, which is a type like the plain form's name.",
+          "match": "(::)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.accessor.nvs" },
+            "2": { "name": "entity.name.type.nvs" }
+          }
+        },
+        {
+          "comment": "Outside its argument list an attribute holds names and the commas between them, and every name is the class the attribute instantiates.",
+          "name": "entity.name.type.nvs",
+          "match": "(?<![$\\w\\\\])\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "attribute-arguments": {
+      "comment": "An attribute's argument list, as a region of its own so the attribute's `]` and the name pattern above stop at its parentheses: `#[Route(path: '/', tags: [])]` ends after the last `]`, not inside the array. It nests for a call written as a value. A name followed by one `:` at the start of an argument is the field it sets, coloured as the property the server's layer calls it; the `(` or `,` before it, or the start of a line, is what tells it from a ternary's `:`.",
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "match": "(?:(?<=[(,])|^)\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:(?!:))",
+          "captures": { "1": { "name": "variable.other.property.nvs" } }
+        },
+        { "include": "#attribute-arguments" },
+        { "include": "#code" }
+      ]
     },
     "comments": {
       "comment": "crates/nvs-syntax/src/lexer.rs:437 is the shape. A line comment's kind is read off its opening run of slashes and exactly three of them documents (rule:tooling/doc-comment-is-three-slashes), so `////` is a divider rather than documentation and `/**` is an ordinary block nothing reads. `#` comments to end of line at any length except `#[`, which the pattern refuses itself rather than by being listed after the attribute, so reordering these cannot silently turn every attribute into a comment.",
@@ -88,7 +117,7 @@
       "match": "\\(\\s*(?:int|uint|float|string|bool|array|object)\\s*\\)\\s*(?=[$!~@+\\-\\w\"'(\\[])"
     },
     "names": {
-      "comment": "Every name the grammar can be sure of from the token beside it. A declaration's pattern carries the keyword that introduces the name, so the name is coloured only where something declares it and `IF` in `class IF {}` is the class name rather than a mis-cased keyword (rule:classes/reserved-spellings-are-lower-case). A name reached through an accessor is a member, and the grammar stops there: which kind of member it is — a property, a class constant, a method — is what rule:ide/highlighting-is-two-layers gives layer two, so all three carry the one scope the string family already uses for `$a->b`. `::class` is the one spelling after an accessor that is not a member at all but the class-name constant (tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst), so it is offered first and coloured as the construct it is. `$this` is the receiver rather than a local, and everything else beginning `$` is a variable — that a variable holds a `tainted` or `secret` value is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
+      "comment": "Every name the grammar can be sure of from the token beside it. A declaration's pattern carries the keyword that introduces the name, so the name is coloured only where something declares it and `IF` in `class IF {}` is the class name rather than a mis-cased keyword (rule:classes/reserved-spellings-are-lower-case). A name a declaration builds on, after `extends` or `implements`, and the path an import names are the two places a name is coloured without being declared: the word before each says it is a type. A name reached through an accessor is a member, and the grammar stops there: which kind of member it is — a property, a class constant, a method — is what rule:ide/highlighting-is-two-layers gives layer two, so all three carry the one scope the string family already uses for `$a->b`. `::class` is the one spelling after an accessor that is not a member at all but the class-name constant (tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst), so it is offered first and coloured as the construct it is. `$this` is the receiver rather than a local, and everything else beginning `$` is a variable — that a variable holds a `tainted` or `secret` value is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
       "patterns": [
         {
           "match": "(?<![$\\w])(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -105,10 +134,22 @@
           }
         },
         {
-          "match": "(?<![$\\w])(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "comment": "An enum cannot implement an interface (E_ENUM_IMPLEMENTS_UNSUPPORTED, crates/nvs-syntax/src/parser/decl.rs, parse_enum_decl), so the pattern consumes a written `implements` list itself and leaves its names uncoloured, which keeps `#inherited` off it (rule:ide/rejected-syntax-gets-no-colour). The backing type before it keeps the reserved table's colour.",
+          "match": "(?<![$\\w])(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:(\\s*:\\s*[A-Za-z_][A-Za-z0-9_]*)?\\s+(implements)\\b(\\s*\\\\?[A-Za-z_][A-Za-z0-9_\\\\]*(?:\\s*,\\s*\\\\?[A-Za-z_][A-Za-z0-9_\\\\]*)*)?)?",
           "captures": {
             "1": { "name": "storage.type.class.nvs" },
-            "2": { "name": "entity.name.type.enum.nvs" }
+            "2": { "name": "entity.name.type.enum.nvs" },
+            "3": { "patterns": [{ "include": "#keywords" }] },
+            "4": { "name": "storage.modifier.nvs" }
+          }
+        },
+        { "include": "#inherited" },
+        {
+          "comment": "An import names one class, interface or enum by its whole path, and the `;` right after the path is what tells it from the forms the parser refuses: a rename with `as`, the group form, `use function` and a member import (crates/nvs-syntax/src/parser/decl.rs, parse_use_decl). The pattern also needs the `use` at the start of the line. `nvs fmt` writes a file's imports there and indents a class body, so a trait `use` inside a body (rule:classes/no-traits) stays uncoloured.",
+          "match": "^(use)\\s+(\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=;)",
+          "captures": {
+            "1": { "name": "keyword.other.nvs" },
+            "2": { "name": "entity.name.type.nvs" }
           }
         },
         {
@@ -136,6 +177,30 @@
         { "name": "variable.language.nvs", "match": "\\$this\\b" },
         { "name": "variable.other.nvs", "match": "\\$[A-Za-z_][A-Za-z0-9_]*" }
       ]
+    },
+    "inherited": {
+      "comment": "The list after `extends` or `implements`, in a class, an interface or an anonymous class. Both words are reserved and stand nowhere else, so every name in the list is a class or interface the declaration builds on. The list may run over several lines, which is why this is a region. It ends at the body's `{`, or at the next `implements` so that word opens a list of its own. An `implements` entry may carry type arguments (rule:iteration/concrete-generic-implements) and a `by $field` delegation (rule:classes/delegation-by-property), whose field is a property of the class.",
+      "begin": "(?<![$\\w])(?<!->)(?<!::)(extends|implements)\\b",
+      "beginCaptures": {
+        "1": { "name": "storage.modifier.nvs" }
+      },
+      "end": "(?=[{;])|(?=\\?>)|(?=(?<![$\\w])implements\\b)",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#type-arguments" },
+        { "include": "#contextual-keywords" },
+        { "name": "variable.other.property.nvs", "match": "\\$[A-Za-z_][A-Za-z0-9_]*" },
+        {
+          "name": "entity.other.inherited-class.nvs",
+          "match": "(?<![$\\w\\\\])\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*"
+        }
+      ]
+    },
+    "type-arguments": {
+      "comment": "A `<…>` list after a name the grammar already knows is a type, holding one type per entry. It nests for an argument that is generic itself.",
+      "begin": "<",
+      "end": ">",
+      "patterns": [{ "include": "#type-arguments" }, { "include": "#type" }]
     },
     "keywords": {
       "comment": "The whole reserved table at crates/nvs-syntax/src/token.rs:424, matched exactly and in lower case only, because crates/nvs-syntax/src/lexer.rs:650 looks a name up as it is written: `IF` is an identifier and a legal class name (rule:classes/reserved-spellings-are-lower-case), so no pattern here may be case-insensitive. The two lookbehinds keep the table off a name that only looks like one of its rows: `$obj->list` and `Order::class` lex as keyword tokens there too, and `#names` is what colours each of them for what it is. The qualifiers `tainted` and `secret` are ordinary modifiers here — that a value carries one at its use site is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",

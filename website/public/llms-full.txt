@@ -59095,6 +59095,10 @@ modifiers Novis adds are not in LSP's legend and cannot be, so a theme that has 
 `tainted` styles the token underneath it — the value is coloured as the variable it is, rather than
 as nothing.
 
+The extension turns on semantic highlighting for `.nvs` files. Some themes turn it off, and then the
+editor ignores every token the server sends. Your theme still picks each colour. To turn it off, set
+`"editor.semanticHighlighting.enabled": false` inside `"[nvs]"` in your settings.
+
 #### The settings it contributes
 
 | Setting | Default | What it does |

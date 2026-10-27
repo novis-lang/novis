@@ -67,8 +67,8 @@ describe("the attribute that is not a # comment", () => {
   });
 
   it("colours no part of the attribute as a comment", () => {
-    // The argument is a string literal now, so the body reads as four spans rather than one.
-    for (const text of ["#[", "Route(", "/orders", ")", "]"]) {
+    // The name, the parentheses and the string literal are each a span of their own.
+    for (const text of ["#[", "Route", "(", "/orders", ")", "]"]) {
       const found = span(spans, text);
       assert.deepEqual(commentScopes(found), [], `${text} is coloured as a comment`);
       assert.ok(found.scopes.includes(ATTRIBUTE), `${text} is outside the attribute`);
@@ -78,5 +78,41 @@ describe("the attribute that is not a # comment", () => {
   it("ends the attribute rather than running to the end of the line", () => {
     // The failure this catches is the whole rest of the file joining the attribute.
     assert.equal(span(spans, "class").scopes.includes(ATTRIBUTE), false);
+  });
+});
+
+describe("the names inside an attribute", () => {
+  const TYPE_NAME = "entity.name.type.nvs";
+  const PROPERTY = "variable.other.property.nvs";
+  let spans: Span[];
+
+  before(async () => {
+    spans = await tokenize(readFileSync(join(FIXTURES, "attributes.nvs"), "utf8"));
+  });
+
+  it("colours each attribute class as a type, the member form's alias too", () => {
+    for (const text of ["Core\\Route", "Cached", "Shop\\Owner", "Alias", "Access"]) {
+      assert.ok(span(spans, text).scopes.includes(TYPE_NAME), `${text} is not a type`);
+    }
+  });
+
+  it("colours each argument's name as the property it sets, on its own line too", () => {
+    for (const text of ["path", "tags", "method", "allow", "reason"]) {
+      assert.ok(span(spans, text).scopes.includes(PROPERTY), `${text} is not a property`);
+    }
+  });
+
+  it("leaves a ternary's branch alone, and an argument's value to the code patterns", () => {
+    // `first :` is a ternary's branch: nothing but `?` stands before it.
+    const branch = spans.filter((s) => s.text.includes("first"));
+    assert.equal(branch.length, 1);
+    assert.equal(branch[0].scopes.includes(PROPERTY), false, "a ternary's branch is a property");
+    assert.ok(span(spans, "Get").scopes.includes(PROPERTY), "a value lost its member colour");
+    assert.ok(span(spans, "/orders").scopes.includes("string.quoted.single.nvs"));
+  });
+
+  it("does not end the attribute at the ] of an array inside its arguments", () => {
+    assert.ok(span(spans, "Cached").scopes.includes(ATTRIBUTE), "the attribute ended at []");
+    assert.equal(span(spans, "public").scopes.includes(ATTRIBUTE), false);
   });
 });

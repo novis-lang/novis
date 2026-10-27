@@ -81,3 +81,23 @@ describe("the alternative colon syntax, which is no syntax at all", () => {
     }
   });
 });
+
+describe("the imports and lists the parser refuses", () => {
+  it("colours no path in an import that renames, groups, or names a function or a member", () => {
+    // `rule:statements/nothing-gets-a-second-name` refuses the first two, and the parser refuses
+    // `use function` and a member import by name. Only a path followed by `;` is an import.
+    for (const text of ["Shop\\Models\\", "Buyer", "Seller", "Member", "Shop\\helper", "Shop\\Order"]) {
+      refused(text);
+    }
+  });
+
+  it("colours no name in an enum's implements list", () => {
+    // An enum cannot implement an interface, so the list is plain where a class's is not.
+    refused("Labelled");
+  });
+
+  it("colours no name in a trait use inside a class body", () => {
+    // `rule:classes/no-traits`: an indented `use` is a trait use, never an import.
+    refused("Countable");
+  });
+});

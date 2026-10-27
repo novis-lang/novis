@@ -1346,8 +1346,12 @@ highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; 
 the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](types.md#types-object-top)); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](types.md#types-decimal)); `spawn`, `spawn script`,
 `autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; durations
-([`types/duration`](types.md#types-duration)); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
-rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour)). Its test needs no editor: `vscode-textmate` plus
+([`types/duration`](types.md#types-duration)); `#[...]` attributes distinguished from a `#` comment, with the attribute's
+class as a type and each named argument as a property; every name after `extends` or `implements`
+and the path of an import, which the word before each says is a type; and nothing Novis
+rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour)). The grammar also colours every name a theme
+needs before the server answers: layer two adds what it resolves, and a theme that discards semantic
+tokens would otherwise show those names as body text ([`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours)). Its test needs no editor: `vscode-textmate` plus
 `vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
 
 **Layer two, semantic tokens**, is where a compiler colours what a regex cannot know
@@ -1409,7 +1413,7 @@ proves it.
 
 <a id="ide-novis-ships-names-not-colours"></a>
 
-## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme
+## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension sets no colour
 
 `rule:ide/novis-ships-names-not-colours`
 
@@ -1434,9 +1438,25 @@ call to make in someone else's editor, which is also what
 [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
 
+The extension does turn semantic highlighting on for `.nvs` documents, with the `configurationDefaults`
+entry `"[nvs]": { "editor.semanticHighlighting.enabled": true }`. VS Code's own default,
+`configuredByTheme`, lets a theme that sets `"semanticHighlighting": false` discard every semantic
+token, and many popular themes set it. Under such a theme layer two is gone: an attribute's class, a
+named argument and a resolved type show as body text, and the `tainted` underline and the `secret`
+emphasis never appear. Turning the setting on ships names and no colour. Without
+`semanticTokenColors` of its own, a theme colours each semantic token through the TextMate scope VS
+Code maps its type to, so the theme still decides every colour. The setting is read per language, so
+no other language's highlighting changes, and a user's own `[nvs]` setting wins over the default.
+
+**Declined:**
+
+- **Leaving the setting to the theme.** The cost is the whole of layer two under every theme that
+  opts out, and the user who meets it sees a half-coloured file with no hint of the cause.
+
 **Built:** the grammar's allowlist test (`editors/vscode/test/grammar/allowlist.test.ts`), the standard
-legend, the `semanticTokenScopes` contribution, and no colour defaults in `editors/vscode/package.json`;
-`editors/vscode/test/contributions/contributions.test.ts` asserts the last two.
+legend, the `semanticTokenScopes` contribution, the semantic highlighting default, and no colour
+defaults in `editors/vscode/package.json`; `editors/vscode/test/contributions/contributions.test.ts`
+asserts the last three.
 
 <sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 

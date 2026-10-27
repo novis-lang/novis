@@ -8,8 +8,12 @@ highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; 
 the grammar allows one, including the inline shape `{x: int}` (`rule:types/object-top`); the qualifiers
 `tainted` and `secret`, and `decimal` as a scalar keyword (`rule:types/decimal`); `spawn`, `spawn script`,
 `autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; durations
-(`rule:types/duration`); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
-rejects (`rule:ide/rejected-syntax-gets-no-colour`). Its test needs no editor: `vscode-textmate` plus
+(`rule:types/duration`); `#[...]` attributes distinguished from a `#` comment, with the attribute's
+class as a type and each named argument as a property; every name after `extends` or `implements`
+and the path of an import, which the word before each says is a type; and nothing Novis
+rejects (`rule:ide/rejected-syntax-gets-no-colour`). The grammar also colours every name a theme
+needs before the server answers: layer two adds what it resolves, and a theme that discards semantic
+tokens would otherwise show those names as body text (`rule:ide/novis-ships-names-not-colours`). Its test needs no editor: `vscode-textmate` plus
 `vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
 
 **Layer two, semantic tokens**, is where a compiler colours what a regex cannot know

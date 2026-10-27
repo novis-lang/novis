@@ -135,9 +135,9 @@ describe("the two slots a regex cannot have", () => {
     coloured("tax", PROPERTY);
   });
 
-  it("colours no name that a declaration only mentions", () => {
-    // `implements Iterable` names a type this file does not introduce, and resolving it is layer
-    // two's, which is the same call `#names` makes for the `extends` clause.
-    uncoloured("Iterable");
+  it("colours the name after implements as what the class builds on, not as an annotation", () => {
+    // `#inherited` colours the list, so a name there is never read as a parameter's type.
+    coloured("Iterable", "entity.other.inherited-class.nvs");
+    assert.equal(all("Iterable")[0].scopes.includes(TYPE_NAME), false);
   });
 });

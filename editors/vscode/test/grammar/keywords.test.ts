@@ -26,6 +26,7 @@ const FUNCTION = "storage.type.function.nvs";
 const MODIFIER = "storage.modifier.nvs";
 const LITERAL = "constant.language.nvs";
 const LANGUAGE = "variable.language.nvs";
+const INHERITED = "entity.other.inherited-class.nvs";
 
 let spans: Span[];
 
@@ -44,16 +45,6 @@ function all(text: string): Span[] {
 function coloured(text: string, scope: string): void {
   for (const found of all(text)) {
     assert.ok(found.scopes.includes(scope), `${text} is ${found.scopes.join(" ")}, wanted ${scope}`);
-  }
-}
-
-/** Asserts nothing reading `text` is coloured as a construct of any kind. */
-function plain(text: string): void {
-  for (const found of all(text)) {
-    for (const scope of found.scopes) {
-      assert.ok(!/^(keyword|storage|constant|variable|support)\./.test(scope),
-                `${JSON.stringify(text)} is coloured ${scope}`);
-    }
   }
 }
 
@@ -109,12 +100,13 @@ describe("the reserved table", () => {
 describe("what is a keyword only where it is written", () => {
   it("reads a mis-cased spelling as the identifier it is", () => {
     // `class IF extends TRUE {}` is a class declaration, and both names are legal ones: `IF` is
-    // coloured because `class` stands in front of it, and `TRUE` because nothing does.
+    // coloured because `class` stands in front of it, and `TRUE` because `extends` does.
     coloured("IF", "entity.name.type.class.nvs");
     for (const found of all("IF")) {
       assert.equal(found.scopes.includes(CONTROL), false, "IF is read as the keyword if");
     }
-    plain(" TRUE {}");
+    coloured("TRUE", INHERITED);
+    assert.equal(all("TRUE")[0].scopes.includes(LITERAL), false, "TRUE is read as the literal true");
   });
 
   it("reads a name after -> as a member rather than a construct", () => {
@@ -132,7 +124,8 @@ describe("what is a keyword only where it is written", () => {
   });
 
   it("reads a capitalized type name as a name", () => {
-    plain(" Iterable ");
+    coloured("Iterable", INHERITED);
+    assert.equal(all("Iterable")[0].scopes.includes(TYPE), false, "Iterable is read as iterable");
   });
 });
 

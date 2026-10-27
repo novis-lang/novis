@@ -1,5 +1,5 @@
 {
-  "title": "Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme",
+  "title": "Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension sets no colour",
   "status": "shipped",
   "seeAlso": [
     "ide/highlighting-is-two-layers",
