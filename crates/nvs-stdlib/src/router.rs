@@ -632,13 +632,13 @@ pub(crate) const MATCH_NAME: &str = r"Core\Router\Match";
 pub(crate) const PARSES_NAME: &str = "Parses";
 
 /// [`MATCH`]'s slots, in the order [`match_value`] fills them.
-const MATCH_ROUTE_NAME: usize = 0;
-const MATCH_PARAMS: usize = 1;
-const MATCH_METHOD: usize = 2;
-const MATCH_ACCESS: usize = 3;
+const MATCH_PARAMS: usize = 0;
+const MATCH_METHOD: usize = 1;
+const MATCH_ACCESS: usize = 2;
 /// The matched row's place in the unit's table, which no member returns —
-/// [`nvs_core_router_match_attribute`] reads the row's handler label through it.
-const MATCH_ROW: usize = 4;
+/// [`nvs_core_router_match_attribute`] and the two `is` helpers read the row's
+/// handler label through it.
+const MATCH_ROW: usize = 3;
 
 /// `rule:routing/a-capture-narrows-to-a-closed-set`'s capture as a program reaches it, and the one place the five
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
@@ -687,22 +687,23 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// # It is built where the match crosses, and holds no route
 ///
 /// [`nvs_runtime::routes::Match`] holds an `Arc<Route>` and travels from the
-/// door on [`nvs_runtime::Inbound`]; this class holds the four answers a
+/// door on [`nvs_runtime::Inbound`]; this class holds the three answers a
 /// dispatcher reads and the row's index in the unit's table, built by
 /// [`match_value`] each time `Core\Request::route()` is read. So the row stays
 /// where § 1 put it — on the request, taken once — and nothing about the
 /// compiled table is reachable through an object a program is holding: the
-/// index is an integer no member returns, and only
-/// [`nvs_core_router_match_attribute`] reads it, on this side. What it spends
+/// index is an integer no member returns, and only `attribute<T>()` and `is`
+/// read it, on this side. What it spends
 /// is one instance, one array of the path's own captures, one `string` for the
 /// access decision and two integers, the verb and the row index, per *read*,
 /// which is a handful of values
 /// against a route's two or three captures and O(in-flight) either way.
 ///
-/// # The name is the program's, the captures are the peer's
+/// # The route is the program's, the captures are the peer's
 ///
-/// [`MATCH_NAME_DOC`]'s `?string` comes out of the unit's own
-/// `#[Route(name: …)]` literal, so it is plain text and a sink takes it. Every
+/// A route is identified by its method, and [`MATCH_IS_DOC`]'s `is` compares
+/// the matched row's method with a method reference the program wrote, so
+/// nothing the request sent takes part in the answer. Every
 /// capture is a segment of the path the request arrived with, so its text arm
 /// is `tainted` — [`CAPTURE`] owns that reasoning. A program that mixed the two
 /// up would be laundering the request through the route table, which is the one
@@ -715,9 +716,9 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// # The access decision and the verb cross, and the handler does not
 ///
 /// `rule:security/access-is-checked-for-presence-not-meaning` leaves the
-/// decision to whoever dispatches, and a dispatcher is a `switch` on
-/// [`MATCH_NAME_DOC`]'s name. Read off the match, the decision is checked once
-/// above that `switch` and covers every arm; read off the method's attributes
+/// decision to whoever dispatches, and a dispatcher is a chain of
+/// [`MATCH_IS_DOC`]'s `is`. Read off the match, the decision is checked once
+/// above that chain and covers every arm; read off the method's attributes
 /// it is checked once per arm, and an arm that forgets it serves an unguarded
 /// route with nothing to say so. That is a security difference, so
 /// [`MATCH_ACCESS_DOC`]'s member is here. The row carries the resolved *name*,
@@ -729,7 +730,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// and `App\Role::Admin` can be equal there, and a comparison against the text
 /// keeps compiling after the case it names is renamed. The verb crosses for the same reader: one method under
 /// two `#[Route]`s is how `Get` and `Post` share an implementation, and the
-/// name alone cannot tell the two apart.
+/// method alone cannot tell the two apart.
 ///
 /// The handler's `Class::method` label stays on the far side. It is the one
 /// field of the row a program could turn into a call, which is the dispatch
@@ -737,7 +738,9 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// [`MATCH_ATTRIBUTE_DOC`]'s `attribute<T>()` uses the label without handing it
 /// over: the call site passes every routed method's folded payload keyed by
 /// label, and the helper returns the matched row's entry, which is data
-/// (`rule:routing/a-match-reads-an-attribute-as-data`).
+/// (`rule:routing/a-match-reads-an-attribute-as-data`). `is` compares the label
+/// with the one its argument names and returns a `bool`, so the label does not
+/// cross either.
 ///
 /// `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
 /// module — but is produced by `Core\Request::route()` rather than by
@@ -749,13 +752,13 @@ pub(crate) const MATCH: CoreClass = CoreClass {
     methods: &[],
     instance: &[
         CoreMethod {
-            name: "name",
-            names: &[],
-            params: &[],
+            name: "is",
+            names: &["route"],
+            params: &[CoreTy::Callable],
             defaults: &[],
-            return_ty: CoreTy::Nullable(&CoreTy::Str),
-            symbol: "nvs_core_router_match_name",
-            doc: Some(&MATCH_NAME_DOC),
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_router_match_is",
+            doc: Some(&MATCH_IS_DOC),
         },
         CoreMethod {
             name: "params",
@@ -812,7 +815,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             doc: Some(&MATCH_ATTRIBUTE_DOC),
         },
     ],
-    slots: &["name", "params", "method", "access", "row"],
+    slots: &["params", "method", "access", "row"],
     constants: &[],
 };
 
@@ -820,21 +823,30 @@ pub(crate) const MATCH: CoreClass = CoreClass {
 const MATCH_CARD: ClassDoc = ClassDoc {
     short: "The route that a path matched. `Core\\Request::route()` returns the match of the \
             request being served, and `Core\\Router::match()` returns the match of a path you \
-            choose. `name()` returns the route's name, `params()` and `param()` return the values \
-            captured from the path and `method()` returns the route's HTTP method. \
+            choose. `is()` checks which method the route belongs to. `params()` and `param()` \
+            return the values captured from the path, and `method()` returns the route's HTTP \
+            method. \
             `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and \
             `access()` returns the same rule as its name. `attribute<T>()` returns an attribute \
             of the route's method.",
 };
 
-/// `Core\Router\Match::name`'s reference card — `rule:core-api/reference-card`.
-const MATCH_NAME_DOC: MethodDoc = MethodDoc {
-    short: "Returns the name of the matched route, as its `#[Route(name: …)]` writes it. \
-            `Core\\Router::url` builds a link from the same name.",
-    params: &[],
-    ret: "The name, or `null` when the route has no name. The name is not `tainted`, because it \
-          comes from your program and not from the request.",
-    errors: &[],
+/// `Core\Router\Match::is`'s reference card — `rule:core-api/reference-card`.
+const MATCH_IS_DOC: MethodDoc = MethodDoc {
+    short: "Checks whether the matched route belongs to a method. You write the method the way \
+            `Core\\Router::url` takes it: `$match->is(Shop::show)`.",
+    params: &[ParamDoc {
+        name: "route",
+        desc: "A method reference, such as `Shop::show`. A method that you write here must have \
+               a `#[Route]`, or the program does not compile.",
+        shape: &[],
+    }],
+    ret: "`true` when the route belongs to this method, and `false` otherwise. A method with two \
+          `#[Route]`s, one for each HTTP method, gives `true` for both.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "When `$route` is a variable and its method has no `#[Route]`.",
+    }],
 };
 
 /// `Core\Router\Match::params`'s reference card — `rule:core-api/reference-card`.
@@ -1187,14 +1199,19 @@ pub mod link {
     /// configured origin in front.
     pub const ABSOLUTE_SYMBOL: &str = "nvs_core_router_link_absolute";
     /// `nvs_core_router_link_signed` — `Core\Router::urlSigned` with the same
-    /// lookup made, and with the resolved route **name** as a second argument.
+    /// lookup made, and with the route's mount-relative path **pattern** as a
+    /// second argument.
     ///
-    /// The name travels beside the prepared path rather than inside it because
-    /// the two are opposites: the path is what a remount changes and the name
-    /// is what it does not, which is the whole of
+    /// The pattern travels beside the prepared path rather than inside it
+    /// because the two are opposites: the mounted path is what a remount
+    /// changes and the pattern is what it does not, which is the whole of
     /// `rule:core-classes/router-signed-url`. The `{keys, until}` shape follows
     /// `$params`, one argument per field.
     pub const SIGNED_SYMBOL: &str = "nvs_core_router_link_signed";
+    /// `nvs_core_router_match_is_route` — `Core\Router\Match::is` over a
+    /// written method reference, folded to the `Class::method` label its rows
+    /// carry. Here beside the link symbols because the same pass folds it.
+    pub const IS_SYMBOL: &str = "nvs_core_router_match_is_route";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
     /// one: § 2's capture names are identifiers and its fixed segments come
     /// out of a `#[Route]` payload that a control byte would already have made
@@ -1230,7 +1247,7 @@ pub mod link {
     /// roster out of the member rows and so would never reach an
     /// implementation no [`super::CoreMethod`] names — the same reason
     /// [`crate::registry::CONSTRUCTORS`] is chained there.
-    pub const SYMBOLS: [&str; 3] = [SYMBOL, ABSOLUTE_SYMBOL, SIGNED_SYMBOL];
+    pub const SYMBOLS: [&str; 4] = [SYMBOL, ABSOLUTE_SYMBOL, SIGNED_SYMBOL, IS_SYMBOL];
 }
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -1247,7 +1264,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_match" => (nvs_core_router_match as *const ()).cast(),
         "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
         "nvs_core_router_dispatch" => (nvs_core_router_dispatch as *const ()).cast(),
-        "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
+        "nvs_core_router_match_is" => (nvs_core_router_match_is as *const ()).cast(),
+        "nvs_core_router_match_is_route" => (nvs_core_router_match_is_route as *const ()).cast(),
         "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
         "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
         "nvs_core_router_match_method" => (nvs_core_router_match_method as *const ()).cast(),
@@ -1977,9 +1995,11 @@ fn produced(text: &str) -> HelperResult {
 /// so the throw is a real answer a program can catch
 /// (`rule:routing/link-target-and-params-are-checked`).
 fn no_such_route(member: &str) -> Fault {
+    // `Match::is` shares the lookup, and its own class is the one to quote.
+    let owner = if member == "is" { MATCH_NAME } else { NAME };
     Fault::thrown(format!(
-        "Core\\Router::{member}(): this callable is not a method with a `#[Route]`, so it has \
-         no link. Pass a method reference to a method that has a `#[Route]`, such as `Shop::show`"
+        "{owner}::{member}(): this callable is not a method with a `#[Route]`, so it has \
+         no route. Pass a method reference to a method that has a `#[Route]`, such as `Shop::show`"
     ))
 }
 
@@ -2210,10 +2230,6 @@ pub(crate) fn match_value(
     Ok(crate::instance::build(
         &MATCH,
         [
-            match matched.name() {
-                Some(name) => Value::text(name),
-                None => Value::null(),
-            },
             Value::array(params),
             Value::int(method),
             match matched.route().access() {
@@ -2494,11 +2510,52 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
     Ok(held)
 }
 
+/// The `Class::method` label of the row a [`MATCH`] receiver matched, or
+/// `None` for a row index the unit's table does not hold, which only a table
+/// built by hand reaches.
+fn matched_handler(ctx: &nvs_runtime::Ctx, receiver: Value) -> Result<Option<String>, Fault> {
+    let receiver = crate::instance::receiver(receiver, &MATCH, "is")?;
+    let row = crate::instance::slot(receiver, MATCH_ROW).as_int();
+    Ok(ctx
+        .routes()
+        .zip(row.and_then(|row| usize::try_from(row).ok()))
+        .and_then(|(routes, row)| routes.rows().get(row))
+        .map(|route| route.handler().to_owned()))
+}
+
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::name(): ?string` — `rule:routing/matched-once-before-the-handler`'s declared name,
-    /// which `rule:observability/route-label-is-the-path-pattern`'s `route` label reads and `Core\Router::url` resolves.
-    fn nvs_core_router_match_name(_ctx, args: [1]) {
-        match_slot(args, MATCH_ROUTE_NAME, "name")
+    /// `Core\Router\Match::is(callable $route): bool` over a method reference
+    /// passed as a value — `rule:routing/matched-once-before-the-handler`'s
+    /// identity, read by the method a route is declared on.
+    ///
+    /// A written reference never reaches this body: `nvs_types::links` folds it
+    /// to its label and calls [`nvs_core_router_match_is_route`]. A value whose
+    /// method has no route throws [`no_such_route`], as a link does.
+    ///
+    /// **Cost:** one scan of the unit's rows, as [`value_route`]'s.
+    fn nvs_core_router_match_is(ctx, args: [2]) {
+        let wanted = value_route(ctx, args[1], "is")?;
+        let matched = matched_handler(ctx, args[0])?;
+        Ok(Value::bool(matched.as_deref() == Some(wanted.handler())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// [`link::IS_SYMBOL`]: `Core\Router\Match::is` over a written method
+    /// reference, which the compiler checked has a route and folded to the
+    /// `Class::method` label in argument 1. One string comparison.
+    fn nvs_core_router_match_is_route(ctx, args: [2]) {
+        // Unreachable from source: `nvs-ir` emits this argument as a
+        // `ConstStr`.
+        let wanted = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router\\Match::is expected {:?} for its method's label, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?;
+        let matched = matched_handler(ctx, args[0])?;
+        Ok(Value::bool(matched.as_deref() == Some(wanted)))
     }
 }
 
@@ -3506,10 +3563,7 @@ mod tests {
         let found = asked(&mut ctx, "Get", "/shop/7")
             .expect("an `int` capture refuses nothing")
             .expect("the row claims its own verb and path");
-        let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
-            .expect("a match answers its own name");
-        assert_eq!(name.as_str_bytes(), Some(&b"Shop::show"[..]));
-        dropped(name);
+        assert!(is_route(&mut ctx, found, "Shop::show"));
         let key = Value::text("id");
         let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
             .expect("a match answers its own capture");
@@ -3533,11 +3587,21 @@ mod tests {
         assert!(refused.contains("`name`"), "{refused}");
     }
 
-    /// Each of the match's five members answers its own field of one row, read
-    /// through the symbols a program calls: the name, the captures whole and at
-    /// one key, the verb as its case and the access decision as its text. A row
-    /// with no name and no capture answers `null` and an empty array.
-    // covers: Core\Router\Match::name, Core\Router\Match::params, Core\Router\Match::param
+    /// `Core\Router\Match::is` over a written reference, through the symbol
+    /// `nvs-ir` calls with the folded label.
+    fn is_route(ctx: &mut Ctx, found: Value, label: &str) -> bool {
+        let label = Value::text(label);
+        let answer = nvs_runtime::call(super::nvs_core_router_match_is_route, ctx, &[found, label])
+            .expect("a match compares its own method");
+        dropped(label);
+        answer.as_bool().expect("`is` returns a `bool`")
+    }
+
+    /// Each of the match's members answers its own field of one row, read
+    /// through the symbols a program calls: the method, the captures whole and
+    /// at one key, the verb as its case and the access decision as its text. A
+    /// row with no capture answers an empty array.
+    // covers: Core\Router\Match::is, Core\Router\Match::params, Core\Router\Match::param
     // covers: Core\Router\Match::method, Core\Router\Match::access
     #[test]
     fn every_match_member_answers_its_own_field_of_the_row() {
@@ -3576,10 +3640,11 @@ mod tests {
         let found = asked(&mut ctx, "Post", "/articles/7")
             .expect("an `int` capture refuses nothing")
             .expect("the row claims its own verb and path");
-        let name = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[found])
-            .expect("a match answers its name");
-        assert_eq!(name.as_str_bytes(), Some(&b"Articles::update"[..]));
-        dropped(name);
+        assert!(is_route(&mut ctx, found, "Articles::update"));
+        assert!(
+            !is_route(&mut ctx, found, "Status::health"),
+            "another method's route is not this one"
+        );
         assert_eq!(captures(&mut ctx, found), 1);
         let key = Value::text("id");
         let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
@@ -3607,9 +3672,7 @@ mod tests {
         let bare = asked(&mut ctx, "Get", "/health")
             .expect("a row with no capture refuses nothing")
             .expect("the row claims its own verb and path");
-        let unnamed = nvs_runtime::call(super::nvs_core_router_match_name, &mut ctx, &[bare])
-            .expect("a match answers its name");
-        assert_eq!(unnamed.tag(), Some(nvs_runtime::Tag::Null));
+        assert!(is_route(&mut ctx, bare, "Status::health"));
         assert_eq!(captures(&mut ctx, bare), 0);
         dropped(bare);
     }
@@ -4177,12 +4240,15 @@ mod tests {
             );
         }
         let mut ctx = Ctx::new(OutputSink::Sink);
+        // The unit's table, as the server sets it: `is` reads the matched
+        // row's method from it by the row's index.
+        ctx.set_routes(std::sync::Arc::new(shop()));
         ctx.set_inbound(inbound);
         ctx
     }
 
     /// `Core\Request::route()` hands over the row the door matched, read here
-    /// through the name a program reads, and matches nothing itself: a request
+    /// through the method a program compares it with, and matches nothing itself: a request
     /// the table claimed nothing for answers `null`, and a program answering no
     /// request is refused.
     // covers: Core\Request::route
@@ -4191,10 +4257,7 @@ mod tests {
         let mut matched = serving("", "/shop/7", Some("/shop/7"), "");
         let route = nvs_runtime::call(crate::request::nvs_core_request_route, &mut matched, &[])
             .expect("a served request can be asked for its route");
-        let named = nvs_runtime::call(super::nvs_core_router_match_name, &mut matched, &[route])
-            .expect("a match answers its own name");
-        assert_eq!(named.as_str_bytes(), Some(&b"Shop::show"[..]));
-        dropped(named);
+        assert!(is_route(&mut matched, route, "Shop::show"));
         dropped(route);
 
         // The URL would match `/shop/{id}`, but the door claimed nothing, so
@@ -4220,7 +4283,7 @@ mod tests {
     }
 
     /// `Core\Router::signedRoute($ring)` over that context — the matched
-    /// route's name, or the sentence it refused with.
+    /// route's method, or the sentence it refused with.
     fn verified(ctx: &mut Ctx, ring: Value) -> Result<String, String> {
         let answered = nvs_runtime::call(super::nvs_core_router_signed_route, ctx, &[ring]);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
@@ -4230,18 +4293,11 @@ mod tests {
                 return Err(refusal.expect("a refusal leaves its message on the context"));
             }
         };
-        // Read through the member a program reads it through, so that a match
-        // built with its slots the wrong way round fails here.
-        let named = nvs_runtime::call(super::nvs_core_router_match_name, ctx, &[matched])
-            .expect("a match answers its own name");
-        let name = String::from_utf8(
-            named
-                .as_str_bytes()
-                .expect("this route declares a name")
-                .to_vec(),
-        )
-        .expect("a route's name is `str`");
-        dropped(named);
+        // Read through the row index `is` reads, so that a match built with
+        // its slots the wrong way round fails here.
+        let name = super::matched_handler(ctx, matched)
+            .expect("a match is a `Core\\Router\\Match`")
+            .expect("the matched row is in the table");
         dropped(matched);
         Ok(name)
     }
@@ -4262,7 +4318,8 @@ mod tests {
             super::nvs_core_router_link_signed,
             &[
                 Value::text(&template),
-                Value::text("Shop::show"),
+                // The route's path pattern, which is what is signed.
+                Value::text("/shop/{id}"),
                 params,
                 ring,
                 Value::null(),

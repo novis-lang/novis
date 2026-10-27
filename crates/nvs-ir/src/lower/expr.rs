@@ -4362,6 +4362,40 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// `$match->is(Shop::show)` with the reference folded to `handler`: the
+    /// receiver and the label, passed to `nvs_types::CORE_ROUTE_IS`. Both are
+    /// borrowed, as every argument to a `Core` member is.
+    fn lower_route_is(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        handler: &str,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
+        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+            self.own_temporary(object_v);
+        }
+        let (label, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(handler.to_owned()));
+        // The label's header is immortal, so this release is a no-op at run
+        // time; see `Self::lower_route_link`.
+        self.account_for_arg(label, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+        let (v, ty) = self.emit_fallible(
+            *cur,
+            Ty::Bool,
+            InstKind::CoreCall {
+                symbol: nvs_types::CORE_ROUTE_IS,
+                args: vec![object_v, label],
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
+        self.close_nullsafe(guard, v, ty, env, cur)
+    }
+
     /// `$obj->method(...)`/`$this->method(...)` — the receiver is
     /// lowered like any other expression (for `$this`, that's just an
     /// `Env` lookup, since `lower_method` already seeded it as the
@@ -4398,6 +4432,13 @@ impl<'a> Lowering<'a> {
         if let Some(ExprInfo::CallableRef(call)) = self.member_record(expr.span) {
             let call = call.clone();
             return self.lower_method_ref(&call, Some(object), expr, env, cur);
+        }
+        // `Core\Router\Match::is` over a written method reference, folded in
+        // `nvs check` to the method's label. The reference is not lowered, so
+        // an instance method needs no object.
+        if let Some(ExprInfo::RouteIs { handler, .. }) = self.exprs.lookup(expr.span) {
+            let handler = handler.clone();
+            return self.lower_route_is(object, nullsafe, &handler, env, cur);
         }
         // `rule:types/a-member-every-class-of-a-union-declares`: one branch per
         // class, each the call that class alone makes, `$u->m(...)` included.

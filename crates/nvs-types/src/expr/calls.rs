@@ -163,7 +163,16 @@ pub(crate) fn infer_method_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    // `Core\Router\Match::is(Shop::show)` names a route as a link does, so its
+    // written target is marked and folded the same way.
+    note_link_target(resolved.as_ref(), args, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    if let Some((qname, name, _)) = &resolved
+        && crate::links::is_match_is(qname, name)
+    {
+        let name = name.clone();
+        crate::links::record_site(expr, &name, args, &slots, ctx, env);
+    }
     if let Some((qname, name)) = unknown
         && let Some(call) = unresolved_call(&qname, &name, args, &arg_types, expected, env)
     {
@@ -1509,8 +1518,9 @@ fn note_retrieval_target(
     }
 }
 
-/// Marks a `Core\Router` link's written target, `Shop::show`, so that
-/// [`infer_static_call`] skips the visibility check for it
+/// Marks a `Core\Router` link's written target, `Shop::show`, and
+/// `Core\Router\Match::is`'s, so that [`infer_static_call`] skips the
+/// visibility check for it
 /// (`rule:routing/link-target-and-params-are-checked`). The target is found as
 /// [`crate::links::record_site`] finds it: the first argument, or the one
 /// written `route:`.
@@ -1522,7 +1532,7 @@ fn note_link_target(
     let (Some((owner, member, _)), CallArgs::List(list)) = (resolved, args) else {
         return;
     };
-    if !crate::links::is_link(owner, member) {
+    if !crate::links::is_link(owner, member) && !crate::links::is_match_is(owner, member) {
         return;
     }
     let target = list

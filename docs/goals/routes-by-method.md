@@ -196,6 +196,18 @@ checker folds (a link target, an attribute retrieval, `assertCalled`'s method) i
 of instance-method handlers writes `$shop->show(...)`, and a static handler writes `Shop::home`.
 Why: the old exemption let every method reference through and `nvs-ir` panicked on the value form.
 
+**`Match::is` folds a written reference to its method's label, not to a row index** (stage 4,
+decided by the session that built it). One method with two verbs has two rows, and `is(Shop::show)`
+must be `true` for both, so a single row index is the wrong identity. `nvs_types::links` records an
+`is` site beside the link sites, asks the link's first question (a method with no route is
+`E0754`, worded for `is`), and records `ExprInfo::RouteIs { handler }` over the call. `nvs-ir`
+passes the receiver and the `Class::method` label to `nvs_core_router_match_is_route`, which
+compares it with the matched row's handler, read through the match's row index from the unit's
+table. A value goes to `nvs_core_router_match_is`, which finds its route as `value_route` does and
+throws `no_such_route` for a method with none. The `name` slot leaves `Core\Router\Match`. Why:
+one string comparison per call and nothing per request; the label never crosses into the program,
+so the match stays not invocable.
+
 **Lanes.** Stages 1 to 4 run in order: the rules first, then the parser and checker, then the route
 table and links, then the readers of the match. Stage 5 (editor) touches only `crates/nvs-lsp/` and
 `tests/lsp/` and may run as a side goal once stage 4 lands. Stage 6's batches of `.nvs` files are
@@ -262,7 +274,10 @@ Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `t
 
 **Does:** nothing reads a route name any more.
 
-- [ ] `Match::name` is replaced by `Match::is(<method reference>): bool`: a written reference folds to the row index, a value compares by row. `crates/nvs-stdlib/src/router.rs:746`, `crates/nvs-stdlib/src/router.rs:752`, `crates/nvs-stdlib/src/router.rs:2348`
+- [x] `Match::name` is replaced by `Match::is(<method reference>): bool`: a written reference folds to the method's label (see § *Standing decisions*), a value compares by handler. `crates/nvs-stdlib/src/router.rs:746`, `crates/nvs-stdlib/src/router.rs:752`, `crates/nvs-stdlib/src/router.rs:2348`
+  - [x] the registry row, its card and the two helpers; the `name` slot leaves the match
+  - [x] `links.rs` records and resolves an `is` site, and `nvs-ir` lowers `ExprInfo::RouteIs`
+  - [x] a conformance case and a checker test (`router-match-is-compares-the-route-with-a-method-reference.nvst`, `match_is_over_a_method_with_no_route_is_a_diagnostic`)
 - [x] `urlSigned` and `signedRoute` sign and verify the path pattern and the values. `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1889`
 - [ ] `base_id` is `Class.method`, the verb suffix stays for a method with several verbs, and `#[Api]` gets an optional `operationId` row that replaces it. `crates/nvs-cli/src/openapi.rs:366`, `crates/nvs-cli/src/openapi.rs:424`, `crates/nvs-types/src/routes.rs:1218`
 - [ ] The metrics `route` label carries the path pattern; an Explore subagent finds where the label is written (grep `route` label in `crates/nvs-runtime/` and `crates/nvs-stdlib/`). `crates/nvs-stdlib/src/router.rs:1`

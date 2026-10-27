@@ -898,7 +898,7 @@ pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
         }
         // A `Core\Router` link to a declared route is recorded over its call,
         // and still names the method it calls.
-        ExprInfo::RouteLink { call, .. } => Target::Method(call),
+        ExprInfo::RouteLink { call, .. } | ExprInfo::RouteIs { call, .. } => Target::Method(call),
         // A hooked property is a call to an accessor and still a property
         // where it was written, so it jumps to the declaration that carries
         // the hooks rather than into one of their bodies.

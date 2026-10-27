@@ -86,6 +86,14 @@ const ABSOLUTE: &str = "urlAbsolute";
 /// pattern rather than the path it renders to.
 const SIGNED: &str = "urlSigned";
 
+/// `Core\Router\Match`, the class whose [`IS`] this pass also folds.
+const MATCH_OWNER: &str = r"Core\Router\Match";
+
+/// `Core\Router\Match::is`, which names a route by a method reference as a
+/// link does, and asks the table the first of a link's questions: whether the
+/// method has a route. It has no `$params`, so the other three are not asked.
+const IS: &str = "is";
+
 /// One [`is_link`] call whose target is a written method reference, waiting
 /// for the table to finish.
 ///
@@ -176,6 +184,12 @@ pub(crate) fn is_dispatch(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && member == "dispatch"
 }
 
+/// Whether `owner::member` is `Core\Router\Match::is`, whose written target
+/// [`record_site`] records as it records a link's.
+pub(crate) fn is_match_is(owner: &QName, member: &str) -> bool {
+    owner.to_string() == MATCH_OWNER && member == IS
+}
+
 /// Records one link site, or nothing where § 4 leaves the call to run time.
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table
@@ -215,6 +229,18 @@ pub(crate) fn record_site(
         return;
     };
     let handler = format!("{}::{}", resolved.class, resolved.method);
+    if member == IS {
+        env.links.push(LinkSite {
+            span: call.span,
+            member: member.to_owned(),
+            handler,
+            target_span: target.span,
+            params_at: None,
+            settings_at: None,
+            args: None,
+        });
+        return;
+    }
     let params_at = written_at(1, list, slots);
     let settings_at = match member == SIGNED {
         true => {
@@ -372,24 +398,7 @@ pub(crate) fn resolve(
 ) {
     for site in sites {
         let Some(row) = routes.handled_by(&site.handler) else {
-            diags.report(
-                Diagnostic::error(
-                    code::E_LINK_METHOD_HAS_NO_ROUTE,
-                    format!(
-                        "`Core\\Router::{}` links to `{}`, and that method has no `#[Route]`",
-                        site.member, site.handler
-                    ),
-                )
-                .with_primary(site.target_span, "this method has no route")
-                .with_help(
-                    "a link is built from the `#[Route]` of the method you pass. Add a \
-                     `#[Route]` to this method, or pass the method that has the route",
-                ),
-            );
-            continue;
-        };
-        let Some(pieces) = crate::routes::link_pieces(&row.path) else {
-            // Unreachable: a row exists only for a path § 2's grammar admitted.
+            report_no_route(site, diags);
             continue;
         };
         let Some(ExprInfo::Call(call)) = exprs.lookup(site.span) else {
@@ -398,6 +407,20 @@ pub(crate) fn resolve(
             continue;
         };
         let call = Box::new(call.clone());
+        if site.member == IS {
+            exprs.record(
+                site.span,
+                ExprInfo::RouteIs {
+                    call,
+                    handler: site.handler.clone(),
+                },
+            );
+            continue;
+        }
+        let Some(pieces) = crate::routes::link_pieces(&row.path) else {
+            // Unreachable: a row exists only for a path § 2's grammar admitted.
+            continue;
+        };
         // Short-circuiting on purpose: a misspelled key is usually both a
         // capture with nothing supplying it and a key with nothing to be, and
         // naming the capture is the half that says what to write. § 5's
@@ -427,6 +450,35 @@ pub(crate) fn resolve(
             },
         );
     }
+}
+
+/// `E0754` for a site whose method has no `#[Route]`, worded for the member
+/// that wrote it.
+fn report_no_route(site: &LinkSite, diags: &mut Diagnostics) {
+    let (message, help) = match site.member == IS {
+        true => (
+            format!(
+                "`Core\\Router\\Match::is` compares the route with `{}`, and that method has no \
+                 `#[Route]`",
+                site.handler
+            ),
+            "`is` checks whether the request matched a route of the method you pass. Add a \
+             `#[Route]` to this method, or pass the method that has the route",
+        ),
+        false => (
+            format!(
+                "`Core\\Router::{}` links to `{}`, and that method has no `#[Route]`",
+                site.member, site.handler
+            ),
+            "a link is built from the `#[Route]` of the method you pass. Add a `#[Route]` to \
+             this method, or pass the method that has the route",
+        ),
+    };
+    diags.report(
+        Diagnostic::error(code::E_LINK_METHOD_HAS_NO_ROUTE, message)
+            .with_primary(site.target_span, "this method has no route")
+            .with_help(help),
+    );
 }
 
 /// Every capture of `pieces` whose parameter narrows to a **name**-spelled enum

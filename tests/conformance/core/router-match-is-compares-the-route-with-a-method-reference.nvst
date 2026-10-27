@@ -1,0 +1,54 @@
+--TEST--
+`Core\Router\Match::is` compares the matched route with a method reference, written in the call or passed as a value, and throws for a value whose method has no route — `rule:routing/matched-once-before-the-handler`
+--FILE--
+<?nvs
+// `is()` checks which method a route belongs to.
+class Shop {
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Get)]
+    #[Core\Route(path: "/shop/{id}", method: Core\Http\Method::Post)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "show"; }
+
+    #[Core\Route(path: "/", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    private static function home(): string { return "home"; }
+
+    public function helper(): string { return "helper"; }
+
+    public static function isHome(Core\Router\Match $match): bool {
+        return $match->is(Shop::home);
+    }
+}
+
+// `show` is an instance method. Inside `is()` it needs no object.
+?Core\Router\Match $got = Core\Router::match(Core\Http\Method::Get, "/shop/7");
+echo "get: ", $got?->is(Shop::show) == true ? "show" : "other", "\n";
+
+// Both HTTP methods of `show` belong to the same method.
+?Core\Router\Match $posted = Core\Router::match(Core\Http\Method::Post, "/shop/7");
+echo "post: ", $posted?->is(route: Shop::show) == true ? "show" : "other", "\n";
+
+?Core\Router\Match $root = Core\Router::match(Core\Http\Method::Get, "/");
+if ($root != null) {
+    echo "root is show: ", $root->is(Shop::show) ? "yes" : "no", "\n";
+    echo "root is home: ", Shop::isHome($root) ? "yes" : "no", "\n";
+}
+
+// A method reference in a variable is compared while the program runs.
+var $shop = new Shop();
+callable $page = $shop->show(...);
+echo "value: ", $got?->is($page) == true ? "show" : "other", "\n";
+
+// `helper` has no `#[Route]`, so `is()` throws an error.
+try {
+    $got?->is($shop->helper(...));
+} catch (RuntimeError $e) {
+    echo "no route: threw", "\n";
+}
+--EXPECT--
+get: show
+post: show
+root is show: no
+root is home: yes
+value: show
+no route: threw

@@ -280,8 +280,8 @@ pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::registry::takes_written_enum as core_takes_written_enum;
 pub use nvs_stdlib::router::link::{
-    ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SIGNED_SYMBOL as CORE_ROUTE_LINK_SIGNED,
-    SYMBOL as CORE_ROUTE_LINK,
+    ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, IS_SYMBOL as CORE_ROUTE_IS,
+    SIGNED_SYMBOL as CORE_ROUTE_LINK_SIGNED, SYMBOL as CORE_ROUTE_LINK,
 };
 pub use nvs_stdlib::script::{
     AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, FINISH_SYMBOL as CORE_SCRIPT_FINISH,

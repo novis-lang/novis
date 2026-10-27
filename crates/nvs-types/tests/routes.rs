@@ -875,6 +875,30 @@ fn a_link_to_a_method_with_no_route_is_a_diagnostic() {
 }
 
 #[test]
+fn match_is_over_a_method_with_no_route_is_a_diagnostic() {
+    // `Core\Router\Match::is` names a route as a link does, so it asks the
+    // link's first question, and a private instance method needs no object.
+    let src = |target: &str| {
+        format!(
+            "<?nvs\nclass Users {{\n  \
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+             private function show(uint $id): string {{ return \"\"; }}\n  \
+             public function plain(uint $id): string {{ return \"\"; }}\n}}\n\
+             ?Core\\Router\\Match $m = Core\\Router::match(Core\\Http\\Method::Get, \"/users/1\");\n\
+             echo $m?->is({target}) == true ? \"yes\" : \"no\";\n"
+        )
+    };
+    let diags = check_src(&src("Users::plain"));
+    assert!(
+        reported(&diags, code::E_LINK_METHOD_HAS_NO_ROUTE),
+        "{diags:?}"
+    );
+    let diags = check_src(&src("Users::show"));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn a_reference_passed_as_a_value_is_left_to_run_time() {
     // A reference held in a variable is not read here: nothing is checked, and
     // the member's own body answers at run time. The pair with the test above

@@ -1345,6 +1345,19 @@ pub enum ExprInfo {
         /// signing settings, and `None` for the two members that sign nothing.
         settings_at: Option<usize>,
     },
+    /// `Core\Router\Match::is` over a **written** method reference that
+    /// resolved to a method with a route — [`ExprInfo::RouteLink`]'s fold for
+    /// the match's one comparison, recorded over the call by [`crate::links`]
+    /// for that variant's reason. The reference is never lowered: `nvs-ir`
+    /// passes `handler` in its place, so an instance method needs no object.
+    RouteIs {
+        /// The resolved call this is recorded over, for the reader that asks
+        /// which method the span calls, as [`ExprInfo::RouteLink`]'s `call` is.
+        call: Box<ResolvedCall>,
+        /// The `Class::method` label the reference names, as
+        /// [`crate::routes::Route::handler`] writes it.
+        handler: String,
+    },
     /// A `rule:types/anonymous-function` `fn` anonymous function, keyed by its
     /// own span.
     ///
