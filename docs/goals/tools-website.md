@@ -41,7 +41,7 @@ stages:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/website-pages-are-stamped, testing/a-replay-plays-what-the-language-server-returned]
   - id: 4
     title: the editor, formatter, test runner and CLI pages
-    status: open
+    status: done
     context: [website/astro.config.ts, website/src/data/questions.json, docs/examples/tools/cli, docs/examples/tools/editor]
     extra:
       context:
@@ -244,11 +244,11 @@ its examples and pictures, and AGENTS.md § *Text an end user reads*. The sessio
 `website/astro.config.ts`'s sidebar and `website/src/data/questions.json`, runs `--bless`, and checks
 each page.
 
-- [ ] Editor: the moved page, then rename, the code actions and generators, the lenses with "used by N routes, M tests", call hierarchy, the route hover and the taint path, each as a replay. Examples from `docs/examples/tools/editor/`. `website/src/content/docs/tools/editor/index.mdx:1`
+- [x] Editor: the moved page, then rename, the code actions and generators, the lenses with "used by N routes, M tests", call hierarchy, the route hover and the taint path, each as a replay. Examples from `docs/examples/tools/editor/`. `website/src/content/docs/tools/editor/index.mdx:1`
 - [x] Formatter: what `nvs fmt` changes, as a terminal block of `--diff`, and `--check` with its exit codes. `website/src/content/docs/tools/formatter/index.mdx:1`
-- [ ] Test runner: the moved pages, then the options, `#[Property]`, mutation testing and benches, each with a terminal block. `website/src/content/docs/tools/test-runner/index.mdx:1`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`, `docs/examples/tools/cli/nvs-test/about.md:1`
+- [x] Test runner: the moved pages, then the options, `#[Property]`, mutation testing and benches, each with a terminal block. `website/src/content/docs/tools/test-runner/index.mdx:1`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`, `docs/examples/tools/cli/nvs-test/about.md:1`
 - [x] CLI: `nvs check --json`, the cache commands, `nvs update-check` and `nvs telemetry`, each with a terminal block, and a link to the full command list. `website/src/content/docs/tools/cli/index.mdx:1`, `website/src/content/docs/reference/index.mdx:13`
-- [ ] Each page's sidebar entry, its questions, and its stamp (`rule:testing/website-pages-are-stamped`). `website/astro.config.ts:669`, `website/src/data/questions.json:1`
+- [x] Each page's sidebar entry, its questions, and its stamp (`rule:testing/website-pages-are-stamped`). `website/astro.config.ts:669`, `website/src/data/questions.json:1`
 
 ### 5. the debugger and API document pages
 
@@ -299,44 +299,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2, 8 and 3 are done, and stage 4 has two of its four pages. Tools is the fourth of five
-areas (`website/config/site.mjs:42`); its sidebar (`website/astro.config.ts:679`) is Overview, the
-editor extension, the formatter, the test runner with its coverage page, and the command line.
-
-- **The formatter page**, `tools/formatter/index.mdx`, covers a new feature, `tools:cli/nvs-fmt`: its
-  `# nvs fmt` section in `docs/reference/tools/10-cli.md`, `docs/examples/tools/cli/nvs-fmt/`, an
-  attack under `tests/hostile/tools/cli/nvs-fmt/`, and the `// covers:` lines on
-  `crates/nvs-cli/tests/fmt.rs` (one new test, which passes). Its three terminal blocks are under
-  `website/snippets/tools/formatter/`. Two badly laid out fixtures are `skip` lines in
-  `tools/data/nvs-fmt-corpus.txt`.
-- **The command-line page**, `tools/cli/index.mdx`, covers `one-binary`, `nvs-check`,
-  `the-compile-cache`, `nvs-update-check` and `nvs-telemetry`, with four terminal blocks under
-  `website/snippets/tools/cli/`. `nvs update-check`, `telemetry on`, `status` and `show`, and `cache
-  clear` are plain `sh` blocks: each reaches the network, prints a different line under CI's `CI`
-  variable, or prints a byte count that is not masked.
-- Both pages, `/tools/` and `/reference/cli/nvs-fmt/` have questions and stamps.
-
-`bun nv site --check tools` fails by design until stage 9. It names the four pages stages 5 and 9 owe,
-the editor and test runner pages' empty `covers:`, and the test runner page's missing picture.
+Stages 1, 7, 2, 8, 3 and 4 are done. Tools is the fourth of five areas
+(`website/config/site.mjs:42`); its sidebar (`website/astro.config.ts:679`) is Overview, the editor
+extension, the formatter, the test runner with its coverage page, and the command line.
 `TOOL_SECTIONS` (`tools/nv/cmd/site.ts:847`) is the sidebar order the later stages keep.
 
-The sweep's reds were stale: nightly 40291801939 tested `d6f131752`, and its yanked crate and its
-failing counted-run test are fixed at HEAD.
+- **The editor page**, `tools/editor/index.mdx`, covers `tools:editor/the-vs-code-extension` and
+  `tools:editor/nvs-lsp`, with seven new replays under `website/snippets/tools/editor/`: `rename`,
+  `quick-fix`, `override`, `lens`, `calls`, `route-hover/shop` and `taint-path`. The route hover sits
+  in its own folder with an `nvs.toml`: without one, the grants card prints the machine's data-folder
+  path.
+- **The test runner pages**, `tools/test-runner/index.mdx` and `coverage.mdx`, cover five
+  `lang:testing/*` features, `tools:cli/nvs-test` and `tools:cli/nvs-test-mutate`, with seven terminal
+  blocks under `website/snippets/tools/test-runner/`. JUnit output is a plain `sh` block, because its
+  `time="0.000302"` values are not masked. Coverage has no feature id of its own.
+- All five tool pages and `/reference/cli/nvs-test/` have current questions and stamps.
+
+`bun nv site --check tools` fails by design until stage 9: it names the debugger, debug-viewer,
+profiler and api-document pages. `snippets stale questions prose` pass, and `--build` builds.
+
+The hang watch now kills a child that holds an exited ancestor's creator id (`proctree.ts` `screen`).
+One `nvs serve` snippet stalled once under the parallel check; alone it answers at once. The sweep's
+reds were stale: `env-secret-proofs` exits 0, and nightly 40291801939 tested `d6f131752`.
 
 ### Next
 
-**Stage 4's last two pages.** Follow its `**Split:**` line: one writing subagent per page, and the
-session alone edits the sidebar and `questions.json`. Check with `bun nv site --check tools snippets
-stale questions prose`, `--build`, and run `bun nv render --website` after a reference chapter edit.
-A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash, or the URL becomes a Windows path.
+**Stage 5: the debugger and API document pages.** Their gates are met: `debugger-core`,
+`debugger-adapter` and `api-document` have landed. Follow its `**Split:**` line: one writing subagent
+per page, and the session alone edits the sidebar and `questions.json`. Check with `bun nv site
+--check tools snippets stale questions prose` and `--build`, and run `bun nv render --website` after
+a reference chapter edit. A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash. A page has four to
+six questions, and none repeats another page's.
 
-- [ ] Editor page: rename, the code actions, the lenses, call hierarchy, the route hover and the taint path as replays (stage 7's steps), from `docs/examples/tools/editor/`; `covers:` is `tools:editor/the-vs-code-extension` and `tools:editor/nvs-lsp`. `website/src/content/docs/tools/editor/index.mdx:1`
-- [ ] Test runner pages: the `txt` fence becomes a `<Terminal>`, then the options, `#[Property]`, mutation testing and benches, each a terminal block; `covers:` from `lang:testing/*`, `tools:cli/nvs-test` and `tools:cli/nvs-test-mutate`. `website/src/content/docs/tools/test-runner/index.mdx:14`, `website/src/content/docs/tools/test-runner/coverage.mdx:1`
-- [ ] Each page's questions and stamp, then stage 4's status `done`. `website/src/data/questions.json:17747`
+- [ ] Debugger page: `launch.json`, a breakpoint, stepping and the variables, as `.dap` replays (`tools/nv/cmd/site.ts:147`), from `docs/examples/tools/editor/nvs-dap/`. `website/src/content/docs/tools/debugger/index.mdx:1`
+- [ ] API document page: `nvs build --openapi` and `nvs api diff` as terminal blocks, `#[Api]` completion as a replay. `website/src/content/docs/tools/api-document/index.mdx:1`, `docs/examples/tools/cli/nvs-build-openapi/about.md:1`
+- [ ] Each page's sidebar entry in `TOOL_SECTIONS` order, its questions and stamp, then stage 5's status `done`. `website/astro.config.ts:679`, `website/src/data/questions.json:17758`
 
-A terminal block must not print a `\` path: `nvs fmt --check` and other commands print native
-separators for a file found by walking a directory, so a `.term` names its files. No test is expected
-to go red.
+A terminal block must not print a `\` path, so a `.term` names its files. No test is expected to go
+red.
 
 ### Backlog
 
