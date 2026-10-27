@@ -318,12 +318,19 @@
     "lang:types/mixed": "058379b28ccf00d6",
     "lang:types/type-aliases": "13f50e47f7b1b7b7"
   },
+  "tools/api-document/index.mdx": {
+    "tools:cli/nvs-api-diff": "a7728b2c602dc60d",
+    "tools:cli/nvs-build-openapi": "34ecd5446deb204b"
+  },
   "tools/cli/index.mdx": {
     "tools:cli/nvs-check": "8cc13d1e84f0c0c6",
     "tools:cli/nvs-telemetry": "2bd39131b67069de",
     "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
     "tools:cli/one-binary": "990450b05d9aca43",
     "tools:cli/the-compile-cache": "a5080b1566be22a6"
+  },
+  "tools/debugger/index.mdx": {
+    "tools:editor/nvs-dap": "90b163dcf00c5f05"
   },
   "tools/editor/index.mdx": {
     "tools:editor/nvs-lsp": "938fd49e0a732137",

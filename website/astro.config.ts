@@ -689,6 +689,8 @@ export default defineConfig({
               ],
             },
             { label: 'The command line', link: '/tools/cli/' },
+            { label: 'The debugger', link: '/tools/debugger/' },
+            { label: 'The API document', link: '/tools/api-document/' },
           ],
         },
         {

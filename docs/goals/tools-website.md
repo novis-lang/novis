@@ -48,7 +48,7 @@ stages:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/website-pages-are-stamped, testing/examples-live-in-the-repository]
   - id: 5
     title: the debugger and API document pages
-    status: open
+    status: done
     context: [website/astro.config.ts, website/src/data/questions.json, docs/examples/tools/cli]
     extra:
       context:
@@ -257,9 +257,9 @@ each page.
 **Split:** one writing subagent per page, one after another, as in stage 4. The session alone edits the
 sidebar and `questions.json` and runs `--bless`.
 
-- [ ] Debugger: `launch.json`, a breakpoint, stepping and the variables, as debugger replays. `website/src/content/docs/tools/debugger/index.mdx:1`
-- [ ] API document: `nvs build --openapi` and `nvs api diff` as terminal blocks, and `#[Api]` completion as a replay. `website/src/content/docs/tools/api-document/index.mdx:1`, `docs/examples/tools/cli/nvs-build-openapi/about.md:1`, `docs/examples/tools/cli/nvs-api-diff/about.md:1`
-- [ ] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
+- [x] Debugger: `launch.json`, a breakpoint, stepping and the variables, as debugger replays. `website/src/content/docs/tools/debugger/index.mdx:1`
+- [x] API document: `nvs build --openapi` and `nvs api diff` as terminal blocks, and `#[Api]` completion as a replay. `website/src/content/docs/tools/api-document/index.mdx:1`, `docs/examples/tools/cli/nvs-build-openapi/about.md:1`, `docs/examples/tools/cli/nvs-api-diff/about.md:1`
+- [x] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
 
 ### 9. the debug viewer and profiler pages
 
@@ -299,41 +299,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2, 8, 3 and 4 are done. Tools is the fourth of five areas
+Stages 1, 7, 2, 8, 3, 4 and 5 are done. Tools is the fourth of five areas
 (`website/config/site.mjs:42`); its sidebar (`website/astro.config.ts:679`) is Overview, the editor
-extension, the formatter, the test runner with its coverage page, and the command line.
-`TOOL_SECTIONS` (`tools/nv/cmd/site.ts:847`) is the sidebar order the later stages keep.
+extension, the formatter, the test runner with its coverage page, the command line, the debugger and
+the API document. `TOOL_SECTIONS` (`tools/nv/cmd/site.ts:847`) is the order: stage 9's two entries go
+between the debugger and the API document, in the sidebar and in the overview's list
+(`website/src/content/docs/tools/index.mdx:17`).
 
-- **The editor page**, `tools/editor/index.mdx`, covers `tools:editor/the-vs-code-extension` and
-  `tools:editor/nvs-lsp`, with seven new replays under `website/snippets/tools/editor/`: `rename`,
-  `quick-fix`, `override`, `lens`, `calls`, `route-hover/shop` and `taint-path`. The route hover sits
-  in its own folder with an `nvs.toml`: without one, the grants card prints the machine's data-folder
-  path.
-- **The test runner pages**, `tools/test-runner/index.mdx` and `coverage.mdx`, cover five
-  `lang:testing/*` features, `tools:cli/nvs-test` and `tools:cli/nvs-test-mutate`, with seven terminal
-  blocks under `website/snippets/tools/test-runner/`. JUnit output is a plain `sh` block, because its
-  `time="0.000302"` values are not masked. Coverage has no feature id of its own.
-- All five tool pages and `/reference/cli/nvs-test/` have current questions and stamps.
-
-`bun nv site --check tools` fails by design until stage 9: it names the debugger, debug-viewer,
-profiler and api-document pages. `snippets stale questions prose` pass, and `--build` builds.
-
-The hang watch now kills a child that holds an exited ancestor's creator id (`proctree.ts` `screen`).
-One `nvs serve` snippet stalled once under the parallel check; alone it answers at once. The sweep's
-reds were stale: `env-secret-proofs` exits 0, and nightly 40291801939 tested `d6f131752`.
+- **The debugger page**, `tools/debugger/index.mdx`, covers `tools:editor/nvs-dap`, with two debugger
+  replays under `website/snippets/tools/debugger/`: `loop` (a breakpoint and three `continue`s) and
+  `step` (in, next, out, with the returned value). A `.dap.out` shows an object as its class name
+  alone, with no properties, so no replay shows an object. The `.dap` format has no exception step,
+  so exceptions are prose.
+- **The API document page**, `tools/api-document/index.mdx`, covers `tools:cli/nvs-build-openapi` and
+  `tools:cli/nvs-api-diff`, with three terminal blocks (`build`, `api`, `diff`) and the `scheme`
+  replay, which completes a security scheme name in `#[Api(security: [...])]`. The field-name
+  completion inside `#[Api(...)]` has no replay: every start text with a closing `'])` after the
+  cursor breaks the parse and the list comes back empty, so the page states it in words.
+  `diff/v2.json` and `v3.json` are real runs with `title` set to `shop` by hand.
+- All seven tool pages have current questions and stamps. `site --check tools` names only the
+  debug-viewer and profiler pages, `snippets stale questions prose` pass, and `--build` builds.
 
 ### Next
 
-**Stage 5: the debugger and API document pages.** Their gates are met: `debugger-core`,
-`debugger-adapter` and `api-document` have landed. Follow its `**Split:**` line: one writing subagent
-per page, and the session alone edits the sidebar and `questions.json`. Check with `bun nv site
---check tools snippets stale questions prose` and `--build`, and run `bun nv render --website` after
-a reference chapter edit. A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash. A page has four to
-six questions, and none repeats another page's.
+**Stage 9: the debug viewer and profiler pages.** Their gates are met: `debug-service`,
+`debug-viewer`, `request-aware-editor` and `trace-timeline` have landed. The shots exist:
+`website/snippets/tools/debug-viewer/requests.shot` and `website/snippets/tools/profiler/fibonacci.shot`.
+First the `<Shot>` component and `shotShape`, then follow the `**Split:**` line: `--shoot` the shots
+each page needs, then one writing subagent per page, and the session alone edits the sidebar, the
+overview's list and `questions.json`. Check with `bun nv site --check tools snippets shots stale
+questions prose` and `--build`. A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash. Run
+`--bless` with `--nvs target/debug/nvs.exe`: the release build is older than the crates.
 
-- [ ] Debugger page: `launch.json`, a breakpoint, stepping and the variables, as `.dap` replays (`tools/nv/cmd/site.ts:147`), from `docs/examples/tools/editor/nvs-dap/`. `website/src/content/docs/tools/debugger/index.mdx:1`
-- [ ] API document page: `nvs build --openapi` and `nvs api diff` as terminal blocks, `#[Api]` completion as a replay. `website/src/content/docs/tools/api-document/index.mdx:1`, `docs/examples/tools/cli/nvs-build-openapi/about.md:1`
-- [ ] Each page's sidebar entry in `TOOL_SECTIONS` order, its questions and stamp, then stage 5's status `done`. `website/astro.config.ts:679`, `website/src/data/questions.json:17758`
+- [ ] `<Shot src="..."/>` shows the `.png` beside a `.shot`, and `shotShape` names a `.shot` no page shows. `website/src/components/Terminal.astro:1`, `tools/nv/cmd/site.ts:1483`
+- [ ] Debug viewer page, from `docs/examples/tools/cli/the-debug-viewer/` and `nvs-debug-to-test/`. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
+- [ ] Profiler page, from `docs/examples/tools/cli/profiling/`. `website/src/content/docs/tools/profiler/index.mdx:1`
+- [ ] Both sidebar entries between the debugger and the API document, both overview links, questions and stamps, then stage 9's status `done`. `website/astro.config.ts:692`, `website/src/content/docs/tools/index.mdx:19`
 
 A terminal block must not print a `\` path, so a `.term` names its files. No test is expected to go
 red.
@@ -344,5 +345,9 @@ red.
   directory. Today the pages avoid it.
 - `nvs cache gc`, `nvs cache clear` and `[opcache] file_cache_max_size` have no section in
   `docs/reference/tools/10-cli.md`; `nvs cache --help` names them.
-- Stages 5 and 9 follow 4 in order, then 6 and 10. Stage 6 checks that five header areas fit the
+- A replay of the field names inside `#[Api(...)]` needs `nvs lsp` to complete in a half-written
+  attribute with `'])` after the cursor; `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt`
+  covers only the clean case.
+- A `.dap.out` could list an object's properties, so a debugger replay could show one.
+- Stage 9 follows 5, then 6 and 10. Stage 6 checks that five header areas fit the
   header at mid widths, which no browser has shown yet.

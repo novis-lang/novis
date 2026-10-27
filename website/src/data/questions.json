@@ -17757,13 +17757,24 @@
   },
   "/tools/": {
     "feature": "tools/index.mdx",
-    "hash": "1dc5939d527c40c7",
+    "hash": "670c2fd0d985a833",
     "questions": [
       "Which developer tools come with Novis?",
       "Is there a debugger and a profiler for Novis?",
       "Does Novis have a code formatter and a test runner?",
       "Which editor can I use to write Novis code?",
       "Can I see the requests my server handled in a browser?"
+    ]
+  },
+  "/tools/api-document/": {
+    "feature": "tools/api-document/index.mdx",
+    "hash": "11be6d73ba0976b3",
+    "questions": [
+      "Does Novis write a Swagger document for my web API?",
+      "Add tags, error responses and an auth scheme to my OpenAPI document",
+      "How do I declare a bearer token security scheme for my routes?",
+      "Which API changes break old clients, and which are safe?",
+      "Is a new query parameter with a default value a breaking change?"
     ]
   },
   "/tools/cli/": {
@@ -17775,6 +17786,18 @@
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
+    ]
+  },
+  "/tools/debugger/": {
+    "feature": "tools/debugger/index.mdx",
+    "hash": "ae67f7fe0bea23d7",
+    "questions": [
+      "What do I put in launch.json to debug a Novis file?",
+      "Watch a variable change on each pass through a loop",
+      "See the value a method returned after I step out of it",
+      "Which keys step over, into and out of a line in VS Code?",
+      "Print a message at a line without stopping the program",
+      "Can I attach the debugger to a server that is already running?"
     ]
   },
   "/tools/editor/": {
