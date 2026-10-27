@@ -160,6 +160,18 @@ class and `E0137` for a dropped reference, because both are decided from the tre
 in its own set, `Env::method_name_args`, apart from a retrieval target. Why: one node is the simplest
 change, and nothing downstream of the parser needed a new arm.
 
+**A link's `$route` is a `callable`, and a written reference is marked for the link** (stage 3,
+decided by the session that built it). `CoreTy::MethodRef` was not reused: it folds to the method's
+name and refuses a value, and the design needs a value to work. So the three link members declare
+`CoreTy::Callable`, and `nvs_types::expr::calls::note_link_target` marks a written `Class::method` in
+`Env::link_target_args`, which skips the visibility check. A written reference is never lowered:
+`links.rs` resolves it by `Route::handler` and `nvs-ir` passes the prepared path in its place, so an
+instance method needs no object. `urlSigned` keeps `$params` required, because its settings after it
+are required and a default cannot sit in front of a required parameter. `E0754` keeps its number and
+now means a method with no route (`E_LINK_METHOD_HAS_NO_ROUTE`), because it is the same check at the
+same argument. Why: the editor and the checker read an ordinary method reference, and a value reaches
+the runtime as the callable it is.
+
 **Lanes.** Stages 1 to 4 run in order: the rules first, then the parser and checker, then the route
 table and links, then the readers of the match. Stage 5 (editor) touches only `crates/nvs-lsp/` and
 `tests/lsp/` and may run as a side goal once stage 4 lands. Stage 6's batches of `.nvs` files are
@@ -210,18 +222,24 @@ Writing subagents rewrite them by folder (`docs/examples/`, `tests/hostile/`, `t
 
 - [ ] `name` leaves the `OPTIONS` roster and `struct Route`; a written `name:` is an unknown field. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/src/routes.rs:390`, `crates/nvs-types/src/routes.rs:2246`
 - [ ] `check_table`: two `#[Route]`s on one method with different paths are a new code with both sites and the `{x?}` or second-method hint; `E0749` is retired in `types_e07.rs`. `crates/nvs-types/src/routes.rs:3398`, `crates/nvs-diagnostics/src/code/types_e07.rs:963`
-- [ ] The first parameter of `url`, `urlAbsolute` and `urlSigned` is `CoreTy::MethodRef`, and `$params` is optional with `[]`. `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-stdlib/src/router.rs:323`, `crates/nvs-stdlib/src/router.rs:332`
-- [ ] `links.rs` resolves a written reference to its route row: a method with no `#[Route]` replaces `E0754`'s unknown name, and the key and `E0772` checks read the row as before. Inside a link the reference needs no object and skips the visibility check. `crates/nvs-types/src/links.rs:156`, `crates/nvs-types/src/links.rs:343`, `crates/nvs-types/src/links.rs:491`
+- [x] The first parameter of `url`, `urlAbsolute` and `urlSigned` is `$route`, a `CoreTy::Callable` (see § *Standing decisions*), and `$params` is optional with `[]` on `url` and `urlAbsolute`. `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-stdlib/src/router.rs:323`, `crates/nvs-stdlib/src/router.rs:332`
+- [x] `links.rs` resolves a written reference to its route row: a method with no `#[Route]` replaces `E0754`'s unknown name, and the key and `E0772` checks read the row as before. Inside a link the reference needs no object and skips the visibility check. `crates/nvs-types/src/links.rs:156`, `crates/nvs-types/src/links.rs:343`, `crates/nvs-types/src/links.rs:491`
 - [ ] The runtime link functions take the row a written reference folds to, and resolve a reference passed as a value by its method, throwing `no_such_route` when it has none. `crates/nvs-stdlib/src/router.rs:1535`, `crates/nvs-stdlib/src/router.rs:1555`, `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1968`
+  - [x] a written reference reaches the prepared-path helpers as before; an omitted `$params` lowers to an empty `ArrayNew` (`lower_route_link`)
+  - [ ] the method-reference thunk carries its target `Class::method` where the runtime can read it (`lower_method_ref`, `crates/nvs-ir/src/lower/expr.rs:3313`)
+  - [ ] the unfolded helpers `nvs_core_router_url`/`_absolute`/`_signed` find the row by `ctx.routes()` and `Route::handler`, build the link as the prepared helpers do, and throw `no_such_route` only for a method with no route
 - [ ] Tests in `routes.rs` rewritten from names to references, plus: two paths on one method, a method with no route, an instance method linked without an object, a private method linked from another class, and a reference passed as a value that throws. `crates/nvs-types/tests/routes.rs:525`, `crates/nvs-types/tests/routes.rs:864`, `crates/nvs-types/tests/routes.rs:909`
-- [ ] The help text of the three members (`URL_DOC`, `URL_ABSOLUTE_DOC`, `URL_SIGNED_DOC`) and the class card, held to § *Text an end user reads*. `crates/nvs-stdlib/src/router.rs:288`, `crates/nvs-stdlib/src/router.rs:435`
+  - [x] the link tests use references; a method with no route, an instance method without an object, a private method from outside, a value left to run time, an omitted `$params` (`a_link_to_a_method_with_no_route_is_a_diagnostic` and the three after it)
+  - [ ] two paths on one method, with the `check_table` item
+  - [ ] a reference passed as a value that throws, as a run-time test once the thunk carries its target
+- [x] The help text of the three members (`URL_DOC`, `URL_ABSOLUTE_DOC`, `URL_SIGNED_DOC`) and the class card, held to § *Text an end user reads*. `crates/nvs-stdlib/src/router.rs:288`, `crates/nvs-stdlib/src/router.rs:435`
 
 ### 4. `Match::is`, signed links, the `operationId` and the metrics label read the method or the path
 
 **Does:** nothing reads a route name any more.
 
 - [ ] `Match::name` is replaced by `Match::is(<method reference>): bool`: a written reference folds to the row index, a value compares by row. `crates/nvs-stdlib/src/router.rs:746`, `crates/nvs-stdlib/src/router.rs:752`, `crates/nvs-stdlib/src/router.rs:2348`
-- [ ] `urlSigned` and `signedRoute` sign and verify the path pattern and the values. `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1889`
+- [x] `urlSigned` and `signedRoute` sign and verify the path pattern and the values. `crates/nvs-stdlib/src/router.rs:1694`, `crates/nvs-stdlib/src/router.rs:1889`
 - [ ] `base_id` is `Class.method`, the verb suffix stays for a method with several verbs, and `#[Api]` gets an optional `operationId` row that replaces it. `crates/nvs-cli/src/openapi.rs:366`, `crates/nvs-cli/src/openapi.rs:424`, `crates/nvs-types/src/routes.rs:1218`
 - [ ] The metrics `route` label carries the path pattern; an Explore subagent finds where the label is written (grep `route` label in `crates/nvs-runtime/` and `crates/nvs-stdlib/`). `crates/nvs-stdlib/src/router.rs:1`
 - [ ] Tests: the stdlib test module's `Match::name` cases become `Match::is`, a signed link survives a method rename and a remount, the pinned OpenAPI document is re-blessed with the new ids, and an `#[Api]` override wins. `crates/nvs-stdlib/src/router.rs:3085`, `crates/nvs-cli/tests/openapi.rs:1`, `crates/nvs-cli/tests/fixtures/openapi/schema-3.1.json:1`
@@ -269,33 +287,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. The parser reads a lowercase name after `::` as a method reference
-(`crates/nvs-syntax/src/parser/expr.rs`, `names_a_method`), refuses `Class::method(...)` with
-`E0136` and a dropped reference with `E0137`, and every `.nvs`, `.nvst`, Rust test source,
-diagnostic help, `docs/` page, website page and generated website file writes the bare form
-(`64ac447d5`, `5f7719c6b`, `f7068141a`). A call with elided arguments keeps `(...)`:
-`parent::constructor(...)`, `Core\Test::request(...)`, `Core\Request::query(...)`, `$cls::f(...)`.
+Stages 1 and 2 are done, and stage 3's link half has landed (`f3cb545c7`). `Core\Router::url`,
+`urlAbsolute` and `urlSigned` take `$route`, a `callable`, and `url`/`urlAbsolute` default `$params`
+to `[]`. A written `Class::method` is marked by `note_link_target` (`crates/nvs-types/src/expr/calls.rs`)
+so it skips visibility; `links.rs` `record_site` reads its `ExprInfo::CallableRef` and `resolve` finds
+the row by `RouteTable::handled_by`; a method with no route is `E0754`, renamed
+`E_LINK_METHOD_HAS_NO_ROUTE`. `urlSigned`/`signedRoute` sign the route's path pattern, so stage 4's
+signing item is ticked. The three member cards and the class card are rewritten. A reference passed as
+a value reaches the unfolded helpers, which still throw `no_such_route` for every value.
 
-The acceptance sweep's four reds need no change. `env-secret-proofs` passes on the tree as it is. The
-three nightly Miri jobs ran on `55b03e97a`, and the commits after it fixed all three: `22f1e4ec4`
-(the json secret-span test), `c33a8b8f7` and `e461612ce` (the two spool tests).
+`Route::name`, `RouteTable::named`, `E0749` and the `name:` roster row still exist, and `row.name` is
+still read by `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`,
+`crates/nvs-lsp/src/completion.rs:1239`/`1270` and `Match::name` in `crates/nvs-stdlib/src/router.rs`.
 
-Expected red until stage 7 runs: the Rust test files whose Novis source lost `(...)`
-(`crates/nvs-types/tests/attributes.rs`, `isolates.rs`, `core_members.rs`, `paths.rs`,
-`crates/nvs-ir/tests/callable_names.rs`, `crates/nvs-lsp/tests/index.rs`, `navigation.rs`,
-`crates/nvs-cli/tests/spawn_entry.rs`) were not run. A column or a span they assert may have moved by
-five bytes.
+Expected red until stage 6 and 7: every `.nvs`, `.nvst`, `.lspt` and Rust test source that calls
+`Core\Router::url`/`urlAbsolute`/`urlSigned` with a quoted route name, including the router tests in
+`crates/nvs-stdlib/src/router.rs` (`// covers: Core\Router::url` near line 3801), the conformance
+cases under `tests/conformance/`, the LSP route-name completion tests and the examples. Also the Rust
+test files the last handoff named (`crates/nvs-types/tests/attributes.rs`, `isolates.rs`,
+`core_members.rs`, `paths.rs`, `crates/nvs-ir/tests/callable_names.rs`, `crates/nvs-lsp/tests/index.rs`,
+`navigation.rs`, `crates/nvs-cli/tests/spawn_entry.rs`), which were not run. `crates/nvs-types/tests/routes.rs`
+passes whole.
 
 ### Next
 
-**Stage 3, link half first.** `Route::name` cannot leave the table first. `RouteTable::named`
-(`crates/nvs-types/src/routes.rs:918`) and `row.name` are read by `links.rs` (`resolve`, and `signed`
-signs the name at `links.rs:401`), `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`
-and `crates/nvs-lsp/src/completion.rs:1239`/`1270`. So move every reader to the method first, and
-delete the field last.
+**Stage 3, the table half and the value form.**
 
-- [ ] Decide the type of `url`'s first parameter before writing code, and record it under `## Standing decisions`. `CoreTy::MethodRef` folds to the method's name, is positional only, and refuses a value (`note_method_ref_args`). The design needs a reference passed as a value to work too, so it is likely `CoreTy::Callable` plus a link-only mark like `method_ref_args` that lets an instance method go without an object and skips visibility. First read how `nvs-ir` lowers `ExprInfo::CallableRef`, since the runtime must map a callable value to its route row. `crates/nvs-stdlib/src/registry.rs:517`, `crates/nvs-types/src/expr/calls.rs:1506`, `crates/nvs-types/src/lib.rs:685`, `crates/nvs-types/src/expr_table.rs:512`
-- [ ] `record_site` reads argument 0's `ExprInfo::CallableRef` (the class and the method) where it read a folded string, and `resolve` looks the row up by `Route::handler` (written as `Class::method` at `routes.rs:969`). A method with no `#[Route]` replaces `E0754`'s unknown name. `crates/nvs-types/src/links.rs:190`, `crates/nvs-types/src/links.rs:350`
-- [ ] Then the rest of stage 3's items in order: the runtime link functions, the two-paths check and `E0749`'s retirement, `name` leaving `OPTIONS`, the tests, and the help text. `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/tests/routes.rs:525`
+- [ ] `check_table`: two `#[Route]`s on one method with different paths are a new code naming both attributes, with the `{x?}` or second-method help; `E0749` is retired in `types_e07.rs` (its number is not reused). Add the test in `routes.rs` and rewrite `every_route_on_one_method_becomes_a_row_and_they_may_share_a_name`. `crates/nvs-types/src/routes.rs:3446`, `crates/nvs-diagnostics/src/code/types_e07.rs:963`, `crates/nvs-types/tests/routes.rs:490`
+- [ ] The value form: the method-reference thunk carries its target `Class::method` (`lower_method_ref`), and the unfolded helpers find the row through `ctx.routes()` and `Route::handler`, throwing `no_such_route` only for a method with no route. Read first how a thunk class is emitted and whether a class descriptor can carry a constant string. `crates/nvs-ir/src/lower/expr.rs:3313`, `crates/nvs-stdlib/src/router.rs:1966`
+- [ ] Then `name` leaves `OPTIONS`, `struct Route`, `RouteTable::named` and the runtime row, once stage 4 has moved `openapi.rs`, `main.rs`, `completion.rs` and `Match::name` off it. If those readers are still there, do stage 4's `Match::is` and `operationId` items first. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/src/routes.rs:390`
 
 ### Backlog
