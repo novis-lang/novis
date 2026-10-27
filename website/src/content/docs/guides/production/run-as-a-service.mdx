@@ -117,7 +117,11 @@ nvs service stop shop
 ```
 
 A stop finishes the requests that are running, and then the server exits. `status` prints the state
-of the service and the number of requests that are running.
+of the service.
+
+When the service is not running, `status` also prints the end of its last run, under `Last run:`.
+On Windows, these are the last 20 warnings and errors in the event log. On Linux, these are the last
+20 lines in the journal. If an error stopped the service, you see the error here.
 
 Then `status` checks every `--config` file for the account the service runs as. This is the same
 check that the installer runs. A file that the account would not accept prints the error `E0607`,

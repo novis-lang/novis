@@ -31,7 +31,7 @@ stages:
     context: [website/src/content/docs/install/server.mdx, website/src/content/docs/guides/production/run-as-a-service.mdx, docs/examples/tools/install/what-novis-checks/about.md, docs/examples/tools/server/nvs-service/about.md, docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md]
   - id: 5
     title: "`nvs service status` on a stopped service prints its last run's diagnostic"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/service.rs, crates/nvs-cli/src/dispatch.rs, docs/rules/packaging/a-service-answers-its-manager.md, docs/examples/tools/server/nvs-service/about.md]
     extra:
       context:
@@ -168,15 +168,19 @@ administrator), so the claim does not rest on a policy default, and a test prove
 that is not the server. `install --dry-run` is the pre-flight on the host.
 
 **A stopped service's last run is the platform's own record of it.** On Windows: the SCM's
-`dwWin32ExitCode` and `dwServiceSpecificExitCode` from `QueryServiceStatusEx`
-(`crates/nvs-cli/src/service.rs:3981`), and the Application log records the service's own event source
-wrote since its last "started" lifecycle record (`crates/nvs-cli/src/dispatch.rs:654`), read with
-`EvtQuery` (`Win32_System_EventLog` is already a workspace feature). On Linux: `systemctl show -p
-InvocationID` for the last run, then `journalctl _SYSTEMD_INVOCATION_ID=<id> -o cat --no-pager`, by
-argv with no shell (`rule:core-classes/process-is-argv-only`). It prints the warning and error records
-of that run, which is the refused configuration's diagnostic when that is what stopped it. A running
-service prints what it prints today. The reading is a new `Manager` method with a default that returns
-nothing, so the recording manager drives the cases (`crates/nvs-cli/src/service.rs:2107`).
+`dwWin32ExitCode` and `dwServiceSpecificExitCode` from `QueryServiceStatusEx`, appended to the
+`stopped` answer, and the Application log records the service's own event source wrote since its last
+*starting* record, read newest first with `ReadEventLogW` (`crates/nvs-cli/src/service.rs:3628`). The
+run starts at a new `Lifecycle::Starting` record (message id 4, which the table already had), written
+first in `service_main`. Not the *started* record, which a refused configuration never reaches, and
+not the previous run's end, because the unjoined reader threads can land a line after it.
+`ReadEventLogW` rather than `EvtQuery`: it gives the event id and the text in the record and stops at
+the run's start. On Linux: `systemctl show -p InvocationID --value`, then `journalctl
+_SYSTEMD_INVOCATION_ID=<id> -o cat --no-pager -n 20`, by argv with no shell
+(`rule:core-classes/process-is-argv-only`). Windows keeps the run's warning and error records, and
+Linux every line, because systemd stores stdout and stderr at one priority; both keep the last 20
+(`dispatch::LAST_RUN_LINES`). A running service prints what it printed before. The reading is
+`Manager::last_run`, whose default returns nothing (`crates/nvs-cli/src/service.rs:2186`).
 
 **Trade-offs.** Security: the check an operator runs before the start is the boot's own, so a passing
 pre-flight means the service starts past this check. Latency: none on the request path. Install and
@@ -263,13 +267,16 @@ are held to AGENTS.md § *Text an end user reads*, and each runs `bun nv proofs 
 **Does:** a stopped service's status prints its state and then the warning and error lines of its last
 run, read from the platform's own record.
 
-- [ ] The `Manager` method that reads the last run, with a default that returns nothing. `crates/nvs-cli/src/service.rs:2107`
-- [ ] Windows: the exit codes from `QueryServiceStatusEx`, and the Application log records of the service's source since its last "started" record, read with `EvtQuery`. `crates/nvs-cli/src/service.rs:3972`, `crates/nvs-cli/src/dispatch.rs:654`
-- [ ] Linux: `systemctl show -p InvocationID` and `journalctl _SYSTEMD_INVOCATION_ID=<id> -o cat --no-pager`, by argv with no shell. `crates/nvs-cli/src/service.rs:2598`
-- [ ] `status` prints the last run's lines under the state when the service is stopped, and nothing more when it runs; `Control::Status`'s doc says so. `crates/nvs-cli/src/service.rs:4307`, `crates/nvs-cli/src/service.rs:2079`
-- [ ] Tests: the recording manager's stopped service prints its recorded lines; the Linux argv is pinned as `service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell` pins the control argv; the selection of the last run's records from a list that holds two runs is a pure function with its own test. `crates/nvs-cli/src/service.rs:6508`
-- [ ] Amend `rule:packaging/a-service-answers-its-manager`'s § *Output*: status reads back the last run. The `nvs service` reference page and the service guide say so. `docs/rules/packaging/a-service-answers-its-manager.md:18`, `docs/examples/tools/server/nvs-service/about.md:1`, `website/src/content/docs/guides/production/run-as-a-service.mdx:100`
-- [ ] `bun nv proofs --id 'tools:server/nvs-service'` owes nothing, and `bun nv owners --closes service-owner-check` passes. `docs/examples/tools/server/nvs-service/about.md:1`
+- [x] The `Manager` method that reads the last run, with a default that returns nothing. `crates/nvs-cli/src/service.rs:2186`
+- [x] Windows: the exit codes from `QueryServiceStatusEx`, and the Application log records of the service's source since its last *starting* record, read newest first with `ReadEventLogW`. `crates/nvs-cli/src/service.rs:3628`, `crates/nvs-cli/src/dispatch.rs:134`
+  - [x] `Lifecycle::Starting` (message id 4) is written first in `service_main`
+  - [x] the reader, checked once against records a throwaway probe wrote to this machine's Application log
+- [x] Linux: `systemctl show -p InvocationID --value` and `journalctl _SYSTEMD_INVOCATION_ID=<id> -o cat --no-pager -n 20`, by argv with no shell. `crates/nvs-cli/src/service.rs:2194`, `crates/nvs-cli/src/service.rs:3242`
+- [x] `status` prints the last run's lines under the state when the service is stopped, and nothing more when it runs; `Control::Status`'s doc says so. `crates/nvs-cli/src/service.rs:4752`
+- [x] Tests: the recording manager's stopped service prints its recorded lines; the Linux argv is pinned as `service_start_stop_and_status_reach_the_manager_by_argv_with_no_shell` pins the control argv; the selection of the last run's records from a list that holds two runs is a pure function with its own test. `crates/nvs-cli/src/service.rs:7076`, `crates/nvs-cli/src/dispatch.rs:134`
+  - [x] green on Windows and in WSL (`bun nv linux-test last_run`)
+- [x] Amend `rule:packaging/a-service-answers-its-manager`'s § *Output*: status reads back the last run. The `nvs service` reference page and the service guide say so. `docs/rules/packaging/a-service-answers-its-manager.md:18`, `docs/examples/tools/server/nvs-service/about.md:1`, `website/src/content/docs/guides/production/run-as-a-service.mdx:111`
+- [x] `bun nv proofs --id 'tools:server/nvs-service'` owes nothing, and `bun nv owners --closes service-owner-check` passes. `docs/examples/tools/server/nvs-service/about.md:1`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -288,33 +295,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. Install and status judge the stored `--config` files for the service's
-account (`status_of`, `crates/nvs-cli/src/service.rs:4526`). Stage 4's pages say so:
-`website/src/content/docs/install/server.mdx` has the three new command rows and a
-`### Check for another account` section, and `run-as-a-service.mdx` has
-`## The installer checks the configuration` and status's check under *Start, stop and check*. The
-`nvs config check` reference page documents `--as`, and its example
-`02-check-a-configuration-for-the-service-account.nvs` runs under the folder's `nvs.toml`. Both
-features owe nothing, and `a_folder_an_administrator_creates_passes_for_the_service_accounts`
-(`crates/nvs-config/src/data.rs:913`) now covers `tools:server/nvs-service`. `reference.json` reads
-each `about.md` in place, so `bun nv render --website` had nothing to write. The sweep's
-`env-secret-proofs` is green on this tree. Its Miri reds came from the CI run on `55b03e97a`, before
-the fixes the last handoff named. The release binary lacks `--as` until `bun nv relink --build`. No
-test is expected to go red.
+Stages 1 to 5 are done. A stopped service's `status` prints the state, on Windows with its exit code,
+then up to 20 lines of its last run under `Last run:` (`status_of`,
+`crates/nvs-cli/src/service.rs:4752`). The readers are `Manager::last_run`: `Systemd` at
+`crates/nvs-cli/src/service.rs:3242` and `Scm` through `records` at
+`crates/nvs-cli/src/service.rs:3628`. The run boundary is the new `Lifecycle::Starting` record, and
+the pure selection is `dispatch::last_run` (`crates/nvs-cli/src/dispatch.rs:134`). The standing
+decision records why it is `ReadEventLogW` and not `EvtQuery`. The Windows reader was checked once
+against records a throwaway probe wrote, and the probe is gone. The new tests are green on Windows
+and in WSL. `rule:packaging/a-service-answers-its-manager` § *Output*, the `nvs service` page and
+the service guide say so. The guide no longer claims `status` prints a running request count, which
+it never did. `nvs service` owes no proof, and `owners --closes` passes. The sweep's
+`env-secret-proofs` log exits 0. Its Miri reds are run 40474302703 on `55b03e97a`, which
+`cea10a7cd` fixed. No test is expected to go red.
 
 ### Next
 
-**Stage 5: `nvs service status` on a stopped service prints its last run's diagnostic.** One session,
-`crates/nvs-cli/src/service.rs` alone plus the rule and two pages. Anchors have moved since the stage
-was written: the `registration` control enum's `Status` is at `crates/nvs-cli/src/service.rs:2093`,
-each manager's `stored` at `crates/nvs-cli/src/service.rs:2137` (Linux), `:3152` and `:4228`, the
-Windows `QueryServiceStatusEx` call at `crates/nvs-cli/src/service.rs:4140`, status's entry at
-`crates/nvs-cli/src/service.rs:4526`, and the argv-pinning test's `Status` row at
-`crates/nvs-cli/src/service.rs:6783`. Add the last-run method beside `stored`, with a default that
-returns nothing, then the Windows and Linux readers, then status's print and the pure selection
-function with its test. The page sentences go in `docs/examples/tools/server/nvs-service/about.md`,
-which is at 198 of its 200 words, so a sentence goes out for each one that comes in, and in
-`run-as-a-service.mdx` under *Start, stop and check*.
+**Stage 6: the goal is verified once.** Start `bun nv affected --run` (or `looper verify`) with
+`run_in_background` and end the turn to wait. Group the failures by cause and fix them in one pass.
+Then run the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
+`bun nv owners --closes service-owner-check` and `bun nv ci --check`. The goal's three checks are
+`config-check-proofs`, `service-proofs` and `owners-closes`. Before `DONE`, move each decision only
+this file's prose holds into a rule or a module doc. The last-run decision is in
+`rule:packaging/a-service-answers-its-manager` already.
 
 ### Backlog
 

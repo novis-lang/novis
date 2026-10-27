@@ -2079,8 +2079,10 @@ pub(crate) mod registration {
     /// The three verbs that act on an installed service rather than on its
     /// registration.
     ///
-    /// `Status` is the manager's own answer. `nvs service status` then checks
-    /// the stored configuration for the service's account, which is not an
+    /// `Status` is the manager's own answer: the state, and on Windows a
+    /// stopped service's exit code. `nvs service status` then reads the last
+    /// run's lines through [`Manager::last_run`] and checks the stored
+    /// configuration for the service's account, neither of which is an
     /// action of the manager's.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub(crate) enum Control {
@@ -2170,6 +2172,54 @@ pub(crate) mod registration {
         ///
         /// A message that says this machine has no such account.
         fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String>;
+
+        /// The warning and error lines the service's last run wrote, oldest
+        /// first, read from the platform's own record of it: the journal on
+        /// Linux, the Application log on Windows
+        /// (`rule:packaging/a-service-answers-its-manager`'s *Output*).
+        ///
+        /// The default reads nothing, which is a manager with no record to read.
+        ///
+        /// # Errors
+        ///
+        /// The platform's own failure to read its record.
+        fn last_run(&self, name: &str) -> std::io::Result<Vec<String>> {
+            let _ = name;
+            Ok(Vec::new())
+        }
+    }
+
+    /// The `systemctl show` argv that gives the id of a unit's last run, which
+    /// systemd keeps after the run ends.
+    pub(crate) fn invocation_argv(name: &str) -> Vec<String> {
+        ["show", "-p", "InvocationID", "--value", name]
+            .map(str::to_owned)
+            .to_vec()
+    }
+
+    /// The `journalctl` argv that prints the last
+    /// [`LAST_RUN_LINES`](crate::dispatch::LAST_RUN_LINES) lines of the run
+    /// `invocation` names, each as it was written.
+    ///
+    /// Every line, and not its warnings alone: systemd stores a unit's
+    /// standard output and standard error at one priority, so the journal
+    /// cannot tell them apart.
+    pub(crate) fn journal_argv(invocation: &str) -> Vec<String> {
+        vec![
+            format!("_SYSTEMD_INVOCATION_ID={invocation}"),
+            "-o".to_owned(),
+            "cat".to_owned(),
+            "--no-pager".to_owned(),
+            "-n".to_owned(),
+            crate::dispatch::LAST_RUN_LINES.to_string(),
+        ]
+    }
+
+    /// Whether the state a manager answered is one in which the service is
+    /// not running: `stopped` from the SCM, `inactive` or `failed` from
+    /// `systemctl is-active`.
+    pub(crate) fn ended(state: &str) -> bool {
+        state.starts_with("stopped") || state == "inactive" || state == "failed"
     }
 
     /// Where a verb is being performed.
@@ -3188,6 +3238,24 @@ pub(crate) mod registration {
         fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String> {
             nvs_config::trust::Account::named(name)
         }
+
+        fn last_run(&self, name: &str) -> std::io::Result<Vec<String>> {
+            let Some(invocation) = systemctl(&invocation_argv(name))? else {
+                // A unit systemd no longer has loaded keeps no last run.
+                return Ok(Vec::new());
+            };
+            let run = std::process::Command::new("journalctl")
+                .args(journal_argv(&invocation))
+                .output()?;
+            // Its standard output alone, and whatever its exit: an account
+            // that may not read the system journal gets no lines, and status
+            // then prints the state alone.
+            Ok(String::from_utf8_lossy(&run.stdout)
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(str::to_owned)
+                .collect())
+        }
     }
 
     /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants as Linux spells them: `chown` and `chmod` on the paths
@@ -3406,6 +3474,9 @@ pub(crate) mod registration {
             ERROR_SERVICE_DOES_NOT_EXIST, ERROR_SERVICE_MARKED_FOR_DELETE,
             ERROR_SERVICE_NOT_ACTIVE, ERROR_SUCCESS, LocalFree, WIN32_ERROR,
         };
+        use windows_sys::Win32::Foundation::{
+            ERROR_HANDLE_EOF, ERROR_INSUFFICIENT_BUFFER, ERROR_SERVICE_SPECIFIC_ERROR, HANDLE,
+        };
         use windows_sys::Win32::Security::Authorization::{
             ACCESS_MODE, EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW,
             NO_MULTIPLE_TRUSTEE, REVOKE_ACCESS, SE_FILE_OBJECT, SetEntriesInAclW,
@@ -3419,7 +3490,9 @@ pub(crate) mod registration {
             DELETE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
         };
         use windows_sys::Win32::System::EventLog::{
-            EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE, EVENTLOG_WARNING_TYPE,
+            CloseEventLog, EVENTLOG_ERROR_TYPE, EVENTLOG_INFORMATION_TYPE,
+            EVENTLOG_SEQUENTIAL_READ, EVENTLOG_WARNING_TYPE, EVENTLOGRECORD, OpenEventLogW,
+            ReadEventLogW,
         };
         use windows_sys::Win32::System::Registry::{
             HKEY, HKEY_LOCAL_MACHINE, KEY_WRITE, REG_DWORD, REG_EXPAND_SZ, REG_OPTION_NON_VOLATILE,
@@ -3535,6 +3608,105 @@ pub(crate) mod registration {
             fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String> {
                 nvs_config::trust::Account::named(name)
             }
+
+            fn last_run(&self, name: &str) -> std::io::Result<Vec<String>> {
+                records(name).map(|records| crate::dispatch::last_run(&records))
+            }
+        }
+
+        /// `EVENTLOG_BACKWARDS_READ`, which `windows-sys` does not export.
+        const BACKWARDS_READ: u32 = 0x0008;
+
+        /// The records the event-log source `name` wrote to the Application
+        /// log since its last *starting* record, that record included, oldest
+        /// first, each as its event id and its first string.
+        ///
+        /// Read newest first, so the walk ends at that record and costs one
+        /// run's records, not the log's. A log with no such record is read
+        /// whole. Any account may read the Application log, so this needs no
+        /// administrator prompt.
+        fn records(name: &str) -> std::io::Result<Vec<(u32, String)>> {
+            let log = wide("Application");
+            // SAFETY: the local machine and a NUL-terminated log name.
+            let handle = unsafe { OpenEventLogW(std::ptr::null(), log.as_ptr()) };
+            if handle.is_null() {
+                return Err(Error::last_os_error());
+            }
+            let read = read_back(handle, name);
+            // SAFETY: the handle opened above, closed once.
+            unsafe { CloseEventLog(handle) };
+            read
+        }
+
+        /// [`records`]'s walk over an open log.
+        fn read_back(handle: HANDLE, name: &str) -> std::io::Result<Vec<(u32, String)>> {
+            let starting = crate::dispatch::Lifecycle::Starting.id();
+            let mut found = Vec::new();
+            // `u64` for the alignment of the records the call writes into it.
+            let mut buffer = vec![0_u64; 8 * 1024];
+            'read: loop {
+                let mut bytes = 0_u32;
+                let mut needed = 0_u32;
+                // SAFETY: a buffer of the byte length passed with it, and two
+                // out-parameters this frame owns.
+                let read = unsafe {
+                    ReadEventLogW(
+                        handle,
+                        BACKWARDS_READ | EVENTLOG_SEQUENTIAL_READ,
+                        0,
+                        buffer.as_mut_ptr().cast(),
+                        u32::try_from(buffer.len() * 8).unwrap_or(u32::MAX),
+                        &mut bytes,
+                        &mut needed,
+                    )
+                };
+                if read == 0 {
+                    let error = Error::last_os_error();
+                    match code(&error) {
+                        Some(ERROR_HANDLE_EOF) => break,
+                        Some(ERROR_INSUFFICIENT_BUFFER) => {
+                            buffer = vec![0_u64; (needed as usize).div_ceil(8)];
+                            continue;
+                        }
+                        _ => return Err(error),
+                    }
+                }
+                let base = buffer.as_ptr().cast::<u8>();
+                let mut at = 0_usize;
+                while at + size_of::<EVENTLOGRECORD>() <= bytes as usize {
+                    // SAFETY: `at` starts a record the call wrote, inside the
+                    // `bytes` it wrote, and every record is 4-byte aligned,
+                    // which is the structure's own alignment.
+                    let record = unsafe { &*base.add(at).cast::<EVENTLOGRECORD>() };
+                    if record.Length == 0 {
+                        break;
+                    }
+                    // SAFETY: the record's own offsets point inside it, at
+                    // NUL-terminated UTF-16: the source name right after the
+                    // fixed part, and the first string.
+                    let (source, first) = unsafe {
+                        let start = base.add(at);
+                        let source = text(start.add(size_of::<EVENTLOGRECORD>()).cast());
+                        let first = if record.NumStrings > 0 {
+                            text(start.add(record.StringOffset as usize).cast())
+                        } else {
+                            String::new()
+                        };
+                        (source, first)
+                    };
+                    at += record.Length as usize;
+                    if !source.eq_ignore_ascii_case(name) {
+                        continue;
+                    }
+                    let id = record.EventID & 0xFFFF;
+                    found.push((id, first));
+                    if id == starting {
+                        break 'read;
+                    }
+                }
+            }
+            found.reverse();
+            Ok(found)
         }
 
         /// `rule:packaging/the-argv-lives-in-imagepath`'s `ImagePath` and the account the SCM holds under `name`, which
@@ -4145,7 +4317,21 @@ pub(crate) mod registration {
                             &mut needed,
                         )
                     })?;
-                    Ok(Some(state(status.dwCurrentState)))
+                    let mut answer = state(status.dwCurrentState);
+                    // A stopped service's exit code is the SCM's record of how
+                    // its last run ended: the server's own code, or the
+                    // platform's error when the process never reported one.
+                    if status.dwCurrentState == SERVICE_STOPPED {
+                        match status.dwWin32ExitCode {
+                            0 => {}
+                            ERROR_SERVICE_SPECIFIC_ERROR => answer.push_str(&format!(
+                                " (exit code {})",
+                                status.dwServiceSpecificExitCode
+                            )),
+                            other => answer.push_str(&format!(" (Windows error {other})")),
+                        }
+                    }
+                    Ok(Some(answer))
                 }
             }
         }
@@ -4182,6 +4368,9 @@ pub(crate) mod registration {
         no_accounts: bool,
         /// What [`Manager::stored`] gives, for a case about an installed service.
         stored: Option<Stored>,
+        /// What a status control answers, and what [`Manager::last_run`]
+        /// gives, for a case about a stopped service.
+        last_run: Option<(String, Vec<String>)>,
     }
 
     #[cfg(test)]
@@ -4206,6 +4395,18 @@ pub(crate) mod registration {
             }
         }
 
+        /// A recording manager whose service is in `state`, and whose last run
+        /// wrote `lines`.
+        pub(crate) fn after_a_run(state: &str, lines: &[&str]) -> Self {
+            Self {
+                last_run: Some((
+                    state.to_owned(),
+                    lines.iter().map(|&line| line.to_owned()).collect(),
+                )),
+                ..Self::default()
+            }
+        }
+
         /// Everything applied through it, in order.
         pub(crate) fn applied(&self) -> Vec<Action> {
             self.applied
@@ -4222,7 +4423,26 @@ pub(crate) mod registration {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .push(action.clone());
-            Ok(None)
+            let status = matches!(
+                action,
+                Action::Scm {
+                    control: Control::Status,
+                    ..
+                }
+            ) || matches!(action, Action::Systemctl { argv } if argv.first().is_some_and(|verb| verb == "is-active"));
+            Ok(self
+                .last_run
+                .as_ref()
+                .filter(|_| status)
+                .map(|(state, _)| state.clone()))
+        }
+
+        fn last_run(&self, _name: &str) -> std::io::Result<Vec<String>> {
+            Ok(self
+                .last_run
+                .as_ref()
+                .map(|(_, lines)| lines.clone())
+                .unwrap_or_default())
         }
 
         fn stored(&self, _name: &str, _unit_root: &Path) -> std::io::Result<Stored> {
@@ -4485,7 +4705,8 @@ pub(crate) fn stop(name: &str) -> ExitCode {
     answered(name, registration::Control::Stop)
 }
 
-/// `nvs service status <name>` — the manager's own answer, then
+/// `nvs service status <name>` — the manager's own answer, the last run's
+/// warnings and errors when the service is not running, then
 /// `rule:config/ownership-is-the-trust-boundary`'s check of the stored
 /// configuration for the account the service runs as. A refusal is the boot's
 /// `E0607` and exits `1`. A file this account cannot read is a warning, and
@@ -4512,8 +4733,13 @@ pub(crate) fn status(name: &str) -> ExitCode {
     }
 }
 
-/// What `nvs service status` prints: the manager's answer, and the verdict on
-/// every `--config` file the stored argv names, judged for the stored account.
+/// What `nvs service status` prints: the manager's answer, then, for a service
+/// that is not running, the lines its last run wrote under `Last run:`, and the
+/// verdict on every `--config` file the stored argv names, judged for the
+/// stored account.
+///
+/// A last run that cannot be read is one line saying so, because the state is
+/// still the answer.
 ///
 /// The verdict is `E0605` downgraded to a warning when a file cannot be read
 /// from here. An unelevated prompt cannot read a service's private folder,
@@ -4527,7 +4753,20 @@ fn status_of(
     name: &str,
     site: &registration::Site<'_>,
 ) -> Result<(Vec<String>, Result<(), Diagnostic>), registration::Refused> {
-    let answers = registration::control(registration::Control::Status, name, site)?;
+    let mut answers = registration::control(registration::Control::Status, name, site)?;
+    if answers
+        .last()
+        .is_some_and(|state| registration::ended(state))
+    {
+        match site.manager.last_run(name) {
+            Ok(lines) if lines.is_empty() => {}
+            Ok(lines) => {
+                answers.push("Last run:".to_owned());
+                answers.extend(lines.into_iter().map(|line| format!("  {line}")));
+            }
+            Err(error) => answers.push(format!("Last run: the log could not be read: {error}")),
+        }
+    }
     let stored = match site.manager.stored(name, site.unit_root) {
         Ok(stored) => stored,
         Err(error) if error.kind() == std::io::ErrorKind::Unsupported => {
@@ -4542,8 +4781,8 @@ fn status_of(
     if named.is_empty() {
         return Ok((answers, Ok(())));
     }
-    let verdict = registration::judge_files(&named, &stored.account, Vec::new(), site)
-        .map_err(|diagnostic| {
+    let verdict = registration::judge_files(&named, &stored.account, Vec::new(), site).map_err(
+        |diagnostic| {
             if diagnostic.code != Some(code::E_UNREADABLE_CONFIG) {
                 return diagnostic;
             }
@@ -4562,7 +4801,8 @@ fn status_of(
             .with_help(format!(
                 "if the file exists, run `nvs service status {name}` {prompt} to check it"
             ))
-        });
+        },
+    );
     Ok((answers, verdict))
 }
 
@@ -6807,6 +7047,63 @@ mod tests {
             registration::control(control, "web", &site).expect("a control");
             assert_eq!(manager.applied().len(), 1, "{verb}");
         }
+
+        // A stopped unit's last run is read the same way: its id, then its
+        // lines, each name one element of an argv.
+        assert_eq!(
+            registration::invocation_argv("a name"),
+            ["show", "-p", "InvocationID", "--value", "a name"]
+        );
+        assert_eq!(
+            registration::journal_argv("0123abcd"),
+            [
+                "_SYSTEMD_INVOCATION_ID=0123abcd".to_owned(),
+                "-o".to_owned(),
+                "cat".to_owned(),
+                "--no-pager".to_owned(),
+                "-n".to_owned(),
+                crate::dispatch::LAST_RUN_LINES.to_string(),
+            ]
+        );
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`'s *Output*: `status` on a
+    /// stopped service prints the state and then its last run's lines, and on
+    /// a running one the state alone.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn status_of_a_stopped_service_prints_its_last_run() {
+        let root = unit_root("last-run");
+        let lines = [
+            "error[E0607]: a file another account can write",
+            "help: run this",
+        ];
+        let status = |state: &str| {
+            let manager = registration::Recording::after_a_run(state, &lines);
+            let site = registration::Site {
+                platform: registration::Platform::host(),
+                unit_root: &root,
+                manager: &manager,
+            };
+            let (answers, verdict) = status_of("shop", &site).expect("the manager answers");
+            assert!(verdict.is_ok(), "{verdict:?}");
+            answers
+        };
+        for stopped in ["stopped (exit code 1)", "inactive", "failed"] {
+            assert_eq!(
+                status(stopped),
+                [
+                    stopped,
+                    "Last run:",
+                    "  error[E0607]: a file another account can write",
+                    "  help: run this",
+                ]
+            );
+        }
+        for running in ["running", "active"] {
+            assert_eq!(status(running), [running]);
+        }
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 
@@ -7012,7 +7309,10 @@ mod tests {
         };
 
         let verdict = status(&config);
-        assert!(verdict.is_ok(), "a tree the account trusts passes: {verdict:?}");
+        assert!(
+            verdict.is_ok(),
+            "a tree the account trusts passes: {verdict:?}"
+        );
 
         let missing = status(&scratch.join("gone.toml"));
         let Err(warning) = missing else {

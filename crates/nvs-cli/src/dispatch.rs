@@ -75,23 +75,17 @@ pub(crate) trait Reporter: std::fmt::Debug + Send + Sync {
     fn report(&self, report: Report);
 }
 
-/// Which record a moment is, for the event log: the three lifecycle records,
+/// Which record a moment is, for the event log: the four lifecycle records,
 /// and the two streams a process with no console would otherwise write into
 /// nothing.
 ///
 /// The ids are the message table's (`build/winres.rs`, `MESSAGE_IDS`), and
-/// every record's text is its one insertion string. Id 4 is in the table and
-/// no record here uses it.
+/// every record's text is its one insertion string.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(
-    all(test, not(windows)),
-    expect(
-        dead_code,
-        reason = "the cases construct the two records an exit code maps to; only Windows \
-                  writes the other three"
-    )
-)]
 pub(crate) enum Lifecycle {
+    /// The process began, before anything else it writes: where one run's
+    /// records start, which is what [`last_run`] reads back.
+    Starting,
     /// The boot finished and the service is serving.
     Started,
     /// The service ended cleanly.
@@ -104,6 +98,53 @@ pub(crate) enum Lifecycle {
     /// One line the server wrote to its standard error: a warning, a refused
     /// configuration, a diagnostic.
     Stderr,
+}
+
+impl Lifecycle {
+    /// The record's event id, which is its message table entry.
+    pub(crate) const fn id(self) -> u32 {
+        match self {
+            Self::Started => 1,
+            Self::Stopped => 2,
+            Self::FailedToStart => 3,
+            Self::Starting => 4,
+            Self::Stdout => 5,
+            Self::Stderr => 6,
+        }
+    }
+}
+
+/// How many lines [`last_run`] keeps: the end of a run, which is where a
+/// refused configuration's diagnostic is, and a bound on what a run that
+/// served for weeks prints.
+pub(crate) const LAST_RUN_LINES: usize = 20;
+
+/// The warning and error lines of the last run in `records`, oldest first:
+/// what `nvs service status` prints for a stopped service
+/// (`rule:packaging/a-service-answers-its-manager`).
+///
+/// `records` is one source's records, oldest first, each its event id and its
+/// one string. The last run is everything after the last [`Lifecycle::Starting`]
+/// record; with none, no run can be told apart and nothing is kept. A line is
+/// kept when its record is a warning or an error, which is standard error and
+/// the failed start, and the last [`LAST_RUN_LINES`] of those are the answer.
+/// The boundary is the starting record, not the previous run's end, because
+/// the reader threads are not joined, so a line can land after its run's end
+/// record.
+pub(crate) fn last_run(records: &[(u32, String)]) -> Vec<String> {
+    let Some(start) = records
+        .iter()
+        .rposition(|(id, _)| *id == Lifecycle::Starting.id())
+    else {
+        return Vec::new();
+    };
+    let kept: Vec<String> = records[start + 1..]
+        .iter()
+        .filter(|(id, _)| *id == Lifecycle::Stderr.id() || *id == Lifecycle::FailedToStart.id())
+        .map(|(_, text)| text.clone())
+        .collect();
+    let from = kept.len().saturating_sub(LAST_RUN_LINES);
+    kept[from..].to_vec()
 }
 
 /// The status machine: what each event this process already reports maps to.
@@ -437,6 +478,8 @@ pub(crate) mod platform {
             vec![0]
         };
         drop(NAME.set(name.clone()));
+        // First, so every record this run writes comes after it.
+        log(Lifecycle::Starting, "the service is starting");
         // SAFETY: a NUL-terminated name that outlives the call and a handler
         // with the signature the platform declares; no context is passed.
         let handle = unsafe {
@@ -636,14 +679,14 @@ pub(crate) mod platform {
         let Some(name) = NAME.get() else {
             return;
         };
-        let (kind, id) = match moment {
-            Lifecycle::Started => (EVENTLOG_INFORMATION_TYPE, 1),
-            Lifecycle::Stopped => (EVENTLOG_INFORMATION_TYPE, 2),
-            Lifecycle::FailedToStart => (EVENTLOG_ERROR_TYPE, 3),
-
-            Lifecycle::Stdout => (EVENTLOG_INFORMATION_TYPE, 5),
-            Lifecycle::Stderr => (EVENTLOG_WARNING_TYPE, 6),
+        let kind = match moment {
+            Lifecycle::Starting | Lifecycle::Started | Lifecycle::Stopped | Lifecycle::Stdout => {
+                EVENTLOG_INFORMATION_TYPE
+            }
+            Lifecycle::FailedToStart => EVENTLOG_ERROR_TYPE,
+            Lifecycle::Stderr => EVENTLOG_WARNING_TYPE,
         };
+        let id = moment.id();
         let text: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
         let strings = [text.as_ptr()];
         // SAFETY: a NUL-terminated source name on the local machine; one
@@ -789,5 +832,48 @@ mod tests {
             reported(&recording),
             [Report::Running, Report::Running, Report::Running]
         );
+    }
+
+    /// `rule:packaging/a-service-answers-its-manager`'s *Output*: of two runs,
+    /// the last one's warning and error lines are read back, a line that
+    /// landed after its run's end record included, and nothing of the run
+    /// before it. A log with no starting record gives nothing.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn the_last_run_is_the_warnings_and_errors_after_the_last_starting_record() {
+        let record = |moment: Lifecycle, text: &str| (moment.id(), text.to_owned());
+        let mut records = vec![
+            record(Lifecycle::Starting, "the service is starting"),
+            record(Lifecycle::Stderr, "warning: the first run"),
+            record(Lifecycle::Started, "the service is serving"),
+            record(Lifecycle::Stopped, "the service ended with exit code 0"),
+            record(Lifecycle::Starting, "the service is starting"),
+            record(Lifecycle::Stdout, "a line on standard output"),
+            record(
+                Lifecycle::Stderr,
+                "error[E0607]: a file another account can write",
+            ),
+            record(
+                Lifecycle::FailedToStart,
+                "the service ended with exit code 1",
+            ),
+            record(Lifecycle::Stderr, "help: a line after the end record"),
+        ];
+        assert_eq!(
+            last_run(&records),
+            [
+                "error[E0607]: a file another account can write",
+                "the service ended with exit code 1",
+                "help: a line after the end record",
+            ]
+        );
+
+        // A long run keeps its last lines alone.
+        records.extend((0..LAST_RUN_LINES + 5).map(|n| record(Lifecycle::Stderr, &n.to_string())));
+        let last = last_run(&records);
+        assert_eq!(last.len(), LAST_RUN_LINES);
+        assert_eq!(last.last(), Some(&(LAST_RUN_LINES + 4).to_string()));
+
+        assert!(last_run(&records[1..4]).is_empty());
     }
 }
