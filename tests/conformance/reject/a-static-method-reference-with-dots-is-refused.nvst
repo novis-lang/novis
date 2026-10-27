@@ -1,0 +1,39 @@
+--TEST--
+`Class::method(...)` and `self::method(...)` are `E0136` with a fix that drops the `(...)`, and `$obj->method(...)` keeps its form — `rule:expressions/method-reference`
+--FILE--
+<?nvs
+final class Prices {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public function less(int $n): int {
+        return $n - 1;
+    }
+
+    public static function viaSelf(): callable {
+        return self::double(...);
+    }
+}
+
+callable $double = Prices::double(...);
+// On an object the `(...)` stays, because `$prices->less` would read a property.
+Prices $prices = new Prices();
+callable $less = $prices->less(...);
+--EXPECTF-ERROR--
+error[E0136]: a method reference on a class is written without `(...)`
+   --> %s:12:28
+   |
+12 |         return self::double(...);
+   |                            ^^^^^ delete this
+   = suggestion: write the reference without `(...)` (delete)
+
+error[E0136]: a method reference on a class is written without `(...)`
+   --> %s:16:34
+   |
+16 | callable $double = Prices::double(...);
+   |                                  ^^^^^ delete this
+   = suggestion: write the reference without `(...)` (delete)
+
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

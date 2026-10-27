@@ -1,0 +1,44 @@
+--TEST--
+A method reference written as a whole statement is `E0137` with the call as its fix, and one written where a `string` is expected names the call in its help — `rule:expressions/method-reference`
+--FILE--
+<?nvs
+final class Cache {
+    public static function flush(): void {
+        echo "flushed\n";
+    }
+
+    public function count(): int {
+        return 0;
+    }
+}
+
+// The author meant `Cache::flush()`. Without `()` the statement does nothing.
+Cache::flush;
+Cache $cache = new Cache();
+$cache->count(...);
+// A reference is a `callable`, so it does not fit a `string`.
+string $label = Cache::flush;
+--EXPECTF-ERROR--
+error[E0137]: this statement is a method reference, and it does nothing
+   --> %s:13:1
+   |
+13 | Cache::flush;
+   | ^^^^^^^^^^^^ the reference is created here and never used
+   = suggestion: call the method: `Cache::flush()`
+
+error[E0137]: this statement is a method reference, and it does nothing
+   --> %s:15:1
+   |
+15 | $cache->count(...);
+   | ^^^^^^^^^^^^^^^^^^ the reference is created here and never used
+   = suggestion: call the method: `$cache->count()`
+
+error[E0401]: expected `string`, found `callable(): void`
+   --> %s:17:17
+   |
+17 | string $label = Cache::flush;
+   |                 ^^^^^^^^^^^^ this is `callable(): void`
+   = help: `Cache::flush` is a reference to the method. To call it, write `Cache::flush()`
+
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

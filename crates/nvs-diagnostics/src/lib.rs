@@ -193,7 +193,7 @@ mod tests {
     /// registry. A code allocated into a hole leaves this test failing.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
-        assert_eq!(code::E_CLASS_KEYWORD_MEMBER_IN_TYPE.as_str(), "E0135");
+        assert_eq!(code::E_METHOD_REF_DROPPED.as_str(), "E0137");
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");

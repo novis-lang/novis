@@ -1,0 +1,34 @@
+--TEST--
+A bare `Class::method`, `self::method` or `static::method` is a method reference, and it is called through a variable like any other callable — `rule:expressions/method-reference`
+--FILE--
+<?nvs
+final class Prices {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public static function viaSelf(): callable {
+        return self::double;
+    }
+
+    public static function viaStatic(): callable {
+        return static::double;
+    }
+}
+
+// A name after `::` that starts with a lowercase letter is a method, so no `(...)` is needed.
+callable $double = Prices::double;
+echo $double(3), "\n";
+echo Prices::viaSelf()(4), "\n";
+echo Prices::viaStatic()(5), "\n";
+// A `Core` method is referenced the same way.
+callable $length = Core\Str::length;
+echo $length('abcd'), "\n";
+array<int> $doubled = Core\Arr::map([1, 2], Prices::double);
+echo $doubled[0], ' ', $doubled[1], "\n";
+--EXPECT--
+6
+8
+10
+4
+2 4

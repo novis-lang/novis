@@ -1034,25 +1034,25 @@ fn walk_member_name(member: &MemberName, src: &SourceFile, ctx: &Ctx<'_>, env: &
 }
 
 /// The members whose argument at that index is
-/// `rule:testing/interaction-after-the-fact`'s method reference — `Mailer::send`
-/// written where every other reader of this syntax sees a class constant.
+/// `rule:testing/interaction-after-the-fact`'s method reference — `Mailer::send`,
+/// which folds to the method's name rather than to a callable.
 ///
 /// A roster of names rather than a question asked of the registry, because this
 /// crate does not know one: `nvs_types::core_lib::method_ref_param` reads the
 /// position back off the row that declared it — the parameter written
 /// `nvs_stdlib::registry::CoreTy::MethodRef` — and is the home of *which*
-/// positions there are. What this list buys is only that the reference is not
-/// reported as an undefined constant before the checker ever sees it, so a
-/// member missing from here is refused at the wrong span rather than admitted
-/// somewhere it should not be.
+/// positions there are. What this list buys is only that a missing method is
+/// `nvs_types`' `E0829`, which names the test, rather than this pass's `E0309`.
+/// A member missing from here is refused with the wrong code rather than
+/// admitted somewhere it should not be.
 const METHOD_REF_ARGS: &[(&str, &str, usize)] = &[
     (r"Core\Test", "assertCalled", 1),
     (r"Core\Test", "assertNeverCalled", 1),
 ];
 
-/// [`walk_args`] for a static call, with the one argument [`METHOD_REF_ARGS`]
-/// names left to `nvs_types` — it is a method reference there and an undefined
-/// constant here, and this walk is what would otherwise report it first.
+/// [`walk_args`] for a static call, with the member half of the one argument
+/// [`METHOD_REF_ARGS`] names left to `nvs_types`, which reports a missing
+/// method there in the test's own words.
 ///
 /// The class side of the reference is still walked, so an undeclared class in
 /// `Mailer::send` is still this pass's `E0303`; only the member half is left
@@ -1078,12 +1078,15 @@ fn walk_args_admitting_method_ref(
         .filter(|index| {
             matches!(
                 list.get(*index).map(|arg| &arg.value.kind),
-                Some(ExprKind::ClassConstAccess { .. })
+                Some(ExprKind::StaticCall {
+                    args: CallArgs::MethodRef,
+                    ..
+                })
             )
         });
     for (index, Arg { value, .. }) in list.iter().enumerate() {
         match (&value.kind, reference == Some(index)) {
-            (ExprKind::ClassConstAccess { class: named, .. }, true) => {
+            (ExprKind::StaticCall { class: named, .. }, true) => {
                 walk_class_side(named, src, ctx, env);
             }
             _ => walk_expr(value, src, ctx, env),

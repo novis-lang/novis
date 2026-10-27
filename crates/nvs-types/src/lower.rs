@@ -1230,6 +1230,7 @@ mod tests {
             write_target_levels: rustc_hash::FxHashMap::default(),
             unset_target: false,
             coalesce_guarded: rustc_hash::FxHashSet::default(),
+            method_name_args: rustc_hash::FxHashSet::default(),
             method_ref_args: rustc_hash::FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,

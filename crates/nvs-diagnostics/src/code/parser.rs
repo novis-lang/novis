@@ -291,4 +291,21 @@ codes! {
          instead, for example `Order::Status`. Inside the class that declares a `type` alias \
          or an enum, you can also write its name alone.",
     );
+    /// `Class::method(...)`, `self::method(...)` or `static::method(...)` —
+    /// `rule:expressions/method-reference`. A reference on a class is the bare
+    /// member, so the `(...)` form would be a second way to write it. The
+    /// parser still builds the reference, so the rest of the file is checked
+    /// as if the fix were applied.
+    pub const E_STATIC_METHOD_REF_WITH_DOTS: Code = Code::new("E0136").card(
+        "A method reference on a class has no `(...)`. Write `Shop::show`, not \
+         `Shop::show(...)`. A reference on an object keeps it: `$shop->show(...)`.",
+    );
+    /// A method reference written as a whole statement (`Cache::flush;`) —
+    /// `rule:expressions/method-reference`. The reference is created and
+    /// dropped, so the statement does nothing; the author meant the call, and
+    /// the fix writes it.
+    pub const E_METHOD_REF_DROPPED: Code = Code::new("E0137").card(
+        "This statement is a method reference, and it does nothing. To call the method, add \
+         `()`, for example `Cache::flush()`.",
+    );
 }

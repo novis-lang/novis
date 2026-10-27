@@ -1102,6 +1102,58 @@ impl<'src, 'd> Parser<'src, 'd> {
         e
     }
 
+    /// Whether the name written after `::` is a method's: it starts with a
+    /// lowercase letter, which only `camelCase` does (`E0111`, `E0113`).
+    /// `Foo::class` never reaches this, because `class` is matched first.
+    fn names_a_method(&self, name: Span) -> bool {
+        self.file
+            .span_text(name)
+            .is_some_and(|text| text.starts_with(|c: char| c.is_ascii_lowercase()))
+    }
+
+    /// `Class::method(...)`: the reference is already the bare member, so the
+    /// fix deletes `(...)` (`rule:expressions/method-reference`). `dots` runs
+    /// from the `(` to the `)`.
+    fn report_static_method_ref_with_dots(&mut self, dots: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_METHOD_REF_WITH_DOTS,
+                "a method reference on a class is written without `(...)`",
+            )
+            .with_primary(dots, "delete this")
+            .with_fix(dots, "", "write the reference without `(...)`"),
+        );
+    }
+
+    /// A method reference written as a whole statement, which builds a
+    /// callable and drops it (`rule:expressions/method-reference`). The fix
+    /// is the call the author meant: `Cache::flush()` for the bare form,
+    /// and `$cache->flush()` for the `(...)` form on an object.
+    pub(super) fn report_dropped_method_ref(&mut self, expr: &Expr) {
+        if !matches!(
+            expr.kind,
+            ExprKind::StaticCall {
+                args: CallArgs::MethodRef,
+                ..
+            } | ExprKind::MethodCall {
+                args: CallArgs::MethodRef,
+                ..
+            }
+        ) {
+            return;
+        }
+        let text = self.file.span_text(expr.span).unwrap_or_default();
+        let call = format!("{}()", text.strip_suffix("(...)").unwrap_or(text));
+        self.diags.report(
+            Diagnostic::error(
+                code::E_METHOD_REF_DROPPED,
+                "this statement is a method reference, and it does nothing",
+            )
+            .with_primary(expr.span, "the reference is created here and never used")
+            .with_fix(expr.span, call, "call the method"),
+        );
+    }
+
     pub(super) fn parse_after_double_colon(&mut self, class: Expr) -> Expr {
         match self.peek().kind {
             TokenKind::Keyword(Keyword::Class) => {
@@ -1129,8 +1181,12 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let member = self.parse_member_name();
                 let type_args = self.parse_call_type_args();
                 if self.at(TokenKind::LParen) {
+                    let open = self.peek().span;
                     let args = self.parse_call_args();
                     let span = class.span.to(self.last_span);
+                    if matches!(args, CallArgs::MethodRef) {
+                        self.report_static_method_ref_with_dots(open.to(self.last_span));
+                    }
                     Expr {
                         span,
                         kind: ExprKind::StaticCall {
@@ -1138,6 +1194,24 @@ impl<'src, 'd> Parser<'src, 'd> {
                             method: member,
                             type_args,
                             args,
+                        },
+                    }
+                // `rule:expressions/method-reference`: a `camelCase` name after
+                // `::` is a method, because a constant is `SCREAMING_SNAKE_CASE`
+                // and an enum case or a nested type is `PascalCase`. So the
+                // bare member is the reference, and it is built as the same
+                // node `(...)` builds everywhere else.
+                } else if let MemberName::Ident(name) = member
+                    && self.names_a_method(name)
+                {
+                    let span = class.span.to(self.last_span);
+                    Expr {
+                        span,
+                        kind: ExprKind::StaticCall {
+                            class: Box::new(class),
+                            method: member,
+                            type_args,
+                            args: CallArgs::MethodRef,
                         },
                     }
                 // A name that was never written is a class-constant access

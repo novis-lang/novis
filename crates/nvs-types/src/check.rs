@@ -245,6 +245,7 @@ pub fn check_program_loaded(
             write_target_levels: FxHashMap::default(),
             unset_target: false,
             coalesce_guarded: FxHashSet::default(),
+            method_name_args: FxHashSet::default(),
             method_ref_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,

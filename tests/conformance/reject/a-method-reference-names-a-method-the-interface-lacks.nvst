@@ -9,9 +9,9 @@ A method reference naming a method the interface does not declare is refused whe
 // asserts about it instead of leaving it passing against a method that no
 // longer exists.
 //
-// The spelling is admitted at this argument and nowhere else. `Mailer::purge`
-// written anywhere a registry row did not ask for a method reference is the
-// undefined class constant it reads as, and stays one.
+// At this argument the reference is the method's name. Anywhere else
+// `Mailer::send` is a callable, and `Mailer::purge` is `E0309`, a member the
+// interface does not declare.
 interface Mailer {
     public function send(string $to): bool;
 }

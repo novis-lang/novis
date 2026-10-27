@@ -694,6 +694,7 @@ pub(crate) fn mismatch(
                 }
                 None => match null_help(expected, actual, env)
                     .or_else(|| unconverted_array_help(expected, actual, env))
+                    .or_else(|| uncalled_method_help(span, expected, env))
                 {
                     Some(help) => diag.with_help(help),
                     None => diag,
@@ -796,6 +797,25 @@ fn unconverted_field(
         let converts = scalar && is_assignable(*from_ty, to.ty, env.interner, graph, signatures);
         let fits = field_fits(*from_ty, to.ty, env.interner, graph, signatures);
         (converts && !fits).then_some((to.name, *from_ty, to.ty))
+    })
+}
+
+/// The help line for a bare `Class::method` written where a type that is not
+/// `callable` is expected: the author most likely forgot the call, which is
+/// the trap the bare form opens (`rule:expressions/method-reference`). The
+/// same fix the parser offers a dropped reference. `None` for every other
+/// mismatch, and for `$obj->method(...)`, which says it is a reference.
+fn uncalled_method_help(span: Span, expected: TypeId, env: &Env<'_>) -> Option<String> {
+    if matches!(
+        env.interner.get(expected),
+        Ty::Callable | Ty::CallableSig { .. }
+    ) || !matches!(env.exprs.lookup(span), Some(ExprInfo::CallableRef(_)))
+    {
+        return None;
+    }
+    let text = span_text(env.src, span);
+    (!text.ends_with(')')).then(|| {
+        format!("`{text}` is a reference to the method. To call it, write `{text}()`")
     })
 }
 

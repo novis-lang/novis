@@ -668,19 +668,20 @@ pub(crate) struct Env<'a> {
     pub deprecated_uses: Option<crate::deprecated::Uses>,
     /// The span of every argument a registry row's
     /// `nvs_stdlib::registry::CoreTy::MethodRef` parameter gives a meaning to —
-    /// `rule:testing/interaction-after-the-fact`'s method reference.
+    /// `rule:testing/interaction-after-the-fact`'s method reference, which
+    /// folds to the method's name rather than to a callable.
     ///
     /// A set of spans rather than a flag, because unlike
     /// [`Self::in_call_argument`] this is about *one* argument of a call and
-    /// not about a region: `Mailer::send` is an undefined constant one
-    /// argument over, and has to stay one. [`crate::expr::calls`] marks the
-    /// span before the argument list is checked and
-    /// [`crate::expr::members::infer_class_const`] reads it at the argument
-    /// itself; nothing clears it, since a span identifies its own call site.
-    ///
-    /// A `Core\Attributes` retrieval's `Foo::constructor(...)` target is
-    /// marked here too, as the one constructor reference that is not
-    /// `E0885` (`rule:classes/constructor-is-a-method-named-constructor`).
+    /// not about a region: `Mailer::send` is a callable one argument over, and
+    /// has to stay one. [`crate::expr::calls`] marks the span before the
+    /// argument list is checked and reads it at the argument itself; nothing
+    /// clears it, since a span identifies its own call site.
+    pub method_name_args: FxHashSet<Span>,
+    /// A `Core\Attributes` retrieval's `Foo::constructor` target, the one
+    /// constructor reference that is not `E0885`
+    /// (`rule:classes/constructor-is-a-method-named-constructor`). Marked and
+    /// read as [`Self::method_name_args`] is.
     pub method_ref_args: FxHashSet<Span>,
 }
 

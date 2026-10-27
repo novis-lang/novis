@@ -373,6 +373,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_expr_statement(&mut self, start: Span) -> Stmt {
         let expr = self.parse_expr();
+        self.report_dropped_method_ref(&expr);
         self.expect(TokenKind::Semicolon, "`;`");
         let span = start.to(self.last_span);
         Stmt {

@@ -115,17 +115,6 @@ pub(crate) fn infer_class_const(
         return env.interner.error();
     }
     let qname = resolve_class_expr(class, ctx, env);
-    // `rule:testing/interaction-after-the-fact`'s method reference. The
-    // spelling names no constant, and at the argument positions
-    // [`super::calls::note_method_ref_args`] marked — the ones a registry row
-    // wrote `nvs_stdlib::registry::CoreTy::MethodRef` at — it names the method
-    // instead. Answered here because what a reference *is* is the same answer
-    // the three arms below give a constant: a name folded at check time, so
-    // `nvs-ir` lowers it through the entry it already reads and needs no arm of
-    // its own.
-    if env.method_ref_args.contains(&expr.span) {
-        return method_reference(expr, class, name, qname.as_ref(), env);
-    }
     // A `Core`-owned enum and a loaded extension's enum have no
     // `SymbolKind::Enum` entry — no source file declared them — but they are in
     // the same enum table, seeded from `nvs_stdlib::registry::ENUMS` and the
@@ -298,6 +287,12 @@ pub(crate) fn infer_class_const(
 /// name, checked against the class or interface the reference wrote and folded
 /// to a `string` constant there and then.
 ///
+/// Recorded as the same [`ExprInfo::ClassConst`] a constant records, because
+/// what the reference *is* there is a name folded at check time, so `nvs-ir`
+/// lowers it through the entry it already reads and needs no arm of its own.
+/// [`super::calls::infer_static_call`] sends it here at the positions
+/// [`super::calls`]' `note_method_ref_args` marked.
+///
 /// The name is checked against the class the *reference* names rather than
 /// against the type of the double beside it, which is the check
 /// `rule:testing/interaction-after-the-fact` asks for and the one a reader can
@@ -309,7 +304,7 @@ pub(crate) fn infer_class_const(
 /// A class expression that resolved to nothing is left alone: `nvs_hir` has
 /// already reported the name, and this only has to not invent a second
 /// diagnostic for it.
-fn method_reference(
+pub(crate) fn method_reference(
     expr: &Expr,
     class: &Expr,
     name: Span,

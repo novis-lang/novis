@@ -515,6 +515,15 @@ pub(crate) fn infer_static_call(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    // `rule:testing/interaction-after-the-fact`'s method reference, at an
+    // argument [`note_method_ref_args`] marked: it folds to the method's name,
+    // so it is not a callable and none of the call's rules below apply.
+    if let (MemberName::Ident(name), CallArgs::MethodRef) = (method, args)
+        && env.method_name_args.contains(&expr.span)
+    {
+        let qname = resolve_class_expr(class, ctx, env);
+        return super::members::method_reference(expr, class, *name, qname.as_ref(), env);
+    }
     let class_ty = check_expr(class, None, live, scope, ctx, env);
     super::reject_class_side_outside_class(class, ctx, env);
     check_member_name(method, live, scope, ctx, env);
@@ -1485,10 +1494,9 @@ fn note_retrieval_target(
 
 /// Marks the argument a registry row's
 /// [`CoreTy::MethodRef`](nvs_stdlib::registry::CoreTy::MethodRef) parameter
-/// admits `Class::method` at, so that [`super::members::infer_class_const`]
-/// reads the spelling as the method reference
-/// `rule:testing/interaction-after-the-fact` gives it and every other site goes
-/// on reading it as the undefined constant it is.
+/// admits `Class::method` at, so that [`infer_static_call`] folds the
+/// reference to the method's name, as `rule:testing/interaction-after-the-fact`
+/// asks, and every other site goes on reading it as a callable.
 ///
 /// **Positional only.** The index a row writes is a parameter index, and the
 /// two agree only while the call writes its arguments in order; a reference
@@ -1518,8 +1526,14 @@ fn note_method_ref_args(
     let Some(arg) = list.get(index) else {
         return;
     };
-    if matches!(arg.value.kind, ExprKind::ClassConstAccess { .. }) {
-        env.method_ref_args.insert(arg.value.span);
+    if matches!(
+        arg.value.kind,
+        ExprKind::StaticCall {
+            args: CallArgs::MethodRef,
+            ..
+        }
+    ) {
+        env.method_name_args.insert(arg.value.span);
         return;
     }
     env.diags.report(
@@ -1547,8 +1561,8 @@ fn report_method_ref_new(args: &CallArgs, target: Option<&QName>, span: Span, en
         )
         .with_primary(span, format!("{named} is constructed here, not called"))
         .with_help(
-            "the `(...)` syntax works on a method: `Class::method(...)`, `$obj->method(...)` \
-             or `self::method(...)`. A constructor is not a method. Write an anonymous \
+            "a method reference names a method: `Class::method`, `self::method` or \
+             `$obj->method(...)`. A constructor is not a method. Write an anonymous \
              function instead: `fn (): T => new T(…)`"
                 .to_owned(),
         ),
