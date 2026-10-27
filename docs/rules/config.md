@@ -766,6 +766,13 @@ account, with the directory that holds it, is judged as the install leaves it, s
 Windows an elevated install's data folder and the `nvs.toml` it writes there are owned by
 `Administrators`, which every service account trusts, so they pass at boot.
 
+The install stops on `E0607`, and no flag lets it go on: the check is the function `serve` runs at
+every boot, on this host, for this account, so its answer is the boot's, and a service that cannot
+start is never what the operator asked for. A configuration that does not resolve and an account that
+does not exist (`E0654`) stop the install for the same reason. The unreadable-file check beside it only
+warns, because a group or an ACL it does not read can still grant the read; the ownership check reads
+everything it judges. `Manager::judged_for` has no default, so a new manager cannot skip the check.
+
 **`nvs service status` asks it again for the installed service.** After the manager's state it judges
 every `--config` file of the argv the platform holds, for the account the platform holds the service
 under, through the same `JudgedFor`. A refused file is the boot's `E0607` and exits `1`. A file this
@@ -796,6 +803,11 @@ capability check is bound by that sentence.
 - **Skipping the check under `nvs serve` in development mode.** The mode comes from the checked file.
 - **Naming `bun nv checkout-acl` in `E0607`'s help.** The help is read by people who run Novis, not
   by people who work on it, and its `icacls` steps already fix a checkout.
+- **A flag that installs past a failing check.** It installs a service that cannot start.
+- **The check in `nvs service unit`.** It prints a definition for review, often on a machine that is
+  not the server, and `install --dry-run` is the check on the host.
+- **Listing every failing file, rather than the first.** `serve` stops at the first, and the
+  pre-flight names the file the boot would name. A later change, if operators ask.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope).</sub>
 
