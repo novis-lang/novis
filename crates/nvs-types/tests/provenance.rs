@@ -76,9 +76,8 @@ fn a_recording_check_follows_the_qualifier_from_its_parameter_to_the_call_that_e
 
 #[test]
 fn only_the_language_server_switches_the_recording_on() {
-    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("the crate sits in the workspace's crates directory");
+    let crates = nvs_repo::path("crates");
+    let crates = crates.as_path();
     let mut callers = Vec::new();
     let mut dirs = vec![crates.to_path_buf()];
     while let Some(dir) = dirs.pop() {

@@ -3,8 +3,6 @@
 
 # Routing
 
-*1 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="routing-routes-are-compiled-not-registered"></a>
 
 ## A route is a `#[Route]` compiled into the unit's table, and its three runtime bugs are compile errors
@@ -333,7 +331,7 @@ all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#
 
 <a id="routing-a-bad-query-value-is-a-400"></a>
 
-## A `#[Query]` value that does not convert is a `400`, where a path capture the matcher cannot convert is a `404`  *(designed — owned by goal query-binding)*
+## A `#[Query]` value that does not convert is a `400`, where a path capture the matcher cannot convert is a `404`
 
 `rule:routing/a-bad-query-value-is-a-400`
 
@@ -363,7 +361,7 @@ lines of one signature knows they fail two ways.
 and before `allows`. It reads the query string through the parser `Core\Request::query()` uses, once per
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
-`BadCapture` and the match. The proofs and the shipped status are goal `query-binding`'s.
+`BadCapture` and the match.
 
 <sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 

@@ -2787,6 +2787,9 @@ fn query_value(
     let written = crate::uri::query_bases(raw)
         .filter(|base| base.as_slice() == key.as_bytes())
         .count();
+    // no case can reach this: `dispatch` catches the throw and answers `400`,
+    // so no program reads its message. `a_query_value_that_does_not_bind_is_a_400_before_allows`
+    // asserts each of the four throws in this function instead.
     if written > 1 {
         return Err(Fault::thrown(format!(
             "the query string has the key `{key}` {written} times. The parameter `${key}` \
@@ -2796,17 +2799,20 @@ fn query_value(
     let Some(found) = fields.get(key.as_bytes()) else {
         return match &query.default {
             Some(default) => bound_value(ctx, default),
+            // no case can reach this: caught by `dispatch`, as the first.
             None => Err(Fault::thrown(format!(
                 "the query string has no key `{key}`, and the parameter `${key}` has no default"
             ))),
         };
     };
     let Some(text) = found.as_text() else {
+        // no case can reach this: caught by `dispatch`, as the first.
         return Err(Fault::thrown(format!(
             "the query key `{key}` has a list of values. The parameter `${key}` takes one value"
         )));
     };
     // The value is never quoted back: it is what the client wrote.
+    // No case can reach this: caught by `dispatch`, as the first.
     let converted = query.conv.convert(text).ok_or_else(|| {
         Fault::thrown(format!(
             "the value of the query key `{key}` is not a value the parameter `${key}` accepts"
