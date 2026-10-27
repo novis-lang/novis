@@ -334,7 +334,7 @@ fn grant(
 }
 
 /// Whether `segment` is one segment of a namespace: a letter or `_`, then letters, digits and `_`.
-fn is_segment(segment: &str) -> bool {
+pub(crate) fn is_segment(segment: &str) -> bool {
     let mut chars = segment.chars();
     chars
         .next()

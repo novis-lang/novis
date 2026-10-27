@@ -863,4 +863,35 @@ codes! {
          not list the capability, so the call does not compile. Add the capability to the line if \
          this code should have it. The message shows the line.",
     );
+
+    /// A package's own `package.toml` that `nvs_config::package` cannot read:
+    /// the file is not TOML, `[package] name` is not `Vendor\Package` or is
+    /// under `Core`, a name in `[capabilities]` is not a capability, or one is
+    /// both required and optional
+    /// (`rule:packaging/a-package-name-is-vendor-slash-name`).
+    pub const E_BAD_PACKAGE_MANIFEST: Code = Code::new("E0659").card(
+        "The `package.toml` of a package is not valid. `[package] name` is a vendor and a \
+         name, such as `'Acme\\Http'`. `[capabilities]` has two lists, `required` and \
+         `optional`, of capability names such as `\"net.connect\"`. A capability is in one list \
+         or the other. The message shows the line.",
+    );
+
+    /// A file of a package that declares a namespace outside the package's own
+    /// (`rule:packaging/a-package-file-stays-under-its-declared-prefix`). The
+    /// message names the file, the namespace and the package.
+    pub const E_PACKAGE_NAMESPACE_OUTSIDE: Code = Code::new("E0660").card(
+        "A file of a package declares a namespace that does not belong to the package. Every \
+         file of the package `Acme\\Http` declares `namespace Acme\\Http;` or a namespace below \
+         it, such as `Acme\\Http\\Client`. Change the `namespace` line of the file.",
+    );
+
+    /// A `require` or `autoload` path written in a package that leaves the
+    /// package's directory through `..`, an absolute path or a symlink
+    /// (`rule:packaging/a-package-cannot-reach-its-host`).
+    pub const E_PACKAGE_PATH_ESCAPES: Code = Code::new("E0661").card(
+        "A `require` or `autoload` path in a package names a file or directory outside the \
+         package. A package can only load its own files. The path may leave the package with \
+         `..`, with an absolute path or through a symbolic link. Change the path, or move the \
+         file into the package.",
+    );
 }

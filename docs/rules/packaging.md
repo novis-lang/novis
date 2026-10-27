@@ -1064,8 +1064,12 @@ Hand-copied code with no manifest has no package and so no file check. It has th
 writing the `autoload` line that names its prefix, and the audit warning
 [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes.
 
-**Not on disk.** Nothing checks a package file's namespace against its package. The diagnostic takes
-the next free code in its band.
+The file's package is found from its real path: the nearest `package.toml` with a `[package] name`
+between the file and the entry's directory. So an autoloaded file, a file a `discover` glob found and
+a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.rs`). The diagnostic is
+`E0660`, and a manifest whose name is not `Vendor\Package` is `E0659`.
+
+**Not on disk.** The rule has no feature proofs yet.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line).</sub>
 
@@ -1152,8 +1156,10 @@ symlink — is a **compile error**. A package cannot read the application's tree
 same canonicalise-and-prefix-check `spawn script` performs against its granted roots
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
-**Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
-map against which to check a path.
+The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
+file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
+
+**Not on disk.** No fetch path exists to refuse an archive that holds an `nvs.toml`.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 

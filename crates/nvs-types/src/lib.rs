@@ -192,6 +192,7 @@ pub mod locals;
 pub mod lower;
 pub(crate) mod match_attribute;
 pub mod narrow;
+pub mod package;
 pub mod paths;
 pub(crate) mod program;
 pub mod provenance;

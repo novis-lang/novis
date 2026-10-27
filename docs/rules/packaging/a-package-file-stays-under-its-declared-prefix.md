@@ -23,5 +23,9 @@ Hand-copied code with no manifest has no package and so no file check. It has th
 writing the `autoload` line that names its prefix, and the audit warning
 `rule:security/an-unmatched-namespace-holds-the-application` describes.
 
-**Not on disk.** Nothing checks a package file's namespace against its package. The diagnostic takes
-the next free code in its band.
+The file's package is found from its real path: the nearest `package.toml` with a `[package] name`
+between the file and the entry's directory. So an autoloaded file, a file a `discover` glob found and
+a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.rs`). The diagnostic is
+`E0660`, and a manifest whose name is not `Vendor\Package` is `E0659`.
+
+**Not on disk.** The rule has no feature proofs yet.

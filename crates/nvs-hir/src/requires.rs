@@ -683,7 +683,7 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
 /// would report. Outside a bundle the table is empty and this is the plain
 /// syscall.
-pub(crate) fn canonicalize(path: &Path) -> Option<PathBuf> {
+pub fn canonicalize(path: &Path) -> Option<PathBuf> {
     if nvs_diagnostics::embedded::is_active() {
         return nvs_diagnostics::embedded::canonicalize(path);
     }

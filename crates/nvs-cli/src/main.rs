@@ -1155,6 +1155,9 @@ fn front_end_in(
             .map_or(&[][..], nvs_hir::lenders::Lender::sites);
         let (mut diags, module, loaded, autoload) =
             resolve_entry(&mut map, id, roster, strict_docs, borrowed, &classes);
+        // `rule:packaging/a-package-file-stays-under-its-declared-prefix` and
+        // `rule:packaging/a-package-cannot-reach-its-host`, over every file the walk loaded.
+        nvs_types::package::check(id, &loaded, &autoload, &mut map, &mut diags);
 
         let mut interner = nvs_types::TypeInterner::new();
         let mut exprs = nvs_types::ExprTypeTable::new();

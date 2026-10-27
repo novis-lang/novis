@@ -89,6 +89,7 @@ pub mod limits;
 pub mod log;
 pub mod mode;
 pub mod mount;
+pub mod package;
 pub mod queue;
 pub mod reload;
 pub mod request;
