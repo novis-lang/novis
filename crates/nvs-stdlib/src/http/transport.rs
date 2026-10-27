@@ -5301,14 +5301,18 @@ pub(crate) mod tests {
         // once. Both are the case the walk exists for, and neither may cost the
         // call its budget.
         asking.addresses = vec!["192.0.2.1".parse().expect("a literal address"), at.ip()];
-        asking.connect_timeout = Duration::from_secs(5);
+        // A budget far longer than the walk's 250 ms stagger, and a bound at half
+        // of it: waiting out the dead address costs the whole minute, and a loaded
+        // runner that delays the second dial by seconds still passes.
+        asking.connect_timeout = Duration::from_secs(60);
+        asking.deadline = Instant::now() + Duration::from_secs(120);
 
         let start = Instant::now();
         let reply = send(&asking, &mut never).expect("the second address served the call");
 
         assert_eq!(reply.status, 200);
         assert!(
-            start.elapsed() < Duration::from_secs(3),
+            start.elapsed() < Duration::from_secs(30),
             "the walk waited out the dead address instead of starting the next one"
         );
         assert_eq!(
