@@ -1,0 +1,11 @@
+{
+  "title": "No two blank lines follow each other in code, and no blank line sits at the inside edge of a body, a list or a match arm list",
+  "status": "designed",
+  "seeAlso": [
+    "tooling/fmt-base-style-is-per",
+    "tooling/fmt-one-run-between-two-tokens",
+    "tooling/fmt-quotes"
+  ],
+  "guardedBy": [],
+  "goal": "fmt-spacing"
+}

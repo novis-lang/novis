@@ -3,6 +3,8 @@
 
 # Tooling
 
+*2 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="tooling-shebang-opens-code-mode"></a>
 
 ## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
@@ -918,6 +920,106 @@ The first statement formats to the second. A condition written on one line stays
 an unbroken chain anywhere else does too.
 
 <sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line).</sub>
+
+<a id="tooling-fmt-one-run-between-two-tokens"></a>
+
+## Every run between two tokens on one line is nothing or one space, decided by the two tokens' roles, and a formatted file lexes to the token kinds its source did  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-one-run-between-two-tokens`
+
+Every whitespace run between two tokens on one line is decided by what the two tokens are, and it is
+either nothing or exactly one space. A run that holds a line break is not this rule's: the line breaks
+are the author's ([`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows)) and the indentation after one is
+[`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per)'s. Where `nvs fmt` already decides a run in another rule — the
+space before a K&R brace, a qualifier's space, the inside of a one-line anonymous object — that rule's
+answer stands and agrees with this table.
+
+A token's role comes from the tree, never from its spelling alone: the innermost syntax node holding a
+`-` says whether it is `Sub` or `Neg`, and a `<`, `|`, `&` or `?` inside a written type's span is type
+punctuation, not an operator.
+
+| Between | The run |
+|---|---|
+| a binary operator and each operand: arithmetic, comparison, `<=>`, assignment and every compound assignment, `&&`, `\|\|`, `and`, `or`, `xor`, bitwise, `.`, `??`, `\|>`, `is`, `as` | one space |
+| `=>` and each side, in an array, a `match` arm and an `fn` | one space |
+| a ternary's `?` and `:` and their operands | one space; a ternary with no middle operand writes `?:` with nothing between |
+| a unary operator (`!`, unary `-` and `+`, `~`, `++`, `--`, `@`, spread `...`) and its operand | nothing |
+| a `,` | nothing before it, one space after it |
+| a `;` | nothing before it; inside a `for` header, one space after it unless a `;` or `)` follows |
+| an opening `(` or `[` and what follows it; a closing `)` or `]` and what precedes it | nothing |
+| a callee and its `(`: a name, a variable, a `)` or `]`, `fn`, a declaration's name, and a keyword the parser reads as a call (`isset`, `empty`, `unset`, `exit`) | nothing |
+| a value and its index `[` | nothing |
+| `if`, `elseif`, `while`, `for`, `foreach`, `switch`, `match` or `catch` and its `(` | one space |
+| the `:` of a return type, a named argument, an anonymous object's field and an enum's backing type | nothing before it, one space after it |
+| the `:` that ends a `case` or `default` label | nothing before it |
+| `->`, `?->` and `::` and each side | nothing |
+| inside a written type: `?`, `\|`, `&`, `<`, `>`, `(` and `)` and their neighbours | nothing; a `,` inside a type's arguments is the `,` row |
+| `#[` and what follows it, and what precedes its `]` | nothing |
+| a keyword and the word, variable, literal, `(` or `{` after it: `return $x`, `new Cart`, `class Cart`, `public int`, `namespace Shop`, `extends`, `throw`, `echo`, `yield` | one space; nothing before `;` or `::` |
+| two words: a type and a variable, a modifier and a type, a name and `extends` | one space |
+| code and a comment after it on the same line | one space |
+
+Three runs stay the author's. A run after a block comment that shares its line with code is the
+comment's. A run that touches `<?nvs`, `<?=` or `?>` sits beside markup the program prints. And a run
+between two tokens whose pair the table does not name is left as it is, so a new token kind is never
+spaced by a guess. A test lists every `TokenKind` the lexer has and fails naming any kind that is
+neither in the table nor on the short list of kinds whose runs are the author's.
+
+**A run is never emptied where its two tokens would lex as one.** `- -$x` keeps its space, because
+`--$x` is a decrement, and so does `> >` closing two type arguments. The invariant behind it is checked
+over the whole corpus: a formatted file lexes to exactly the token kinds its source did.
+
+The table is PER-CS 2.0's, with "at least one space" read as exactly one. "At least one" leaves two files
+that differ only in spacing still different after formatting, which is what
+[`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style) exists to prevent.
+
+The cost is stated and accepted: hand alignment is gone. A column of `=`, `=>` or trailing comments
+lined up with extra spaces is written with one space each, the first time the file is formatted. What
+that buys is that a one-line change never re-aligns the lines around it, so a diff shows only the line
+that changed. Formatting stays one pass over the file's tokens, beside the tree the printer already
+walks, and nothing of it runs outside `nvs fmt` and the editor's formatting request.
+
+**Declined:**
+- **Keeping the author's spacing inside a line.** Two programs that differ only in spacing stay
+  different after formatting, and a reviewer still reads `$x=$a+$b` beside `$x = $a + $b`.
+- **Alignment of `=`, `=>` and trailing comments, as php-cs-fixer's `align_*` options do.** One edit
+  re-spaces every neighbour, and each aligned block is a second layout a reader has to learn.
+- **"At least one space", as PER-CS words it.** It is two styles, and the formatter has one.
+- **A space after `fn`.** [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs) writes `fn(int $x): int`, and the corpus
+  mostly does.
+
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent).</sub>
+
+<a id="tooling-fmt-at-most-one-blank-line"></a>
+
+## No two blank lines follow each other in code, and no blank line sits at the inside edge of a body, a list or a match arm list  *(designed — owned by goal fmt-spacing)*
+
+`rule:tooling/fmt-at-most-one-blank-line`
+
+No two blank lines follow each other in code, and no blank line sits right after a line that ends in
+an opening `{`, `(` or `[`, or right before a line that starts with its closing `}`, `)` or `]`. A run
+of several blank lines becomes one, and a blank line at the inside edge of a body, a list or a `match`
+arm list is deleted.
+
+Every blank line [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per) requires is still exactly one, and every other
+blank line it leaves to the author still stands, only never more than one in a row. A blank line
+between two statements or two simple properties is how an author groups them, so it is kept.
+
+Bytes a program prints and the text of a comment are not code. A blank line inside a heredoc or nowdoc
+body, an html template's body, an inline-HTML region or a block comment is copied as it is. A file ends
+with exactly one newline, as [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per) says.
+
+What it buys is the same as [`tooling/fmt-one-run-between-two-tokens`](tooling.md#tooling-fmt-one-run-between-two-tokens): two files that differ only in
+how many empty lines they have format to the same bytes. A blank line right after an opening brace
+groups nothing, so it is deleted rather than kept.
+
+**Declined:**
+- **Keeping every blank line.** Three blank lines and one would stay two different files.
+- **Deleting every blank line inside a body.** It deletes how the author grouped the statements.
+- **Two blank lines between top-level declarations, as Python's style allows.** It is a second count
+  for the reader to learn.
+
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-one-run-between-two-tokens`](tooling.md#tooling-fmt-one-run-between-two-tokens), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes).</sub>
 
 <a id="tooling-fmt-quotes"></a>
 
