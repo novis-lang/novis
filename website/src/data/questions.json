@@ -12591,7 +12591,7 @@
   },
   "/reference/core/router-match/accessas/": {
     "feature": "Core\\Router\\Match::accessAs",
-    "hash": "7b7ff08ba3fd726a",
+    "hash": "5b71de19070f474b",
     "questions": [
       "How do I check the user's role before running a handler?",
       "Compare a route's access rule with an enum case",
@@ -12611,7 +12611,7 @@
   },
   "/reference/core/router-match/is/": {
     "feature": "Core\\Router\\Match::is",
-    "hash": "12ee2491e7206764",
+    "hash": "bfa2365d9309b47f",
     "questions": [
       "How do I check which method the current route belongs to?",
       "Call different code for each route of my app",

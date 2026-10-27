@@ -38,7 +38,7 @@ class FrontController
         var $pages = new Pages();
         if ($matched->is(Pages::home)) {
             return $pages->home();
-        } else if ($matched->is(Pages::reports)) {
+        } elseif ($matched->is(Pages::reports)) {
             return $pages->reports();
         }
         return '404 Not Found';

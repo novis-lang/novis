@@ -28,7 +28,7 @@ if ($matched == null) {
     // This prints `Product number 7`.
     if ($matched->is(Shop::home)) {
         echo $shop->home(), "\n";
-    } else if ($matched->is(Shop::product)) {
+    } elseif ($matched->is(Shop::product)) {
         echo $shop->product($matched->param('id') as uint), "\n";
     } else {
         echo 'Page not found', "\n";
