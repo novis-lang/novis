@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Images",
-      "text": "AVIF and JPEG XL images open the right way up and with the right colours. `Image::info` reads EXIF data, and an animated image keeps every frame.",
-      "goals": [
-        "image-second-wave"
-      ]
-    },
-    {
       "title": "Packages and the registry",
       "text": "`nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.",
       "goals": [
