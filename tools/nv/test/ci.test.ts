@@ -57,6 +57,7 @@ function seams(name: string, world: (poll: number) => World | "fail", git: (args
       if (args[0] === "api" && args[1]?.includes("/actions/runs?")) return ok(w.runs);
       const jobsOf = args[1]?.match(/actions\/runs\/(\d+)\/jobs/);
       if (jobsOf) return ok(w.jobs[Number(jobsOf[1])] ?? []);
+      if (args[1]?.endsWith("/annotations")) return ok("The job has exceeded the maximum execution time of 1h30m0s\n");
       if (args.includes("--allow-escape-sequences")) return ok("2026-10-20T10:00:00.0000000Z running\nFAIL tests/a.nvst\nsummary\n##[error]Process completed with exit code 1.\n");
       return ok("");
     },
@@ -94,7 +95,22 @@ describe("bun nv ci --watch", () => {
     expect(w.said.some((l) => l.startsWith("FAILED CI / proofs"))).toBe(false);
   });
 
-  test("a cancelled run is passed over, so the run before it decides", async () => {
+  test("a cancelled run on origin/main's commit is red, and its timed-out job's annotation is printed", async () => {
+    const tip = (args: string[]) => ok(args.join(" ") === "rev-parse origin/main" ? "abc\n" : "");
+    const w = seams(
+      "cancelled-tip",
+      () => ({
+        runs: [runOf(15, "CI", "completed", "cancelled"), runOf(14, "CI", "completed", "success")],
+        jobs: { 15: [jobOf(6, "lint", "completed", "success"), jobOf(7, "proofs", "completed", "cancelled")] },
+      }),
+      tip,
+    );
+    expect(await ci(["--watch"], w.s)).toBe(1);
+    expect(w.said).toContain('FAILED CI / proofs / step "(no step named)"  https://example.com/jobs/7');
+    expect(w.said).toContain("  annotation: The job has exceeded the maximum execution time of 1h30m0s");
+  });
+
+  test("a cancelled run on an older commit than origin/main's is passed over, so the run before it decides", async () => {
     const w = seams("cancelled", () => ({
       runs: [runOf(13, "CI", "completed", "cancelled"), runOf(12, "CI", "completed", "failure")],
       jobs: { 12: [jobOf(4, "docs", "completed", "failure", "doc")] },

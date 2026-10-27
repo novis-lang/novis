@@ -22,8 +22,11 @@
 // every job the diff since the last push reaches, and the nightly deep lane runs the rest
 // (`rule:testing/ci-lanes`).
 //
-// **`--watch`** reads the newest run of each workflow in `WORKFLOWS` on `main`, passing over cancelled
-// ones, and polls the jobs of each run in progress every `POLL_BUSY_MS`. Each poll cancels every run of
+// **`--watch`** reads the newest run of each workflow in `WORKFLOWS` on `main`, passing over a cancelled
+// one on an older commit than `origin/main`, which a newer push replaced. A cancelled run or job on
+// `origin/main` itself is red: GitHub cancels a job that passes its `timeout-minutes`, and keeps no log
+// of it, so the job's annotations are printed instead. It polls the jobs of each run in progress every
+// `POLL_BUSY_MS`. Each poll cancels every run of
 // a workflow still going beside a newer one, such as a push run the nightly deep lane started after. It exits 1 the moment a job
 // fails, or at once when a newest run already ended red, and prints each failed job, its failed step,
 // its URL and the end of its log. The whole log is kept under `.agent-tmp/ci/`. It exits 0 when every
@@ -79,8 +82,8 @@ const LOGS_KEPT = 20;
 /** How many earlier lines that name a failure are printed above the tail, and how one is told. */
 const MARKED_LINES = 20;
 const FAILURE_LINE = /^(FAIL\b|FAILED\b|error(\[E\d+\])?:|test .* \.\.\. FAILED|thread '.*' panicked|failures:|---- )|##\[error\]/;
-/** A job conclusion that is a failure. */
-const RED = new Set(["failure", "timed_out", "startup_failure"]);
+/** A job conclusion that is a failure. A job that passes its `timeout-minutes` ends `cancelled`. */
+const RED = new Set(["failure", "timed_out", "startup_failure", "cancelled"]);
 
 const EXE = process.platform === "win32" ? "nvs.exe" : "nvs";
 /** The binary the checks after `cargo build` read, which that build has just made current. */
@@ -207,14 +210,25 @@ export function listJobs(s: CiSeams, id: number): Promise<Job[]> {
   ]);
 }
 
-/** The newest run of each watched workflow that was not cancelled, in `WORKFLOWS` order. */
-export function newest(runs: Run[]): Run[] {
+/**
+ * The newest run of each watched workflow, in `WORKFLOWS` order, passing over each cancelled run on a
+ * commit other than `tip`, `origin/main`'s. A newer push cancels those, and its own runs may not be
+ * listed yet. A cancelled run on `tip` stopped for another reason, such as a job's time limit.
+ */
+export function newest(runs: Run[], tip: string): Run[] {
   const out: Run[] = [];
   for (const w of WORKFLOWS) {
-    const r = runs.filter((x) => x.name === w && x.conclusion !== "cancelled").sort((a, b) => b.id - a.id)[0];
+    const kept = (x: Run) => x.conclusion !== "cancelled" || x.head_sha === tip;
+    const r = runs.filter((x) => x.name === w && kept(x)).sort((a, b) => b.id - a.id)[0];
     if (r !== undefined) out.push(r);
   }
   return out;
+}
+
+/** `origin/main`'s commit as the last fetch or push left it, or "" when git cannot say. */
+async function tipOf(s: CiSeams): Promise<string> {
+  const r = await s.git(["rev-parse", `origin/${BRANCH}`]);
+  return r.code === 0 ? r.stdout.trim() : "";
 }
 
 const done = (r: { status: string }) => r.status === "completed";
@@ -254,6 +268,11 @@ async function report(s: CiSeams, run: Run, jobs: Job[]): Promise<void> {
   for (const j of jobs.filter(red)) {
     const step = j.steps.find(red)?.name ?? "(no step named)";
     s.say(`FAILED ${run.name} / ${j.name} / step "${step}"  ${j.html_url}`);
+    if (j.conclusion === "cancelled") {
+      // A job a time limit stopped has no failed step and often no log. Its annotations say why it stopped.
+      const notes = await s.gh(["api", `repos/{owner}/{repo}/check-runs/${j.id}/annotations`, "--jq", ".[].message"]);
+      for (const n of notes.stdout.split(/\r?\n/).filter((l) => l.trim() !== "")) s.say(`  annotation: ${n}`);
+    }
     // A log holds the colour codes the job printed, which `gh` passes on only when asked to.
     const log = await s.gh(["api", "--allow-escape-sequences", `repos/{owner}/{repo}/actions/jobs/${j.id}/logs`]);
     if (log.code !== 0) {
@@ -347,7 +366,7 @@ export async function watch(s: CiSeams, maxMin: number, past: string[] = [], nex
     try {
       const all = await listRuns(s);
       await cancelSuperseded(s, all, undefined, cancelled);
-      const runs = newest(all);
+      const runs = newest(all, await tipOf(s));
       failures = 0;
       for (const r of runs) {
         if (first && next && done(r)) {
@@ -482,7 +501,7 @@ export async function push(s: CiSeams): Promise<number> {
 
 async function status(s: CiSeams): Promise<number> {
   let bad = sayRefused(s) ? 1 : 0;
-  const runs = newest(await listRuns(s));
+  const runs = newest(await listRuns(s), await tipOf(s));
   for (const r of runs) {
     s.say(runLine(r));
     const jobs = await listJobs(s, r.id);
@@ -496,7 +515,7 @@ async function status(s: CiSeams): Promise<number> {
 }
 
 async function rerun(s: CiSeams): Promise<number> {
-  const reds = newest(await listRuns(s)).filter((r) => done(r) && red(r));
+  const reds = newest(await listRuns(s), await tipOf(s)).filter((r) => done(r) && red(r));
   if (reds.length === 0) s.say("no newest run is red: nothing to rerun");
   let code = 0;
   for (const r of reds) {
