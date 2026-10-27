@@ -8,6 +8,7 @@
 //! {"file": "crates/a/src/b.rs", "parsed": true, "raw": "<digest of the bytes>", "items": [
 //!   {"id": "Handle::wait", "kind": "fn", "start": 120, "end": 161, "test": false,
 //!    "digest": "<32 hex>", "bare": "<32 hex>", "cardTypes": ["MethodDoc"],
+//!    "binds": ["Fault=crate::error::Fault"], "head": "<32 hex>",
 //!    "refs": ["Fault", "child"], "defines": ["wait"],
 //!    "parent": "Handle::{impl}", "includes": ["crates/a/src/data.txt"],
 //!    "class": ["Core\\Process"], "rows": [{"classes": ["Core\\Math"], "digest": "<32 hex>"}],
@@ -36,6 +37,11 @@
 //!   types it imports are taken out of it, and `cardTypes` lists the names only those bind. Two
 //!   versions of an item whose `bare` (or, lacking one, `digest`) is the same differ in their cards
 //!   alone, which no program reads.
+//! - `binds` is set on a `use` and lists each name it binds with the path it stands for as written:
+//!   `name=a::b::C`, a glob as `*=a::b`, and a leading `::` kept. `head` digests the rest of the
+//!   `use`: its attributes and its visibility. Two `use`s of one module with the same `head` bind a
+//!   name they both list with the same path to the same thing, so a reader moves only what names a
+//!   name whose binding came, went or moved.
 //! - `refs` is every identifier the item's tokens name, keywords and primitive types left out, and
 //!   `defines` every name the item binds for others to name: a function's, a type's, a const's, the
 //!   names a `use` binds (`*` for a glob), and for a macro invocation the identifiers its body spells
@@ -172,6 +178,8 @@ struct Out {
     digest: String,
     bare: Option<String>,
     card_types: Vec<String>,
+    binds: Vec<String>,
+    head: String,
     refs: BTreeSet<String>,
     defines: Vec<String>,
     parent: Option<usize>,
@@ -551,11 +559,22 @@ impl Walker<'_> {
                             uses.insert(name.clone(), path.clone());
                         }
                     }
+                    let lead = if u.leading_colon.is_some() { "::" } else { "" };
+                    let binds: Vec<String> = bound
+                        .iter()
+                        .map(|(name, path)| format!("{name}={lead}{}", path.join("::")))
+                        .collect();
                     let mut names: Vec<String> = bound.into_iter().map(|(n, _)| n).collect();
                     names.dedup();
                     let t = test || is_test(&u.attrs);
                     let id = join(&format!("use:{}", names.join(",")));
                     let at = self.push(id, "use", span, t, u.to_token_stream(), names, None);
+                    let mut rest: TokenStream =
+                        u.attrs.iter().map(ToTokens::to_token_stream).collect();
+                    rest.extend(u.vis.to_token_stream());
+                    let head = digest(|h| feed(h, rest, false));
+                    self.out[at].binds = binds;
+                    self.out[at].head = head;
                     // The same `use` with the card types taken out, and the names only those bind.
                     let mut kept = Vec::new();
                     let bare = match without_cards(u.tree.clone()).map(flatten) {
@@ -669,6 +688,8 @@ impl Walker<'_> {
             digest,
             bare: None,
             card_types: Vec::new(),
+            binds: Vec::new(),
+            head: String::new(),
             refs,
             defines,
             parent,
@@ -1387,6 +1408,13 @@ impl Out {
         if !self.card_types.is_empty() {
             s.push_str(&format!(r#","cardTypes":{}"#, list(&self.card_types)));
         }
+        if !self.binds.is_empty() {
+            s.push_str(&format!(
+                r#","binds":{},"head":"{}""#,
+                list(&self.binds),
+                self.head
+            ));
+        }
         if let Some(parent) = self.parent {
             s.push_str(&format!(r#","parent":{}"#, quote_json(&all[parent].id)));
         }
@@ -1750,6 +1778,23 @@ mod tests {
             kept.items[0].bare.is_none(),
             "a lone `self` keeps its braces"
         );
+    }
+
+    #[test]
+    fn a_use_lists_each_name_with_its_path_and_digests_its_head() {
+        let file = one("use ::a::{b::C, d as E, f::{self, *}};\n");
+        assert_eq!(
+            file.items[0].binds,
+            ["C=::a::b::C", "E=::a::d", "f=::a::f", "*=::a::f"]
+        );
+        assert!(file.json().contains(r#""binds":["C=::a::b::C","#));
+        let head = |text: &str| one(text).items[0].head.clone();
+        assert_eq!(head("use a::B;\n"), head("use a::{B, C};\n"));
+        assert_ne!(head("use a::B;\n"), head("pub use a::B;\n"));
+        assert_ne!(head("use a::B;\n"), head("#[cfg(unix)]\nuse a::B;\n"));
+        let plain = one("fn f() {}\n");
+        assert!(plain.items[0].binds.is_empty());
+        assert!(!plain.json().contains("binds"));
     }
 
     #[test]

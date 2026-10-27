@@ -23,7 +23,10 @@
 //   name it: programs reach a row by lookup, and code of the same module may read the const directly;
 // - a `macro_rules!` moves every item that invokes it;
 // - an `impl` block's or a macro invocation's own tokens move every item inside it (`parent`);
-// - a `use` moves the items of its own file that name what it binds;
+// - a `use` moves the items of its own file that name what it binds. The `use`s a module removed and
+//   added are compared by the path each name is bound to (`binds`, paired by `rebind`), and then only
+//   a name whose binding came, went or moved reaches anything, so dropping an unused import moves
+//   nothing that still names a kept one;
 // - any other item (a const, a static, a struct, an enum, a type alias) moves every item that names
 //   it, in its own package and in the packages that depend on it, and so on until a `fn` is reached.
 //
@@ -72,6 +75,9 @@ export interface ItemChange {
   item: Item;
   /** The item as it was, for a changed or removed one. */
   was?: Item;
+  /** For a `use` compared by its bindings (`rebind`): the names whose binding came, went or moved. It
+   * reaches what names these alone. */
+  rebound?: string[];
 }
 
 /** Why a key moved: the path and item it came from, and for a reached item the item that reached it. */
@@ -100,7 +106,7 @@ export function diffFile(base: FileItems | null, head: FileItems | null): { chan
     else if (was.digest !== item.digest || JSON.stringify(was.rows ?? []) !== JSON.stringify(item.rows ?? [])) changes.push({ file, id, how: "changed", item, was });
   }
   for (const [id, was] of before) if (!after.has(id)) changes.push({ file, id, how: "removed", item: was, was });
-  return { changes: pairUses(changes), wide: false };
+  return { changes: rebind(pairUses(changes)), wide: false };
 }
 
 /** An item's digest without its links to cards. */
@@ -137,6 +143,71 @@ function pairUses(changes: ItemChange[]): ItemChange[] {
   if (paired.size === 0) return changes;
   return changes.flatMap((c) => {
     const p = paired.get(c);
+    return p === undefined ? [c] : p === null ? [] : [p];
+  });
+}
+
+/** Each name a `use` binds, with the paths it is bound to: `binds` read as a map. */
+function bindings(uses: Item[]): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const u of uses) {
+    for (const b of u.binds ?? []) {
+      const at = b.indexOf("=");
+      const name = b.slice(0, at);
+      (out.get(name) ?? out.set(name, new Set()).get(name)!).add(b.slice(at + 1));
+    }
+  }
+  return out;
+}
+
+/** The names whose binding differs between two sets of `use`s, or null when a glob's paths differ, so
+ * any name may now resolve elsewhere. */
+function reboundNames(was: Item[], now: Item[]): string[] | null {
+  const before = bindings(was);
+  const after = bindings(now);
+  const same = (a?: Set<string>, b?: Set<string>) => a !== undefined && b !== undefined && a.size === b.size && [...a].every((p) => b.has(p));
+  if ((before.has("*") || after.has("*")) && !same(before.get("*"), after.get("*"))) return null;
+  const names = new Set([...before.keys(), ...after.keys()]);
+  names.delete("*");
+  return [...names].filter((n) => !same(before.get(n), after.get(n))).sort();
+}
+
+/**
+ * Compares the `use`s of a module by what each name is bound to. A `use` that gained or lost a name has
+ * another id, so the diff reads it as one `use` removed and another added, and each would move
+ * everything of its file that names any name it binds. The `use`s removed and added in one module with
+ * the same `head` (attributes and visibility) and `test` are one change instead: each added one
+ * reaches only the names whose path came, went or moved (`rebound`), and the removed ones are dropped. A
+ * `use` changed in place is read the same way. A `use` without `binds`, from a scan older than them, and
+ * a module whose globs moved keep the whole reach.
+ */
+function rebind(changes: ItemChange[]): ItemChange[] {
+  const bound = (i: Item) => (i.binds?.length ?? 0) > 0 && i.head !== undefined;
+  const key = (c: ItemChange) => `${c.id.slice(0, c.id.lastIndexOf("use:"))}\0${c.item.test}\0${c.item.head}`;
+  const groups = new Map<string, { gone: ItemChange[]; came: ItemChange[] }>();
+  const out = new Map<ItemChange, ItemChange | null>();
+  for (const c of changes) {
+    if (c.item.kind !== "use" || !bound(c.item)) continue;
+    if (c.how === "changed") {
+      if (!c.was || !bound(c.was) || c.was.head !== c.item.head) continue;
+      const names = reboundNames([c.was], [c.item]);
+      if (names !== null) out.set(c, { ...c, rebound: names });
+      continue;
+    }
+    if (c.how !== "removed" && c.how !== "added") continue;
+    const g = groups.get(key(c)) ?? groups.set(key(c), { gone: [], came: [] }).get(key(c))!;
+    (c.how === "removed" ? g.gone : g.came).push(c);
+  }
+  for (const { gone, came } of groups.values()) {
+    if (gone.length === 0 || came.length === 0) continue;
+    const names = reboundNames(gone.map((c) => c.item), came.map((c) => c.item));
+    if (names === null) continue;
+    for (const c of gone) out.set(c, null);
+    for (const c of came) out.set(c, { file: c.file, id: c.id, how: "changed", item: c.item, was: gone[0]!.item, rebound: names });
+  }
+  if (out.size === 0) return changes;
+  return changes.flatMap((c) => {
+    const p = out.get(c);
     return p === undefined ? [c] : p === null ? [] : [p];
   });
 }
@@ -359,8 +430,8 @@ export function referenceWalk(
     emit(ALL_CARDS, origin);
   }
   const seen = new Set<string>();
-  const queue: { file: string; item: Item; was?: Item; how: How; via?: string; viaClasses?: string[] }[] = [];
-  for (const c of changes) queue.push({ file: c.file, item: c.item, ...(c.was ? { was: c.was } : {}), how: c.how });
+  const queue: { file: string; item: Item; was?: Item; how: How; via?: string; viaClasses?: string[]; rebound?: string[] }[] = [];
+  for (const c of changes) queue.push({ file: c.file, item: c.item, ...(c.was ? { was: c.was } : {}), how: c.how, ...(c.rebound ? { rebound: c.rebound } : {}) });
   const reach = (from: { file: string; item: Item }, names: string[], sameFile: boolean) => {
     const viaClasses = from.item.class ?? [];
     const owner = universe.scope.pkgOf(from.file);
@@ -449,7 +520,7 @@ export function referenceWalk(
         reach(e, [e.item.id.replace(/!.*$/, "").split("::").pop()!], false);
         break;
       case "use":
-        reach(e, defines, true);
+        reach(e, e.rebound ?? defines, true);
         break;
       case "impl-rest":
         break;

@@ -113,6 +113,10 @@ export interface Item {
   bare?: string;
   /** For a `use`: the names only the card types it imports bind. */
   cardTypes?: string[];
+  /** For a `use`: each name it binds with the path it stands for as written, as `name=a::b::C`. */
+  binds?: string[];
+  /** For a `use`: the digest of its attributes and visibility. */
+  head?: string;
   refs: string[];
   defines: string[];
   parent?: string;

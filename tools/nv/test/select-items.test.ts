@@ -173,10 +173,34 @@ describe("the item diff and the reference-graph walk", () => {
     expect(back).toEqual(["card:core\\script", "fn:crates/reg/src/script.rs#CARD", "fn:crates/reg/src/script.rs#CLASS", "fn:crates/reg/src/script.rs#use:CoreClass"]);
   });
 
-  test("an import that changes more than its card types reaches what names it", () => {
-    const moved = movedBy("crates/reg/src/script.rs", SCRIPT, SCRIPT_CARDED.replace("{ClassDoc, CoreClass}", "{ClassDoc, CoreClass, CoreTy}"));
+  test("an import that changes more than its card types reaches what names a name it moved", () => {
+    const moved = movedBy("crates/reg/src/script.rs", SCRIPT, SCRIPT_CARDED.replace("use crate::registry::{ClassDoc, CoreClass};", "use crate::registry::ClassDoc;\nuse crate::classes::CoreClass;"));
     expect(moved).toContain("class:core\\script");
     expect(moved).toContain("fn:crates/reg/src/script.rs#script");
+  });
+
+  test("an import that drops an unused name moves nothing, and one that moves a name's path reaches what names it", () => {
+    const file = "crates/demo/src/site.rs";
+    const SITE = `use crate::ast::{Doc, Expr, Stmt};
+
+pub struct Site { pub doc: Option<Doc> }
+
+pub fn walk(s: &Stmt) -> usize {
+    0
+}
+
+pub fn site() -> Site {
+    Site { doc: None }
+}
+`;
+    expect(movedBy(file, SITE, SITE.replace("{Doc, Expr, Stmt}", "{Doc, Stmt}"))).toEqual(["fn:crates/demo/src/site.rs#use:Doc,Stmt"]);
+    expect(movedBy(file, SITE, SITE.replace("use crate::ast::{Doc, Expr, Stmt};", "use crate::ast::{Expr, Stmt};\nuse crate::docs::Doc;"))).toEqual([
+      "fn:crates/demo/src/site.rs#Site",
+      "fn:crates/demo/src/site.rs#site",
+      "fn:crates/demo/src/site.rs#use:Doc",
+      "fn:crates/demo/src/site.rs#use:Expr,Stmt",
+    ]);
+    expect(movedBy(file, SITE, SITE.replace("use crate", "pub use crate"))).toContain("fn:crates/demo/src/site.rs#walk");
   });
 
   test("a class added or taken out with its card moves its class", () => {
