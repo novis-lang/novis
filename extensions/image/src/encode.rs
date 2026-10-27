@@ -4,7 +4,8 @@
 //! JPEG, PNG, lossless WebP and GIF encode through `image`, lossy WebP through the linked libwebp
 //! (`webp`'s module doc) and AVIF through `ravif`. JPEG XL, SVG and PDF are refused by `run`
 //! before anything decodes. A JPEG has no alpha channel, so the encoder drops it, and a GIF is
-//! quantised to a palette. WebP is lossy unless the `format` step sets `lossless`.
+//! quantised to a palette. WebP is lossy unless the `format` step sets `lossless`. More than one
+//! frame is written as an animated GIF (`animation`), each frame with its own palette and delay.
 //!
 //! **Metadata is stripped unless the plan keeps it.** Every encoder writes the pixels and no
 //! profile. With `keep_metadata`, the input's EXIF block is written back where the format has a
@@ -13,12 +14,13 @@
 
 use std::io::Cursor;
 
+use image::codecs::gif::{GifEncoder, Repeat};
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::PngEncoder;
 use image::codecs::webp::WebPEncoder;
-use image::{DynamicImage, ImageEncoder, ImageFormat, RgbaImage};
+use image::{Delay, DynamicImage, ImageEncoder, ImageFormat, RgbaImage};
 
-use crate::{Encoding, Error, Format, Pixels, webp};
+use crate::{Encoding, Error, Format, Frame, Pixels, webp};
 
 /// The JPEG quality with no `quality` option, on the 1 to 100 scale.
 pub const DEFAULT_JPEG_QUALITY: u8 = 85;
@@ -29,6 +31,31 @@ pub const DEFAULT_LOSSY_QUALITY: u8 = 80;
 /// `ravif`'s speed, from 1 (slowest, smallest file) to 10. A request waits on the encode, so
 /// this trades some file size for a shorter wait.
 const AVIF_SPEED: u8 = 7;
+
+/// `frames` written as an animated GIF that loops forever, each frame quantised to its own
+/// palette and shown for its delay. The frames all have the first one's size, as the plan's
+/// steps leave them. Like every other output, it carries no metadata.
+pub fn animation(frames: Vec<Frame>) -> Result<Vec<u8>, Error> {
+    let fail = |err: image::ImageError| Error::Runtime(format!("the Gif encoder failed: {err}"));
+    let mut out = Vec::new();
+    {
+        let mut encoder = GifEncoder::new(&mut out);
+        encoder.set_repeat(Repeat::Infinite).map_err(fail)?;
+        for Frame { pixels, delay_ms } in frames {
+            let image =
+                RgbaImage::from_raw(pixels.width, pixels.height, pixels.rgba).ok_or_else(|| {
+                    Error::Runtime(
+                        "the pixel buffer is shorter than its width and height".to_string(),
+                    )
+                })?;
+            let delay = Delay::from_numer_denom_ms(delay_ms, 1);
+            encoder
+                .encode_frame(image::Frame::from_parts(image, 0, 0, delay))
+                .map_err(fail)?;
+        }
+    }
+    Ok(out)
+}
 
 /// `pixels` written as a `format` file, under the plan's `encoding`.
 pub fn encode(pixels: Pixels, format: Format, encoding: Encoding) -> Result<Vec<u8>, Error> {

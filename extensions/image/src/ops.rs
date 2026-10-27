@@ -269,11 +269,12 @@ pub fn check(op: &Op) -> Result<(), Error> {
     }
 }
 
-/// Runs `op` on `pixels`. `op` has passed `check`; a frame it would make over `cap` pixels
-/// returns `Runtime` before it is allocated.
-pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
+/// Runs `op` on `pixels`, one of `frames` frames the plan runs together. `op` has passed
+/// `check`; a frame it would make over `cap` pixels, counted `frames` times, returns `Runtime`
+/// before it is allocated.
+pub fn apply(pixels: &mut Pixels, op: Op, cap: u64, frames: u64) -> Result<(), Error> {
     match op {
-        Op::Resize(resize) => self::resize(pixels, resize, cap),
+        Op::Resize(resize) => self::resize(pixels, resize, cap, frames),
         Op::Crop {
             x,
             y,
@@ -296,7 +297,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
         Op::Rotate {
             degrees,
             background,
-        } => rotate(pixels, degrees, background, cap),
+        } => rotate(pixels, degrees, background, cap, frames),
         Op::Flip(axis) => {
             flip(pixels, axis);
             Ok(())
@@ -359,21 +360,27 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64) -> Result<(), Error> {
 }
 
 /// The size of the frame `op` makes from a `width` by `height` frame, with every frame it makes
-/// held to `cap` as `apply` holds it. `None` when the size depends on the pixels, as `trim`'s
-/// does, or when `op` is a `crop` whose box `apply` refuses.
-pub fn size(op: &Op, width: u32, height: u32, cap: u64) -> Result<Option<(u32, u32)>, Error> {
+/// held to `cap` over `frames` frames as `apply` holds it. `None` when the size depends on the
+/// pixels, as `trim`'s does, or when `op` is a `crop` whose box `apply` refuses.
+pub fn size(
+    op: &Op,
+    width: u32,
+    height: u32,
+    cap: u64,
+    frames: u64,
+) -> Result<Option<(u32, u32)>, Error> {
     match *op {
         Op::Resize(options) => {
             let (size, _, canvas) = resized(width, height, options);
-            let made = frame(size.0, size.1, cap)?;
+            let made = frame(size.0, size.1, cap, frames)?;
             match canvas {
-                Some((canvas_w, canvas_h)) => frame(canvas_w, canvas_h, cap).map(Some),
+                Some((canvas_w, canvas_h)) => frame(canvas_w, canvas_h, cap, frames).map(Some),
                 None => Ok(Some(made)),
             }
         }
         Op::Rotate { degrees, .. } => {
             let (out_w, out_h) = turned(width, height, degrees);
-            frame(out_w, out_h, cap).map(Some)
+            frame(out_w, out_h, cap, frames).map(Some)
         }
         Op::Crop {
             x,
@@ -456,9 +463,10 @@ fn scale(size: u32, by: f64) -> u64 {
     ((f64::from(size) * by).round() as u64).max(1)
 }
 
-/// `Runtime` when a `width` by `height` frame is over `cap`, and the size as `u32`s otherwise.
-fn frame(width: u64, height: u64, cap: u64) -> Result<(u32, u32), Error> {
-    within_cap(width, height, 1, cap)?;
+/// `Runtime` when `frames` frames of `width` by `height` are over `cap`, and the size as `u32`s
+/// otherwise.
+fn frame(width: u64, height: u64, cap: u64, frames: u64) -> Result<(u32, u32), Error> {
+    within_cap(width, height, frames, cap)?;
     match (u32::try_from(width), u32::try_from(height)) {
         (Ok(width), Ok(height)) => Ok((width, height)),
         _ => Err(Error::Runtime(format!(
@@ -524,12 +532,12 @@ fn resized(
     }
 }
 
-fn resize(pixels: &mut Pixels, options: Resize, cap: u64) -> Result<(), Error> {
+fn resize(pixels: &mut Pixels, options: Resize, cap: u64, frames: u64) -> Result<(), Error> {
     let (width, height) = (pixels.width, pixels.height);
     let (size, source, canvas) = resized(width, height, options);
-    let (out_w, out_h) = frame(size.0, size.1, cap)?;
+    let (out_w, out_h) = frame(size.0, size.1, cap, frames)?;
     if let Some((canvas_w, canvas_h)) = canvas {
-        frame(canvas_w, canvas_h, cap)?;
+        frame(canvas_w, canvas_h, cap, frames)?;
     }
     if (out_w, out_h) != (width, height) || source.is_some() {
         let algorithm = match options.filter {
@@ -581,7 +589,8 @@ fn place(pixels: &mut Pixels, width: u32, height: u32, gravity: Gravity) {
     pixels.height = height;
 }
 
-fn crop(pixels: &mut Pixels, x: u32, y: u32, width: u32, height: u32) {
+/// Crops `pixels` to the box at `x`, `y` of `width` by `height`, which lies inside it.
+pub(crate) fn crop(pixels: &mut Pixels, x: u32, y: u32, width: u32, height: u32) {
     if (x, y, width, height) == (0, 0, pixels.width, pixels.height) {
         return;
     }
@@ -602,6 +611,13 @@ fn crop(pixels: &mut Pixels, x: u32, y: u32, width: u32, height: u32) {
 }
 
 fn trim(pixels: &mut Pixels, threshold: f64) {
+    let (x, y, width, height) = trimmed(pixels, threshold);
+    crop(pixels, x, y, width, height);
+}
+
+/// The box `trim` keeps of `pixels`, as `x`, `y`, width and height: the whole frame when all of
+/// it is border.
+pub(crate) fn trimmed(pixels: &Pixels, threshold: f64) -> (u32, u32, u32, u32) {
     let corner: [u8; 4] = pixels.rgba[..4].try_into().expect("a frame has a pixel");
     let row = pixels.width as usize * 4;
     let mut bounds: Option<(usize, usize, usize, usize)> = None;
@@ -619,15 +635,10 @@ fn trim(pixels: &mut Pixels, threshold: f64) {
             }
         }
     }
-    if let Some((x0, y0, x1, y1)) = bounds {
-        let size = |value: usize| u32::try_from(value).expect("inside the frame");
-        crop(
-            pixels,
-            size(x0),
-            size(y0),
-            size(x1 - x0 + 1),
-            size(y1 - y0 + 1),
-        );
+    let size = |value: usize| u32::try_from(value).expect("inside the frame");
+    match bounds {
+        Some((x0, y0, x1, y1)) => (size(x0), size(y0), size(x1 - x0 + 1), size(y1 - y0 + 1)),
+        None => (0, 0, pixels.width, pixels.height),
     }
 }
 
@@ -682,7 +693,13 @@ fn turned(width: u32, height: u32, degrees: f64) -> (u64, u64) {
     }
 }
 
-fn rotate(pixels: &mut Pixels, degrees: f64, background: [u8; 4], cap: u64) -> Result<(), Error> {
+fn rotate(
+    pixels: &mut Pixels,
+    degrees: f64,
+    background: [u8; 4],
+    cap: u64,
+    frames: u64,
+) -> Result<(), Error> {
     if let Some(quarter) = quarters(degrees) {
         match quarter {
             0 => {}
@@ -721,7 +738,7 @@ fn rotate(pixels: &mut Pixels, degrees: f64, background: [u8; 4], cap: u64) -> R
     let (sin, cos) = degrees.rem_euclid(360.0).to_radians().sin_cos();
     let (width, height) = (f64::from(pixels.width), f64::from(pixels.height));
     let (out_w, out_h) = turned(pixels.width, pixels.height, degrees);
-    let (out_w, out_h) = frame(out_w, out_h, cap)?;
+    let (out_w, out_h) = frame(out_w, out_h, cap, frames)?;
     let premultiplied = |px: &[u8]| {
         let alpha = f32::from(px[3]) / 255.0;
         [
@@ -914,6 +931,7 @@ mod tests {
                 background: [0; 4],
             },
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!((pixels.width, pixels.height), (2, 3));
@@ -927,6 +945,7 @@ mod tests {
                 background: [0; 4],
             },
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!(back.rgba, numbered(3, 2).rgba);
@@ -942,11 +961,12 @@ mod tests {
                 background: [0; 4],
             },
             1 << 20,
+            1,
         )
         .unwrap();
         let mut flipped = numbered(4, 3);
-        apply(&mut flipped, Op::Flip(Axis::Horizontal), 1 << 20).unwrap();
-        apply(&mut flipped, Op::Flip(Axis::Vertical), 1 << 20).unwrap();
+        apply(&mut flipped, Op::Flip(Axis::Horizontal), 1 << 20, 1).unwrap();
+        apply(&mut flipped, Op::Flip(Axis::Vertical), 1 << 20, 1).unwrap();
         assert_eq!(turned.rgba, flipped.rgba);
         assert_eq!(at(&turned, 0, 0), [3, 2, 0, 255]);
     }
@@ -966,6 +986,7 @@ mod tests {
                 background: [0, 0, 255, 255],
             },
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!((pixels.width, pixels.height), (15, 15));
@@ -984,11 +1005,17 @@ mod tests {
         ];
         for (fit, want) in cases {
             let mut pixels = numbered(40, 20);
-            apply(&mut pixels, sized(Some(8), Some(8), fit), 1 << 20).unwrap();
+            apply(&mut pixels, sized(Some(8), Some(8), fit), 1 << 20, 1).unwrap();
             assert_eq!((pixels.width, pixels.height), want, "{fit:?}");
         }
         let mut pixels = numbered(40, 20);
-        apply(&mut pixels, sized(Some(8), Some(8), Fit::Contain), 1 << 20).unwrap();
+        apply(
+            &mut pixels,
+            sized(Some(8), Some(8), Fit::Contain),
+            1 << 20,
+            1,
+        )
+        .unwrap();
         assert_eq!(at(&pixels, 0, 0)[3], 0, "the band above is transparent");
         assert_eq!(at(&pixels, 0, 4)[3], 255);
     }
@@ -996,10 +1023,10 @@ mod tests {
     #[test]
     fn one_dimension_keeps_the_aspect_and_no_upscale_keeps_the_size() {
         let mut pixels = numbered(40, 20);
-        apply(&mut pixels, sized(Some(10), None, Fit::Cover), 1 << 20).unwrap();
+        apply(&mut pixels, sized(Some(10), None, Fit::Cover), 1 << 20, 1).unwrap();
         assert_eq!((pixels.width, pixels.height), (10, 5));
         let mut small = numbered(4, 2);
-        apply(&mut small, sized(None, Some(20), Fit::Cover), 1 << 20).unwrap();
+        apply(&mut small, sized(None, Some(20), Fit::Cover), 1 << 20, 1).unwrap();
         assert_eq!((small.width, small.height), (4, 2));
         apply(
             &mut small,
@@ -1009,6 +1036,7 @@ mod tests {
                 ..Resize::default()
             }),
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!((small.width, small.height), (40, 20));
@@ -1023,7 +1051,7 @@ mod tests {
             ..Resize::default()
         });
         assert!(matches!(
-            apply(&mut pixels, grow, 1000),
+            apply(&mut pixels, grow, 1000, 1),
             Err(Error::Runtime(_))
         ));
         assert_eq!((pixels.width, pixels.height), (4, 4));
@@ -1036,23 +1064,23 @@ mod tests {
             upscale: true,
             ..Resize::default()
         });
-        assert_eq!(size(&grow, 4, 2, 1 << 20).unwrap(), Some((100, 50)));
-        assert!(matches!(size(&grow, 4, 4, 1000), Err(Error::Runtime(_))));
+        assert_eq!(size(&grow, 4, 2, 1 << 20, 1).unwrap(), Some((100, 50)));
+        assert!(matches!(size(&grow, 4, 4, 1000, 1), Err(Error::Runtime(_))));
         let quarter = Op::Rotate {
             degrees: 90.0,
             background: [0; 4],
         };
-        assert_eq!(size(&quarter, 4, 2, 1 << 20).unwrap(), Some((2, 4)));
+        assert_eq!(size(&quarter, 4, 2, 1 << 20, 1).unwrap(), Some((2, 4)));
         let mut pixels = numbered(16, 16);
         let eighth = Op::Rotate {
             degrees: 45.0,
             background: [0; 4],
         };
-        let made = size(&eighth, 16, 16, 1 << 20).unwrap();
-        apply(&mut pixels, eighth, 1 << 20).unwrap();
+        let made = size(&eighth, 16, 16, 1 << 20, 1).unwrap();
+        apply(&mut pixels, eighth, 1 << 20, 1).unwrap();
         assert_eq!(made, Some((pixels.width, pixels.height)));
         let trim = Op::Trim { threshold: 10.0 };
-        assert_eq!(size(&trim, 4, 4, 1 << 20).unwrap(), None);
+        assert_eq!(size(&trim, 4, 4, 1 << 20, 1).unwrap(), None);
     }
 
     #[test]
@@ -1067,6 +1095,7 @@ mod tests {
                 height: 2,
             },
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!((pixels.width, pixels.height), (3, 2));
@@ -1078,7 +1107,7 @@ mod tests {
             height: 1,
         };
         assert!(matches!(
-            apply(&mut pixels, outside, 1 << 20),
+            apply(&mut pixels, outside, 1 << 20, 1),
             Err(Error::Invalid(_))
         ));
     }
@@ -1101,6 +1130,7 @@ mod tests {
                 threshold: DEFAULT_TRIM_THRESHOLD,
             },
             1 << 20,
+            1,
         )
         .unwrap();
         assert_eq!((pixels.width, pixels.height), (2, 4));
@@ -1114,7 +1144,7 @@ mod tests {
             rgba: [40, 80, 120, 255].repeat(25),
             exif: None,
         };
-        apply(&mut flat, Op::Blur { sigma: 2.0 }, 1 << 20).unwrap();
+        apply(&mut flat, Op::Blur { sigma: 2.0 }, 1 << 20, 1).unwrap();
         assert!(flat.rgba.chunks_exact(4).all(|px| px == [40, 80, 120, 255]));
         let mut edge = Pixels {
             width: 8,
@@ -1130,13 +1160,13 @@ mod tests {
             });
         }
         let mut sharp = edge.clone();
-        apply(&mut edge, Op::Blur { sigma: 1.0 }, 1 << 20).unwrap();
+        apply(&mut edge, Op::Blur { sigma: 1.0 }, 1 << 20, 1).unwrap();
         assert!(
             (1..255).contains(&at(&edge, 3, 0)[0]),
             "{:?}",
             at(&edge, 3, 0)
         );
-        apply(&mut sharp, Op::Sharpen { sigma: 1.0 }, 1 << 20).unwrap();
+        apply(&mut sharp, Op::Sharpen { sigma: 1.0 }, 1 << 20, 1).unwrap();
         assert_eq!(at(&sharp, 3, 0)[0], 0);
         assert_eq!(at(&sharp, 0, 0), [0, 0, 0, 255]);
     }
@@ -1150,7 +1180,7 @@ mod tests {
             Op::Tint([9, 9, 9, 0]),
         ] {
             let mut pixels = numbered(4, 4);
-            apply(&mut pixels, op, 1 << 20).unwrap();
+            apply(&mut pixels, op, 1 << 20, 1).unwrap();
             assert_eq!(pixels.rgba, numbered(4, 4).rgba, "{op:?}");
         }
         let mut pixels = Pixels {
@@ -1159,11 +1189,11 @@ mod tests {
             rgba: vec![200, 100, 50, 128],
             exif: None,
         };
-        apply(&mut pixels, Op::Brightness(0.5), 1 << 20).unwrap();
+        apply(&mut pixels, Op::Brightness(0.5), 1 << 20, 1).unwrap();
         assert_eq!(pixels.rgba, [100, 50, 25, 128]);
-        apply(&mut pixels, Op::Grayscale, 1 << 20).unwrap();
+        apply(&mut pixels, Op::Grayscale, 1 << 20, 1).unwrap();
         assert_eq!(pixels.rgba, [59, 59, 59, 128]);
-        apply(&mut pixels, Op::Flatten([255, 255, 255, 255]), 1 << 20).unwrap();
+        apply(&mut pixels, Op::Flatten([255, 255, 255, 255]), 1 << 20, 1).unwrap();
         assert_eq!(pixels.rgba, [157, 157, 157, 255]);
     }
 

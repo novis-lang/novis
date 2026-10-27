@@ -25,7 +25,9 @@ every one with its delay, every other target writes the first frame, and `raw()`
 frame. A plan whose output is not GIF decodes the first frame alone, so a thumbnail of an animation
 costs one frame's decode, as a still image does. The pixel cap counts every frame the header states
 either way (`rule:core-classes/image-pixel-cap`), so a request's pixel memory is bounded by the cap
-however many frames it keeps.
+however many frames it keeps. Every frame keeps one size: `trim` finds its box on the first frame
+and crops every frame to it, and a `composite` overlay is made once and drawn on each. A GIF output
+loops forever, since the decoders do not return the input's loop count.
 
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
@@ -71,10 +73,10 @@ rows and then the overlay to the table, renumbering the overlay's steps by the r
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
-pixel source is held to the default pixel cap, not the `[image]` one. The component decodes every
-frame of a GIF, an APNG and an animated WebP with its delay (`nvs_image::decode_frames`), but `run`
-still runs its plan on the first frame alone; goal `image-second-wave` runs every step on every frame
-and writes them to a GIF output.
+pixel source is held to the default pixel cap, not the `[image]` one. A plan that encodes a GIF
+runs every step on every frame of a GIF, an APNG and an animated WebP and writes them with their
+delays (`extensions/image/src/lib.rs`, `extensions/image/src/encode.rs`), and any other plan
+decodes the first frame alone (`crates/nvs-ext/tests/image_pipeline.rs`).
 
 The image world is called typed (`crates/nvs-ext/src/typed/image.rs`), so decoded pixels cross the
 boundary in one copy each way, and their host bytes are charged to the request at their own size. A

@@ -337,11 +337,7 @@ fn an_animation_is_capped_by_all_its_frames_and_decodes_each_one() {
             run_args(
                 &request,
                 &extension,
-                capped(
-                    encoded(fixture(&name), None),
-                    plan(Vec::new(), "Size"),
-                    cap,
-                ),
+                capped(encoded(fixture(&name), None), plan(Vec::new(), "Size"), cap),
             )
         };
         assert_eq!(
@@ -374,9 +370,10 @@ fn an_animation_is_capped_by_all_its_frames_and_decodes_each_one() {
         let colours = [[255u8, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]];
         assert!(
             firsts.len() == 3
-                && firsts.iter().zip(colours).all(|(got, want)| {
-                    got.iter().zip(want).all(|(&g, w)| g.abs_diff(w) <= 1)
-                }),
+                && firsts
+                    .iter()
+                    .zip(colours)
+                    .all(|(got, want)| { got.iter().zip(want).all(|(&g, w)| g.abs_diff(w) <= 1) }),
             "{name}: {firsts:?}"
         );
         assert!(

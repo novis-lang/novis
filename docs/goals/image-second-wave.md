@@ -22,7 +22,7 @@ stages:
     context: [extensions/image/src/decode.rs, extensions/image/src/lib.rs, docs/rules/core-classes/image-pipeline.md]
   - id: 6
     title: "the plan runs every step on every frame, and a GIF output keeps them"
-    status: open
+    status: done
     context: [extensions/image/src/lib.rs, extensions/image/src/ops.rs, extensions/image/src/encode.rs, crates/nvs-ext/tests/image_pipeline.rs]
   - id: 7
     title: "an animated AVIF and JPEG XL decode every frame"
@@ -117,6 +117,17 @@ does. Memory for stages 1 to 3 is one extra frame during the sRGB conversion, as
 already pay, per request, freed with it. An animation spends at most what one frame at the cap spends
 today, per request, because the cap counts every frame.
 
+**An animation keeps one frame size, and a GIF output loops forever.** `trim` finds its box on the
+first frame and crops every frame to it, and a `composite` overlay is made once and drawn on every
+frame, so a GIF's frames all have its first frame's size. The decoders do not return the input's
+loop count, so `encode::animation` writes `Repeat::Infinite`. `variants` decodes every frame only when
+one of its plans encodes a GIF, and each plan that does not runs on a copy of the first frame alone.
+The per-step cap counts the frames the plan runs on, through `ops::apply` and `ops::size`'s `frames`
+argument, so a `resize` that grows three frames is held to three times its size. Why: a trim per
+frame would give frames of different sizes, which a GIF's one logical screen cannot place without a
+second offset model; one overlay decode per step, not per frame, is the latency the pipeline already
+pays for a still image.
+
 **Lanes.** The whole goal touches only `extensions/image/`, `crates/nvs-ext/tests/image_*.rs` and the
 image rules, so it can run as a side goal beside the chain now. Stages 1 and 2 touch disjoint files
 (`decode.rs`, `avif.rs` against `info.rs`) and run in either order. Stage 3 shares `info.rs` with stage
@@ -172,10 +183,10 @@ JPEG XL) gives its frame count, and a still image gives `1`.
 **Does:** a pipeline over an animation applies each step to every frame, a GIF output writes them all
 with their delays, and any other output decodes and writes the first frame only.
 
-- [ ] The plan runs over a list of frames, with the size check per step counting every frame. `extensions/image/src/lib.rs:170`, `extensions/image/src/lib.rs:262`, `extensions/image/src/ops.rs:274`
-- [ ] A plan whose output is not GIF decodes the first frame only. `extensions/image/src/lib.rs:278`
-- [ ] `encode` to GIF writes every frame with its delay. `extensions/image/src/encode.rs:34`
-- [ ] Tests: a resized `anim.gif` keeps three frames, and the same plan to PNG decodes one frame. `crates/nvs-ext/tests/image_pipeline.rs:63`
+- [x] The plan runs over a list of frames, with the size check per step counting every frame. `extensions/image/src/lib.rs:170`, `extensions/image/src/lib.rs:262`, `extensions/image/src/ops.rs:274`
+- [x] A plan whose output is not GIF decodes the first frame only. `extensions/image/src/lib.rs:278`
+- [x] `encode` to GIF writes every frame with its delay. `extensions/image/src/encode.rs:34`
+- [x] Tests: a resized `anim.gif` keeps three frames, and the same plan to PNG decodes one frame. `crates/nvs-ext/tests/image_pipeline.rs:63`
 
 ### 7. an animated AVIF and JPEG XL decode every frame
 
@@ -218,42 +229,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. `decode::check(width, height, frames, cap)` holds every frame to the cap,
-and its message says `16x12 in 3 frames` when there is more than one. Each format's decoder counts
-the frames off the header before it decodes: `info::frames` for PNG, GIF and WebP, `sequence_frames`
-for AVIF, `num_loaded_keyframes` for JPEG XL. A canvas, a pixel source, an SVG, a PDF page and an
-op's output count one frame.
+Stages 1 to 4 and 6 are done. `decode::check(width, height, frames, cap)` holds every frame to the
+cap; the header's count is `sequence_frames` for AVIF and `num_loaded_keyframes` for JPEG XL.
+`nvs_image::decode_frames` gives every frame of a GIF, APNG and WebP through `decode::upright`, and
+the first frame alone of an AVIF and a JPEG XL.
 
-`nvs_image::decode_frames` returns a `Vec<Frame>` (pixels and `delay_ms`). GIF, APNG and WebP go
-through `image`'s animation decoders, taking at most the header's count, with orientation and the
-RGB profile applied to each frame through `decode::upright`; only the first frame carries the EXIF
-block. AVIF and JPEG XL give their first frame alone. `decode` still decodes one frame, and `run`
-still runs its plan on one frame. `image-webp` blends WebP frames onto the canvas, so a pure 255
-comes out as 254.
+The plan runs over a `Vec<Frame>`: `lib::frames` calls `decode_frames` when some plan of the call
+encodes a GIF (`animates`), and makes one frame otherwise. `steps` runs each step on every frame
+with the frame count passed to `ops::apply` and `ops::size`, so the cap counts every frame; `trim`
+takes the first frame's box (`ops::trimmed`) and a `composite` overlay is made once per step.
+`finish` writes more than one frame through `encode::animation` (`GifEncoder`, looping forever),
+and any other output takes the one frame. The standing decision *An animation keeps one frame
+size* records why. `image-pipeline`'s rule body and *Partly on disk* say this now.
 
-The rules say what an animation costs: `image-pixel-cap` counts the sum of the frames,
-`image-pipeline` says every step runs on every frame and only GIF output keeps them, with a
-*Partly on disk* line for what stage 6 owes, and `image-format-roster`'s stale "`frames` is always
-`1`" sentence now names stage 7's gap instead.
-
-The sweep's findings were already closed: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
-now, and nightly run `40291801939` is on `d6f131752`, before the fixes the last handoff names.
+The sweep's findings were stale: the `env-secret-proofs` log shows exit 0, and nightly run
+`40291801939` is on `d6f131752`, before the fixes. rustfmt was red on `image_decode.rs` from the
+last session, and is fixed in this commit.
 
 No test is expected red. The new test passed once by name:
-`an_animation_is_capped_by_all_its_frames_and_decodes_each_one`. The workspace clippy is green.
+`a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png`. The workspace clippy is
+green, and `extensions/image`'s own tests compile (`cargo test --no-run` there).
 
 ### Next
 
-**Stage 6: the plan runs every step on every frame, and a GIF output keeps them.** Files:
-`extensions/image/src/lib.rs`, `extensions/image/src/ops.rs`, `extensions/image/src/encode.rs`,
-`crates/nvs-ext/tests/image_pipeline.rs`. No gate.
+**Stage 7: an animated AVIF and JPEG XL decode every frame.** Files: `extensions/image/src/avif.rs`,
+`extensions/image/src/decode.rs`, `crates/nvs-ext/tests/image_decode.rs`. No gate.
 
-- [ ] `frame` returns the frames: `decode_frames` when the plan's output is GIF, `decode_page` otherwise. `extensions/image/src/lib.rs:281`
-- [ ] `run`, `variants` and `finish` run the steps over every frame; `sizes` counts the frames in its per-step cap. `extensions/image/src/lib.rs:170`, `extensions/image/src/lib.rs:179`, `extensions/image/src/lib.rs:265`, `extensions/image/src/lib.rs:342`
-- [ ] `encode` to GIF writes every frame with its delay through `GifEncoder::encode_frames`; `raw` and the other formats take the first. `extensions/image/src/encode.rs:73`
-- [ ] Tests: a resized `anim.gif` keeps three frames and their delays, and the same plan to PNG decodes one frame. `crates/nvs-ext/tests/image_pipeline.rs:63`
+- [ ] AVIF: read the `pict` track's sample table (`stsz`, `stco`/`co64`, `stsc`) beside `sequence_frames`, and decode each sample's OBUs through `rav1d`'s `Picture::decode`, with the delay from `stts` over the `mdhd` timescale. `extensions/image/src/avif.rs:411`, `extensions/image/src/avif.rs:562`
+- [ ] JPEG XL: render every keyframe through `jxl-oxide` with its duration in ticks over the animation header's tick rate, each through `decode::upright`. `extensions/image/src/decode.rs:304`
+- [ ] `decode_frames` sends AVIF and JPEG XL to them, and the module doc no longer says only the first frame decodes. `extensions/image/src/decode.rs:186`, `extensions/image/src/decode.rs:16`
+- [ ] Tests: `anim.avif` and `anim.jxl` join the format loop in `an_animation_is_capped_by_all_its_frames_and_decodes_each_one`, and a resized one to GIF keeps three frames. `crates/nvs-ext/tests/image_decode.rs:333`
 
 ### Backlog
 
-- Stage 7: AVIF's sequence track and JPEG XL's frames through `decode_frames`. `extensions/image/src/decode.rs:186`, `extensions/image/src/avif.rs:70`
-- Stage 5 closes the rules, including `image-pipeline`'s new *Partly on disk* sentence. `docs/rules/core-classes/image-pipeline.md:75`
+- Stage 5 closes the rules: `image-format-roster`'s first-frame sentence goes once stage 7 lands, and `image-pipeline`'s *Partly on disk* names AVIF and JPEG XL. `docs/rules/core-classes/image-format-roster.md:23`, `docs/rules/core-classes/image-pipeline.md:75`

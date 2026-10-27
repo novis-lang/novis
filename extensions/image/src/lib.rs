@@ -12,7 +12,10 @@
 //! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
 //! runs the plan's pixel steps on the frame in order (`ops`'s module doc), and returns the pixels,
 //! their size or the encoded file (`encode`'s module doc); `variants` makes the frame once and
-//! runs each of its plans on a copy of it. A canvas or a pixel source has no input format, so an
+//! runs each of its plans on a copy of it. A plan that encodes a GIF runs on every frame of an
+//! animation and writes them all (`steps`, `encode::animation`); any other plan runs on the first
+//! frame, and only it is decoded when no plan encodes a GIF. A canvas or a pixel source has no
+//! input format, so an
 //! encoded output with no `format` step is PNG, and its size is held to the same pixel cap as a
 //! decode. A `composite` step names a row of the plan's overlays, each a source and steps of its
 //! own: the row's frame is made and run when the step runs, and drawn over the frame
@@ -172,10 +175,12 @@ pub fn run(input: &Input<'_>, cap: u64, plan: &Plan<'_>) -> Result<Vec<u8>, Erro
     Ok(outs.pop().unwrap_or_default())
 }
 
-/// Runs each of `plans` as `run` does, on one frame made from `input`, and returns their outputs
-/// in order. Every plan is checked before anything is decoded. Each plan but the last works on
-/// its own copy of the frame, so a call holds two frames at once, and a step that builds its
-/// result beside the frame holds a third while it runs.
+/// Runs each of `plans` as `run` does, on the frames made once from `input`, and returns their
+/// outputs in order. Every plan is checked before anything is decoded. A plan that encodes a GIF
+/// runs on every frame of an animation, and any other plan on its first frame; the frames are
+/// all decoded only when some plan encodes a GIF. Each plan but the last works on its own copy
+/// of the frames it runs on, so a call holds two sets of frames at once, and a step that builds
+/// its result beside a frame holds one frame more while it runs.
 pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<Vec<u8>>, Error> {
     let format = match *input {
         Input::Encoded { data, page, .. } => {
@@ -198,26 +203,47 @@ pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<V
         }
         check(plan)?;
     }
+    let header = known_size(input, cap);
     for plan in plans {
-        sizes(known_size(input, cap), &plan.steps, cap)?;
+        let frames = match header {
+            Some((_, _, frames)) if animates(plan, format) => frames,
+            _ => 1,
+        };
+        sizes(header, &plan.steps, cap, frames)?;
         for overlay in &plan.overlays {
             sizes(
                 known_size(&overlay.input, overlay.cap),
                 &overlay.steps,
                 overlay.cap,
+                1,
             )?;
         }
     }
     let Some((last, rest)) = plans.split_last() else {
         return Ok(Vec::new());
     };
-    let pixels = frame(input, cap)?;
+    let all = plans.iter().any(|plan| animates(plan, format));
+    let mut frames = self::frames(input, cap, all)?;
     let mut outs = Vec::with_capacity(plans.len());
     for plan in rest {
-        outs.push(finish(pixels.clone(), format, plan, cap)?);
+        let copy = if animates(plan, format) {
+            frames.clone()
+        } else {
+            frames[..1].to_vec()
+        };
+        outs.push(finish(copy, format, plan, cap)?);
     }
-    outs.push(finish(pixels, format, last, cap)?);
+    if !animates(last, format) {
+        frames.truncate(1);
+    }
+    outs.push(finish(frames, format, last, cap)?);
     Ok(outs)
+}
+
+/// Whether `plan` runs on every frame of an animation: it does when it encodes a GIF, the one
+/// format the component writes an animation in. `input` is the source's format.
+fn animates(plan: &Plan<'_>, input: Format) -> bool {
+    plan.output == Output::Encoded && plan.encoding.format.unwrap_or(input) == Format::Gif
 }
 
 /// `Runtime` for `page` of a document of `count` pages, which is past its end.
@@ -228,10 +254,10 @@ pub(crate) fn past_end(page: u64, count: u64) -> Error {
     ))
 }
 
-/// The size of the frame `input` makes, when it is known before anything is decoded and within
-/// `cap` with every frame counted. An encoded source's size is read from its header, turned as
-/// `auto_orient` turns it.
-fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
+/// The size of the frame `input` makes and its number of frames, when they are known before
+/// anything is decoded and within `cap` with every frame counted. An encoded source's size is
+/// read from its header, turned as `auto_orient` turns it.
+fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32, u64)> {
     let mut frames = 1;
     let (width, height) = match *input {
         Input::Canvas { width, height, .. } | Input::Pixels { width, height, .. } => {
@@ -256,23 +282,51 @@ fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
     if width == 0 || height == 0 || decode::check(width, height, frames, cap).is_err() {
         return None;
     }
-    Some((u32::try_from(width).ok()?, u32::try_from(height).ok()?))
+    Some((
+        u32::try_from(width).ok()?,
+        u32::try_from(height).ok()?,
+        frames,
+    ))
 }
 
-/// `Runtime` when a step of `steps` would make a frame over `cap` from a frame of `start`, found
-/// from the sizes alone before any step runs. It stops at the first step whose size depends on
-/// the pixels, and does nothing when `start` is not known.
-fn sizes(start: Option<(u32, u32)>, steps: &[Op], cap: u64) -> Result<(), Error> {
-    let Some((mut width, mut height)) = start else {
+/// `Runtime` when a step of `steps` would make `frames` frames over `cap` from frames of
+/// `start`, found from the sizes alone before any step runs. It stops at the first step whose
+/// size depends on the pixels, and does nothing when `start` is not known.
+fn sizes(start: Option<(u32, u32, u64)>, steps: &[Op], cap: u64, frames: u64) -> Result<(), Error> {
+    let Some((mut width, mut height, _)) = start else {
         return Ok(());
     };
     for op in steps {
-        match ops::size(op, width, height, cap)? {
+        match ops::size(op, width, height, cap, frames)? {
             Some(next) => (width, height) = next,
             None => break,
         }
     }
     Ok(())
+}
+
+/// The frames `input` starts from, held to `cap` pixels together: with `all`, every frame of an
+/// animation, each with its delay, and otherwise its first frame alone. Every other source,
+/// a PDF page among them, is one frame.
+fn frames(input: &Input<'_>, cap: u64, all: bool) -> Result<Vec<Frame>, Error> {
+    match *input {
+        Input::Encoded {
+            data,
+            auto_orient,
+            to_srgb,
+            ..
+        } if all && sniff(data)? != Format::Pdf => {
+            let frames = decode_frames(data, cap, auto_orient, to_srgb)?;
+            if frames.is_empty() {
+                return Err(Error::Parse("the animation has no frame".to_string()));
+            }
+            Ok(frames)
+        }
+        _ => Ok(vec![Frame {
+            pixels: frame(input, cap)?,
+            delay_ms: 0,
+        }]),
+    }
 }
 
 /// The frame `input` starts from, held to `cap` pixels. A canvas or a pixel source with no pixel
@@ -337,10 +391,23 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
     }
 }
 
-/// `pixels` after `plan`'s steps, returned as its output: encoded in the plan's format, or else
-/// `input`'s, or as the size header with or without the RGBA8 rows behind it.
-fn finish(mut pixels: Pixels, input: Format, plan: &Plan<'_>, cap: u64) -> Result<Vec<u8>, Error> {
-    steps(&mut pixels, &plan.steps, &plan.overlays, cap)?;
+/// `frames` after `plan`'s steps, returned as its output: encoded in the plan's format, or else
+/// `input`'s, or as the first frame's size header with or without the RGBA8 rows behind it.
+/// More than one frame is written as an animated GIF; `animates` gives only a GIF plan more.
+fn finish(
+    mut frames: Vec<Frame>,
+    input: Format,
+    plan: &Plan<'_>,
+    cap: u64,
+) -> Result<Vec<u8>, Error> {
+    steps(&mut frames, &plan.steps, &plan.overlays, cap)?;
+    if frames.len() > 1 {
+        return encode::animation(frames);
+    }
+    let pixels = frames
+        .pop()
+        .map(|frame| frame.pixels)
+        .expect("`frames` makes one frame at least");
     let output = plan.output;
     if output == Output::Encoded {
         return encode(pixels, plan.encoding.format.unwrap_or(input), plan.encoding);
@@ -354,24 +421,44 @@ fn finish(mut pixels: Pixels, input: Format, plan: &Plan<'_>, cap: u64) -> Resul
     Ok(out)
 }
 
-/// Runs `steps` on `pixels` under `cap`. A `composite` step makes its row of `overlays` from the
-/// row's source, runs the row's steps with the rows before it, and draws the result.
+/// Runs `steps` on every one of `frames` under `cap`, which holds all of them together. A
+/// `composite` step makes its row of `overlays` once from the row's source, runs the row's steps
+/// with the rows before it, and draws the result over every frame. A `trim` step finds its box
+/// on the first frame and crops every frame to it, so the frames keep one size.
 fn steps(
-    pixels: &mut Pixels,
+    frames: &mut [Frame],
     steps: &[Op],
     overlays: &[Overlay<'_>],
     cap: u64,
 ) -> Result<(), Error> {
+    let count = frames.len() as u64;
     for op in steps {
-        let Op::Composite(composite) = *op else {
-            ops::apply(pixels, *op, cap)?;
-            continue;
-        };
-        let row = usize::try_from(composite.overlay).expect("`check` held the row to the table");
-        let overlay = &overlays[row];
-        let mut layer = frame(&overlay.input, overlay.cap)?;
-        self::steps(&mut layer, &overlay.steps, &overlays[..row], overlay.cap)?;
-        ops::composite(pixels, &layer, composite);
+        match *op {
+            Op::Composite(composite) => {
+                let row =
+                    usize::try_from(composite.overlay).expect("`check` held the row to the table");
+                let overlay = &overlays[row];
+                let mut layer = [Frame {
+                    pixels: frame(&overlay.input, overlay.cap)?,
+                    delay_ms: 0,
+                }];
+                self::steps(&mut layer, &overlay.steps, &overlays[..row], overlay.cap)?;
+                for each in frames.iter_mut() {
+                    ops::composite(&mut each.pixels, &layer[0].pixels, composite);
+                }
+            }
+            Op::Trim { threshold } if count > 1 => {
+                let (x, y, width, height) = ops::trimmed(&frames[0].pixels, threshold);
+                for each in frames.iter_mut() {
+                    ops::crop(&mut each.pixels, x, y, width, height);
+                }
+            }
+            _ => {
+                for each in frames.iter_mut() {
+                    ops::apply(&mut each.pixels, *op, cap, count)?;
+                }
+            }
+        }
     }
     Ok(())
 }
