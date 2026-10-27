@@ -1723,7 +1723,10 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 ///
 /// **Every declaration the index holds gets one**, an enum case included: a
 /// case's reads are recorded against the case, so the count above one is the
-/// count of the sites that read it. **A hierarchy lens is written only where
+/// count of the sites that read it. A `#[Test]` method and the class that
+/// declares it get one only where something refers to them: the test runner
+/// finds both by the attribute, so "no references" there would be true of
+/// every test. **A hierarchy lens is written only where
 /// it has something to say**: a type something extends or implements, a method
 /// that overrides one, a method something overrides. Its absence is the
 /// answer everywhere else, and a "no subclasses" above every class would be a
@@ -1733,7 +1736,8 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// **A method that a route or a test reaches says so**, last, in [`used_by`]'s
 /// words. A click runs the tests it counts, with [`Client::RUN_TESTS`] for a
 /// client that named it. A method nothing reaches gets no such lens, for the
-/// hierarchy lens's reason.
+/// hierarchy lens's reason, and neither does a `#[Test]` method: it reaches
+/// only itself, and the test view's own run button runs it.
 ///
 /// **A `Core\Db` call a recorded request reached says what it ran there**,
 /// after the declarations' lenses ([`query_lenses`]).
@@ -1759,8 +1763,15 @@ fn code_lens(
 
     // A report names a file by its canonical path, and a URI's path is not one.
     let key = nvs_diagnostics::canonical_key(&path);
-    let lenses: Vec<(Range, String, Vec<&Site>, Vec<String>)> = index
-        .declarations_in(&path)
+    let declarations = index.declarations_in(&path);
+    // The classes that declare a `#[Test]` method: the runner finds them, so
+    // nothing in the code refers to one.
+    let test_classes: Vec<&str> = declarations
+        .iter()
+        .filter(|declared| declared.test)
+        .filter_map(|declared| declared.symbol.rsplit_once("::").map(|(class, _)| class))
+        .collect();
+    let lenses: Vec<(Range, String, Vec<&Site>, Vec<String>)> = declarations
         .iter()
         .flat_map(|declared| {
             let range = range_of(file, declared.site.start, declared.site.end, encoding);
@@ -1769,7 +1780,13 @@ fn code_lens(
                 .into_iter()
                 .map(|occurrence| &occurrence.site)
                 .collect();
-            let reached = declared.extent.map(|(start, end)| {
+            let run_by_runner =
+                declared.test || test_classes.contains(&declared.symbol.as_str());
+            let counted = (!run_by_runner || !uses.is_empty())
+                .then(|| (reference_count(uses.len()), uses));
+            // A test reaches only itself, and the test view runs it already.
+            let extent = declared.extent.filter(|_| !declared.test);
+            let reached = extent.map(|(start, end)| {
                 let lines = range_of(file, start, end, encoding);
                 let tests = reports
                     .tests_reaching(&key, lines.start.line + 1, lines.end.line + 1)
@@ -1781,7 +1798,8 @@ fn code_lens(
                     });
                 used_by(&reach(index, &declared.symbol), tests)
             });
-            std::iter::once((reference_count(uses.len()), uses))
+            counted
+                .into_iter()
                 .chain(hierarchy_lenses(index, declared))
                 .map(move |(title, sites)| (range, title, sites, Vec::new()))
                 .chain(

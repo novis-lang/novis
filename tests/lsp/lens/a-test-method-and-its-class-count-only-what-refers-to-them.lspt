@@ -1,0 +1,35 @@
+--TEST--
+a `#[Test]` method has no "used by" lens, it and its class have a reference count only where something refers to them, and a helper of the test class keeps its lenses, `rule:ide/used-by-counts-the-routes-and-tests-that-reach-a-method`
+--FILE--
+<?nvs
+use Core\Test;
+
+class Prices {
+    public function base(): int {
+        return 3;
+    }
+}
+
+class PricesTest {
+    #[Test]
+    public function baseIsThree(): void {
+        Test::assertEquals(3, $this->price());
+    }
+    #[Test]
+    public function baseTwice(): void {
+        $this->baseIsThree();
+        $this->baseIsThree();
+    }
+    private function price(): int {
+        return new Prices()->base();
+    }
+}
+--REQUEST--
+codeLens
+--EXPECT--
+4:7 1 reference -> case.nvs:21:20
+5:21 1 reference -> case.nvs:21:30
+5:21 used by 0 routes, 2 tests (static) -> runs PricesTest::baseIsThree, PricesTest::baseTwice
+12:21 2 references -> case.nvs:17:16, case.nvs:18:16
+20:22 1 reference -> case.nvs:13:38
+20:22 used by 0 routes, 2 tests (static) -> runs PricesTest::baseIsThree, PricesTest::baseTwice

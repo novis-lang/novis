@@ -44,10 +44,3 @@ codeLens
 11:7 no references
 14:21 no references
 14:21 used by 1 route, 1 test (static) -> runs ShopTest::cartLoads
-19:7 no references
-21:21 no references
-21:21 used by 0 routes, 1 test (static) -> runs ShopTest::cartLoads
-26:21 no references
-26:21 used by 0 routes, 1 test (static) -> runs ShopTest::baseIsThree
-30:21 no references
-30:21 used by 0 routes, 1 test (static) -> runs ShopTest::missingPage

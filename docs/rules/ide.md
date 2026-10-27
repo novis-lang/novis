@@ -1578,8 +1578,12 @@ program's last coverage run into a directory of its own storage, with every file
 and names that directory in `initialize`'s `coverage.dir`, as it names `stubs.dir`. A report applies
 to a file one of its tests reached. Where none did, the count is the call graph's and says "static". A
 test the index no longer declares is not counted. **A method that no route and no test reaches has no
-"used by" lens**, for the reason a hierarchy lens is written only where it has something to say. A
-click carries `nvs.runTests` with the tests as `Class::method`, for a client that names that command.
+"used by" lens**, for the reason a hierarchy lens is written only where it has something to say.
+**Neither has a `#[Test]` method**: it would count 0 routes and the one test that is itself, and the
+Test Explorer's run button beside it already runs it. For the same reason, a `#[Test]` method and the
+class that declares it have a reference count only when it is above 0. The runner finds both by the
+attribute, so "no references" would be true of every test. A click carries `nvs.runTests` with the
+tests as `Class::method`, for a client that names that command.
 
 - **Memory:** one function name per occurrence in the index, held in the editor process for the
   index's life, and the newest report's per-test lines while the server holds it. Each lens request

@@ -41,6 +41,3 @@ codeLens
 14:7 no references
 17:21 no references
 17:21 used by 1 route, 0 tests
-22:7 no references
-24:21 no references
-24:21 used by 0 routes, 1 test -> runs PricesTest::totalIsThree
