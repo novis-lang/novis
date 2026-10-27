@@ -137,21 +137,35 @@ impl Grants {
     /// The table of the `package.toml` that [`find`] finds from `start`, or the empty table when
     /// there is none.
     ///
+    /// The file is loaded into `sources` by its path, and each directory's `package.toml` that
+    /// the walk looked for and did not find is noted as missed. A server watches both, so an
+    /// edited grant line, or a `package.toml` created above the entry, recompiles a unit it
+    /// already holds. Cost: one missed path per directory walked, and one `stat` of each per
+    /// revalidation pass.
+    ///
     /// # Errors
     ///
     /// A file that cannot be read, or one whose `[grants]` table [`Self::parse`] refuses.
     pub fn read(start: &Path, sources: &mut SourceMap) -> Result<Self, Diagnostic> {
-        let Some(path) = find(start) else {
+        let mut found = None;
+        for candidate in start.ancestors().map(|dir| dir.join(FILE)) {
+            if candidate.is_file() {
+                found = Some(candidate);
+                break;
+            }
+            sources.note_missing(&candidate);
+        }
+        let Some(path) = found else {
             return Ok(Self::default());
         };
-        let text = std::fs::read_to_string(&path).map_err(|err| {
+        let id = sources.load(&path).map_err(|err| {
             Diagnostic::error(
                 code::E_BAD_GRANT,
                 format!("cannot read `{}`: {err}", path.display()),
             )
             .with_note("the compiler reads the `[grants]` table of this file".to_owned())
         })?;
-        let mut grants = Self::parse(sources, &path.display().to_string(), &text)?;
+        let mut grants = Self::parse_in(id, sources.file(id).text())?;
         grants.file = Some(path);
         Ok(grants)
     }
@@ -165,8 +179,14 @@ impl Grants {
     /// [`code::E_GRANT_UNDER_CORE`]. Two keys that match identically:
     /// [`code::E_GRANT_KEYS_TIE`].
     pub fn parse(sources: &mut SourceMap, name: &str, text: &str) -> Result<Self, Diagnostic> {
-        let (id, parsed) = crate::file::parse::<File>(sources, name, text);
-        let file = parsed.map_err(|refused| refused.with_code(code::E_BAD_GRANT))?;
+        let id = sources.add(name, text);
+        Self::parse_in(id, text)
+    }
+
+    /// [`Self::parse`] over `text`, already in the caller's map as `id`.
+    fn parse_in(id: SourceId, text: &str) -> Result<Self, Diagnostic> {
+        let (file, _) = crate::file::parse_at::<File>(id, text)
+            .map_err(|refused| refused.with_code(code::E_BAD_GRANT))?;
         let mut lines: Vec<_> = file.grants.into_iter().collect();
         lines.sort_by_key(|(written, _)| written.span().start);
         let mut keys: BTreeMap<(String, bool), (Grant, Spanned<String>)> = BTreeMap::new();

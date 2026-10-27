@@ -76,11 +76,24 @@ pub fn parse_with_warnings<T: DeserializeOwned>(
     text: &str,
 ) -> (SourceId, Result<(T, Vec<Diagnostic>), Diagnostic>) {
     let id = sources.add(name, text);
-    let parsed = match toml::from_str::<T>(text) {
+    (id, parse_at(id, text))
+}
+
+/// [`parse_with_warnings`] over a file already in the caller's [`SourceMap`] as `id`, which is
+/// how a file loaded from its path keeps that path: a server watches every file a compile read
+/// by it.
+///
+/// # Errors
+///
+/// As [`parse_with_warnings`].
+pub fn parse_at<T: DeserializeOwned>(
+    id: SourceId,
+    text: &str,
+) -> Result<(T, Vec<Diagnostic>), Diagnostic> {
+    match toml::from_str::<T>(text) {
         Ok(value) => Ok((value, Vec::new())),
         Err(err) => without_empty_unknown_tables(id, text, err),
-    };
-    (id, parsed)
+    }
 }
 
 /// The failure path of [`parse_with_warnings`]: while the refusal is an unknown key naming an

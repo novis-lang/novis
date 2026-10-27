@@ -611,6 +611,14 @@ impl Compiler {
     /// The compiler for a process running under `config`: its environment
     /// digest, the `[opcache]` block's answer to when a resolve looks at a file
     /// it has already compiled, and the artifact cache that same block places.
+    ///
+    /// The digest folds in the empty grant table. Each entry's `[grants]` is
+    /// read by its own compile, from the `package.toml` above that entry, and
+    /// is one of the files the unit's [`Trace`] watches, with each directory's
+    /// `package.toml` the walk missed. So an edited or created grant table
+    /// sends the content to a compile, and the front end checks it again. One
+    /// digest per process could not do this: two mounted entries may sit under
+    /// two `package.toml` files.
     pub(crate) fn new(config: &Config) -> Self {
         Self {
             paths: RwLock::new(HashMap::new()),
@@ -2659,6 +2667,39 @@ mod tests {
             2,
             "the table holds more than the unit in force and the one it replaced",
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_package_toml_created_or_edited_beside_the_entry_recompiles_the_unit() {
+        // `rule:security/grants-are-keyed-on-a-namespace` on a server. The
+        // program never changes below, so the unit it compiled to is the same
+        // key each time: what moves the answer is the trace, which holds the
+        // `package.toml` the compile read and each one it looked for and missed.
+        let dir = nvs_repo::scratch("granted");
+        std::fs::write(
+            dir.join("entry.nvs"),
+            "<?nvs\nnamespace Acme\\Http;\nvar $size = fn (): uint => Core\\IO::size(\"note.txt\");\necho \"ran\\n\";\n",
+        )
+        .expect("the entry point");
+        let written = dir.join("entry.nvs").to_string_lossy().into_owned();
+        let manifest = dir.join(nvs_config::grants::FILE);
+        let compiler = revalidating();
+
+        let (first, _routes) = compiler.compiled(&written).expect("no table, so it compiles");
+        assert_eq!(said(first), "ran\n");
+
+        std::fs::write(&manifest, "[grants]\n'Acme\\Http' = []\n").expect("an empty line");
+        compiler.revalidate();
+        assert!(
+            compiler.compiled(&written).is_err(),
+            "a `package.toml` created beside the entry was not seen",
+        );
+
+        std::fs::write(&manifest, "[grants]\n'Acme\\Http' = [\"fs.read\"]\n").expect("the grant");
+        compiler.revalidate();
+        let (granted, _routes) = compiler.compiled(&written).expect("the grant compiles");
+        assert_eq!(said(granted), "ran\n", "the edited grant line was not seen");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
