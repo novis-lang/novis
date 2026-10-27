@@ -123,9 +123,9 @@ there and nowhere else. The one exception is the two `theme-color` meta tags in
 | | | Where it lands |
 | --- | --- | --- |
 | `--nv-crimson` | `#b20038` | the logo's base color: primary buttons (the hero's primary action, the header's Install), the start of the signature gradient, brand moments. Never links or hovers |
-| `--nv-violet` | `#6542ed` | everything interactive: links, the current sidebar item and header area, focus rings. Starlight's `--sl-color-accent*` scale is built from it, so Starlight's own components follow |
+| `--nv-orange` | `#ef6c01` | the hue half way between crimson and gold, for everything interactive: links, the current sidebar item and header area, focus rings. Starlight's `--sl-color-accent*` scale is built from it, so Starlight's own components follow |
 | `--nv-gold` | `#ffb703` | the highlight, used sparingly: `<mark>`, `.nv-chip`, the table of contents' current-item marker. As a fill it carries dark text (11:1) |
-| `--nv-ink`, `--nv-fog` | near `#090b14`, white | the neutral ramp's two ends, each a few percent violet: a deep blue-black and a near-white |
+| `--nv-ink`, `--nv-fog` | near `#090b14`, white | the neutral ramp's two ends, each a few percent orange: a deep blue-black and a near-white |
 
 The neutral ramp is fog mixed into ink in the steps Starlight's own grays use, mapped onto
 `--sl-color-white`, `-gray-1` to `-gray-7` and `-black`, which is what keeps Starlight's
@@ -133,16 +133,17 @@ contrast ratios. The dark theme reads it from ink (the page ground) to fog (head
 light theme reads it the other way round.
 
 Each theme moves a brand color by **lightness alone**, keeping its hue:
-`oklch(from var(--nv-violet) 0.76 calc(c * 0.5) h)` is the dark theme's link color, because
-mixing toward white would also wash out the hue. The dark theme lifts violet to L 0.64 for
-borders and fills and L 0.76 for text, and crimson to L 0.66 for text; the light theme uses
-violet as drawn for text, L 0.42 for text on a violet wash, and gold at L 0.5 for text. Each
-relative color has a `color-mix()` fallback in front of an `@supports` block.
+`oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h)` is the dark theme's link color, because
+mixing toward white would also wash out the hue. The dark theme uses orange as drawn for
+borders and fills and lifts it to L 0.78 for text, and crimson to L 0.66 for text. The light
+theme darkens orange to L 0.52 for text (`--nv-orange-fill`, which is also the fill under
+white text in both themes), L 0.42 for text on an orange wash, and gold to L 0.5 for text.
+Each relative color has a `color-mix()` fallback in front of an `@supports` block.
 
 Derived tokens a component reaches for: `--nv-surface` and `--nv-surface-2` (a card and a
-raised strip), `--nv-hairline` and `--nv-hairline-strong`, `--nv-wash` (a violet tint behind
-current or hovered items), `--nv-glass` (the header), `--nv-gradient` (crimson into violet,
-for large text) and `--nv-gradient-line` (crimson, violet, gold, for hairlines and hovered
+raised strip), `--nv-hairline` and `--nv-hairline-strong`, `--nv-wash` (an orange tint behind
+current or hovered items), `--nv-glass` (the header), `--nv-gradient` (crimson into orange,
+for large text) and `--nv-gradient-line` (crimson, orange, gold, for hairlines and hovered
 card borders), `--nv-shadow-sm/md/lg`, `--nv-quiet` (muted annotations), `--nv-faint` (the
 faintest tone that still clears 3:1, for icons and large decorative numbers), `--nv-code-bg`, and
 the spacing, radius and motion scales. Status colors — `--nv-ok`, `--nv-warn`,

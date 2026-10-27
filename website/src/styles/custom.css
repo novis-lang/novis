@@ -9,31 +9,32 @@
  *
  *   --nv-crimson  the logo's base color. Primary buttons, the start of the
  *                 signature gradient, brand moments. Never links or hovers.
- *   --nv-violet   the interactive color. Links, the current sidebar item and
- *                 header area, focus rings. Starlight's --sl-color-accent*
- *                 scale is built from it, so Starlight's own links, tabs and
- *                 badges follow.
+ *   --nv-orange   the interactive color, the hue half way between crimson
+ *                 and gold. Links, the current sidebar item and header area,
+ *                 focus rings. Starlight's --sl-color-accent* scale is built
+ *                 from it, so Starlight's own links, tabs and badges follow.
  *   --nv-gold     the highlight, used sparingly: <mark>, chips and count
  *                 badges, the table of contents' current-item marker. As a
  *                 fill it carries dark text; as text on the light theme it is
  *                 darkened (--nv-gold-text).
  *   --nv-ink / --nv-fog  the two ends of the light theme's neutral ramp: a
  *                 deep blue-black and a near-white, both a few percent
- *                 violet. Ink is the light theme's text, and the ground of
+ *                 orange. Ink is the light theme's text, and the ground of
  *                 the blocks that stay dark in both themes; fog is the light
  *                 theme's ground and the dark theme's text.
  *   --nv-ground   the dark theme's page, a neutral #111 with no tint. The
  *                 dark theme's grays, surfaces and hairlines mix fog into it.
  *
- * The signature gradient (--nv-gradient) runs crimson into violet. It paints
+ * The signature gradient (--nv-gradient) runs crimson into orange. It paints
  * large headings, the header's hairline, a hovered card's border and call-to-
  * action bands, and never body text.
  *
  * Each theme lifts or darkens the brand colors by lightness alone, with
- * oklch(from …): the dark theme raises violet to L 0.64 (borders, fills) and
- * L 0.76 (text), the light theme uses violet as drawn for text and L 0.42 for
- * text on a violet wash. The color-mix() values in front of each @supports
- * block are the fallback for a browser without relative color syntax.
+ * oklch(from …): the dark theme uses orange as drawn for borders and fills
+ * and raises it to L 0.78 for text, the light theme darkens it to L 0.52 for
+ * text and L 0.42 for text on an orange wash. The color-mix() values in front
+ * of each @supports block are the fallback for a browser without relative
+ * color syntax.
  *
  * Status colors (ok, warn, danger, and the asides) are Starlight's own green,
  * orange, red and blue, so a "danger" in a signature matches a danger aside.
@@ -51,10 +52,10 @@
 :root {
   /* ------------------------------------------------------------ the palette */
   --nv-crimson: #b20038;
-  --nv-violet: #6542ed;
+  --nv-orange: #ef6c01;
   --nv-gold: #ffb703;
-  --nv-ink: color-mix(in oklab, var(--nv-violet) 5%, #090b14);
-  --nv-fog: color-mix(in oklab, var(--nv-violet) 3%, #ffffff);
+  --nv-ink: color-mix(in oklab, var(--nv-orange) 5%, #090b14);
+  --nv-fog: color-mix(in oklab, var(--nv-orange) 3%, #ffffff);
   --nv-ground: #111111;
 
   /* ---------------------------------------------------------------- scales */
@@ -103,15 +104,17 @@
   --sl-color-hairline-shade: var(--nv-hairline);
   --sl-color-bg-inline-code: var(--nv-code-bg);
 
-  /* Violet: -low is a dark fill, -accent draws borders and fills (3:1),
-     -high is link text (8.7:1 on the page). Fallback first. */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-violet) 42%, var(--nv-ink));
-  --sl-color-accent: color-mix(in oklab, var(--nv-violet) 78%, white);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-violet) 46%, white);
+  /* Orange: -low is a dark fill, -accent draws borders and fills (6.3:1),
+     -high is link text (9:1 on the page). Fallback first. */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-orange) 42%, var(--nv-ink));
+  --sl-color-accent: var(--nv-orange);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 69%, white);
 
-  /* Crimson for a button fill and for text; gold as text. */
+  /* Crimson for a button fill and for text; orange darkened to a fill under
+     white text (6:1), in both themes; gold as text. */
   --nv-crimson-fill: color-mix(in oklab, var(--nv-crimson) 92%, white);
   --nv-crimson-text: color-mix(in oklab, var(--nv-crimson) 60%, white);
+  --nv-orange-fill: color-mix(in oklab, var(--nv-orange) 76%, black);
   --nv-gold-text: var(--nv-gold);
   --nv-on-gold: var(--nv-ink);
 
@@ -153,10 +156,11 @@
 
   /* The six tones a diagram draws its groups in (components/diagrams/).
      Each one clears 3:1 for a line and a dot on the page and on a card;
-     the text beside a tone stays gray-1. */
-  --nv-tone-violet: var(--sl-color-accent);
+     the text beside a tone stays gray-1. Violet is Starlight's purple, the
+     one tone outside the brand's warm hues. */
+  --nv-tone-violet: var(--sl-color-purple);
   --nv-tone-crimson: var(--nv-crimson-text);
-  --nv-tone-orange: color-mix(in oklab, var(--nv-crimson-text) 50%, var(--nv-gold-text));
+  --nv-tone-orange: var(--sl-color-accent);
   --nv-tone-gold: var(--nv-gold-text);
   --nv-tone-green: var(--nv-ok);
   --nv-tone-blue: var(--sl-color-blue);
@@ -179,19 +183,19 @@
 @media (color-gamut: p3) {
   :root {
     --nv-crimson: oklch(0.485 0.215 15.7);
-    --nv-violet: oklch(0.529 0.275 284);
+    --nv-orange: oklch(0.68 0.21 48);
     --nv-gold: oklch(0.825 0.19 79.9);
   }
 }
 
 @supports (color: oklch(from white l c h)) {
   :root {
-    --sl-color-accent-low: oklch(from var(--nv-violet) 0.3 calc(c * 0.45) h);
-    --sl-color-accent: oklch(from var(--nv-violet) 0.64 calc(c * 0.8) h);
-    --sl-color-accent-high: oklch(from var(--nv-violet) 0.76 calc(c * 0.5) h);
+    --sl-color-accent-low: oklch(from var(--nv-orange) 0.3 calc(c * 0.45) h);
+    --sl-color-accent-high: oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h);
     --nv-crimson-fill: oklch(from var(--nv-crimson) 0.52 c h);
     --nv-crimson-text: oklch(from var(--nv-crimson) 0.66 c h);
-    --nv-grad-b: oklch(from var(--nv-violet) 0.72 calc(c * 0.6) h);
+    --nv-orange-fill: oklch(from var(--nv-orange) 0.52 c h);
+    --nv-grad-b: oklch(from var(--nv-orange) 0.74 calc(c * 0.8) h);
   }
 }
 
@@ -209,35 +213,36 @@
   --sl-color-black: var(--nv-fog);
   --sl-color-bg-inline-code: var(--nv-code-bg);
 
-  /* Violet as drawn is link text here (5.7:1 on the page, 4.7:1 on the
-     darkest panel); -high is text on a violet wash (8.3:1). */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-violet) 10%, var(--nv-fog));
-  --sl-color-accent: var(--nv-violet);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-violet) 78%, black);
+  /* Orange as drawn is too light for text here (3:1), so -accent is the
+     orange fill, which is link text (5.7:1 on the page); -high is text on
+     an orange wash (8.6:1). */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-orange) 10%, var(--nv-fog));
+  --sl-color-accent: var(--nv-orange-fill);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 62%, black);
 
   --nv-crimson-fill: var(--nv-crimson);
   --nv-crimson-text: var(--nv-crimson);
   --nv-gold-text: color-mix(in oklab, var(--nv-gold) 58%, black);
 
   --nv-grad-a: var(--nv-crimson);
-  --nv-grad-b: var(--nv-violet);
+  --nv-grad-b: var(--sl-color-accent);
 
   --nv-surface: color-mix(in oklab, white 70%, var(--nv-fog));
-  --nv-surface-2: color-mix(in oklab, var(--nv-violet) 3%, white);
+  --nv-surface-2: color-mix(in oklab, var(--nv-orange) 3%, white);
   --nv-hairline: color-mix(in oklab, var(--nv-ink) 10%, var(--nv-fog));
   --nv-hairline-strong: color-mix(in oklab, var(--nv-ink) 20%, var(--nv-fog));
   --nv-glass: color-mix(in oklab, var(--nv-fog) 74%, transparent);
   --nv-glass-solid: var(--nv-fog);
-  --nv-wash: color-mix(in oklab, var(--nv-violet) 12%, transparent);
-  --nv-wash-soft: color-mix(in oklab, var(--nv-violet) 6%, transparent);
+  --nv-wash: color-mix(in oklab, var(--nv-orange) 12%, transparent);
+  --nv-wash-soft: color-mix(in oklab, var(--nv-orange) 6%, transparent);
   --nv-hover: color-mix(in oklab, var(--nv-ink) 5%, transparent);
 
   --nv-shadow-sm: 0 1px 2px color-mix(in oklab, var(--nv-ink) 8%, transparent);
   --nv-shadow-md: 0 1px 2px color-mix(in oklab, var(--nv-ink) 6%, transparent),
-    0 8px 20px -8px color-mix(in oklab, var(--nv-violet) 18%, transparent);
+    0 8px 20px -8px color-mix(in oklab, var(--nv-orange) 18%, transparent);
   --nv-shadow-lg: 0 2px 4px color-mix(in oklab, var(--nv-ink) 6%, transparent),
-    0 20px 44px -16px color-mix(in oklab, var(--nv-violet) 26%, transparent);
-  --nv-glow: 0 10px 30px -12px color-mix(in oklab, var(--nv-violet) 40%, transparent);
+    0 20px 44px -16px color-mix(in oklab, var(--nv-orange) 26%, transparent);
+  --nv-glow: 0 10px 30px -12px color-mix(in oklab, var(--nv-orange) 40%, transparent);
 
   --nv-quiet: color-mix(in oklab, var(--sl-color-gray-3) 60%, var(--sl-color-accent));
   --nv-faint: color-mix(in oklab, var(--sl-color-gray-3) 25%, var(--sl-color-gray-4));
@@ -248,17 +253,18 @@
   --nv-warn: var(--sl-color-orange-high);
   --nv-danger: var(--sl-color-red-high);
   --nv-tone-blue: var(--sl-color-blue-high);
+  --nv-tone-violet: var(--sl-color-purple-high);
 
   --nv-code-bg: var(--nv-surface);
-  --nv-selection: color-mix(in oklab, var(--nv-violet) 22%, var(--nv-fog));
+  --nv-selection: color-mix(in oklab, var(--nv-orange) 22%, var(--nv-fog));
 
   --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ink) 40%, transparent);
 }
 
 @supports (color: oklch(from white l c h)) {
   :root[data-theme='light'] {
-    --sl-color-accent-low: oklch(from var(--nv-violet) 0.95 calc(c * 0.1) h);
-    --sl-color-accent-high: oklch(from var(--nv-violet) 0.42 c h);
+    --sl-color-accent-low: oklch(from var(--nv-orange) 0.95 calc(c * 0.1) h);
+    --sl-color-accent-high: oklch(from var(--nv-orange) 0.42 c h);
     --nv-gold-text: oklch(from var(--nv-gold) 0.5 calc(c * 0.6) h);
   }
 }
@@ -352,7 +358,7 @@
     background-image:
       radial-gradient(
         circle calc(var(--nv-gutter) * 0.5) at var(--nv-side-left) 30%,
-        color-mix(in oklab, var(--nv-violet) 16%, transparent),
+        color-mix(in oklab, var(--nv-orange) 16%, transparent),
         transparent 70%
       ),
       radial-gradient(
@@ -362,7 +368,7 @@
       ),
       radial-gradient(
         circle calc(var(--nv-gutter) * 0.42) at var(--nv-side-right) 28%,
-        color-mix(in oklab, var(--nv-violet) 12%, transparent),
+        color-mix(in oklab, var(--nv-orange) 12%, transparent),
         transparent 70%
       ),
       radial-gradient(
@@ -433,7 +439,7 @@ body {
   text-wrap: pretty;
 }
 
-/* Content links: violet, with an underline that firms up on hover. */
+/* Content links: orange, with an underline that firms up on hover. */
 .sl-markdown-content a:not(:where(.not-content *, .sl-link-button, .sl-anchor-link, .sl-link-card *, .nv-card, .nv-card *)) {
   color: var(--sl-color-text-accent);
   text-decoration-line: underline;
@@ -580,7 +586,7 @@ starlight-tabs [role='tab']:active {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-/* A link in an aside takes the aside's own accent: violet on the aside's
+/* A link in an aside takes the aside's own accent: orange on the aside's
    tint falls under 4.5:1 in the light theme. */
 .sl-markdown-content .starlight-aside__content a,
 .sl-markdown-content .starlight-aside__content a:hover {
@@ -843,7 +849,7 @@ starlight-tabs [role='tab']:active {
 
 /* ================================================== header controls */
 
-/* The search button: a pill on the glass, violet on hover. */
+/* The search button: a pill on the glass, orange on hover. */
 site-search button[data-open-modal] {
   border-radius: var(--nv-radius-pill);
   transition:
@@ -1146,7 +1152,7 @@ a.nv-card:hover {
   color: var(--sl-color-gray-2);
 }
 
-/* A "read more" link under a block: violet, bold, with an arrow icon that
+/* A "read more" link under a block: orange, bold, with an arrow icon that
    moves right on hover. */
 .nv-more {
   display: inline-flex;
@@ -1189,7 +1195,7 @@ a.nv-card:hover {
 .nv-band {
   border-radius: var(--nv-radius-lg);
   padding: var(--nv-space-6);
-  background: linear-gradient(110deg, var(--nv-crimson) 0%, var(--nv-violet) 100%);
+  background: linear-gradient(110deg, var(--nv-crimson) 0%, var(--nv-orange-fill) 100%);
   color: white;
 }
 .nv-band :is(h2, h3, p) {
@@ -1417,7 +1423,7 @@ a.nv-card:hover {
 /* A member's parameters, options and errors, and a class's enums and
    constants (src/components/ParamDocs.astro and its siblings): a framed list
    with the tables' border, radius and row padding. Each row is a head line
-   (the name, its type in violet, a gray pill such as "optional") with the
+   (the name, its type in orange, a gray pill such as "optional") with the
    description under it. A shape's keys are a nested list on a hairline. */
 .sl-markdown-content .nv-param-docs {
   list-style: none;

@@ -150,7 +150,7 @@ export default defineConfig({
         // A meta tag cannot read a CSS variable, so these two follow the
         // palette by hand.
         { tag: 'meta', attrs: { name: 'theme-color', content: '#111111', media: '(prefers-color-scheme: dark)' } },
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#fafaff', media: '(prefers-color-scheme: light)' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#fffbf9', media: '(prefers-color-scheme: light)' } },
         { tag: 'meta', attrs: { property: 'og:site_name', content: SITE_TITLE } },
       ],
       // One top-level group per area, labelled as AREAS and INSTALL in

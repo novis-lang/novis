@@ -163,7 +163,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   .site-nav a:not(.install):active {
     background-color: var(--nv-wash);
   }
-  /* The current area: violet text and a short bar under it. */
+  /* The current area: orange text and a short bar under it. */
   .site-nav a:not(.install)::after {
     content: '';
     position: absolute;
@@ -339,7 +339,7 @@ const current = (href: string) => (pathname.startsWith(href) ? 'page' : undefine
   /* Where the browser lets a page style a select's list (Chrome and Edge),
      the list is a small panel under the tile, aligned to its right edge.
      Each choice has room around it, a hover color, and the current one is
-     violet with a check mark. Other browsers show their own list. */
+     orange with a check mark. Other browsers show their own list. */
   .right-group :global(starlight-theme-select select),
   .right-group :global(starlight-theme-select select::picker(select)) {
     appearance: base-select;

@@ -67,7 +67,7 @@ const phrases = [
 
 <section class="home-hero not-content" aria-labelledby="_top" data-motion>
   <div class="backdrop" aria-hidden="true">
-    <i class="field field-violet"></i>
+    <i class="field field-orange"></i>
     <i class="field field-crimson"></i>
     <i class="field field-gold"></i>
   </div>
@@ -361,8 +361,8 @@ const phrases = [
     position: absolute;
     background: radial-gradient(closest-side, var(--glow), transparent 70%);
   }
-  .field-violet {
-    --glow: color-mix(in oklab, var(--nv-violet) 26%, transparent);
+  .field-orange {
+    --glow: color-mix(in oklab, var(--nv-orange) 26%, transparent);
     inset: -2% -6% 14% 38%;
   }
   .field-crimson {
@@ -373,8 +373,8 @@ const phrases = [
     --glow: color-mix(in oklab, var(--nv-gold) 10%, transparent);
     inset: -4% 48% 44% 4%;
   }
-  :global([data-theme='light']) .field-violet {
-    --glow: color-mix(in oklab, var(--nv-violet) 16%, transparent);
+  :global([data-theme='light']) .field-orange {
+    --glow: color-mix(in oklab, var(--nv-orange) 16%, transparent);
   }
   :global([data-theme='light']) .field-crimson {
     --glow: color-mix(in oklab, var(--nv-crimson) 10%, transparent);
@@ -385,7 +385,7 @@ const phrases = [
   /* The fields drift and swell slowly. The three durations share no
      common beat, so the picture never repeats in a way the eye can follow.
      Only transform and opacity change. */
-  @keyframes drift-violet {
+  @keyframes drift-orange {
     0% {
       transform: translate(0, 0) scale(1);
     }
@@ -422,8 +422,8 @@ const phrases = [
     }
   }
   @media (prefers-reduced-motion: no-preference) {
-    .field-violet {
-      animation: drift-violet 23s ease-in-out infinite alternate;
+    .field-orange {
+      animation: drift-orange 23s ease-in-out infinite alternate;
     }
     .field-crimson {
       animation: drift-crimson 29s ease-in-out -7s infinite alternate;
@@ -443,7 +443,7 @@ const phrases = [
   }
   :global([data-theme='light']) .backdrop {
     background:
-      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-violet) 16%, transparent), transparent 70%),
+      radial-gradient(34% 44% at 72% 42%, color-mix(in oklab, var(--nv-orange) 16%, transparent), transparent 70%),
       radial-gradient(30% 36% at 44% 80%, color-mix(in oklab, var(--nv-crimson) 10%, transparent), transparent 70%),
       radial-gradient(24% 30% at 28% 26%, color-mix(in oklab, var(--nv-gold) 14%, transparent), transparent 70%);
   }
@@ -488,7 +488,7 @@ const phrases = [
     text-wrap: balance;
   }
   /* The project's name, the trademark: the one line of the page set larger
-     than the headline, in a gradient from the text color into violet and
+     than the headline, in a gradient from the text color into orange and
      crimson, over a short centred bar in the signature line. Its size
      follows the row's width, so the one line always fits. */
   .brand {
@@ -826,7 +826,7 @@ const phrases = [
     border: 1px solid var(--nv-hairline-strong);
     border-radius: var(--nv-radius-lg);
     background: var(--nv-code-bg);
-    box-shadow: var(--nv-shadow-lg), 0 30px 80px -40px color-mix(in oklab, var(--nv-violet) 60%, transparent);
+    box-shadow: var(--nv-shadow-lg), 0 30px 80px -40px color-mix(in oklab, var(--nv-orange) 60%, transparent);
     overflow: hidden;
   }
   /* A gradient hairline along the top edge. */
