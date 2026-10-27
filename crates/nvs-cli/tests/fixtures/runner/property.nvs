@@ -1,7 +1,8 @@
 <?nvs
 // `rule:testing/property-testing`, from the language surface: each `#[Property]` method is one
 // test, called once per generated input set. One property holds for every input and passes.
-// One fails for most inputs, shrinks to `11`, and is reported with its inputs and its seed. The
+// One fails for most inputs, shrinks to `11`, and is reported with its inputs and its seed. Its
+// seed is fixed: a draw of `11` itself would leave nothing to shrink. The
 // third builds a list of shapes and a class through its constructor, so every kind of input is
 // built once. `NumberTest` runs the property it inherits from an abstract class, under its own name.
 //
@@ -29,7 +30,7 @@ final class PropertyTest
         Test::assertSame($a + $b, $b + $a);
     }
 
-    #[Property(runs: 50, gen: { n: '0..1000' })]
+    #[Property(runs: 50, seed: 7, gen: { n: '0..1000' })]
     public function itFailsForANumberAboveTen(int $n): void
     {
         Test::assertTrue($n <= 10);
