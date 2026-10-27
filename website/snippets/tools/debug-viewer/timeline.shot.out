@@ -13,7 +13,7 @@ Log
 Search
 Exceptions
 Back to the request list
-GET App::home
+GET /
 Path
 /
 Status

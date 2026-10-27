@@ -37146,7 +37146,7 @@
     {
       "id": "Router",
       "name": "Core\\Router",
-      "summary": "The routes of your program. `url()`, `urlAbsolute()` and `urlSigned()` build a link to a route from its name. `match()` and `methodsFor()` check a path against the routes, and `signedRoute()` checks the signature of a signed link. `dispatch()` calls the method of the route that the request matched.",
+      "summary": "The routes of your program. `url()`, `urlAbsolute()` and `urlSigned()` build a link to the route of a method. `match()` and `methodsFor()` check a path against the routes, and `signedRoute()` checks the signature of a signed link. `dispatch()` calls the method of the route that the request matched.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -37157,12 +37157,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "url(string $name, array<mixed> $params): string",
+          "signature": "url(callable $route, array<mixed> $params = []): string",
           "params": [
             {
               "kind": "param",
-              "name": "name",
-              "type": "string",
+              "name": "route",
+              "type": "callable",
               "default": null,
               "optional": false,
               "variadic": false
@@ -37171,30 +37171,30 @@
               "kind": "param",
               "name": "params",
               "type": "array<mixed>",
-              "default": null,
-              "optional": false,
+              "default": "[]",
+              "optional": true,
               "variadic": false
             }
           ],
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Builds the link to the route named <code>$name</code>. Each value in <code>$params</code> fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link.",
+            "shortHtml": "Builds the link to the route of the method <code>$route</code>. Each value in <code>$params</code> fills the capture with the same name, and the other values become the query string. Every value is percent-encoded, so it stays inside its own part of the link.",
             "params": [
               {
-                "name": "name",
-                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
+                "name": "route",
+                "descHtml": "The method that has the <code>#[Route]</code>, written as a method reference such as <code>Shop::show</code>. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a <code>#[Route]</code> is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               }
             ],
             "returnHtml": "The path, for example <code>/users/42?page=2</code>. An optional <code>{name?}</code> capture is left out when <code>$params</code> has no value for it. The <code>/</code> characters in a <code>{name...}</code> capture stay as they are.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "When <code>$name</code> is not a string written directly in the code. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>, or a <code>{name...}</code> value has one of them between its <code>/</code> characters, because a browser would move that link to another path."
+                "descHtml": "When <code>$route</code> is a variable and not a method reference written in the call. When <code>$params</code> has no value for a capture that the path needs. When a value cannot be written as text. When a value is <code>.</code> or <code>..</code>, or a <code>{name...}</code> value has one of them between its <code>/</code> characters, because a browser would move that link to another path."
               }
             ]
           },
@@ -37208,12 +37208,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "urlAbsolute(string $name, array<mixed> $params): string",
+          "signature": "urlAbsolute(callable $route, array<mixed> $params = []): string",
           "params": [
             {
               "kind": "param",
-              "name": "name",
-              "type": "string",
+              "name": "route",
+              "type": "callable",
               "default": null,
               "optional": false,
               "variadic": false
@@ -37222,8 +37222,8 @@
               "kind": "param",
               "name": "params",
               "type": "array<mixed>",
-              "default": null,
-              "optional": false,
+              "default": "[]",
+              "optional": true,
               "variadic": false
             }
           ],
@@ -37233,12 +37233,12 @@
             "shortHtml": "Builds the same link as <code>url</code>, with the origin of your site in front. The origin is the <code>origin</code> setting of the <code>[[app]]</code> block in <code>nvs.toml</code>. It never comes from the <code>Host</code> or <code>X-Forwarded-Host</code> header of a request.",
             "params": [
               {
-                "name": "name",
-                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
+                "name": "route",
+                "descHtml": "The method that has the <code>#[Route]</code>, written as a method reference such as <code>Shop::show</code>. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a <code>#[Route]</code> is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               }
             ],
             "returnHtml": "The full URL, for example <code>https://example.test/users/42?page=2</code>. There is exactly one <code>/</code> between the origin and the path.",
@@ -37259,12 +37259,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "urlSigned(string $name, array<mixed> $params, { keys: array<secret bytes>, until: ?Core\\Time\\Instant } $settings): string",
+          "signature": "urlSigned(callable $route, array<mixed> $params, { keys: array<secret bytes>, until: ?Core\\Time\\Instant } $settings): string",
           "params": [
             {
               "kind": "param",
-              "name": "name",
-              "type": "string",
+              "name": "route",
+              "type": "callable",
               "default": null,
               "optional": false,
               "variadic": false
@@ -37289,15 +37289,15 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Builds the same link as <code>url</code>, with a signature in the <code>_sig</code> query parameter at the end. The signature is made from the route's name and <code>$params</code>, not from the path. So the link still works when the route moves to another path. <code>Core\\Router::signedRoute</code> checks the signature.",
+            "shortHtml": "Builds the same link as <code>url</code>, with a signature in the <code>_sig</code> query parameter at the end. The signature is made from the route's <code>path</code> in its <code>#[Route]</code> and from <code>$params</code>. So the link still works when the program is mounted at another path, or when the method gets a new name. <code>Core\\Router::signedRoute</code> checks the signature.",
             "params": [
               {
-                "name": "name",
-                "descHtml": "The route's name, as its <code>#[Route]</code> declares it. A name written directly in the code is checked when the program compiles, and an unknown name is a compile error."
+                "name": "route",
+                "descHtml": "The method that has the <code>#[Route]</code>, written as a method reference such as <code>Shop::show</code>. The link does not call the method. So the method may be an instance method or a private method. A method reference written directly in the call is checked when the program compiles. A method without a <code>#[Route]</code> is a compile error."
               },
               {
                 "name": "params",
-                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error."
+                "descHtml": "The path's captures by name, plus any query parameters. A key written directly in the code must be a capture or a declared <code>#[Query]</code> parameter. Any other key is a compile error. <code>url</code> and <code>urlAbsolute</code> use <code>[]</code> when you leave it out."
               },
               {
                 "name": "settings",
@@ -37316,7 +37316,7 @@
                 ]
               }
             ],
-            "returnHtml": "The link from <code>url</code> with <code>_sig=…</code> at the end, for example <code>/users/42?page=2&amp;_sig=…</code>. The same name, values, keys and end time always give the same link. The signature adds about <code>4/3 × (name + params + 40)</code> characters.",
+            "returnHtml": "The link from <code>url</code> with <code>_sig=…</code> at the end, for example <code>/users/42?page=2&amp;_sig=…</code>. The same route, values, keys and end time always give the same link. The signature adds about <code>4/3 × (path + params + 40)</code> characters.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -37352,7 +37352,7 @@
           "options": [],
           "returnType": "Core\\Router\\Match",
           "doc": {
-            "shortHtml": "Checks the <code>_sig</code> signature of the request that this program is handling. The signature must be one that <code>Core\\Router::urlSigned</code> made with <code>$keys</code> for the route that the request matched. The check covers the route name and its values, not the path.",
+            "shortHtml": "Checks the <code>_sig</code> signature of the request that this program is handling. The signature must be one that <code>Core\\Router::urlSigned</code> made with <code>$keys</code> for the route that the request matched. The check covers the route's <code>path</code> in its <code>#[Route]</code> and the values. It does not cover the path the program is mounted at.",
             "params": [
               {
                 "name": "keys",
@@ -37501,33 +37501,54 @@
       ],
       "slug": "router",
       "url": "/reference/core/router/",
-      "summaryHtml": "<p>The routes of your program. <code>url()</code>, <code>urlAbsolute()</code> and <code>urlSigned()</code> build a link to a route from its name. <code>match()</code> and <code>methodsFor()</code> check a path against the routes, and <code>signedRoute()</code> checks the signature of a signed link. <code>dispatch()</code> calls the method of the route that the request matched.</p>\n<p><code>Core\\Router::url</code> builds a link from a route's <code>name</code> as its <code>#[Core\\Route]</code> declared it: each <code>{capture}</code> in the path is substituted from <code>$params</code>, percent-encoded into its own segment. It is only meaningful in a program that declares routes — the attributes chapter owns the declaration, and every <code>#[Core\\Route]</code> needs a sibling <code>#[Core\\Access]</code>. The name must be a string written directly in the code, and an unknown one is a compile error, as is a <code>$params</code> array missing a capture or carrying a key that is neither a capture nor a handler parameter declared <code>#[Core\\Query]</code> — a declared one becomes the link's query string, <code>/users/7?page=2</code>. <code>urlAbsolute</code> is <code>url</code> with the <code>[[app]] origin</code> from <code>nvs.toml</code> in front, and throws <code>RuntimeError</code> when none is configured.</p>\n<p><code>methodsFor</code> asks the table the other question, the one <code>Core\\Request::route()</code> leaves open when it answers <code>null</code>: which verbs does this path claim? An empty array means no route claims it at all — the <code>404</code> — and a non-empty one is the list an <code>Allow:</code> header spells alongside a <code>405</code>. Both forms of a terminal <code>{page?}</code> answer the same verbs, so <code>/posts</code> and <code>/posts/3</code> are never a <code>404</code> and a <code>405</code> for one route. Nothing about it is a request: it is asked of the table, about a path, and the program decides what to send.</p>\n<pre><code class=\"language-toml\">[[app]]\nroot = &quot;.&quot;\norigin = &quot;https://example.test&quot;</code></pre>\n<pre><code class=\"language-nvs\">&lt;?nvs\nclass Users\n{\n    #[Core\\Route(path: '/users', method: Core\\Http\\Method::Get, name: 'Users::index')]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function index(): string\n    {\n        return 'every user';\n    }\n\n    #[Core\\Route(path: '/users/{id}', method: Core\\Http\\Method::Get, name: 'Users::show')]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function show(uint $id): string\n    {\n        return 'user ' . $id;\n    }\n\n    #[Core\\Route(path: '/users/{id}/files/{path...}', method: Core\\Http\\Method::Get, name: 'Users::file')]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function file(uint $id, string $path): string\n    {\n        return $path;\n    }\n}\n\necho Core\\Router::url('Users::index', []), &quot;\\n&quot;;\necho Core\\Router::url('Users::show', ['id' =&gt; 7]), &quot;\\n&quot;;\necho Core\\Router::url('Users::file', ['id' =&gt; 7, 'path' =&gt; 'a b/c.txt']), &quot;\\n&quot;;\necho Core\\Router::urlAbsolute('Users::show', ['id' =&gt; 7]), &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>/users\n/users/7\n/users/7/files/a%20b/c.txt\nhttps://example.test/users/7</code></pre>"
+      "summaryHtml": "<p>The routes of your program. <code>url()</code>, <code>urlAbsolute()</code> and <code>urlSigned()</code> build a link to the route of a method. <code>match()</code> and <code>methodsFor()</code> check a path against the routes, and <code>signedRoute()</code> checks the signature of a signed link. <code>dispatch()</code> calls the method of the route that the request matched.</p>\n<p><code>Core\\Router::url</code> builds a link to the route of a method, written <code>Users::show</code> with no <code>(...)</code>: each <code>{capture}</code> in the path is substituted from <code>$params</code>, percent-encoded into its own segment, and <code>$params</code> may be left out for a route with no captures. It is only meaningful in a program that declares routes — the attributes chapter owns the declaration, and every <code>#[Core\\Route]</code> needs a sibling <code>#[Core\\Access]</code>. A method written directly in the code is checked while compiling, and a method with no route is a compile error. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$users-&gt;show(...)</code>, is checked while the program runs, and the call throws an error when it has no route. A <code>$params</code> array missing a capture or carrying a key that is neither a capture nor a handler parameter declared <code>#[Core\\Query]</code> is a compile error. A key that is declared <code>#[Core\\Query]</code> becomes the link's query string, <code>/users/7?page=2</code>. <code>urlAbsolute</code> is <code>url</code> with the <code>[[app]] origin</code> from <code>nvs.toml</code> in front, and throws <code>RuntimeError</code> when none is configured.</p>\n<p><code>methodsFor</code> asks the table the other question, the one <code>Core\\Request::route()</code> leaves open when it answers <code>null</code>: which verbs does this path claim? An empty array means no route claims it at all — the <code>404</code> — and a non-empty one is the list an <code>Allow:</code> header spells alongside a <code>405</code>. Both forms of a terminal <code>{page?}</code> answer the same verbs, so <code>/posts</code> and <code>/posts/3</code> are never a <code>404</code> and a <code>405</code> for one route. Nothing about it is a request: it is asked of the table, about a path, and the program decides what to send.</p>\n<pre><code class=\"language-toml\">[[app]]\nroot = &quot;.&quot;\norigin = &quot;https://example.test&quot;</code></pre>\n<pre><code class=\"language-nvs\">&lt;?nvs\nclass Users\n{\n    #[Core\\Route(path: '/users', method: Core\\Http\\Method::Get)]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function index(): string\n    {\n        return 'every user';\n    }\n\n    #[Core\\Route(path: '/users/{id}', method: Core\\Http\\Method::Get)]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function show(uint $id): string\n    {\n        return 'user ' . $id;\n    }\n\n    #[Core\\Route(path: '/users/{id}/files/{path...}', method: Core\\Http\\Method::Get)]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public function file(uint $id, string $path): string\n    {\n        return $path;\n    }\n}\n\necho Core\\Router::url(Users::index), &quot;\\n&quot;;\necho Core\\Router::url(Users::show, ['id' =&gt; 7]), &quot;\\n&quot;;\necho Core\\Router::url(Users::file, ['id' =&gt; 7, 'path' =&gt; 'a b/c.txt']), &quot;\\n&quot;;\necho Core\\Router::urlAbsolute(Users::show, ['id' =&gt; 7]), &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>/users\n/users/7\n/users/7/files/a%20b/c.txt\nhttps://example.test/users/7</code></pre>"
     },
     {
       "id": "Router.Match",
       "name": "Core\\Router\\Match",
-      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `name()` returns the route's name, `params()` and `param()` return the values captured from the path and `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name. `attribute<T>()` returns an attribute of the route's method.",
+      "summary": "The route that a path matched. `Core\\Request::route()` returns the match of the request being served, and `Core\\Router::match()` returns the match of a path you choose. `is()` checks which method the route belongs to. `params()` and `param()` return the values captured from the path, and `method()` returns the route's HTTP method. `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and `access()` returns the same rule as its name. `attribute<T>()` returns an attribute of the route's method.",
       "enums": [],
       "types": [],
       "constants": [],
       "members": [
         {
-          "id": "Router.Match.name",
-          "name": "name",
+          "id": "Router.Match.is",
+          "name": "is",
           "static": false,
           "receiver": "match",
           "generics": null,
-          "signature": "name(): ?string",
-          "params": [],
+          "signature": "is(callable $route): bool",
+          "params": [
+            {
+              "kind": "param",
+              "name": "route",
+              "type": "callable",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
           "options": [],
-          "returnType": "?string",
+          "returnType": "bool",
           "doc": {
-            "shortHtml": "Returns the name of the matched route, as its <code>#[Route(name: …)]</code> writes it. <code>Core\\Router::url</code> builds a link from the same name.",
-            "returnHtml": "The name, or <code>null</code> when the route has no name. The name is not <code>tainted</code>, because it comes from your program and not from the request."
+            "shortHtml": "Checks whether the matched route belongs to a method. You write the method the way <code>Core\\Router::url</code> takes it: <code>$match-&gt;is(Shop::show)</code>.",
+            "params": [
+              {
+                "name": "route",
+                "descHtml": "A method reference, such as <code>Shop::show</code>. A method that you write here must have a <code>#[Route]</code>, or the program does not compile."
+              }
+            ],
+            "returnHtml": "<code>true</code> when the route belongs to this method, and <code>false</code> otherwise. A method with two <code>#[Route]</code>s, one for each HTTP method, gives <code>true</code> for both.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "When <code>$route</code> is a variable and its method has no <code>#[Route]</code>."
+              }
+            ]
           },
-          "slug": "name",
-          "url": "/reference/core/router-match/name/",
-          "examples": "core/Router-Match/name"
+          "slug": "is",
+          "url": "/reference/core/router-match/is/",
+          "examples": "core/Router-Match/is"
         },
         {
           "id": "Router.Match.params",
@@ -37655,7 +37676,7 @@
       ],
       "slug": "router-match",
       "url": "/reference/core/router-match/",
-      "summaryHtml": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>name()</code> returns the route's name, <code>params()</code> and <code>param()</code> return the values captured from the path and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, with one <code>switch</code> on <code>name()</code>; the attributes chapter shows that <code>switch</code>, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>name()</code> is the route's <code>#[Core\\Route(name: …)]</code> as the program wrote it, or <code>null</code> for a route that declares none; it is a plain <code>string</code>, because the name is written directly in the code. <code>params()</code> is every capture the path filled, keyed by the parameter it binds, and <code>param()</code> is that array read at one key — <code>null</code> for a name the route does not declare, including an optional <code>{name?}</code> the request left off. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells two routes on one method apart when they share a <code>name</code>.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\ntry {\n    Core\\Request::route();\n} catch (LogicError $why) {\n    echo &quot;no request here\\n&quot;;\n}</code></pre>\n<pre class=\"output\"><code>no request here</code></pre>"
+      "summaryHtml": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>is()</code> checks which method the route belongs to. <code>params()</code> and <code>param()</code> return the values captured from the path, and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, after it checks which method matched with <code>is()</code>; the attributes chapter shows that check, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>is(Shop::show)</code> returns <code>true</code> when the route belongs to that method. You write the method the way <code>Core\\Router::url</code> takes it: <code>Class::method</code> with no <code>(...)</code>, for a static or an instance method. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$shop-&gt;show(...)</code>, is checked while the program runs, and <code>is</code> throws an error when that method has no route. <code>params()</code> is every capture the path filled, keyed by the parameter it binds, and <code>param()</code> is that array read at one key — <code>null</code> for a name the route does not declare, including an optional <code>{name?}</code> the request left off. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells apart the routes of one method that serves several verbs.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\ntry {\n    Core\\Request::route();\n} catch (LogicError $why) {\n    echo &quot;no request here\\n&quot;;\n}</code></pre>\n<pre class=\"output\"><code>no request here</code></pre>"
     },
     {
       "id": "Script",

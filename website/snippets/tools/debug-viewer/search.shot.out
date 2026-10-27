@@ -21,11 +21,11 @@ log
 <time>
 GET /api/notes/7 404
 
-GET App::apiShow 404 <duration> at <date> Mark to compare
+GET /api/notes/{id} 404 <duration> at <date> Mark to compare
 
 request
 <time>
-/api/notes/7 App::apiShow
+/api/notes/7 /api/notes/{id}
 query
 <time>
 create table if not exists notes (id integer primary key, title text…
@@ -39,11 +39,11 @@ log
 <time>
 GET /api/notes 200
 
-GET App::apiList 200 <duration> at <date> Mark to compare
+GET /api/notes 200 <duration> at <date> Mark to compare
 
 request
 <time>
-/api/notes App::apiList
+/api/notes /api/notes
 query
 <time>
 create table if not exists notes (id integer primary key, title text…
@@ -51,7 +51,7 @@ query
 <time>
 select id, title, body from notes order by id desc
 
-GET App::home 200 <duration> at <date> Mark to compare
+GET / 200 <duration> at <date> Mark to compare
 
 query
 <time>

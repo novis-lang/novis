@@ -1042,7 +1042,7 @@
   },
   "/reference/cli/nvs-api-diff/": {
     "feature": "tools:cli/nvs-api-diff",
-    "hash": "a7728b2c602dc60d",
+    "hash": "776eaa9ca908be4a",
     "questions": [
       "How do I find breaking changes between two versions of my API?",
       "Compare two OpenAPI documents",
@@ -1075,12 +1075,13 @@
   },
   "/reference/cli/nvs-build-openapi/": {
     "feature": "tools:cli/nvs-build-openapi",
-    "hash": "34ecd5446deb204b",
+    "hash": "14f26ed23fbbc008",
     "questions": [
       "Generate API documentation from my route methods",
       "How do I create an OpenAPI spec for my web server?",
       "Export my HTTP routes as an OpenAPI 3.1 JSON file",
-      "Describe my endpoints in a standard format without running the server"
+      "Describe my endpoints in a standard format without running the server",
+      "Which operationId does each route get in the OpenAPI file?"
     ]
   },
   "/reference/cli/nvs-check/": {
@@ -1144,7 +1145,7 @@
   },
   "/reference/cli/nvs-debug-to-test/": {
     "feature": "tools:cli/nvs-debug-to-test",
-    "hash": "92843f226f81dbce",
+    "hash": "4941c66c86f3237c",
     "questions": [
       "How do I turn a request my server recorded into a test?",
       "Write a test that checks the status and JSON body of a real request",
@@ -1363,7 +1364,7 @@
   },
   "/reference/cli/the-debug-viewer/": {
     "feature": "tools:cli/the-debug-viewer",
-    "hash": "4f8a552a766d4115",
+    "hash": "6b9de246986e9ad7",
     "questions": [
       "How do I look at the requests my development server recorded?",
       "See the queries, dumps and log lines of one request on a timeline",
@@ -2437,7 +2438,7 @@
   },
   "/reference/core/attributes/all/": {
     "feature": "Core\\Attributes::all",
-    "hash": "65856482d681076d",
+    "hash": "21540f1bbc94e50a",
     "questions": [
       "How do I get every attribute on a class?",
       "Read several attributes of the same type from one method",
@@ -2447,7 +2448,7 @@
   },
   "/reference/core/attributes/get/": {
     "feature": "Core\\Attributes::get",
-    "hash": "3f424720e42d3ab3",
+    "hash": "44da57e214bceb67",
     "questions": [
       "How do I read one attribute from a parameter?",
       "Get a single annotation value, or null if it is missing",
@@ -3801,7 +3802,7 @@
   },
   "/reference/core/csrf/token/": {
     "feature": "Core\\Csrf::token",
-    "hash": "0dcfd3c14e332dfe",
+    "hash": "fc3ae3a120e1da29",
     "questions": [
       "Get the CSRF token for the current visitor session",
       "Which form field name should the CSRF token use?",
@@ -5295,7 +5296,7 @@
   },
   "/reference/core/http/methodname/": {
     "feature": "Core\\Http::methodName",
-    "hash": "54d9e02fce9ab7de",
+    "hash": "1e1f95db1cca27bc",
     "questions": [
       "Get the HTTP method as a string",
       "How do I build an Allow header?",
@@ -10877,7 +10878,7 @@
   },
   "/reference/core/program/implementingwith/": {
     "feature": "Core\\Program::implementingWith",
-    "hash": "6f5fdbec40fbcea5",
+    "hash": "b1d54c23404f85ff",
     "questions": [
       "How do I read an attribute from every class of an interface?",
       "Build routes from attributes on page classes",
@@ -12152,13 +12153,13 @@
   },
   "/reference/core/request/route/": {
     "feature": "Core\\Request::route",
-    "hash": "36e5085246bb4938",
+    "hash": "78eb315e85c6dba0",
     "questions": [
       "How do I know which route this request matched?",
       "Read a URL placeholder like {id} from the route",
       "Highlight the current page in a menu",
       "What happens when no route fits the address?",
-      "Get the name of the current route"
+      "Check which method of my program handles this request"
     ]
   },
   "/reference/core/request/scheme/": {
@@ -12488,17 +12489,17 @@
   },
   "/reference/core/router/": {
     "feature": "Core\\Router",
-    "hash": "9953a9ccee64d909",
+    "hash": "b9c87e5e8d1b2897",
     "questions": [
       "How do I work with the routes of my app?",
-      "Build links and look up routes by name",
-      "Generate URLs from route names instead of typing paths",
+      "Build links from the method that has the route",
+      "Generate URLs from route methods instead of typing paths",
       "Check which route a path belongs to"
     ]
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "22826e899700692b",
+    "hash": "030a6f7cc3ac0c09",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
@@ -12509,7 +12510,7 @@
   },
   "/reference/core/router/match/": {
     "feature": "Core\\Router::match",
-    "hash": "69c31671da8f47e8",
+    "hash": "c1cf7026d1b4666f",
     "questions": [
       "How do I find which route handles a given path?",
       "Look up a route from a method and a URL path",
@@ -12519,7 +12520,7 @@
   },
   "/reference/core/router/methodsfor/": {
     "feature": "Core\\Router::methodsFor",
-    "hash": "903d8614680498e8",
+    "hash": "9d5e46e5b1015844",
     "questions": [
       "How do I choose between a 404 and a 405 response?",
       "List the HTTP methods a path accepts",
@@ -12529,7 +12530,7 @@
   },
   "/reference/core/router/signedroute/": {
     "feature": "Core\\Router::signedRoute",
-    "hash": "a7098569e2281550",
+    "hash": "b3a62661f1a6a67e",
     "questions": [
       "How do I check a signed link when the request arrives?",
       "Reject a link whose values were changed",
@@ -12539,9 +12540,9 @@
   },
   "/reference/core/router/url/": {
     "feature": "Core\\Router::url",
-    "hash": "e0475054c2ce234b",
+    "hash": "7f0c7d315831ba87",
     "questions": [
-      "How do I build a link to a route by its name?",
+      "How do I build a link to the method of a route?",
       "Generate a URL with path values and a query string",
       "Safely put user text into a link",
       "Keep links working when a route path changes"
@@ -12549,7 +12550,7 @@
   },
   "/reference/core/router/urlabsolute/": {
     "feature": "Core\\Router::urlAbsolute",
-    "hash": "d63ebfbba19a319d",
+    "hash": "2d2ebad0c91360f5",
     "questions": [
       "How do I build a full URL with the domain?",
       "Make an absolute link for an email",
@@ -12559,27 +12560,28 @@
   },
   "/reference/core/router/urlsigned/": {
     "feature": "Core\\Router::urlSigned",
-    "hash": "e6b170890f394dae",
+    "hash": "21011e10e674153c",
     "questions": [
       "How do I make a link that nobody can change?",
       "Create a download link that expires after one hour",
       "Build a tamper-proof unsubscribe link for a newsletter",
-      "Make an invitation link that works as a permission"
+      "Make an invitation link that works as a permission",
+      "Do signed links still work after I rename the method?"
     ]
   },
   "/reference/core/router-match/": {
     "feature": "Core\\Router\\Match",
-    "hash": "794a22b2e607f99d",
+    "hash": "7b266f5fcf840ad0",
     "questions": [
       "What information do I get about the matched route?",
       "What does a route match object contain?",
       "Inspect the route that the current request matched",
-      "Read the route name and path values of a request"
+      "Read the path values and the handler method of a request"
     ]
   },
   "/reference/core/router-match/access/": {
     "feature": "Core\\Router\\Match::access",
-    "hash": "6dc8af18fc491381",
+    "hash": "f6c5f585ed7621a8",
     "questions": [
       "How do I log the access rule of the current route?",
       "Get the access rule of a route as text",
@@ -12589,7 +12591,7 @@
   },
   "/reference/core/router-match/accessas/": {
     "feature": "Core\\Router\\Match::accessAs",
-    "hash": "97fe13fa80e96091",
+    "hash": "7b7ff08ba3fd726a",
     "questions": [
       "How do I check the user's role before running a handler?",
       "Compare a route's access rule with an enum case",
@@ -12599,7 +12601,7 @@
   },
   "/reference/core/router-match/attribute/": {
     "feature": "Core\\Router\\Match::attribute",
-    "hash": "672777c8ab427811",
+    "hash": "d7fd19a6967d7d8e",
     "questions": [
       "Read a custom setting attached to one route",
       "Give each route its own cache time",
@@ -12607,9 +12609,20 @@
       "Put a rate limit and a cache setting on one route"
     ]
   },
+  "/reference/core/router-match/is/": {
+    "feature": "Core\\Router\\Match::is",
+    "hash": "12ee2491e7206764",
+    "questions": [
+      "How do I check which method the current route belongs to?",
+      "Call different code for each route of my app",
+      "Check a method that has both a GET and a POST route",
+      "Compare the matched route with a method stored in a variable",
+      "What happens when the method I check has no route attribute?"
+    ]
+  },
   "/reference/core/router-match/method/": {
     "feature": "Core\\Router\\Match::method",
-    "hash": "c37eb66285137172",
+    "hash": "aa22bad2330ad02d",
     "questions": [
       "Which HTTP method did the matched route declare?",
       "Show a form on GET and save it on POST in one handler",
@@ -12617,19 +12630,9 @@
       "What method does a HEAD request report?"
     ]
   },
-  "/reference/core/router-match/name/": {
-    "feature": "Core\\Router\\Match::name",
-    "hash": "10b805bc33c18875",
-    "questions": [
-      "How do I get the name of the current route?",
-      "Call different code for each route name",
-      "What happens when a route has no name?",
-      "Print the route name of the request being served"
-    ]
-  },
   "/reference/core/router-match/param/": {
     "feature": "Core\\Router\\Match::param",
-    "hash": "0c26800a73d55f7c",
+    "hash": "d1071816d8921d85",
     "questions": [
       "How do I read one value from the URL path?",
       "Get the id from a path like /users/42",
@@ -12639,7 +12642,7 @@
   },
   "/reference/core/router-match/params/": {
     "feature": "Core\\Router\\Match::params",
-    "hash": "2ca9708d992fe8f0",
+    "hash": "4ace9c640551762c",
     "questions": [
       "How do I get all values captured from the path?",
       "List every path parameter of a request as an array",
@@ -13090,7 +13093,7 @@
   },
   "/reference/core/socket/upgrade/": {
     "feature": "Core\\Socket::upgrade",
-    "hash": "9acab6b96fa84b73",
+    "hash": "79d4239f9e653957",
     "questions": [
       "How do I accept a WebSocket connection in a request?",
       "Switch an HTTP request to a WebSocket",
@@ -13211,7 +13214,7 @@
   },
   "/reference/core/sse/upgrade/": {
     "feature": "Core\\Sse::upgrade",
-    "hash": "231fef3f5eaeda84",
+    "hash": "fafa9c73f0c3fdac",
     "questions": [
       "How do I keep an event stream open after the request ends?",
       "Long-lived notifications stream for a signed-in user",
@@ -14047,7 +14050,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "4d9ddcdbbbcfb913",
+    "hash": "2844357ba900fd6e",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
@@ -15968,7 +15971,7 @@
   },
   "/reference/types/api-keyin/": {
     "feature": "Core\\Api\\KeyIn",
-    "hash": "5eac97d2b5026357",
+    "hash": "32b81c90a8ce1141",
     "questions": [
       "Where can a client send an API key?",
       "Send the API key as a query parameter",
@@ -15978,7 +15981,7 @@
   },
   "/reference/types/api-schemetype/": {
     "feature": "Core\\Api\\SchemeType",
-    "hash": "fc6fca37fd22c73a",
+    "hash": "811af90ea78fb4ab",
     "questions": [
       "Which kinds of security scheme can I declare for my API?",
       "Declare a bearer token login for an API route",
@@ -16020,7 +16023,7 @@
   },
   "/reference/types/audience/": {
     "feature": "Core\\Audience",
-    "hash": "7d9f0b21e9344ad1",
+    "hash": "32ac7b2c64e7c5f5",
     "questions": [
       "Make a route public for everyone",
       "Allow any visitor to call a route",
@@ -16296,7 +16299,7 @@
   },
   "/reference/types/http-method/": {
     "feature": "Core\\Http\\Method",
-    "hash": "e35613945a180fa5",
+    "hash": "50587b8497500400",
     "questions": [
       "Which HTTP methods can a route use?",
       "Which HTTP methods does the CSRF check cover?",
@@ -16882,7 +16885,7 @@
   },
   "/reference/types/router-gate/": {
     "feature": "Core\\Router\\Gate",
-    "hash": "bfe6c4450b7499d8",
+    "hash": "0ad3bf7a47df0c53",
     "questions": [
       "How do I check permissions before every route runs?",
       "Write a custom 404 page for the router",
@@ -16893,7 +16896,7 @@
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "511d7092662166b8",
+    "hash": "6eee90f7920399e5",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",
@@ -16904,7 +16907,7 @@
   },
   "/reference/types/router-responder/": {
     "feature": "Core\\Router\\Responder",
-    "hash": "5f51c07fc1d4a6f4",
+    "hash": "605e803502cc55b9",
     "questions": [
       "How do I send the value a route method returns?",
       "Return HTML markup from a route method instead of using echo",
@@ -17083,7 +17086,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "e56edeabbcc283f8",
+    "hash": "e6079c028081cea1",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -17543,13 +17546,13 @@
   },
   "/syntax/operators/pipeline/": {
     "feature": "syntax/operators/pipeline.mdx",
-    "hash": "213524bc72108c41",
+    "hash": "3559b0e30d234c2f",
     "questions": [
       "How do I pass a value through several steps from left to right?",
       "What does the |> operator do?",
       "Avoid deeply nested function calls",
       "What does $_ mean in a chain of calls?",
-      "Does the pipeline operator make my program slower?"
+      "Can I write a function name without a call after |>?"
     ]
   },
   "/syntax/operators/precedence/": {
@@ -17770,13 +17773,14 @@
   },
   "/tools/api-document/": {
     "feature": "tools/api-document/index.mdx",
-    "hash": "11be6d73ba0976b3",
+    "hash": "2b4d64122a049e4e",
     "questions": [
       "Does Novis write a Swagger document for my web API?",
       "Add tags, error responses and an auth scheme to my OpenAPI document",
       "How do I declare a bearer token security scheme for my routes?",
       "Which API changes break old clients, and which are safe?",
-      "Is a new query parameter with a default value a breaking change?"
+      "Is a new query parameter with a default value a breaking change?",
+      "Set my own operationId for one route in the API document"
     ]
   },
   "/tools/cli/": {
@@ -17792,7 +17796,7 @@
   },
   "/tools/debug-viewer/": {
     "feature": "tools/debug-viewer/index.mdx",
-    "hash": "03fe84a66c473102",
+    "hash": "692dd931833b8299",
     "questions": [
       "How do I see the requests my development server handled?",
       "Which queries did one request run, and how long did each take?",

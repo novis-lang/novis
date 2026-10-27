@@ -61,7 +61,7 @@ For this file, `nvs build --openapi main.nvs` prints a document with this operat
 "/users/{id}": {
   "get": {
     "description": "Looks the user up by id.",
-    "operationId": "Users::show",
+    "operationId": "Users.show",
     "parameters": [
       {"in": "path", "name": "id", "required": true, "schema": {"minimum": 0, "type": "integer"}}
     ],
@@ -76,6 +76,8 @@ For this file, `nvs build --openapi main.nvs` prints a document with this operat
 
 More facts about the document:
 
+- The `operationId` is the full name of the route method, with dots. It is `Users.show` here, and
+  `App.Users.show` in the namespace `App`. `#[Core\Api(operationId: 'showUser')]` sets your own.
 - Each name in `security:` needs a `#[Core\Api\Scheme]` on a class of your program, such as
   `#[Core\Api\Scheme(name: "bearer", type: Core\Api\SchemeType::Http, scheme: "bearer")]`.
   The document lists each scheme under `components.securitySchemes`. A name that no scheme declares
@@ -88,8 +90,8 @@ More facts about the document:
 
 ## Do and don't
 
-- Do give every route a `name:`, and build links with `Core\Router::url`.
+- Do build links with `Core\Router::url`, such as `Core\Router::url(Users::show, ['id' => 7])`.
 - Do check `accessAs` once, before the `switch` that calls the methods.
 - Do give a capture the type you need, such as `uint`. The conversion is then done for you.
-- Don't write a path by hand in a link. A typo in a route name does not compile.
+- Don't write a path by hand in a link. A typo in a method name does not compile.
 - Don't use `csrf: false` on a form that a browser sends.

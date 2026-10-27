@@ -13,7 +13,7 @@ Log
 Search
 Exceptions
 Back to the request list
-GET App::apiList
+GET /api/notes
 Path
 /api/notes
 Status

@@ -6,25 +6,25 @@
     "lang:types/qualifiers-tainted-and-secret": "68d075b395504719"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "9e19511d92c9a7ec",
+    "lang:attributes/core-command-and-core-option-the-command-table": "897f2a1ae1486af9",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "6b7e5aaf8098bbd7",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e322053faa68e35c"
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "b7e1ddae9ac7cbb4"
   },
   "syntax/attributes/json.mdx": {
     "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "1a3f22bcf1c36fa9"
   },
   "syntax/attributes/routes.mdx": {
-    "Core\\Router::dispatch": "22826e899700692b",
-    "Core\\Router\\Gate": "1b72464ba63dc2ad",
-    "Core\\Router\\Refusal": "0c82800a768a2c66",
-    "Core\\Router\\Responder": "71315f2767c27973",
-    "lang:attributes/core-api-and-the-openapi-document": "8afa072ac27035d6",
-    "lang:attributes/core-route-and-core-access-the-route-table": "e99da16ba3d135e3"
+    "Core\\Router::dispatch": "030a6f7cc3ac0c09",
+    "Core\\Router\\Gate": "c4adb277c541ba28",
+    "Core\\Router\\Refusal": "350ecc941ae0d681",
+    "Core\\Router\\Responder": "c0dec1200f6ca4ab",
+    "lang:attributes/core-api-and-the-openapi-document": "e5633a12dc3237a9",
+    "lang:attributes/core-route-and-core-access-the-route-table": "e44e39f6fcee282c"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "852fea340a2bb893",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "b3199a51360a9487",
-    "lang:attributes/the-names-the-compiler-acts-on": "315e8e8e77297d39"
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "69f3afc5ebf38911",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "156d8bcb7a1028e1",
+    "lang:attributes/the-names-the-compiler-acts-on": "a36e47f17fa6d3d7"
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "71264be3b82fa28b",
@@ -61,9 +61,9 @@
     "lang:classes/nullable-objects-and": "32cbe267367e8744",
     "lang:classes/object-the-top-of-every-class-type": "a2c4fd445c7bb677",
     "lang:classes/objects-are-handles": "fdf600b7a1be0f56",
-    "lang:classes/what-a-class-cannot-declare": "3e516736032ca759",
+    "lang:classes/what-a-class-cannot-declare": "70c4bdd2b92ec0ba",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "c2da7dcab6b5a909",
-    "lang:types/callable-classes-object-shapes": "be8a99c946d740dc"
+    "lang:types/callable-classes-object-shapes": "fa07e7065adaae95"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "b2fca72bdd0b6ae9",
@@ -86,7 +86,7 @@
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "9810676ff33ba0fd",
     "lang:classes/comparable": "e4669ad6561ea467",
-    "lang:classes/parses": "5aacf9fa5d16d086",
+    "lang:classes/parses": "e67eac2bb21d31f7",
     "lang:classes/stringable": "c2ac6fed940c8f67",
     "Parses": "07c0051e012e3c42",
     "Stringable": "34233d65e17f73e5"
@@ -97,17 +97,17 @@
   "syntax/concurrency/isolates.mdx": {
     "lang:concurrency/a-child-s-failure-is-a-value": "0d39b4a4d63addb4",
     "lang:concurrency/a-child-shares-nothing": "fbf5bb8ece7f306e",
-    "lang:concurrency/isolates-spawn-script-and-await": "e2871e94c560b5b3"
+    "lang:concurrency/isolates-spawn-script-and-await": "984b23a04a81f6aa"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
     "lang:concurrency/a-child-s-throw": "3be9ca50349ed7be",
     "lang:concurrency/limit-and-deadline": "84f954dd88e083d9"
   },
   "syntax/concurrency/tasks.mdx": {
-    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "8e34438b2eaf6fbb",
-    "lang:concurrency/core-task-map-one-task-per-element": "59524d895f7d29d4",
-    "lang:concurrency/no-colouring-i-o-just-waits": "b72d841ae5f19425",
-    "lang:concurrency/what-does-not-exist": "087c720a7ca52804"
+    "lang:concurrency/core-task-all-a-fixed-set-of-tasks": "bc0691b4405879dc",
+    "lang:concurrency/core-task-map-one-task-per-element": "6f0e0a892699d872",
+    "lang:concurrency/no-colouring-i-o-just-waits": "cdf0ac583b880f75",
+    "lang:concurrency/what-does-not-exist": "ff82ff6fec254930"
   },
   "syntax/control-flow/break-continue-return.mdx": {
     "lang:statements/break-and-continue": "ef905dac1723e1ed",
@@ -186,7 +186,7 @@
     "lang:errors/try-catch-finally": "2c28a4292a3dda7e"
   },
   "syntax/functions/anonymous-functions.mdx": {
-    "lang:expressions/anonymous-functions": "23cbfdee754ca50d"
+    "lang:expressions/anonymous-functions": "2db4250569b668d5"
   },
   "syntax/functions/calls.mdx": {
     "lang:expressions/calls": "abd912728777ff06"
@@ -209,7 +209,7 @@
     "lang:expressions/and-the-ternary": "71e4a7a2df426c34"
   },
   "syntax/operators/pipeline.mdx": {
-    "lang:expressions/the-pipeline-operator": "85136c9135f29ccc"
+    "lang:expressions/the-pipeline-operator": "128efad605c76c42"
   },
   "syntax/operators/precedence.mdx": {
     "lang:expressions/operators-that-do-not-parse": "e4d22985df616d23",
@@ -232,7 +232,7 @@
   },
   "syntax/start-here.mdx": {
     "lang:programs/a-complete-program-annotated": "8e03f619461113f2",
-    "lang:types/what-does-not-exist": "9974b39bdf001f58"
+    "lang:types/what-does-not-exist": "c8b5bb6adf1bf913"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
     "lang:testing/assertions": "4828a029a4109902",
@@ -260,11 +260,11 @@
     "lang:types/truthiness": "a59e4ea86f62deae"
   },
   "syntax/values/enums.mdx": {
-    "Core\\Api\\KeyIn": "68b9af8a4789c958",
-    "Core\\Api\\SchemeType": "15e68baddf961d36",
+    "Core\\Api\\KeyIn": "5aa79024bdd3ab76",
+    "Core\\Api\\SchemeType": "da109ff3b7fdb07a",
     "Core\\Arr::Order": "874c58c7c527703c",
     "Core\\Arr::SetOn": "c18b936def864b64",
-    "Core\\Audience": "8488208ef9be7ec4",
+    "Core\\Audience": "5a7ecb834fad0c20",
     "Core\\Charset": "832aaa3ceb8d72b1",
     "Core\\Cldr::PluralCategory": "5ceaaed49629daf7",
     "Core\\Cli::ColorDepth": "5ded65475eaf17c3",
@@ -284,7 +284,7 @@
     "Core\\Env::Mode": "9d60d9849705206d",
     "Core\\Env::Platform": "f3ab7ff76697ef5d",
     "Core\\Hash::Digest": "06801779996ca2b0",
-    "Core\\Http\\Method": "13001c74b95756a6",
+    "Core\\Http\\Method": "43ddbe55ee995413",
     "Core\\IO::FileMode": "a1bee43338ce76d6",
     "Core\\Ldap::Tls": "fcef18b7af43d287",
     "Core\\Ldap\\Connection::Scope": "d214c7924d0c3416",
@@ -366,8 +366,8 @@
     "lang:types/type-aliases": "13f50e47f7b1b7b7"
   },
   "tools/api-document/index.mdx": {
-    "tools:cli/nvs-api-diff": "a7728b2c602dc60d",
-    "tools:cli/nvs-build-openapi": "34ecd5446deb204b"
+    "tools:cli/nvs-api-diff": "776eaa9ca908be4a",
+    "tools:cli/nvs-build-openapi": "14f26ed23fbbc008"
   },
   "tools/cli/index.mdx": {
     "tools:cli/nvs-check": "8cc13d1e84f0c0c6",
@@ -378,8 +378,8 @@
   },
   "tools/debug-viewer/index.mdx": {
     "tools:cli/nvs-debug": "73b36a5bf356946f",
-    "tools:cli/nvs-debug-to-test": "92843f226f81dbce",
-    "tools:cli/the-debug-viewer": "4f8a552a766d4115"
+    "tools:cli/nvs-debug-to-test": "4941c66c86f3237c",
+    "tools:cli/the-debug-viewer": "6b9de246986e9ad7"
   },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "90b163dcf00c5f05"

@@ -25,7 +25,8 @@ returns a `string`. The comment `/// Shows one order.` is above the method.
 
 The document has one entry in `paths` for each route. Each entry has these parts:
 
-- `operationId` is the `name:` of the route.
+- `operationId` is the class and the method, with a dot: `Orders.show`. In the namespace `App`, it
+  is `App.Orders.show`.
 - `parameters` lists the parameters in the path. A `uint` is an `integer` with a `minimum` of `0`.
 - `responses` has the `200` response. Its schema is the return type when that is a simple type, such
   as `string` or `int`.
@@ -49,7 +50,7 @@ Some facts are not in the code. Examples are the group of a route, the errors it
 client proves who it is. `#[Core\Api]` adds these facts to the document. It goes on a method that has
 a `#[Core\Route]`. After `use Core\Api;`, you can write it as `#[Api(...)]`.
 
-`#[Core\Api]` has four fields, and every field is optional:
+`#[Core\Api]` has five fields, and every field is optional:
 
 | Field | What it adds to the document |
 |---|---|
@@ -57,6 +58,7 @@ a `#[Core\Route]`. After `use Core\Api;`, you can write it as `#[Api(...)]`.
 | `errors` | error responses, each with a status code and a class |
 | `security` | the security schemes that a client must use |
 | `example` | an example of a response |
+| `operationId` | your own `operationId`, in place of `Orders.show` |
 
 Novis checks each field when it compiles the program. A class in `errors` must exist. Each key in
 `example` must be a property of the return type.
@@ -65,7 +67,7 @@ A security scheme says how a client proves who it is, for example with a token. 
 `#[Core\Api\Scheme]` on a class. Its `name:` is the name that `security` uses. A name in `security`
 that no scheme declares does not compile.
 
-The editor completes these names. Inside `#[Core\Api(...)]`, it suggests the four fields. In a string
+The editor completes these names. Inside `#[Core\Api(...)]`, it suggests the fields. In a string
 in the `security` list, it suggests the security schemes of the program. Here it suggests `bearer` and
 `key`:
 
