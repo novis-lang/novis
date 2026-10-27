@@ -565,6 +565,11 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 ty: "object",
                 required: false,
             },
+            AttributeField {
+                name: "operationId",
+                ty: "string",
+                required: false,
+            },
         ],
         short: "Adds documentation to a route for the generated OpenAPI file. It changes nothing \
                 about what the route does.",
@@ -777,7 +782,7 @@ pub const QUERY: &str = r"Core\Query";
 /// roster cannot state.
 pub const ACCESS: &str = r"Core\Access";
 
-/// `#[Api(tags?, errors?, security?, example?)]` — `rule:attributes/api-adds-and-cannot-contradict`'s annotation,
+/// `#[Api(tags?, errors?, security?, example?, operationId?)]` — `rule:attributes/api-adds-and-cannot-contradict`'s annotation,
 /// on a `#[Route]` method, and the only name here that is *purely* additive:
 /// every field supplies something the route table and the signature cannot
 /// say, and none of them changes what the program does. That is why § 2's rule
