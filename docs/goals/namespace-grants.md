@@ -81,8 +81,10 @@ the package are the same thing. Nothing else about a package's namespaces or cla
 **The grant table is `[grants]` in the application's own `package.toml`**
 (`rule:packaging/package-toml-is-a-tool-input`). A person edits and reviews its lines; goal
 `package-client` writes one per fetched package. The compiler reads that table and nothing else of
-the file, so name resolution still never reads `package.toml`. `nvs check` and the editor find the
-file by walking up from the working directory, the way `git` finds `.git`. Only the grant table, not
+the file, so name resolution still never reads `package.toml`. The compiler finds the file by
+walking up from the entry file's absolute path, the way `git` finds `.git`, and never from the
+working directory: a run started in another directory would read no table, and every package would
+hold the application's authority (security over the `git` habit). Only the grant table, not
 the whole file, folds into every compiled unit's cache key, the way the extension set does
 (`rule:config/the-extension-set-is-in-every-unit-key`, `crates/nvs-config/src/cache.rs:168`). The
 operator's `nvs.toml` can only narrow it: the grant a call site holds is the intersection of the two
@@ -179,9 +181,11 @@ grants of the longest matching key.
 **Does:** a call to a member that needs a capability compiles only where the enclosing namespace was
 granted it, intersected with the operator's configuration.
 
-- [ ] The enclosing namespace is the call's authority: file-scope code is not exempt, an anonymous function keeps the namespace it was declared in, and a `use` import transfers nothing (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-types/src/expr/calls.rs:506`
-- [ ] A namespace granted nothing holds nothing, and an empty grant line is how that is written (`rule:security/package-authority-is-granted-one-line-at-a-time`). `crates/nvs-types/src/capability.rs:49`
-- [ ] A required capability not granted is a compile error naming the namespace, the capability and the line that fixes it. `crates/nvs-diagnostics/src/code/config.rs:822`
+- [x] The enclosing namespace is the call's authority: file-scope code is not exempt, an anonymous function keeps the namespace it was declared in, and a `use` import transfers nothing (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-types/src/expr/calls.rs:506`
+  - [x] the front end reads the table from the entry's path and `Checked` carries it into `env_hash`
+  - [x] `Env::namespace_grants` reaches every call site, instance, union and static, before the method-reference branch
+- [x] A namespace granted nothing holds nothing, and an empty grant line is how that is written (`rule:security/package-authority-is-granted-one-line-at-a-time`). `crates/nvs-types/src/capability.rs:49`
+- [x] A required capability not granted is a compile error naming the namespace, the capability and the line that fixes it. `crates/nvs-diagnostics/src/code/config.rs:822`
 - [ ] A `Core\Config::set` call under a package's namespace may lower a limit and never raise one, while the application's own code on a CLI run may raise its memory limit (goal `defaults-that-work`, decision 11), with a conformance case for each. `crates/nvs-stdlib/src/config.rs:209`
 - [ ] Conformance cases: each item above, and a program with no `[grants]` table compiling as before (`rule:security/an-unmatched-namespace-holds-the-application`). `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
 
@@ -242,41 +246,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs_stdlib::cap::needs(class, member)` gives a member's capability rows
-(`crates/nvs-stdlib/src/cap.rs:177`). `nvs_config::grants::Grants::read(start, sources)` walks up
-from `start` to the nearest `package.toml` and reads its `[grants]` alone
-(`crates/nvs-config/src/grants.rs:137`), `Grants::lookup(namespace)` gives the winning line or
-`None` for an unmatched namespace (`:186`), and `Grant::grants(cap)` answers for one capability.
-`E0655`–`E0657` are its refusals (`crates/nvs-diagnostics/src/code/config.rs:834`). The syntax is the
-standing decision *A grant key is written ...*. `env_hash(config, grants)` folds `Grants::digest`
-into every unit's key (`crates/nvs-config/src/cache.rs:175`), and every caller passes the empty table
-for now. `crates/nvs-config/tests/grants.rs` has 13 tests, all green. Nothing reads the table while
-compiling, and no call site is checked.
+Stages 1 and 2 are done, and stage 3's call-site check is in. `front_end_in` reads the table with
+`Grants::read` from the entry's absolute path (`crates/nvs-cli/src/main.rs:1127`), never the working
+directory (the standing decision *The grant table is `[grants]` ...* now says why), and `Checked`
+carries it into `nvs run`'s `env_hash`. `nvs_types::check::check_program_loaded` takes it as
+`namespace_grants`, and `Env::namespace_grants` reaches
+`crate::capability::reject_ungranted_call` (`crates/nvs-types/src/capability.rs:115`) at the
+instance, union and static call sites, before the method-reference branch, so a reference is held
+where it is written. An unmet need is `E0658` (`crates/nvs-diagnostics/src/code/config.rs:860`),
+naming the namespace, the capability and the grant line. Three conformance cases pass by name under
+`tests/conformance/cap/grants-*.nvst`: the refusals (file scope, anonymous function, `use` import,
+empty line), no `[grants]` table, and an application closure called from a package.
 
-The rule fragments `security/grants-are-keyed-on-a-namespace` and `security/longest-prefix-wins`
-now say what is on disk, and both rules stay designed until stage 6. Stage 1 had left its two
-`nvs-stdlib` files unformatted and two chapters unrendered, fixed in `84a9a0728`.
+Three callers still pass the empty table: the server's `Compiler::new`
+(`crates/nvs-cli/src/script.rs:619`), its test at `crates/nvs-cli/src/serve.rs:5293`, and the editor
+(`crates/nvs-lsp/src/document.rs:771`). The server still refuses an ungranted call, because every
+compile reads the table, but its unit keys omit the table, so a `package.toml` edit alone does not
+recompile a unit that is already held.
 
-The sweep's `env-secret-proofs` finding is a stale log from 22 October: that check is no longer
-defined, and its last log reads exit 0. Nightly run 40291801939's failures were fixed on HEAD before
-the last session. Push CI's `tsan` failure on `f71846dd1` was
-`calls_one_after_another_use_one_thread_and_allocate_the_same`, fixed by `ff918f7b7`. The
-`b12214b33` failures were the `--count` test, fixed by `238f23a49`.
+The sweep's `env-secret-proofs` finding is stale: rerun on HEAD it exits 0. Nightly run 40291801939
+is the run the last handoff already covered.
 
-No test is expected to go red.
+No test is expected to go red. A test that builds a tree under a directory with a `package.toml`
+would now read it, but the repository has none.
 
 ### Next
 
-**Stage 3: the call-site check**, in `nvs-types`, then the CLI. Read the table where the compiler
-runs and hold each `Core` call to it.
+**Stage 3, the rest**: the server's key, and `Core\Config::set`.
 
-- [ ] Read the grant table once per compiler run from the working directory, and pass it to every `env_hash` caller in place of `Grants::default()`. `crates/nvs-cli/src/main.rs:2070`, `crates/nvs-cli/src/script.rs:619`, `crates/nvs-cli/src/serve.rs:5293`
-- [ ] Carry the table into the checker and find each call's enclosing namespace. `crates/nvs-types/src/expr/calls.rs:506`, `crates/nvs-types/src/capability.rs:49`
-- [ ] A required capability not granted is the next free code, `E0658`, naming the namespace, the capability and the grant line. `crates/nvs-diagnostics/src/code/config.rs:834`
-- [ ] The `Core\Config::set` item and the conformance cases, as stage 3 lists them. `tests/conformance/cap/grants-a-namespace-holds-only-what-it-is-granted.nvst:1`
+- [ ] The server's `Compiler` reads the table of its entry root, folds it into `env`, and treats a `package.toml` edit like an `[[extension]]` change: `rekey` drops the units. `crates/nvs-cli/src/script.rs:619`, `crates/nvs-cli/src/script.rs:748`, `crates/nvs-cli/src/serve.rs:5293`
+- [ ] A `Core\Config::set` call under a package's namespace may lower a limit and never raise one, while the application's own code on a CLI run may raise `memory`, with a conformance case for each. `crates/nvs-stdlib/src/config.rs:209`
+- [ ] Then set stage 3 to done and take stage 5. `crates/nvs-config/src/package.rs:1`
 
 ### Backlog
 
 - Stage 5 (`nvs-hir`, `nvs-config/src/package.rs`) can run beside stage 3. `crates/nvs-config/src/package.rs:1`
+- The editor reads the table and shows `E0658`. Stage 6, or a later goal. `crates/nvs-lsp/src/document.rs:771`
 - `nvs pkg fetch` writes the grant lines for fetched packages in goal `package-client` (`docs/goals/package-client.md`).
 - The audit warning for an unmatched autoload root is goal `package-audit`'s (`docs/goals/package-audit.md`).
