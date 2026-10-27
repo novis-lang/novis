@@ -18,8 +18,8 @@ is CMYK or YCCK.
 An AVIF is oriented by its `irot` and `imir` boxes, which browsers follow, and an EXIF orientation
 inside it is not applied a second time. A JPEG XL is oriented by its codestream's own field.
 
-**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG, WebP, AVIF or
-JPEG XL input, converts its RGB profile to sRGB, and a JPEG's CMYK one too, and re-encodes JPEG,
+The component's `run` applies the orientation of a JPEG, PNG, WebP, AVIF or JPEG XL input,
+converts its RGB profile to sRGB, and a JPEG's CMYK one too, and re-encodes JPEG,
 PNG, WebP, GIF and AVIF with no metadata unless a `metadata` step keeps the EXIF block, which an
 AVIF never carries (`extensions/image/src/decode.rs`, `extensions/image/src/avif.rs`,
 `extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`

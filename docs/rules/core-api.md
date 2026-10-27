@@ -3,8 +3,6 @@
 
 # The Core API
 
-*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -125,7 +123,7 @@ runtime's packaging is a reason to place a candidate.
 
 <a id="core-api-tier-roster"></a>
 
-## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built  *(designed — owned by goal image-second-wave)*
+## Every subsystem's tier is recorded once in the roster, including the ones no milestone has built
 
 `rule:core-api/tier-roster`
 
@@ -164,12 +162,12 @@ The placements the tests produce, beyond the `Core` classes the registry already
   `pdo_firebird`) stay Tier 2, built from source by the operator who needs one, and `Core\Db`'s driver
   interface keeps that possible.
 
-**Partly on disk.** Every class the roster places at Tier 0 is registered in
+Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
 `extensions/pdf/` and `extensions/spreadsheet/`. The image component's `info` reads the EXIF
-block ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)); decoding every frame of an animation is goal
-`image-second-wave`'s.
+block ([`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model)), and it decodes every frame of an animation in each
+animated format of the roster ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster)).
 
 **Declined**, each named so it is not re-proposed:
 - **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).

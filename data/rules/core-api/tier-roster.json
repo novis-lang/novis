@@ -1,6 +1,6 @@
 {
   "title": "Every subsystem's tier is recorded once in the roster, including the ones no milestone has built",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/tier-placement",
     "core-api/five-placements",
@@ -8,7 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/tier_boundary.rs",
-    "crates/nvs-stdlib/src/registry.rs"
-  ],
-  "goal": "image-second-wave"
+    "crates/nvs-stdlib/src/registry.rs",
+    "crates/nvs-ext/tests/image_decode.rs"
+  ]
 }

@@ -15,7 +15,7 @@ feature, and it is dropped once a pure-Rust lossy WebP encoder exists. Resamplin
 (`extensions/image/.cargo/config.toml`). AVIF encoding costs seconds of CPU per image and is
 documented as queue work rather than a request-path call.
 
-**Partly on disk.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
+The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
 through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP, GIF and AVIF
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP

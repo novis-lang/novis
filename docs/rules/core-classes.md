@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*5 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3339,6 +3339,16 @@ request holds — a 24-megapixel frame is 96 MB at RGBA8 — so a request pays o
 crossing per terminal, and the pixel buffer never leaves the guest. The builder grows a member
 without touching the ABI, because a new operation is a new plan step rather than a new export.
 
+**An animation moves through the plan as one value.** Every step runs on every frame, in the order
+written, and the frames keep their delays. Only a GIF output keeps the frames: `encode` to GIF writes
+every one with its delay, every other target writes the first frame, and `raw()` returns the first
+frame. A plan whose output is not GIF decodes the first frame alone, so a thumbnail of an animation
+costs one frame's decode, as a still image does. The pixel cap counts every frame the header states
+either way ([`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap)), so a request's pixel memory is bounded by the cap
+however many frames it keeps. Every frame keeps one size: `trim` finds its box on the first frame
+and crops every frame to it, and a `composite` overlay is made once and drawn on each. A GIF output
+loops forever, since the decoders do not return the input's loop count.
+
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
 encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the size header alone
@@ -3383,7 +3393,10 @@ rows and then the overlay to the table, renumbering the overlay's steps by the r
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
-pixel source is held to the default pixel cap, not the `[image]` one.
+pixel source is held to the default pixel cap, not the `[image]` one. A plan that encodes a GIF
+runs every step on every frame of a GIF, an APNG, an animated WebP, an AVIF image sequence and a
+JPEG XL animation and writes them with their delays (`extensions/image/src/lib.rs`, `extensions/image/src/encode.rs`), and any other plan
+decodes the first frame alone (`crates/nvs-ext/tests/image_pipeline.rs`).
 
 The image world is called typed (`crates/nvs-ext/src/typed/image.rs`), so decoded pixels cross the
 boundary in one copy each way, and their host bytes are charged to the request at their own size. A
@@ -3412,7 +3425,7 @@ boundary in one copy each way, and their host bytes are charged to the request a
 
 <a id="core-classes-image-pixel-model"></a>
 
-## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives  *(designed — owned by goal image-second-wave)*
+## Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives
 
 `rule:core-classes/image-pixel-model`
 
@@ -3447,7 +3460,7 @@ What a gd program becomes, one row per concept:
 | `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
-**Partly on disk.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
+The component works on RGBA8 frames throughout, and a pixel source and the `raw`
 output are RGBA8 rows (`extensions/image/src/lib.rs`). `Image::info` returns `exif` as the EXIF
 block's fields of a JPEG, PNG, WebP, AVIF or JPEG XL input, the image's own IFDs without the
 MakerNote, and `null` for a file with none (`extensions/image/src/info.rs`,
@@ -3457,7 +3470,7 @@ MakerNote, and `null` for a file with none (`extensions/image/src/info.rs`,
 
 <a id="core-classes-image-format-roster"></a>
 
-## The format roster is a closed table of decoders and encoders, each naming what implements it  *(designed — owned by goal image-second-wave)*
+## The format roster is a closed table of decoders and encoders, each naming what implements it
 
 `rule:core-classes/image-format-roster`
 
@@ -3478,15 +3491,15 @@ feature, and it is dropped once a pure-Rust lossy WebP encoder exists. Resamplin
 (`extensions/image/.cargo/config.toml`). AVIF encoding costs seconds of CPU per image and is
 documented as queue work rather than a request-path call.
 
-**Partly on disk.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
+The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
 through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP, GIF and AVIF
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
-Only the first frame of an animated input is decoded, so `Image::info`'s `frames` is always `1`
-(`extensions/image/src/decode.rs:16`), and APNG is not encoded. Goal `image-second-wave` decodes
-every frame of APNG and the other animated formats and reports the real count. SVG
-decodes through `resvg` with an image
+`Image::info`'s `frames` is an animated input's real count, read off its header
+(`extensions/image/src/info.rs`). Every frame of a GIF, an APNG, an animated WebP, an AVIF image
+sequence and a JPEG XL animation decodes with its delay (`extensions/image/src/decode.rs`,
+`extensions/image/src/avif.rs`). APNG is not encoded. SVG decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
 (`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
 system font, in `Novis\Image` and in a `Novis\Pdf` render (`extensions/pdf/src/fonts.rs`). A
@@ -3504,8 +3517,10 @@ Before any pixel buffer is allocated, the component reads the **declared** dimen
 height, the declared canvas for an SVG, the selected page's box at the requested resolution for a
 PDF — and refuses an image over `[image] max_pixels` with a throw naming the cap and the declared
 size. A decompression bomb is refused from what the file claims, never discovered by exhausting
-memory. An animated input decodes its first frame only, so the cap prices one frame; decoding every
-frame is [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster)'s.
+memory. An animation's cost is the sum of its frames: width times height times the frame count the
+header states is held to the cap before any frame decodes, whether the plan decodes every frame or
+the first one. One cap bounds a request however many frames a file claims, where a cap per frame
+would let a thousand-frame file take a thousand frames.
 
 It is a throw rather than a resource-limit fatal, because a rejected upload is an ordinary outcome
 the application answers with a status code. A call may pass its own cap **only to lower** it, the
@@ -3514,8 +3529,9 @@ same monotone rule extension manifests take.
 Bytes that are not an image the roster decodes throw a parse error; a codec fault beyond that is a
 trap the sandbox contains, and it throws `ExtensionError` ([`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws)).
 
-What it spends, per request that calls the component: the encoded input, at most two frames at the
-cap — source and result, 192 MB worst case at RGBA8 — and the encoded output, all charged to the
+What it spends, per request that calls the component: the encoded input, at most two images at the
+cap — source and result, 192 MB worst case at RGBA8, however the pixels split into frames — and the
+encoded output, all charged to the
 calling request's memory cap ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and none of
 which outlives the request. There are no threads in a guest, so a bulk import parallelises across
 coroutines and cores rather than inside one call.
@@ -3525,7 +3541,8 @@ written it is `"24M"`, read in the size grammar every other key of the file uses
 pixels. `false` and zero are refused where they are written, because neither is a cap.
 
 The key is `nvs_config::image` (`crates/nvs-config/tests/directives.rs`), and the image component's
-`run` checks a header against a cap before it decodes (`crates/nvs-ext/tests/image_decode.rs`). The
+`run` checks a header against a cap before it decodes, counting every frame of an animation
+(`crates/nvs-ext/tests/image_decode.rs`). The
 host sets every encoded source's `maxPixels` to the smaller of the call's and the key's value in the
 request's snapshot before the call crosses (`nvs_ext::builtin::cap_pixels`), so the `{maxPixels}`
 option of `Image::open` lowers the cap and never raises it
@@ -3535,7 +3552,7 @@ option of `Image::open` lowers the cap and never raises it
 
 <a id="core-classes-image-correct-by-default"></a>
 
-## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it  *(designed — owned by goal image-second-wave)*
+## `open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it
 
 `rule:core-classes/image-correct-by-default`
 
@@ -3559,8 +3576,8 @@ is CMYK or YCCK.
 An AVIF is oriented by its `irot` and `imir` boxes, which browsers follow, and an EXIF orientation
 inside it is not applied a second time. A JPEG XL is oriented by its codestream's own field.
 
-**Partly on disk.** The component's `run` applies the orientation of a JPEG, PNG, WebP, AVIF or
-JPEG XL input, converts its RGB profile to sRGB, and a JPEG's CMYK one too, and re-encodes JPEG,
+The component's `run` applies the orientation of a JPEG, PNG, WebP, AVIF or JPEG XL input,
+converts its RGB profile to sRGB, and a JPEG's CMYK one too, and re-encodes JPEG,
 PNG, WebP, GIF and AVIF with no metadata unless a `metadata` step keeps the EXIF block, which an
 AVIF never carries (`extensions/image/src/decode.rs`, `extensions/image/src/avif.rs`,
 `extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`

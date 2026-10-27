@@ -1,6 +1,6 @@
 {
   "title": "The format roster is a closed table of decoders and encoders, each naming what implements it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/pdf-page-is-an-image-source",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "crates/nvs-ext/tests/image_decode.rs",
     "crates/nvs-ext/tests/image_pipeline.rs"
-  ],
-  "goal": "image-second-wave"
+  ]
 }

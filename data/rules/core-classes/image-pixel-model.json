@@ -1,10 +1,12 @@
 {
   "title": "Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-format-roster"
   ],
-  "guardedBy": [],
-  "goal": "image-second-wave"
+  "guardedBy": [
+    "crates/nvs-ext/tests/image_decode.rs",
+    "crates/nvs-ext/tests/image_pipeline.rs"
+  ]
 }

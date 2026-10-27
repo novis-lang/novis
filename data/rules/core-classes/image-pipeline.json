@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-ext/tests/image_decode.rs",
     "crates/nvs-ext/tests/image_pipeline.rs"
   ]
 }

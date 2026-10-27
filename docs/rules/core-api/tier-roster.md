@@ -33,7 +33,7 @@ The placements the tests produce, beyond the `Core` classes the registry already
   `pdo_firebird`) stay Tier 2, built from source by the operator who needs one, and `Core\Db`'s driver
   interface keeps that possible.
 
-**Partly on disk.** Every class the roster places at Tier 0 is registered in
+Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered. The four first-party components are on disk: `extensions/image/`, `extensions/intl/`,
 `extensions/pdf/` and `extensions/spreadsheet/`. The image component's `info` reads the EXIF
