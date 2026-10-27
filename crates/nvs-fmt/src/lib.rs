@@ -73,6 +73,8 @@
 //!   link per line.
 //! - [`crate::space`]: the run a qualified type, a one-line anonymous object
 //!   and each arm of a multi-line `match` are written with.
+//! - [`crate::gap`]: nothing or one space between two tokens on one line,
+//!   from what the two tokens are.
 //! - [`crate::tokens`]: the quote a plain string literal is delimited by, the
 //!   comma a multi-line list ends its last item on, and the one case a reserved
 //!   spelling has.
@@ -87,6 +89,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 mod blank;
 mod brace;
 mod chain;
+mod gap;
 mod imports;
 mod indent;
 mod list;

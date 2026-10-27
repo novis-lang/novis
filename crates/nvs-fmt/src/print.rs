@@ -15,7 +15,8 @@
 //! break in front of a statement or a closing brace ([`crate::statement`]), the
 //! blank line after a declaration ([`crate::blank`]) and the run
 //! a qualifier, a one-line anonymous object or a `match` arm wants
-//! ([`crate::space`]) are the same answer to "what must precede this byte", and
+//! ([`crate::space`]) and the space between two tokens on one line
+//! ([`crate::gap`]) are the same answer to "what must precede this byte", and
 //! the run that is not there to rewrite is written into the code run instead.
 //!
 //! A code run is copied byte for byte, save for the edits that write something
@@ -36,7 +37,7 @@ use nvs_diagnostics::{Diagnostics, SourceFile, Span};
 use nvs_syntax::{Parsed, Trivia, TriviaKind};
 
 use crate::indent::Indent;
-use crate::{blank, brace, chain, list, modifiers, space, statement, tokens};
+use crate::{blank, brace, chain, gap, list, modifiers, space, statement, tokens};
 
 /// One run of bytes, and what the printer writes in its place.
 ///
@@ -151,6 +152,9 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     wanted.extend(list::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(chain::runs(&parsed.index, &indent, text, &parsed.trivia));
     wanted.extend(statement::runs(&indent));
+    // The space between two tokens comes last, so every stage above that
+    // names the same byte wins over it.
+    wanted.extend(gap::runs(&parsed.index, text, &parsed.trivia));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));

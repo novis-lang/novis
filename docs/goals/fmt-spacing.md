@@ -6,7 +6,7 @@ context: [crates/nvs-fmt/src/print.rs, crates/nvs-fmt/src/lib.rs, docs/rules/too
 stages:
   - id: 1
     title: the run between two tokens in an expression or a declaration has one answer
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/space.rs, crates/nvs-syntax/src/token.rs, crates/nvs-fmt/tests/token_rules.rs]
     extra:
       context:
@@ -190,11 +190,11 @@ touches docs alone and may run beside stage 4.
 
 **Does:** `gap.rs` writes every row of the table except the type, unary and author's rows.
 
-- [ ] `gap.rs`: lex once, walk each pair of adjacent tokens with no line break and no comment between them, take each token's role from its innermost node, and push the row's run. `crates/nvs-fmt/src/gap.rs:1`, `crates/nvs-syntax/src/lexer.rs:1700`
-- [ ] Its `mod gap;`, its line in the module list of the crate doc, and its `extend` after `statement::runs` (`rule:tooling/fmt-one-run-between-two-tokens`). `crates/nvs-fmt/src/lib.rs:95`, `crates/nvs-fmt/src/lib.rs:58`, `crates/nvs-fmt/src/print.rs:153`
-- [ ] The binary operator, `=>`, ternary, `,`, `;`, bracket, callee and control-keyword rows. `crates/nvs-fmt/src/gap.rs:1`
-- [ ] The `:`, `->` and `::`, keyword, two-word, `#[` and trailing-comment rows. `crates/nvs-fmt/src/gap.rs:1`
-- [ ] Tests: one case per row, each input wrong about its row and nothing else, as `token_rules.rs` writes its cases. Run once by name with `cargo test --test token_gaps`. `crates/nvs-fmt/tests/token_gaps.rs:1`, `crates/nvs-fmt/tests/token_rules.rs:13`
+- [x] `gap.rs`: lex once, walk each pair of adjacent tokens with no line break and no comment between them, take each token's role from its innermost node, and push the row's run. `crates/nvs-fmt/src/gap.rs:1`, `crates/nvs-syntax/src/lexer.rs:1700`
+- [x] Its `mod gap;`, its line in the module list of the crate doc, and its `extend` after `statement::runs` (`rule:tooling/fmt-one-run-between-two-tokens`). `crates/nvs-fmt/src/lib.rs:95`, `crates/nvs-fmt/src/lib.rs:58`, `crates/nvs-fmt/src/print.rs:153`
+- [x] The binary operator, `=>`, ternary, `,`, `;`, bracket, callee and control-keyword rows. `crates/nvs-fmt/src/gap.rs:1`
+- [x] The `:`, `->` and `::`, keyword, two-word, `#[` and trailing-comment rows. `crates/nvs-fmt/src/gap.rs:1`
+- [x] Tests: one case per row, each input wrong about its row and nothing else, as `token_rules.rs` writes its cases. Run once by name with `cargo test --test token_gaps`. `crates/nvs-fmt/tests/token_gaps.rs:1`, `crates/nvs-fmt/tests/token_rules.rs:13`
 
 ### 2. types, unary operators and the author's runs, and a formatted file lexes to its source's tokens
 
@@ -303,25 +303,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. All seven rules are written as `designed`, and `gap.rs` does not exist.
-The printer copies every whitespace run that no stage names (`crates/nvs-fmt/src/print.rs:74`), and
-`space.rs` is the nearest stage in shape: it scans code runs and pushes `(offset, run)` pairs
-(`crates/nvs-fmt/src/space.rs:84`). `chain.rs` lays out `&&`, `||`, `??` and `.` chains, `->` chains
-and the `If`, `While` and `DoWhile` conditions (`crates/nvs-fmt/src/chain.rs:91`,
-`crates/nvs-fmt/src/chain.rs:94`), and stages 7 to 10 widen it. The stages run 1, 2, 3, 7, 8, 9, 10,
-4, 5, 6.
+Stage 1 is done. `crates/nvs-fmt/src/gap.rs` lexes the file once and walks each pair of adjacent
+tokens whose gap is spaces and tabs only (`crates/nvs-fmt/src/gap.rs:150`). `Pairs::run`
+(`crates/nvs-fmt/src/gap.rs:232`) is the table, first match wins, and it returns `None` for a pair it
+does not name. `print.rs` pushes its runs last, so every other stage wins on a shared offset.
+`cargo test --test token_gaps` passes its 20 cases. The sweep's four reds were already fixed on disk
+before this session: `env-secret-proofs` exits 0, and the three Miri tests carry `cfg_attr(miri,
+ignore)` or count wakes against files opened (commits `22f1e4ec4`, `e461612ce`, `c33a8b8f7`).
+
+What stage 1 already does that stage 2's items name:
+- A run is never emptied where the joined pair lexes as other tokens (`fuses`,
+  `crates/nvs-fmt/src/gap.rs:534`). Stage 2 still tests it with `$a - -$b`.
+- A pair touching `<?nvs`, `<?=`, `?>` or inline HTML is the author's (`is_aside`,
+  `crates/nvs-fmt/src/gap.rs:402`). A run after a block comment is never walked, because the comment
+  sits in the gap. Pairs inside a string, a heredoc or a template body are skipped
+  (`code_after_each`, `crates/nvs-fmt/src/gap.rs:502`).
+- `+`, `-`, `&`, `|`, `<`, `>`, `>>` and `*` are operators only where the innermost node is `Binary`
+  (`crates/nvs-fmt/src/gap.rs:143`, `crates/nvs-fmt/src/gap.rs:369`). Inside a written type and as a
+  unary they get no row yet. That is stage 2's type and unary rows.
+
+Expected red until stage 4 formats the corpus: `crates/nvs-fmt/tests/identity.rs` (aligned `=`, `=>`
+and trailing comments, `fn (`, `if(`), and any `nvs-fmt` fixture whose expected text spaces a pair
+another way. Nothing was run but the new test.
 
 ### Next
 
-**Stage 1: the table for expressions and declarations**, one file set: `crates/nvs-fmt/src/gap.rs`,
-`crates/nvs-fmt/src/lib.rs`, `crates/nvs-fmt/src/print.rs`, `crates/nvs-fmt/tests/token_gaps.rs`.
-Gate: `docs/goals/README.md` names `fmt-spacing` live, after `routes-by-method` is reached.
+**Stage 2: types, unary operators and the guards**, one file set: `crates/nvs-fmt/src/gap.rs`,
+`crates/nvs-fmt/tests/token_gaps.rs`, `crates/nvs-fmt/tests/corpus.rs`.
 
-- [ ] `gap.rs`: lex once, walk adjacent pairs on one line, and push each row's run. `crates/nvs-fmt/src/gap.rs:1`
-- [ ] Its module, its crate-doc line, and its `extend` after `statement::runs`. `crates/nvs-fmt/src/print.rs:153`
-- [ ] The binary operator, `=>`, ternary, `,`, `;`, bracket, callee and control-keyword rows. `crates/nvs-fmt/src/gap.rs:1`
-- [ ] The `:`, `->` and `::`, keyword, two-word, `#[` and trailing-comment rows. `crates/nvs-fmt/src/gap.rs:1`
-- [ ] Tests: one case per row, run once with `cargo test --test token_gaps`. `crates/nvs-fmt/tests/token_gaps.rs:1`
+- [ ] Collect each written `ast::Type` span once per file, and give `?`, `|`, `&`, `<`, `>`, `(`, `)` inside one nothing. `crates/nvs-fmt/src/gap.rs:232`, `crates/nvs-syntax/src/ast.rs:61`
+- [ ] The unary row: nothing between `!`, `-`, `+`, `~`, `++`, `--`, `@`, `...` and the operand, read from the `Unary`, `PreIncDec`, `PostIncDec` nodes. `crates/nvs-fmt/src/gap.rs:369`
+- [ ] The coverage test over `pub enum TokenKind`, with a list of the kinds whose runs stay the author's in `gap.rs`. `crates/nvs-fmt/tests/token_gaps.rs:1`, `crates/nvs-syntax/src/token.rs:99`
+- [ ] `every_formatted_corpus_file_lexes_to_its_inputs_token_kinds` beside the tree test. `crates/nvs-fmt/tests/corpus.rs:147`
+- [ ] Tests for types, unary operators, `$a - -$b` and each author's run; `cargo test --test token_gaps` passes. `crates/nvs-fmt/tests/token_gaps.rs:1`
 
 ### Backlog
 
