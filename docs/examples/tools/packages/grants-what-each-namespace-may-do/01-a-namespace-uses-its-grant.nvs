@@ -13,5 +13,5 @@ foreach (Shop\Catalog\Products::names($path) as string $name) {
 }
 
 // The line for `Shop\Catalog` lists only `fs.read`. So this prints `true` and then `false`.
-echo Shop\Catalog\Products::may("fs.read") ? "true" : "false", "\n";
-echo Shop\Catalog\Products::may("fs.write") ? "true" : "false", "\n";
+echo Shop\Catalog\Products::may('fs.read') ? 'true' : 'false', "\n";
+echo Shop\Catalog\Products::may('fs.write') ? 'true' : 'false', "\n";

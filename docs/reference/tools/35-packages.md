@@ -44,7 +44,7 @@ final class Store
 {
     public static function load(): string
     {
-        return Core\IO::readText("note.txt");
+        return Core\IO::readText('note.txt');
     }
 }
 ```
@@ -102,8 +102,8 @@ A capability in `optional` that the line does not list compiles. A call that nee
 `Core\Cap::has`:
 
 ```nvs skip
-if (Core\Cap::has("fs.write")) {
-    Core\IO::write("cache.txt", $text);
+if (Core\Cap::has('fs.write')) {
+    Core\IO::write('cache.txt', $text);
 }
 ```
 

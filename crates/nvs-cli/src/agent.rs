@@ -364,6 +364,7 @@ const CHAPTERS: &[&str] = &[
     include_str!("../../../docs/reference/tools/20-config.md"),
     include_str!("../../../docs/reference/tools/25-server.md"),
     include_str!("../../../docs/reference/tools/30-php-differences.md"),
+    include_str!("../../../docs/reference/tools/35-packages.md"),
     include_str!("../../../docs/reference/tools/40-editor.md"),
     include_str!("../../../docs/reference/tools/50-agents.md"),
 ];

@@ -7,11 +7,11 @@ final class Cache
     // If it may not write files, it keeps the text in memory.
     public static function save(string $path, string $text): string
     {
-        if (Core\Cap::has("fs.write")) {
+        if (Core\Cap::has('fs.write')) {
             Core\IO::write($path, $text);
-            return "saved to disk";
+            return 'saved to disk';
         }
-        return "kept in memory";
+        return 'kept in memory';
     }
 
     // This call compiles. It throws a `RuntimeError` when it runs.

@@ -7,12 +7,12 @@ string $path = Core\Path::join(Core\IO::temporaryDir(), 'cache.txt');
 
 // The line for `Acme\Disk` does not list `fs.write`. So `Core\Cap::has` returns `false`,
 // and this prints `kept in memory`.
-echo Acme\Disk\Cache::save($path, "Lamp"), "\n";
+echo Acme\Disk\Cache::save($path, 'Lamp'), "\n";
 
 // This call writes without the check, so it throws a `RuntimeError`.
 // The message also names the line to change. This prints only its first sentence.
 try {
-    Acme\Disk\Cache::forceSave($path, "Lamp");
+    Acme\Disk\Cache::forceSave($path, 'Lamp');
 } catch (RuntimeError $denied) {
-    echo Core\Str::split($denied->message, ". ")[0], "\n";
+    echo Core\Str::split($denied->message, '. ')[0], "\n";
 }

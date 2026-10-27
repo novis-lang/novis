@@ -340,6 +340,7 @@ testing#running-tests-nvs-test  section: Running tests: `nvs test`
 cli#nvs-check  section: nvs check
 cli#nvs-test  section: nvs test
 cli#nvs-build-compile  section: nvs build --compile
+packages#the-rules-for-a-package-s-files  section: The rules for a package's files
 editor#what-it-answers  section: What it answers
 agents#nvs-agent  section: nvs agent
 $ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'

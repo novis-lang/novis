@@ -58593,7 +58593,7 @@ final class Store
 {
     public static function load(): string
     {
-        return Core\IO::readText("note.txt");
+        return Core\IO::readText('note.txt');
     }
 }
 ```
@@ -58651,8 +58651,8 @@ A capability in `optional` that the line does not list compiles. A call that nee
 `Core\Cap::has`:
 
 ```nvs skip
-if (Core\Cap::has("fs.write")) {
-    Core\IO::write("cache.txt", $text);
+if (Core\Cap::has('fs.write')) {
+    Core\IO::write('cache.txt', $text);
 }
 ```
 
@@ -59593,6 +59593,7 @@ testing#running-tests-nvs-test  section: Running tests: `nvs test`
 cli#nvs-check  section: nvs check
 cli#nvs-test  section: nvs test
 cli#nvs-build-compile  section: nvs build --compile
+packages#the-rules-for-a-package-s-files  section: The rules for a package's files
 editor#what-it-answers  section: What it answers
 agents#nvs-agent  section: nvs agent
 $ nvs agent show 'programs#autoload-find-a-class-by-its-namespace'
