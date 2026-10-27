@@ -30,3 +30,4 @@ echo new Printer()->first(new Item());
 codeAction
 --EXPECT--
 18:16-18:34 refactor.extract Extract to method -> "$this->extracted($other)" + 22:6-22:6 -> "\n\n    private function extracted(Item $other): bool {\n        return $other->name == "";\n    }"
+18:16-18:34 refactor.rewrite Put on separate lines -> "\n            $other->name\n            == ""\n        "

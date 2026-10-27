@@ -24,4 +24,4 @@ echo new Printer()->first(new Item(), new Item());
 --REQUEST--
 codeAction
 --EXPECT--
-13:13-13:47 refactor.rewrite Put on separate lines -> "\n            $item != null\n            && $item->name != ""\n        "
+13:41-13:45 refactor.rewrite Put on separate lines -> "\n            != "

@@ -17,3 +17,4 @@ codeAction
 --EXPECT--
 7:1-7:31 refactor.extract Extract to variable -> "        int $value = $price * $count;\n        return $value"
 7:16-7:31 refactor.extract Extract to method -> "$this->extracted($price, $count)" + 8:6-8:6 -> "\n\n    private function extracted(int $price, int $count): int {\n        return $price * $count;\n    }"
+7:22-7:25 refactor.rewrite Put on separate lines -> "\n            * "

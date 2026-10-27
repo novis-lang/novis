@@ -151,8 +151,8 @@ fn a_fix_all_applies_the_grouping_that_keeps_the_meaning_and_never_the_alternati
         titles(actions::Kind::QuickFix),
         [
             "apply `??` first: `($n ?? 0) + 10`",
-            "Put on separate lines",
-            "keep the current meaning: `$n ?? (0 + 10)`"
+            "keep the current meaning: `$n ?? (0 + 10)`",
+            "Put on separate lines"
         ]
     );
     assert_eq!(

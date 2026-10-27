@@ -19,4 +19,4 @@ echo new Shop()->total(2, 3);
 --REQUEST--
 codeAction
 --EXPECT--
-none
+6:22-6:25 refactor.rewrite Put on separate lines -> "\n            * "

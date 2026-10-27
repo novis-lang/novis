@@ -5,8 +5,6 @@
 //! The kinds are `nvs_syntax::walk::KINDS`, the table every node the walk
 //! builds is named from, so a production added there is a kind this test sees.
 
-use std::path::Path;
-
 use nvs_fmt::{AUTHORS_BREAKS, LAID_OUT};
 use nvs_syntax::walk::KINDS;
 
@@ -51,7 +49,7 @@ fn every_listed_kind_is_a_node_kind() {
 
 #[test]
 fn every_broken_layout_names_a_rule_that_exists() {
-    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/rules");
+    let rules = nvs_repo::path("docs/rules");
     let absent: Vec<&str> = LAID_OUT
         .iter()
         .map(|&(_, rule)| rule)

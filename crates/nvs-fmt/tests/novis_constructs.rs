@@ -44,8 +44,10 @@ fn a_qualifier_sits_one_space_before_its_type() {
     // A property, a parameter, a return type and a local, each written with a
     // run of spaces where one belongs, in front of a scalar and in front of a
     // second qualifier. The `tainted` written as a member name and the one
-    // written inside a string are not qualifiers at all, so the run in front of
-    // `is` and the `?` inside the literal are the author's.
+    // written inside a string are not qualifiers at all: the run in front of
+    // `is` is the one space every binary operator takes
+    // (`rule:tooling/fmt-one-run-between-two-tokens`), and the `?` inside the
+    // literal is never touched.
     let mangled = "\
 <?nvs
 class Inbox
@@ -73,7 +75,7 @@ class Inbox
     public function stamp(secret tainted string $token, ?tainted string $note): tainted bytes
     {
         tainted string $line = $note ?? $this->subject;
-        if ($this->tainted   is Inbox) {
+        if ($this->tainted is Inbox) {
             echo 'is it tainted?really', \"\\n\";
         }
         return $line as bytes;

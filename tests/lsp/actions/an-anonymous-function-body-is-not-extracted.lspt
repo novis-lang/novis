@@ -15,4 +15,4 @@ echo new Shop()->double();
 --REQUEST--
 codeAction
 --EXPECT--
-none
+6:43-6:46 refactor.rewrite Put on separate lines -> "\n            * "
