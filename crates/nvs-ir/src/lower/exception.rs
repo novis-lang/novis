@@ -246,7 +246,12 @@ impl<'a> Lowering<'a> {
     /// What follows is dead and still lowered, for [`Self::lower_finish`]'s
     /// reason: the call after it owes its caller a value, so `cur` moves to a
     /// fresh block nothing branches to, and the call is lowered there as usual.
-    pub(crate) fn lower_capability_guard(&mut self, message: &str, env: &mut Env, cur: &mut BlockId) {
+    pub(crate) fn lower_capability_guard(
+        &mut self,
+        message: &str,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
         self.raise_error(*cur, "RuntimeError", message, env);
         *cur = self.new_block();
     }

@@ -241,7 +241,8 @@ impl Grants {
     /// is left out, so a program whose packages declare nothing optional keeps its key.
     pub fn set_optional(&mut self, packages: impl Iterator<Item = (String, Vec<Cap>)>) {
         self.optional = packages.filter(|(_, caps)| !caps.is_empty()).collect();
-        self.optional.sort_by(|(left, _), (right, _)| left.cmp(right));
+        self.optional
+            .sort_by(|(left, _), (right, _)| left.cmp(right));
     }
 
     /// The `package.toml` the table was read from, or `None` when [`find`] found none.

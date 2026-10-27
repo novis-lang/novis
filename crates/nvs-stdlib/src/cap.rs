@@ -87,7 +87,10 @@ pub fn grants_mask(caps: impl Iterator<Item = Cap>) -> u32 {
         .fold(0, |mask, at| mask | (1 << at))
 }
 
-const _: () = assert!(Cap::ALL.len() < 32, "the roster outgrew `has`'s prepared word");
+const _: () = assert!(
+    Cap::ALL.len() < 32,
+    "the roster outgrew `has`'s prepared word"
+);
 
 /// Whether the prepared word `word` lists `cap`. The zero word, and any word
 /// without [`PREPARED_GRANTS`], lists nothing.

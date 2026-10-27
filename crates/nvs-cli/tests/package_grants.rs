@@ -88,7 +88,8 @@ fn a_package_file_that_declares_a_namespace_outside_its_package_does_not_compile
 #[test]
 fn a_relative_entry_path_still_places_files_in_their_package() {
     let class = "<?nvs\nnamespace App;\n\nclass Client {}\n";
-    let entry = "<?nvs\nautoload 'App' from 'vendor/acme/http/src';\n\nvar $client = new App\\Client();\n";
+    let entry =
+        "<?nvs\nautoload 'App' from 'vendor/acme/http/src';\n\nvar $client = new App\\Client();\n";
     let (_root, app) = layout(&[
         ("main.nvs", entry),
         ("vendor/acme/http/src/Client.nvs", class),
