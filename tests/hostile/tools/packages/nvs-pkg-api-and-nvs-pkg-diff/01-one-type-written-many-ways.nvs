@@ -1,0 +1,52 @@
+<?nvs
+// Attack: the classes below write the same types in ways that look different.
+// `nvs pkg api` should write each type in one form, and the program should run.
+namespace Shop;
+
+// 1. A type alias that includes `null`, and a second alias built from the first.
+type Id = int|string|null;
+type MaybeId = Id;
+
+interface Named
+{
+    public function name(): string;
+}
+
+// 2. A chain of parents, so a type has to be checked against every class above it.
+abstract class Base implements Named
+{
+    abstract public function id(): MaybeId;
+}
+
+class Middle extends Base
+{
+    public function id(): MaybeId
+    {
+        return null;
+    }
+
+    public function name(): string
+    {
+        return 'middle';
+    }
+}
+
+final class Leaf extends Middle
+{
+    // 3. `self`, `?` and a union in another order, all for types that already exist.
+    public function copy(?Leaf $other, string|int ...$ids): self
+    {
+        return $other ?? $this;
+    }
+
+    // 4. The same alias as a parameter and as a return.
+    public function same(Id $id): Id
+    {
+        return $id;
+    }
+}
+
+Leaf $leaf = new Leaf();
+echo $leaf->copy(null, 'a', 1)->name(), "\n";
+echo $leaf->same(7) ?? 'none', "\n";
+echo $leaf->id() ?? 'none', "\n";

@@ -269,7 +269,7 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
-- C.6 [Packages: grants and package files](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, and the rules every file of a package follows *(package.toml, grants, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code)*
+- C.6 [Packages: grants, package files and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions *(package.toml, grants, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code)*
 - C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
 - C.8 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
@@ -58571,9 +58571,9 @@ E0739
 ```
 
 <a id="tools-packages"></a>
-## C.6 Packages: grants and package files
+## C.6 Packages: grants, package files and API versions
 
-Keywords: package.toml, grants, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+Keywords: package.toml, grants, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
 
 ### Grants: what each namespace may do
 
@@ -58687,6 +58687,56 @@ package.
 
 A `require` or `autoload` path in a package must stay inside the package's directory. A path that
 leaves it with `..`, with an absolute path or through a symbolic link is error `E0661`.
+
+### nvs pkg api and nvs pkg diff
+
+    nvs pkg api <dir>
+    nvs pkg diff <old> <new> [--from <version>] [--to <version>] [--json]
+
+The public API of a package is every public class, interface, enum and type in it, with their
+methods, properties and constants. A version number of a package is `MAJOR.MINOR.PATCH`, such as
+`1.4.0`. From `0.1.0` on, only a major release may break the public API.
+
+`nvs pkg api` prints the public API of the package in `<dir>` as JSON. It reads every `.nvs` file
+under `<dir>/src` and checks the program. It does not run any of the code. Each type is written with
+its full name, so an alias, a `use` line or a change in formatting is not a change.
+
+`nvs pkg diff` compares two versions. `<old>` and `<new>` are each a package directory or a JSON file
+that `nvs pkg api` printed. Each change prints on one line, as `breaking` or `additive`:
+
+```text
+breaking: Api\Client::send() — method removed
+1 change(s): 1 breaking, 0 additive
+1.2.0 to 1.3.0 is a minor release, so no breaking change is allowed.
+```
+
+A breaking change is a change that can stop code that uses the package from compiling:
+
+- a public class, method, property, constant or enum case is removed or renamed;
+- a method is added to an interface, or an abstract method is added;
+- a case is added to an enum, because a `match` over every case no longer covers it;
+- a parameter accepts fewer types, or a return type has more types;
+- a required parameter is added, or a parameter is renamed.
+
+A change that the comparison cannot decide is a breaking change. There is no way to allow one
+breaking change and not the others.
+
+The versions decide which changes are allowed. Each version is the `version` key in the
+`package.toml` of the directory. `--from` and `--to` replace the two versions.
+
+| From and to | Breaking changes |
+|---|---|
+| a `0.0.x` version on either side, such as `0.0.4` to `0.1.0` | allowed: `0.0.x` is experimental |
+| a higher major, such as `1.2.0` to `2.0.0` | allowed |
+| a higher minor or patch, such as `1.2.0` to `1.3.0` | not allowed |
+| a new version that is not higher than the old one | not allowed |
+| a side without a version | not allowed |
+
+`nvs pkg diff` exits with `1` when a breaking change is not allowed, so you can run it in CI before
+you publish. `--json` prints the changes as JSON. The JSON also has `from`, `to`, `step` and
+`allowed`.
+
+The check is about the shape of the API only. The behaviour of a method may change in any release.
 
 <a id="tools-editor"></a>
 ## C.7 The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension

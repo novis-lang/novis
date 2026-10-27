@@ -34,6 +34,7 @@ fn api(dir: &Path) -> String {
 /// The fixture's API is pinned byte for byte, and a second run prints the same bytes. The fixture
 /// covers an import, an alias, a nullable type, a promoted property, `self`, an owned enum, and
 /// private members, which are left out.
+// covers: tools:packages/nvs-pkg-api-and-nvs-pkg-diff
 #[test]
 fn the_api_of_a_package_is_pinned_byte_for_byte() {
     let dir = fixture("shop");
@@ -63,6 +64,48 @@ fn a_top_level_statement_has_no_effect_on_the_extraction() {
     assert_eq!(document["declarations"][0]["name"], "Effect\\Greeter");
 }
 
+/// The attack under `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/` writes one type
+/// many ways: an alias of an alias, `?T`, `self` and a union out of order. As a package's only source
+/// file, each type is written in one resolved, sorted form.
+// covers: tools:packages/nvs-pkg-api-and-nvs-pkg-diff
+#[test]
+fn a_type_written_many_ways_has_one_form() {
+    let attack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-one-type-written-many-ways.nvs",
+    );
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("package-api-one-type-many-ways");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).expect("the package directory");
+    std::fs::copy(&attack, dir.join("src/Leaf.nvs")).expect("the attack is the package's source");
+
+    let document: serde_json::Value =
+        serde_json::from_str(&api(&dir)).expect("stdout is the document");
+    let _ = std::fs::remove_dir_all(&dir);
+    let method = |class: &str, name: &str| {
+        let declaration = document["declarations"]
+            .as_array()
+            .expect("a list of declarations")
+            .iter()
+            .find(|d| d["name"] == class)
+            .unwrap_or_else(|| panic!("{class} is declared"));
+        declaration["methods"]
+            .as_array()
+            .expect("a list of methods")
+            .iter()
+            .find(|m| m["name"] == name)
+            .unwrap_or_else(|| panic!("{class}::{name} is declared"))
+            .clone()
+    };
+    let copy = method("Shop\\Leaf", "copy");
+    assert_eq!(copy["params"][0]["type"], "Shop\\Leaf|null");
+    assert_eq!(copy["params"][1]["type"], "int|string");
+    assert_eq!(copy["returns"], "Shop\\Leaf");
+    let same = method("Shop\\Leaf", "same");
+    assert_eq!(same["params"][0]["type"], "int|null|string");
+    assert_eq!(same["returns"], "int|null|string");
+    assert_eq!(method("Shop\\Base", "id")["returns"], "int|null|string");
+}
+
 /// `nvs pkg diff <old> <new> [extra...]`: whether it succeeded, and its stdout.
 fn diff(old: &Path, new: &Path, extra: &[&str]) -> (bool, String) {
     let mut args = vec![
@@ -85,6 +128,7 @@ const NO_VERSION: &str = "Neither version is known, so no breaking change is all
 /// Each pair under `package-api/<class>/` makes one change, and the report is that change alone:
 /// its class, where it is and what it is. No side has a version, so a pair with a break exits
 /// non-zero, and one without exits zero.
+// covers: tools:packages/nvs-pkg-api-and-nvs-pkg-diff
 #[test]
 fn each_change_between_two_versions_gets_its_class() {
     let cases: &[(&str, &[&str])] = &[
@@ -231,6 +275,7 @@ fn a_side_may_be_an_api_document() {
 
 /// The version step decides whether a break fails. `removed-method` breaks and `new-class` only
 /// adds, and `--from` and `--to` give each side's version, since neither has a `package.toml`.
+// covers: tools:packages/nvs-pkg-api-and-nvs-pkg-diff
 #[test]
 fn the_version_step_decides_whether_a_break_fails() {
     let cases: &[(&str, &[&str], bool, &str)] = &[

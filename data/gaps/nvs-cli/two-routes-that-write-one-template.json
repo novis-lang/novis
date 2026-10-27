@@ -2,5 +2,5 @@
   "module": "crates/nvs-cli/src/openapi.rs",
   "title": "Two routes of one verb that write the same template.",
   "text": "`/files/{path}` beside `/files/{path...}`, `/a` beside `/a/{x?}`, and `/a/{id}` beside `/a/{key}` each write one path key, and the emitter's `or_insert_with` keeps the first row. OpenAPI 3.1 also forbids two templated paths that differ only in their capture names. Whether the router admits such a pair decides whether `nvs build --openapi` needs a diagnostic for it.",
-  "goal": "api-compat"
+  "goal": "first-packages"
 }

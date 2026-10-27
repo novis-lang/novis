@@ -2,5 +2,5 @@
   "module": "crates/nvs-cli/src/openapi.rs",
   "title": "OAuth2 scopes per operation.",
   "text": "`#[Api(security:)]` writes each scheme with an empty scope list, in the `security` arm of `operation`. Scopes need a field on `#[Api]` and a check of each scope against the flows its `#[Api\\Scheme]` declares, which `rule:routing/a-security-scheme-is-declared-in-code` would gain as a field-table row.",
-  "goal": "api-compat"
+  "goal": "first-packages"
 }

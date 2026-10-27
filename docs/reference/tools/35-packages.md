@@ -1,8 +1,8 @@
 ---
 id: packages
-title: "Packages: grants and package files"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, and the rules every file of a package follows
-keywords: package.toml, grants, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+title: "Packages: grants, package files and API versions"
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
+keywords: package.toml, grants, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -119,3 +119,55 @@ package.
 
 A `require` or `autoload` path in a package must stay inside the package's directory. A path that
 leaves it with `..`, with an absolute path or through a symbolic link is error `E0661`.
+
+# nvs pkg api and nvs pkg diff
+
+    nvs pkg api <dir>
+    nvs pkg diff <old> <new> [--from <version>] [--to <version>] [--json]
+
+The public API of a package is every public class, interface, enum and type in it, with their
+methods, properties and constants. A version number of a package is `MAJOR.MINOR.PATCH`, such as
+`1.4.0`. From `0.1.0` on, only a major release may break the public API.
+
+`nvs pkg api` prints the public API of the package in `<dir>` as JSON. It reads every `.nvs` file
+under `<dir>/src` and checks the program. It does not run any of the code. Each type is written with
+its full name, so an alias, a `use` line or a change in formatting is not a change.
+
+`nvs pkg diff` compares two versions. `<old>` and `<new>` are each a package directory or a JSON file
+that `nvs pkg api` printed. Each change prints on one line, as `breaking` or `additive`:
+
+```text
+breaking: Api\Client::send() — method removed
+1 change(s): 1 breaking, 0 additive
+1.2.0 to 1.3.0 is a minor release, so no breaking change is allowed.
+```
+
+A breaking change is a change that can stop code that uses the package from compiling:
+
+- a public class, method, property, constant or enum case is removed or renamed;
+- a method is added to an interface, or an abstract method is added;
+- a case is added to an enum, because a `match` over every case no longer covers it;
+- a parameter accepts fewer types, or a return type has more types;
+- a required parameter is added, or a parameter is renamed.
+
+A change that the comparison cannot decide is a breaking change. There is no way to allow one
+breaking change and not the others.
+
+The versions decide which changes are allowed. Each version is the `version` key in the
+`package.toml` of the directory. `--from` and `--to` replace the two versions.
+
+| From and to | Breaking changes |
+|---|---|
+| a `0.0.x` version on either side, such as `0.0.4` to `0.1.0` | allowed: `0.0.x` is experimental |
+| a higher major, such as `1.2.0` to `2.0.0` | allowed |
+| a higher minor or patch, such as `1.2.0` to `1.3.0` | not allowed |
+| a new version that is not higher than the old one | not allowed |
+| a side without a version | not allowed |
+
+`nvs pkg diff` exits with `1` when a breaking change is not allowed, so you can run it in CI before
+you publish. `--json` prints the changes as JSON. The JSON also has `from`, `to`, `step` and
+`allowed`.
+
+The check is about the shape of the API only. The behaviour of a method may change in any release.
+
+<!-- src: `rule:packaging/only-a-major-may-break-the-api` -->

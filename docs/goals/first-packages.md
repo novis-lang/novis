@@ -126,6 +126,7 @@ for every output that asks.
 - [ ] Read the manifest's `version` into the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
 - [ ] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
 - [ ] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
+- [ ] The emitter's two other gaps built, or each struck as a stated bound in `openapi.rs`'s module doc, and their records deleted: OAuth2 scopes per operation, which `Novis\Rest`'s grants read, and two routes of one verb that write one path template. `data/gaps/nvs-cli/oauth2-scopes-per-operation.json:1`, `data/gaps/nvs-cli/two-routes-that-write-one-template.json:1`
 
 ### 2. a Windows bundle carries the program's own version information and icon
 

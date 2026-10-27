@@ -1,0 +1,24 @@
+<?nvs
+// Shows a change that a minor release of a package may make.
+// Version `1.4.0` of `Cart::add` had no `$quantity` parameter. `nvs pkg diff` compares
+// version `1.4.0` with version `1.5.0` and prints this line:
+//     additive: Shop\Cart::add() — new optional parameter `$quantity`
+namespace Shop;
+
+final class Cart
+{
+    private int $count = 0;
+
+    // `$quantity` has a default value, so old calls still compile. Without the default
+    // value, the change is `breaking`, and `nvs pkg diff` exits with `1`.
+    public function add(string $name, int $quantity = 1): int
+    {
+        $this->count += $quantity;
+        return $this->count;
+    }
+}
+
+// The first call is written for version `1.4.0`. This prints `1` and then `4`.
+Cart $cart = new Cart();
+echo $cart->add('Lamp'), "\n";
+echo $cart->add('Chair', 3), "\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows a parameter type that a minor release may make wider.
+// In version `1.4.0`, `$id` was an `int`. `nvs pkg diff` compares it with this version
+// and prints this line:
+//     additive: Shop\Orders::find($id) — `type` changed from `int` to `int|string`, which is wider
+namespace Shop;
+
+final class Orders
+{
+    // Every `int` is still allowed, so old calls still compile. The other way, from
+    // `int|string` to `int`, is `breaking`.
+    public function find(int|string $id): string
+    {
+        return 'order ' . $id;
+    }
+}
+
+// The first call is written for version `1.4.0`. This prints `order 7` and then `order A-7`.
+Orders $orders = new Orders();
+echo $orders->find(7), "\n";
+echo $orders->find('A-7'), "\n";

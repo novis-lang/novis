@@ -1,6 +1,6 @@
 {
   "title": "From `0.1.0` on, a minor or patch release never breaks the public API of the release before it, and `nvs` checks that at publish without running code",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
@@ -8,6 +8,8 @@
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "routing/api-diff-fails-a-breaking-change"
   ],
-  "guardedBy": [],
-  "goal": "api-compat"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_api.rs",
+    "crates/nvs-cli/src/package/diff.rs"
+  ]
 }

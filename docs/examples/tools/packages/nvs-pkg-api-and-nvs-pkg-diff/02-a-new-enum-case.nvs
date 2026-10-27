@@ -1,0 +1,30 @@
+<?nvs
+// Shows why a new enum case needs a major release.
+// Version `1.4.0` of `Status` had no case `Paused`. `nvs pkg diff` compares it with this
+// version and prints this line:
+//     breaking: Shop\Status — new case `Paused`, which a `match` over every case does not cover
+namespace Shop;
+
+enum Status
+{
+    Open,
+    Paid,
+    Paused,
+}
+
+// This `match` lists every case, so it compiles. A `match` written for version `1.4.0`
+// has no arm for `Paused`, so it does not compile with this version.
+final class Labels
+{
+    public static function of(Status $status): string
+    {
+        return match ($status) {
+            Status::Open => 'open',
+            Status::Paid => 'paid',
+            Status::Paused => 'paused',
+        };
+    }
+}
+
+// This prints `paused`.
+echo Labels::of(Status::Paused), "\n";

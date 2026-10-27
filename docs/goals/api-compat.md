@@ -27,7 +27,7 @@ stages:
         rules: [packaging/only-a-major-may-break-the-api]
   - id: 4
     title: the version step decides, and the commands have their feature proofs
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md, docs/rules/packaging/below-1-0-the-breaking-slot-moves-left.md, crates/nvs-cli/src/package/manifest.rs]
     extra:
       context:
@@ -153,6 +153,19 @@ of each version. A package author loses the freedom to break a stable API in a m
 point. Simplicity: one check the user already expects from semantic versioning, applied by a tool
 rather than by convention.
 
+**The attack is a program, and the version step's attack is a Rust test.** A hostile case is a
+`.nvs` file the runner runs, so it cannot call `nvs pkg diff`. The attack writes one type many ways,
+and `a_type_written_many_ways_has_one_form` extracts it as a package and pins each type's one form.
+A minor that removes a method under a `--from`/`--to` or `package.toml` that tries to hide it is
+`the_version_step_decides_whether_a_break_fails` and `each_side_reads_its_version_from_package_toml`.
+Why: each claim is held by something that runs it, and a comment that only describes a command is
+not an attack.
+
+**The two OpenAPI emitter gaps moved to goal `first-packages`.** `oauth2-scopes-per-operation` and
+`two-routes-that-write-one-template` named this goal but are about `crates/nvs-cli/src/openapi.rs`,
+which this goal never touches. `first-packages`' stage 1 already edits that emitter and owns its
+`info-version` gap, and `Novis\Rest` reads OAuth2 scopes.
+
 **Lanes.** Every stage touches `crates/nvs-cli/src/package/`, so the stages run in order. Stage 1 edits
 the `Command` enum in `crates/nvs-cli/src/main.rs`, which goals `package-client` and `registry-log` also
 edit; stage 4 adds a heading to `docs/reference/tools/35-packages.md`, which goal `namespace-grants`
@@ -202,11 +215,11 @@ then a second the attack, each held to § *Text an end user reads* in `AGENTS.md
 
 - [x] `package/manifest.rs` reads `version` from each side's `package.toml`, and `--from` and `--to` replace it. `crates/nvs-cli/src/package/manifest.rs:1`
 - [x] `0.0.x` on either side is never checked, a major allows anything, and a minor or patch allows only additions; a test for each. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-cli/tests/package_api.rs:1`
-- [ ] The heading `# nvs pkg api and nvs pkg diff` in `docs/reference/tools/35-packages.md`, which says the guarantee is about shape only. `docs/reference/tools/35-packages.md:1`
-- [ ] The about page and the examples. `docs/examples/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/about.md:1`
-- [ ] The attack: a minor release that removes a method, with the version step trying to hide it, is refused. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-a-break-in-a-minor.nvs:1`
-- [ ] `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` owes nothing. `docs/reference/tools/35-packages.md:1`
-- [ ] `rule:packaging/only-a-major-may-break-the-api` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes api-compat` passes. `data/rules/packaging/only-a-major-may-break-the-api.json:3`
+- [x] The heading `# nvs pkg api and nvs pkg diff` in `docs/reference/tools/35-packages.md`, which says the guarantee is about shape only. `docs/reference/tools/35-packages.md:124`
+- [x] The about page and the examples. `docs/examples/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/about.md:1`
+- [x] The attack: one type written many ways, which the extraction writes in one form; a break in a minor that `--from`/`--to` tries to hide is `the_version_step_decides_whether_a_break_fails`. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-one-type-written-many-ways.nvs:1`
+- [x] `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` owes nothing. `docs/reference/tools/35-packages.md:124`
+- [x] `rule:packaging/only-a-major-may-break-the-api` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes api-compat` passes. `data/rules/packaging/only-a-major-may-break-the-api.json:3`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -225,20 +238,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 4's version step has landed. `nvs pkg diff <old> <new>
-[--from V] [--to V] [--json]` reads each directory side's `package.toml` `version`
-(`crates/nvs-cli/src/package/manifest.rs`, `version` alone), lets `--from`/`--to` replace it, and
-exits non-zero only when a change is breaking and `Step::allows_a_break` is false
-(`crates/nvs-cli/src/package/diff.rs`, § *The version step*). The text report's last line is the
-step sentence, such as "1.2.0 to 1.3.0 is a minor release, so no breaking change is allowed.";
-"no change" stays a line of its own. The JSON form adds `from`, `to`, `step` and `allowed`. The new
-standing decision records the edge cases.
+Stages 1 to 4 are done. Stage 4's last group landed the reference heading `# nvs pkg api and nvs
+pkg diff` at the end of `docs/reference/tools/35-packages.md` (its `<!-- src: -->` follows the
+section, as `25-server.md` does), the about page, three examples with `.out` files, and the attack
+`01-one-type-written-many-ways.nvs`. Four tests in `crates/nvs-cli/tests/package_api.rs` carry
+`// covers:`, one of them new: `a_type_written_many_ways_has_one_form`, which copies the attack into
+a temporary package and pins each type's form; it passed, run once. The rule's JSON is `shipped`
+with `guardedBy`. The two OpenAPI gaps this goal held moved to `first-packages` (standing decision).
+`website/public/llms-full.txt` is rendered. The proofs were small, so no subagent wrote them.
 
-Tests: `the_version_step_decides_whether_a_break_fails` (nine cases over `removed-method` and
-`new-class`), `each_side_reads_its_version_from_package_toml` (new fixture pair `versioned/`, `1.4.0`
-to `1.5.0`) and the unit test `a_version_is_three_plain_numbers`; the two existing diff tests were
-updated for the step line and the JSON keys. All of `--test package_api` passed, run once. Build,
-clippy and rustfmt are green.
+Green this session: `bun nv proofs --gate --only tools:packages/nvs-pkg-api-and-nvs-pkg-diff`,
+`bun nv proofs --run --id …` (3 examples, 1 attack), `bun nv proofs --comments` over both trees,
+`bun nv owners --closes api-compat`, `bun nv owners --check`, `bun nv rules --check`, `looper lint`,
+clippy with `-D warnings`, rustfmt on the test file.
 
 The acceptance sweep's reds were already fixed on disk: `env-secret-proofs`'s log shows exit 0, and
 the nightly run 40474302703 is on `55b03e97a`, before `22f1e4ec4`, `e461612ce` and `c33a8b8f7`,
@@ -246,25 +258,22 @@ which fix its three Miri jobs.
 
 Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
 (30 entries, not run), any proofs or help-text check that counts subcommands or pins `nvs pkg diff
---help`, and the about page's `.out` files once examples exist.
+--help`, the reference leg if it reads the new chapter's `text` fence, and `bun nv ci --check`'s
+website render for the changed chapter title.
 
 ### Next
 
-**Stage 4, second group: the reference heading and the proofs.** The session writes the heading
-first, since `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` reports "no feature"
-until it exists. Then, as the stage's `**Split:**` line says, one writing subagent writes the about
-page and three examples, and a second the attack, each held to § *Text an end user reads* in
-`AGENTS.md`. The grants feature beside it (`docs/examples/tools/packages/grants-what-each-namespace-may-do/`,
-`tests/hostile/tools/packages/grants-what-each-namespace-may-do/`) shows how a package-directory
-example and attack are laid out.
+**Stage 5, the gate.** Start `looper verify` with `run_in_background`, write nothing else, and end
+the turn. Group its failures by cause and fix them in one pass, then run it once more. Before
+`DONE`: `bun nv verify --doc`, `bun nv owners --closes api-compat` and `bun nv ci --check`, each red
+fixed. Then move each decision only this file's prose holds into `diff.rs`'s module doc or the rule,
+and delete the goal file.
 
-- [ ] The heading `# nvs pkg api and nvs pkg diff` after the grants chapter in `docs/reference/tools/35-packages.md`, with its `<!-- src: -->` naming `rule:packaging/only-a-major-may-break-the-api`, saying the guarantee is about shape only, and the version steps as `diff.rs` § *The version step* reads them. `docs/reference/tools/35-packages.md:10`
-- [ ] `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` lists what is owed; the about page and three examples by the first subagent. `docs/examples/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/about.md:1`
-- [ ] The attack by the second subagent: a minor release that removes a method, with `--from`/`--to` or `package.toml` trying to hide it, fails. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-a-break-in-a-minor.nvs:1`
-- [ ] The rule's JSON `shipped`, with `crates/nvs-cli/tests/package_api.rs`'s tests in `guardedBy`, then `bun nv owners --closes api-compat`. `data/rules/packaging/only-a-major-may-break-the-api.json:3`
+- [ ] `looper verify` once over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes api-compat`, `bun nv ci --check`. `docs/goals/api-compat.md:1`
 
 ### Backlog
 
-- `docs/reference/tools/35-packages.md` exists now (goal `namespace-grants`); stage 4 adds its heading `# nvs pkg api and nvs pkg diff` there. `docs/reference/tools/35-packages.md:1`
 - The registry calls `nvs pkg diff` at publish in goal `registry-service` (`docs/goals/registry-service.md`).
 - The website shows the API diff per version in goal `registry-website` (`docs/goals/registry-website.md`).
