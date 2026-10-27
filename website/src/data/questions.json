@@ -17832,7 +17832,7 @@
   },
   "/tools/formatter/": {
     "feature": "tools/formatter/index.mdx",
-    "hash": "879f4c97e849f6ad",
+    "hash": "aa6c8dd5a35a9cfa",
     "questions": [
       "How do I format my Novis code?",
       "Is there an automatic code formatter like gofmt or prettier?",
