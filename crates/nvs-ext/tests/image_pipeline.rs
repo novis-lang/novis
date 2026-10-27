@@ -463,6 +463,80 @@ fn auto_orient_false_keeps_the_stored_orientation() {
     block_on(request.end()).expect("the request ends");
 }
 
+/// The frame `name` from the fixtures opens as, through an empty plan.
+fn opened_raw(
+    request: &Request,
+    extension: &Extension,
+    name: &str,
+    orient: bool,
+    srgb: bool,
+) -> Vec<u8> {
+    run(
+        request,
+        extension,
+        opened(fixture(name), orient, srgb),
+        plan(Vec::new(), "Raw"),
+    )
+    .unwrap_or_else(|err| panic!("{name} decodes: {err:?}"))
+}
+
+#[test]
+fn an_avif_and_a_jpeg_xl_with_orientation_6_open_upright() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // The AVIF's `irot` box and the JPEG XL codestream's orientation field each say 6, so the
+    // stored 16 by 12 gradient, red at the top, opens 12 by 16 with red on the right.
+    for name in ["oriented.avif", "oriented.jxl"] {
+        let raw = opened_raw(&request, &extension, name, true, true);
+        assert_eq!(size_of(&raw), (12, 16), "{name}");
+        assert!(
+            is_red(pixel(&raw, 11, 0)),
+            "{name}: {:?}",
+            pixel(&raw, 11, 0)
+        );
+        assert!(
+            is_blue(pixel(&raw, 0, 15)),
+            "{name}: {:?}",
+            pixel(&raw, 0, 15)
+        );
+        let stored = opened_raw(&request, &extension, name, false, true);
+        assert_eq!(size_of(&stored), (16, 12), "{name}");
+        assert!(
+            is_red(pixel(&stored, 0, 0)),
+            "{name}: {:?}",
+            pixel(&stored, 0, 0)
+        );
+        assert!(
+            is_blue(pixel(&stored, 15, 11)),
+            "{name}: {:?}",
+            pixel(&stored, 15, 11)
+        );
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_avif_and_a_jpeg_xl_with_a_display_p3_profile_convert_to_srgb() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    // The middle row of the gradient is a purple inside both gamuts. Display P3's red is more
+    // saturated than sRGB's, so the same purple needs more red in sRGB. With `toSrgb` off, the
+    // pixel keeps the stored P3 values.
+    for name in ["oriented.avif", "oriented.jxl"] {
+        let raw = opened_raw(&request, &extension, name, false, false);
+        let converted = opened_raw(&request, &extension, name, false, true);
+        let (stored, srgb) = (pixel(&raw, 8, 6), pixel(&converted, 8, 6));
+        assert!(
+            u16::from(srgb[0]) >= u16::from(stored[0]) + 6,
+            "{name}: P3 {stored:?}, sRGB {srgb:?}"
+        );
+        assert_eq!(srgb[3], 255, "{name}");
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
 /// `cmyk.jpg`, red ink over blue ink stored as Adobe stores CMYK, with `cmyk_profile` embedded.
 fn cmyk_with_profile() -> Vec<u8> {
     with_icc(&fixture("cmyk.jpg"), &cmyk_profile())

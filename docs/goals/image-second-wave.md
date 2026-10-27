@@ -6,7 +6,7 @@ context: [docs/rules/core-classes/image-correct-by-default.md, docs/rules/core-c
 stages:
   - id: 1
     title: "an AVIF and a JPEG XL input open upright and in sRGB"
-    status: open
+    status: done
     context: [extensions/image/src/decode.rs, extensions/image/src/avif.rs, crates/nvs-ext/tests/image_pipeline.rs, extensions/image/fixtures/README.md]
   - id: 2
     title: "`Image::info` returns the `exif` fields a file carries"
@@ -125,11 +125,11 @@ and in sRGB, and each option set to `false` returns the raw frame.
 the standing decision says, and records each command in the README. It touches only
 `extensions/image/fixtures/`.
 
-- [ ] The fixtures: `oriented.avif`, `oriented.jxl` (orientation 6 and the P3 profile), `exif.png`, `exif.webp`, `exif.avif`, `exif.jxl`, and an animated `anim.gif`, `anim.png`, `anim.webp`, `anim.avif`, `anim.jxl` of three frames, each command in the README. `extensions/image/fixtures/README.md:1`
-- [ ] AVIF: `irot` and `imir` applied with `auto_orient`, and an ICC `colr` box converted through `srgb` with `to_srgb` (`rule:core-classes/image-correct-by-default`). `extensions/image/src/avif.rs:43`, `extensions/image/src/decode.rs:232`
-- [ ] JPEG XL: the codestream orientation applied, and the embedded profile converted through `srgb`; an XYB image with no profile asks `jxl-oxide` for sRGB output. `extensions/image/src/decode.rs:304`
-- [ ] The module doc's AVIF and JPEG XL sentences say what the code now does. `extensions/image/src/decode.rs:19`
-- [ ] Tests: each format opens upright and in sRGB, and each option set to `false` returns the raw frame, beside the JPEG case. `crates/nvs-ext/tests/image_pipeline.rs:427`
+- [x] The fixtures: `oriented.avif`, `oriented.jxl` (orientation 6 and the P3 profile), `exif.png`, `exif.webp`, `exif.avif`, `exif.jxl`, and an animated `anim.gif`, `anim.png`, `anim.webp`, `anim.avif`, `anim.jxl` of three frames, each command in the README. `extensions/image/fixtures/README.md:1`
+- [x] AVIF: `irot` and `imir` applied with `auto_orient`, and an ICC `colr` box converted through `srgb` with `to_srgb` (`rule:core-classes/image-correct-by-default`). `extensions/image/src/avif.rs:43`, `extensions/image/src/decode.rs:232`
+- [x] JPEG XL: the codestream orientation applied, and the embedded profile converted through `srgb`; an XYB image with no profile asks `jxl-oxide` for sRGB output. `extensions/image/src/decode.rs:304`
+- [x] The module doc's AVIF and JPEG XL sentences say what the code now does. `extensions/image/src/decode.rs:19`
+- [x] Tests: each format opens upright and in sRGB, and each option set to `false` returns the raw frame, beside the JPEG case. `crates/nvs-ext/tests/image_pipeline.rs:427`
 
 ### 2. `Image::info` returns the `exif` fields a file carries
 
@@ -209,24 +209,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `kamadak-exif` is already a dependency of the component. The fixtures
-directory holds still gradients only. `info` returns `exif` as `null` and `frames` as `1`. Every
-choice, stage 4's included, is settled in the standing decisions.
+Stage 1 is done. Every fixture of stages 1 to 3 is in `extensions/image/fixtures/`, each recorded
+in its README: `oriented.*`, `exif.*` (Make `Example`, Model `Camera One`, Orientation 1, Software
+`Novis fixtures`, DateTime `2024:01:02 03:04:05`, the same 130-byte block in all four) and
+`anim.*` (red, green, blue, 100 ms each). `oriented.jxl`'s orientation field was set by hand in its
+header, because no tool here writes it. `anim.avif` is a still primary item plus a `moov` track,
+and `anim.jxl` is a bare codestream. `exif.avif`'s item and `exif.jxl`'s box start with a 4-byte offset of 6, then `Exif\0\0`,
+then the TIFF header. `exif.webp` stores the bare block.
+
+An AVIF's `irot`, `imir` and `colr` are read by the box walk `Properties::read` in
+`extensions/image/src/avif.rs`. Stage 2's `Exif` item and stage 3's track can reuse `Boxes` and
+`find` there. JPEG XL converts an embedded RGB profile through the component's `srgb`, not
+`jxl-oxide`'s `moxcms` feature: that feature rendered Display P3 red as `(236, 117, 0)`.
+
+No test is expected red. The new tests passed once by name:
+`an_avif_and_a_jpeg_xl_with_orientation_6_open_upright` and
+`an_avif_and_a_jpeg_xl_with_a_display_p3_profile_convert_to_srgb`.
 
 ### Next
 
-**Stage 1: AVIF and JPEG XL upright and in sRGB**, one file set: `extensions/image/src/decode.rs`,
-`extensions/image/src/avif.rs`, `crates/nvs-ext/tests/image_pipeline.rs`, `extensions/image/fixtures/`.
+**Stage 2: `Image::info` returns the `exif` fields**, one file set: `extensions/image/src/info.rs`,
+`extensions/image/src/avif.rs` (the box walk, read only), `crates/nvs-ext/tests/image_decode.rs`.
 No gate.
 
-- [ ] The fixtures of stages 1 to 3, from one writing subagent, each command in the README. `extensions/image/fixtures/README.md:1`
-- [ ] AVIF `irot`, `imir` and ICC `colr` applied (`rule:core-classes/image-correct-by-default`). `extensions/image/src/avif.rs:43`
-- [ ] JPEG XL orientation and profile applied (`rule:core-classes/image-correct-by-default`). `extensions/image/src/decode.rs:304`
-- [ ] The module doc's AVIF and JPEG XL sentences. `extensions/image/src/decode.rs:19`
-- [ ] Tests for each format and each option set to `false`. `crates/nvs-ext/tests/image_pipeline.rs:427`
+- [ ] JPEG, PNG and WebP through `image`'s `exif_metadata`, AVIF's `Exif` item through `iinf` and `iloc` beside `Properties::read`, JPEG XL's `Exif` box, each into `Info::exif` as `kamadak-exif` names and prints it, MakerNote left out. `extensions/image/src/info.rs:31`, `extensions/image/src/info.rs:70`, `extensions/image/src/info.rs:101`
+- [ ] The module doc says what `exif` holds now. `extensions/image/src/info.rs:5`
+- [ ] Tests: the `exif.*` fixtures give the five fields, `gradient.png` gives `null`, and a malformed block built by the test is `Parse`. `crates/nvs-ext/tests/image_decode.rs:147`
 
 ### Backlog
 
-- Stage 2 can run beside stage 1 as a side goal on `info.rs`. `extensions/image/src/info.rs`
+- Stage 3 follows stage 2 on `info.rs`, with the `anim.*` fixtures. `extensions/image/src/info.rs:68`
 - Stages 4, 6 and 7 write the frame cost into the rules first. `docs/rules/core-classes/image-pixel-cap.md`
 - Stage 5 closes the rules. `docs/rules/core-api/tier-roster.md`

@@ -18,11 +18,14 @@
 //!
 //! **Auto-orient** (`rule:core-classes/image-correct-by-default`) applies the EXIF orientation to
 //! the formats `image` decodes, and resets the tag to `1` in the EXIF block `Pixels` carries, so a
-//! kept block does not turn the image a second time. AVIF and JPEG XL return their frame as
-//! `rav1d` and `jxl-oxide` give it, with no EXIF block.
+//! kept block does not turn the image a second time. An AVIF is turned by its `irot` and `imir`
+//! properties (`avif`'s module doc), and a JPEG XL by its codestream's orientation field. Neither
+//! carries an EXIF block in `Pixels`.
 //!
 //! **To sRGB** (`rule:core-classes/image-correct-by-default`) converts the pixels of an input whose
-//! embedded ICC profile is RGB or CMYK to sRGB through `moxcms`, for the formats `image` decodes. A
+//! embedded ICC profile is RGB or CMYK to sRGB through `moxcms`, for the formats `image` decodes.
+//! An AVIF's RGB `colr` profile and a JPEG XL's embedded RGB profile convert the same way. An XYB
+//! JPEG XL, or one with no profile, asks `jxl-oxide` for sRGB output, which needs no profile. A
 //! CMYK or YCCK JPEG with a CMYK profile is decoded to its raw channels through `zune-jpeg`, read
 //! as Adobe stores them (inverted, so `255` is no ink), and converted from ink amounts. Without
 //! the option, or without a profile, a CMYK JPEG gets `zune-jpeg`'s conversion, which multiplies
@@ -34,7 +37,7 @@ use std::io::Cursor;
 
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits, RgbaImage};
-use jxl_oxide::{JxlImage, PixelFormat};
+use jxl_oxide::{EnumColourEncoding, JxlImage, PixelFormat, RenderingIntent};
 use moxcms::{ColorProfile, DataColorSpace, Layout, TransformOptions};
 use zune_core::bytestream::ZCursor;
 use zune_core::colorspace::ColorSpace;
@@ -140,8 +143,8 @@ pub fn decode_page(
         return decode_with_image(data, known, cap, auto_orient, to_srgb);
     }
     match format {
-        Format::Jxl => decode_jxl(data, cap),
-        Format::Avif => crate::avif::decode(data, cap),
+        Format::Jxl => decode_jxl(data, cap, auto_orient, to_srgb),
+        Format::Avif => crate::avif::decode(data, cap, auto_orient, to_srgb),
         Format::Svg => crate::svg::decode(data, cap),
         _ => Err(Error::Invalid(format!(
             "{format:?} is not a format the image component decodes"
@@ -229,7 +232,7 @@ fn decode_with_image(
 /// The four-channel `pixels` converted from `profile` to sRGB RGBA8: RGBA for an RGB profile, ink
 /// amounts for a CMYK one, whose result is opaque. `None` when `moxcms` cannot connect the profile
 /// to sRGB.
-fn srgb(profile: &ColorProfile, pixels: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn srgb(profile: &ColorProfile, pixels: &[u8]) -> Option<Vec<u8>> {
     let transform = profile
         .create_transform_8bit(
             Layout::Rgba,
@@ -301,13 +304,39 @@ fn cmyk_jpeg(data: &[u8], profile: &ColorProfile) -> Result<Option<RgbaImage>, E
     Ok(RgbaImage::from_raw(width, height, rgba))
 }
 
-fn decode_jxl(data: &[u8], cap: u64) -> Result<Pixels, Error> {
+/// Decodes the JPEG XL `data`. `jxl-oxide` applies the codestream's orientation to every frame
+/// it renders, so without `auto_orient` the inverse turn is applied after it.
+fn decode_jxl(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result<Pixels, Error> {
     fn parse(err: impl std::fmt::Display) -> Error {
         Error::Parse(format!("the JPEG XL file does not parse: {err}"))
     }
-    let image = JxlImage::builder().read(Cursor::new(data)).map_err(parse)?;
+    let mut image = JxlImage::builder().read(Cursor::new(data)).map_err(parse)?;
     let (width, height) = (image.width(), image.height());
     check(u64::from(width), u64::from(height), cap)?;
+    // `jxl-oxide` renders an XYB image, or one with no profile, to sRGB itself. Any other image
+    // renders in its embedded profile, which converts below as the other formats' does.
+    let embedded = image.original_icc().is_some() && !image.image_header().metadata.xyb_encoded;
+    let profile = if to_srgb && embedded {
+        image
+            .original_icc()
+            .and_then(|raw| ColorProfile::new_from_slice(raw).ok())
+            .filter(|profile| profile.color_space == DataColorSpace::Rgb)
+    } else {
+        None
+    };
+    if to_srgb && !embedded {
+        match image.pixel_format() {
+            PixelFormat::Gray | PixelFormat::Graya => {
+                image.request_color_encoding(EnumColourEncoding::gray_srgb(
+                    RenderingIntent::Relative,
+                ));
+            }
+            PixelFormat::Rgb | PixelFormat::Rgba => {
+                image.request_color_encoding(EnumColourEncoding::srgb(RenderingIntent::Relative));
+            }
+            _ => {}
+        }
+    }
     let format = image.pixel_format();
     let color = match format {
         PixelFormat::Gray | PixelFormat::Graya => 1,
@@ -339,10 +368,35 @@ fn decode_jxl(data: &[u8], cap: u64) -> Result<Pixels, Error> {
         let a = if alpha { pixel[color] } else { 1.0 };
         rgba.extend_from_slice(&[byte(r), byte(g), byte(b), byte(a)]);
     }
+    drop(render);
+    if let Some(converted) = profile.and_then(|profile| srgb(&profile, &rgba)) {
+        rgba = converted;
+    }
+    let orientation = image.image_header().metadata.orientation;
+    if auto_orient || orientation == 1 {
+        return Ok(Pixels {
+            width,
+            height,
+            rgba,
+            exif: None,
+        });
+    }
+    // Orientations 6 and 8 turn by a quarter in opposite directions. Each other one undoes itself.
+    let inverse = match orientation {
+        6 => 8,
+        8 => 6,
+        other => other,
+    };
+    let rgba = RgbaImage::from_raw(width, height, rgba).expect("the frame is width by height");
+    let mut stored = DynamicImage::ImageRgba8(rgba);
+    if let Some(turn) = u8::try_from(inverse).ok().and_then(Orientation::from_exif) {
+        stored.apply_orientation(turn);
+    }
+    let stored = stored.into_rgba8();
     Ok(Pixels {
-        width,
-        height,
-        rgba,
+        width: stored.width(),
+        height: stored.height(),
+        rgba: stored.into_raw(),
         exif: None,
     })
 }

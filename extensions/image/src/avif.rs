@@ -15,6 +15,15 @@
 //! sampled at the nearest site. An unspecified matrix is read as BT.601. An alpha item is decoded
 //! the same way, its luma plane is the alpha, and a premultiplied image is divided back to
 //! straight alpha.
+//!
+//! **The primary item's properties are read by a box walk here**, because `avif-parse` skips
+//! them: `irot` and `imir`, which auto-orient applies in that order as MIAF fixes, and a `colr`
+//! box of type `prof` or `rICC`, whose RGB profile to sRGB converts through `moxcms`
+//! (`rule:core-classes/image-correct-by-default`). The walk reads only the `meta` box's `pitm`
+//! and `iprp`, each box bounded by its parent, and allocates only the primary item's list of
+//! property indices. A box that runs past its
+//! parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
+//! `imir` are the orientation browsers follow. Turning the frame holds a second frame beside it.
 
 use std::io::Cursor;
 use std::mem::MaybeUninit;
@@ -32,17 +41,28 @@ use rav1d::src::lib::{
     dav1d_open, dav1d_picture_unref, dav1d_send_data,
 };
 
+use image::{RgbaImage, imageops};
+use moxcms::{ColorProfile, DataColorSpace};
+
 use crate::Error;
-use crate::decode::{Pixels, check};
+use crate::decode::{Pixels, check, srgb};
 
 fn parse(what: impl std::fmt::Display) -> Error {
     Error::Parse(format!("the AVIF file does not parse: {what}"))
 }
 
 /// Decodes the AVIF file `data` to RGBA8, refusing one over `cap` pixels before a buffer exists.
-pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
+/// With `auto_orient`, the primary item's `irot` and `imir` are applied; with `to_srgb`, its RGB
+/// ICC profile is converted to sRGB.
+pub(crate) fn decode(
+    data: &[u8],
+    cap: u64,
+    auto_orient: bool,
+    to_srgb: bool,
+) -> Result<Pixels, Error> {
     let avif =
         avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
+    let properties = Properties::read(data)?;
     let meta = avif
         .primary_item_metadata()
         .map_err(|err| parse(format!("{err:?}")))?;
@@ -81,12 +101,210 @@ pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
             }
         }
     }
+    if to_srgb {
+        let profile = properties
+            .icc
+            .and_then(|raw| ColorProfile::new_from_slice(raw).ok())
+            .filter(|profile| profile.color_space == DataColorSpace::Rgb);
+        if let Some(converted) = profile.and_then(|profile| srgb(&profile, &rgba)) {
+            rgba = converted;
+        }
+    }
+    let mut image = RgbaImage::from_raw(width, height, rgba).expect("the frame is width by height");
+    if auto_orient {
+        image = match properties.quarter_turns {
+            1 => imageops::rotate270(&image),
+            2 => imageops::rotate180(&image),
+            3 => imageops::rotate90(&image),
+            _ => image,
+        };
+        match properties.mirror {
+            Some(0) => imageops::flip_horizontal_in_place(&mut image),
+            Some(_) => imageops::flip_vertical_in_place(&mut image),
+            None => {}
+        }
+    }
     Ok(Pixels {
-        width,
-        height,
-        rgba,
+        width: image.width(),
+        height: image.height(),
+        rgba: image.into_raw(),
         exif: None,
     })
+}
+
+/// The primary item's properties the decoder applies, borrowed from the file.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Properties<'a> {
+    /// `irot`'s angle: quarter turns anti-clockwise, `0` to `3`.
+    quarter_turns: u8,
+    /// `imir`'s axis: `0` mirrors left to right, `1` top to bottom.
+    mirror: Option<u8>,
+    /// The ICC profile of a `colr` box of type `prof` or `rICC`.
+    icc: Option<&'a [u8]>,
+}
+
+impl<'a> Properties<'a> {
+    /// Reads the primary item's properties off the `meta` box of the AVIF file `data`.
+    fn read(data: &'a [u8]) -> Result<Properties<'a>, Error> {
+        let mut found = Properties::default();
+        let Some(meta) = find(data, b"meta")? else {
+            return Ok(found);
+        };
+        let meta = full_box(meta)?.1;
+        let primary = match find(meta, b"pitm")? {
+            Some(pitm) => match full_box(pitm)? {
+                (0, body) => u32::from(be_u16(body, 0)?),
+                (_, body) => be_u32(body, 0)?,
+            },
+            None => return Ok(found),
+        };
+        let Some(iprp) = find(meta, b"iprp")? else {
+            return Ok(found);
+        };
+        let Some(ipco) = find(iprp, b"ipco")? else {
+            return Ok(found);
+        };
+        // Each `ipma` box lists, for each item, the 1-based indices into `ipco` of its properties.
+        for entry in Boxes(iprp) {
+            let (name, ipma) = entry?;
+            if name != b"ipma" {
+                continue;
+            }
+            for index in associations(ipma, primary)?.into_iter().flatten() {
+                let Some(entry) = Boxes(ipco).nth(usize::from(index) - 1) else {
+                    return Err(parse("an `ipma` index is past the end of `ipco`"));
+                };
+                match entry? {
+                    (b"irot", body) => found.quarter_turns = u8_at(body, 0)? & 3,
+                    (b"imir", body) => found.mirror = Some(u8_at(body, 0)? & 1),
+                    (b"colr", body) if matches!(body.get(..4), Some(b"prof" | b"rICC")) => {
+                        found.icc = Some(&body[4..]);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(found)
+    }
+}
+
+/// The property indices `ipma` associates with `item`, without the essential bit. Index `0`
+/// means no property and is left out.
+fn associations(ipma: &[u8], item: u32) -> Result<Option<Vec<u16>>, Error> {
+    let (version, body) = full_box(ipma)?;
+    let wide = ipma[3] & 1 == 1;
+    let count = be_u32(body, 0)?;
+    let mut at = 4;
+    for _ in 0..count {
+        let id = if version == 0 {
+            let id = u32::from(be_u16(body, at)?);
+            at += 2;
+            id
+        } else {
+            let id = be_u32(body, at)?;
+            at += 4;
+            id
+        };
+        let listed = usize::from(u8_at(body, at)?);
+        at += 1;
+        let mut indices = Vec::new();
+        for _ in 0..listed {
+            let index = if wide {
+                let index = be_u16(body, at)? & 0x7fff;
+                at += 2;
+                index
+            } else {
+                let index = u16::from(u8_at(body, at)? & 0x7f);
+                at += 1;
+                index
+            };
+            if index != 0 {
+                indices.push(index);
+            }
+        }
+        if id == item {
+            return Ok(Some(indices));
+        }
+    }
+    Ok(None)
+}
+
+/// The boxes of an ISO BMFF body, each as its type and its body. A box that runs past the end
+/// of the body is an `Err`, and ends the walk.
+struct Boxes<'a>(&'a [u8]);
+
+impl<'a> Iterator for Boxes<'a> {
+    type Item = Result<(&'a [u8; 4], &'a [u8]), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+        let entry = split_box(self.0);
+        self.0 = match &entry {
+            Ok((_, _, rest)) => rest,
+            Err(_) => &[],
+        };
+        Some(entry.map(|(name, body, _)| (name, body)))
+    }
+}
+
+/// A box's type, its body and the bytes after it.
+type Split<'a> = (&'a [u8; 4], &'a [u8], &'a [u8]);
+
+/// The first box of `data`, its body and the bytes after it.
+fn split_box(data: &[u8]) -> Result<Split<'_>, Error> {
+    let truncated = || parse("a box runs past the end of the box that contains it");
+    let size = be_u32(data, 0)?;
+    let name: &[u8; 4] = data
+        .get(4..8)
+        .and_then(|name| name.try_into().ok())
+        .ok_or_else(truncated)?;
+    let (header, size) = match size {
+        0 => (8, data.len()),
+        1 => {
+            let large = u64::from(be_u32(data, 8)?) << 32 | u64::from(be_u32(data, 12)?);
+            (16, usize::try_from(large).map_err(|_| truncated())?)
+        }
+        size => (8, size as usize),
+    };
+    if size < header || size > data.len() {
+        return Err(truncated());
+    }
+    Ok((name, &data[header..size], &data[size..]))
+}
+
+/// The body of the first box named `name` among the boxes of `data`.
+fn find<'a>(data: &'a [u8], name: &[u8; 4]) -> Result<Option<&'a [u8]>, Error> {
+    for entry in Boxes(data) {
+        let (found, body) = entry?;
+        if found == name {
+            return Ok(Some(body));
+        }
+    }
+    Ok(None)
+}
+
+/// A full box's version and the body after its version and flags.
+fn full_box(body: &[u8]) -> Result<(u8, &[u8]), Error> {
+    if body.len() < 4 {
+        return Err(parse("a box is shorter than its version and flags"));
+    }
+    Ok((body[0], &body[4..]))
+}
+
+fn u8_at(body: &[u8], at: usize) -> Result<u8, Error> {
+    body.get(at)
+        .copied()
+        .ok_or_else(|| parse("a box is shorter than its fields"))
+}
+
+fn be_u16(body: &[u8], at: usize) -> Result<u16, Error> {
+    Ok(u16::from_be_bytes([u8_at(body, at)?, u8_at(body, at + 1)?]))
+}
+
+fn be_u32(body: &[u8], at: usize) -> Result<u32, Error> {
+    Ok(u32::from(be_u16(body, at)?) << 16 | u32::from(be_u16(body, at + 2)?))
 }
 
 /// An open `rav1d` decoder, closed when it is dropped.
