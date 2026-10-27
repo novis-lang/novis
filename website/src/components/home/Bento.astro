@@ -2,15 +2,17 @@
 /**
  * A grid of features in cards of different sizes. Four cards hold a snippet,
  * passed in the named slots `conversion`, `unicode`, `json` and `tasks`; four
- * smaller cards are links with an icon. In every card the icon stands beside
+ * smaller cards are FeatureLink cards. In every card the icon stands beside
  * the heading, centred on it, and a long heading wraps beside the icon.
- * Twelve columns from 64rem, two from 40rem (a snippet card then takes the
- * full width), one below.
+ * A snippet card always takes the full width. From 64rem the four link cards
+ * share one row of twelve columns, between the first two snippet cards and
+ * the last two. From 40rem they are two to a row, after the snippet cards.
  */
 import { Icon } from '@astrojs/starlight/components'
 import Section from './Section.astro'
 import { withBase } from '~/lib/base'
 import Rich from './Rich.astro'
+import FeatureLink from './FeatureLink.astro'
 
 type Feature = { icon: string; title: string; text: string; href: string; more: string }
 
@@ -111,24 +113,7 @@ const links: Feature[] = [
         )
       })
     }
-    {
-      links.map((f) => (
-        <a class="cell link-cell nv-card-link nv-reveal" href={withBase(f.href)}>
-          <div class="cell-head">
-            <span class="nv-icon-tile">
-              <Icon name={f.icon as any} size="1.2rem" />
-            </span>
-            <h3>{f.title}</h3>
-          </div>
-          <p>
-            <Rich text={f.text} />
-          </p>
-          <span class="arrow" aria-hidden="true">
-            <Icon name="right-arrow" size="1.1rem" />
-          </span>
-        </a>
-      ))
-    }
+    {links.map((f) => <FeatureLink {...f} class="link-cell" />)}
   </div>
 </Section>
 
@@ -149,23 +134,15 @@ const links: Feature[] = [
     .bento {
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
-    .conversion {
-      grid-column: span 7;
-    }
-    .unicode {
-      grid-column: span 5;
-    }
     .json {
-      grid-column: span 5;
-      grid-row: 3;
+      grid-row: 4;
     }
     .tasks {
-      grid-column: span 7;
-      grid-row: 3;
+      grid-row: 5;
     }
-    .link-cell {
+    .bento > :global(.link-cell) {
       grid-column: span 3;
-      grid-row: 2;
+      grid-row: 3;
     }
   }
 
@@ -217,30 +194,5 @@ const links: Feature[] = [
   }
   .snippet :global(.expressive-code pre) {
     font-size: 0.78rem;
-  }
-  .link-cell {
-    text-decoration: none;
-    padding-block-end: var(--nv-space-6);
-  }
-  .arrow {
-    position: absolute;
-    inset-inline-end: var(--nv-space-4);
-    inset-block-end: var(--nv-space-3);
-    color: var(--nv-faint);
-    transition:
-      transform var(--nv-fast) var(--nv-ease),
-      color var(--nv-fast) var(--nv-ease);
-  }
-  .link-cell:hover .arrow {
-    color: var(--sl-color-text-accent);
-    transform: translateX(3px);
-  }
-  .link-cell:hover h3 {
-    color: var(--sl-color-text-accent);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .link-cell:hover .arrow {
-      transform: none;
-    }
   }
 </style>

@@ -608,7 +608,10 @@ starlight-tabs [role='tab']:active {
   border-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
   background: color-mix(in oklab, var(--nv-danger) 7%, var(--nv-code-bg));
 }
-[data-snippet-part='diagnostic'] .expressive-code .frame .header {
+/* The header's side edges are drawn by its ::before, so that is red too, or
+   the frame's edge breaks beside the title. */
+[data-snippet-part='diagnostic'] .expressive-code .frame .header,
+[data-snippet-part='diagnostic'] .expressive-code .frame .header::before {
   border-color: color-mix(in oklab, var(--nv-danger) 45%, var(--nv-hairline));
 }
 [data-snippet-part='diagnostic'] .expressive-code .frame .header .title {

@@ -1,0 +1,99 @@
+---
+/**
+ * A card that links to the page about one feature: an icon beside the title,
+ * centred on it, the text under both at the full width of the card, and an
+ * arrow in the bottom corner. A long title wraps beside the icon. The front
+ * page's fact strip and its grid of features both use it, so the two look
+ * the same.
+ *
+ * `heading` is the title's element: `h3` inside a section with an `h2`, and
+ * `span` where no heading comes before it.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import { withBase } from '~/lib/base'
+import Rich from './Rich.astro'
+
+interface Props {
+  icon: string
+  title: string
+  /** Inline markdown: `code` only. */
+  text: string
+  href: string
+  heading?: 'h3' | 'span'
+  class?: string
+}
+
+const { icon, title, text, href, heading: Heading = 'h3', class: className } = Astro.props
+---
+
+<a class:list={['feature-link nv-card-link nv-reveal', className]} href={withBase(href)}>
+  <span class="head">
+    <span class="nv-icon-tile">
+      <Icon name={icon as any} size="1.2rem" />
+    </span>
+    <Heading class="title">{title}</Heading>
+  </span>
+  <span class="text">
+    <Rich text={text} />
+  </span>
+  <span class="arrow" aria-hidden="true">
+    <Icon name="right-arrow" size="1.1rem" />
+  </span>
+</a>
+
+<style>
+  .feature-link {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-3);
+    min-width: 0;
+    height: 100%;
+    padding: var(--nv-space-5);
+    padding-block-end: var(--nv-space-6);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm);
+    text-decoration: none;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+  }
+  .title {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    font-weight: 750;
+    line-height: 1.3;
+    letter-spacing: -0.012em;
+    color: var(--sl-color-white);
+  }
+  .text {
+    font-size: var(--sl-text-sm);
+    line-height: 1.65;
+    color: var(--sl-color-gray-2);
+  }
+  .arrow {
+    position: absolute;
+    inset-inline-end: var(--nv-space-4);
+    inset-block-end: var(--nv-space-3);
+    color: var(--nv-faint);
+    transition:
+      transform var(--nv-fast) var(--nv-ease),
+      color var(--nv-fast) var(--nv-ease);
+  }
+  .feature-link:hover .arrow {
+    color: var(--sl-color-text-accent);
+    transform: translateX(3px);
+  }
+  .feature-link:hover .title {
+    color: var(--sl-color-text-accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .feature-link:hover .arrow {
+      transform: none;
+    }
+  }
+</style>
