@@ -70,8 +70,8 @@ fn a_top_level_statement_has_no_effect_on_the_extraction() {
 // covers: tools:packages/nvs-pkg-api-and-nvs-pkg-diff
 #[test]
 fn a_type_written_many_ways_has_one_form() {
-    let attack = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-        "../../tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-one-type-written-many-ways.nvs",
+    let attack = nvs_repo::path(
+        "tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-one-type-written-many-ways.nvs",
     );
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("package-api-one-type-many-ways");
     let _ = std::fs::remove_dir_all(&dir);

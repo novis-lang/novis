@@ -3,7 +3,7 @@
 
 # Packaging
 
-*26 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*25 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1163,7 +1163,7 @@ file is canonicalized and must lie under the package's directory (`crates/nvs-ty
 
 <a id="packaging-only-a-major-may-break-the-api"></a>
 
-## From `0.1.0` on, a minor or patch release never breaks the public API of the release before it, and `nvs` checks that at publish without running code  *(designed — owned by goal api-compat)*
+## From `0.1.0` on, a minor or patch release never breaks the public API of the release before it, and `nvs` checks that at publish without running code
 
 `rule:packaging/only-a-major-may-break-the-api`
 

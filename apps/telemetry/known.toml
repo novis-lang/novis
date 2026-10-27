@@ -26,6 +26,7 @@ commands = [
     "lsp",
     "lsp-test",
     "meta",
+    "pkg",
     "queue",
     "run",
     "schema",
