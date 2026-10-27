@@ -3613,7 +3613,7 @@ and a description.
 into the Windows event log, one record per line, the way the journal takes a unit's stderr under
 systemd: a boot warning, a refused configuration's diagnostic and `Core\Log` written to `stderr` all
 land where an administrator looks first, with nothing to configure. Beside them go a small, fixed set
-of lifecycle records — started, stopped, failed to start. Every record's text is its one insertion
+of lifecycle records — starting, started, stopped, failed to start. Every record's text is its one insertion
 string, and `nvs.exe` carries the message table that renders it
 ([`packaging/the-windows-binary-says-what-it-is`](packaging.md#packaging-the-windows-binary-says-what-it-is)). Without the table, Event Viewer heads each record
 with "the description for event id … cannot be found" and `Get-WinEvent` shows an empty `Message`.
@@ -3634,6 +3634,20 @@ becomes an event-log record, and its volume is the operator's choice, as it is u
   line the server prints. Nothing is spent per request unless the operator sends `Core\Log` to
   stderr.
 
+**`nvs service status` reads the last run back when the service is not running**, so a service that
+would not start says why where the operator asked. After the manager's state, which on Windows
+carries a stopped service's exit code, it prints the run's last 20 lines under `Last run:`. On
+Windows they are the warning and error records the service's source wrote since its last *starting*
+record, read newest first with `ReadEventLogW` until that record. The run starts at that record and
+not after the previous run's end, because a line from an unjoined reader thread can land after its
+own run's end record. On Linux they are `journalctl _SYSTEMD_INVOCATION_ID=<id> -o cat --no-pager
+-n 20`, for the id `systemctl show -p InvocationID --value` keeps after the run, both by argv with no
+shell ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). That is every line of the run: systemd stores a
+unit's stdout and stderr at one priority, so the journal cannot tell a warning apart. An account that
+may not read the journal gets no lines, and a log that cannot be read is one line saying so; the state
+is still the answer. A running service prints its state alone. A log written before the *starting*
+record existed has no run to find, and prints nothing.
+
 The event-log source is registered at install
 and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
 file, no granted ACL.
@@ -3644,6 +3658,11 @@ shim answers on the hosted process's behalf and can only say that the process ex
 the service's own, so only the service can report it.
 
 **Declined:**
+- **Reading the last run with `EvtQuery`.** It renders each record as XML or through a render
+  context to reach the event id and the text. `ReadEventLogW` gives both in the record itself and
+  walks newest first, so the read stops at the run's start.
+- **Ending the last run at the previous run's end record.** The stdout and stderr readers are not
+  joined, so a run's last line can land after its own end record and would read as a run of its own.
 - **Documenting NSSM or WinSW and shipping nothing.** A shim observes the process from outside, so a
   stop is a kill rather than a drain, and a Windows deployment would begin by downloading an unrelated
   binary.

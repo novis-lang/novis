@@ -1336,6 +1336,7 @@ dependencies = [
  "nvs-footprint",
  "nvs-render",
  "serde",
+ "sha1",
  "toml",
  "windows-sys 0.61.2",
 ]

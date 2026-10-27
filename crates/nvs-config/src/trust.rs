@@ -556,11 +556,10 @@ mod platform {
     use windows_sys::Win32::Security::{
         ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CheckTokenMembership, CreateWellKnownSid,
         DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetLengthSid, GetTokenInformation,
-        INHERIT_ONLY_ACE, LookupAccountNameW,
-        OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE,
-        SID_NAME_USE, TOKEN_QUERY, TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE, WinAnonymousSid,
-        WinAuthenticatedUserSid, WinBuiltinAdministratorsSid, WinBuiltinGuestsSid,
-        WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
+        INHERIT_ONLY_ACE, LookupAccountNameW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+        PSID, SECURITY_MAX_SID_SIZE, SID_NAME_USE, TOKEN_QUERY, TOKEN_USER, TokenUser,
+        WELL_KNOWN_SID_TYPE, WinAnonymousSid, WinAuthenticatedUserSid, WinBuiltinAdministratorsSid,
+        WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
         DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
