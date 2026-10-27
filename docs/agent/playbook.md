@@ -71,6 +71,16 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **`a_served_while_true_does_not_stall_a_second_connection_on_its_core` can fail under a loaded
+  full verify and pass alone.** The runaway's socket read EOF with no response head. One untested
+  theory: hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
+  (`crates/nvs-server/src/io.rs`), so a program past 30 s of wall time is closed with no answer. A
+  case at `body_idle` 100 ms and `cpu_time` 1 s passed without a fix. If it fails again, find which
+  socket closes and why before changing `nvs_server::io`.
+  `until: gone crates/nvs-cli/src/serve.rs:a_served_while_true_does_not_stall_a_second_connection_on_its_core`
+- **Git Bash rewrites a leading `/` argument into a Windows path.** `bun nv site --questions --stamp
+  /install/server/` arrived as `C:/Program Files/Git/install/server/` and stamped nothing. Prefix the
+  call with `MSYS_NO_PATHCONV=1`. `until: gone tools/nv/cmd/site.ts:--stamp`
 - **A frame's size on Windows is measured, never guessed from the source.** No frame-size tool
   works on an MSVC build, and a guess cost a 5-minute release run: an 8 KiB buffer in a function
   with one caller was not in its caller's frame. A temporary probe that prints the distance from

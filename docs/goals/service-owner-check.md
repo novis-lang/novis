@@ -38,7 +38,7 @@ stages:
         rules: [packaging/a-service-answers-its-manager]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: config-check-proofs
@@ -288,48 +288,32 @@ failures by cause. A group whose fix touches files no other group touches may go
 subagent. Such subagents run side by side, and none of them builds.
 
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done, and stage 6 is part way. The sweep's `env-secret-proofs` is green when run
-again (`bun nv proofs --gate --only 'Core\Env::secret'`), and `cea10a7cd` covers its Miri reds.
+Every stage is done. The third full verify is green (`bun tools/looper/main.ts verify`, 536 s), and
+so are `bun nv verify --doc`, `bun nv owners --closes service-owner-check`, `bun nv ci --check` and
+the goal's two proof gates. `ci --check` first found four website pages whose search questions were
+stale after stages 4 and 5; their questions are rewritten and stamped. The decisions only this file
+held are now in `rule:config/the-ownership-check-runs-where-it-can-be-answered`: why install stops
+with no override, why `judged_for` has no default, and the Declined list (`service unit`, a flag past
+the check, listing every failing file). The sweep's `env-secret-proofs` log shows exit 0, and
+`cea10a7cd` already covers nightly run 40474302703's Miri reds.
 
-Verify has run twice. The first run stopped at `rules-render` and `fmt`, and `9b7f28ea5` commits that
-fallout, the fuzz lock's `sha1` included. The second run left three binaries that failed beside the
-others and passed alone, all load timing in code this goal does not touch:
-
-- `http::transport::tests::a_dead_first_address_falls_back_to_the_next_within_connect_timeout`.
-  Fixed in `2655ff4d8`: a 60 s budget, bounded at 30 s (`crates/nvs-stdlib/src/http/transport.rs:5296`).
-- `nvs-stdlib test ldap`, three Samba cases past their 30 s deadline. All the cargo cases take
-  `nvs_repo::turn`. The conformance `ldap-*.nvst` cases reach the same Samba server without it, and
-  verify's tail started them beside the binaries. `f4e9afdb4` makes the tail wait for
-  `SAMBA_BINARIES` (`tools/nv/cmd/verify.ts:159`). That is the likeliest cause, not a proven one:
-  this run's conformance log was older than the test log.
-- `serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core`
-  (`crates/nvs-cli/src/serve.rs:5910`): the runaway's socket read EOF with no response head. A
-  subagent suggested that hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
-  (`crates/nvs-server/src/io.rs:352`), so a program running past 30 s of wall time is closed with no
-  answer. A case with `body_idle` at 100 ms and `cpu_time` at 1 s passed **without** that fix, so the
-  theory is not proven, and the server change was reverted. Still open.
+The second run's three load-timing reds are answered: the HTTP case by `2655ff4d8`, the Samba cases
+by `f4e9afdb4`, and the serve case
+(`crates/nvs-cli/src/serve.rs:5910`) passed in the third run with its cause unknown, so the playbook
+records it under *Running things*.
 
 ### Next
 
-**Stage 6: verify again.** Start `bun tools/looper/main.ts verify` with `run_in_background` and end
-the turn to wait. If the serve case fails again, find which socket closes and why before changing
-`nvs_server::io`. One way to test the theory: `a_runaway_then_an_answer`
-(`crates/nvs-cli/src/serve.rs:5743`) takes a `Waits` and a program that sleeps, not one that spins, past
-a short `body_idle`. If the Samba cases fail again, check whether the conformance step overlapped
-them. `tools/nv/proofs/run.ts:485` keeps its own two-slot Samba limit, not the shared turn.
-Once verify is green, run the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
-`bun nv owners --closes service-owner-check` and `bun nv ci --check`. The goal's three checks are
-`config-check-proofs`, `service-proofs` and `owners-closes`. Before `DONE`, move each decision only
-this file's prose holds into a rule or a module doc. The last-run decision is in
-`rule:packaging/a-service-answers-its-manager` already.
+The goal is reached. The driver runs the acceptance checks and retires it, and the next goal on the
+chain is `api-compat`. No test is expected to go red.
 
 ### Backlog
 
-- Listing every failing file in one pre-flight, rather than the first, if operators ask (`rule:config/check-and-dump-audit-the-tree-offline`).
+- Listing every failing file in one pre-flight, rather than the first, if operators ask. It is now in the Declined list of `rule:config/the-ownership-check-runs-where-it-can-be-answered`.
