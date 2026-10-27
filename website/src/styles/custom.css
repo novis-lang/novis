@@ -1,18 +1,24 @@
 /**
  * The Novis site theme.
  *
- * THREE brand colors and two neutral ends, in the palette block at the top of
- * :root. Every other color on the site is derived from them with color-mix()
- * or relative oklch(), so re-tinting the site is editing that one block. A
- * color literal belongs there and nowhere else, except the Display-P3 copy
- * of the three brand colors right below it.
+ * THREE brand colors, one interactive color and two neutral ends, in the
+ * palette block at the top of :root. Every other color on the site is derived
+ * from them with color-mix() or relative oklch(), so re-tinting the site is
+ * editing that one block. A color literal belongs there and nowhere else,
+ * except the Display-P3 copy of the palette right below it.
  *
  *   --nv-crimson  the logo's base color. Primary buttons, the start of the
  *                 signature gradient, brand moments. Never links or hovers.
- *   --nv-orange   the interactive color, the hue half way between crimson
- *                 and gold. Links, the current sidebar item and header area,
- *                 focus rings. Starlight's --sl-color-accent* scale is built
- *                 from it, so Starlight's own links, tabs and badges follow.
+ *   --nv-orange   the brand's second color, the hue half way between crimson
+ *                 and gold: the end of the signature gradient, call-to-action
+ *                 bands, a hovered card's glow, and "warn". Never links.
+ *   --nv-blue     the interactive color and "info", a blue turned toward
+ *                 cyan (hue 228) and away from violet. Links, the current
+ *                 sidebar item and header area, tabs, focus rings, and the
+ *                 wash of a box that shows something. Starlight's
+ *                 --sl-color-accent* and --sl-color-blue* scales are built
+ *                 from it, so Starlight's links, tabs, badges and note asides
+ *                 follow.
  *   --nv-gold     the highlight, used sparingly: <mark>, chips and count
  *                 badges, the table of contents' current-item marker. As a
  *                 fill it carries dark text; as text on the light theme it is
@@ -29,16 +35,21 @@
  * large headings, the header's hairline, a hovered card's border and call-to-
  * action bands, and never body text.
  *
- * Each theme lifts or darkens the brand colors by lightness alone, with
- * oklch(from …): the dark theme uses orange as drawn for borders and fills
- * and raises it to L 0.78 for text, the light theme darkens it to L 0.55 for
- * text and L 0.46 for text on an orange wash, and turns those two 8 degrees
- * toward crimson so they stay bright. The light theme also lifts crimson to
- * L 0.55. The color-mix() values in front of each @supports block are the
- * fallback for a browser without relative color syntax.
+ * Each theme lifts or darkens the palette by lightness alone, with
+ * oklch(from …): the dark theme uses blue as drawn for borders and fills and
+ * raises it to L 0.80 for text, the light theme darkens it to L 0.53 for text
+ * and L 0.44 for text on a blue wash. Orange is darkened for text on the
+ * light theme the same way, turned 8 degrees toward crimson so it stays
+ * bright, and the light theme lifts crimson to L 0.55. The color-mix() values
+ * in front of each @supports block are the fallback for a browser without
+ * relative color syntax.
  *
- * Status colors (ok, warn, danger, and the asides) are Starlight's own green,
- * orange, red and blue, so a "danger" in a signature matches a danger aside.
+ * A color carries one meaning: green is ok (it works, it is checked), blue is
+ * info and interaction, orange is warn, red is danger (an error, a stop), and
+ * gold is a highlight. A box or an icon tile picks one with data-tint (the
+ * --nv-tint section below). ok and danger are Starlight's own green and red,
+ * and Starlight's orange and blue scales are rebuilt from the palette, so a
+ * status matches the aside of the same meaning.
  *
  * Every token that carries text clears WCAG AA against the surface it is
  * painted on, in both themes: 4.5:1 for text, 3:1 for borders and icons that
@@ -55,6 +66,7 @@
   --nv-crimson: #b20038;
   --nv-orange: #ef6c01;
   --nv-gold: #ffb703;
+  --nv-blue: #11a7d7;
   --nv-ink: #0a0a0a;
   --nv-fog: #fafafa;
   --nv-ground: #111111;
@@ -107,11 +119,21 @@
   --sl-color-hairline-shade: var(--nv-hairline);
   --sl-color-bg-inline-code: var(--nv-code-bg);
 
-  /* Orange: -low is a dark fill, -accent draws borders and fills (6.3:1),
-     -high is link text (9:1 on the page). Fallback first. */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-orange) 42%, var(--nv-ink));
-  --sl-color-accent: var(--nv-orange);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 69%, white);
+  /* Blue: -low is a dark fill, -accent draws borders and fills (6.8:1),
+     -high is link text (10:1 on the page). Fallback first. Starlight's blue
+     scale is the same three steps, so a note aside is the site's blue. */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-blue) 40%, var(--nv-ink));
+  --sl-color-accent: var(--nv-blue);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-blue) 55%, white);
+  --sl-color-blue-low: var(--sl-color-accent-low);
+  --sl-color-blue: var(--sl-color-accent);
+  --sl-color-blue-high: var(--sl-color-accent-high);
+
+  /* Orange as Starlight's orange scale, so a caution aside is the site's
+     "warn": a dark fill, orange as drawn (6.1:1), and text (9:1). */
+  --sl-color-orange-low: color-mix(in oklab, var(--nv-orange) 42%, var(--nv-ink));
+  --sl-color-orange: var(--nv-orange);
+  --sl-color-orange-high: color-mix(in oklab, var(--nv-orange) 69%, white);
 
   /* Crimson for a button fill and for text; orange darkened to a fill under
      white text (5.2:1), in both themes; gold as text. The fill turns 8
@@ -125,7 +147,7 @@
 
   /* Gradient stops readable as large text on this ground (5.6:1, 7.4:1). */
   --nv-grad-a: var(--nv-crimson-text);
-  --nv-grad-b: var(--sl-color-accent-high);
+  --nv-grad-b: var(--sl-color-orange-high);
 
   /* Surfaces, hairlines, glass. */
   --nv-surface: color-mix(in oklab, var(--nv-fog) 4%, var(--nv-ground));
@@ -143,7 +165,9 @@
     0 8px 20px -6px color-mix(in oklab, black 55%, transparent);
   --nv-shadow-lg: 0 2px 4px color-mix(in oklab, black 30%, transparent),
     0 18px 40px -12px color-mix(in oklab, black 70%, transparent);
-  --nv-glow: 0 10px 30px -10px color-mix(in oklab, var(--sl-color-accent) 45%, transparent);
+  /* The glow under a hovered card is the brand's orange, the color of the
+     gradient border that comes with it. */
+  --nv-glow: 0 10px 30px -10px color-mix(in oklab, var(--nv-orange) 45%, transparent);
 
   /* Annotations beside something else: a comment in a signature, a count. */
   --nv-quiet: color-mix(in oklab, var(--sl-color-gray-3) 60%, var(--sl-color-accent-high));
@@ -154,18 +178,19 @@
      of the way in the light theme (3.9:1). */
   --nv-faint: color-mix(in oklab, var(--sl-color-gray-3) 50%, var(--sl-color-gray-4));
 
-  /* Semantics, from Starlight's status hues so they match the asides. */
+  /* Semantics, from Starlight's status scales so they match the asides. */
   --nv-ok: var(--sl-color-green);
+  --nv-info: var(--sl-color-text-accent);
   --nv-warn: var(--sl-color-orange);
   --nv-danger: var(--sl-color-red);
 
   /* The six tones a diagram draws its groups in (components/diagrams/).
      Each one clears 3:1 for a line and a dot on the page and on a card;
      the text beside a tone stays gray-1. Violet is Starlight's purple, the
-     one tone outside the brand's warm hues. */
+     one tone outside the palette. */
   --nv-tone-violet: var(--sl-color-purple);
   --nv-tone-crimson: var(--nv-crimson-text);
-  --nv-tone-orange: var(--sl-color-accent);
+  --nv-tone-orange: var(--nv-orange);
   --nv-tone-gold: var(--nv-gold-text);
   --nv-tone-green: var(--nv-ok);
   --nv-tone-blue: var(--sl-color-blue);
@@ -182,21 +207,24 @@
   --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ground) 72%, transparent);
 }
 
-/* The same three brand colors on a wide-gamut display: the lightness and
-   hue of the sRGB values above, with the extra chroma Display-P3 has room
-   for. Every color derived from them follows. */
+/* The same four colors on a wide-gamut display: the lightness and hue of
+   the sRGB values above, with the extra chroma Display-P3 has room for.
+   Every color derived from them follows. */
 @media (color-gamut: p3) {
   :root {
     --nv-crimson: oklch(0.485 0.215 15.7);
     --nv-orange: oklch(0.68 0.21 48);
     --nv-gold: oklch(0.825 0.19 79.9);
+    --nv-blue: oklch(0.68 0.15 228);
   }
 }
 
 @supports (color: oklch(from white l c h)) {
   :root {
-    --sl-color-accent-low: oklch(from var(--nv-orange) 0.3 calc(c * 0.45) h);
-    --sl-color-accent-high: oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h);
+    --sl-color-accent-low: oklch(from var(--nv-blue) 0.3 calc(c * 0.45) h);
+    --sl-color-accent-high: oklch(from var(--nv-blue) 0.8 calc(c * 0.75) h);
+    --sl-color-orange-low: oklch(from var(--nv-orange) 0.3 calc(c * 0.45) h);
+    --sl-color-orange-high: oklch(from var(--nv-orange) 0.78 calc(c * 0.7) h);
     --nv-crimson-fill: oklch(from var(--nv-crimson) 0.52 c h);
     --nv-crimson-text: oklch(from var(--nv-crimson) 0.66 c h);
     --nv-orange-fill: oklch(from var(--nv-orange) 0.55 0.172 calc(h - 8));
@@ -219,12 +247,16 @@
   --sl-color-black: var(--nv-fog);
   --sl-color-bg-inline-code: var(--nv-code-bg);
 
-  /* Orange as drawn is too light for text here (3:1), so -accent is the
-     orange fill, which is link text (5.1:1 on the page); -high is text on
-     an orange wash (7.6:1). */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-orange) 10%, var(--nv-fog));
-  --sl-color-accent: var(--nv-orange-fill);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-orange) 62%, black);
+  /* Blue as drawn is too light for text here (2.7:1), so -accent is blue
+     darkened to link text (4.9:1 on the page, 5.1:1 under white text);
+     -high is text on a blue wash (7.1:1). Orange's scale is the same: its
+     fill is text (5.1:1), and -high is text on an orange wash (7.6:1). */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-blue) 10%, var(--nv-fog));
+  --sl-color-accent: color-mix(in oklab, var(--nv-blue) 72%, black);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-blue) 58%, black);
+  --sl-color-orange-low: color-mix(in oklab, var(--nv-orange) 10%, var(--nv-fog));
+  --sl-color-orange: var(--nv-orange-fill);
+  --sl-color-orange-high: color-mix(in oklab, var(--nv-orange) 62%, black);
 
   --nv-crimson-fill: var(--nv-crimson);
   --nv-crimson-text: var(--nv-crimson);
@@ -241,8 +273,8 @@
   --nv-hairline-strong: color-mix(in oklab, var(--nv-ink) 20%, var(--nv-fog));
   --nv-glass: color-mix(in oklab, var(--nv-fog) 74%, transparent);
   --nv-glass-solid: var(--nv-fog);
-  --nv-wash: color-mix(in oklab, var(--nv-orange) 12%, transparent);
-  --nv-wash-soft: color-mix(in oklab, var(--nv-orange) 6%, transparent);
+  --nv-wash: color-mix(in oklab, var(--nv-blue) 12%, transparent);
+  --nv-wash-soft: color-mix(in oklab, var(--nv-blue) 6%, transparent);
   --nv-hover: color-mix(in oklab, var(--nv-ink) 5%, transparent);
 
   --nv-shadow-sm: 0 1px 2px color-mix(in oklab, var(--nv-ink) 8%, transparent);
@@ -258,21 +290,25 @@
   /* Starlight's light green, orange and red are fills; their -high steps are
      the ones that carry text on a light ground. */
   --nv-ok: var(--sl-color-green-high);
-  --nv-warn: var(--sl-color-orange-high);
+  --nv-warn: var(--sl-color-orange);
   --nv-danger: var(--sl-color-red-high);
+  --nv-tone-orange: var(--nv-orange-fill);
   --nv-tone-blue: var(--sl-color-blue-high);
   --nv-tone-violet: var(--sl-color-purple-high);
 
   --nv-code-bg: var(--nv-surface);
-  --nv-selection: color-mix(in oklab, var(--nv-orange) 22%, var(--nv-fog));
+  --nv-selection: color-mix(in oklab, var(--nv-blue) 22%, var(--nv-fog));
 
   --sl-color-backdrop-overlay: color-mix(in oklab, var(--nv-ink) 40%, transparent);
 }
 
 @supports (color: oklch(from white l c h)) {
   :root[data-theme='light'] {
-    --sl-color-accent-low: oklch(from var(--nv-orange) 0.95 calc(c * 0.1) h);
-    --sl-color-accent-high: oklch(from var(--nv-orange) 0.46 0.144 calc(h - 8));
+    --sl-color-accent-low: oklch(from var(--nv-blue) 0.95 calc(c * 0.15) h);
+    --sl-color-accent: oklch(from var(--nv-blue) 0.53 0.11 h);
+    --sl-color-accent-high: oklch(from var(--nv-blue) 0.44 0.1 h);
+    --sl-color-orange-low: oklch(from var(--nv-orange) 0.95 calc(c * 0.1) h);
+    --sl-color-orange-high: oklch(from var(--nv-orange) 0.46 0.144 calc(h - 8));
     /* Crimson lifted from L 0.49 to 0.55 for a brighter red that still
        carries white text and is text itself (5.3:1). */
     --nv-crimson-fill: oklch(from var(--nv-crimson) 0.55 c h);
@@ -1209,7 +1245,29 @@ a.nv-card:hover {
   color: var(--sl-color-text-accent);
 }
 
-/* A square tile for an icon in front of a heading. */
+/* What a box or an icon tile means, as data-tint on it or on any element
+   around it: ok for something that works or is checked, info for a fact,
+   warn for something to watch, danger for an error or a stop, highlight for
+   speed and other things to notice. --nv-tint is the meaning's text tone,
+   which clears 4.5:1 on the page and on a card in both themes; a wash or a
+   border mixes it with transparent. Without a tint, a box is info. */
+[data-tint='ok'] {
+  --nv-tint: var(--nv-ok);
+}
+[data-tint='info'] {
+  --nv-tint: var(--nv-info);
+}
+[data-tint='warn'] {
+  --nv-tint: var(--nv-warn);
+}
+[data-tint='danger'] {
+  --nv-tint: var(--nv-danger);
+}
+[data-tint='highlight'] {
+  --nv-tint: var(--nv-gold-text);
+}
+
+/* A square tile for an icon in front of a heading, in its tint. */
 .nv-icon-tile {
   display: inline-flex;
   flex-shrink: 0;
@@ -1218,9 +1276,9 @@ a.nv-card:hover {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: var(--nv-radius);
-  border: 1px solid color-mix(in oklab, var(--sl-color-accent) 30%, transparent);
-  background: var(--nv-wash);
-  color: var(--sl-color-text-accent);
+  border: 1px solid color-mix(in oklab, var(--nv-tint, var(--nv-info)) 30%, transparent);
+  background: color-mix(in oklab, var(--nv-tint, var(--nv-info)) 14%, transparent);
+  color: var(--nv-tint, var(--nv-info));
 }
 
 .sr-only {

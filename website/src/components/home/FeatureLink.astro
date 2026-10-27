@@ -7,7 +7,8 @@
  * the same.
  *
  * `heading` is the title's element: `h3` inside a section with an `h2`, and
- * `span` where no heading comes before it.
+ * `span` where no heading comes before it. `tint` is what the card's claim
+ * means, and colors its icon tile (custom.css, `data-tint`).
  */
 import { Icon } from '@astrojs/starlight/components'
 import { withBase } from '~/lib/base'
@@ -20,13 +21,14 @@ interface Props {
   text: string
   href: string
   heading?: 'h3' | 'span'
+  tint?: 'ok' | 'info' | 'warn' | 'danger' | 'highlight'
   class?: string
 }
 
-const { icon, title, text, href, heading: Heading = 'h3', class: className } = Astro.props
+const { icon, title, text, href, heading: Heading = 'h3', tint = 'info', class: className } = Astro.props
 ---
 
-<a class:list={['feature-link nv-card-link nv-reveal', className]} href={withBase(href)}>
+<a class:list={['feature-link nv-card-link nv-reveal', className]} href={withBase(href)} data-tint={tint}>
   <span class="head">
     <span class="nv-icon-tile">
       <Icon name={icon as any} size="1.2rem" />

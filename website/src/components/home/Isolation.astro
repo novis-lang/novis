@@ -2,7 +2,9 @@
 /**
  * Request isolation: the text on one side and a small drawing on the other.
  * The drawing shows four requests that run at the same time; one of them
- * goes over its memory limit and stops, and the other three finish.
+ * goes over its memory limit and stops, and the other three finish. Each
+ * point's icon tile is tinted as the drawing is: green for what keeps
+ * running, red for the request that stops.
  *
  * The drawing is a `Lanes` diagram (components/diagrams/), whose bars grow
  * as it scrolls into view.
@@ -21,9 +23,9 @@ const lanes = [
 ]
 
 const points = [
-  { icon: 'puzzle', text: 'Each request has its own memory and its own copy of every static property.' },
-  { icon: 'setting', text: 'You set limits for memory and time in `nvs.toml`. They apply to every request.' },
-  { icon: 'error', text: 'A request that uses more than a limit stops immediately. Only that request stops.' },
+  { icon: 'puzzle', tint: 'ok', text: 'Each request has its own memory and its own copy of every static property.' },
+  { icon: 'setting', tint: 'info', text: 'You set limits for memory and time in `nvs.toml`. They apply to every request.' },
+  { icon: 'error', tint: 'danger', text: 'A request that uses more than a limit stops immediately. Only that request stops.' },
 ]
 ---
 
@@ -40,7 +42,7 @@ const points = [
         {
           points.map((p) => (
             <li>
-              <span class="nv-icon-tile">
+              <span class="nv-icon-tile" data-tint={p.tint}>
                 <Icon name={p.icon as any} size="1.2rem" />
               </span>
               <span>

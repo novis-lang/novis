@@ -7,6 +7,8 @@
  * A snippet card always takes the full width. From 64rem the four link cards
  * share one row of twelve columns, between the first two snippet cards and
  * the last two. From 40rem they are two to a row, after the snippet cards.
+ * Each card's `tint` is what its claim means: its icon tile and, on a snippet
+ * card, the wash at the top take that color.
  */
 import { Icon } from '@astrojs/starlight/components'
 import Section from './Section.astro'
@@ -14,11 +16,13 @@ import { withBase } from '~/lib/base'
 import Rich from './Rich.astro'
 import FeatureLink from './FeatureLink.astro'
 
-type Feature = { icon: string; title: string; text: string; href: string; more: string }
+type Tint = 'ok' | 'info' | 'warn' | 'danger' | 'highlight'
+type Feature = { icon: string; tint: Tint; title: string; text: string; href: string; more: string }
 
 const code: Record<'conversion' | 'unicode' | 'json' | 'tasks', Feature> = {
   conversion: {
     icon: 'approve-check',
+    tint: 'ok',
     title: 'Every conversion is checked',
     text: '`as int` throws an error when the text is not a whole number. `as ?int` gives `null`, and your code decides what happens next.',
     href: '/guides/why-novis/checked-conversions/',
@@ -26,6 +30,7 @@ const code: Record<'conversion' | 'unicode' | 'json' | 'tasks', Feature> = {
   },
   unicode: {
     icon: 'comment',
+    tint: 'info',
     title: 'Text as people read it',
     text: '`Core\\Str` counts the characters a person sees. An accent or an emoji stays whole.',
     href: '/guides/why-novis/unicode-strings/',
@@ -33,6 +38,7 @@ const code: Record<'conversion' | 'unicode' | 'json' | 'tasks', Feature> = {
   },
   json: {
     icon: 'forward-slash',
+    tint: 'info',
     title: 'JSON in one line',
     text: '`Core\\Json::encode` writes a shape, a list, a string or any other value as JSON. A shape keeps its keys in the order you write them.',
     href: '/reference/core/json/',
@@ -40,6 +46,7 @@ const code: Record<'conversion' | 'unicode' | 'json' | 'tasks', Feature> = {
   },
   tasks: {
     icon: 'random',
+    tint: 'highlight',
     title: 'Jobs that run at the same time',
     text: '`Core\\Task::all` runs several functions at the same time. Each result has its own name and its own type.',
     href: '/syntax/concurrency/tasks/',
@@ -50,6 +57,7 @@ const code: Record<'conversion' | 'unicode' | 'json' | 'tasks', Feature> = {
 const links: Feature[] = [
   {
     icon: 'document',
+    tint: 'ok',
     title: 'HTML that escapes itself',
     text: 'An `html` template escapes every value in it. A comment from a user is shown as text.',
     href: '/guides/why-novis/html-escapes/',
@@ -57,6 +65,7 @@ const links: Feature[] = [
   },
   {
     icon: 'list-format',
+    tint: 'info',
     title: 'Typed JSON',
     text: '`Core\\Json::decodeAs` reads JSON into an object of your class and checks every property.',
     href: '/guides/why-novis/typed-json/',
@@ -64,6 +73,7 @@ const links: Feature[] = [
   },
   {
     icon: 'information',
+    tint: 'ok',
     title: 'Null is checked',
     text: 'A `User` is never `null`. Only a `?User` can be. The compiler checks every place that uses it before the program runs.',
     href: '/guides/why-novis/no-null-surprises/',
@@ -71,6 +81,7 @@ const links: Feature[] = [
   },
   {
     icon: 'error',
+    tint: 'danger',
     title: 'Errors with a default',
     text: '`catch` after a call gives a default value when the call throws an error.',
     href: '/guides/why-novis/simple-errors/',
@@ -90,7 +101,7 @@ const links: Feature[] = [
       (['conversion', 'unicode', 'json', 'tasks'] as const).map((key) => {
         const f = code[key]
         return (
-          <article class:list={['cell code-cell nv-reveal', key]}>
+          <article class:list={['cell code-cell nv-reveal', key]} data-tint={f.tint}>
             <div class="cell-head">
               <span class="nv-icon-tile">
                 <Icon name={f.icon as any} size="1.2rem" />
@@ -160,7 +171,7 @@ const links: Feature[] = [
   }
   .code-cell {
     background:
-      linear-gradient(180deg, var(--nv-wash-soft), transparent 45%),
+      linear-gradient(180deg, color-mix(in oklab, var(--nv-tint) 7%, transparent), transparent 45%),
       var(--nv-surface);
   }
   .cell-head {
