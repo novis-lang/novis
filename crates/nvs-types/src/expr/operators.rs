@@ -132,7 +132,7 @@ pub(crate) fn infer_conversion(
     }
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
-    reject_computed_markup_conversion(inner, result, expr.span, env);
+    reject_computed_markup_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     reject_impossible_class_reference_conversion(inner, result, expr.span, ctx, env);
     check_property_key_conversion(inner, ty, result, expr.span, env);

@@ -218,6 +218,49 @@ fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed()
     );
 }
 
+/// The help line of the one `E0417` `body` reports.
+fn markup_help(body: &str) -> String {
+    let diags = check_in_method(body);
+    let found = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_MARKUP_NEEDS_WRITTEN_STRING))
+        .unwrap_or_else(|| panic!("no E0417: {diags:?}"));
+    found
+        .notes
+        .iter()
+        .find(|n| n.starts_with("help: "))
+        .cloned()
+        .unwrap_or_else(|| panic!("E0417 has no help: {found:?}"))
+}
+
+#[test]
+fn markup_conversion_help_follows_what_the_operand_can_hold() {
+    // The refusal is the same for every operand; the help is the repair that
+    // fits it. An operand that can hold a `Markup` object needs an `is` test,
+    // one that is a `Markup` needs no conversion, and only a string is told to
+    // build or escape the markup.
+    let mixed = markup_help(
+        "mixed $v = 1;\n\
+         Core\\Html\\Markup $m = $v as Core\\Html\\Markup;\n",
+    );
+    assert!(mixed.contains("is Core\\Html\\Markup"), "{mixed}");
+    let nullable = markup_help(
+        "?Core\\Html\\Markup $v = null;\n\
+         Core\\Html\\Markup $m = $v as Core\\Html\\Markup;\n",
+    );
+    assert!(nullable.contains("is Core\\Html\\Markup"), "{nullable}");
+    let same = markup_help(
+        "Core\\Html\\Markup $v = \"<b>x</b>\" as Core\\Html\\Markup;\n\
+         Core\\Html\\Markup $m = $v as Core\\Html\\Markup;\n",
+    );
+    assert!(same.contains("Remove `as Core\\Html\\Markup`"), "{same}");
+    let text = markup_help(
+        "string $s = \"literal\";\n\
+         Core\\Html\\Markup $m = $s as Core\\Html\\Markup;\n",
+    );
+    assert!(text.contains("strings written in the code"), "{text}");
+}
+
 // `rule:security/launderer-answers-a-carrier`: the escaped value is a carrier, and the two halves of that which
 // cannot be read off a registry row. `Core\Html::escape`'s return type is a
 // signature and `nvs-stdlib` asserts it; these are claims about the *language*

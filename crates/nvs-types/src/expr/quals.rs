@@ -793,8 +793,14 @@ pub(crate) fn reject_secret_markup_conversion(
 /// resolves to `Core\Html\Markup`; every other target is untouched. The rest
 /// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
 /// waits on `Core\Html` actually existing as a stdlib class.
+///
+/// The help follows the operand's type `inner_ty`. An operand that is already
+/// a `Markup` needs no conversion, and one that can hold a `Markup` object
+/// (`mixed`, `?Markup`, `object`, a union) needs an `is` test, which narrows
+/// it. Only an operand that cannot be one is told to build or escape it.
 pub(crate) fn reject_computed_markup_conversion(
     inner: &Expr,
+    inner_ty: TypeId,
     to: TypeId,
     span: Span,
     env: &mut Env<'_>,
@@ -808,6 +814,16 @@ pub(crate) fn reject_computed_markup_conversion(
     if is_literal_string(inner) {
         return;
     }
+    let help = if inner_ty == to {
+        "the value is already a `Core\\Html\\Markup`. Remove `as Core\\Html\\Markup`"
+    } else if members::can_hold_an_object(inner_ty, env.interner)
+        && !operators::types_are_disjoint(inner_ty, to, env)
+    {
+        "if the value can already be a `Core\\Html\\Markup` object, test it with \
+         `is Core\\Html\\Markup`. That test narrows the value to `Markup`"
+    } else {
+        "build the markup from strings written in the code, or escape the value with a `Core\\Html` method"
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_MARKUP_NEEDS_WRITTEN_STRING,
@@ -815,7 +831,7 @@ pub(crate) fn reject_computed_markup_conversion(
              computed or `tainted` value cannot become trusted markup this way",
         )
         .with_primary(span, "converted here")
-        .with_help("build the markup from strings written in the code, or escape the value with a `Core\\Html` method"),
+        .with_help(help),
     );
 }
 
