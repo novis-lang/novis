@@ -104,10 +104,19 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `8a2010e41`. Its push run 40527872659 (37 jobs) and its Website run
-40527872398 are green. It carries `6178594a4`, the cancelled-run handling of `bun nv ci`. Before
-the watch, `bun nv site --check stale questions` and `bun nv proofs --gate --limit 0` were clean at
-`HEAD`. The local `main` is six `nvs-fmt` commits ahead, out with the next goal end.
+`origin/main` is at `55b2d517c`. The goal end's push of `b25ee8fe0` was refused: a cores chart
+edit staled `/in-depth/compare/`'s questions. `55b2d517c` rewrote one question, and this session
+pushed with `bun nv ci --push`. Its Website run 40598154468 is green. Its CI run 40598154485 is red
+in two causes, both fixed by the main loop's unpushed `b8ced0fcc`:
+
+- `docs`: `docs/rules/packaging.md` and `docs/ground-rules.md` were not rendered.
+- All four `test` jobs: `telemetry::tests::the_collectors_known_lists_name_everything_this_client_sends`,
+  `known.toml lacks command \`pkg\``. Each job has that one failed test.
+
+The run before, on `1ffcfe21a`, failed `nvs-fmt`'s identity test on `examples/cli.nvs` and
+`examples/reflect.nvs`. `bb77e40b2` fixed it, and `55b2d517c`'s run passed it.
+
+The next watch runs with `--next`, so the red run on `55b2d517c` does not end it at once.
 
 `proofs / windows-x86_64` once hung in `Post Run actions/checkout` until the 1h30 job limit, and
 a rerun went green. Earlier runs spend 3 s in that step. A second such hang is not noise: look for
