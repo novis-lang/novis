@@ -20,7 +20,7 @@ stages:
         rules: [routing/a-bad-query-value-is-a-400, errors/ambiguous-input-refused]
   - id: 3
     title: "the binding has its feature proofs, and the rule is shipped"
-    status: open
+    status: done
     context: [docs/rules/routing/a-bad-query-value-is-a-400.md, data/rules/routing/a-bad-query-value-is-a-400.json, docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/rules/testing/feature-proofs.md]
     extra:
       context:
@@ -95,6 +95,12 @@ handed on. The thunk takes the parameters before the bag and forwards the call a
 omits the bag does. That adds no diagnostic and no language rule, so the surface stays simpler than a
 checker refusal; a caller cannot pass a bag through the reference. The cost is nothing at run time.
 
+**A reference to a `Core` member with a required shape is `E0793`.** `Core\Db::open`'s settings
+shape has no default, so a thunk has nothing to pass for it, and the same panic would remain. It
+joins `inout` and a variadic tail under the existing refusal, so no new code is added.
+`nvs_types::method_ref_arity` is the one count of what a reference forwards. The checker's callable
+type and the thunk both read it, so the two arities cannot disagree.
+
 ## Stages
 
 ### 1. `dispatch` fills a `#[Query]` parameter from the query string
@@ -128,11 +134,11 @@ session checks both and writes the rule flip.
 - [x] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`; it is written in the feature's `details.md`, which `bun nv render` turns into the chapter. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/details.md:19`
 - [x] The rule's "path half is built" paragraph rewritten to the present, and the record `shipped` (`rule:routing/a-bad-query-value-is-a-400`). `docs/rules/routing/a-bad-query-value-is-a-400.md:20`, `data/rules/routing/a-bad-query-value-is-a-400.json:3`
 - [x] `examples/parses.nvs` binds `#[Core\Query] Slug $tag` through `Core\Router::dispatch`, and no comment says the binding is missing. `examples/parses.nvs:52`
-- [ ] A callable reference to a `Core` member with an options bag lowers instead of panicking, and its gap record is deleted (see Standing decisions). `crates/nvs-ir/src/lower/anon_fn.rs:673`, `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
-  - [ ] The thunk's parameters stop before the bag, and its forwarded call passes the bag's defaults the way a direct call that omits the bag does. `crates/nvs-ir/src/lower/call.rs:203`
-  - [ ] `crates/nvs-ir/tests/query_sites.rs` gains the case where the thunk passes the zero site id. `crates/nvs-ir/tests/query_sites.rs:1`
-  - [ ] A conformance case calls `Core\Str::split(...)` through the reference. `tests/conformance/core/a-callable-reference-to-a-member-with-options-uses-the-defaults.nvst:1`
-  - [ ] The gap record is deleted, and `bun nv owners --closes query-binding` exits 0. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
+- [x] A callable reference to a `Core` member with an options bag lowers instead of panicking, and its gap record is deleted (see Standing decisions). `crates/nvs-ir/src/lower/anon_fn.rs:673`, `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
+  - [x] The thunk's parameters stop before the bag, and its forwarded call passes the bag's defaults the way a direct call that omits the bag does. `crates/nvs-ir/src/lower/call.rs:203`
+  - [x] `crates/nvs-ir/tests/query_sites.rs` gains the case where the thunk passes the zero site id. `crates/nvs-ir/tests/query_sites.rs:1`
+  - [x] A conformance case calls `Core\Str::split(...)` through the reference. `tests/conformance/core/a-callable-reference-to-a-member-with-options-uses-the-defaults.nvst:1`
+  - [x] The gap record is deleted, and `bun nv owners --closes query-binding` exits 0. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -151,37 +157,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done, and stage 3's proofs have landed. The route-table feature has example 07
-(a required `'name'|'price'` and an optional `uint` query parameter, `200` and `400`) and the attack
-`02-a-query-value-that-does-not-convert.nvs` (4200 bad targets, each a `400` with the method not run).
-`about.md` says it in one sentence, because its bound is 200 words. `details.md` lists the four
-`400` cases. `bun nv render` and `bun nv render --website` wrote the chapter and `llms-full.txt`.
-`examples/parses.nvs` binds `#[Core\Query] Slug $tag` through `dispatch`. The rule is `shipped`. The
-attributes chapter's seven perf records were re-recorded, because the chapter changed. Their counts
-match the old records. The clock figures are noise from a loaded machine, and the clock decides
-nothing. `bun nv proofs --gate` over the chapter's nine features owes nothing.
+Stages 1, 2 and 3 are done. The last stage 3 item landed in `6171124eb`. A method reference to a
+`Core` member stops before its options bag. The checker types `Core\Str::split(...)` as
+`callable(string, string): array<string>`, and the thunk passes each option's default through
+`Lowering::lower_default_arg`, as a direct call that omits the bag does. `nvs_types::method_ref_arity`
+(`crates/nvs-types/src/expr/calls.rs`) is the one count both read. A required `Core` shape, such as
+`Core\Db::open`'s settings, is now `E0793`, with its card and help text widened. The gap record and its
+playbook trap are deleted. `bun nv owners --closes query-binding` exits 0.
 
-A bad percent escape such as `%zz` reaches a `string` parameter as the literal text, with `200`: the
-query parser is lenient, the same as `Core\Request::query()`. Invalid UTF-8 after decoding is a
-`400`. The attack sends bad escapes only to the `uint` parameter. No rule claims otherwise.
+`f3623661a` fixed the user's two CI reds. `Core\Router\Refusal`'s `about.md` was 201 words, and its
+rows are shorter now. `syntax/attributes/routes.mdx` names the query `400`, and the page and the
+questions of `/reference/types/router-refusal/` and `/syntax/attributes/routes/` are restamped.
+`bun nv ci --check` is green on every line.
 
-`bun nv owners --closes query-binding` still names the options-bag gap, the last stage 3 item.
+The sweep's reds are not this tree's. `env-secret-proofs` passes when rerun. The nightly run
+40291801939 tested `d6f13175`, 222 commits back. Its failures were already fixed on main: the
+yanked `crypto-bigint` in `c244b4b36`, the counted-run test in `9c8b0fe16` and `e384a0ae8`, and the
+Linux dap hang in `d44a2343e`, `b4bdd3af6`, `0288e849d` and `c7f684405`.
+
+`cargo test --test query_sites` passes. The whole conformance tree ran once, and two image cases are red:
+`tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst` and
+`tests/conformance/novis/image-each-adjustment-changes-the-pixels-it-should.nvst`. This goal does
+not touch the image code.
 
 ### Next
 
-**Stage 3's last item**, by the standing decision: the thunk passes the bag's defaults. First check
-what type the checker gives `Core\Str::split(...)`. If that closure type includes the bag as a
-parameter, the thunk's arity must match it, so drop the bag there too
-(`crates/nvs-types/src/expr/calls.rs`, grep `first_class`/`callable`).
+**Stage 4, the gate.** Start `bun nv affected --run` with `run_in_background`, then end the turn to
+wait. Group the failures by cause, and fix them in one pass.
 
-- [ ] The thunk's parameters stop before a `CheckedTy::CoreShape` parameter, and the forwarded call passes the bag's defaults as a direct call that omits the bag does. `crates/nvs-ir/src/lower/anon_fn.rs:673`, `crates/nvs-ir/src/lower/call.rs:203`, `crates/nvs-ir/src/lower/mod.rs:5165`
-- [ ] `crates/nvs-ir/tests/query_sites.rs` gains the thunk case with the zero site id. `crates/nvs-ir/tests/query_sites.rs:1`
-- [ ] A conformance case calls `Core\Str::split(...)` through the reference. `tests/conformance/core/a-callable-reference-to-a-member-with-options-uses-the-defaults.nvst:1`
-- [ ] The gap record is deleted, and `bun nv owners --closes query-binding` exits 0. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
-
-Then set stage 3 `done`.
+- [ ] `bun nv affected --run` has run once over the whole goal. `tools/nv/cmd/verify.ts:1`
+- [ ] The two image cases above: run each alone first. If they are red on main without this goal, they belong to `image-second-wave`. Otherwise fix them here. `tests/conformance/novis/image-composite-draws-an-overlay-pipeline.nvst:1`
+- [ ] A test that pins the `E0793` card or help text may go red, because both changed. Update it to the new text. `crates/nvs-diagnostics/src/code/types_e07.rs:1588`
+- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes query-binding` and `bun nv ci --check`. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
-- Stage 4's gate. The Rust suites of `nvs-types`, `nvs-runtime`, `nvs-stdlib` and `nvs-ir`, and the
-  `examples` test over `examples/parses.nvs`, should stay green. No test is expected to go red.
+- The Rust suites of `nvs-types`, `nvs-runtime`, `nvs-stdlib` and `nvs-ir`, and the `examples` test
+  over `examples/parses.nvs`, should stay green. The only tests expected to go red are a pin of
+  `E0793`'s text and the two image cases above.
+- `bun nv suite <tree> --case <path>` ran the whole tree. Check whether that is intended before you
+  rely on it to run one case.
