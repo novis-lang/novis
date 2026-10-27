@@ -970,8 +970,10 @@ const REFUSAL_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "BadCapture",
-            desc: "A value in the path cannot be converted to the type of its parameter. For \
-                   example, the `parse` method of its class threw an error. The status is `400`.",
+            desc: "A value in the path or in the query string cannot be converted to the type of \
+                   its parameter. For example, the `parse` method of its class threw an error. A \
+                   required query key that is missing, or a query key that is written twice, \
+                   gives this case too. The status is `400`.",
         },
     ],
 };
@@ -2568,7 +2570,8 @@ mod refusal {
     pub(super) const CSRF: i64 = 4;
     /// The door refused a declared body over its cap.
     pub(super) const BODY_TOO_LARGE: i64 = 5;
-    /// A capture did not convert to its parameter's type.
+    /// A capture or a `#[Query]` value did not convert to its parameter's
+    /// type, or a query key was absent, repeated or a list.
     pub(super) const BAD_CAPTURE: i64 = 6;
 }
 
@@ -2627,7 +2630,10 @@ nvs_runtime::nvs_helper! {
     /// [`MATCH`] `Core\Request::route()` returns ([`match_value`]). Building
     /// it converts every capture, so a capture that throws while it converts
     /// is the `400`, and `refused` is told `null` for the route, because there
-    /// is no match to hand it. Then `allows`, then the handler, then `failed`
+    /// is no match to hand it. Then each `#[Query]` parameter converts
+    /// ([`query_values`]), and a value that does not, a required key that is
+    /// absent and a key written twice are the same `400`, told the match
+    /// (`rule:routing/a-bad-query-value-is-a-400`). Then `allows`, then the handler, then `failed`
     /// with the handler's throw, or `refused` with `BodyTooLarge` where a body
     /// read stopped at `[limits] request_body` before it
     /// ([`nvs_runtime::Inbound::body_too_large`]). A handler that returns instead hands its value
@@ -2637,14 +2643,15 @@ nvs_runtime::nvs_helper! {
     /// every other value is released unread. Every hook is called after its
     /// status is set, and whatever a hook throws is thrown by `dispatch`.
     ///
-    /// # Parameters are bound by name, from the captures only
+    /// # Parameters are bound by name, from the captures and the query
     ///
     /// Each handler parameter is filled by the capture of the same name
-    /// ([`nvs_runtime::MethodRow::param_names`]). A parameter no capture fills
-    /// throws `LogicError` before the handler is called: an absent optional
-    /// capture's declared default and a `#[Query]` parameter's value are not
-    /// on the row, and binding them is a change to what the compiler writes
-    /// into it.
+    /// ([`nvs_runtime::MethodRow::param_names`]), or else by the `#[Query]`
+    /// parameter of that name, whose absent key gives the declared default the
+    /// row carries ([`nvs_runtime::routes::QueryParam::default`]). A parameter
+    /// neither fills throws `LogicError` before the handler is called: an
+    /// absent optional capture's declared default is not on the row, and
+    /// binding it is a change to what the compiler writes into it.
     ///
     /// A throw that is not catchable — a fatal, `exit` and
     /// `Core\Script::finish()` — is never handed to the gate and stops
@@ -2706,16 +2713,122 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
             return refuse(ctx, gate, refusal::BAD_CAPTURE, Value::null());
         }
     };
-    let outcome = dispatch_matched(ctx, gate, matched.route(), route);
-    #[expect(
-        unsafe_code,
-        reason = "`match_value` handed this frame the match's one reference, and every \
-                  call above retained its own"
-    )]
-    unsafe {
-        route.release();
-    }
+    // The route matched, so a query value that does not convert is bad input
+    // and not a miss: the `400`, before `allows`, told the match it belongs to.
+    let outcome = match query_values(ctx, matched.route()) {
+        Ok(bound) => {
+            let outcome = dispatch_matched(ctx, gate, matched.route(), route, &bound);
+            bound.into_iter().for_each(release);
+            outcome
+        }
+        Err(fault) => match caught(ctx, fault) {
+            Ok(error) => {
+                drop(error);
+                refuse(ctx, gate, refusal::BAD_CAPTURE, route)
+            }
+            Err(fault) => Err(fault),
+        },
+    };
+    // `match_value` handed this frame the match's one reference, and every call
+    // above retained its own.
+    release(route);
     outcome
+}
+
+/// Each `#[Query]` parameter of `row`, converted from the request's query
+/// string, in the order the row declares them. Each value is the caller's to
+/// release.
+///
+/// The query is parsed by `Core\Request::query()`'s own reading and held on the
+/// request, so the two never read one query string two ways. A row that
+/// declares no `#[Query]` parameter reads nothing.
+///
+/// # Errors
+///
+/// A throw for a required key that is absent, for a key written twice, for a
+/// value that is not text (a `page[]=1` key builds a list), and for a value the
+/// parameter's conversion does not accept, including a class's own `parse`
+/// throw. `dispatch` answers each with `refused` and a `400`.
+fn query_values(
+    ctx: &mut nvs_runtime::Ctx,
+    row: &nvs_runtime::routes::Route,
+) -> Result<Vec<Value>, Fault> {
+    let queries = row.queries();
+    if queries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let fields = crate::request::query_fields_of(ctx, "query")?;
+    let raw = ctx
+        .inbound()
+        .map(|inbound| inbound.query().to_owned())
+        .unwrap_or_default();
+    let mut bound = Vec::with_capacity(queries.len());
+    for query in queries {
+        match query_value(ctx, query, &fields, &raw) {
+            Ok(value) => bound.push(value),
+            Err(fault) => {
+                bound.into_iter().for_each(release);
+                return Err(fault);
+            }
+        }
+    }
+    Ok(bound)
+}
+
+/// One `#[Query]` parameter's value, out of the parsed `fields` and the `raw`
+/// query string they were parsed from.
+fn query_value(
+    ctx: &mut nvs_runtime::Ctx,
+    query: &nvs_runtime::routes::QueryParam,
+    fields: &NvsArray,
+    raw: &str,
+) -> Result<Value, Fault> {
+    let key = query.name.as_str();
+    let written = crate::uri::query_bases(raw)
+        .filter(|base| base.as_slice() == key.as_bytes())
+        .count();
+    if written > 1 {
+        return Err(Fault::thrown(format!(
+            "the query string has the key `{key}` {written} times. The parameter `${key}` \
+             takes one value"
+        )));
+    }
+    let Some(found) = fields.get(key.as_bytes()) else {
+        return match &query.default {
+            Some(default) => bound_value(ctx, default),
+            None => Err(Fault::thrown(format!(
+                "the query string has no key `{key}`, and the parameter `${key}` has no default"
+            ))),
+        };
+    };
+    let Some(text) = found.as_text() else {
+        return Err(Fault::thrown(format!(
+            "the query key `{key}` has a list of values. The parameter `${key}` takes one value"
+        )));
+    };
+    // The value is never quoted back: it is what the client wrote.
+    let converted = query.conv.convert(text).ok_or_else(|| {
+        Fault::thrown(format!(
+            "the value of the query key `{key}` is not a value the parameter `${key}` accepts"
+        ))
+    })?;
+    bound_value(ctx, &converted)
+}
+
+/// A converted query value as the value its parameter receives.
+///
+/// [`capture_value`]'s arms, but for the two text arms: a query value was
+/// already decoded by the query parser, and decoding it a second time would
+/// turn a written `%2541` into `A`.
+fn bound_value(
+    ctx: &mut nvs_runtime::Ctx,
+    param: &nvs_runtime::routes::Param,
+) -> Result<Value, Fault> {
+    match param {
+        nvs_runtime::routes::Param::Text(text) => Ok(Value::text(text)),
+        nvs_runtime::routes::Param::Parses { class, text } => parsed(ctx, class, Value::text(text)),
+        converted => capture_value(ctx, "", converted),
+    }
 }
 
 /// `allows`, the handler, and then `failed` or `respond`, over the [`MATCH`]
@@ -2725,6 +2838,7 @@ fn dispatch_matched(
     gate: Value,
     row: &nvs_runtime::routes::Route,
     route: Value,
+    queries: &[Value],
 ) -> Result<(), Fault> {
     let allowed = match nvs_runtime::call_method(ctx, gate, GATE_ALLOWS, &[route], DISPATCH) {
         Ok(Some(answer)) => {
@@ -2741,7 +2855,7 @@ fn dispatch_matched(
     if !allowed {
         return refuse(ctx, gate, refusal::DENIED, route);
     }
-    let value = match call_handler(ctx, row, route)? {
+    let value = match call_handler(ctx, row, route, queries)? {
         Ok(value) => value,
         Err(fault) => {
             let error = caught(ctx, fault)?;
@@ -2831,15 +2945,17 @@ fn refuse(
 }
 
 /// Calls the handler `row` names, with its parameters bound from `route`'s
-/// captures.
+/// captures and from `queries`, which [`query_values`] converted in the order
+/// of [`nvs_runtime::routes::Route::queries`].
 ///
 /// The outer `Result` is what `dispatch` throws: an engine fault, or a
-/// parameter no capture fills. The inner one is the handler's own outcome:
+/// parameter neither fills. The inner one is the handler's own outcome:
 /// the value it returned, which the caller owns, or the fault `failed` is told.
 fn call_handler(
     ctx: &mut nvs_runtime::Ctx,
     row: &nvs_runtime::routes::Route,
     route: Value,
+    queries: &[Value],
 ) -> Result<Result<Value, Fault>, Fault> {
     let label = row.handler();
     // Unreachable from source: the compiler writes every label as the method
@@ -2869,13 +2985,16 @@ fn call_handler(
     let captures = crate::arr::borrowed(captures);
     let mut args = Vec::with_capacity(names.len());
     for name in &names {
-        let Some(value) = captures.get(name.as_bytes()) else {
+        let from_query = || {
+            let at = row.queries().iter().position(|query| query.name == *name)?;
+            queries.get(at).copied()
+        };
+        let Some(value) = captures.get(name.as_bytes()).or_else(from_query) else {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "{DISPATCH}(): the route method `{label}` has the parameter `${name}`, and the \
-                     path has no value for it. `dispatch` fills a parameter only from a value \
-                     in the path"
+                    "{DISPATCH}(): the route method `{label}` has the parameter `${name}`, and \
+                     neither the path nor the query string has a value for it"
                 ),
             ));
         };
@@ -4070,7 +4189,8 @@ mod tests {
         use std::cell::{Cell, RefCell};
         use std::sync::Arc;
 
-        use nvs_runtime::routes::{Capture, CaptureConv, Route, Routes};
+        use nvs_runtime::commands::CaseValue;
+        use nvs_runtime::routes::{Capture, CaptureConv, Param, QueryParam, Route, Routes};
         use nvs_runtime::{
             ClassTable, Ctx, ErrorClass, Inbound, MethodRow, NvsFn, NvsObj, OK, OutputSink, THROWN,
             Tag, ThrownClass, Value,
@@ -4242,6 +4362,72 @@ mod tests {
             THROWN
         }
 
+        /// A value a query handler was given, as its log line writes it.
+        fn written(value: Value) -> String {
+            if let Some(number) = value.as_int() {
+                number.to_string()
+            } else if let Some(number) = value.as_uint() {
+                number.to_string()
+            } else if let Some(text) = value.as_text() {
+                format!("{text:?}")
+            } else {
+                shape(value).to_owned()
+            }
+        }
+
+        /// A static handler logged under `name` with each of its `count`
+        /// parameters, which returns `null`.
+        #[expect(unsafe_code, reason = "as `handler`")]
+        unsafe fn query_handler(
+            name: &str,
+            count: usize,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            let given: Vec<String> = (1..=count)
+                .map(|index| written(unsafe { *args.add(index) }))
+                .collect();
+            heard(format!("{name} {}", given.join(" ")));
+            unsafe {
+                release_all(args, count + 1);
+                *out = Value::null();
+            }
+            OK
+        }
+
+        #[expect(unsafe_code, reason = "as `handler`")]
+        unsafe extern "C" fn shop_search(
+            _ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            unsafe { query_handler("search", 2, args, out) }
+        }
+
+        #[expect(unsafe_code, reason = "as `handler`")]
+        unsafe extern "C" fn shop_tagged(
+            _ctx: *mut Ctx,
+            args: *const Value,
+            out: *mut Value,
+        ) -> i32 {
+            unsafe { query_handler("tagged", 1, args, out) }
+        }
+
+        /// A `Parses` class's `parse` that accepts any text and returns it
+        /// behind `tag:`, so a case can tell it ran.
+        #[expect(unsafe_code, reason = "as `gate_allows`")]
+        unsafe extern "C" fn tag_parse(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+            let text = unsafe { *args.add(1) }
+                .as_text()
+                .unwrap_or_default()
+                .to_owned();
+            unsafe {
+                release_all(args, 2);
+                *out = Value::text(&format!("tag:{text}"));
+            }
+            OK
+        }
+
         fn row(name: &str, code: NvsFn, params: &[&str]) -> MethodRow {
             MethodRow {
                 name: name.to_owned(),
@@ -4286,6 +4472,47 @@ mod tests {
                 Route::new("Get", "/value/{id}", None, "App\\Shop::show", None, id())
                     .with_static_handler()
                     .with_returned_value(),
+                Route::new(
+                    "Get",
+                    "/search",
+                    None,
+                    "App\\Shop::search",
+                    None,
+                    Vec::new(),
+                )
+                .with_static_handler()
+                .with_queries(vec![
+                    QueryParam {
+                        name: "page".to_owned(),
+                        conv: CaptureConv::Uint,
+                        default: Some(Param::Uint(1)),
+                    },
+                    QueryParam {
+                        name: "mode".to_owned(),
+                        conv: CaptureConv::Enum {
+                            class: "App\\Mode".to_owned(),
+                            cases: vec![
+                                ("fast".to_owned(), CaseValue::Int(10)),
+                                ("slow".to_owned(), CaseValue::Int(20)),
+                            ],
+                        },
+                        default: None,
+                    },
+                ]),
+                Route::new(
+                    "Get",
+                    "/tagged",
+                    None,
+                    "App\\Shop::tagged",
+                    None,
+                    Vec::new(),
+                )
+                .with_static_handler()
+                .with_queries(vec![QueryParam {
+                    name: "tag".to_owned(),
+                    conv: CaptureConv::Parses("App\\Tag".to_owned()),
+                    default: None,
+                }]),
             ])
         }
 
@@ -4294,15 +4521,20 @@ mod tests {
         /// The gate declares a `respond` method and does not implement
         /// `Core\Router\Responder`.
         fn serving(verb: &str, path: &str) -> (Ctx, Value) {
-            serving_with(verb, path, false)
+            serving_with(verb, path, "", false)
         }
 
         /// [`serving`], with a gate that implements `Core\Router\Responder`.
         fn responding(verb: &str, path: &str) -> (Ctx, Value) {
-            serving_with(verb, path, true)
+            serving_with(verb, path, "", true)
         }
 
-        fn serving_with(verb: &str, path: &str, responder: bool) -> (Ctx, Value) {
+        /// [`serving`] for a `GET` of `path` with the raw query string `query`.
+        fn querying(path: &str, query: &str) -> (Ctx, Value) {
+            serving_with("GET", path, query, false)
+        }
+
+        fn serving_with(verb: &str, path: &str, query: &str, responder: bool) -> (Ctx, Value) {
             HEARD.with_borrow_mut(Vec::clear);
             ALLOWS.set(Allows::Yes);
             HANDLER_THROWS.set(false);
@@ -4316,6 +4548,7 @@ mod tests {
             let gate = classes.define("App\\Gate", &[] as &[&str], &[]);
             let shop = classes.define("App\\Shop", &[] as &[&str], &[]);
             let slug = classes.define("App\\Slug", &[] as &[&str], &[]);
+            let tag = classes.define("App\\Tag", &[] as &[&str], &[]);
             classes.set_methods(
                 gate,
                 vec![
@@ -4334,11 +4567,14 @@ mod tests {
                     row("show", shop_show, &["id"]),
                     row("edit", shop_edit, &["id"]),
                     row("list", shop_show, &["page"]),
+                    row("search", shop_search, &["page", "mode"]),
+                    row("tagged", shop_tagged, &["tag"]),
                 ],
             );
             classes.set_methods(slug, vec![row("parse", slug_parse, &["s"])]);
+            classes.set_methods(tag, vec![row("parse", tag_parse, &["s"])]);
             let routes = table();
-            let mut inbound = Inbound::new(verb, path, "");
+            let mut inbound = Inbound::new(verb, path, query);
             if let Some(matched) = routes.match_request(verb, path) {
                 inbound.set_route(matched);
             }
@@ -4525,6 +4761,56 @@ mod tests {
             let said = outcome.expect_err("`$page` has no capture");
             assert!(said.contains("`$page`"), "{said}");
             assert_eq!(heard, ["allows object"]);
+        }
+
+        // covers: Core\Router::dispatch
+        #[test]
+        fn a_query_parameter_receives_its_key_converted_and_an_enum_its_case_value() {
+            let (mut ctx, gate) = querying("/search", "page=3&mode=slow");
+            let (outcome, heard, status) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "search 3 20"]);
+            assert_eq!(status, None);
+        }
+
+        #[test]
+        fn an_absent_optional_query_key_gives_the_declared_default() {
+            let (mut ctx, gate) = querying("/search", "mode=fast");
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "search 1 10"]);
+        }
+
+        /// The query parser decodes the value once, and the class receives
+        /// that text: `%2541` arrives as `%41` and not as `A`.
+        #[test]
+        fn a_parses_query_value_is_decoded_once_and_reaches_the_class() {
+            let (mut ctx, gate) = querying("/tagged", "tag=a+b%2541");
+            let (outcome, heard, _) = dispatched(&mut ctx, gate);
+            assert_eq!(outcome, Ok(()));
+            assert_eq!(heard, ["allows object", "tagged \"tag:a b%41\""]);
+        }
+
+        /// A bad value, a missing required key, a repeated key and a list are
+        /// each a `400`, told the match, and neither `allows` nor the handler
+        /// runs (`rule:routing/a-bad-query-value-is-a-400`).
+        #[test]
+        fn a_query_value_that_does_not_bind_is_a_400_before_allows() {
+            for query in [
+                "mode=fast&page=-1",
+                "mode=medium",
+                "page=2",
+                "mode=fast&mode=slow",
+                "mode=fast&page=1&page=2",
+                "mode[]=fast",
+            ] {
+                let (mut ctx, gate) = querying("/search", query);
+                let (outcome, heard, status) = dispatched(&mut ctx, gate);
+                assert_eq!(outcome, Ok(()), "{query}");
+                assert_eq!(heard, ["refused 6 object"], "{query}");
+                assert_eq!(status, Some(400), "{query}");
+                assert!(ctx.pending().is_none(), "{query}: the throw was handled");
+            }
         }
 
         #[test]

@@ -651,6 +651,14 @@ pub struct RouteParam {
     /// that lets the match hand a program its case rather than the segment's
     /// text.
     pub cases: Option<EnumCapture>,
+    /// A `#[Query]` parameter's declared default, as `crate::defaults` folded
+    /// it, or `None` for a required key and for every path capture.
+    ///
+    /// Read back off the signature rather than folded again, for
+    /// `crate::commands::CommandArg::default`'s reason: a second fold could
+    /// disagree with the one call sites use. `crate::crossing` converts it once
+    /// into the value an absent key gives the parameter.
+    pub default: Option<ConstArg>,
 }
 
 impl RouteParam {
@@ -2792,6 +2800,7 @@ fn check_captures(
             allowed: None,
             parses: false,
             cases: None,
+            default: None,
         });
         let Some((index, param)) = m
             .params
@@ -3211,6 +3220,10 @@ fn query_params(
             allowed: declared.and_then(|ty| closed_set(ty, env)),
             parses: declared.is_some_and(|ty| crate::commands::is_parses_class(ty, env)),
             cases: key_cases,
+            default: sig
+                .and_then(|sig| sig.defaults.get(index))
+                .and_then(Option::as_ref)
+                .cloned(),
         });
     }
     keys

@@ -262,6 +262,30 @@ pub struct Capture {
     pub conv: CaptureConv,
 }
 
+/// One `#[Query]` parameter of a route: the key it binds, the conversion its
+/// value takes, and the value an absent key gives it
+/// (`rule:routing/a-query-parameter-is-declared-like-a-capture`).
+///
+/// A list of its own on [`Route`] rather than more [`Capture`]s, because the
+/// matcher reads every capture and must read none of these: a query value takes
+/// no part in choosing a route. `nvs_stdlib::router`'s `dispatch` is the one
+/// reader, once the route has matched.
+///
+/// **What it spends:** one `String` for the key and, for a key with a default,
+/// that default converted once at boot. Per declared parameter, shared by every
+/// request the table answers.
+#[derive(Clone, Debug)]
+pub struct QueryParam {
+    /// The parameter's name, sigil-less, which is also the query key.
+    pub name: String,
+    /// What the key's value becomes. The same table a capture converts by.
+    pub conv: CaptureConv,
+    /// The declared default, already converted by [`Self::conv`], or `None`
+    /// for a required key. A default is the only thing that makes a key
+    /// optional.
+    pub default: Option<Param>,
+}
+
 /// A capture as the request filled it — § 1's "typed parameters".
 #[derive(Clone, Debug, PartialEq)]
 pub enum Param {
@@ -357,6 +381,7 @@ pub struct Route {
     static_handler: bool,
     returns_value: bool,
     captures: Vec<Capture>,
+    queries: Vec<QueryParam>,
     segments: Vec<Seg>,
     rank: Vec<u8>,
 }
@@ -411,9 +436,25 @@ impl Route {
             static_handler: false,
             returns_value: false,
             captures,
+            queries: Vec::new(),
             segments,
             rank,
         }
+    }
+
+    /// The same row with its `#[Query]` parameters recorded. A builder for
+    /// [`Self::with_slotted`]'s reason: most routes declare none.
+    #[must_use]
+    pub fn with_queries(mut self, queries: Vec<QueryParam>) -> Self {
+        self.queries = queries;
+        self
+    }
+
+    /// Every `#[Query]` parameter this route declares, in declaration order.
+    /// Empty for a route that declares none, which then reads no query string.
+    #[must_use]
+    pub fn queries(&self) -> &[QueryParam] {
+        &self.queries
     }
 
     /// The same row with `rule:attributes/access-payload`'s opt-out recorded — the `csrf: false`

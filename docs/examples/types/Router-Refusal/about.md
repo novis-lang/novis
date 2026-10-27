@@ -11,6 +11,6 @@ the status of the response. Your gate writes the body, and it can also set anoth
 | `Denied` | `403` | `allows()` returned `false` or threw an error. |
 | `Csrf` | `403` | The server did not accept the CSRF token or the origin of the request. |
 | `BodyTooLarge` | `413` | The request body is larger than the limit of the server. |
-| `BadCapture` | `400` | A value in the path cannot be converted to the type of its parameter. |
+| `BadCapture` | `400` | A value in the path or in the query string cannot be converted to the type of its parameter. A required query key is missing, or a query key is written twice. |
 
 `route` is `null` when no route matched the request.

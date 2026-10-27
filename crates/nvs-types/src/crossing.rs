@@ -46,6 +46,23 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
                             conv: capture_conv(param),
                         })
                         .collect(),
+                )
+                .with_queries(
+                    row.params
+                        .iter()
+                        .filter(|param| param.source == crate::ParamIn::Query)
+                        .map(|param| {
+                            let conv = capture_conv(param);
+                            nvs_runtime::routes::QueryParam {
+                                name: param.name.clone(),
+                                default: param
+                                    .default
+                                    .as_ref()
+                                    .and_then(|constant| query_default(constant, &conv)),
+                                conv,
+                            }
+                        })
+                        .collect(),
                 );
                 // `rule:attributes/access-payload`'s opt-out, carried across rather than derived a
                 // second time: the verb's half of § 4 is `Route::new`'s and the
@@ -143,6 +160,51 @@ fn capture_conv(param: &crate::RouteParam) -> nvs_runtime::routes::CaptureConv {
         Some(class) if param.parses => CaptureConv::Parses(class.to_owned()),
         Some(_) => CaptureConv::Unconverted,
     }
+}
+
+/// A `#[Query]` parameter's folded default as the value an absent key gives it.
+///
+/// Converted by the parameter's own `conv`, so a default and a written value
+/// are the same value: `uint $page = 1` gives what `?page=1` gives. An enum case
+/// folds to its backing value, which is already what [`CaptureConv::Enum`]
+/// converts a spelling to, so it is checked against the admitted cases rather
+/// than spelled again.
+///
+/// `None` where no conversion has an answer, which leaves the key required.
+/// No program that compiles reaches it: a default is a literal of the declared
+/// type, and every type a `#[Query]` parameter may declare and a literal may
+/// write converts here.
+///
+/// [`CaptureConv::Enum`]: nvs_runtime::routes::CaptureConv::Enum
+fn query_default(
+    constant: &crate::ConstArg,
+    conv: &nvs_runtime::routes::CaptureConv,
+) -> Option<nvs_runtime::routes::Param> {
+    use crate::ConstArg;
+    use nvs_runtime::commands::CaseValue;
+    use nvs_runtime::routes::{CaptureConv, Param};
+
+    if let CaptureConv::Enum { cases, .. } = conv {
+        let value = match constant {
+            ConstArg::EnumInt(number) | ConstArg::Int(number) => CaseValue::Int(*number),
+            ConstArg::EnumUint(number) | ConstArg::Uint(number) => CaseValue::Uint(*number),
+            _ => return None,
+        };
+        return cases
+            .iter()
+            .any(|(_, admitted)| *admitted == value)
+            .then_some(match value {
+                CaseValue::Int(number) => Param::Int(number),
+                CaseValue::Uint(number) => Param::Uint(number),
+            });
+    }
+    let text = match constant {
+        ConstArg::Int(number) => number.to_string(),
+        ConstArg::Uint(number) => number.to_string(),
+        ConstArg::Str(text) => text.clone(),
+        _ => return None,
+    };
+    conv.convert(&text)
 }
 
 /// One enum case's constant, narrowed to the two integer types a running

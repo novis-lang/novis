@@ -3311,6 +3311,21 @@ pub(crate) fn form_pairs(
     })
 }
 
+/// The decoded base key of every pair in a raw `query`, one per pair and in order: `page` for
+/// `page`, `page=1` and `page[]=1` alike.
+///
+/// [`parse_query`] keeps the last value of a repeated key, and `Core\Router::dispatch` needs to
+/// know the key was repeated (`rule:errors/ambiguous-input-refused`). The names are decoded and
+/// split by the same two functions [`parse_query`] uses, so both read one pair the same way.
+pub(crate) fn query_bases(query: &str) -> impl Iterator<Item = Vec<u8>> + '_ {
+    query.split('&').filter_map(|pair| {
+        let written = pair.split_once('=').map_or(pair, |(name, _)| name);
+        let name = decode(written, Form::FormValue);
+        let base = name_steps(&name).next().flatten()?.to_vec();
+        (!base.is_empty()).then_some(base)
+    })
+}
+
 /// The keys a decoded parameter `name` places its value under, outermost first: the base, then
 /// each `[…]` group, `None` for an empty `[]`. A name that is not a bracket path is one key.
 pub(crate) fn name_steps(name: &[u8]) -> impl Iterator<Item = Option<&[u8]>> + '_ {

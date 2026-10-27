@@ -1856,14 +1856,15 @@ fn memory_first(ctx: &Ctx, fault: Fault) -> Fault {
 /// The parameters of this request's query string, parsed by the first call and
 /// held on the request for every later one.
 ///
-/// `Core\Request::query()`'s reading and `queryAs()`'s. The answer is a further
-/// reference to the held array, which the caller releases.
+/// `Core\Request::query()`'s reading and `queryAs()`'s, and the one
+/// `Core\Router::dispatch` binds a `#[Query]` parameter from. The answer is a
+/// further reference to the held array, which the caller releases.
 ///
 /// # Errors
 ///
 /// No request, and a parameter whose escapes decode to octets that are not
 /// UTF-8 — [`crate::uri::parse_query`]'s refusal, which holds nothing.
-fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Fault> {
+pub(crate) fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Fault> {
     let inbound = inbound_of(ctx, member)?;
     if let Some(fields) = inbound.query_fields() {
         return Ok(fields.clone());
