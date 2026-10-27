@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/capability.rs, crates/nvs-types/src/capability.r
 stages:
   - id: 1
     title: the compiler knows which capability each `Core` member needs
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/cap.rs, crates/nvs-stdlib/tests/capability.rs, docs/rules/security/authority-is-the-enclosing-namespace.md]
     extra:
       context:
@@ -99,6 +99,16 @@ new `Core` class that opens a door adds its rows there as it always has: goal `c
 check stays exactly as it is: the compile-time check is the namespace's grant, and the door still
 checks the operator's ceiling and the scope (`rule:security/no-runtime-grant`).
 
+**A member that can ask several capabilities has a row for each, and a call needs all of them.**
+`Core\IO::open` asks `fs.read` or `fs.write` by its mode, and `Core\Db::open` asks `db.open` for a
+server or `fs.read` for a SQLite file. The checker sees the call, not the argument. Needing only one
+of them would let a namespace granted `fs.write` alone read through `ReadWrite`, so it needs every
+row (security over usability: a package that only opens a server still needs `fs.read` written for
+`Core\Db::open`). `nvs_stdlib::cap::needs` returns an iterator over the rows, a `None` row stays a
+member's only row, and `every_door_names_the_capability_its_member_declares` holds each door call
+whose member is a literal or a `const` to the rows. Stage 3 may narrow a call by an argument the
+checker already knows, such as a literal `FileMode`, and records that if it does.
+
 **A file belongs to a package when it was reached through an autoload root inside a directory that
 holds a `package.toml`.** That manifest gives the package's name and its required and optional
 capabilities, read by a second new module, `crates/nvs-config/src/package.rs`, which reads those keys
@@ -136,8 +146,8 @@ agrees with its member's row.
 `capability::require` and `require_as` call under `crates/nvs-stdlib/src/` and `crates/nvs-runtime/src/`,
 as `file.rs:NN`, the member string and the `Cap` it passes.
 
-- [ ] `nvs_stdlib::cap::needs(class, member)`, read from `registry::CAPABILITIES`, as `is_capability` is read by the checker. `crates/nvs-stdlib/src/cap.rs:144`, `crates/nvs-stdlib/src/registry.rs:1809`
-- [ ] A test scans the sources as `nvs_stdlib_reaches_the_os_only_through_the_gate` does, and fails naming a door whose `Cap` disagrees with its member's row (`rule:security/authority-is-the-enclosing-namespace`, `rule:testing/capability-completeness-test`). `crates/nvs-stdlib/tests/capability.rs:332`, `crates/nvs-runtime/src/capability.rs:71`
+- [x] `nvs_stdlib::cap::needs(class, member)`, read from `registry::CAPABILITIES`, as `is_capability` is read by the checker. `crates/nvs-stdlib/src/cap.rs:144`, `crates/nvs-stdlib/src/registry.rs:1809`
+- [x] A test scans the sources as `nvs_stdlib_reaches_the_os_only_through_the_gate` does, and fails naming a door whose `Cap` disagrees with its member's row (`rule:security/authority-is-the-enclosing-namespace`, `rule:testing/capability-completeness-test`). `crates/nvs-stdlib/tests/capability.rs:332`, `crates/nvs-runtime/src/capability.rs:71`
 
 ### 2. the grant table is read, keyed on namespace prefixes, and the longest prefix wins
 
@@ -218,18 +228,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `registry::CAPABILITIES` already records each door member's capability,
-and its completeness tests pass. Nothing reads a per-namespace grant table, nothing reads
-`package.toml`, and `docs/reference/tools/35-packages.md` does not exist.
+Stage 1 is done (`565d7951c`). `nvs_stdlib::cap::needs(class, member)` is an iterator over a
+member's rows (`crates/nvs-stdlib/src/cap.rs:177`), and a member may have several rows, each naming
+one capability. `every_door_names_the_capability_its_member_declares`
+(`crates/nvs-stdlib/tests/capability.rs:570`) found six members whose rows understated their doors, and
+each now has its rows: `Core\IO::open`, `Core\IO::copy`, `Core\Zip::extract`, `Core\Db::open`, and
+`Core\Ldap::connect` and `::open`, which had none. The scan checks a door call whose member is a
+literal or a `const`. A call whose member is a forwarded parameter (`http.rs`'s `pin`, `mail.rs`'s
+`endpoint_of`, `cache.rs`'s `open_configured`) is not resolved. Nothing reads a per-namespace grant
+table yet, and nothing reads `package.toml`.
+
+This session also fixed the nightly's `--count` test (`238f23a49`): a counted run starts no slice
+clock. Nightly run 40291801939's supply chain and Windows failures were already fixed on HEAD
+(`c244b4b36`, `9c8b0fe16`). Its Linux jobs were cancelled at the run's end, most likely by fail-fast.
+The `env-secret-proofs` acceptance check passes when run directly.
+
+No test is expected to go red. The `nvs agent` index now joins a member's capabilities with `, `.
+A test pinning `[fs.write]` beside `Core\IO::open` would go red, and none was found.
 
 ### Next
 
-**Stage 1: the checker's capability lookup**, one file set: `crates/nvs-stdlib/src/cap.rs`,
-`crates/nvs-stdlib/tests/capability.rs`. No gate.
+**Stage 2: the grant table reader**, one file set: `crates/nvs-config/src/grants.rs` (new),
+`crates/nvs-config/src/cache.rs`, `crates/nvs-config/tests/grants.rs` (new). No gate.
 
-- [ ] An `Explore` subagent's door → member → capability table. `crates/nvs-runtime/src/capability.rs:71`
-- [ ] `nvs_stdlib::cap::needs` over `registry::CAPABILITIES` (`rule:security/authority-is-the-enclosing-namespace`). `crates/nvs-stdlib/src/cap.rs:144`
-- [ ] The test that every door agrees with its member's row (`rule:testing/capability-completeness-test`). `crates/nvs-stdlib/tests/capability.rs:332`
+- [ ] The `[grants]` reader of the application's `package.toml`, found by walking up from the working directory. `crates/nvs-config/src/grants.rs:1`, `crates/nvs-config/src/resolve.rs:392`
+- [ ] The grant table in every unit's cache key. `crates/nvs-config/src/cache.rs:179`
+- [ ] The longest-prefix lookup, and the refusals of a tie and of a key under `Core`. `crates/nvs-config/src/grants.rs:1`
+- [ ] The tests, with `package.toml` written by each test. `crates/nvs-config/tests/grants.rs:1`
 
 ### Backlog
 
