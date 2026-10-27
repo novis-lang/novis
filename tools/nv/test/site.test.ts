@@ -293,10 +293,10 @@ describe("nv site --check tools", () => {
   const sidebar = (dirs: string[]) =>
     ["sidebar: [", "        {", "          label: 'Tools',", "          items: [", ...dirs.map((d) => `            { label: '${d}', link: '/tools/${d}/' },`), "          ],", "        },"].join("\n");
 
-  /** An overview that links every tool, and a page for each tool but the ones `leave` names. */
+  /** An overview with a linked section and a picture for every tool, and a page for each tool but the ones `leave` names. */
   function tools(leave: string[] = []): Scratch {
     s = site();
-    s.put(`${DOCS}/tools/index.mdx`, page("[]", TOOL_SECTIONS.map((d) => `- [${d}](/tools/${d}/)`).join("\n")));
+    s.put(`${DOCS}/tools/index.mdx`, page("[]", TOOL_SECTIONS.map((d) => `## [${d}](/tools/${d}/)\n\n<Shot src="tools/${d}/a.shot" alt="A picture." />\n`).join("\n")));
     for (const dir of TOOL_SECTIONS) if (!leave.includes(dir)) s.put(`${DOCS}/tools/${dir}/index.mdx`, page("['lang:statements/match']", `<Terminal src="tools/${dir}/a.term" />`));
     s.put("website/astro.config.ts", sidebar(TOOL_SECTIONS.filter((d) => !leave.includes(d))));
     return s;
@@ -306,21 +306,22 @@ describe("nv site --check tools", () => {
     expect(toolsProblems(tools().root)).toEqual([]);
   });
 
-  test("an owed page, a page with no picture or features, a missing overview link and a sidebar out of order are named", () => {
+  test("an owed page, a page with no picture or features, a missing overview section, an overview section with no picture and a sidebar out of order are named", () => {
     const root = tools(["profiler"]).root;
     s.put(`${DOCS}/tools/cli/index.mdx`, page("[]", "Text only."));
-    s.put(`${DOCS}/tools/index.mdx`, page("[]", "- [editor](/tools/editor/)"));
+    s.put(`${DOCS}/tools/index.mdx`, page("[]", "## [editor](/tools/editor/)\n\nText only."));
     s.put("website/astro.config.ts", sidebar(["formatter", "editor", ...TOOL_SECTIONS.slice(2).filter((d) => d !== "profiler")]));
     expect(toolsProblems(root)).toEqual([
-      `${DOCS}/tools/index.mdx: does not link /tools/formatter/`,
-      `${DOCS}/tools/index.mdx: does not link /tools/test-runner/`,
+        `${DOCS}/tools/index.mdx: the /tools/editor/ section shows no <Terminal>, <Replay> or <Shot>`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/formatter/)\` section`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/test-runner/)\` section`,
       `${DOCS}/tools/cli/index.mdx: covers no feature`,
       `${DOCS}/tools/cli/index.mdx: shows no <Terminal>, <Replay> or <Shot>`,
-      `${DOCS}/tools/index.mdx: does not link /tools/cli/`,
-      `${DOCS}/tools/index.mdx: does not link /tools/debugger/`,
-      `${DOCS}/tools/index.mdx: does not link /tools/debug-viewer/`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/cli/)\` section`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/debugger/)\` section`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/debug-viewer/)\` section`,
       `${DOCS}/tools/profiler/index.mdx: owed, no page yet`,
-      `${DOCS}/tools/index.mdx: does not link /tools/api-document/`,
+      `${DOCS}/tools/index.mdx: has no \`## [...](/tools/api-document/)\` section`,
       "website/astro.config.ts: the Tools sidebar lists /tools/formatter/ out of the goal's order",
     ]);
   });

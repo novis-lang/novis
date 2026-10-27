@@ -854,8 +854,9 @@ const PICTURE_RE = /<(Terminal|Replay|Shot)\s+src=/;
 
 /**
  * The `tools` part (`rule:testing/the-tools-area-has-a-page-for-each-tool`): each of `TOOL_SECTIONS` has its
- * page, and each page covers a feature, shows a checked picture, and is linked from the overview and from
- * the Tools sidebar in that order. A tool with no page yet is named as owed, and nothing else about it is.
+ * page, and each page covers a feature and shows a checked picture. The overview has a section for each,
+ * whose `## ` heading links the page and which shows a checked picture of its own, and the Tools sidebar
+ * links each page in that order. A tool with no page yet is named as owed, and nothing else about it is.
  */
 export function toolsProblems(root: string = ROOT): string[] {
   const problems: string[] = [];
@@ -873,7 +874,10 @@ export function toolsProblems(root: string = ROOT): string[] {
     present.push(dir);
     if (!page.covers?.length) problems.push(`${DOCS}/${key}: covers no feature`);
     if (!PICTURE_RE.test(page.body)) problems.push(`${DOCS}/${key}: shows no <Terminal>, <Replay> or <Shot>`);
-    if (overview && !overview.body.includes(`](/tools/${dir}/)`)) problems.push(`${DOCS}/tools/index.mdx: does not link /tools/${dir}/`);
+    if (!overview) continue;
+    const section = overview.body.split(/^## /m).find((s) => s.startsWith(`[`) && s.includes(`](/tools/${dir}/)`));
+    if (!section) problems.push(`${DOCS}/tools/index.mdx: has no \`## [...](/tools/${dir}/)\` section`);
+    else if (!PICTURE_RE.test(section)) problems.push(`${DOCS}/tools/index.mdx: the /tools/${dir}/ section shows no <Terminal>, <Replay> or <Shot>`);
   }
   problems.push(...sidebarOrder(root, "Tools", "tools", present));
   return problems;

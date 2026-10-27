@@ -23,7 +23,9 @@ builds.
 
 `bun nv site --check structure` holds the five areas and the sidebar, and its `tools` part holds the
 eight pages, each with a checked picture and a `covers:` list
-(`rule:testing/website-pages-are-stamped`).
+(`rule:testing/website-pages-are-stamped`), and the overview's section for each, whose `## ` heading
+links the page and which shows a checked picture. The home page's Tooling section links each `nvs`
+command to its tool page, and the overview.
 
 - **Memory:** nothing in the language or the binary. The site carries the pictures' files, and a page
   loads only its own.

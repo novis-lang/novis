@@ -17082,7 +17082,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "a6fa1b11e09e46e9",
+    "hash": "d7310152bbac5c36",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -17419,14 +17419,14 @@
   },
   "/syntax/errors/error-types/": {
     "feature": "syntax/errors/error-types.mdx",
-    "hash": "c910e6f6062ffc57",
+    "hash": "1e8ad4ef731d341c",
     "questions": [
       "Which error classes exist and when is each one thrown?",
       "How do I write my own error class?",
-      "How do I read the message of an error?",
       "Why does catching Exception not compile?",
       "How do I keep the original error when I throw a new one?",
-      "Is ending a script with finish caught as an error?"
+      "Is ending a script with finish caught as an error?",
+      "Which error is thrown when an extension crashes?"
     ]
   },
   "/syntax/errors/limits/": {
@@ -17620,25 +17620,26 @@
   },
   "/syntax/testing/fixtures-and-assertions/": {
     "feature": "syntax/testing/fixtures-and-assertions.mdx",
-    "hash": "2e55392831afd3ed",
+    "hash": "1cbe196f023ef75c",
     "questions": [
       "How do I share setup objects between tests?",
       "Run the same test with several sets of input",
       "Which assertion methods can I use in a test?",
       "How do I check that a function throws an error?",
       "Why does my test still fail after I catch the failure?",
-      "Compare two arrays entry by entry in a test"
+      "Test a function with many generated inputs"
     ]
   },
   "/syntax/testing/writing-tests/": {
     "feature": "syntax/testing/writing-tests.mdx",
-    "hash": "3bbbce8649ef188b",
+    "hash": "d719dfe9b475b07d",
     "questions": [
       "How do I write a unit test in Novis?",
       "How do I skip a test and give a reason?",
       "What is a flaky test in the test report?",
       "Run only one test class from the command line",
-      "How do I leave out slow tests when I run the suite?"
+      "How do I leave out slow tests when I run the suite?",
+      "How do I measure how fast a function is with a benchmark?"
     ]
   },
   "/syntax/values/arrays/": {
@@ -17678,7 +17679,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "a066408e6c790db5",
+    "hash": "ff497012594ec456",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",
@@ -17757,7 +17758,7 @@
   },
   "/tools/": {
     "feature": "tools/index.mdx",
-    "hash": "5bca34a691025c28",
+    "hash": "7ad4a33a3505b261",
     "questions": [
       "Which developer tools come with Novis?",
       "Is there a debugger and a profiler for Novis?",

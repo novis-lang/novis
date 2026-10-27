@@ -4,19 +4,62 @@ covers: []
 description: The tools that come with Novis, from the editor extension and the test runner to the debugger and the profiler.
 ---
 
-Novis comes with its own tools for writing, testing and debugging a program. Most of them are
-commands of the `nvs` program, so you install them when you install Novis.
+import Replay from '@components/Replay.astro'
+import Shot from '@components/Shot.astro'
+import Terminal from '@components/Terminal.astro'
 
-- [The editor extension](/tools/editor/) adds Novis to VS Code. It colours your code, shows errors
-  while you type and completes names.
-- [The formatter](/tools/formatter/) is `nvs fmt`. It changes the layout of your code to one fixed style.
-- [The test runner](/tools/test-runner/) is `nvs test`. It runs your tests and can write a
-  [coverage report](/tools/test-runner/coverage/).
-- [The command line](/tools/cli/) is the `nvs` program itself: `nvs run`, `nvs check`, `nvs serve` and the other
-  commands.
-- [The debugger](/tools/debugger/) stops your program at a line, so you can look at its variables.
-  Your editor connects to it through `nvs dap`.
-- [The debug viewer](/tools/debug-viewer/) is `nvs debug`. It shows in your browser each request that your
-  server handled.
-- [The profiler](/tools/profiler/) shows where your program spends its time.
-- [The API document](/tools/api-document/) is the OpenAPI description of your routes. `nvs build --openapi` writes it.
+Novis comes with its own tools for writing, testing and debugging a program. Most of them are
+commands of the `nvs` program, so you install them when you install Novis. Each picture below is
+made from a real run of the tool.
+
+## [The editor extension](/tools/editor/)
+
+The editor extension adds Novis to VS Code. It colours your code, shows errors while you type and
+completes names.
+
+<Replay src="tools/editor/property-key-completion.nvs" />
+
+## [The formatter](/tools/formatter/)
+
+The formatter is `nvs fmt`. It changes the layout of your code to one fixed style.
+
+<Terminal src="tools/formatter/diff.term" />
+
+## [The test runner](/tools/test-runner/)
+
+The test runner is `nvs test`. It runs your tests and can write a
+[coverage report](/tools/test-runner/coverage/).
+
+<Terminal src="tools/test-runner/prices.term" />
+
+## [The command line](/tools/cli/)
+
+The command line is the `nvs` program itself: `nvs run`, `nvs check`, `nvs serve` and the other
+commands.
+
+<Terminal src="tools/cli/check.term" />
+
+## [The debugger](/tools/debugger/)
+
+The debugger stops your program at a line, so you can look at its variables. Your editor connects to
+it through `nvs dap`.
+
+<Replay src="tools/debugger/loop.nvs" />
+
+## [The debug viewer](/tools/debug-viewer/)
+
+The debug viewer is `nvs debug`. It shows in your browser each request that your server handled.
+
+<Shot src="tools/debug-viewer/requests.shot" alt="The request list with four GET requests. Each row shows the route, such as App::home, the status 200 or 404, and 2 queries." />
+
+## [The profiler](/tools/profiler/)
+
+The profiler shows where your program spends its time.
+
+<Shot src="tools/profiler/fibonacci.shot" alt="The speedscope view of main.nvs. It lists Fibonacci::square with 10 calls and Fibonacci::at with 1973 calls." />
+
+## [The API document](/tools/api-document/)
+
+The API document is the OpenAPI description of your routes. `nvs build --openapi` writes it.
+
+<Terminal src="tools/api-document/build.term" />

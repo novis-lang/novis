@@ -1,9 +1,10 @@
 ---
 /**
  * The tools: a terminal-style card that lists the `nvs` commands, each row a
- * link to its reference page, with the text about tests under it, beside a
- * snippet with a test passed in the default slot. The card is dark in both
- * themes, like a terminal.
+ * link to its page in the Tools area or, for a command no tool page is about,
+ * to its reference page. Under it are the text about tests and the links to
+ * the tests guide and the Tools overview, beside a snippet with a test passed
+ * in the default slot. The card is dark in both themes, like a terminal.
  */
 import { Icon } from '@astrojs/starlight/components'
 import Section from './Section.astro'
@@ -13,9 +14,9 @@ import { withBase } from '~/lib/base'
 const commands = [
   { cmd: 'nvs run app.nvs', text: 'Check, compile and run a program', href: '/reference/cli/nvs-run/' },
   { cmd: 'nvs serve app.nvs', text: 'Serve web requests', href: '/reference/cli/nvs-serve/' },
-  { cmd: 'nvs test tests/', text: 'Run every test', href: '/reference/cli/nvs-test/' },
-  { cmd: 'nvs check app.nvs', text: 'Report every error and run nothing', href: '/reference/cli/nvs-check/' },
-  { cmd: 'nvs fmt', text: 'Format your files', href: null },
+  { cmd: 'nvs test tests/', text: 'Run every test', href: '/tools/test-runner/' },
+  { cmd: 'nvs check app.nvs', text: 'Report every error and run nothing', href: '/tools/cli/' },
+  { cmd: 'nvs fmt', text: 'Format your files', href: '/tools/formatter/' },
   {
     cmd: 'nvs build --compile app.nvs',
     text: 'Write one executable file with your program',
@@ -24,8 +25,11 @@ const commands = [
   {
     cmd: 'nvs build --openapi app.nvs',
     text: 'Write the OpenAPI document of your web API',
-    href: '/reference/cli/nvs-build-openapi/',
+    href: '/tools/api-document/',
   },
+  { cmd: 'nvs run --profile=speedscope app.nvs', text: 'Measure how long each function takes', href: '/tools/profiler/' },
+  { cmd: 'nvs debug', text: 'See each request your server handled', href: '/tools/debug-viewer/' },
+  { cmd: 'nvs dap', text: 'Stop at a line in your editor', href: '/tools/debugger/' },
   { cmd: 'nvs lsp', text: 'Errors and completion in your editor', href: '/tools/editor/' },
 ]
 ---
@@ -56,7 +60,11 @@ const commands = [
                 <span class="desc"># {c.text}</span>
               </>
             )
-            return <li>{c.href ? <a href={withBase(c.href)}>{body}</a> : <span class="row">{body}</span>}</li>
+            return (
+              <li>
+                <a href={withBase(c.href)}>{body}</a>
+              </li>
+            )
           })
         }
       </ul>
@@ -73,9 +81,14 @@ const commands = [
           </p>
         </div>
       </div>
-      <a class="nv-more" href={withBase('/guides/why-novis/tests-in-code/')}>
-        Tests in the language <Icon name="right-arrow" size="1rem" />
-      </a>
+      <div class="more">
+        <a class="nv-more" href={withBase('/guides/why-novis/tests-in-code/')}>
+          Tests in the language <Icon name="right-arrow" size="1rem" />
+        </a>
+        <a class="nv-more" href={withBase('/tools/')}>
+          All the tools <Icon name="right-arrow" size="1rem" />
+        </a>
+      </div>
     </div>
 
     <div class="code nv-reveal">
@@ -163,8 +176,7 @@ const commands = [
     font-family: var(--sl-font-mono);
     font-size: 0.82rem;
   }
-  .terminal li a,
-  .terminal li .row {
+  .terminal li a {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -226,8 +238,10 @@ const commands = [
     line-height: 1.65;
     color: var(--sl-color-gray-2);
   }
-  .tests .nv-more {
-    align-self: flex-start;
+  .more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2) var(--nv-space-6);
   }
   .code {
     min-width: 0;

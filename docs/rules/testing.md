@@ -3,8 +3,6 @@
 
 # Testing
 
-*1 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -1514,7 +1512,7 @@ the context the page names.
 
 <a id="testing-the-tools-area-has-a-page-for-each-tool"></a>
 
-## The website's Tools area has an overview and one page for each developer tool, every page about running a tool lives there, and a page that moved there leaves nothing behind  *(designed — owned by goal tools-website)*
+## The website's Tools area has an overview and one page for each developer tool, every page about running a tool lives there, and a page that moved there leaves nothing behind
 
 `rule:testing/the-tools-area-has-a-page-for-each-tool`
 
@@ -1543,7 +1541,9 @@ builds.
 
 `bun nv site --check structure` holds the five areas and the sidebar, and its `tools` part holds the
 eight pages, each with a checked picture and a `covers:` list
-([`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped)).
+([`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped)), and the overview's section for each, whose `## ` heading
+links the page and which shows a checked picture. The home page's Tooling section links each `nvs`
+command to its tool page, and the overview.
 
 - **Memory:** nothing in the language or the binary. The site carries the pictures' files, and a page
   loads only its own.
