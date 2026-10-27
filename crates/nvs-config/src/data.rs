@@ -32,6 +32,11 @@
 //! own DACL because a grant added to the root later, such as the service installer's grant to the
 //! service account, has to reach the subfolders, and a protected DACL on each of them would block
 //! it. A directory that already exists is never re-permissioned; [`prepare`] checks it instead.
+//! When this process's token is an administrator's, that top directory's owner is
+//! `Administrators`, and so is each `nvs.toml` Novis writes into the folder
+//! ([`give_to_administrators`]). A service account trusts `Administrators` as an owner and does not
+//! trust the installing administrator's own account, so the folder an elevated install creates
+//! passes the service's check at boot.
 //!
 //! **The `nvs.toml` Novis writes here is refreshed while nobody has changed it.** It starts with
 //! [`mark`]'s line, which names the version that wrote it and a hash of the rest. The first
@@ -511,6 +516,8 @@ fn replace(file: &Path, text: &str, old: &std::fs::Metadata) -> std::io::Result<
         }
         #[cfg(not(unix))]
         let _ = old;
+        #[cfg(not(unix))]
+        platform::give_to_administrators(&temp)?;
         out.sync_all()
     })();
     // Closed before the rename, which Windows refuses for a file this process still has open.
@@ -599,6 +606,20 @@ pub fn create_private_dir(path: &Path) -> std::io::Result<()> {
     platform::create(path, false)
 }
 
+/// Makes `Administrators` the owner of the file or directory `path` when this process's token is an
+/// administrator's; otherwise it changes nothing. On Unix it changes nothing.
+///
+/// The owner a file gets at creation is the token's default owner, which a policy chooses: an
+/// elevated prompt's is `Administrators`, and an administrator with UAC off gets their own account.
+/// A service account trusts only the first, so a file the installer writes for the service names it.
+///
+/// # Errors
+///
+/// The OS error when the owner cannot be set.
+pub fn give_to_administrators(path: &Path) -> std::io::Result<()> {
+    platform::give_to_administrators(path)
+}
+
 #[cfg(unix)]
 mod platform {
     use std::path::Path;
@@ -608,6 +629,11 @@ mod platform {
         use std::os::unix::fs::DirBuilderExt;
 
         std::fs::DirBuilder::new().mode(0o700).create(path)
+    }
+
+    /// Nothing: an owner on Unix is the install's own `chown`.
+    pub(super) fn give_to_administrators(_path: &Path) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
@@ -620,7 +646,9 @@ mod platform {
     use windows_sys::Win32::Security::Authorization::{
         ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
     };
-    use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
+    use windows_sys::Win32::Security::{
+        OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, SetFileSecurityW,
+    };
     use windows_sys::Win32::Storage::FileSystem::CreateDirectoryW;
 
     /// A security descriptor built from SDDL, freed with `LocalFree` on every path out.
@@ -682,7 +710,8 @@ mod platform {
     ///
     /// The DACL is set by the create itself, so there is no moment in which the directory exists
     /// with the DACL it would have inherited. The SID and never an account name, because a name
-    /// is localized.
+    /// is localized. An administrator's token also names `Administrators` as the owner, which only
+    /// a token where that group is enabled may do.
     #[expect(
         unsafe_code,
         reason = "one `CreateDirectoryW` over a NUL-terminated name this frame owns and attributes \
@@ -698,14 +727,40 @@ mod platform {
                  it can reach cannot be described",
             )
         })?;
+        let owner = if crate::trust::administrator() {
+            "O:BA"
+        } else {
+            ""
+        };
         let descriptor = Descriptor::from_sddl(&format!(
-            "D:P(A;OICI;FA;;;{sid})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+            "{owner}D:P(A;OICI;FA;;;{sid})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
         ))?;
         let attributes = descriptor.attributes();
         let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
         let made = unsafe { CreateDirectoryW(wide.as_ptr(), &attributes) };
         drop(descriptor);
         if made == 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    /// [`super::give_to_administrators`]: the owner alone is written, so the DACL stays as it is.
+    #[expect(
+        unsafe_code,
+        reason = "one `SetFileSecurityW` over a NUL-terminated name this frame owns and a \
+                  descriptor owned by a guard that outlives the call"
+    )]
+    pub(super) fn give_to_administrators(path: &Path) -> std::io::Result<()> {
+        if !crate::trust::administrator() {
+            return Ok(());
+        }
+        let descriptor = Descriptor::from_sddl("O:BA")?;
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        let set =
+            unsafe { SetFileSecurityW(wide.as_ptr(), OWNER_SECURITY_INFORMATION, descriptor.0) };
+        drop(descriptor);
+        if set == 0 {
             return Err(std::io::Error::last_os_error());
         }
         Ok(())
@@ -847,6 +902,34 @@ mod tests {
         #[cfg(windows)]
         for path in &made {
             assert_eq!(trust::exposure(path), None, "{} is private", path.display());
+        }
+    }
+
+    /// The folder an elevated install creates, and the `nvs.toml` it writes there, pass the check for
+    /// `LocalSystem` and for a virtual account, because their owner is `Administrators`. A token
+    /// that is not an administrator's owns them itself, and they pass for that account.
+    #[cfg(windows)]
+    #[test]
+    fn a_folder_an_administrator_creates_passes_for_the_service_accounts() {
+        let dir = scratch("service-owner");
+        let folder = Folder::new(dir.join(NAME));
+        folder.prepare().expect("a scratch folder is usable");
+        let file = folder.config_file();
+        std::fs::write(&file, "").unwrap();
+        super::give_to_administrators(&file).expect("the owner can be set");
+        let accounts = if trust::administrator() {
+            vec![
+                trust::Account::named("LocalSystem").unwrap(),
+                trust::Account::named(r"NT SERVICE\Shop").unwrap(),
+            ]
+        } else {
+            vec![trust::Account::current().unwrap()]
+        };
+        for account in &accounts {
+            trust::check_alone_as(folder.root(), account)
+                .unwrap_or_else(|why| panic!("{account:?}: {}", why.message()));
+            trust::check_as(&file, account)
+                .unwrap_or_else(|why| panic!("{account:?}: {}", why.message()));
         }
     }
 

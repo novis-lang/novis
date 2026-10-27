@@ -297,6 +297,14 @@ pub(crate) fn owner_sid() -> Option<String> {
     platform::owner_sid()
 }
 
+/// Whether this process's token has `BUILTIN\Administrators` enabled, which is what an elevated
+/// administrator's has. [`mod@crate::data`] names that group as the owner of what it creates then.
+#[cfg(windows)]
+#[must_use]
+pub(crate) fn administrator() -> bool {
+    platform::administrator()
+}
+
 #[cfg(unix)]
 mod platform {
     use std::path::{Path, PathBuf};
@@ -546,8 +554,9 @@ mod platform {
         ConvertSidToStringSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
     };
     use windows_sys::Win32::Security::{
-        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION,
-        EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE, LookupAccountNameW,
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CheckTokenMembership, CreateWellKnownSid,
+        DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetLengthSid, GetTokenInformation,
+        INHERIT_ONLY_ACE, LookupAccountNameW,
         OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE,
         SID_NAME_USE, TOKEN_QUERY, TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE, WinAnonymousSid,
         WinAuthenticatedUserSid, WinBuiltinAdministratorsSid, WinBuiltinGuestsSid,
@@ -1127,6 +1136,22 @@ mod platform {
         let text = sid_text(as_psid(&user));
         let bare = text.trim_matches('`');
         bare.starts_with("S-").then(|| bare.to_string())
+    }
+
+    /// [`super::administrator`]. A null token is this thread's own, as the call documents.
+    #[expect(
+        unsafe_code,
+        reason = "one `advapi32` call over a SID this frame owns and a flag it writes"
+    )]
+    pub(super) fn administrator() -> bool {
+        let Ok(administrators) = well_known(WinBuiltinAdministratorsSid) else {
+            return false;
+        };
+        let mut member = 0;
+        let asked = unsafe {
+            CheckTokenMembership(std::ptr::null_mut(), as_psid(&administrators), &mut member)
+        };
+        asked != 0 && member != 0
     }
 
     /// A SID buffer as the pointer every one of these calls takes.
