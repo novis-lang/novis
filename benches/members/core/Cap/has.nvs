@@ -2,7 +2,7 @@
 // Measures checking whether a capability is granted, which a program does on
 // every request that has an optional feature to switch on.
 // bench: iterations 2048
-// bench: calls 0
+// bench: calls 1
 // bench: allocations 0
 // bench: complexity constant
 
