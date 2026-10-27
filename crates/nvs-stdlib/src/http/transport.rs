@@ -3647,7 +3647,15 @@ pub(crate) mod tests {
             drop(stream.flush());
             return;
         }
-        let Ok(origin) = std::net::TcpStream::connect(target.as_str()) else {
+        // Every origin here listens on the IPv4 loopback alone, so an IPv6
+        // address can only be refused, and Windows takes about two seconds to
+        // refuse a loopback connect. Dialing it would spend a case's connect
+        // budget on that wait, so a target with no IPv4 address is answered
+        // `502` at once, which is what dialing it ends in.
+        let reachable: Vec<SocketAddr> = std::net::ToSocketAddrs::to_socket_addrs(target.as_str())
+            .map(|resolved| resolved.filter(SocketAddr::is_ipv4).collect())
+            .unwrap_or_default();
+        let Ok(origin) = std::net::TcpStream::connect(reachable.as_slice()) else {
             drop(stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n"));
             drop(stream.flush());
             return;
@@ -4000,9 +4008,9 @@ pub(crate) mod tests {
         // dials this one: nothing listens on it, so what comes back is the
         // refusal above and not a connect the case waits out. The IPv6
         // loopback and not `127.0.0.2`, because the origin listens on IPv4
-        // only and every platform refuses at once there — macOS assigns
-        // `127.0.0.1` alone, so a connect to `127.0.0.2` is dropped and waited
-        // out.
+        // only and [`tunnelled`] answers an IPv6 target `502` without dialing
+        // it — macOS assigns `127.0.0.1` alone, so a connect to `127.0.0.2` is
+        // dropped and waited out.
         let refusing: std::net::IpAddr = "::1".parse().expect("a literal address");
         asking.addresses = vec![refusing, at.ip()];
         asking.proxy = Some(through(proxying));
