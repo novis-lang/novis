@@ -1,9 +1,11 @@
 //! `rule:routing/link-target-and-params-are-checked`'s link:
-//! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **literal**
-//! route name, resolved against § 5's finished table while compiling.
+//! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **written
+//! method reference**, `Shop::show`, resolved against § 5's finished table
+//! while compiling. A route is named by the method it is declared on, so the
+//! table is reversed by [`crate::routes::Route::handler`].
 //!
-//! Two of the four refusals here are that rule's — an unknown name, and a
-//! capture no key supplies. The other two are
+//! Two of the four refusals here are that rule's — a method with no route, and
+//! a capture no key supplies. The other two are
 //! `rule:routing/the-servers-match-dispatches-nothing`'s,
 //! and they are the two halves of one `$params` entry. § 6's is about the
 //! **key**, and it exists because that section gives every *other* key a
@@ -27,7 +29,7 @@
 //! would answer "no such route" for a program that has one.
 //!
 //! So [`record_site`] only writes down what it saw — the call's span, the
-//! folded name, and `$params`' literal keys — and [`resolve`] makes every
+//! method the reference resolved to, and `$params`' literal keys — and [`resolve`] makes every
 //! lookup afterwards, from [`crate::check::check_program`], beside
 //! [`crate::routes::check_table`] and for its reason.
 //!
@@ -37,19 +39,24 @@
 //! same span. [`resolve`] records [`ExprInfo::RouteLink`] over it, which wins
 //! the lookup ([`crate::expr_table::ExprTypeTable::record`]), so the two states
 //! a consumer can see are exactly § 4's two: a resolved link, or an ordinary
-//! call to a member whose body throws. That is why a **computed** name needs no
-//! handling here at all — nothing is recorded, the `Call` stands, and
-//! `nvs_stdlib::router`'s own body is § 4's "a computed `$name` throws".
-//! The link carries a copy of the call it is recorded over, so a reader that
-//! follows the name to its method finds it in either state.
+//! call to a member whose body answers at run time. That is why a reference
+//! **passed as a value** needs no handling here at all — nothing is recorded,
+//! the `Call` stands, and `nvs_stdlib::router`'s own body answers it.
+//! The link carries a copy of the call it is recorded over.
 //!
-//! **A `name:` argument is folded like a positional one**, because which
+//! **The written reference is never called, and never lowered.** It is read for
+//! the method it names, so an instance method needs no object and a private
+//! one may be linked from another class: [`crate::expr::calls`] marks it in
+//! [`crate::Env::link_target_args`] and skips the visibility check, and
+//! `nvs_ir` replaces the argument with the route's prepared path.
+//!
+//! **A `route:` argument is read like a positional one**, because which
 //! parameter each written argument fills arrives from
-//! [`crate::expr::args::check_args_typed`]: `Core\Router::url(name: "…")` is
-//! read where it was written and an unknown route named that way is `E0754`
-//! before the program runs (`rule:core-api/parameters-are-callable-by-name`).
-//! So the two states above stay the only two, and a link that throws at run
-//! time is a computed name and nothing else.
+//! [`crate::expr::args::check_args_typed`]: `Core\Router::url(route: Shop::show)`
+//! is read where it was written and a method with no route named that way is
+//! `E0754` before the program runs
+//! (`rule:core-api/parameters-are-callable-by-name`). So the two states above
+//! stay the only two. A `$params` the call leaves out is `[]`.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -72,15 +79,15 @@ const ABSOLUTE: &str = "urlAbsolute";
 /// admits the member and says what the fold records for it.
 ///
 /// It asks the table exactly what the other two ask, so every refusal below is
-/// its refusal too: an unknown name, a capture no key supplies, a key that
-/// covers nothing, a value outside a closed set. What it adds is downstream of
-/// the lookup — the resolved name travels to run time, because
-/// `rule:core-classes/router-signed-url` signs the route's identity rather than
-/// the path it renders to.
+/// its refusal too: a method with no route, a capture no key supplies, a key
+/// that covers nothing, a value outside a closed set. What it adds is
+/// downstream of the lookup — the route's declared path pattern travels to run
+/// time, because `rule:core-classes/router-signed-url` signs the mount-relative
+/// pattern rather than the path it renders to.
 const SIGNED: &str = "urlSigned";
 
-/// One [`is_link`] call whose name folded to a literal, waiting for the table
-/// to finish.
+/// One [`is_link`] call whose target is a written method reference, waiting
+/// for the table to finish.
 ///
 /// Holds strings rather than borrowing the AST because the walk that recorded
 /// it has moved on to the next file by the time [`resolve`] runs, and the
@@ -92,14 +99,17 @@ pub(crate) struct LinkSite {
     /// The member as written, which is both the word a diagnostic quotes and
     /// whether an origin is prepended.
     member: String,
-    /// Argument 0, folded. A site exists only because it folded.
-    name: String,
-    /// Where argument 0 was written, which is where an unknown name is
+    /// The method argument 0 names, as `Class::method` with the class that
+    /// declares it — the spelling [`crate::routes::Route::handler`] is written
+    /// in. A site exists only because argument 0 was a written reference.
+    handler: String,
+    /// Where argument 0 was written, which is where a method with no route is
     /// reported: the call's span underlines `$params` too, and the mistake is
-    /// in the name.
-    name_span: Span,
-    /// The written position of the argument that fills `$params`.
-    params_at: usize,
+    /// in the target.
+    target_span: Span,
+    /// The written position of the argument that fills `$params`, and `None`
+    /// where the call left it out and it is `[]`.
+    params_at: Option<usize>,
     /// The written position of the argument that fills `urlSigned`'s signing
     /// settings, and `None` for the two members that sign nothing.
     settings_at: Option<usize>,
@@ -169,8 +179,8 @@ pub(crate) fn is_dispatch(owner: &QName, member: &str) -> bool {
 /// Records one link site, or nothing where § 4 leaves the call to run time.
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table
-/// and is made in [`resolve`], and everything decided here — a computed name, a
-/// `$params` that is not a literal — is legal.
+/// and is made in [`resolve`], and everything decided here — a reference passed
+/// as a value, a `$params` that is not a literal — is legal.
 pub(crate) fn record_site(
     call: &Expr,
     member: &str,
@@ -182,20 +192,30 @@ pub(crate) fn record_site(
     let CallArgs::List(list) = args else {
         return;
     };
-    // Each argument is found through the parameter it fills, so a `name:` is
-    // read where it was written. Nothing fills `$name` in a call too short to
+    // Each argument is found through the parameter it fills, so a `route:` is
+    // read where it was written. Nothing fills `$route` in a call too short to
     // have written it — the arity check's refusal, already made — or in one
     // whose `...` has no variadic tail to land in, which is refused where it
     // was mapped.
-    let Some(name_arg) = argument_filling(0, list, slots).map(|arg| &arg.value) else {
+    let Some(target) = argument_filling(0, list, slots).map(|arg| &arg.value) else {
         return;
     };
-    let Some(ConstArg::Str(name)) = folded_as(name_arg, crate::ty::Ty::String, env) else {
+    // A reference written here resolved to its method while the arguments
+    // were checked. Anything else is a value, which run time resolves.
+    if !matches!(
+        target.kind,
+        ExprKind::StaticCall {
+            args: CallArgs::MethodRef,
+            ..
+        }
+    ) {
+        return;
+    }
+    let Some(ExprInfo::CallableRef(resolved)) = env.exprs.lookup(target.span) else {
         return;
     };
-    let Some(params_at) = written_at(1, list, slots) else {
-        return;
-    };
+    let handler = format!("{}::{}", resolved.class, resolved.method);
+    let params_at = written_at(1, list, slots);
     let settings_at = match member == SIGNED {
         true => {
             let Some(at) = written_at(2, list, slots) else {
@@ -205,12 +225,16 @@ pub(crate) fn record_site(
         }
         false => None,
     };
-    let args = literal_args(&list[params_at].value, ctx, env);
+    // A `$params` the call left out is `[]`, whose keys are known: none.
+    let args = match params_at {
+        Some(at) => literal_args(&list[at].value, ctx, env),
+        None => Some(Vec::new()),
+    };
     env.links.push(LinkSite {
         span: call.span,
         member: member.to_owned(),
-        name,
-        name_span: name_arg.span,
+        handler,
+        target_span: target.span,
         params_at,
         settings_at,
         args,
@@ -347,19 +371,19 @@ pub(crate) fn resolve(
     diags: &mut Diagnostics,
 ) {
     for site in sites {
-        let Some(row) = routes.named(&site.name) else {
+        let Some(row) = routes.handled_by(&site.handler) else {
             diags.report(
                 Diagnostic::error(
-                    code::E_UNKNOWN_ROUTE_NAME,
+                    code::E_LINK_METHOD_HAS_NO_ROUTE,
                     format!(
-                        "`Core\\Router::{}` names the route `{}`, and no `#[Route]` claims it",
-                        site.member, site.name
+                        "`Core\\Router::{}` links to `{}`, and that method has no `#[Route]`",
+                        site.member, site.handler
                     ),
                 )
-                .with_primary(site.name_span, "no route is named this")
+                .with_primary(site.target_span, "this method has no route")
                 .with_help(
-                    "a route name in quotes is checked against the routes of the program. Give \
-                     the route a `name:` field with exactly this name, or correct the name here",
+                    "a link is built from the `#[Route]` of the method you pass. Add a \
+                     `#[Route]` to this method, or pass the method that has the route",
                 ),
             );
             continue;
@@ -394,11 +418,10 @@ pub(crate) fn resolve(
                 spellings: spellings(&pieces, row),
                 pieces,
                 absolute: site.member == ABSOLUTE,
-                // The name the lookup succeeded on, not the one the call
-                // spelled: they are the same string, and taking it from the
-                // site is what makes "the signature is over what resolved"
-                // true by construction rather than by a second comparison.
-                signed: (site.member == SIGNED).then(|| site.name.clone()),
+                // The row's declared path pattern, mount-relative: what
+                // `signedRoute` derives again from the route the request
+                // matched (`rule:core-classes/router-signed-url`).
+                signed: (site.member == SIGNED).then(|| row.path.clone()),
                 params_at: site.params_at,
                 settings_at: site.settings_at,
             },

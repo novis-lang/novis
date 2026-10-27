@@ -567,9 +567,15 @@ pub(crate) fn infer_static_call(
                         report_enum_has_no_constructor(&qname, *name_span, env);
                         return None;
                     }
+                    // A link's target is read for its route and never called,
+                    // so a private handler may be linked from anywhere.
+                    let link_target = matches!(args, CallArgs::MethodRef)
+                        && env.link_target_args.contains(&expr.span);
                     let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
                         |(owner, sig)| {
-                            check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
+                            if !link_target {
+                                check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
+                            }
                             // The declaring class — see [`infer_method_call`] for why
                             // the receiver's own is the wrong label.
                             (owner, name.clone(), sig)
@@ -687,6 +693,7 @@ pub(crate) fn infer_static_call(
     // [`note_method_ref_args`].
     note_method_ref_args(resolved.as_ref(), args, env);
     note_retrieval_target(resolved.as_ref(), args, env);
+    note_link_target(resolved.as_ref(), args, env);
     // `rule:core-classes/html-later`'s closed head, armed over a `later`
     // call's own arguments — see [`crate::response::is_later`] — and
     // `rule:concurrency/deferred-work-cannot-write-the-response`'s, armed over
@@ -1489,6 +1496,42 @@ fn note_retrieval_target(
         )
     {
         env.method_ref_args.insert(arg.value.span);
+    }
+}
+
+/// Marks a `Core\Router` link's written target, `Shop::show`, so that
+/// [`infer_static_call`] skips the visibility check for it
+/// (`rule:routing/link-target-and-params-are-checked`). The target is found as
+/// [`crate::links::record_site`] finds it: the first argument, or the one
+/// written `route:`.
+fn note_link_target(
+    resolved: Option<&(QName, String, MethodSig)>,
+    args: &CallArgs,
+    env: &mut Env<'_>,
+) {
+    let (Some((owner, member, _)), CallArgs::List(list)) = (resolved, args) else {
+        return;
+    };
+    if !crate::links::is_link(owner, member) {
+        return;
+    }
+    let target = list
+        .iter()
+        .find(|arg| {
+            arg.name
+                .is_some_and(|name| span_text(env.src, name) == "route")
+        })
+        .or_else(|| list.first().filter(|arg| arg.name.is_none() && !arg.spread));
+    if let Some(arg) = target
+        && matches!(
+            arg.value.kind,
+            ExprKind::StaticCall {
+                args: CallArgs::MethodRef,
+                ..
+            }
+        )
+    {
+        env.link_target_args.insert(arg.value.span);
     }
 }
 

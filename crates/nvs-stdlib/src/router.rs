@@ -52,20 +52,20 @@
 //! the program is only what a program reading `Core\Request::method` for
 //! itself gets.
 //!
-//! **A name this module is handed is one the compiler could not fold.** The
+//! **A method reference this module is handed is one passed as a value.** The
 //! route table is built and § 4's link is resolved against it while compiling:
-//! a name given as a string literal reaches [`link`]'s symbols carrying a prepared
-//! path — written positionally or as `name:`, which `nvs_types::links` reads
-//! through the call's own argument mapping — and an unknown one is `E0754` before
-//! the program runs. So [`CLASS`]'s own link members answer exactly the case
-//! § 4 named: a *computed* name, which throws.
+//! a reference written in the call reaches [`link`]'s symbols as a prepared
+//! path — written positionally or as `route:`, which `nvs_types::links` reads
+//! through the call's own argument mapping — and a method with no route is
+//! `E0754` before the program runs. So [`CLASS`]'s own link members answer only
+//! a reference passed as a value.
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::keyring::KEY;
 use crate::registry::{
-    CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual, ShapeKeyDoc,
+    CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
 };
 use crate::signature::{Confirmed, Domain};
 use crate::uri::{Form, SIG_NAME, encode};
@@ -287,7 +287,7 @@ const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 /// `Core\Router`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "The routes of your program. `url()`, `urlAbsolute()` and `urlSigned()` build a link \
-            to a route from its name. `match()` and `methodsFor()` check a path against the \
+            to the route of a method. `match()` and `methodsFor()` check a path against the \
             routes, and `signedRoute()` checks the signature of a signed link. `dispatch()` \
             calls the method of the route that the request matched.",
 };
@@ -313,18 +313,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "url",
-            names: &["name", "params"],
-            params: &[CoreTy::Str, PARAMS],
-            defaults: &[],
+            names: &["route", "params"],
+            params: &[CoreTy::Callable, PARAMS],
+            defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url",
             doc: Some(&URL_DOC),
         },
         CoreMethod {
             name: "urlAbsolute",
-            names: &["name", "params"],
-            params: &[CoreTy::Str, PARAMS],
-            defaults: &[],
+            names: &["route", "params"],
+            params: &[CoreTy::Callable, PARAMS],
+            defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url_absolute",
             doc: Some(&URL_ABSOLUTE_DOC),
@@ -339,18 +339,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // parameter naming which of `$params` is covered: all of it is, and
             // an options bag saying otherwise is where every framework's bypass
             // has lived.
-            names: &["name", "params", "settings"],
+            //
+            // `$params` has no default here, unlike `url`'s: the settings
+            // after it are required, and a default cannot sit in front of a
+            // required parameter.
+            names: &["route", "params", "settings"],
             params: &[
-                // `rule:security/sink-predicate` applied to a route name: it
-                // is not data the answer carries — the link is built out of
-                // the declared path and `$params`, and the name appears in
-                // neither — it is which handler runs, the predicate's own
-                // "the executable path is an instruction". Refusing a
-                // `tainted` one where the call is written is also the only
-                // useful answer: a name that is not a literal never folds, so
-                // the alternative is `no_such_route` at run time for a call
-                // that could never have worked.
-                CoreTy::Text(Qual::Sink),
+                // A method reference, as `url`'s is. Nothing a request sends
+                // can name a method, so the route a signed link is minted for
+                // is never data.
+                CoreTy::Callable,
                 PARAMS,
                 CoreTy::Shape(crate::signature::SIGNING),
             ],
@@ -415,34 +413,36 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 };
 
 /// `$name` and `$params`, documented once — both members take the same two.
-const NAME_DOC: ParamDoc = ParamDoc {
-    name: "name",
-    desc: "The route's name, as its `#[Route]` declares it. A name written directly in the \
-           code is checked when the program compiles, and an unknown name is a compile error.",
+const ROUTE_DOC: ParamDoc = ParamDoc {
+    name: "route",
+    desc: "The method that has the `#[Route]`, written as a method reference such as \
+           `Shop::show`. The link does not call the method. So the method may be an instance \
+           method or a private method. A method reference written directly in the call is \
+           checked when the program compiles. A method without a `#[Route]` is a compile error.",
     shape: &[],
 };
 
-/// See [`NAME_DOC`].
+/// See [`ROUTE_DOC`].
 const PARAMS_DOC: ParamDoc = ParamDoc {
     name: "params",
     desc: "The path's captures by name, plus any query parameters. A key written directly in \
            the code must be a capture or a declared `#[Query]` parameter. Any other key is a \
-           compile error.",
+           compile error. `url` and `urlAbsolute` use `[]` when you leave it out.",
     shape: &[],
 };
 
 /// `Core\Router::url`'s reference card — `rule:core-api/reference-card`.
 const URL_DOC: MethodDoc = MethodDoc {
-    short: "Builds the link to the route named `$name`. Each value in `$params` fills the \
+    short: "Builds the link to the route of the method `$route`. Each value in `$params` fills the \
             capture with the same name, and the other values become the query string. Every \
             value is percent-encoded, so it stays inside its own part of the link.",
-    params: &[NAME_DOC, PARAMS_DOC],
+    params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The path, for example `/users/42?page=2`. An optional `{name?}` capture is left out \
           when `$params` has no value for it. The `/` characters in a `{name...}` capture stay \
           as they are.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$name` is not a string written directly in the code. When `$params` has no \
+        desc: "When `$route` is a variable and not a method reference written in the call. When `$params` has no \
                value for a capture that the path needs. When a value cannot be written as text. When a \
                value is `.` or `..`, or a `{name...}` value has one of them between its `/` \
                characters, because a browser would move that link to another path.",
@@ -454,7 +454,7 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     short: "Builds the same link as `url`, with the origin of your site in front. The origin \
             is the `origin` setting of the `[[app]]` block in `nvs.toml`. It never comes from \
             the `Host` or `X-Forwarded-Host` header of a request.",
-    params: &[NAME_DOC, PARAMS_DOC],
+    params: &[ROUTE_DOC, PARAMS_DOC],
     ret: "The full URL, for example `https://example.test/users/42?page=2`. There is exactly \
           one `/` between the origin and the path.",
     errors: &[ErrorDoc {
@@ -467,11 +467,11 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
 /// `Core\Router::urlSigned`'s reference card — `rule:core-api/reference-card`.
 const URL_SIGNED_DOC: MethodDoc = MethodDoc {
     short: "Builds the same link as `url`, with a signature in the `_sig` query parameter at \
-            the end. The signature is made from the route's name and `$params`, not from the \
-            path. So the link still works when the route moves to another path. \
-            `Core\\Router::signedRoute` checks the signature.",
+            the end. The signature is made from the route's `path` in its `#[Route]` and from \
+            `$params`. So the link still works when the program is mounted at another path, or \
+            when the method gets a new name. `Core\\Router::signedRoute` checks the signature.",
     params: &[
-        NAME_DOC,
+        ROUTE_DOC,
         PARAMS_DOC,
         ParamDoc {
             name: "settings",
@@ -497,8 +497,8 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The link from `url` with `_sig=…` at the end, for example `/users/42?page=2&_sig=…`. \
-          The same name, values, keys and end time always give the same link. The signature \
-          adds about `4/3 × (name + params + 40)` characters.",
+          The same route, values, keys and end time always give the same link. The signature \
+          adds about `4/3 × (path + params + 40)` characters.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -516,8 +516,8 @@ const URL_SIGNED_DOC: MethodDoc = MethodDoc {
 const SIGNED_ROUTE_DOC: MethodDoc = MethodDoc {
     short: "Checks the `_sig` signature of the request that this program is handling. The \
             signature must be one that `Core\\Router::urlSigned` made with `$keys` for the route \
-            that the request matched. The check covers the route name and its values, not the \
-            path.",
+            that the request matched. The check covers the route's `path` in its `#[Route]` \
+            and the values. It does not cover the path the program is mounted at.",
     params: &[ParamDoc {
         name: "keys",
         desc: "The keys, newest first. Give the same keys that you give `urlSigned`. A signature \
@@ -1571,15 +1571,17 @@ nvs_runtime::nvs_helper! {
 const URL_SIGNED: &str = r"Core\Router::urlSigned";
 
 /// What [`nvs_core_router_link_signed`] takes a signature over: the route's
-/// declared name, and every entry of `$params` as the text it contributes to
-/// the URL.
+/// declared path pattern, such as `/unsubscribe/{reader}`, and every entry of
+/// `$params` as the text it contributes to the URL.
 ///
-/// **The name and never the path.** One compiled table serves at `/ModuleA`,
-/// at `/ModuleB` or at `/` (`rule:http-server/a-mount-table-expands-at-boot`),
-/// so a signature over the assembled path stops verifying the moment a mount
-/// moves, and one over the route's identity does not — which is the whole
-/// reason this pair exists rather than a caller parsing `url`'s answer and
-/// signing that (`rule:core-classes/router-signed-url`).
+/// **The pattern and never the assembled path.** One compiled table serves at
+/// `/ModuleA`, at `/ModuleB` or at `/`
+/// (`rule:http-server/a-mount-table-expands-at-boot`), so a signature over the
+/// assembled path stops verifying the moment a mount moves, and one over the
+/// mount-relative pattern does not — which is the whole reason this pair
+/// exists rather than a caller parsing `url`'s answer and signing that
+/// (`rule:core-classes/router-signed-url`). A renamed method keeps its links
+/// valid too, and a changed path breaks them, as it breaks the URL anyway.
 ///
 /// **The parameters are their text**, one step short of the encoding
 /// [`substitute`] then applies, and that is what makes the payload
@@ -1593,9 +1595,9 @@ const URL_SIGNED: &str = r"Core\Router::urlSigned";
 /// verifying half holds a match whose capture was converted to that value, and
 /// the segment spelling [`substitute`] writes is a property of the link rather
 /// than of the route's identity.
-fn signed_payload(name: &str, params: &Value, member: &str) -> Result<Value, Fault> {
+fn signed_payload(pattern: &str, params: &Value, member: &str) -> Result<Value, Fault> {
     let mut payload = NvsArray::new();
-    payload.set(NvsStr::new(b"route"), Value::text(name));
+    payload.set(NvsStr::new(b"route"), Value::text(pattern));
     payload.set(
         NvsStr::new(b"params"),
         Value::array(written_form(params, member)?),
@@ -1696,10 +1698,11 @@ nvs_runtime::nvs_helper! {
 
         let template = link_template(args, MEMBER)?;
         // Unreachable from source: `nvs_types::links` records this argument as
-        // the route name it resolved, and `nvs-ir` emits it as a `ConstStr`.
-        let name = args[1].as_text().ok_or_else(|| {
+        // the resolved route's path pattern, and `nvs-ir` emits it as a
+        // `ConstStr`.
+        let pattern = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Router::{MEMBER} expected {:?} for its resolved route name, got tag {}",
+                "Core\\Router::{MEMBER} expected {:?} for its route's path pattern, got tag {}",
                 Tag::Str,
                 args[1].tag_byte()
             ))
@@ -1714,7 +1717,7 @@ nvs_runtime::nvs_helper! {
             )));
         }
 
-        let payload = signed_payload(name, &args[2], MEMBER)?;
+        let payload = signed_payload(pattern, &args[2], MEMBER)?;
         // `mint` borrows the payload, so this frame still owns the one
         // reference `signed_payload` built — and owns it on the refusing path
         // too, which is why the `?` is below the release rather than on the
@@ -1834,7 +1837,7 @@ fn capture_text(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Stri
 /// escapes decode to octets that are not UTF-8. The partly built array is
 /// released by its own `Drop` on the way out.
 fn derived_payload(
-    name: &str,
+    pattern: &str,
     matched: &nvs_runtime::routes::Match,
     query: &str,
     member: &str,
@@ -1850,7 +1853,7 @@ fn derived_payload(
     }
 
     let mut payload = NvsArray::new();
-    payload.set(NvsStr::new(b"route"), Value::text(name));
+    payload.set(NvsStr::new(b"route"), Value::text(pattern));
     payload.set(NvsStr::new(b"params"), Value::array(params));
     Ok(Value::array(payload))
 }
@@ -1898,16 +1901,12 @@ nvs_runtime::nvs_helper! {
         let matched = inbound.route().cloned();
         let query = inbound.query().to_owned();
 
-        // A request that matched nothing, and one whose route declares no name,
-        // are folded into the refusal rather than answered apart: `urlSigned`
-        // signs a name, so neither could be a link it minted, and saying which
-        // would tell a holder something about the table.
+        // A request that matched nothing could not be a link `urlSigned`
+        // minted, and is the same refusal as a bad token.
         let Some(matched) = matched else {
             return Err(unverified());
         };
-        let Some(name) = matched.name() else {
-            return Err(unverified());
-        };
+        let pattern = matched.route().path().to_owned();
 
         let (tokens, rest) = crate::uri::without_signature(&query);
         // Neither none nor two, for `$uri->verifySignature`'s reason: checking
@@ -1916,7 +1915,7 @@ nvs_runtime::nvs_helper! {
             return Err(unverified());
         }
 
-        let payload = derived_payload(name, &matched, &rest, MEMBER)?;
+        let payload = derived_payload(&pattern, &matched, &rest, MEMBER)?;
         // `confirm` borrows the payload, so this frame still owns the one
         // reference `derived_payload` built — and owns it on the refusing path
         // too, which is why the `?` is below the release rather than on the
@@ -1955,64 +1954,61 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::text(text))
 }
 
-/// The answer both members give for a name that reached run time at all, which
-/// is a computed one. A folded literal never arrives here, however it was
-/// written: it is either a prepared path in [`link`]'s symbols or `E0754`.
+/// The answer the three members give for a method reference that reached run
+/// time, which is one passed as a value. A reference written in the call never
+/// arrives here: it is either a prepared path in [`link`]'s symbols or a
+/// compile error.
 ///
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
-/// reaching its helper is a compiler bug. These two are ordinary runtime
-/// members — `rule:routing/link-target-and-params-are-checked` says a *computed* `$name` throws — so the throw is a
-/// real answer a program can catch, and it stays the answer for an unknown name
-/// after the table lands. What changes then is only which names are unknown.
-fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
-    let name = args[0].as_text().unwrap_or("<not a string>");
+/// reaching its helper is a compiler bug. These are ordinary runtime members,
+/// so the throw is a real answer a program can catch. A reference passed as a
+/// value is not yet looked up in the unit's route table, and until it is, this
+/// throw is its answer (`rule:routing/link-target-and-params-are-checked`).
+fn no_such_route(member: &str) -> Fault {
     Fault::thrown(format!(
-        "Core\\Router::{member}(): no route is named `{name}`. A name computed at run time is \
-         not checked against the routes when the program compiles. Write the route's name as a \
-         string directly in the code"
+        "Core\\Router::{member}(): this method reference was passed as a value, and its route \
+         cannot be found while the program runs. Write the method reference directly in the call, \
+         such as `Core\\Router::{member}(Shop::show)`"
     ))
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/link-target-and-params-are-checked`
-    /// 's launderer for the URL-path sink.
+    /// `Core\Router::url(callable $route, array<mixed> $params = []): string`
+    /// — `rule:routing/link-target-and-params-are-checked`'s launderer for the
+    /// URL-path sink.
     ///
-    /// This is the *unfolded* member — reached only by a name the compiler
-    /// could not read as a literal — so there is no prepared path to substitute
-    /// into and no lookup to make: § 4 says a computed name throws, and
-    /// [`no_such_route`] is that throw. The resolved twin is
-    /// [`nvs_core_router_link`].
-    fn nvs_core_router_url(_ctx, args: [2]) {
-        Err(no_such_route("url", args))
+    /// This is the *unfolded* member, reached only by a reference passed as a
+    /// value, so there is no prepared path to substitute into. [`no_such_route`]
+    /// is its answer. The resolved twin is [`nvs_core_router_link`].
+    fn nvs_core_router_url(_ctx, _args: [2]) {
+        Err(no_such_route("url"))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::urlAbsolute(string $name, array<mixed> $params): string` —
-    /// [`nvs_core_router_url`] with `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin in front.
+    /// `Core\Router::urlAbsolute(callable $route, array<mixed> $params = []): string`
+    /// — [`nvs_core_router_url`] with `rule:routing/an-absolute-link-takes-a-configured-origin`'s
+    /// configured origin in front.
     ///
     /// The origin is per mount, falling back to `[app] origin`, and is never
     /// derived from `Host` or `X-Forwarded-Host`. Nothing here resolves one:
-    /// the route lookup refuses first, and there is no mount to read an origin
-    /// from in a program run off the command line at all.
-    fn nvs_core_router_url_absolute(_ctx, args: [2]) {
-        Err(no_such_route("urlAbsolute", args))
+    /// the route lookup refuses first.
+    fn nvs_core_router_url_absolute(_ctx, _args: [2]) {
+        Err(no_such_route("urlAbsolute"))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::urlSigned(string $name, array<mixed> $params, {keys, until}): string`
-    /// — [`nvs_core_router_url`]'s answer for a name that reached run time,
-    /// with two more arguments it never gets as far as reading.
+    /// `Core\Router::urlSigned(callable $route, array<mixed> $params, {keys, until}): string`
+    /// — [`nvs_core_router_url`]'s answer for a reference that reached run
+    /// time, with two more arguments it never gets as far as reading.
     ///
-    /// The lookup refuses first on purpose. A computed name has no route, so
-    /// there is nothing to sign the identity *of*, and checking the ring
-    /// before saying so would answer a question about the key material when
-    /// the mistake is in the call. The resolved twin is
-    /// [`nvs_core_router_link_signed`].
-    fn nvs_core_router_url_signed(_ctx, args: [4]) {
-        Err(no_such_route("urlSigned", args))
+    /// The lookup refuses first on purpose: checking the ring before saying
+    /// so would answer a question about the key material when the mistake is
+    /// in the call. The resolved twin is [`nvs_core_router_link_signed`].
+    fn nvs_core_router_url_signed(_ctx, _args: [4]) {
+        Err(no_such_route("urlSigned"))
     }
 }
 

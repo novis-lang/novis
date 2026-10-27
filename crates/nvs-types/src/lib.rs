@@ -683,6 +683,11 @@ pub(crate) struct Env<'a> {
     /// (`rule:classes/constructor-is-a-method-named-constructor`). Marked and
     /// read as [`Self::method_name_args`] is.
     pub method_ref_args: FxHashSet<Span>,
+    /// A `Core\Router` link's written `Class::method` target
+    /// (`rule:routing/link-target-and-params-are-checked`). A link calls
+    /// nothing, so the reference skips the visibility check. Marked and read
+    /// as [`Self::method_name_args`] is.
+    pub link_target_args: FxHashSet<Span>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

@@ -377,7 +377,7 @@ fn a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not() {
 
     // A gate class and a link, with no `dispatch` call: dispatched by hand.
     let (diags, exprs) = check_src_table(&format!(
-        "{routes}{GATE}echo Core\\Router::url(\"users\", []);\n\
+        "{routes}{GATE}echo Core\\Router::url(Users::index);\n\
          echo Core\\Request::route()?->name() ?? \"\";\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -724,7 +724,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
              name: \"Health::show\")]\n  \
              #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(): string { return \"\"; }\n}\n\
-             echo Core\\Router::url(\"Users::show\", [\"id\" => 1]), \"\\n\";\n",
+             echo Core\\Router::url(Users::show, [\"id\" => 1]), \"\\n\";\n",
         ),
         (
             "table-users.nvs",
@@ -746,7 +746,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
     let paths: Vec<&str> = table.rows().iter().map(|row| row.path.as_str()).collect();
     assert_eq!(paths, ["/health", "/users/{id}"]);
     let show = table
-        .named("Users::show")
+        .handled_by("Users::show")
         .expect("the required file's route");
     assert_eq!(show.handler, "Users::show");
 }
@@ -847,55 +847,107 @@ fn a_path_capture_with_no_matching_method_parameter_is_a_diagnostic() {
 }
 
 #[test]
-fn an_unknown_written_url_name_is_a_diagnostic() {
+fn a_link_to_a_method_with_no_route_is_a_diagnostic() {
     // § 4's first refusal, asked here rather than only in the reject case,
     // because it is the one link error that fires with no `$params` question
-    // in front of it.
-    let src = |name: &str| {
-        with_access(&format!(
+    // in front of it. `show` is an instance method and the link is written
+    // outside the class: a link calls nothing, so it needs no object.
+    let src = |target: &str| {
+        format!(
             "<?nvs\nclass Users {{\n  \
-             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get, \
-             name: \"Users::show\")]\n  \
-             public function show(uint $id): string {{ return \"\"; }}\n}}\n\
-             echo Core\\Router::url({name}, [\"id\" => 1]), \"\\n\";\n"
-        ))
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+             public function show(uint $id): string {{ return \"\"; }}\n  \
+             public function plain(uint $id): string {{ return \"\"; }}\n  \
+             #[Core\\Route(path: \"/users/{{id}}/edit\", method: Core\\Http\\Method::Get)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+             private function edit(uint $id): string {{ return \"\"; }}\n}}\n\
+             echo Core\\Router::url({target}, [\"id\" => 1]), \"\\n\";\n"
+        )
     };
-    let diags = check_src(&src("\"Users::missing\""));
-    assert!(reported(&diags, code::E_UNKNOWN_ROUTE_NAME), "{diags:?}");
+    let diags = check_src(&src("Users::plain"));
+    assert!(
+        reported(&diags, code::E_LINK_METHOD_HAS_NO_ROUTE),
+        "{diags:?}"
+    );
 
-    // The name the table does claim resolves, and is the fold rather than a
+    // The method the table does hold resolves, and is the fold rather than a
     // call left standing.
-    let diags = check_src(&src("\"Users::show\""));
+    let diags = check_src(&src("Users::show"));
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // A *computed* name is not this error: nothing is read, so nothing is
-    // checked and the member's own body throws at run time. The pair is what
-    // keeps § 4's literal/computed split from being a claim about one half.
-    let diags = check_src(&format!(
-        "<?nvs\nstring $name = \"Users::missing\";\n{}",
-        src("$name").trim_start_matches("<?nvs\n")
-    ));
+    // A private route method is linked from outside its class: the link reads
+    // its route and never calls it, so visibility is not checked.
+    let diags = check_src(&src("Users::edit"));
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]
+fn a_reference_passed_as_a_value_is_left_to_run_time() {
+    // A reference held in a variable is not read here: nothing is checked, and
+    // the member's own body answers at run time. The pair with the test above
+    // is what keeps § 4's written/value split from being a claim about one half.
+    let diags = check_src(
+        "<?nvs\nclass Users {\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+         #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+         public static function index(): string { return \"\"; }\n  \
+         public static function plain(): string { return \"\"; }\n}\n\
+         callable $target = Users::plain;\n\
+         echo Core\\Router::url($target), \"\\n\";\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_link_with_no_params_is_an_empty_params_array() {
+    // `$params` defaults to `[]`, so a route with no capture needs none, and
+    // one with a capture still names the capture nobody supplied.
+    let src = |link: &str| {
+        format!(
+            "<?nvs\nclass Users {{\n  \
+             #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+             public function index(): string {{ return \"\"; }}\n  \
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
+             #[Core\\Access(allow: Core\\Audience::Public)]\n  \
+             public function show(uint $id): string {{ return \"\"; }}\n}}\n\
+             echo {link}, \"\\n\";\n"
+        )
+    };
+    let diags = check_src(&src("Core\\Router::url(Users::index)"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let diags = check_src(&src("Core\\Router::urlAbsolute(Users::index)"));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(&src("Core\\Router::url(Users::show)"));
+    assert!(
+        reported(&diags, code::E_ROUTE_LINK_MISSING_PARAM),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn a_named_link_argument_is_folded_like_a_positional_one() {
-    // `rule:core-api/parameters-are-callable-by-name`: `$name` and `$params`
+    // `rule:core-api/parameters-are-callable-by-name`: `$route` and `$params`
     // are filled by the names the registry publishes as surely as by position, and
     // the call's own argument mapping is what says so — so § 4's refusals are
-    // the same refusals when the link is written that way, and a link that
-    // throws at run time is a computed name and nothing else.
+    // the same refusals when the link is written that way.
     let src = |link: &str| {
         with_access(&format!(
             "<?nvs\nclass Users {{\n  \
-             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get, \
-             name: \"Users::show\")]\n  \
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
              public function show(uint $id): string {{ return \"\"; }}\n}}\n\
+             class Other {{\n  \
+             private function hidden(): string {{ return \"\"; }}\n}}\n\
              echo Core\\Router::url({link}), \"\\n\";\n"
         ))
     };
-    let diags = check_src(&src("name: \"Users::missing\", params: [\"id\" => 1]"));
-    assert!(reported(&diags, code::E_UNKNOWN_ROUTE_NAME), "{diags:?}");
+    let diags = check_src(&src("route: Other::hidden, params: [\"id\" => 1]"));
+    assert!(
+        reported(&diags, code::E_LINK_METHOD_HAS_NO_ROUTE),
+        "{diags:?}"
+    );
 
     // The `$params` half through the same mapping, and written *first*: a key
     // that is neither a capture nor a `#[Query]` parameter is
@@ -903,7 +955,7 @@ fn a_named_link_argument_is_folded_like_a_positional_one() {
     // reaching it means both arguments were read at the parameters they filled
     // rather than at the positions they were written in.
     let diags = check_src(&src(
-        "params: [\"id\" => 1, \"nope\" => 2], name: \"Users::show\"",
+        "params: [\"id\" => 1, \"nope\" => 2], route: Users::show",
     ));
     assert!(
         reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
@@ -911,8 +963,8 @@ fn a_named_link_argument_is_folded_like_a_positional_one() {
     );
 
     // And the link that is right, written entirely by name: no diagnostic, so
-    // the pair above is a refusal of the *name* and not of the spelling.
-    let diags = check_src(&src("name: \"Users::show\", params: [\"id\" => 1]"));
+    // the pair above is a refusal of the *target* and not of the spelling.
+    let diags = check_src(&src("route: Users::show, params: [\"id\" => 1]"));
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -1032,7 +1084,7 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
              name: \"orders.show\")]\n  \
              public function show(uint $id, #[Query] uint $page = 1, string $sort = \"asc\"): \
              string {{ return \"\"; }}\n\
-             }}\necho Core\\Router::url(\"orders.show\", {params}), \"\\n\";\n"
+             }}\necho Core\\Router::url(Orders::show, {params}), \"\\n\";\n"
         ))
     };
     let diags = check_src(&src("[\"id\" => 1, \"pge\" => 2]"));

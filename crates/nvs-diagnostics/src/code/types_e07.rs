@@ -1028,17 +1028,19 @@ codes! {
          default value. Write for example `int $page = 1`.",
     );
 
-    /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
+    /// `Core\Router::url`, `urlAbsolute` or `urlSigned` links to a method that
+    /// has no `#[Route]`.
     ///
-    /// `rule:routing/link-target-and-params-are-checked`: a `$name` given as a string literal that is
-    /// not a declared route is a compile error, and a computed one throws instead — so this is
-    /// reported at the argument rather than at the call, which is where the string is.
-    /// The table it is checked against is the whole program's, which is why
-    /// the check runs after every file has been walked and not where the call
-    /// is typed: the route may be declared in a file § 5's scan reaches later.
-    pub const E_UNKNOWN_ROUTE_NAME: Code = Code::new("E0754").card(
-        "No `#[Route]` has the name given to `Core\\Router::url` or `urlAbsolute`. Check the \
-         spelling against the `name:` of the route.",
+    /// `rule:routing/link-target-and-params-are-checked`: a method reference
+    /// written in the call is resolved to its route while compiling, so this
+    /// is reported at the argument rather than at the call, which is where the
+    /// reference is. The table it is checked against is the whole program's,
+    /// which is why the check runs after every file has been walked and not
+    /// where the call is typed: the route may be declared in a file § 5's scan
+    /// reaches later.
+    pub const E_LINK_METHOD_HAS_NO_ROUTE: Code = Code::new("E0754").card(
+        "The method given to `Core\\Router::url` has no `#[Route]`. Pass the method that has \
+         the route, or add a `#[Route]` to this method.",
     );
 
     /// A `Core\Router::url` `$params` array literal covers none of some capture the

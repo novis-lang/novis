@@ -507,8 +507,9 @@ pub enum CoreTy {
     /// A row writes this where the value is **not a callback the member
     /// calls**: `Core\Attributes::get`'s `$target` is a reference to a
     /// declaration, and what it names has whatever signature it was declared
-    /// with. It also stands in a [`CoreOption`], which has had no pass of its
-    /// own yet. Those are the two places, and
+    /// with, and `Core\Router::url`'s `$route` is the method a route is
+    /// declared on. It also stands in a [`CoreOption`], which has had no pass
+    /// of its own yet. Those are the two places, and
     /// `every_callback_parameter_declares_its_signature` names them — every
     /// callback a member *invokes* writes [`Self::CallableSig`] instead, so
     /// what it is handed and what it must answer are checked where the call is
@@ -4896,7 +4897,9 @@ mod tests {
     /// named here so a third cannot join by accident. A **reference to a
     /// declaration** is not a callback at all: nothing in `Core\Attributes`
     /// calls `$target`, it reads the attributes off whatever declaration the
-    /// reference names, so there is no signature the member could state. An
+    /// reference names, so there is no signature the member could state.
+    /// `Core\Router`'s link members are references of the same kind: the link
+    /// reads the route off the method and never calls it. An
     /// **option bag's field** is not a parameter and is not swept — `{by?:
     /// callable}` and its six siblings still stand at the top of the lattice,
     /// which is `rule:types/callable-signature`'s own allowance rather than an
@@ -4936,9 +4939,17 @@ mod tests {
             }
         }
         unspelled.sort_unstable();
+        // `Core\Router`'s three link members take the method a route is
+        // declared on, which the link never calls.
         assert_eq!(
             unspelled,
-            [r"Core\Attributes::all", r"Core\Attributes::get"],
+            [
+                r"Core\Attributes::all",
+                r"Core\Attributes::get",
+                r"Core\Router::url",
+                r"Core\Router::urlAbsolute",
+                r"Core\Router::urlSigned",
+            ],
             "a `Core` callback writes `CoreTy::CallableSig`; a bare `callable` \
              parameter is either a reference to a declaration or a row that \
              has not been given its signature yet"

@@ -907,6 +907,19 @@ impl RouteTable {
         }
     }
 
+    /// The first row declared on `handler`, written `Class::method` with the
+    /// class that declares the method, or `None` where the method has no
+    /// `#[Route]` — what a link reverses the table by
+    /// (`rule:routing/link-target-and-params-are-checked`).
+    ///
+    /// The first row stands for all of them: one method's routes share one
+    /// path and differ only by verb
+    /// (`rule:routing/routes-are-compiled-not-registered`).
+    #[must_use]
+    pub fn handled_by(&self, handler: &str) -> Option<&Route> {
+        self.rows.iter().find(|row| row.handler == handler)
+    }
+
     /// The row § 1's `name` names, or `None` where no route claims it — § 4's
     /// `url`/`urlAbsolute` reverse the table by exactly this question.
     ///

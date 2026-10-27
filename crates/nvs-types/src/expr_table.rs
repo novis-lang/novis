@@ -1318,14 +1318,14 @@ pub enum ExprInfo {
         /// `true` for `urlAbsolute`, which prepends `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured
         /// origin in front of everything `url` builds.
         absolute: bool,
-        /// The route's name as the call wrote it, for `urlSigned` alone, and
+        /// The route's declared path pattern, for `urlSigned` alone, and
         /// `None` for the two members that sign nothing.
         ///
-        /// The name reaches run time as a value of its own because it is what
-        /// the signature is taken over: `rule:core-classes/router-signed-url`
-        /// signs a route's *identity* — this name and the parameters — rather
-        /// than the path beside it, since one compiled table serves at more
-        /// than one mount and the path is the half a remount changes.
+        /// The pattern reaches run time as a value of its own because it is
+        /// what the signature is taken over: `rule:core-classes/router-signed-url`
+        /// signs the mount-relative pattern and the parameters, and never the
+        /// assembled path, since one compiled table serves at more than one
+        /// mount and the prefix is the half a remount changes.
         signed: Option<String>,
         /// Every capture whose parameter narrows to a **name**-spelled enum
         /// subset, as the table run time converts its value with — empty for
@@ -1337,10 +1337,10 @@ pub enum ExprInfo {
         /// one variant would make the only reading of that grammar answer a
         /// second question. [`crate::links`]' `spellings` is where they meet.
         spellings: Vec<EnumSpelling>,
-        /// The written position of the argument that fills `$params`. A
-        /// `name:` may write the arguments in any order, and lowering reads
-        /// each one here.
-        params_at: usize,
+        /// The written position of the argument that fills `$params`, and
+        /// `None` where the call left it out and it is `[]`. A `name:` may
+        /// write the arguments in any order, and lowering reads each one here.
+        params_at: Option<usize>,
         /// The written position of the argument that fills `urlSigned`'s
         /// signing settings, and `None` for the two members that sign nothing.
         settings_at: Option<usize>,

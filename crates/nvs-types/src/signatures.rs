@@ -1024,6 +1024,7 @@ pub fn build_signatures(
             coalesce_guarded: FxHashSet::default(),
             method_name_args: FxHashSet::default(),
             method_ref_args: FxHashSet::default(),
+            link_target_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             deprecated_uses: None,

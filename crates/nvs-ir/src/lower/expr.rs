@@ -4219,11 +4219,11 @@ impl<'a> Lowering<'a> {
     /// One resolved link call, as the prepared path plus whatever else its
     /// member takes.
     ///
-    /// `signed` is `urlSigned`'s route name and `None` for the other two. It is
-    /// a second constant argument rather than a piece of `prepared` because the
-    /// two say opposite things: the prepared path is what a remount changes,
-    /// and the name is what it does not, which is the whole of
-    /// `rule:core-classes/router-signed-url`. A signing call also carries the
+    /// `signed` is `urlSigned`'s declared path pattern and `None` for the other
+    /// two. It is a second constant argument rather than read back out of
+    /// `prepared` because the prepared path has its enum spellings folded in,
+    /// and the signature is over the pattern as declared
+    /// (`rule:core-classes/router-signed-url`). A signing call also carries the
     /// `{keys, until}` shape, flattened here into one argument per declared
     /// field — `rule:core-api/shape-flattens-at-the-abi`'s ABI, reached by hand
     /// because this arm builds its argument vector by hand.
@@ -4263,15 +4263,35 @@ impl<'a> Lowering<'a> {
             lowered.push(name);
         }
         let mut settings = Vec::new();
-        let settings_first = settings_at.filter(|at| *at < params_at);
+        // An omitted `$params` is `[]`, evaluated after everything written, so
+        // the settings, if any, come first.
+        let settings_first = settings_at.filter(|at| params_at.is_none_or(|params| *at < params));
         if let Some(at) = settings_first {
             self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
         }
-        let (params, params_ty) = self.lower_expr(&list[params_at].value, None, env, cur);
-        let aliasing = self.aliasing_read(&list[params_at].value);
-        self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
+        let params = match params_at {
+            Some(at) => {
+                let (params, params_ty) = self.lower_expr(&list[at].value, None, env, cur);
+                let aliasing = self.aliasing_read(&list[at].value);
+                self.account_for_arg(params, params_ty, ArgOwnership::Borrowed, aliasing, *cur);
+                params
+            }
+            None => {
+                // The instruction a written `[]` lowers to. This frame owns
+                // the one reference, and the call borrows it.
+                let (params, _) = self.emit(
+                    *cur,
+                    Ty::Array,
+                    InstKind::ArrayNew {
+                        entries: Vec::new(),
+                    },
+                );
+                self.account_for_arg(params, Ty::Array, ArgOwnership::Borrowed, false, *cur);
+                params
+            }
+        };
         lowered.push(params);
-        if let Some(at) = settings_at.filter(|at| *at > params_at) {
+        if let Some(at) = settings_at.filter(|at| params_at.is_some_and(|params| *at > params)) {
             self.lower_signing_settings(&list[at].value, env, cur, &mut settings);
         }
         lowered.extend(settings);
@@ -7498,10 +7518,11 @@ pub(crate) enum ReceiverProof {
 struct RouteLink {
     /// `true` for `urlAbsolute`.
     absolute: bool,
-    /// The route's name, for `urlSigned` alone.
+    /// The route's declared path pattern, for `urlSigned` alone.
     signed: Option<String>,
-    /// The written position of the argument that fills `$params`.
-    params_at: usize,
+    /// The written position of the argument that fills `$params`, and `None`
+    /// where the call left it out.
+    params_at: Option<usize>,
     /// The written position of the argument that fills `urlSigned`'s signing
     /// settings.
     settings_at: Option<usize>,
