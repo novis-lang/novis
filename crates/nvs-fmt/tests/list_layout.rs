@@ -1,6 +1,8 @@
 //! A list is on one line or has one item per line, and a line break its author
 //! wrote at the list's own level is what breaks it
-//! (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`).
+//! (`rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`). An item that
+//! is a broken chain or ternary breaks the innermost list holding it
+//! (`rule:tooling/fmt-a-broken-item-breaks-its-list`).
 //!
 //! Each case is the smallest file that shows one half of the rule: what counts
 //! as a break at the list's own level, what does not, and the one layout a
@@ -181,5 +183,49 @@ $order = Shop::place(
 fn a_broken_list_is_a_fixed_point() {
     let canonical = "<?nvs\nvar $steps = [\n    'build',\n\n    'test',\n];\n";
     formats_to("<?nvs\nvar $steps = ['build',\n\n'test'];\n", canonical);
+    formats_to(canonical, canonical);
+}
+
+#[test]
+fn a_broken_concatenation_breaks_the_list_that_holds_it() {
+    formats_to(
+        "<?nvs\n$page = Document::fromHtml('<p>Invoice</p>'\n. '<p>Total</p>');\n",
+        "<?nvs\n$page = Document::fromHtml(\n    '<p>Invoice</p>'\n        . '<p>Total</p>',\n);\n",
+    );
+}
+
+#[test]
+fn only_the_innermost_list_breaks() {
+    formats_to(
+        "<?nvs\n$reader = Reader::open(Document::fromHtml('<p>Invoice</p>'\n. '<p>Total</p>')->render()->bytes);\n",
+        "<?nvs\n$reader = Reader::open(Document::fromHtml(\n    '<p>Invoice</p>'\n        . '<p>Total</p>',\n)->render()->bytes);\n",
+    );
+}
+
+#[test]
+fn a_broken_call_chain_breaks_the_list_that_holds_it() {
+    formats_to(
+        "<?nvs\nReport::send($query->where('state', 'open')\n->fetch(), $mail);\n",
+        "<?nvs\nReport::send(\n    $query\n        ->where('state', 'open')\n        ->fetch(),\n    $mail,\n);\n",
+    );
+}
+
+#[test]
+fn a_broken_ternary_breaks_the_list_that_holds_it() {
+    formats_to(
+        "<?nvs\nLog::write($ok\n? 'done' : 'failed');\n",
+        "<?nvs\nLog::write(\n    $ok\n        ? 'done'\n        : 'failed',\n);\n",
+    );
+}
+
+#[test]
+fn a_broken_chain_inside_a_function_body_does_not_break_the_call() {
+    let canonical = "\
+<?nvs
+var $names = Core\\Arr::map($users, fn(User $user): string => {
+    return $user->first
+        . ' ' . $user->last;
+});
+";
     formats_to(canonical, canonical);
 }

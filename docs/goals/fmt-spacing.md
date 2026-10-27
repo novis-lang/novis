@@ -34,7 +34,7 @@ stages:
         rules: [tooling/fmt-every-binary-operator-breaks-operator-first, tooling/fmt-a-broken-operator-chain-is-one-operand-per-line]
   - id: 8
     title: a broken ternary has a line per branch, and a broken item breaks its list
-    status: open
+    status: done
     context: [crates/nvs-fmt/src/chain.rs, crates/nvs-fmt/src/list.rs, crates/nvs-fmt/tests/chain_layout.rs, crates/nvs-fmt/tests/list_layout.rs]
     extra:
       context:
@@ -185,6 +185,11 @@ reading the tokens for it. Simplicity wins: its breaks stay the author's, and
 precedence level are one chain**, so `$a + $b\n- $c` is one chain of three, and a nested chain is
 always a tighter-binding level.
 
+**A broken chain that is a list item has its operators one level in from the item's line**, as every
+other broken chain does. `rule:tooling/fmt-a-broken-item-breaks-its-list`'s example put the `.` at the
+item's own column, and is corrected to match. Why: simplicity, one layout for a chain wherever it sits,
+and in a list of several items a `.` line at the item column reads as an item of its own.
+
 **Lanes.** Every stage but 5 touches `crates/nvs-fmt` alone. Stages 1 and 2 share `gap.rs` and run in
 order. Stages 7, 8, 9 and 10 share `chain.rs` and run in order, after stage 3, since 3 and 7 both touch
 the code that writes a line's opening. Stages 1 and 2 are disjoint from 7 to 10 except one `extend` in
@@ -242,9 +247,9 @@ indented one more level, and `.` keeps the lines its author wrote.
 **Does:** a ternary has its two layouts, and a broken chain or ternary inside a one-line list breaks
 the innermost list around it.
 
-- [ ] A `Ternary` with a line break at its own level opens a line for its `?` and its `:`, one level in from its condition's line, and a short ternary for its `?:` (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`). `crates/nvs-fmt/src/chain.rs:211`
-- [ ] A list item that is a broken operator chain, call chain or ternary breaks the innermost list holding it; an anonymous function's body, a nested list and a heredoc still do not (`rule:tooling/fmt-a-broken-item-breaks-its-list`). `crates/nvs-fmt/src/list.rs:246`, `crates/nvs-fmt/src/list.rs:286`
-- [ ] Tests: a ternary broken after its condition, one broken before its `:`, a short ternary, a broken concatenation as a call's only argument, a broken call chain as an argument, and an anonymous function's body that still leaves its list on one line. `crates/nvs-fmt/tests/chain_layout.rs:1`, `crates/nvs-fmt/tests/list_layout.rs:1`
+- [x] A `Ternary` with a line break at its own level opens a line for its `?` and its `:`, one level in from its condition's line, and a short ternary for its `?:` (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`). `crates/nvs-fmt/src/chain.rs:518`
+- [x] A list item that is a broken operator chain, call chain or ternary breaks the innermost list holding it; an anonymous function's body, a nested list and a heredoc still do not (`rule:tooling/fmt-a-broken-item-breaks-its-list`). `crates/nvs-fmt/src/chain.rs:208`, `crates/nvs-fmt/src/list.rs:177`
+- [x] Tests: a ternary broken after its condition, one broken before its `:`, a short ternary, a broken concatenation as a call's only argument, a broken call chain as an argument, and an anonymous function's body that still leaves its list on one line. `crates/nvs-fmt/tests/chain_layout.rs:1`, `crates/nvs-fmt/tests/list_layout.rs:1`
 
 ### 9. every control header breaks like a condition
 
@@ -311,35 +316,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test --test
-token_gaps` passes its 25 cases, the coverage test among them.
+Stages 1, 2, 3, 7 and 8 are done. `crates/nvs-fmt/src/gap.rs` is the whole table, and `cargo test
+--test token_gaps` passes its 25 cases, the coverage test among them.
 
-- Operator chains: `OPERATORS` (`crates/nvs-fmt/src/chain.rs:103`) gives every `Binary` operator its
+- Operator chains: `OPERATORS` (`crates/nvs-fmt/src/chain.rs:122`) gives every `Binary` operator its
   precedence level, and `flatten` joins one level. `Operators::opens_line` is the `.` exception.
-  `operand_opening` (`crates/nvs-fmt/src/chain.rs:624`) places a chain's first operand from the
-  broken chain or condition around it, which is the one-level-further nesting, and it works where the
-  author never broke that line. `cargo test --test chain_layout` passes 14. `|>` is the author's.
-- Blank lines: `blank::collapsed` (`crates/nvs-fmt/src/blank.rs:62`), pushed after `statement::runs`.
-- Types and unary: `gap::runs` (`crates/nvs-fmt/src/gap.rs:180`); `AUTHORS` (`gap.rs:158`) is the
-  author's list, and `crates/nvs-fmt/tests/corpus.rs:202` holds the token kinds over the corpus.
-- The sweep's reds are stale: nightly `55b03e97a` predates the Miri fixes; `env-secret-proofs` is 0.
+  `Operators::operators` holds each operator's start and end, so a short ternary's `?:` is one.
+  `operand_opening` places a chain's first operand from the broken chain or condition around it, and
+  `line_opening` (`crates/nvs-fmt/src/chain.rs:721`) from the broken list whose item it is. `|>` is
+  the author's.
+- Ternary: `ternary_operators` (`crates/nvs-fmt/src/chain.rs:518`), an `Operators` of its own.
+- A broken item: `chain::is_broken` (`crates/nvs-fmt/src/chain.rs:208`), read in `List::of`
+  (`crates/nvs-fmt/src/list.rs:177`). The rule's example now puts the `.` one level in, as Standing
+  decisions says.
+- `cargo test --test chain_layout` passes 19 and `--test list_layout` 19. The sweep's reds were
+  stale: nightly `55b03e97a` predates the Miri fixes, and `env-secret-proofs` exits 0.
 
 Expected red until stage 4: `crates/nvs-fmt/tests/identity.rs`, and every corpus file and fixture
-with a binary chain broken at its own level, a `.` ending a line, a pair, type or unary spaced
-another way (`tests/fmt/formatted/comments.nvs`), or a blank line the rule removes. The LSP suites
-calling `written_types_in` were built,
-not run; stage 6 runs them.
+with a binary chain or ternary broken at its own level, a broken chain or ternary inside a one-line
+list, a `.` ending a line, a pair, type or unary spaced another way
+(`tests/fmt/formatted/comments.nvs`), or a blank line the rule removes. The LSP suites calling
+`written_types_in` were built, not run; stage 6 runs them. `split_join.rs` now offers its chain
+actions on a ternary too, untested until stage 10.
 
 ### Next
 
-**Stage 8: a broken ternary has a line per branch, and a broken item breaks its list**, one file
-set: `crates/nvs-fmt/src/chain.rs`, `crates/nvs-fmt/src/list.rs`, `crates/nvs-fmt/tests/chain_layout.rs`,
-`crates/nvs-fmt/tests/list_layout.rs`. The items are the stage's own, under `### 8.` above; stages 9
-and 10 follow in the same files.
+**Stage 9: every control header breaks like a condition**, one file set: `crates/nvs-fmt/src/chain.rs`,
+`crates/nvs-fmt/tests/chain_layout.rs`. The items are the stage's own, under `### 9.` above; stage 10
+follows in the same files. `chain.rs` is about 810 lines, so the headers may move to `header.rs`
+once it passes 1,200.
 
-- [ ] A broken `Ternary` opens a line for its `?` and its `:`, and `?:` stays one token pair. A ternary is a chain of two seams, so it can be an `Operators` with the two spellings, and `operand_opening` (`crates/nvs-fmt/src/chain.rs:624`) then nests it. `crates/nvs-fmt/src/chain.rs:249`, `crates/nvs-fmt/src/chain.rs:680`
-- [ ] A list item that is a broken chain or ternary breaks the innermost list. `crates/nvs-fmt/src/list.rs:246`, `crates/nvs-fmt/src/list.rs:286`
-- [ ] The tests the stage names, run once by name. `crates/nvs-fmt/tests/chain_layout.rs:1`, `crates/nvs-fmt/tests/list_layout.rs:1`
+- [ ] `CONDITIONS` grows to `Switch`, `Match`, `Foreach` and `For`, and `condition_of` finds each header's `(` and `)`; its keyword test reads only `if` and `while` today. `crates/nvs-fmt/src/chain.rs:151`, `crates/nvs-fmt/src/chain.rs:544`
+- [ ] A break inside a nested operator chain of the header breaks the header. `crates/nvs-fmt/src/chain.rs:565`
+- [ ] `foreach` and `for` header layouts, then the stage's tests, run once by name. `crates/nvs-fmt/src/chain.rs:752`, `crates/nvs-fmt/tests/chain_layout.rs:1`
 
 ### Backlog
 

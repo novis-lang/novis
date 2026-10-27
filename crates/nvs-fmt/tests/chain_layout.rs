@@ -3,7 +3,9 @@
 //! author's line break before an arrow is what breaks it. A chain of any binary
 //! operator is on one line or has one operand per line, operator first, and a
 //! `.` chain keeps its author's lines
-//! (`rule:tooling/fmt-every-binary-operator-breaks-operator-first`).
+//! (`rule:tooling/fmt-every-binary-operator-breaks-operator-first`). A
+//! ternary is on one line or has a line for its `?` and one for its `:`
+//! (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`).
 //!
 //! Each case is the smallest file that shows one half of the rule: what counts
 //! as a break in a chain, what does not, and the one layout a broken chain
@@ -238,5 +240,49 @@ $rows = $query
     formats_to(
         "<?nvs\n$rows = $query->from('orders')\n\n// only the open ones\n->where('state', 'open')->fetch();\n",
         canonical,
+    );
+}
+
+#[test]
+fn a_ternary_on_one_line_stays_on_one_line() {
+    let wide = "<?nvs\necho $room * 2 > $limit ? 'more than half is free' : 'less than half is free';\n";
+    formats_to(wide, wide);
+    let short = "<?nvs\n$name = $given ?: 'nobody';\n";
+    formats_to(short, short);
+}
+
+#[test]
+fn a_ternary_broken_after_its_condition_has_a_line_per_branch() {
+    formats_to(
+        "<?nvs\necho $room * 2 > $limit\n? 'more' : 'less';\n",
+        "<?nvs\necho $room * 2 > $limit\n    ? 'more'\n    : 'less';\n",
+    );
+    formats_to(
+        "<?nvs\necho $room * 2 > $limit ?\n'more' : 'less';\n",
+        "<?nvs\necho $room * 2 > $limit\n    ? 'more'\n    : 'less';\n",
+    );
+}
+
+#[test]
+fn a_ternary_broken_before_its_colon_has_a_line_per_branch() {
+    formats_to(
+        "<?nvs\necho $room * 2 > $limit ? 'more'\n    : 'less';\n",
+        "<?nvs\necho $room * 2 > $limit\n    ? 'more'\n    : 'less';\n",
+    );
+}
+
+#[test]
+fn a_broken_short_ternary_starts_a_line_with_its_operator() {
+    formats_to(
+        "<?nvs\n$name = $given ?:\n'nobody';\n",
+        "<?nvs\n$name = $given\n    ?: 'nobody';\n",
+    );
+}
+
+#[test]
+fn a_broken_chain_in_a_ternary_branch_is_one_level_further_in() {
+    formats_to(
+        "<?nvs\n$label = $known\n? $first\n. ' ' . $last : 'nobody';\n",
+        "<?nvs\n$label = $known\n    ? $first\n        . ' ' . $last\n    : 'nobody';\n",
     );
 }

@@ -59,6 +59,22 @@
 //! one side of it opens a line, and operands written on one line stay there.
 //! A `.` its author ended a line with moves to the start of the next one.
 //!
+//! # A ternary
+//!
+//! A `Ternary` is a chain of its own whatever holds it, with its condition,
+//! middle and last operand as operands and `?` and `:` as operators
+//! (`rule:tooling/fmt-a-broken-ternary-has-a-line-per-branch`). A short
+//! ternary has two operands and one operator, `?:`. A line break on either
+//! side of either operator breaks it, and it is then laid out as an operator
+//! chain is, so a broken chain in a branch is one level further in.
+//!
+//! # In a list
+//!
+//! [`is_broken`] tells [`crate::list`] which items break the list holding
+//! them (`rule:tooling/fmt-a-broken-item-breaks-its-list`). A chain whose
+//! first code is such an item measures its lines from the item's own line,
+//! which the list opens even where its author did not.
+//!
 //! # A condition
 //!
 //! The condition of an `if`, `elseif`, `while` or `do … while` is the child
@@ -84,7 +100,7 @@ use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia};
 
 use crate::indent::{Indent, OPAQUE, UNIT, commented};
-use crate::list::code_before;
+use crate::list::{self, code_before};
 use crate::space::code_after;
 
 /// The productions that are one link of a chain.
@@ -127,6 +143,9 @@ const OPERATORS: &[(&str, u8)] = &[
 
 /// The level of `.`, whose chain keeps the lines its author wrote.
 const CONCAT: u8 = 8;
+
+/// The production that writes `?` and `:` between its operands.
+const TERNARY: &str = "Ternary";
 
 /// The control structures whose condition a broken chain lays out.
 const CONDITIONS: &[&str] = &["If", "While", "DoWhile"];
@@ -184,6 +203,15 @@ impl Chain {
     }
 }
 
+/// Whether `item`, a list's item, is a broken call chain, operator chain or
+/// ternary at its own top, which breaks the list that holds it.
+pub(crate) fn is_broken(index: &SyntaxIndex, text: &str, trivia: &[Trivia], item: IndexNode) -> bool {
+    if LINKS.contains(&item.kind) {
+        return Chain::of(index, text, trivia, item).is_some_and(|chain| chain.broken);
+    }
+    Operators::of(index, text, trivia, item, None).is_some_and(|chain| chain.broken)
+}
+
 /// The object of the link `node`: its first child in source order.
 fn object_of(index: &SyntaxIndex, node: IndexNode) -> Option<IndexNode> {
     index
@@ -239,7 +267,7 @@ fn arrow_opening(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -> Opt
         .arrows
         .iter()
         .any(|&arrow| (code_before(trivia, arrow)..=arrow).contains(&offset));
-    (chain.broken && beside).then(|| indent.opening_of(chain.receiver) + UNIT)
+    (chain.broken && beside).then(|| line_opening(indent, chain.receiver) + UNIT)
 }
 
 /// Every run a broken chain requires in `text`, which must be `index`'s and
@@ -303,7 +331,7 @@ fn arrow_runs(
         let Some(chain) = Chain::of(index, text, trivia, link).filter(|chain| chain.broken) else {
             continue;
         };
-        let base = indent.opening_of(chain.receiver);
+        let base = line_opening(indent, chain.receiver);
         for &arrow in &chain.arrows {
             if !text[code_before(trivia, arrow)..arrow].contains('\n') {
                 wanted.push((arrow, format!("{line_break}{base}{UNIT}")));
@@ -317,8 +345,9 @@ fn arrow_runs(
 struct Operators {
     /// Every operand, in source order.
     operands: Vec<IndexNode>,
-    /// The first byte and the spelling of every operator between two operands.
-    operators: Vec<(usize, &'static str)>,
+    /// The first byte and one past the last byte of every operator between two
+    /// operands. A short ternary's `?:` is one operator.
+    operators: Vec<(usize, usize)>,
     /// Whether this is a `.` chain, which breaks only where its author did.
     keeps_lines: bool,
     /// The `(` and the `)` around a condition, where this is one.
@@ -329,8 +358,8 @@ struct Operators {
 
 impl Operators {
     /// The chain `top` writes, inside the parentheses `condition` where it is
-    /// a condition. [`None`] for an expression that is neither a chain nor a
-    /// condition.
+    /// a condition. [`None`] for an expression that is neither a chain, a
+    /// ternary nor a condition.
     fn of(
         index: &SyntaxIndex,
         text: &str,
@@ -341,6 +370,12 @@ impl Operators {
         let mut operands = Vec::new();
         let mut operators = Vec::new();
         let level = match operator_of(index, text, trivia, top) {
+            _ if top.kind == TERNARY => {
+                operands = index.children_of(top);
+                operands.sort_by_key(|operand| operand.span.start);
+                operators = ternary_operators(text, trivia, &operands)?;
+                None
+            }
             Some((_, _, level)) => {
                 flatten(
                     index,
@@ -390,11 +425,11 @@ impl Operators {
     /// every one does, except in a `.` chain, where only one with a line break
     /// on either side of it does.
     fn opens_line(&self, text: &str, trivia: &[Trivia], at: usize) -> bool {
-        let (operator, spelling) = self.operators[at];
+        let (operator, end) = self.operators[at];
         let operand = self.operands[at + 1].span.start as usize;
         !self.keeps_lines
             || text[code_before(trivia, operator)..operator].contains('\n')
-            || text[operator + spelling.len()..operand].contains('\n')
+            || text[end..operand].contains('\n')
     }
 
     /// Records the runs this broken chain requires.
@@ -411,7 +446,7 @@ impl Operators {
                 wanted.push((close, format!("{line_break}{closing}")));
             }
         }
-        for (at, (&(operator, spelling), operand)) in
+        for (at, (&(operator, end), operand)) in
             self.operators.iter().zip(&self.operands[1..]).enumerate()
         {
             if !self.opens_line(text, trivia, at) {
@@ -421,7 +456,7 @@ impl Operators {
                 wanted.push((operator, format!("{line_break}{base}")));
             }
             let start = operand.span.start as usize;
-            let after = &text[operator + spelling.len()..start];
+            let after = &text[end..start];
             if after != " " && after.trim().is_empty() {
                 wanted.push((start, " ".to_owned()));
             }
@@ -458,7 +493,7 @@ fn flatten(
     node: IndexNode,
     level: u8,
     operands: &mut Vec<IndexNode>,
-    operators: &mut Vec<(usize, &'static str)>,
+    operators: &mut Vec<(usize, usize)>,
 ) {
     let Some((at, spelling, _)) =
         operator_of(index, text, trivia, node).filter(|&(_, _, own)| own == level)
@@ -473,8 +508,35 @@ fn flatten(
         return;
     };
     flatten(index, text, trivia, lhs, level, operands, operators);
-    operators.push((at, spelling));
+    operators.push((at, at + spelling.len()));
     flatten(index, text, trivia, rhs, level, operands, operators);
+}
+
+/// The operators of a ternary whose operands are `operands`, in source order:
+/// `?` and `:` where it has a middle operand, and `?:` where it has none. A
+/// `?:` its author wrote with a run inside it is still one operator.
+fn ternary_operators(
+    text: &str,
+    trivia: &[Trivia],
+    operands: &[IndexNode],
+) -> Option<Vec<(usize, usize)>> {
+    let bytes = text.as_bytes();
+    let question = code_after(trivia, operands.first()?.span.end as usize);
+    if bytes.get(question) != Some(&b'?') {
+        return None;
+    }
+    match *operands {
+        [_, middle, _] => {
+            let colon = code_after(trivia, middle.span.end as usize);
+            (bytes.get(colon) == Some(&b':'))
+                .then(|| vec![(question, question + 1), (colon, colon + 1)])
+        }
+        [_, _] => {
+            let colon = code_after(trivia, question + 1);
+            (bytes.get(colon) == Some(&b':')).then(|| vec![(question, colon + 1)])
+        }
+        _ => None,
+    }
 }
 
 /// The `(` and `)` around `expr`, where it is the condition of `holder`, a
@@ -507,13 +569,16 @@ fn operators_on(
     nodes: &[IndexNode],
     at: usize,
 ) -> Option<Operators> {
-    let (_, _, level) = operator_of(index, text, trivia, nodes[at])?;
     let mut top = at;
-    while let Some(&parent) = nodes.get(top + 1) {
-        if operator_of(index, text, trivia, parent).is_none_or(|(_, _, own)| own != level) {
-            break;
+    // A ternary is a chain of its own, whatever holds it.
+    if nodes[at].kind != TERNARY {
+        let (_, _, level) = operator_of(index, text, trivia, nodes[at])?;
+        while let Some(&parent) = nodes.get(top + 1) {
+            if operator_of(index, text, trivia, parent).is_none_or(|(_, _, own)| own != level) {
+                break;
+            }
+            top += 1;
         }
-        top += 1;
     }
     let condition = nodes
         .get(top + 1)
@@ -585,13 +650,9 @@ pub(crate) fn seams_on(
     if let Some((open, _)) = chain.condition {
         seams.push((SeamKind::Open, open + 1, first));
     }
-    for (&(operator, spelling), operand) in chain.operators.iter().zip(&chain.operands[1..]) {
+    for (&(operator, end), operand) in chain.operators.iter().zip(&chain.operands[1..]) {
         seams.push((SeamKind::Operator, code_before(trivia, operator), operator));
-        seams.push((
-            SeamKind::Operand,
-            operator + spelling.len(),
-            operand.span.start as usize,
-        ));
+        seams.push((SeamKind::Operand, end, operand.span.start as usize));
     }
     let last = chain.operands.last()?.span.end as usize;
     if let Some((_, close)) = chain.condition {
@@ -635,7 +696,7 @@ fn operand_opening(indent: &Indent<'_>, start: usize) -> String {
             let at = chain
                 .operators
                 .iter()
-                .position(|&(operator, spelling)| operator + spelling.len() == before)?;
+                .position(|&(_, end)| end == before)?;
             chain.opens_line(text, trivia, at).then_some(chain)
         });
         if let Some(chain) = follows {
@@ -651,7 +712,18 @@ fn operand_opening(indent: &Indent<'_>, start: usize) -> String {
             return chain.operator_base(indent);
         }
     }
-    indent.opening_of(start)
+    line_opening(indent, start)
+}
+
+/// What opens the line the code at `start` is on. Where that code is an item
+/// of a broken list, the item opens a line of its own, so that line is the
+/// list's, even where its author wrote the item beside the opener.
+fn line_opening(indent: &Indent<'_>, start: usize) -> String {
+    let (index, _, _) = indent.parse();
+    BytePos::try_from(start)
+        .ok()
+        .and_then(|pos| list::opening(indent, index.at(pos).nodes(), start))
+        .unwrap_or_else(|| indent.opening_of(start))
 }
 
 /// What opens the line at `offset` where it is the first operand or the `)`

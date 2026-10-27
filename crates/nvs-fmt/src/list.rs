@@ -37,7 +37,10 @@
 //! A list is broken when a line break sits next to one of its separators —
 //! after the opener, on either side of a comma, or before the closer — in the
 //! trivia between that separator and the code beside it. A line comment there
-//! breaks the list, because the line break after it is one of those.
+//! breaks the list, because the line break after it is one of those. An item
+//! that is a broken call chain, operator chain or ternary at its own top breaks
+//! the list too ([`crate::chain::is_broken`]), and only the innermost list
+//! holds it as an item (`rule:tooling/fmt-a-broken-item-breaks-its-list`).
 //!
 //! A broken list's opener ends its line, each item opens a line one level in
 //! from the opener's line, and the closer opens a line at the opener line's own
@@ -68,6 +71,7 @@
 use nvs_diagnostics::BytePos;
 use nvs_syntax::{IndexNode, SyntaxIndex, Trivia};
 
+use crate::chain;
 use crate::indent::{Indent, OPAQUE, UNIT, commented};
 use crate::space::code_after;
 
@@ -173,7 +177,12 @@ impl List {
                 breaks(code_before(trivia, comma), comma)
                     || breaks(comma + 1, code_after(trivia, comma + 1))
             })
-            || breaks(code_before(trivia, closer), closer);
+            || breaks(code_before(trivia, closer), closer)
+            || children.iter().any(|&child| {
+                child.span.start as usize > opener
+                    && (child.span.end as usize) <= closer
+                    && chain::is_broken(index, text, trivia, child)
+            });
         Some(Self {
             opener,
             closer,

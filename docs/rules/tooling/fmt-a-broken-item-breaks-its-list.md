@@ -9,12 +9,14 @@ Reader $reader = Reader::open(Document::fromHtml('<style>p { break-after: page }
 
 Reader $reader = Reader::open(Document::fromHtml(
     '<style>p { break-after: page }</style>'
-    . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>',
+        . '<p>Invoice 1042</p><p>Items: 3 bikes</p><p>Total: 1,250.00 EUR</p>',
 )->render()->bytes);
 ```
 
 The first statement formats to the second. Only the innermost list breaks: `fromHtml`'s argument list
-holds the chain, so `Reader::open(` keeps its argument on its line.
+holds the chain, so `Reader::open(` keeps its argument on its line. The chain's operators are one
+level in from the item's line, as `rule:tooling/fmt-every-binary-operator-breaks-operator-first`
+places them anywhere, so `. '<p>…` never reads as an item of its own.
 
 Every other item that spans lines keeps the exception the list rule already makes. An anonymous
 function with a multi-line body, a nested array, a nested call's arguments and a heredoc belong to the
