@@ -55,7 +55,7 @@ stages:
         rules: [testing/the-tools-area-has-a-page-for-each-tool, testing/a-debugger-replay-plays-what-nvs-dap-returned, testing/website-pages-are-stamped]
   - id: 9
     title: the debug viewer and profiler pages
-    status: open
+    status: done
     context: [website/astro.config.ts, website/src/data/questions.json, tools/nv/lib/shoot.ts]
     extra:
       context:
@@ -268,10 +268,10 @@ sidebar and `questions.json` and runs `--bless`.
 **Split:** one writing subagent per page, one after another, after the session has run `--shoot`. The
 session alone edits the sidebar and `questions.json`.
 
-- [ ] Debug viewer: starting it, the request list, a request's timeline, search, grouped exceptions, compare with two responses' diff, replay, and a request made into a test that asserts its response, as screenshots and a terminal block. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
-- [ ] Profiler: `--profile=callgrind` and `--profile=speedscope` as terminal blocks, the speedscope screenshot, and the sentence that the probe per call makes call-heavy code look slower. `website/src/content/docs/tools/profiler/index.mdx:1`
-- [ ] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
-- [ ] A `<Shot src="tools/debug-viewer/requests.shot"/>` component shows the `.png` beside a `.shot`, and `shotShape` names a `.shot` no page shows, the way `snippetShape` names a `.term`. `website/src/components/Terminal.astro:1`, `tools/nv/cmd/site.ts:1483`
+- [x] Debug viewer: starting it, the request list, a request's timeline, search, grouped exceptions, compare with two responses' diff, replay, and a request made into a test that asserts its response, as screenshots and a terminal block. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
+- [x] Profiler: `--profile=callgrind` and `--profile=speedscope` as terminal blocks, the speedscope screenshot, and the sentence that the probe per call makes call-heavy code look slower. `website/src/content/docs/tools/profiler/index.mdx:1`
+- [x] Each page's sidebar entry, its questions, and its stamp. `website/astro.config.ts:669`, `website/src/data/questions.json:1`
+- [x] A `<Shot src="tools/debug-viewer/requests.shot"/>` component shows the `.png` beside a `.shot`, and `shotShape` names a `.shot` no page shows, the way `snippetShape` names a `.term`. `website/src/components/Terminal.astro:1`, `tools/nv/cmd/site.ts:1483`
 
 ### 6. the home page points at the Tools area, and every page is stamped
 
@@ -299,55 +299,54 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 7, 2, 8, 3, 4 and 5 are done. Tools is the fourth of five areas
-(`website/config/site.mjs:42`); its sidebar (`website/astro.config.ts:679`) is Overview, the editor
-extension, the formatter, the test runner with its coverage page, the command line, the debugger and
-the API document. `TOOL_SECTIONS` (`tools/nv/cmd/site.ts:847`) is the order: stage 9's two entries go
-between the debugger and the API document, in the sidebar and in the overview's list
-(`website/src/content/docs/tools/index.mdx:17`).
+Stages 1, 7, 2, 8, 3, 4, 5 and 9 are done. Tools is the fourth of five areas
+(`website/config/site.mjs:42`), and its sidebar (`website/astro.config.ts:679`) and the overview's list
+(`website/src/content/docs/tools/index.mdx:10`) name all eight tool pages in `TOOL_SECTIONS`' order
+(`tools/nv/cmd/site.ts:850`).
 
-- **The debugger page**, `tools/debugger/index.mdx`, covers `tools:editor/nvs-dap`, with two debugger
-  replays under `website/snippets/tools/debugger/`: `loop` (a breakpoint and three `continue`s) and
-  `step` (in, next, out, with the returned value). A `.dap.out` shows an object as its class name
-  alone, with no properties, so no replay shows an object. The `.dap` format has no exception step,
-  so exceptions are prose.
-- **The API document page**, `tools/api-document/index.mdx`, covers `tools:cli/nvs-build-openapi` and
-  `tools:cli/nvs-api-diff`, with three terminal blocks (`build`, `api`, `diff`) and the `scheme`
-  replay, which completes a security scheme name in `#[Api(security: [...])]`. The field-name
-  completion inside `#[Api(...)]` has no replay: every start text with a closing `'])` after the
-  cursor breaks the parse and the list comes back empty, so the page states it in words.
-  `diff/v2.json` and `v3.json` are real runs with `title` set to `shop` by hand.
-- All seven tool pages have current questions and stamps. `site --check tools` names only the
-  debug-viewer and profiler pages, `snippets stale questions prose` pass, and `--build` builds.
+- **`<Shot src alt caption>`**, `website/src/components/Shot.astro`, shows the `.png` beside a `.shot`.
+  `shotShape` (`tools/nv/cmd/site.ts:1520`) names a `.shot` no page shows and a `<Shot src>` that names
+  no `.shot`. A viewer shot's `app .` serves the directory beside it, which is how `exceptions.shot`
+  gets an error no gate catches: every app under `apps/` has a gate whose `failed()` catches it, and the
+  exceptions page lists only an error nothing caught. `projectPaths` (`tools/nv/lib/shoot.ts:111`)
+  writes a path in the run's copy from the project root, and a made test's class name has its 8 trace
+  id digits masked, so a `.shot.out` is the same on every run and runner.
+- **The debug viewer page**, `tools/debug-viewer/index.mdx`, covers `tools:cli/nvs-debug`,
+  `tools:cli/the-debug-viewer` and `tools:cli/nvs-debug-to-test`, with seven shots (`requests`,
+  `timeline`, `search`, `exceptions`, `compare`, `replay`, `to-test`) and one terminal block,
+  `unknown-trace`. A `--help` block is not used: its `Usage:` line prints `nvs.exe` on Windows.
+- **The profiler page**, `tools/profiler/index.mdx`, covers `tools:cli/profiling`, with the
+  `callgrind` and `speedscope` terminal blocks (each names its file with `--profile-out`, since the
+  default name has the process id) and the `fibonacci` shot.
+- The sweep's reds were fixed on HEAD before this session: nightly run 40291801939's by `c244b4b36`,
+  `e384a0ae8` and `0288e849d`; `env-secret-proofs` passes when rerun.
 
 ### Next
 
-**Stage 9: the debug viewer and profiler pages.** Their gates are met: `debug-service`,
-`debug-viewer`, `request-aware-editor` and `trace-timeline` have landed. The shots exist:
-`website/snippets/tools/debug-viewer/requests.shot` and `website/snippets/tools/profiler/fibonacci.shot`.
-First the `<Shot>` component and `shotShape`, then follow the `**Split:**` line: `--shoot` the shots
-each page needs, then one writing subagent per page, and the session alone edits the sidebar, the
-overview's list and `questions.json`. Check with `bun nv site --check tools snippets shots stale
-questions prose` and `--build`. A question stamp takes `MSYS_NO_PATHCONV=1` in Git Bash. Run
-`--bless` with `--nvs target/debug/nvs.exe`: the release build is older than the crates.
+**Stage 6: the home page points at the Tools area, and every page is stamped.** No gate. The session
+edits alone: one component and the overview.
 
-- [ ] `<Shot src="..."/>` shows the `.png` beside a `.shot`, and `shotShape` names a `.shot` no page shows. `website/src/components/Terminal.astro:1`, `tools/nv/cmd/site.ts:1483`
-- [ ] Debug viewer page, from `docs/examples/tools/cli/the-debug-viewer/` and `nvs-debug-to-test/`. `website/src/content/docs/tools/debug-viewer/index.mdx:1`
-- [ ] Profiler page, from `docs/examples/tools/cli/profiling/`. `website/src/content/docs/tools/profiler/index.mdx:1`
-- [ ] Both sidebar entries between the debugger and the API document, both overview links, questions and stamps, then stage 9's status `done`. `website/astro.config.ts:692`, `website/src/content/docs/tools/index.mdx:19`
+- [ ] The Tooling section links each row to its tool page where one exists (`nvs fmt` has none, `nvs test` could go to `/tools/test-runner/`), its "more" link goes to `/tools/`, and no link points at a moved page. `website/src/components/home/Tooling.astro:18`, `website/src/components/home/Tooling.astro:76`
+- [ ] The overview shows each tool's first picture beside its line, a `<Shot>`, `<Terminal>` or `<Replay>` each. `website/src/content/docs/tools/index.mdx:10`
+- [ ] `bun nv site --check` passes (with `--nvs target/debug/nvs.exe` unless the release build is rebuilt), and the five header areas fit at mid widths in a browser. `tools/nv/cmd/site.ts:193`
+- [ ] `rule:testing/the-tools-area-has-a-page-for-each-tool` is `shipped`, and `bun nv owners --closes tools-website` passes. `data/rules/testing/the-tools-area-has-a-page-for-each-tool.json:3`
 
-A terminal block must not print a `\` path, so a `.term` names its files. No test is expected to go
-red.
+Then stage 10, the gate. No test is expected to go red.
 
 ### Backlog
 
-- `lib/term.ts` could write a relative path's `\` as `/` in a recording, so a `.term` may walk a
-  directory. Today the pages avoid it.
+- The viewer shows a full file path in "Thrown at" and in a comparison's queries, so a shot's picture
+  shows the run's temporary folder; only its text is masked. The viewer could show a path from the
+  project root.
+- A `.shot` has no `scroll` step, so `compare.png` shows the request rows and not the response rows
+  below them. The page says the response is compared in words.
+- A gate's `failed()` hides a route's error from the exceptions page. A developer who debugs a 500
+  probably wants it listed; that is a `debug-viewer` call.
+- `lib/term.ts` could write a relative path's `\` as `/` in a recording, and mask the binary's name in
+  a `Usage:` line, so a `.term` may walk a directory or print `--help`.
 - `nvs cache gc`, `nvs cache clear` and `[opcache] file_cache_max_size` have no section in
   `docs/reference/tools/10-cli.md`; `nvs cache --help` names them.
 - A replay of the field names inside `#[Api(...)]` needs `nvs lsp` to complete in a half-written
   attribute with `'])` after the cursor; `tests/lsp/completion/an-api-attribute-offers-its-fields.lspt`
   covers only the clean case.
 - A `.dap.out` could list an object's properties, so a debugger replay could show one.
-- Stage 9 follows 5, then 6 and 10. Stage 6 checks that five header areas fit the
-  header at mid widths, which no browser has shown yet.
