@@ -41,7 +41,7 @@ stages:
         rules: [security/optional-capability-degrades, security/no-runtime-grant]
   - id: 6
     title: the grant table has its feature proofs, and its rules are shipped
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md, docs/reference/README.md]
   - id: 7
     title: the goal is verified once, and every failure is fixed
@@ -258,18 +258,18 @@ throws a catchable error when it runs without the grant.
 **Split:** after the chapter heading lands, one writing subagent writes the about page, the examples
 and the bench, then a second writes the attack, each held to § *Text an end user reads* in `AGENTS.md`.
 
-- [ ] The chapter `docs/reference/tools/35-packages.md` opens with `# Grants: what each namespace may do`, linked from the reference index. `docs/reference/tools/35-packages.md:1`, `docs/reference/README.md:1`
-- [ ] The about page and the examples. `docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md:1`
-- [ ] The bench. `benches/members/tools/packages/grants-what-each-namespace-may-do.nvs:1`
-- [ ] The attack: a package file declares the application's namespace to take its grants, and does not compile. `tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs:1`
-- [ ] `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
-- [ ] `rule:security/authority-is-the-enclosing-namespace` is `shipped` with its cases in `guardedBy`. `data/rules/security/authority-is-the-enclosing-namespace.json:3`
-- [ ] `rule:security/grants-are-keyed-on-a-namespace` is `shipped`. `data/rules/security/grants-are-keyed-on-a-namespace.json:3`
-- [ ] `rule:security/longest-prefix-wins` is `shipped`. `data/rules/security/longest-prefix-wins.json:3`
-- [ ] `rule:security/package-authority-is-granted-one-line-at-a-time` is `shipped`. `data/rules/security/package-authority-is-granted-one-line-at-a-time.json:3`
-- [ ] `rule:security/optional-capability-degrades` is `shipped`. `data/rules/security/optional-capability-degrades.json:3`
-- [ ] `rule:packaging/a-package-file-stays-under-its-declared-prefix` is `shipped`. `data/rules/packaging/a-package-file-stays-under-its-declared-prefix.json:3`
-- [ ] `rule:packaging/a-package-cannot-reach-its-host` is `shipped`, and `bun nv owners --closes namespace-grants` passes. `data/rules/packaging/a-package-cannot-reach-its-host.json:3`
+- [x] The chapter `docs/reference/tools/35-packages.md` opens with `# Grants: what each namespace may do`, linked from the reference index. `docs/reference/tools/35-packages.md:1`, `docs/reference/README.md:1`
+- [x] The about page and the examples. `docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md:1`
+- [x] The bench. `benches/members/tools/packages/grants-what-each-namespace-may-do.nvs:1`
+- [x] The attack: a package file declares the application's namespace to take its grants, and does not compile. `tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs:1`
+- [x] `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
+- [x] `rule:security/authority-is-the-enclosing-namespace` is `shipped` with its cases in `guardedBy`. `data/rules/security/authority-is-the-enclosing-namespace.json:3`
+- [x] `rule:security/grants-are-keyed-on-a-namespace` is `shipped`. `data/rules/security/grants-are-keyed-on-a-namespace.json:3`
+- [x] `rule:security/longest-prefix-wins` is `shipped`. `data/rules/security/longest-prefix-wins.json:3`
+- [x] `rule:security/package-authority-is-granted-one-line-at-a-time` is `shipped`. `data/rules/security/package-authority-is-granted-one-line-at-a-time.json:3`
+- [x] `rule:security/optional-capability-degrades` is `shipped`. `data/rules/security/optional-capability-degrades.json:3`
+- [x] `rule:packaging/a-package-file-stays-under-its-declared-prefix` is `shipped`. `data/rules/packaging/a-package-file-stays-under-its-declared-prefix.json:3`
+- [x] `rule:packaging/a-package-cannot-reach-its-host` is `shipped`, and `bun nv owners --closes namespace-grants` passes. `data/rules/packaging/a-package-cannot-reach-its-host.json:3`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -288,36 +288,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done; their rules stay `designed` until stage 6. The guard: `reject_ungranted_call`
-(`crates/nvs-types/src/capability.rs:205`) records a `CapabilityGuard` where every missing
-capability is in the file's package's `optional` list (`Env::packages`, passed by `main.rs`), and
-`lower_capability_guard` (`crates/nvs-ir/src/lower/exception.rs:249`) throws it. `Core\Cap::has`
-takes `PreparedFact::CapGrants` from `prepare_cap_has` (`capability.rs:167`). Optional lists fold
-into `Grants::digest` (`crates/nvs-config/src/grants.rs:242`). `nvs_types::package::check` now
-makes a relative entry absolute; before, `nvs run main.nvs` placed no file in a package. The
-conformance case and `package_grants` pass by name.
+Stages 1 to 6 are done, and only the gate stage is left. Stage 6 wrote the chapter
+`docs/reference/tools/35-packages.md` (one `#` section, so one feature; its `nvs error` example holds
+under `bun nv reference --only 35-packages`), the about page, three examples, the bench and two
+attacks (`E0660`, `E0661`). `bun nv proofs --run --id 'tools:packages/grants-what-each-namespace-may-do'
+--nvs target/debug/nvs.exe` passes 3 examples and 2 attacks, and `proofs --gate --only` owes nothing.
+The five `grants-*.nvst` cases and two Rust tests carry the feature's `covers:` marker (the first
+case in its `package.toml`, so its pinned lines stay). The seven rules are `shipped`. `bun nv rules
+--check` and `bun nv owners --closes namespace-grants` pass. The editor's grants hover gap went to
+goal `package-client`. Nightly run 40291801939's failures are fixed on HEAD (`crypto-bigint 0.7.10`
+in `Cargo.lock`, and `238f23a49`).
 
 Tests that may go red at the gate: an IR snapshot of `Core\Config::set` (`prepared
 config.application`/`none`) or `Core\Cap::has` (`prepared cap.grants 0x…`); a test counting
 `SourceMap` files or missed paths (a missed `package.toml` per directory walked); a test over every
 diagnostic code (`E0659`–`E0661`); a test over `PREPARED_MEMBERS`, or one calling
 `nvs_core_cap_has` without the prepared word first.
-`cargo fmt --check` names `crates/nvs-cli/src/script.rs` and `tests/strict_docs.rs`, another loop's.
-The sweep's `env-secret-proofs` exits 0 on HEAD; nightly run 40291801939 predates this work.
+A test that lists every rule's status or every feature (a count of `shipped` rules or of `tools:`
+features) may go red too. `cargo fmt --check` names `crates/nvs-cli/src/script.rs` and
+`tests/strict_docs.rs`, which are another loop's.
 
 ### Next
 
-**Stage 6**: the grant table has its feature proofs, and its rules are shipped. Follow the stage's
-**Split:** line.
+**Stage 7**: the goal is verified once, and every failure is fixed. Follow the stage's **Split:**
+line, then the goal-end gates in `AGENTS.md` § *In the loop*.
 
-- [ ] The chapter heading `# Grants: what each namespace may do`, linked from the index. `docs/reference/tools/35-packages.md:1`, `docs/reference/README.md:1`
-- [ ] The about page, the examples, the bench and the attack, by two writing subagents. `docs/examples/tools/packages/grants-what-each-namespace-may-do/about.md:1`, `tests/hostile/tools/packages/grants-what-each-namespace-may-do/01-borrow-the-application-namespace.nvs:1`
-- [ ] `bun nv proofs --id 'tools:packages/grants-what-each-namespace-may-do'` owes nothing. `docs/reference/tools/35-packages.md:1`
-- [ ] The seven rules `shipped`, each fragment's *Partly on disk* paragraph removed, and `bun nv owners --closes namespace-grants` passes. `data/rules/security/optional-capability-degrades.json:3`, `docs/rules/security/optional-capability-degrades.md:1`
+- [ ] `looper verify` (`bun nv affected --run`) once, with `run_in_background`, and its failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] `bun nv verify --doc`, `bun nv owners --closes namespace-grants` and `bun nv ci --check`, each red fixed. `docs/agent/commands.md:1`
+- [ ] Each decision only this file's prose holds moved to a rule or a module doc, then the file deleted. `docs/goals/namespace-grants.md:75`
 
 ### Backlog
 
-- The editor reads the table and shows `E0658`, `E0660` and `E0661`. Stage 6, or a later goal. `crates/nvs-lsp/src/document.rs:771`
 - An application's `autoload` root that is itself a symlink out of a package's directory places the package's files by their real path, outside the package, so they get no file check. Whether a fetched archive may carry a symlink is goal `package-client`'s to decide.
 - `nvs pkg fetch` writes the grant lines for fetched packages in goal `package-client` (`docs/goals/package-client.md`).
 - The audit warning for an unmatched autoload root is goal `package-audit`'s (`docs/goals/package-audit.md`).
