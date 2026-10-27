@@ -114,6 +114,27 @@ describe("bun nv debt", () => {
     expect(named.at(-1)).toBe("floor debt: still owed: proof:a.nvs");
   });
 
+  test("an atom a round paid and a commit during the round owes again is paid by a further round", async () => {
+    const s = seams([atom("nvtest:tools/nv/test/x.test.ts", 1), atom("proof:a.nvs", 2)]);
+    const pay = s.pay;
+    let moved = false;
+    // A commit lands while the first turn runs, and owes the nvtest it already ran, with that run's time.
+    const out = await payDebt({
+      ...s,
+      pay: async (ids, ...rest) => {
+        const r = await pay(ids, ...rest);
+        if (!moved) {
+          moved = true;
+          s.store.set("nvtest:tools/nv/test/x.test.ts", atom("nvtest:tools/nv/test/x.test.ts", 7));
+        }
+        return r;
+      },
+    });
+    expect(s.turns).toEqual([["nvtest:tools/nv/test/x.test.ts", "proof:a.nvs"], ["nvtest:tools/nv/test/x.test.ts"]]);
+    expect(out.left).toEqual([]);
+    expect(out.paid.map((a) => a.id)).toEqual(["nvtest:tools/nv/test/x.test.ts", "proof:a.nvs"]);
+  });
+
 
   test("it exits 0 when the debt is paid green, 1 on a red or debt left, and 2 on a bad argument", async () => {
     expect(await debt([], seams([atom("proof:a.nvs", 1)]))).toBe(0);

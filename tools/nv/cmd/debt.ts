@@ -147,10 +147,13 @@ export async function payDebt(s: DebtSeams): Promise<DebtOutcome> {
   const started = s.now();
   const reds: string[] = [];
   const planned = new Set<string>();
-  // Every atom a round planned, as it was when planned.
+  // Every atom a round planned, as it was when first planned, and the last run each had when last planned.
   const owed: DebtAtom[] = [];
+  const plannedRun = new Map<string, number>();
   const plan = (atoms: DebtAtom[]) => {
     for (const a of atoms) {
+      plannedRun.set(a.id, a.lastRun);
+      if (planned.has(a.id)) continue;
       planned.add(a.id);
       owed.push(a);
       ev.add(a.id, { parent: DEBT_ITEM, name: a.id, kind: a.kind });
@@ -172,8 +175,9 @@ export async function payDebt(s: DebtSeams): Promise<DebtOutcome> {
     if (planned.has(id) && !ended.has(id)) ev.start(id);
   };
   // A round moves the store's tree past the change since its last run, which owes every atom that change
-  // reached and the round did not run. Those are debt too, so a further round pays them; one that the
-  // round before planned and did not pay stays left, which ends the rounds.
+  // reached, whether the round ran it or not: a commit made while a long round runs owes again an atom
+  // the round already paid. Those are debt too, so a further round pays them. One whose last run is still
+  // the one it was planned with was not run by the round before, so it stays left, which ends the rounds.
   let round = before;
   let left: DebtAtom[] = [];
   try {
@@ -185,7 +189,7 @@ export async function payDebt(s: DebtSeams): Promise<DebtOutcome> {
       reds.push(await s.pay(debtOrder(round), s.voice.note, onStart));
       s.voice.step(`floor debt: paid ${byKind(round)} in ${minutes(s.now() - at)}`);
       left = s.debt();
-      round = left.filter((a) => !planned.has(a.id));
+      round = left.filter((a) => plannedRun.get(a.id) !== a.lastRun);
       plan(round);
     }
   } finally {
