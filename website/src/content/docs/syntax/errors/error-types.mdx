@@ -1,6 +1,6 @@
 ---
 title: Error types
-covers: ['lang:errors/the-throwable-tree', 'lang:errors/properties-not-accessors', 'lang:errors/constructing-and-subclassing', 'Throwable', 'LogicError', 'RuntimeError', 'IOError', 'ParseError', 'TimeoutError', 'RecursionError', 'ArithmeticError', 'Core\Cli\NotInteractive', 'Core\Db\DbError', 'Core\Db\RolledBack', 'Core\Script\Finished']
+covers: ['lang:errors/the-throwable-tree', 'lang:errors/properties-not-accessors', 'lang:errors/constructing-and-subclassing', 'Throwable', 'LogicError', 'RuntimeError', 'IOError', 'ParseError', 'TimeoutError', 'RecursionError', 'ArithmeticError', 'Core\Cli\NotInteractive', 'Core\Db\DbError', 'Core\Db\RolledBack', 'Core\Script\Finished', 'ExtensionError', 'Core\Ldap\LdapError', 'Core\DeprecatedError']
 description: The classes an error can have, the properties every error has, and how to write your own error class.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
@@ -24,13 +24,17 @@ Each built-in failure throws one of them.
 | `Core\Cli\NotInteractive` | `RuntimeError` | a prompt with no terminal to read from and no default |
 | `Core\Db\DbError` | `RuntimeError` | a database that does not accept a query, a connection or a commit |
 | `Core\Db\RolledBack` | `RuntimeError` | a transaction that your own code rolled back |
+| `Core\Ldap\LdapError` | `RuntimeError` | a directory server that does not accept an operation, or that cannot be reached |
+| `Core\DeprecatedError` | `LogicError` | a use of deprecated code, when `[errors] deprecated` is `"throw"` |
+| `ExtensionError` | `RuntimeError` | an extension that crashed |
 
 The page of every `Core` method lists the classes it throws. So a `catch` can name exactly the
 class it expects.
 
 <FeatureSection examples="lang/errors/properties-not-accessors" heading="Properties" id="properties" />
 
-`Core\Db\DbError` also has `kind`, and `Core\Db\RolledBack` has `reason`.
+`Core\Db\DbError` also has `kind`, and `Core\Db\RolledBack` has `reason`. `Core\Ldap\LdapError` has
+`kind` and `code`.
 
 <FeatureSection examples="lang/errors/constructing-and-subclassing" heading="Your own error class" id="your-own-error-class" />
 

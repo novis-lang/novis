@@ -1,6 +1,6 @@
 ---
 title: Writing and running tests
-covers: ['lang:testing/a-test-is-a-method-marked-test', 'lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup', 'lang:testing/test-options', 'lang:testing/running-tests-nvs-test']
+covers: ['lang:testing/a-test-is-a-method-marked-test', 'lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup', 'lang:testing/test-options', 'lang:testing/running-tests-nvs-test', 'lang:testing/bench-and-nvs-test-bench']
 description: How to write a test as a method with #[Test], and how nvs test runs it. Also the test options.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
@@ -15,6 +15,8 @@ runs every test in the program.
 <FeatureSection examples="lang/testing/test-options" heading="Test options" id="test-options" />
 
 <FeatureSection examples="lang/testing/running-tests-nvs-test" heading="Running tests" id="running-tests" />
+
+<FeatureSection examples="lang/testing/bench-and-nvs-test-bench" heading="Benchmarks" id="benchmarks" />
 
 A test can also get values from a fixture or a data row. The page
 [Fixtures, data rows and assertions](/syntax/testing/fixtures-and-assertions/) explains them.
