@@ -218,12 +218,13 @@ A mode with write permission for the group or for others fails the check, for ex
 
 Every error message names a path. **Change the permissions of that path**, even when it is not
 the folder you were working in. For example, if `D:\srv\novis\config` is correct and
-`D:\srv\novis` is not, the message names `D:\srv\novis`.
+`D:\srv\novis` is not, the message names `D:\srv\novis`. The `help:` line under the message
+prints the command to run, with the path filled in.
 
 | Message | What to do |
 |---|---|
 | `... grants write access to ...`, `... is group-writable` or `... is world-writable` | Remove the write permission from the named path. On Windows, the message prints the SID to use. |
-| `... is owned by ..., which is neither this account ...` | Make the owner the account that runs `nvs`, or an administrator. |
+| `... is owned by ..., which is neither this account ...` | Make the owner the account that runs `nvs`, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator**. |
 | `Access is denied` or `Permission denied` | Your own account cannot write there. Use an administrator prompt or `sudo`. |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file. Edit it, or delete it and run `nvs init` again. |
 | `warning: [opcache] file_cache_dir ... is not used` | Fix the named path. Until then, programs work and start more slowly. |

@@ -261,14 +261,12 @@ impl Declined {
             Self::Untrusted(nvs_config::trust::Untrusted::Unreadable(why)) => {
                 format!("`{file}` was not written: its directory could not be examined: {why}")
             }
-            Self::Untrusted(why) => format!(
-                "`{file}` was not written: {}\n  \
+            Self::Untrusted(nvs_config::trust::Untrusted::Breach { message, help }) => format!(
+                "`{file}` was not written: {message}\n  \
                  note: the ownership check covers the directory the file goes into and the \
                  directory that contains it\n  \
-                 help: {}\n  \
+                 help: {help}\n  \
                  help: then run `nvs init` again",
-                why.message(),
-                nvs_config::trust::REMEDY,
             ),
             Self::Exists => {
                 format!("`{file}` was not written: it already exists, and it is never overwritten")

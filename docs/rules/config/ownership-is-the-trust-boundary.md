@@ -2,7 +2,10 @@
 must not be group- or world-writable.** Its containing directory must pass the same check, ownership
 included and not only the mode: an entry can be replaced by whoever can write the directory holding
 it, whatever the file's own bits say. A failure is a refusal to start (`E0607`), naming the path and
-the mode, and it is re-run on every reload.
+the mode, and it is re-run on every reload. Its help is the one command that repairs that failure,
+with the path, the owner or the group's SID filled in: `chown` or `chmod go-w` on Unix, and on
+Windows `icacls /setowner *S-1-5-32-544` for an owner or `/inheritance:d` and `/remove:g <SID>` for a
+group. The help is built only for a breach, so a path that passes costs nothing more.
 
 **The directory that holds each link on the path as given is checked too.** A reload reads a root
 through its links again (`rule:config/the-resolved-root-is-announced-and-stored`), so whoever can write

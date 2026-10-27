@@ -80,10 +80,13 @@ impl Files for Fake {
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted> {
         let path = self.target(path);
         if self.untrusted.contains(&path) {
-            return Err(Untrusted::Breach(format!(
-                "`{}` is group-writable (mode 0775, gid 1000)",
-                path.display()
-            )));
+            return Err(Untrusted::Breach {
+                message: format!(
+                    "`{}` is group-writable (mode 0775, gid 1000)",
+                    path.display()
+                ),
+                help: format!("run `chmod go-w {}`.", path.display()),
+            });
         }
         if !self.exists(&path) {
             return Err(Untrusted::Unreadable("no such file".to_string()));

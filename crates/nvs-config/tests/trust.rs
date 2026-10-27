@@ -89,7 +89,7 @@ fn a_group_writable_file_is_a_breach() {
 
     let why = check(&file).expect_err("anyone in the group could rewrite this file");
     assert!(
-        matches!(why, Untrusted::Breach(_)),
+        matches!(why, Untrusted::Breach { .. }),
         "the file was read and refused, not merely unreadable: {why:?}",
     );
     assert!(
@@ -178,7 +178,7 @@ fn a_link_in_a_group_writable_directory_is_a_breach() {
     let why = check(&shared.join("current").join("nvs.toml"))
         .expect_err("anyone in the group could point `current` at another file");
     assert!(
-        matches!(&why, Untrusted::Breach(_))
+        matches!(&why, Untrusted::Breach { .. })
             && why.message().contains("group-writable")
             && why.message().contains("holds the link")
             && why.message().contains(&shared.display().to_string()),
@@ -205,7 +205,7 @@ fn a_link_in_a_directory_a_well_known_group_may_write_is_a_breach() {
     let why = check(&shared.join("current").join("nvs.toml"))
         .expect_err("anyone in BUILTIN\\Users could replace the junction");
     assert!(
-        matches!(&why, Untrusted::Breach(_))
+        matches!(&why, Untrusted::Breach { .. })
             && why.message().contains("BUILTIN\\Users")
             && why.message().contains("holds the link"),
         "the refusal names the link's directory: {why:?}",
@@ -249,7 +249,7 @@ fn the_installed_modes_pass_and_a_write_bit_for_the_group_or_for_others_does_not
         chmod(&file, 0o640);
         let why = check(&file).expect_err("the directory can be written by more than its owner");
         assert!(
-            matches!(why, Untrusted::Breach(_))
+            matches!(why, Untrusted::Breach { .. })
                 && why
                     .message()
                     .contains(&format!("mode {:04o}", mode | 0o700))
@@ -262,7 +262,7 @@ fn the_installed_modes_pass_and_a_write_bit_for_the_group_or_for_others_does_not
         chmod(&file, mode);
         let why = check(&file).expect_err("the file can be written by more than its owner");
         assert!(
-            matches!(why, Untrusted::Breach(_))
+            matches!(why, Untrusted::Breach { .. })
                 && why.message().contains(&format!("mode {mode:04o}"))
                 && why.message().contains("nvs.toml"),
             "a {mode:04o} file is refused by name and by mode: {}",
@@ -314,7 +314,7 @@ fn a_directory_a_well_known_group_may_write_is_a_breach() {
     icacls(&dir, &["/grant:r", &format!("{USERS}:(WD)")]);
     let why = check(&dir).expect_err("anyone in BUILTIN\\Users could create a file here");
     assert!(
-        matches!(why, Untrusted::Breach(_)) && why.message().contains("BUILTIN\\Users"),
+        matches!(why, Untrusted::Breach { .. }) && why.message().contains("BUILTIN\\Users"),
         "the refusal was read off the DACL and names the principal: {why:?}",
     );
 
@@ -341,7 +341,8 @@ fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
 }
 
 /// `rule:config/ownership-is-the-trust-boundary`'s owner half, and the install chapter's row for it: a path another account owns is a breach
-/// whatever its DACL grants, and the refusal names the path and the owner's SID.
+/// whatever its DACL grants, the refusal names the path and the owner's SID, and its help is the
+/// `icacls /setowner` that gives the path to `Administrators`, with the path filled in.
 ///
 /// The system directory is the one path every Windows has whose owner is none of the three the
 /// boundary accepts, because it belongs to `NT SERVICE\TrustedInstaller`, and the check only reads
@@ -356,7 +357,7 @@ fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
 
     let why = check(&system).expect_err("neither this account nor an administrator owns it");
     assert!(
-        matches!(why, Untrusted::Breach(_))
+        matches!(why, Untrusted::Breach { .. })
             && why
                 .message()
                 .starts_with(&format!("`{}` is owned by `S-1-5-80-", system.display()))
@@ -364,5 +365,13 @@ fn a_directory_another_account_owns_is_a_breach_that_names_the_owner() {
                 .message()
                 .ends_with("`, which is neither this account nor an administrative one"),
         "the refusal names the path and the owner that is outside the boundary: {why:?}",
+    );
+    let help = why.help().expect("a breach carries its repair");
+    assert!(
+        help.contains(&format!(
+            "`icacls \"{}\" /setowner *S-1-5-32-544`",
+            system.display()
+        )) && help.contains("Run as administrator"),
+        "the repair is the command for this path, in an elevated prompt: {help}",
     );
 }

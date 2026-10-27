@@ -540,14 +540,17 @@ fn the_icacls_steps_turn_a_folder_every_account_may_change_into_one_nvs_init_wri
             && stderr.contains(&format!("`{AUTHENTICATED_USERS}`")),
         "the message names the group and the SID to remove: {stderr}"
     );
+    // The folder the file goes into is checked first, so it is the one the message names.
+    let named = nvs_config::trust::canonical(&config).expect("the folder exists");
+    let named = format!("\"{}\"", named.display());
     for command in [
-        "icacls <path> /inheritance:d",
-        "icacls <path> /remove:g <SID>",
-        "icacls <path> /grant *S-1-5-32-545:(OI)(CI)RX",
+        format!("icacls {named} /inheritance:d"),
+        format!("icacls {named} /remove:g {AUTHENTICATED_USERS}"),
+        format!("icacls {named} /grant *S-1-5-32-545:(OI)(CI)RX"),
     ] {
         assert!(
-            stderr.contains(command),
-            "and gives the chapter's `{command}`: {stderr}"
+            stderr.contains(&command),
+            "and gives the chapter's `{command}` for the folder it names: {stderr}"
         );
     }
 

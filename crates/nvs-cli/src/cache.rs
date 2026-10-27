@@ -1804,12 +1804,11 @@ fn refused_dir_warning(written: &str, why: &Untrusted) -> String {
         why.message()
     );
     match why {
-        Untrusted::Breach(_) => format!(
+        Untrusted::Breach { help, .. } => format!(
             "{head}\n  \
              note: the ownership check covers the cache directory and the directory that \
              contains it\n  \
-             help: {}",
-            trust::REMEDY
+             help: {help}",
         ),
         Untrusted::Unreadable(_) => head,
     }
@@ -2047,7 +2046,7 @@ mod tests {
         let why = Cache::new(&dir, env())
             .expect_err("any local account could drop a valid-looking artifact in here");
         assert!(
-            matches!(why, Untrusted::Breach(_)),
+            matches!(why, Untrusted::Breach { .. }),
             "the directory was examined and refused, not merely unreadable: {why:?}",
         );
         assert!(

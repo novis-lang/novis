@@ -46,8 +46,8 @@ pub(crate) fn refuse_new_files(dir: &Path) {
 /// `rule:config/ownership-is-the-trust-boundary` refuses — in the platform's own spelling, because
 /// there is no portable one. Unix is a mode; Windows is an ACE for `Everyone` (`S-1-1-0`), added
 /// through `icacls` rather than through `windows-sys` so that a test helper does not cost this
-/// crate a dependency and an `unsafe` block. `icacls` is the same command `nvs_config::trust::REMEDY`
-/// tells an operator to undo such a grant with.
+/// crate a dependency and an `unsafe` block. `icacls` is the same command a breach's help tells an
+/// operator to undo such a grant with.
 pub(crate) fn open_to_the_world(dir: &Path) {
     #[cfg(unix)]
     {

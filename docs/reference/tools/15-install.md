@@ -198,7 +198,8 @@ Two things about accounts:
   your own account the right by name, as in step 4.
 - A folder that you created is owned by your account. That passes while you run `nvs` yourself.
   When `nvs serve` runs as a service under another account, the owner must be that account,
-  `Administrators` or `SYSTEM`.
+  `Administrators` or `SYSTEM`. In a prompt started with **Run as administrator**,
+  `icacls <path> /setowner *S-1-5-32-544` makes `Administrators` the owner.
 
 # Linux and macOS
 
@@ -221,12 +222,13 @@ it with `chmod go-w <path>`.
 # When something is refused
 
 Every message names a path. **Change the permissions of that path**, also when it is not the
-folder you were working in.
+folder you were working in. The `help:` line under the message prints the command to run, with
+the path filled in.
 
 | Message | Meaning | What to do |
 |---|---|---|
 | `... grants write access to ...` (Windows), `... is group-writable`, `... is world-writable` or `... is group- and world-writable` (Linux and macOS) | a group of ordinary accounts can write to the named path | remove that right from the named path. On Windows the message prints the SID to use |
-| `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator |
+| `... is owned by ..., which is neither this account ...` | the owner of the named path is another ordinary account | make the owner the account that runs `nvs`, or an administrator. On Windows, run `icacls <path> /setowner *S-1-5-32-544` in a prompt started with **Run as administrator** |
 | `Access is denied` or `Permission denied` (`os error 5`, `os error 13`) | the permissions are strict enough, and **your** account cannot write there | use an administrator prompt or `sudo`, or give your account the right |
 | `... it already exists, and it is never overwritten` | `nvs init` found a file at that path | edit the file, or delete it and run `nvs init` again |
 | `warning: [opcache] file_cache_dir ... is not used` | the cache folder, or the folder that contains it, failed the check | fix the named path. Until then the program works and starts more slowly |

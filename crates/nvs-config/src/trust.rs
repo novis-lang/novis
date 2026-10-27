@@ -51,9 +51,16 @@ pub enum Untrusted {
     /// The resolver reports this as `E0605`, exactly as it reports any other file it cannot read,
     /// and the message is the underlying reader's own.
     Unreadable(String),
-    /// It was examined and it fails `rule:config/ownership-is-the-trust-boundary`. The message names the path and says how, in the
-    /// platform's own terms — a mode and a gid on Unix, a principal and a right mask on Windows.
-    Breach(String),
+    /// It was examined and it fails `rule:config/ownership-is-the-trust-boundary`.
+    Breach {
+        /// The path and how it fails, in the platform's own terms: a mode and a gid on Unix, a
+        /// principal and a right mask on Windows.
+        message: String,
+        /// The command that repairs this one failure, with the path, the owner or the group's SID
+        /// filled in, so an operator can copy it. Built where the failure is found, because only
+        /// there is it known which of the repairs applies.
+        help: String,
+    },
 }
 
 impl Untrusted {
@@ -61,8 +68,23 @@ impl Untrusted {
     #[must_use]
     pub fn message(&self) -> &str {
         match self {
-            Self::Unreadable(message) | Self::Breach(message) => message,
+            Self::Unreadable(message) | Self::Breach { message, .. } => message,
         }
+    }
+
+    /// The repair a [`Breach`](Self::Breach) prints, and `None` for a path that could not be
+    /// examined: a repair answers a DACL or a mode that was read.
+    #[must_use]
+    pub fn help(&self) -> Option<&str> {
+        match self {
+            Self::Breach { help, .. } => Some(help),
+            Self::Unreadable(_) => None,
+        }
+    }
+
+    /// A breach of `message` that `help` repairs.
+    pub(crate) fn breach(message: String, help: String) -> Self {
+        Self::Breach { message, help }
     }
 
     /// The path a [`Breach`](Self::Breach) is about, prefixed onto its message.
@@ -73,7 +95,10 @@ impl Untrusted {
     /// is left alone because the resolver already names the path around it.
     fn about(self, path: &Path) -> Self {
         match self {
-            Self::Breach(message) => Self::Breach(format!("`{}` {message}", path.display())),
+            Self::Breach { message, help } => Self::Breach {
+                message: format!("`{}` {message}", path.display()),
+                help,
+            },
             unreadable => unreadable,
         }
     }
@@ -82,18 +107,18 @@ impl Untrusted {
     /// through, so the operator sees why a directory off the file's own path was examined.
     fn holding(self, holder: &Path, link: &Path) -> Self {
         match self {
-            Self::Breach(message) => Self::Breach(format!(
-                "`{}`, which holds the link `{}`, {message}",
-                holder.display(),
-                link.display()
-            )),
+            Self::Breach { message, help } => Self::Breach {
+                message: format!(
+                    "`{}`, which holds the link `{}`, {message}",
+                    holder.display(),
+                    link.display()
+                ),
+                help,
+            },
             unreadable => unreadable,
         }
     }
 }
-
-/// What a [`Untrusted::Breach`] asks the operator to do, in the platform's own spelling.
-pub const REMEDY: &str = platform::REMEDY;
 
 /// The canonical path `path` names: symlinks resolved, `.` and `..` removed, in the platform's
 /// plainest spelling.
@@ -199,9 +224,6 @@ mod platform {
 
     use super::Untrusted;
 
-    pub(super) const REMEDY: &str = "make the path owned by this account or by root and writable \
-                                     by neither its group nor anyone else: `chmod go-w <path>`";
-
     /// Nothing to simplify: `fs::canonicalize` already returns an ordinary absolute path here.
     pub(super) fn simplified(path: PathBuf) -> PathBuf {
         path
@@ -230,7 +252,7 @@ mod platform {
             gid: meta.gid(),
             mode: meta.mode() & 0o7777,
         };
-        judged(&stat, me, || read_only_mount(path))
+        judged(path, &stat, me, || read_only_mount(path))
     }
 
     /// [`check`] on a directory that holds a link the configuration's path goes through, with one
@@ -255,23 +277,25 @@ mod platform {
             gid: meta.gid(),
             mode: meta.mode() & 0o7777,
         };
-        judged_link_holder(&stat, me, || read_only_mount(path))
+        judged_link_holder(path, &stat, me, || read_only_mount(path))
     }
 
-    /// [`check_link_holder`]'s verdict on `stat` for the account `me`. `read_only` is asked only of
-    /// a directory root owns, or, as [`judged`] asks it, of one another account owns.
+    /// [`check_link_holder`]'s verdict on `stat`, read from `path`, for the account `me`.
+    /// `read_only` is asked only of a directory root owns, or, as [`judged`] asks it, of one
+    /// another account owns.
     pub(super) fn judged_link_holder(
+        path: &Path,
         stat: &Stat,
         me: u32,
         read_only: impl FnOnce() -> bool,
     ) -> Result<(), Untrusted> {
         if stat.owner != 0 {
-            return judged(stat, me, read_only);
+            return judged(path, stat, me, read_only);
         }
         if read_only() {
             return Ok(());
         }
-        judged(stat, me, || false)
+        judged(path, stat, me, || false)
     }
 
     /// What [`check`] reads of a path: its owner, its group and its permission bits.
@@ -281,18 +305,34 @@ mod platform {
         pub(super) mode: u32,
     }
 
-    /// [`check`]'s verdict on `stat` for the account `me`. `read_only` is asked only of a path
-    /// another account owns.
+    /// [`check`]'s verdict on `stat`, read from `path`, for the account `me`. `read_only` is
+    /// asked only of a path another account owns.
+    ///
+    /// The help is the one command that repairs what was found. `chown` comes first because a
+    /// mode is only this account's to change once the path is its own or root's, and `chmod` is
+    /// prefixed with `sudo` where root owns the path and this is not root.
     pub(super) fn judged(
+        path: &Path,
         stat: &Stat,
         me: u32,
         read_only: impl FnOnce() -> bool,
     ) -> Result<(), Untrusted> {
         let Stat { owner, gid, mode } = *stat;
         if owner != me && owner != 0 && !read_only() {
-            return Err(Untrusted::Breach(format!(
-                "is owned by uid {owner}, which is neither this account (uid {me}) nor root"
-            )));
+            let quoted = quoted(path);
+            let mut help = format!("run `sudo chown root {quoted}`.");
+            if me != 0 {
+                help.push_str(&format!(
+                    " The account that runs `nvs` (uid {me}) may own it instead: \
+                     `sudo chown {me} {quoted}`."
+                ));
+            }
+            return Err(Untrusted::breach(
+                format!(
+                    "is owned by uid {owner}, which is neither this account (uid {me}) nor root"
+                ),
+                help,
+            ));
         }
         let who = match (mode & 0o020, mode & 0o002) {
             (0, 0) => return Ok(()),
@@ -300,9 +340,24 @@ mod platform {
             (_, 0) => "group-writable",
             _ => "group- and world-writable",
         };
-        Err(Untrusted::Breach(format!(
-            "is {who} (mode {mode:04o}, gid {gid})"
-        )))
+        let sudo = if owner == me { "" } else { "sudo " };
+        Err(Untrusted::breach(
+            format!("is {who} (mode {mode:04o}, gid {gid})"),
+            format!("run `{sudo}chmod go-w {}`.", quoted(path)),
+        ))
+    }
+
+    /// `path` as a POSIX shell reads it back: bare when every byte is one no shell treats
+    /// specially, and in single quotes otherwise, with each `'` closed, escaped and reopened.
+    fn quoted(path: &Path) -> String {
+        let text = path.to_string_lossy();
+        let plain = text
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"/._-+,:@%".contains(&byte));
+        if plain && !text.is_empty() {
+            return text.into_owned();
+        }
+        format!("'{}'", text.replace('\'', r"'\''"))
     }
 
     /// Whether the file system `path` is on is mounted read-only (`statvfs` reports `ST_RDONLY`).
@@ -375,17 +430,70 @@ mod platform {
 
     use super::Untrusted;
 
-    /// It removes the one group the breach named, by the SID the breach printed: `icacls` resolves
-    /// a name in the language Windows is installed in, so the English one maps to no account
-    /// anywhere else. `/remove:g` takes every right that group was granted, read included, which
-    /// is why the grant that gives reading back is the last thing this says — a directory holding
-    /// the binary has to stay runnable by the accounts that were only ever refused *write*.
-    pub(super) const REMEDY: &str = "only write access is checked, never read or execute. The path must be owned by \
-         this account, `BUILTIN\\Administrators` or `NT AUTHORITY\\SYSTEM`, and no group of \
-         ordinary accounts may write to it. Run `icacls <path> /inheritance:d`, then \
-         `icacls <path> /remove:g <SID>` with the `*S-…` named above. That removes every right \
-         the group had; where ordinary accounts should still read or run what is there, follow \
-         it with `icacls <path> /grant *S-1-5-32-545:(OI)(CI)RX`";
+    /// The `Administrators` group as `icacls` takes it.
+    const ADMINISTRATORS: &str = "*S-1-5-32-544";
+
+    /// The help for an owner outside the boundary: make `Administrators` the owner.
+    ///
+    /// That owner passes whichever account runs `nvs`, a service's included. Only an elevated
+    /// prompt may give a path to a group the caller's filtered token holds as deny-only, so the
+    /// help says which prompt. Its last sentence is the case that sends people here: a file an
+    /// administrator creates in a normal prompt is owned by their own account, which passes only
+    /// while that account is the one running `nvs`.
+    fn owner_help(path: &Path) -> String {
+        let quoted = quoted(path);
+        format!(
+            "run `icacls {quoted} /setowner {ADMINISTRATORS}` in a prompt started with \
+             \"Run as administrator\". `{ADMINISTRATORS}` is the `Administrators` group. \
+             A file you create in a normal prompt is owned by your own account. That owner is \
+             allowed only while your account runs `nvs`."
+        )
+    }
+
+    /// The help for a write right that reaches `sid`: remove the group the breach named.
+    ///
+    /// By the SID the breach printed, because `icacls` resolves a name in the language Windows is
+    /// installed in, so the English one maps to no account anywhere else. `/inheritance:d` comes
+    /// first because an inherited entry is not the path's to remove until it is copied. And
+    /// `/remove:g` takes every right that group was granted, read included, which is why the grant
+    /// that gives reading back is the last thing this says: a directory holding the binary has to
+    /// stay runnable by the accounts that were only ever refused *write*.
+    fn group_help(path: &Path, sid: &str) -> String {
+        let quoted = quoted(path);
+        let read = if is_directory(path) {
+            "(OI)(CI)RX"
+        } else {
+            "RX"
+        };
+        format!(
+            "run `icacls {quoted} /inheritance:d`, then `icacls {quoted} /remove:g {sid}`. \
+             The second command also removes the right to read. To let every account read again, \
+             run `icacls {quoted} /grant *S-1-5-32-545:{read}`."
+        )
+    }
+
+    /// The help for a null DACL: replace it with one that gives full control to `Administrators`,
+    /// `SYSTEM` and `me`, and to nobody else.
+    fn null_dacl_help(path: &Path, me: &str) -> String {
+        let quoted = quoted(path);
+        let full = if is_directory(path) { "(OI)(CI)F" } else { "F" };
+        format!(
+            "run `icacls {quoted} /inheritance:r /grant:r {ADMINISTRATORS}:{full} \
+             *S-1-5-18:{full} *{me}:{full}` in a prompt started with \"Run as administrator\". \
+             This gives full control to administrators, `SYSTEM` and the account that runs `nvs`."
+        )
+    }
+
+    /// `path` as `cmd` and PowerShell both read it back as one argument. A Windows path cannot
+    /// contain `"`, so the quotes need no escape.
+    fn quoted(path: &Path) -> String {
+        format!("\"{}\"", path.display())
+    }
+
+    /// Whether `path` is a directory, which takes the inheritance flags `(OI)(CI)` a file does not.
+    fn is_directory(path: &Path) -> bool {
+        std::fs::metadata(path).is_ok_and(|meta| meta.is_dir())
+    }
 
     /// A SID, held in a `u32` buffer: a `SID` is `DWORD`-aligned and a `Vec<u8>` promises nothing
     /// about alignment, so every one of these is allocated as words and cast at the call.
@@ -403,7 +511,7 @@ mod platform {
 
     /// The Windows spelling of "the group and the world" — the principals `rule:config/ownership-is-the-trust-boundary` refuses write to,
     /// with the name a refusal prints and the SID it prints beside it. The name is the English one
-    /// on every host, so it identifies the group to a reader; the SID is what [`REMEDY`]'s
+    /// on every host, so it identifies the group to a reader; the SID is what [`group_help`]'s
     /// `icacls` takes, because that command resolves a name in the installed language.
     const UNTRUSTED: &[(WELL_KNOWN_SID_TYPE, &str, &str)] = &[
         (WinWorldSid, "Everyone", "*S-1-1-0"),
@@ -465,7 +573,7 @@ mod platform {
                 "its security descriptor could not be read (win32 error {status})"
             )));
         }
-        let verdict = examine(owner, dacl);
+        let verdict = examine(path, owner, dacl);
         unsafe { LocalFree(descriptor) };
         verdict
     }
@@ -528,36 +636,46 @@ mod platform {
         None
     }
 
-    /// `rule:config/ownership-is-the-trust-boundary` against one descriptor: the owner first, then each untrusted principal's rights.
-    fn examine(owner: PSID, dacl: *const ACL) -> Result<(), Untrusted> {
+    /// `rule:config/ownership-is-the-trust-boundary` against one descriptor of `path`: the owner
+    /// first, then each untrusted principal's rights. Each breach carries the `icacls` command
+    /// that repairs it, with `path` filled in. The help is built only for a breach, so a path that
+    /// passes costs nothing more than the check.
+    fn examine(path: &Path, owner: PSID, dacl: *const ACL) -> Result<(), Untrusted> {
         if owner.is_null() {
-            return Err(Untrusted::Breach(
+            return Err(Untrusted::breach(
                 "has no owner in its security descriptor".to_string(),
+                owner_help(path),
             ));
         }
+        let me = token_user()?;
         let trusted = [
-            token_user()?,
             well_known(WinBuiltinAdministratorsSid)?,
             well_known(WinLocalSystemSid)?,
         ];
-        if !trusted.iter().any(|sid| equal(owner, sid)) {
-            return Err(Untrusted::Breach(format!(
-                "is owned by {}, which is neither this account nor an administrative one",
-                sid_text(owner)
-            )));
+        if !equal(owner, &me) && !trusted.iter().any(|sid| equal(owner, sid)) {
+            return Err(Untrusted::breach(
+                format!(
+                    "is owned by {}, which is neither this account nor an administrative one",
+                    sid_text(owner)
+                ),
+                owner_help(path),
+            ));
         }
         if dacl.is_null() {
             // A null DACL is not an empty one: it grants every account every right.
-            return Err(Untrusted::Breach(
+            let me = sid_text(as_psid(&me));
+            return Err(Untrusted::breach(
                 "has a null DACL, which grants every account every right".to_string(),
+                null_dacl_help(path, me.trim_matches('`')),
             ));
         }
         for (kind, name, sid) in UNTRUSTED {
             let rights = effective_rights(dacl, &well_known(*kind)?)?;
             if rights & WRITE_RIGHTS != 0 {
-                return Err(Untrusted::Breach(format!(
-                    "grants write access to `{name}` (`{sid}`, rights {rights:#010x})"
-                )));
+                return Err(Untrusted::breach(
+                    format!("grants write access to `{name}` (`{sid}`, rights {rights:#010x})"),
+                    group_help(path, sid),
+                ));
             }
         }
         Ok(())
@@ -777,12 +895,19 @@ mod platform {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use std::path::Path;
+
     use super::Untrusted;
     use super::platform::{Stat, judged, judged_link_holder, read_only_mount};
 
     /// The account a container runs as, and the host account whose checkout it mounts.
     const SERVER: u32 = 65532;
     const HOST: u32 = 1000;
+
+    /// The path every verdict here is about. Nothing reads it: the verdict only names it.
+    fn config() -> &'static Path {
+        Path::new("/etc/novis/nvs.toml")
+    }
 
     /// A file another account owns passes on a read-only mount, and the same file on a writable
     /// mount is a breach that names the owner. Mounting a file system needs root, so the mount's
@@ -795,11 +920,54 @@ mod tests {
             gid: HOST,
             mode: 0o644,
         };
-        judged(&stat, SERVER, || true).expect("nobody on this host can write through the mount");
-        let why = judged(&stat, SERVER, || false).expect_err("the owner can rewrite this file");
+        judged(config(), &stat, SERVER, || true)
+            .expect("nobody on this host can write through the mount");
+        let why =
+            judged(config(), &stat, SERVER, || false).expect_err("the owner can rewrite this file");
         assert!(
-            matches!(&why, Untrusted::Breach(message) if message.contains("uid 1000")),
+            matches!(&why, Untrusted::Breach { message, .. } if message.contains("uid 1000")),
             "the refusal names the owner: {why:?}"
+        );
+        let help = why.help().expect("a breach carries its repair");
+        assert!(
+            help.contains("`sudo chown root /etc/novis/nvs.toml`")
+                && help.contains("`sudo chown 65532 /etc/novis/nvs.toml`"),
+            "the repair is the `chown` to root or to this account, with the path: {help}"
+        );
+    }
+
+    /// A writable mode is repaired by `chmod go-w` on the named path, with `sudo` only where
+    /// another account owns it.
+    #[test]
+    fn a_writable_mode_is_repaired_by_chmod_with_sudo_only_for_another_owner() {
+        let mine = Stat {
+            owner: SERVER,
+            gid: SERVER,
+            mode: 0o664,
+        };
+        let why = judged(config(), &mine, SERVER, || false).expect_err("the group may write");
+        assert_eq!(why.help(), Some("run `chmod go-w /etc/novis/nvs.toml`."));
+        let roots = Stat { owner: 0, ..mine };
+        let why = judged(config(), &roots, SERVER, || false).expect_err("the group may write");
+        assert_eq!(
+            why.help(),
+            Some("run `sudo chmod go-w /etc/novis/nvs.toml`.")
+        );
+    }
+
+    /// A path with a space or a quote in it is quoted, so the printed command runs as printed.
+    #[test]
+    fn a_path_a_shell_would_split_is_quoted_in_the_repair() {
+        let stat = Stat {
+            owner: SERVER,
+            gid: SERVER,
+            mode: 0o666,
+        };
+        let why = judged(Path::new("/srv/my app/it's.toml"), &stat, SERVER, || false)
+            .expect_err("the world may write");
+        assert_eq!(
+            why.help(),
+            Some(r"run `chmod go-w '/srv/my app/it'\''s.toml'`.")
         );
     }
 
@@ -817,7 +985,8 @@ mod tests {
                 gid: HOST,
                 mode,
             };
-            let why = judged(&stat, SERVER, || true).expect_err("the mode says others may write");
+            let why = judged(config(), &stat, SERVER, || true)
+                .expect_err("the mode says others may write");
             assert!(
                 why.message().contains(who),
                 "mode {mode:o} on a read-only mount: {why:?}"
@@ -828,7 +997,7 @@ mod tests {
             gid: SERVER,
             mode: 0o600,
         };
-        judged(&mine, SERVER, || {
+        judged(config(), &mine, SERVER, || {
             panic!("the mount is asked only of another account's file")
         })
         .expect("this account's own private file");
@@ -844,8 +1013,9 @@ mod tests {
             gid: 0,
             mode: 0o777,
         };
-        judged_link_holder(&volume, SERVER, || true).expect("the kubelet's ConfigMap volume");
-        let why = judged_link_holder(&volume, SERVER, || false)
+        let dir = Path::new("/etc/novis");
+        judged_link_holder(dir, &volume, SERVER, || true).expect("the kubelet's ConfigMap volume");
+        let why = judged_link_holder(dir, &volume, SERVER, || false)
             .expect_err("anyone on this host could swap the link");
         assert!(
             why.message().contains("group- and world-writable"),
@@ -855,10 +1025,11 @@ mod tests {
             owner: HOST,
             ..volume
         };
-        let why =
-            judged_link_holder(&hosts, SERVER, || true).expect_err("the waiver is root's alone");
+        let why = judged_link_holder(dir, &hosts, SERVER, || true)
+            .expect_err("the waiver is root's alone");
         assert!(why.message().contains("mode 0777"), "{why:?}");
-        judged(&volume, SERVER, || true).expect_err("the file's own directory keeps the mode test");
+        judged(dir, &volume, SERVER, || true)
+            .expect_err("the file's own directory keeps the mode test");
     }
 
     /// A scratch directory under `target/` is on a writable file system, and a path that is not
