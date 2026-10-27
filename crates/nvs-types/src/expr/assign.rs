@@ -814,9 +814,8 @@ fn uncalled_method_help(span: Span, expected: TypeId, env: &Env<'_>) -> Option<S
         return None;
     }
     let text = span_text(env.src, span);
-    (!text.ends_with(')')).then(|| {
-        format!("`{text}` is a reference to the method. To call it, write `{text}()`")
-    })
+    (!text.ends_with(')'))
+        .then(|| format!("`{text}` is a reference to the method. To call it, write `{text}()`"))
 }
 
 /// The help line for a value whose only problem is that it can be `null`:

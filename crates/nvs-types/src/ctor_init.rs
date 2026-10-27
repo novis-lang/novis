@@ -1722,9 +1722,8 @@ mod tests {
             "<?nvs\n{BOX}class Sub extends Box {{\n  public function constructor() {{\n    parent::constructor(1);\n    self::constructor(2);\n    var $f = fn (): void => parent::constructor(3);\n  }}\n  public function again(): void {{ parent::constructor(4); }}\n}}\n"
         );
         assert_eq!(direct_constructor_calls(&inside), 3);
-        let named = format!(
-            "<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor);\n"
-        );
+        let named =
+            format!("<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor);\n");
         assert_eq!(
             direct_constructor_calls(&named),
             0,

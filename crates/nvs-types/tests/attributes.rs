@@ -45,8 +45,7 @@ class Row {
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
-    let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"id\")");
+    let folded = run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"id\")");
     assert!(
         matches!(
             folded,
