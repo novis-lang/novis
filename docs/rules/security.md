@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*6 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -685,7 +685,7 @@ own surface is a closed claim rather than a list with an exception column.
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
-## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — owned by goal namespace-grants)*
+## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called
 
 `rule:security/authority-is-the-enclosing-namespace`
 
@@ -710,7 +710,7 @@ it reaches code no package manager ever touched.
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
-## The application's grant table is `[grants]` in its own `package.toml`, keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — owned by goal namespace-grants)*
+## The application's grant table is `[grants]` in its own `package.toml`, keyed on namespace prefixes, and a capability it names must be on the roster
 
 `rule:security/grants-are-keyed-on-a-namespace`
 
@@ -760,15 +760,11 @@ namespace that inherits the standard library's own authority.
   it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
   the clause has no single namespace to attach to.
 
-**Partly on disk.** `nvs_config::grants` reads the table, refuses an unknown capability (`E0655`) and a
-key under `Core` (`E0657`), and its lines fold into every unit's key. Nothing reads the table while
-compiling yet, and no call site is checked against it.
-
 <sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
-## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — owned by goal namespace-grants)*
+## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet
 
 `rule:security/longest-prefix-wins`
 
@@ -787,8 +783,9 @@ thing costs two extra characters and is visible in review as its own token.
 - **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
   default, so a grant would silently extend to modules that did not exist when it was written.
 
-**On disk.** `nvs_config::grants::Grants::lookup` is the lookup, and the tie is `E0656`. No call site
-is checked against it yet.
+**On disk.** `nvs_config::grants::Grants::lookup` is the lookup, and the tie is `E0656`.
+`nvs_types::capability::reject_ungranted_call` asks it for the namespace enclosing each `Core` call
+site.
 
 <sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 
@@ -970,7 +967,7 @@ deployment never looks like a negative result.
 
 <a id="security-optional-capability-degrades"></a>
 
-## A capability is required or optional, and only a required one refuses to build  *(designed — owned by goal namespace-grants)*
+## A capability is required or optional, and only a required one refuses to build
 
 `rule:security/optional-capability-degrades`
 
@@ -998,10 +995,6 @@ that would allow it. A program that uses no optional capability carries no guard
 line, handed to the member as its prepared word, that the operator's `nvs.toml` also grants. It is
 **not** a runtime grant: nothing widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)). A method reference to
 `has` carries no word and answers `false` wherever it is written, which fails closed.
-
-**Partly on disk.** The split, the compile error, the guard and `Core\Cap::has`'s answer are in
-`nvs_types::capability` (`reject_ungranted_call`, `prepare_cap_has`), and the guard's throw is
-`nvs_ir`'s `lower_capability_guard`. The editor does not read the grant table yet.
 
 **Declined:**
 - **A run-time branch at each optional call site**, testing the namespace's grant as the call runs.
@@ -1063,7 +1056,7 @@ is rather than because of how it is written.
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
-## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — owned by goal namespace-grants)*
+## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing
 
 `rule:security/package-authority-is-granted-one-line-at-a-time`
 

@@ -3,7 +3,7 @@
 
 # Packaging
 
-*28 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*26 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1035,7 +1035,7 @@ language locating a declaration. The file is TOML with unknown fields refused
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
-## Every file in a package declares the package's namespace or one under it, or it does not compile  *(designed — owned by goal namespace-grants)*
+## Every file in a package declares the package's namespace or one under it, or it does not compile
 
 `rule:packaging/a-package-file-stays-under-its-declared-prefix`
 
@@ -1068,8 +1068,6 @@ The file's package is found from its real path: the nearest `package.toml` with 
 between the file and the entry's directory. So an autoloaded file, a file a `discover` glob found and
 a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.rs`). The diagnostic is
 `E0660`, and a manifest whose name is not `Vendor\Package` is `E0659`.
-
-**Not on disk.** The rule has no feature proofs yet.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line).</sub>
 
@@ -1139,7 +1137,7 @@ the rule is re-argued from scratch rather than amended.
 
 <a id="packaging-a-package-cannot-reach-its-host"></a>
 
-## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — owned by goal namespace-grants)*
+## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory
 
 `rule:packaging/a-package-cannot-reach-its-host`
 
