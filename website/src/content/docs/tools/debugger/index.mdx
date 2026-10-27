@@ -1,0 +1,101 @@
+---
+title: Debugging in VS Code
+covers: ['tools:editor/nvs-dap']
+description: Debug a Novis program in VS Code with breakpoints, stepping and the Variables view.
+---
+
+import Replay from '@components/Replay.astro'
+
+You debug a Novis program in VS Code with the [editor extension](/tools/editor/). The extension
+starts `nvs dap`, the debug adapter that is part of the `nvs` program. You do not run `nvs dap`
+yourself.
+
+While the program runs, you can stop it at a breakpoint and step through the code. The Variables
+view shows the value of each variable. What the program prints appears in the debug console.
+
+## The launch configuration
+
+Add a configuration of type `nvs` to `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "nvs",
+      "request": "launch",
+      "name": "Run file",
+      "mode": "run",
+      "program": "${file}"
+    }
+  ]
+}
+```
+
+`program` is the `.nvs` file to debug. `${file}` is the file that is open in the editor. This field
+is required.
+
+`mode` says how the program runs:
+
+| `mode` | What it does |
+|---|---|
+| `run` | Runs the program, as `nvs run` does. This is the default. |
+| `test` | Runs the `#[Test]` methods of the program, as `nvs test` does. The tests run one at a time. |
+| `serve` | Starts a server, as `nvs serve` does. The server runs in `development` mode. |
+
+You can also start a configuration from the Run and Debug view. When you add a configuration to
+`launch.json`, VS Code offers one for each `mode`.
+
+## Stop at a breakpoint
+
+Click left of a line number to set a breakpoint. Then press **F5** to start debugging. The program
+stops before it runs that line.
+
+Here the breakpoint is on the line in the loop. Each **F5** continues the program until it reaches
+the breakpoint again. The Variables view shows `$count` and `$total` at each stop.
+
+<Replay src="tools/debugger/loop.nvs" />
+
+A breakpoint can also have a condition, a hit count or a log message. Right-click the breakpoint and
+choose **Edit Breakpoint** to add one.
+
+- **A condition** is an expression, such as `$count > 200`. The program stops only when the
+  condition is true. A condition can read variables and properties. It cannot call a function or a
+  method.
+- **A hit count** is a number, such as `3`. The program stops from the third time on. You can also
+  write `>3`, `>=3`, `==3` or `%3`.
+- **A log message** prints a line in the debug console, and the program does not stop. A part in
+  `{}` is an expression, such as `total is {$total}`.
+
+## Step through the code
+
+When the program has stopped, you can run it one step at a time:
+
+| Key | Step | What it does |
+|---|---|---|
+| **F10** | Step over | Runs the current line and stops at the next one. |
+| **F11** | Step into | Goes into the method that the line calls. |
+| **Shift+F11** | Step out | Runs the rest of the method and stops in the code that called it. |
+| **F5** | Continue | Runs until the next breakpoint or the end of the program. |
+
+Here the program steps into `Shop::withShipping`, steps over one line, and steps out again. After the
+step out, the Variables view shows `Shop::withShipping() returned` first. Its value is `2450`.
+
+<Replay src="tools/debugger/step.nvs" />
+
+The returned value is shown only when the method has a return type. A step into a `Core` method
+steps over it.
+
+A `secret` value, such as a password, is hidden in the Variables view.
+
+## Stop at an exception
+
+In the Breakpoints view, **Uncaught Exceptions** is on by default. The program stops at a `throw`
+when no `catch` handles the exception. **All Exceptions** stops the program at every `throw`.
+
+## What the debugger cannot do
+
+`nvs dap` only starts programs. It cannot attach to a program that is already running. So you
+cannot debug a server that is already running, such as a production server.
+
+Read more in [Reference: nvs dap](/reference/cli/nvs-dap/).

@@ -1,0 +1,22 @@
+stop 0 breakpoint
+  frame step.nvs:14 <script>
+  var $price	int	2000
+
+stop 1 step
+  frame step.nvs:7 Shop::withShipping
+  frame step.nvs:14 <script>
+  var $cents	int	2000
+
+stop 2 step
+  frame step.nvs:8 Shop::withShipping
+  frame step.nvs:14 <script>
+  var $cents	int	2000
+  var $shipping	int	450
+
+stop 3 step
+  frame step.nvs:15 <script>
+  var Shop::withShipping() returned	int	2450
+  var $price	int	2000
+  var $total	int	2450
+
+end 4 0

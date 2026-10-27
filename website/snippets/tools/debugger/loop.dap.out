@@ -1,0 +1,19 @@
+stop 0 breakpoint
+  frame loop.nvs:7 <script>
+  var $words	array	array(3)
+  var $total	int	0
+  var $count	int	120
+
+stop 1 breakpoint
+  frame loop.nvs:7 <script>
+  var $words	array	array(3)
+  var $total	int	120
+  var $count	int	340
+
+stop 2 breakpoint
+  frame loop.nvs:7 <script>
+  var $words	array	array(3)
+  var $total	int	460
+  var $count	int	95
+
+end 3 0

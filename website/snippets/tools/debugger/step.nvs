@@ -1,0 +1,15 @@
+<?nvs
+// This program adds shipping to the price of an order.
+final class Shop
+{
+    public static function withShipping(int $cents): int
+    {
+        int $shipping = 450;
+        int $sum = $cents + $shipping;
+        return $sum;
+    }
+}
+
+int $price = 2000;
+int $total = Shop::withShipping($price);
+echo 'total: ', $total, "\n";

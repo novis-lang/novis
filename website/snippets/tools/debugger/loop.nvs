@@ -1,0 +1,10 @@
+<?nvs
+// This program adds up the words of three blog posts in a loop.
+array<int> $words = [120, 340, 95];
+
+int $total = 0;
+foreach ($words as int $count) {
+    $total = $total + $count;
+}
+
+echo 'total words: ', $total, "\n";
