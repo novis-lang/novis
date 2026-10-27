@@ -66,7 +66,8 @@ impl Packages {
 /// namespace outside its package and every path a package writes that leaves it.
 ///
 /// `entry` is the program's entry file. A program whose entry has no path on disk has no
-/// packages.
+/// packages. A relative entry path, as `nvs run main.nvs` writes it, is made absolute first, so
+/// its directory is never the empty path.
 pub fn check(
     entry: SourceId,
     loaded: &[Loaded],
@@ -81,6 +82,8 @@ pub fn check(
     let Some(stop) = map
         .file(entry)
         .path()
+        .and_then(|path| std::path::absolute(path).ok())
+        .as_deref()
         .and_then(Path::parent)
         .and_then(nvs_hir::requires::canonicalize)
     else {

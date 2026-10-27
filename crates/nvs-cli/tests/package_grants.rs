@@ -86,6 +86,32 @@ fn a_package_file_that_declares_a_namespace_outside_its_package_does_not_compile
 }
 
 #[test]
+fn a_relative_entry_path_still_places_files_in_their_package() {
+    let class = "<?nvs\nnamespace App;\n\nclass Client {}\n";
+    let entry = "<?nvs\nautoload 'App' from 'vendor/acme/http/src';\n\nvar $client = new App\\Client();\n";
+    let (_root, app) = layout(&[
+        ("main.nvs", entry),
+        ("vendor/acme/http/src/Client.nvs", class),
+        ("vendor/acme/http/package.toml", MANIFEST),
+    ]);
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(&app)
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .arg("check")
+        .arg("main.nvs")
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success() && stderr.contains("E0660"),
+        "`nvs check main.nvs` checks the package's files as an absolute entry does:\n{stderr}"
+    );
+}
+
+#[test]
 fn code_with_no_package_name_gets_no_file_check() {
     let (stderr, ok) = client_in("App", None);
     assert!(ok, "hand-copied code with no manifest compiles:\n{stderr}");
