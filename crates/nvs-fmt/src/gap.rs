@@ -308,6 +308,11 @@ impl<'a> Pairs<'a> {
         if is_member_access(l) || is_member_access(r) {
             return Some(NOTHING);
         }
+        // A `:` inside a type is an object type's field or a `callable`'s
+        // return type, and keeps its own row against a `?` after it.
+        if l == TokenKind::Colon && self.in_one_type(at) {
+            return Some(SPACE);
+        }
         if (is_type_mark(l) || is_type_mark(r)) && self.in_one_type(at) {
             return Some(NOTHING);
         }

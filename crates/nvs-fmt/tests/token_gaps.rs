@@ -369,6 +369,21 @@ fn a_signature_type_has_nothing_around_its_punctuation() {
 }
 
 #[test]
+fn a_colon_inside_a_type_keeps_its_space_before_a_nullable_type() {
+    let mangled = "\
+<?nvs
+
+type Size = { width:?int, height: ?int, unit:string, scale: callable(int):?float };
+";
+    let canonical = "\
+<?nvs
+
+type Size = { width: ?int, height: ?int, unit: string, scale: callable(int): ?float };
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
 fn a_unary_operator_has_nothing_before_its_operand() {
     let mangled = "\
 <?nvs

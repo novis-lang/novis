@@ -24,7 +24,7 @@ punctuation, not an operator.
 | the `:` of a return type, a named argument, an anonymous object's field and an enum's backing type | nothing before it, one space after it |
 | the `:` that ends a `case` or `default` label | nothing before it |
 | `->`, `?->` and `::` and each side | nothing |
-| inside a written type: `?`, `\|`, `&`, `<`, `>`, `(` and `)` and their neighbours | nothing; a `,` inside a type's arguments is the `,` row |
+| inside a written type: `?`, `\|`, `&`, `<`, `>`, `(` and `)` and their neighbours | nothing; a `,` inside a type's arguments is the `,` row, and a `:` inside a type, of an object type's field or a `callable`'s return type, is the `:` row, so `{ width: ?int }` keeps its space |
 | `#[` and what follows it, and what precedes its `]` | nothing |
 | a keyword and the word, variable, literal, `(` or `{` after it: `return $x`, `new Cart`, `class Cart`, `public int`, `namespace Shop`, `extends`, `throw`, `echo`, `yield` | one space; nothing before `;` or `::` |
 | two words: a type and a variable, a modifier and a type, a name and `extends` | one space |
