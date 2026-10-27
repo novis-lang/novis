@@ -89,6 +89,12 @@ parameter, so a route without one costs nothing more. Memory is the converted va
 with it. Simplicity of the language gains: a declaration that compiled and did nothing now does what it
 says.
 
+**The options-bag gap is fixed in this goal, by the thunk passing the bag's defaults.** No goal on
+the chain lowers callable references, and a compiler panic on a program `nvs check` accepts is not
+handed on. The thunk takes the parameters before the bag and forwards the call as a direct call that
+omits the bag does. That adds no diagnostic and no language rule, so the surface stays simpler than a
+checker refusal; a caller cannot pass a bag through the reference. The cost is nothing at run time.
+
 ## Stages
 
 ### 1. `dispatch` fills a `#[Query]` parameter from the query string
@@ -117,10 +123,16 @@ nothing owed, and the rule's record is `shipped` with its cases in `guardedBy`.
 **Split:** a writing subagent writes the example and the attack after stages 1 and 2 have landed; the
 session checks both and writes the rule flip.
 
-- [ ] An example that reads a typed query parameter and shows the `400` for a bad value, and the feature's `about.md` says what a query parameter receives. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`, `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
-- [ ] The attack: a request sends a repeated key, an overlong number and a bad escape to a typed query parameter, and each is a `400` with the handler not run (`rule:testing/hostile-case-contract`). `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/a-query-value-that-does-not-convert.nvs:1`
-- [ ] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`. `docs/reference/lang/90-attributes.md:997`
-- [ ] The rule's "path half is built" paragraph rewritten to the present, and the record `shipped` (`rule:routing/a-bad-query-value-is-a-400`). `docs/rules/routing/a-bad-query-value-is-a-400.md:20`, `data/rules/routing/a-bad-query-value-is-a-400.json:3`
+- [x] An example that reads a typed query parameter and shows the `400` for a bad value, and the feature's `about.md` says what a query parameter receives. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/07-a-query-parameter-and-a-bad-value.nvs:1`, `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
+- [x] The attack: a request sends a repeated key, an overlong number and a bad escape to a typed query parameter, and each is a `400` with the handler not run (`rule:testing/hostile-case-contract`). `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/02-a-query-value-that-does-not-convert.nvs:1`
+- [x] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`; it is written in the feature's `details.md`, which `bun nv render` turns into the chapter. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/details.md:19`
+- [x] The rule's "path half is built" paragraph rewritten to the present, and the record `shipped` (`rule:routing/a-bad-query-value-is-a-400`). `docs/rules/routing/a-bad-query-value-is-a-400.md:20`, `data/rules/routing/a-bad-query-value-is-a-400.json:3`
+- [x] `examples/parses.nvs` binds `#[Core\Query] Slug $tag` through `Core\Router::dispatch`, and no comment says the binding is missing. `examples/parses.nvs:52`
+- [ ] A callable reference to a `Core` member with an options bag lowers instead of panicking, and its gap record is deleted (see Standing decisions). `crates/nvs-ir/src/lower/anon_fn.rs:673`, `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
+  - [ ] The thunk's parameters stop before the bag, and its forwarded call passes the bag's defaults the way a direct call that omits the bag does. `crates/nvs-ir/src/lower/call.rs:203`
+  - [ ] `crates/nvs-ir/tests/query_sites.rs` gains the case where the thunk passes the zero site id. `crates/nvs-ir/tests/query_sites.rs:1`
+  - [ ] A conformance case calls `Core\Str::split(...)` through the reference. `tests/conformance/core/a-callable-reference-to-a-member-with-options-uses-the-defaults.nvst:1`
+  - [ ] The gap record is deleted, and `bun nv owners --closes query-binding` exits 0. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -139,30 +151,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Core\Router::dispatch` binds each `#[Query]` parameter from the query
-string, an absent optional key from its default, and answers `400` (`BadCapture`, told the match) for
-a value that does not convert, a missing required key, a repeated key and a bracketed list. Four Rust
-tests in `router.rs`'s `dispatching` module and the conformance case
-`tests/conformance/core/a-query-value-that-does-not-convert-is-a-400.nvst` pass, and the case is in
-the rule's `guardedBy`. The rule fragment's last paragraph says what is built; its status is still
-`designed`. The `BadCapture` card and `docs/examples/types/Router-Refusal/about.md` name the query.
+Stages 1 and 2 are done, and stage 3's proofs have landed. The route-table feature has example 07
+(a required `'name'|'price'` and an optional `uint` query parameter, `200` and `400`) and the attack
+`02-a-query-value-that-does-not-convert.nvs` (4200 bad targets, each a `400` with the method not run).
+`about.md` says it in one sentence, because its bound is 200 words. `details.md` lists the four
+`400` cases. `bun nv render` and `bun nv render --website` wrote the chapter and `llms-full.txt`.
+`examples/parses.nvs` binds `#[Core\Query] Slug $tag` through `dispatch`. The rule is `shipped`. The
+attributes chapter's seven perf records were re-recorded, because the chapter changed. Their counts
+match the old records. The clock figures are noise from a loaded machine, and the clock decides
+nothing. `bun nv proofs --gate` over the chapter's nine features owes nothing.
 
-The acceptance sweep's reds were already fixed on disk: `crypto-bigint` is 0.7.10 (c244b4b36), the
-count test runs in one folder, and `env-secret-proofs` exits 0 when rerun.
+A bad percent escape such as `%zz` reaches a `string` parameter as the literal text, with `200`: the
+query parser is lenient, the same as `Core\Request::query()`. Invalid UTF-8 after decoding is a
+`400`. The attack sends bad escapes only to the `uint` parameter. No rule claims otherwise.
+
+`bun nv owners --closes query-binding` still names the options-bag gap, the last stage 3 item.
 
 ### Next
 
-**Stage 3**, as its `**Split:**` line says. No gate.
+**Stage 3's last item**, by the standing decision: the thunk passes the bag's defaults. First check
+what type the checker gives `Core\Str::split(...)`. If that closure type includes the bag as a
+parameter, the thunk's arity must match it, so drop the bag there too
+(`crates/nvs-types/src/expr/calls.rs`, grep `first_class`/`callable`).
 
-- [ ] Example 07 in the route-table feature, reading a typed query parameter and showing the `400`. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/02-captures-that-convert-and-a-query-parameter.nvs:1`, `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
-- [ ] The attack under `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/`: a repeated key, an overlong number, a bad escape. `tests/hostile/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration:1`
-- [ ] The reference's `#[Core\Query]` paragraph says the value is bound and a bad one is a `400`. `docs/reference/lang/90-attributes.md:1072`
-- [ ] `examples/parses.nvs` still says nothing binds a query parameter; rewrite it to bind `#[Core\Query] Slug $tag`. `examples/parses.nvs:98`
-- [ ] The rule record `shipped`. `data/rules/routing/a-bad-query-value-is-a-400.json:3`
-- [ ] `owners-closes`: the gap record `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json` names this goal; close it or give it another owner. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:5`
+- [ ] The thunk's parameters stop before a `CheckedTy::CoreShape` parameter, and the forwarded call passes the bag's defaults as a direct call that omits the bag does. `crates/nvs-ir/src/lower/anon_fn.rs:673`, `crates/nvs-ir/src/lower/call.rs:203`, `crates/nvs-ir/src/lower/mod.rs:5165`
+- [ ] `crates/nvs-ir/tests/query_sites.rs` gains the thunk case with the zero site id. `crates/nvs-ir/tests/query_sites.rs:1`
+- [ ] A conformance case calls `Core\Str::split(...)` through the reference. `tests/conformance/core/a-callable-reference-to-a-member-with-options-uses-the-defaults.nvst:1`
+- [ ] The gap record is deleted, and `bun nv owners --closes query-binding` exits 0. `data/gaps/nvs-ir/a-callable-reference-to-a-core-member-with-an-options-bag.json:1`
+
+Then set stage 3 `done`.
 
 ### Backlog
 
-- Stage 4's gate. Expect `website/public/llms-full.txt` to need a re-render for the `BadCapture` card,
-  and the Rust suites of `nvs-types`, `nvs-runtime` and `nvs-stdlib` to stay green; no test is
-  expected to go red.
+- Stage 4's gate. The Rust suites of `nvs-types`, `nvs-runtime`, `nvs-stdlib` and `nvs-ir`, and the
+  `examples` test over `examples/parses.nvs`, should stay green. No test is expected to go red.
