@@ -287,7 +287,7 @@ once and fixes every failure in one pass.
 failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
@@ -295,25 +295,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. A stopped service's `status` prints the state, on Windows with its exit code,
-then up to 20 lines of its last run under `Last run:` (`status_of`,
-`crates/nvs-cli/src/service.rs:4752`). The readers are `Manager::last_run`: `Systemd` at
-`crates/nvs-cli/src/service.rs:3242` and `Scm` through `records` at
-`crates/nvs-cli/src/service.rs:3628`. The run boundary is the new `Lifecycle::Starting` record, and
-the pure selection is `dispatch::last_run` (`crates/nvs-cli/src/dispatch.rs:134`). The standing
-decision records why it is `ReadEventLogW` and not `EvtQuery`. The Windows reader was checked once
-against records a throwaway probe wrote, and the probe is gone. The new tests are green on Windows
-and in WSL. `rule:packaging/a-service-answers-its-manager` § *Output*, the `nvs service` page and
-the service guide say so. The guide no longer claims `status` prints a running request count, which
-it never did. `nvs service` owes no proof, and `owners --closes` passes. The sweep's
-`env-secret-proofs` log exits 0. Its Miri reds are run 40474302703 on `55b03e97a`, which
-`cea10a7cd` fixed. No test is expected to go red.
+Stages 1 to 5 are done, and stage 6 is part way. The sweep's `env-secret-proofs` is green when run
+again (`bun nv proofs --gate --only 'Core\Env::secret'`), and `cea10a7cd` covers its Miri reds.
+
+Verify has run twice. The first run stopped at `rules-render` and `fmt`, and `9b7f28ea5` commits that
+fallout, the fuzz lock's `sha1` included. The second run left three binaries that failed beside the
+others and passed alone, all load timing in code this goal does not touch:
+
+- `http::transport::tests::a_dead_first_address_falls_back_to_the_next_within_connect_timeout`.
+  Fixed in `2655ff4d8`: a 60 s budget, bounded at 30 s (`crates/nvs-stdlib/src/http/transport.rs:5296`).
+- `nvs-stdlib test ldap`, three Samba cases past their 30 s deadline. All the cargo cases take
+  `nvs_repo::turn`. The conformance `ldap-*.nvst` cases reach the same Samba server without it, and
+  verify's tail started them beside the binaries. `f4e9afdb4` makes the tail wait for
+  `SAMBA_BINARIES` (`tools/nv/cmd/verify.ts:159`). That is the likeliest cause, not a proven one:
+  this run's conformance log was older than the test log.
+- `serve::tests::a_served_while_true_does_not_stall_a_second_connection_on_its_core`
+  (`crates/nvs-cli/src/serve.rs:5910`): the runaway's socket read EOF with no response head. A
+  subagent suggested that hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
+  (`crates/nvs-server/src/io.rs:352`), so a program running past 30 s of wall time is closed with no
+  answer. A case with `body_idle` at 100 ms and `cpu_time` at 1 s passed **without** that fix, so the
+  theory is not proven, and the server change was reverted. Still open.
 
 ### Next
 
-**Stage 6: the goal is verified once.** Start `bun nv affected --run` (or `looper verify`) with
-`run_in_background` and end the turn to wait. Group the failures by cause and fix them in one pass.
-Then run the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
+**Stage 6: verify again.** Start `bun tools/looper/main.ts verify` with `run_in_background` and end
+the turn to wait. If the serve case fails again, find which socket closes and why before changing
+`nvs_server::io`. One way to test the theory: `a_runaway_then_an_answer`
+(`crates/nvs-cli/src/serve.rs:5743`) takes a `Waits` and a program that sleeps, not one that spins, past
+a short `body_idle`. If the Samba cases fail again, check whether the conformance step overlapped
+them. `tools/nv/proofs/run.ts:485` keeps its own two-slot Samba limit, not the shared turn.
+Once verify is green, run the goal-end gates AGENTS.md § *In the loop* names: `bun nv verify --doc`,
 `bun nv owners --closes service-owner-check` and `bun nv ci --check`. The goal's three checks are
 `config-check-proofs`, `service-proofs` and `owners-closes`. Before `DONE`, move each decision only
 this file's prose holds into a rule or a module doc. The last-run decision is in
