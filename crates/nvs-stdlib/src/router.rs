@@ -2512,15 +2512,16 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 
 /// The `Class::method` label of the row a [`MATCH`] receiver matched, or
 /// `None` for a row index the unit's table does not hold, which only a table
-/// built by hand reaches.
-fn matched_handler(ctx: &nvs_runtime::Ctx, receiver: Value) -> Result<Option<String>, Fault> {
+/// built by hand reaches. The label is borrowed from the unit's table, so a
+/// call to `is` allocates nothing.
+fn matched_handler(ctx: &nvs_runtime::Ctx, receiver: Value) -> Result<Option<&str>, Fault> {
     let receiver = crate::instance::receiver(receiver, &MATCH, "is")?;
     let row = crate::instance::slot(receiver, MATCH_ROW).as_int();
     Ok(ctx
         .routes()
         .zip(row.and_then(|row| usize::try_from(row).ok()))
         .and_then(|(routes, row)| routes.rows().get(row))
-        .map(|route| route.handler().to_owned()))
+        .map(|route| route.handler()))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2536,7 +2537,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_router_match_is(ctx, args: [2]) {
         let wanted = value_route(ctx, args[1], "is")?;
         let matched = matched_handler(ctx, args[0])?;
-        Ok(Value::bool(matched.as_deref() == Some(wanted.handler())))
+        Ok(Value::bool(matched == Some(wanted.handler())))
     }
 }
 
@@ -2555,7 +2556,7 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         let matched = matched_handler(ctx, args[0])?;
-        Ok(Value::bool(matched.as_deref() == Some(wanted)))
+        Ok(Value::bool(matched == Some(wanted)))
     }
 }
 
@@ -4301,7 +4302,8 @@ mod tests {
         // its slots the wrong way round fails here.
         let name = super::matched_handler(ctx, matched)
             .expect("a match is a `Core\\Router\\Match`")
-            .expect("the matched row is in the table");
+            .expect("the matched row is in the table")
+            .to_owned();
         dropped(matched);
         Ok(name)
     }
