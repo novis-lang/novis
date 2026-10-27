@@ -269,34 +269,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Stage 2's compiler change and its code corpus are done (`64ac447d5`, `5f7719c6b`);
-only the prose half of its corpus rewrite is left. The parser reads a lowercase name after `::` as a
-method reference (`crates/nvs-syntax/src/parser/expr.rs`, `names_a_method`), refuses `Class::method(...)`
-with `E0136` and a dropped reference with `E0137` (`crates/nvs-diagnostics/src/code/parser.rs`), and a
-reference where a non-callable type is expected names the call in its `E0401` help
-(`crates/nvs-types/src/expr/assign.rs`, `uncalled_method_help`). The standing decision *The parser
-decides a bare reference by casing alone* records why there is no checker fallback.
+Stages 1 and 2 are done. The parser reads a lowercase name after `::` as a method reference
+(`crates/nvs-syntax/src/parser/expr.rs`, `names_a_method`), refuses `Class::method(...)` with
+`E0136` and a dropped reference with `E0137`, and every `.nvs`, `.nvst`, Rust test source,
+diagnostic help, `docs/` page, website page and generated website file writes the bare form
+(`64ac447d5`, `5f7719c6b`, `f7068141a`). A call with elided arguments keeps `(...)`:
+`parent::constructor(...)`, `Core\Test::request(...)`, `Core\Request::query(...)`, `$cls::f(...)`.
 
-Every `.nvs`, `.nvst` and Rust test source, and every diagnostic help that names the reference form,
-writes the bare form. A call with elided arguments keeps `(...)`: `parent::constructor(...)` in the
-`E0885`/`E0410` messages, `Core\Html::escape(...)`, `Core\Cli\Text::plain(...)`,
-`Core\Secret::reveal(...)`, and `Bench::run(...)` in `tools/nv/cmd/scaling.ts`. The four new and
-rewritten conformance cases and the 56 rewritten `.nvst` files pass on a debug build; every rewritten
-`.nvs` compiles but the two that show an error on purpose, whose `.out` files were blessed again.
+The acceptance sweep's four reds need no change. `env-secret-proofs` passes on the tree as it is. The
+three nightly Miri jobs ran on `55b03e97a`, and the commits after it fixed all three: `22f1e4ec4`
+(the json secret-span test), `c33a8b8f7` and `e461612ce` (the two spool tests).
 
-Expected red until the next slice: none from the code. The Rust test files with rewritten Novis source
+Expected red until stage 7 runs: the Rust test files whose Novis source lost `(...)`
 (`crates/nvs-types/tests/attributes.rs`, `isolates.rs`, `core_members.rs`, `paths.rs`,
 `crates/nvs-ir/tests/callable_names.rs`, `crates/nvs-lsp/tests/index.rs`, `navigation.rs`,
-`crates/nvs-cli/tests/spawn_entry.rs`) were not run; a column or a span they assert may have moved by
-the five bytes `(...)` took. The `docs`/website pages still show `Class::method(...)`, which the
-proofs gate and the website render may name.
+`crates/nvs-cli/tests/spawn_entry.rs`) were not run. A column or a span they assert may have moved by
+five bytes.
 
 ### Next
 
-**Stage 2, the prose half of the corpus rewrite**, then stage 3.
+**Stage 3, link half first.** `Route::name` cannot leave the table first. `RouteTable::named`
+(`crates/nvs-types/src/routes.rs:918`) and `row.name` are read by `links.rs` (`resolve`, and `signed`
+signs the name at `links.rs:401`), `crates/nvs-cli/src/openapi.rs:425`, `crates/nvs-cli/src/main.rs:1562`
+and `crates/nvs-lsp/src/completion.rs:1239`/`1270`. So move every reader to the method first, and
+delete the field last.
 
-- [ ] Every `.md` under `docs/` that writes `Class::method(...)` as a reference writes the bare form: the reference chapters, `about.md` and `details.md`, the agent docs and the playbook. A call with elided arguments (`parent::constructor(...)`, `Category::find(...)`, `$cls::f(...)`) keeps it. `git grep -lE '::[a-z][A-Za-z0-9_]*\(\.\.\.\)' -- '*.md'` lists 52; `docs/rules/` is done already. `docs/reference/lang/90-attributes.md:1`
-- [ ] Every website page under `website/src/content/docs/` does too, then the generated `website/src/data/core.json` and `website/public/llms-full.txt` are written again by their generator. `website/src/content/docs/syntax/operators/pipeline.mdx:1`, `website/src/content/docs/syntax/classes/methods-and-inheritance.mdx:1`
-- [ ] Set stage 2 `done`, then stage 3: `#[Route]` loses `name`, and a link takes a method reference. `crates/nvs-types/src/routes.rs:174`, `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-types/src/links.rs:156`
+- [ ] Decide the type of `url`'s first parameter before writing code, and record it under `## Standing decisions`. `CoreTy::MethodRef` folds to the method's name, is positional only, and refuses a value (`note_method_ref_args`). The design needs a reference passed as a value to work too, so it is likely `CoreTy::Callable` plus a link-only mark like `method_ref_args` that lets an instance method go without an object and skips visibility. First read how `nvs-ir` lowers `ExprInfo::CallableRef`, since the runtime must map a callable value to its route row. `crates/nvs-stdlib/src/registry.rs:517`, `crates/nvs-types/src/expr/calls.rs:1506`, `crates/nvs-types/src/lib.rs:685`, `crates/nvs-types/src/expr_table.rs:512`
+- [ ] `record_site` reads argument 0's `ExprInfo::CallableRef` (the class and the method) where it read a folded string, and `resolve` looks the row up by `Route::handler` (written as `Class::method` at `routes.rs:969`). A method with no `#[Route]` replaces `E0754`'s unknown name. `crates/nvs-types/src/links.rs:190`, `crates/nvs-types/src/links.rs:350`
+- [ ] Then the rest of stage 3's items in order: the runtime link functions, the two-paths check and `E0749`'s retirement, `name` leaving `OPTIONS`, the tests, and the help text. `crates/nvs-stdlib/src/router.rs:314`, `crates/nvs-types/src/routes.rs:174`, `crates/nvs-types/tests/routes.rs:525`
 
 ### Backlog
