@@ -2,9 +2,9 @@
 //! 's `Core\Cap::has`, and the one thing about it that is decided while
 //! compiling: the name it asks about has to be a capability.
 //!
-//! The member itself runs — it reads the request's own grant table, which is
-//! not known here — so unlike [`crate::retrieval`] and [`crate::program`] this
-//! pass replaces nothing and records nothing. It is a refusal and no more.
+//! The member itself runs, because the operator's grant is the request's and is
+//! not known here. What is known here is the namespace's own grant line, and
+//! [`prepare_cap_has`] hands the member that as a prepared word.
 //!
 //! # Why a misspelling cannot be left to run time
 //!
@@ -49,6 +49,19 @@
 //! (`rule:security/no-runtime-grant`), so a call holds the intersection of the
 //! two. Cost: one table lookup per `Core` call site while compiling, and none
 //! when the table is empty. Nothing runs on the request path.
+//!
+//! # An optional capability compiles to a guard
+//!
+//! A capability the call's package lists under `[capabilities] optional`
+//! compiles where its grant line does not list it
+//! (`rule:security/optional-capability-degrades`). The checker records a
+//! [`CapabilityGuard`] at the call instead of reporting it, and `nvs-ir`
+//! throws a `RuntimeError` there before the call runs. The grant line is
+//! compile-time input and is in the unit's key, so the guard is decided here
+//! and the program carries no branch: a granted call has no guard at all, and
+//! an ungranted one always throws when it is reached. The package is the one
+//! [`crate::package::check`] placed the call's file in, so a file of the
+//! application never has a guard.
 
 use nvs_config::Cap;
 use nvs_diagnostics::{Diagnostic, Span, code};
@@ -56,7 +69,7 @@ use nvs_hir::QName;
 use nvs_syntax::ast::CallArgs;
 
 use crate::defaults::ConstArg;
-use crate::expr_table::{Prepared, PreparedFact};
+use crate::expr_table::{CapabilityGuard, Prepared, PreparedFact};
 use crate::ty::Ty;
 use crate::{Ctx, Env};
 
@@ -144,10 +157,48 @@ pub(crate) fn prepare_config_set(
     }
 }
 
+/// Files [`PreparedFact::CapGrants`] for a `Core\Cap::has`: the capabilities
+/// its namespace's `[grants]` line lists, or every capability where no line
+/// matches. The member answers `true` only for a capability in the word that
+/// the operator also granted, so it answers what its own call site holds.
+/// A method reference to `has` carries no word, and answers `false` wherever
+/// it was written: it fails closed, as `Core\Config::set`'s does. Cost: one
+/// table lookup per `Core\Cap::has` call site while compiling.
+pub(crate) fn prepare_cap_has(
+    owner: &QName,
+    member: &str,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !nvs_stdlib::cap::is_query(&owner.to_string(), member) {
+        return;
+    }
+    let line = if ctx.namespace.is_empty() || env.namespace_grants.is_empty() {
+        None
+    } else {
+        env.namespace_grants.lookup(&ctx.namespace.join("\\"))
+    };
+    let mask = match line {
+        Some(line) => nvs_stdlib::cap::grants_mask(line.caps().iter().copied()),
+        None => nvs_stdlib::cap::grants_mask(Cap::ALL.iter().copied()),
+    };
+    env.exprs.record_prepared(
+        span,
+        Prepared {
+            literal: span,
+            fact: PreparedFact::CapGrants(mask),
+        },
+    );
+}
+
 /// Refuses a call to `owner::member` where the enclosing namespace's
 /// `[grants]` line does not list a capability the member needs, as
 /// [`nvs_stdlib::cap::needs`] gives them. A namespace with no line, and the
 /// global namespace, hold the application's authority and pass.
+///
+/// A missing capability that the call's package lists as `optional` is not
+/// refused: it records a [`CapabilityGuard`], and the call throws when it runs.
 ///
 /// The hook `crate::expr::calls` reaches once a call or a method reference has
 /// resolved, on the instance and the static path alike.
@@ -183,6 +234,26 @@ pub(crate) fn reject_ungranted_call(
         || "package.toml".to_owned(),
         |path| path.display().to_string(),
     );
+    let optional = env
+        .packages
+        .and_then(|packages| packages.of(span.file))
+        .map_or(&[][..], nvs_config::package::Package::optional);
+    if missing.iter().all(|cap| optional.contains(cap)) {
+        env.exprs.record_capability_guard(
+            span,
+            CapabilityGuard {
+                message: format!(
+                    "`{class}::{member}` needs {}. The namespace `{namespace}` does not have it. \
+                     Add {} to the line '{}' in `{file}` to allow it.",
+                    names(&missing, "`"),
+                    names(&missing, "\""),
+                    line.key(),
+                ),
+            },
+        );
+        return;
+    }
+    missing.retain(|cap| !optional.contains(cap));
     env.diags.report(
         Diagnostic::error(
             code::E_CAPABILITY_NOT_GRANTED,

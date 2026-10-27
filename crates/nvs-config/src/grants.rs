@@ -33,7 +33,9 @@
 //! **[`Grants::digest`] is the part every unit's cache key carries**
 //! (`rule:config/the-extension-set-is-in-every-unit-key`), so an edited grant line is an ordinary
 //! cache miss. It is over the normalized keys and their capabilities, so a comment, a reordering
-//! or a change anywhere else in the file keeps every key.
+//! or a change anywhere else in the file keeps every key. It also covers each package's
+//! `optional` list ([`Grants::set_optional`]): an ungranted optional capability compiles to a
+//! guard, and an ungranted required one does not compile.
 //!
 //! Cost: one read of the file and one `metadata` per directory walked, once per compiler run, and
 //! a table of a few dozen keys held for that run. Memory: the table is compile-time input, and
@@ -64,6 +66,9 @@ pub struct Grants {
     keys: Vec<Grant>,
     /// The file the table was read from, or `None` when no file was found.
     file: Option<PathBuf>,
+    /// Each package's name and the capabilities its manifest lists as `optional`, sorted by
+    /// name. Read by [`Self::digest`] alone.
+    optional: Vec<(String, Vec<Cap>)>,
 }
 
 /// One line of the table: a key and the capabilities it grants.
@@ -131,6 +136,7 @@ impl Grant {
 pub static EMPTY: Grants = Grants {
     keys: Vec::new(),
     file: None,
+    optional: Vec::new(),
 };
 
 impl Grants {
@@ -201,6 +207,7 @@ impl Grants {
         Ok(Self {
             keys: keys.into_values().map(|(grant, _)| grant).collect(),
             file: None,
+            optional: Vec::new(),
         })
     }
 
@@ -229,6 +236,14 @@ impl Grants {
         self.keys.is_empty()
     }
 
+    /// Replaces the `optional` lists [`Self::digest`] covers with `packages`: each package's
+    /// name and the capabilities its manifest lists as `optional`. A package with an empty list
+    /// is left out, so a program whose packages declare nothing optional keeps its key.
+    pub fn set_optional(&mut self, packages: impl Iterator<Item = (String, Vec<Cap>)>) {
+        self.optional = packages.filter(|(_, caps)| !caps.is_empty()).collect();
+        self.optional.sort_by(|(left, _), (right, _)| left.cmp(right));
+    }
+
     /// The `package.toml` the table was read from, or `None` when [`find`] found none.
     #[must_use]
     pub fn file(&self) -> Option<&Path> {
@@ -252,6 +267,21 @@ impl Grants {
             for cap in &grant.caps {
                 hasher.update(&len(cap.name().len()));
                 hasher.update(cap.name().as_bytes());
+            }
+        }
+        // Only when a package declares something optional, so every other table keeps the
+        // digest it had.
+        if !self.optional.is_empty() {
+            hasher.update(b"optional");
+            hasher.update(&len(self.optional.len()));
+            for (package, caps) in &self.optional {
+                hasher.update(&len(package.len()));
+                hasher.update(package.as_bytes());
+                hasher.update(&len(caps.len()));
+                for cap in caps {
+                    hasher.update(&len(cap.name().len()));
+                    hasher.update(cap.name().as_bytes());
+                }
             }
         }
         *hasher.finalize().as_bytes()

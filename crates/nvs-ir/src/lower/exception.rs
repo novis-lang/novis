@@ -237,6 +237,22 @@ impl<'a> Lowering<'a> {
     /// hand, for the same reason. No retain: the instance is built here and
     /// has exactly one owner, which [`Terminator::Throw`] takes.
     fn raise_logic_error(&mut self, block: BlockId, message: &str, env: &mut Env) {
+        self.raise_error(block, LOGIC_ERROR, message, env);
+    }
+    /// `rule:security/optional-capability-degrades`'s guard at a call whose
+    /// capability its package declared optional and its namespace was not
+    /// granted: a `RuntimeError` carrying `message`, raised in `cur`.
+    ///
+    /// What follows is dead and still lowered, for [`Self::lower_finish`]'s
+    /// reason: the call after it owes its caller a value, so `cur` moves to a
+    /// fresh block nothing branches to, and the call is lowered there as usual.
+    pub(crate) fn lower_capability_guard(&mut self, message: &str, env: &mut Env, cur: &mut BlockId) {
+        self.raise_error(*cur, "RuntimeError", message, env);
+        *cur = self.new_block();
+    }
+    /// Builds a `class` carrying `message` in `block` and seals the block on
+    /// the raise of it. [`Self::raise_logic_error`] owns the argument list.
+    fn raise_error(&mut self, block: BlockId, class: &str, message: &str, env: &mut Env) {
         let (message, _) = self.emit(block, Ty::Str, InstKind::ConstStr(message.to_owned()));
         let (absent, _) = self.emit(block, Ty::Null, InstKind::ConstNull);
         let absent = self.coerce(block, absent, Ty::Null, Ty::Tagged, env);
@@ -244,7 +260,7 @@ impl<'a> Lowering<'a> {
             block,
             Ty::Object,
             InstKind::New {
-                class: LOGIC_ERROR.to_owned(),
+                class: class.to_owned(),
                 ctor: Some(THROWABLE_CTOR.to_owned()),
                 args: vec![message, absent],
             },

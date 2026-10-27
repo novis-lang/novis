@@ -1,0 +1,57 @@
+--TEST--
+a capability a package lists as `optional` compiles where its namespace's `[grants]` line does not list it, the call throws a catchable `RuntimeError` when it is reached, and `Core\Cap::has` returns `false` for it in that package — `rule:security/optional-capability-degrades`
+--FILE--
+<?nvs
+autoload 'Acme\Disk' from './vendor/acme/disk/src';
+
+echo Acme\Disk\Store::save("note"), "\n";
+try {
+    Acme\Disk\Store::force("note");
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+echo Acme\Disk\Store::reads() ? "reads" : "no reads", "\n";
+--FILE vendor/acme/disk/src/Store.nvs--
+<?nvs
+namespace Acme\Disk;
+
+final class Store
+{
+    // The package lists `fs.write` as optional, and the grant line does not
+    // list it. So `Core\Cap::has` returns `false` here.
+    public static function save(string $text): string
+    {
+        if (Core\Cap::has("fs.write")) {
+            Core\IO::write("note.txt", $text);
+            return "disk";
+        }
+        return "memory";
+    }
+
+    // This call compiles. It throws a `RuntimeError` when it runs.
+    public static function force(string $text): void
+    {
+        Core\IO::write("note.txt", $text);
+        echo "not reached\n";
+    }
+
+    // The grant line lists `fs.read`, so this is what the server allows.
+    public static function reads(): bool
+    {
+        return Core\Cap::has("fs.read");
+    }
+}
+--FILE vendor/acme/disk/package.toml--
+[package]
+name = 'Acme\Disk'
+
+[capabilities]
+required = ["fs.read"]
+optional = ["fs.write"]
+--FILE package.toml--
+[grants]
+'Acme\Disk\*' = ["fs.read"]
+--EXPECTF--
+memory
+`Core\IO::write` needs `fs.write`. The namespace `Acme\Disk` does not have it. Add "fs.write" to the line 'Acme\Disk\*' in `%s` to allow it.
+reads

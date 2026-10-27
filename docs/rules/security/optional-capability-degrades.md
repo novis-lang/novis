@@ -12,18 +12,24 @@ halves. A library with an in-memory cache and an optional disk-persistence metho
 of every application that never persists anything, and its author's only remedy would be to split
 one coherent library into two packages over a capability question.
 
-The guard is one predictable branch, emitted only at call sites in a package that declared the
-capability optional. A program that uses no optional capability runs no guard, and the static check
-emits nothing at all.
+The guard is decided while compiling, so it costs no branch. The grant table and each package's
+`optional` list are in every unit's key, so whether a call site's namespace holds the capability is
+known when the unit compiles. A granted call has no guard. An ungranted optional one compiles to a
+`RuntimeError` thrown before its arguments run, naming the member, the capability and the grant line
+that would allow it. A program that uses no optional capability carries no guard.
 
-`Core\Cap::has` reports what the call site already holds. It is **not** a runtime grant: nothing
-widens (`rule:security/no-runtime-grant`).
+`Core\Cap::has` reports what the call site already holds: the capabilities of its namespace's grant
+line, handed to the member as its prepared word, that the operator's `nvs.toml` also grants. It is
+**not** a runtime grant: nothing widens (`rule:security/no-runtime-grant`). A method reference to
+`has` carries no word and answers `false` wherever it is written, which fails closed.
 
-**Partly on disk.** `Core\Cap::has` exists and refuses a written name outside the roster while
-checking. The required/optional manifest split, the guard at an optional call site and the compile
-error for a required one have no representation in the tree.
+**Partly on disk.** The split, the compile error, the guard and `Core\Cap::has`'s answer are in
+`nvs_types::capability` (`reject_ungranted_call`, `prepare_cap_has`), and the guard's throw is
+`nvs_ir`'s `lower_capability_guard`. The editor does not read the grant table yet.
 
 **Declined:**
+- **A run-time branch at each optional call site**, testing the namespace's grant as the call runs.
+  The grant is compile-time input already in the unit's key, so the branch would test a constant.
 - **Every ungranted capability degrading at run time**, with no required and optional split. It moves
   every capability failure from the build to production and puts a branch on every `Core` call site on
   the request path. The split keeps refusal as the default and makes degradation something an author

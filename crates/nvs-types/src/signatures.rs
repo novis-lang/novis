@@ -1000,6 +1000,7 @@ pub fn build_signatures(
             // for the same reason.
             grants: None,
             namespace_grants: &nvs_config::grants::EMPTY,
+            packages: None,
             src: file.src,
             stmts: file.stmts,
             files,

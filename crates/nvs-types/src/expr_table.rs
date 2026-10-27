@@ -1447,6 +1447,24 @@ pub enum PreparedFact {
     /// `crate::capability::prepare_config_set` owns why the member needs to be
     /// told.
     ApplicationSet,
+    /// The capabilities a `Core\Cap::has` call's namespace holds, as
+    /// `nvs_stdlib::cap::grants_mask` encodes them.
+    /// `crate::capability::prepare_cap_has` owns why the member needs to be
+    /// told.
+    CapGrants(u32),
+}
+
+/// The throw a call compiles to where its package declared a capability
+/// `optional` and its namespace's `[grants]` line does not list it
+/// (`rule:security/optional-capability-degrades`). `nvs-ir` raises a
+/// `RuntimeError` with [`Self::message`] before the call's arguments run.
+/// `crate::capability::reject_ungranted_call` owns why it is decided while
+/// compiling.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct CapabilityGuard {
+    /// The error's message: the member, the capability, the namespace and the
+    /// grant line that would allow the call.
+    pub message: String,
 }
 
 /// One piece of a `Core\Str::format` call that `nvs-ir` lowers to a string
@@ -1606,6 +1624,7 @@ pub struct ExprTypeTable {
     attribute_names: Vec<(Span, QName)>,
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
+    capability_guards: FxHashMap<Span, CapabilityGuard>,
     promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
     literal_types: FxHashMap<Span, TypeId>,
     /// Set only by [`Self::record_provenance`], which `nvs-lsp` alone calls
@@ -2038,6 +2057,19 @@ impl ExprTypeTable {
         self.deprecation_checks
             .get(&span)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// Records that the call or method reference at `span` throws before it
+    /// runs, because its capability is optional and not granted.
+    pub(crate) fn record_capability_guard(&mut self, span: Span, guard: CapabilityGuard) {
+        self.capability_guards.insert(span, guard);
+    }
+
+    /// The guard the expression at `span` throws, or `None` for every
+    /// expression that is not an ungranted call to an optional capability.
+    #[must_use]
+    pub fn capability_guard(&self, span: Span) -> Option<&CapabilityGuard> {
+        self.capability_guards.get(&span)
     }
 
     /// Records that the method whose name sits at `span` is deprecated and
@@ -2651,7 +2683,8 @@ impl ExprTypeTable {
                 PreparedFact::RegexTier(tier) => Some(tier),
                 PreparedFact::CldrPattern
                 | PreparedFact::SecretDirective
-                | PreparedFact::ApplicationSet => None,
+                | PreparedFact::ApplicationSet
+                | PreparedFact::CapGrants(_) => None,
             })
     }
 
@@ -2666,7 +2699,8 @@ impl ExprTypeTable {
                 PreparedFact::RegexTier(tier) => Some((prepared.literal, tier)),
                 PreparedFact::CldrPattern
                 | PreparedFact::SecretDirective
-                | PreparedFact::ApplicationSet => None,
+                | PreparedFact::ApplicationSet
+                | PreparedFact::CapGrants(_) => None,
             })
     }
 

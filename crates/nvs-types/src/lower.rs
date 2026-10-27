@@ -1208,6 +1208,7 @@ mod tests {
             test_code: &test_code,
             grants: None,
             namespace_grants: &nvs_config::grants::EMPTY,
+            packages: None,
             src: map.file(file),
             stmts: &stmts,
             files: &files,

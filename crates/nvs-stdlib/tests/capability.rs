@@ -1160,8 +1160,15 @@ fn ctx_reading_and_writing(roots: &[&str]) -> nvs_runtime::Ctx {
 
 /// `Core\Cap::has($capability)` as the member itself rather than as a re-derivation of it, driven
 /// the way a program drives it — [`within`] above takes the same route for the same reason.
+/// Its prepared word lists every capability, which is what a call in the application's own code
+/// is handed.
 fn has(ctx: &mut nvs_runtime::Ctx, capability: &str) -> bool {
-    let args = [nvs_runtime::Value::text(capability)];
+    let word = nvs_stdlib::cap::PREPARED_GRANTS
+        | i64::from(nvs_stdlib::cap::grants_mask(Cap::ALL.iter().copied()));
+    let args = [
+        nvs_runtime::Value::int(word),
+        nvs_runtime::Value::text(capability),
+    ];
     nvs_runtime::call(nvs_stdlib::cap::nvs_core_cap_has, ctx, &args)
         .expect("the query reports and never throws, whatever it is handed")
         .as_bool()

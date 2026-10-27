@@ -1124,7 +1124,7 @@ fn front_end_in(
     // authority. Absolute, so a relative entry still walks above the working
     // directory.
     let start = std::path::absolute(configured).unwrap_or_else(|_| configured.to_path_buf());
-    let namespace_grants = match nvs_config::grants::Grants::read(&start, &mut map) {
+    let mut namespace_grants = match nvs_config::grants::Grants::read(&start, &mut map) {
         Ok(read) => read,
         Err(refused) => {
             let mut diags = Diagnostics::new();
@@ -1157,7 +1157,15 @@ fn front_end_in(
             resolve_entry(&mut map, id, roster, strict_docs, borrowed, &classes);
         // `rule:packaging/a-package-file-stays-under-its-declared-prefix` and
         // `rule:packaging/a-package-cannot-reach-its-host`, over every file the walk loaded.
-        nvs_types::package::check(id, &loaded, &autoload, &mut map, &mut diags);
+        // Each package's `optional` list goes into the grant table's digest, because an
+        // ungranted optional capability compiles to a guard.
+        let packages = nvs_types::package::check(id, &loaded, &autoload, &mut map, &mut diags);
+        namespace_grants.set_optional(
+            packages
+                .all()
+                .iter()
+                .map(|package| (package.name().to_owned(), package.optional().to_vec())),
+        );
 
         let mut interner = nvs_types::TypeInterner::new();
         let mut exprs = nvs_types::ExprTypeTable::new();
@@ -1184,6 +1192,7 @@ fn front_end_in(
             &module,
             grants.as_ref(),
             &namespace_grants,
+            Some(&packages),
             &extensions,
             &mut interner,
             &mut exprs,

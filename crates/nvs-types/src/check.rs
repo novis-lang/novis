@@ -120,6 +120,7 @@ pub fn check_program_granted(
         module,
         grants,
         &nvs_config::grants::EMPTY,
+        None,
         &[],
         interner,
         exprs,
@@ -139,7 +140,9 @@ pub fn check_program_granted(
 /// call site is held to the line of its enclosing namespace
 /// (`rule:security/authority-is-the-enclosing-namespace`). It is a parameter
 /// rather than a fourth entry point, so a caller that checks a whole program
-/// names the table it read, or the empty one.
+/// names the table it read, or the empty one. `packages` places each file in
+/// its package, so a capability its package lists as `optional` compiles to a
+/// guard; `None` places no file.
 #[expect(
     clippy::too_many_arguments,
     reason = "each input is a separate table the caller read, and a struct of them \
@@ -150,6 +153,7 @@ pub fn check_program_loaded(
     module: &Module,
     grants: Option<&nvs_config::tree::Capabilities>,
     namespace_grants: &nvs_config::grants::Grants,
+    packages: Option<&crate::package::Packages>,
     extensions: &[nvs_ext::manifest::Manifest],
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
@@ -219,6 +223,7 @@ pub fn check_program_loaded(
             test_code: &test_code,
             grants,
             namespace_grants,
+            packages,
             src: file.src,
             stmts: file.stmts,
             files,

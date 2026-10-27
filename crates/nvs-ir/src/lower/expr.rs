@@ -70,6 +70,12 @@ impl<'a> Lowering<'a> {
         if !checks.is_empty() {
             self.emit_deprecation_checks(*cur, checks, env);
         }
+        // `rule:security/optional-capability-degrades`'s guard: a call whose
+        // optional capability its namespace was not granted throws here,
+        // before its arguments run. None for nearly every expression.
+        if let Some(guard) = exprs.capability_guard(expr.span) {
+            self.lower_capability_guard(&guard.message, env, cur);
+        }
         // A value the checker accepted at a union naming `float` only through
         // the `int` → `float` row. Such a union is tagged, so the position's
         // own `Self::coerce` would tag the integer as an integer; the

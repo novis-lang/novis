@@ -243,6 +243,10 @@ pub use nvs_hir::errors::FINISH_MARKER as CORE_SCRIPT_FINISH_CLASS;
 /// `nvs-ir` through this crate as the CLDR word below is.
 pub use nvs_stdlib::CONFIG_PREPARED_APPLICATION as CORE_CONFIG_PREPARED_APPLICATION;
 pub use nvs_stdlib::CONFIG_PREPARED_SECRET as CORE_CONFIG_PREPARED_SECRET;
+/// The bit `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 sets for a
+/// `Core\Cap::has`, below which the capabilities of its namespace sit, reached
+/// from `nvs-ir` through this crate as the words above are.
+pub use nvs_stdlib::cap::PREPARED_GRANTS as CORE_CAP_PREPARED_GRANTS;
 /// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
 /// literal CLDR date pattern, reached from `nvs-ir` through this crate exactly
 /// as every other `Core` symbol below is.
@@ -469,6 +473,11 @@ pub(crate) struct Env<'a> {
     /// ([`crate::capability::reject_ungranted_call`]). The empty table holds
     /// nothing back.
     pub namespace_grants: &'a nvs_config::grants::Grants,
+    /// The packages of the program and which of them each file is in, or
+    /// `None` for a caller that placed no file. A capability the call's
+    /// package lists as `optional` compiles to a guard where its grant line
+    /// does not list it ([`crate::capability::reject_ungranted_call`]).
+    pub packages: Option<&'a crate::package::Packages>,
     pub src: &'a SourceFile,
     /// The file's top-level statements, which is where the `use` line an
     /// undeclared name's fix inserts would go (`nvs_hir::import_site`) — the

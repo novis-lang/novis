@@ -2330,6 +2330,10 @@ pub enum Prepared {
     /// which is the application's own code. Without this word the member lets
     /// a `[limits]` key move down and never up.
     ApplicationSet,
+    /// The capabilities a `Core\Cap::has` call's namespace holds, as
+    /// `nvs_stdlib::cap::grants_mask` encodes them. The member answers `false`
+    /// for a capability not in the word.
+    CapGrants(u32),
 }
 
 impl Prepared {
@@ -2343,6 +2347,7 @@ impl Prepared {
             Self::CldrPattern => nvs_types::CORE_CLDR_PREPARED_PATTERN,
             Self::SecretDirective => nvs_types::CORE_CONFIG_PREPARED_SECRET,
             Self::ApplicationSet => nvs_types::CORE_CONFIG_PREPARED_APPLICATION,
+            Self::CapGrants(mask) => nvs_types::CORE_CAP_PREPARED_GRANTS | mask as i64,
         }
     }
 }

@@ -28,25 +28,21 @@
 //! `Core\Cache::memory`'s row one class over is the same declaration for the
 //! same reason.
 //!
-//! # What "at this point in the request" currently means
+//! # What "at this point in the request" means
 //!
-//! The spec's § 15 bullet says the **calling namespace**'s grants, narrowed by
-//! anything the request or an enclosing isolate already dropped. The second
-//! half is what this reads: [`nvs_runtime::capability::granted`] asks the
-//! request's own snapshot, so a `Core\Config::set` that tightened a grant and
-//! an isolate that spawned with less are both already in the answer.
+//! The **calling namespace**'s grants, narrowed by anything the request or an
+//! enclosing isolate already dropped. The namespace's half is known while
+//! compiling: `nvs_types::capability::prepare_cap_has` hands the member its
+//! `[grants]` line as the prepared word ([`PREPARED_GRANTS`] and the bits of
+//! [`grants_mask`]), or every capability where no line matches. The request's
+//! half is [`nvs_runtime::capability::granted`], which asks the request's own
+//! snapshot, so a `Core\Config::set` that tightened a grant and an isolate that
+//! spawned with less are both already in the answer. The answer is `true` only
+//! where both say yes.
 //!
-//! The first half is not narrowed yet, because there is nothing to narrow by:
-//! `rule:security/grants-are-keyed-on-a-namespace`'s per-namespace `[grants]` table has no representation in
-//! `nvs_config` — `Capabilities` is one table for the request — and § 4's
-//! `E0604` is not on disk either. Until it is, this answers the request's whole
-//! grant table, which is the **outer bound** of what any namespace inside it
-//! can hold. A package therefore never sees `true` for something the deployment
-//! did not grant; what it can see is `true` for something granted to the
-//! application but not to the package, and the door refuses that call as it
-//! always did. The compile-time half landing is where this member starts
-//! answering the narrower question, and nothing about the shape here changes
-//! when it does.
+//! A method reference to `has` is handed no word, so it answers `false`
+//! wherever it was written. That fails closed, as `Core\Config::set`'s
+//! reference does. **What it spends:** one bit test per call, and no memory.
 //!
 //! # The argument is a roster name, checked while compiling
 //!
@@ -75,6 +71,33 @@ pub(crate) const NAME: &str = r"Core\Cap";
 
 /// The member's own name, so that [`is_query`] and the row cannot drift apart.
 const HAS: &str = "has";
+
+/// The bit `crate::registry::PREPARED_MEMBERS`' argument 0 sets for `has`. The
+/// bits below it are [`grants_mask`]'s, the capabilities of the call's
+/// namespace. It lies above every other member's word, so a word meant for
+/// another member never reads as this one.
+pub const PREPARED_GRANTS: i64 = 1 << 32;
+
+/// The capabilities `caps` as the bits of `has`'s prepared word: bit `i` is
+/// `Cap::ALL[i]`. The roster has fewer than 32 names, which the assertion
+/// below holds while compiling.
+#[must_use]
+pub fn grants_mask(caps: impl Iterator<Item = Cap>) -> u32 {
+    caps.filter_map(|cap| Cap::ALL.iter().position(|each| *each == cap))
+        .fold(0, |mask, at| mask | (1 << at))
+}
+
+const _: () = assert!(Cap::ALL.len() < 32, "the roster outgrew `has`'s prepared word");
+
+/// Whether the prepared word `word` lists `cap`. The zero word, and any word
+/// without [`PREPARED_GRANTS`], lists nothing.
+fn word_lists(word: i64, cap: Cap) -> bool {
+    word & PREPARED_GRANTS != 0
+        && Cap::ALL
+            .iter()
+            .position(|each| *each == cap)
+            .is_some_and(|at| word & (1 << at) != 0)
+}
 
 /// `Core\Cap`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -220,15 +243,19 @@ nvs_runtime::nvs_helper! {
     /// arm is a computed name — and a program branching on one is asking
     /// whether it may proceed, where an exception is the wrong shape and `true`
     /// would be the wrong answer.
-    fn nvs_core_cap_has(ctx, args: [1]) {
-        let name = text(&args[0], HAS)?;
+    ///
+    /// Argument 0 is the prepared word: the capabilities of the call's
+    /// namespace. A capability not in it answers `false` before the request's
+    /// grant is read.
+    fn nvs_core_cap_has(ctx, args: [2]) {
+        let word = args[0].as_int().unwrap_or(0);
+        let name = text(&args[1], HAS)?;
         let Some(cap) = Cap::parse(name) else {
             return Ok(Value::bool(false));
         };
-        Ok(Value::bool(nvs_runtime::capability::granted(
-            ctx,
-            cap,
-            Scope::Unscoped,
-        )))
+        Ok(Value::bool(
+            word_lists(word, cap)
+                && nvs_runtime::capability::granted(ctx, cap, Scope::Unscoped),
+        ))
     }
 }
