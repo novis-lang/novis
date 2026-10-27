@@ -74,8 +74,8 @@ builder is Novis source in `extensions/image/nvs/`, packed into the component's 
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
 pixel source is held to the default pixel cap, not the `[image]` one. A plan that encodes a GIF
-runs every step on every frame of a GIF, an APNG and an animated WebP and writes them with their
-delays (`extensions/image/src/lib.rs`, `extensions/image/src/encode.rs`), and any other plan
+runs every step on every frame of a GIF, an APNG, an animated WebP, an AVIF image sequence and a
+JPEG XL animation and writes them with their delays (`extensions/image/src/lib.rs`, `extensions/image/src/encode.rs`), and any other plan
 decodes the first frame alone (`crates/nvs-ext/tests/image_pipeline.rs`).
 
 The image world is called typed (`crates/nvs-ext/src/typed/image.rs`), so decoded pixels cross the

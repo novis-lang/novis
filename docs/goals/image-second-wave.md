@@ -26,7 +26,7 @@ stages:
     context: [extensions/image/src/lib.rs, extensions/image/src/ops.rs, extensions/image/src/encode.rs, crates/nvs-ext/tests/image_pipeline.rs]
   - id: 7
     title: "an animated AVIF and JPEG XL decode every frame"
-    status: open
+    status: done
     context: [extensions/image/src/avif.rs, extensions/image/src/decode.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 5
     title: "the four rules are shipped, and the roster says the component is whole"
@@ -128,6 +128,15 @@ frame would give frames of different sizes, which a GIF's one logical screen can
 second offset model; one overlay decode per step, not per frame, is the latency the pipeline already
 pays for a still image.
 
+**An AVIF sequence's frames are its track's samples, under the primary item's properties.** Every
+frame of `decode_frames` comes from the `pict` track through one `rav1d` decoder, its alpha from an
+`auxv` track through a second, and the primary item's `irot`, `imir` and `colr` apply to each frame.
+The sample tables are walked as the frames decode, so they allocate nothing, and `stsc` is read
+forward once. A frame of another size than the first is `Parse`. Why: security first, since a
+table walk that allocates per entry, or rescans `stsc` per chunk, lets a small file cost memory or
+quadratic time; then simplicity, since the frames share one orientation and profile, as the first
+frame's `decode` already applies them, and the track's own `tkhd` matrix is not read.
+
 **Lanes.** The whole goal touches only `extensions/image/`, `crates/nvs-ext/tests/image_*.rs` and the
 image rules, so it can run as a side goal beside the chain now. Stages 1 and 2 touch disjoint files
 (`decode.rs`, `avif.rs` against `info.rs`) and run in either order. Stage 3 shares `info.rs` with stage
@@ -192,10 +201,10 @@ with their delays, and any other output decodes and writes the first frame only.
 
 **Does:** the AVIF image sequence and a JPEG XL animation decode every frame under the same cap.
 
-- [ ] AVIF's sequence track decodes frame by frame through `rav1d`. `extensions/image/src/avif.rs:43`
-- [ ] JPEG XL renders every frame through `jxl-oxide`. `extensions/image/src/decode.rs:304`
-- [ ] The module doc no longer says only the first frame is decoded. `extensions/image/src/decode.rs:16`
-- [ ] Tests: `anim.avif` and `anim.jxl` decode three frames, and a resized one to GIF keeps them. `crates/nvs-ext/tests/image_decode.rs:185`
+- [x] AVIF's sequence track decodes frame by frame through `rav1d`. `extensions/image/src/avif.rs:43`
+- [x] JPEG XL renders every frame through `jxl-oxide`. `extensions/image/src/decode.rs:304`
+- [x] The module doc no longer says only the first frame is decoded. `extensions/image/src/decode.rs:16`
+- [x] Tests: `anim.avif` and `anim.jxl` decode three frames, and a resized one to GIF keeps them. `crates/nvs-ext/tests/image_decode.rs:185`
 
 ### 5. the four rules are shipped, and the roster says the component is whole
 
@@ -229,37 +238,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 and 6 are done. `decode::check(width, height, frames, cap)` holds every frame to the
-cap; the header's count is `sequence_frames` for AVIF and `num_loaded_keyframes` for JPEG XL.
-`nvs_image::decode_frames` gives every frame of a GIF, APNG and WebP through `decode::upright`, and
-the first frame alone of an AVIF and a JPEG XL.
+Stages 1 to 4, 6 and 7 are done. `nvs_image::decode_frames` gives every frame of every animated
+format: GIF, APNG and WebP through `image`, JPEG XL through `decode_jxl(.., every)`, which renders
+each keyframe with its duration over the tick rate, and AVIF through `avif::decode_frames`, which
+walks the `pict` track's samples (`Track`, `Samples`) through one `Stream` decoder and the `auxv`
+track through a second. The standing decision *An AVIF sequence's frames are its track's samples*
+records the choices. `decode` still decodes the first frame alone.
 
-The plan runs over a `Vec<Frame>`: `lib::frames` calls `decode_frames` when some plan of the call
-encodes a GIF (`animates`), and makes one frame otherwise. `steps` runs each step on every frame
-with the frame count passed to `ops::apply` and `ops::size`, so the cap counts every frame; `trim`
-takes the first frame's box (`ops::trimmed`) and a `composite` overlay is made once per step.
-`finish` writes more than one frame through `encode::animation` (`GifEncoder`, looping forever),
-and any other output takes the one frame. The standing decision *An animation keeps one frame
-size* records why. `image-pipeline`'s rule body and *Partly on disk* say this now.
+The rules' sentences that named AVIF and JPEG XL animation as first-frame-only are rewritten:
+`image-format-roster`'s *Partly on disk*, `image-pipeline`'s, and `tier-roster`'s, which no longer
+names this goal. None is `shipped` yet.
 
-The sweep's findings were stale: the `env-secret-proofs` log shows exit 0, and nightly run
-`40291801939` is on `d6f131752`, before the fixes. rustfmt was red on `image_decode.rs` from the
-last session, and is fixed in this commit.
+The sweep's findings were stale again: the `env-secret-proofs` log shows exit 0, and nightly run
+`40291801939` is on `d6f131752`, before the fixes.
 
-No test is expected red. The new test passed once by name:
-`a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png`. The workspace clippy is
-green, and `extensions/image`'s own tests compile (`cargo test --no-run` there).
+No test is expected red. The two changed tests passed once by name:
+`an_animation_is_capped_by_all_its_frames_and_decodes_each_one` (now with `avif` and `jxl`, AVIF
+held to 8 per channel because it is lossy) and
+`a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png` (now resizing `anim.avif`
+and `anim.jxl` to a GIF). The workspace clippy is green. `extensions/image`'s own `cargo clippy`
+runs a newer lint set that is red on code across the crate (`chunks_exact`), which is not the gate.
 
 ### Next
 
-**Stage 7: an animated AVIF and JPEG XL decode every frame.** Files: `extensions/image/src/avif.rs`,
-`extensions/image/src/decode.rs`, `crates/nvs-ext/tests/image_decode.rs`. No gate.
+**Stage 5: the four rules are shipped, and the roster says the component is whole.** Files: the
+rule fragments and their `data/rules/` records, and the `open` and `info` example pages. Its
+checks are `image-proofs` and `owners-closes`.
 
-- [ ] AVIF: read the `pict` track's sample table (`stsz`, `stco`/`co64`, `stsc`) beside `sequence_frames`, and decode each sample's OBUs through `rav1d`'s `Picture::decode`, with the delay from `stts` over the `mdhd` timescale. `extensions/image/src/avif.rs:411`, `extensions/image/src/avif.rs:562`
-- [ ] JPEG XL: render every keyframe through `jxl-oxide` with its duration in ticks over the animation header's tick rate, each through `decode::upright`. `extensions/image/src/decode.rs:304`
-- [ ] `decode_frames` sends AVIF and JPEG XL to them, and the module doc no longer says only the first frame decodes. `extensions/image/src/decode.rs:186`, `extensions/image/src/decode.rs:16`
-- [ ] Tests: `anim.avif` and `anim.jxl` join the format loop in `an_animation_is_capped_by_all_its_frames_and_decodes_each_one`, and a resized one to GIF keeps three frames. `crates/nvs-ext/tests/image_decode.rs:333`
+- [ ] Each of `image-correct-by-default`, `image-format-roster`, `image-pixel-model` and `tier-roster` drops the *Partly on disk* gap this goal closed, and its record goes from `designed` to `shipped` with the goal's tests in `guardedBy`. `docs/rules/core-classes/image-correct-by-default.md:21`, `docs/rules/core-classes/image-format-roster.md:18`, `docs/rules/core-classes/image-pixel-model.md:32`, `docs/rules/core-api/tier-roster.md:36`, `data/rules/core-classes/image-format-roster.json:3`
+- [ ] `image-pixel-cap` and `image-pipeline` keep `shipped`, with stage 4's, 6's and 7's tests in `guardedBy`. `data/rules/core-classes/image-pixel-cap.json:3`, `data/rules/core-classes/image-pipeline.json:3`
+- [ ] The examples of `open` and `info` (one writing subagent, held to § *Text an end user reads*), then `bun nv proofs --id` for each owes nothing. `docs/examples/novis/Image-Image/info/about.md:1`, `docs/examples/novis/Image-Image/open/about.md:1`
+- [ ] `looper check --name image-proofs` and `bun nv owners --closes image-second-wave` are green. `tools/nv/cmd/owners.ts:1`
 
 ### Backlog
 
-- Stage 5 closes the rules: `image-format-roster`'s first-frame sentence goes once stage 7 lands, and `image-pipeline`'s *Partly on disk* names AVIF and JPEG XL. `docs/rules/core-classes/image-format-roster.md:23`, `docs/rules/core-classes/image-pipeline.md:75`
+- Stage 8 is the gate: `bun nv affected --run` over the whole goal, every failure fixed in one pass.

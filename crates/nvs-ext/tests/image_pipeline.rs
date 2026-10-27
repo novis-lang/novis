@@ -906,6 +906,27 @@ fn a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png() {
     let first = <[u8; 4]>::try_from(&frames[0].pixels.rgba[..4]).unwrap();
     assert_eq!((frames[0].pixels.width, frames[0].pixels.height), (8, 6));
     assert!(near(first, colours[0]), "{first:?}");
+    // `anim.avif` and `anim.jxl` are the same three frames.
+    for name in ["anim.avif", "anim.jxl"] {
+        let gif = run(
+            &request,
+            &extension,
+            encoded(fixture(name), true),
+            plan(vec![resize(8), format_step("Gif", None, None)], "Encoded"),
+        )
+        .unwrap_or_else(|err| panic!("{name} resizes to a GIF: {err:?}"));
+        let frames = nvs_image::decode_frames(&gif, 1 << 20, true, true).expect("the GIF reopens");
+        assert_eq!(frames.len(), 3, "{name}");
+        for (frame, want) in frames.iter().zip(colours) {
+            let first = <[u8; 4]>::try_from(&frame.pixels.rgba[..4]).unwrap();
+            assert_eq!(
+                (frame.pixels.width, frame.pixels.height, frame.delay_ms),
+                (8, 6, 100),
+                "{name}"
+            );
+            assert!(near(first, want), "{name}: {first:?} is not {want:?}");
+        }
+    }
     block_on(request.end()).expect("the request ends");
 }
 

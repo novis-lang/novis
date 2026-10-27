@@ -18,8 +18,10 @@
 //!
 //! **Every frame** of a GIF, an APNG and an animated WebP decodes through [`decode_frames`], each
 //! composited onto the canvas by `image`'s animation decoder and kept with its delay, at most as
-//! many as the header counted. [`decode`] decodes the first frame alone. An AVIF or JPEG XL gives
-//! its first frame either way.
+//! many as the header counted. A JPEG XL animation renders each keyframe through `jxl-oxide`,
+//! its delay the frame's duration in ticks over the animation's tick rate, and an AVIF image
+//! sequence decodes its track sample by sample (`avif`'s module doc). [`decode`] decodes the
+//! first frame alone.
 //!
 //! **Auto-orient** (`rule:core-classes/image-correct-by-default`) applies the EXIF orientation to
 //! the formats `image` decodes, and resets the tag to `1` in the EXIF block `Pixels` carries, so a
@@ -171,7 +173,11 @@ pub fn decode_page(
             .ok_or_else(no_frame);
     }
     match format {
-        Format::Jxl => decode_jxl(data, cap, auto_orient, to_srgb),
+        Format::Jxl => decode_jxl(data, cap, auto_orient, to_srgb, false)?
+            .into_iter()
+            .next()
+            .map(|frame| frame.pixels)
+            .ok_or_else(no_frame),
         Format::Avif => crate::avif::decode(data, cap, auto_orient, to_srgb),
         Format::Svg => crate::svg::decode(data, cap),
         _ => Err(Error::Invalid(format!(
@@ -181,8 +187,8 @@ pub fn decode_page(
 }
 
 /// Decodes every frame of `data` as [`decode`] decodes the first, the cap counting all of them.
-/// A GIF, an APNG and an animated WebP give each frame with its delay; every other format gives
-/// its first frame alone.
+/// A GIF, an APNG, an animated WebP, an AVIF image sequence and a JPEG XL animation give each
+/// frame with its delay; every other format gives its first frame alone.
 pub fn decode_frames(
     data: &[u8],
     cap: u64,
@@ -192,6 +198,10 @@ pub fn decode_frames(
     let format = sniff(data)?;
     match image_format(format) {
         Some(known) => decode_with_image(data, format, known, cap, auto_orient, to_srgb, true),
+        None if format == Format::Jxl => decode_jxl(data, cap, auto_orient, to_srgb, true),
+        None if format == Format::Avif => {
+            crate::avif::decode_frames(data, cap, auto_orient, to_srgb)
+        }
         None => Ok(vec![Frame {
             pixels: decode(data, cap, auto_orient, to_srgb)?,
             delay_ms: 0,
@@ -404,9 +414,17 @@ fn cmyk_jpeg(data: &[u8], profile: &ColorProfile) -> Result<Option<RgbaImage>, E
     Ok(RgbaImage::from_raw(width, height, rgba))
 }
 
-/// Decodes the JPEG XL `data`. `jxl-oxide` applies the codestream's orientation to every frame
-/// it renders, so without `auto_orient` the inverse turn is applied after it.
-fn decode_jxl(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result<Pixels, Error> {
+/// Decodes the JPEG XL `data`: every keyframe of an animation when `every` is set, each with its
+/// duration in ticks over the animation's tick rate, and otherwise the first one. `jxl-oxide`
+/// applies the codestream's orientation to every frame it renders, so without `auto_orient` the
+/// inverse turn is applied after it.
+fn decode_jxl(
+    data: &[u8],
+    cap: u64,
+    auto_orient: bool,
+    to_srgb: bool,
+    every: bool,
+) -> Result<Vec<Frame>, Error> {
     fn parse(err: impl std::fmt::Display) -> Error {
         Error::Parse(format!("the JPEG XL file does not parse: {err}"))
     }
@@ -449,57 +467,88 @@ fn decode_jxl(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result
         }
     };
     let alpha = matches!(format, PixelFormat::Graya | PixelFormat::Rgba);
-    let render = image.render_frame(0).map_err(parse)?;
-    let frame = render.image_all_channels();
-    let stride = frame.channels();
-    let pixel_count = width as usize * height as usize;
-    if frame.buf().len() < pixel_count * stride {
-        return Err(Error::Parse(
-            "the JPEG XL frame is shorter than its header says".to_string(),
-        ));
-    }
-    let byte = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
-    let mut rgba = Vec::with_capacity(pixel_count * 4);
-    for pixel in frame.buf().chunks_exact(stride).take(pixel_count) {
-        let (r, g, b) = if color == 1 {
-            (pixel[0], pixel[0], pixel[0])
-        } else {
-            (pixel[0], pixel[1], pixel[2])
-        };
-        let a = if alpha { pixel[color] } else { 1.0 };
-        rgba.extend_from_slice(&[byte(r), byte(g), byte(b), byte(a)]);
-    }
-    drop(render);
-    if let Some(converted) = profile.and_then(|profile| srgb(&profile, &rgba)) {
-        rgba = converted;
-    }
     let orientation = image.image_header().metadata.orientation;
-    if auto_orient || orientation == 1 {
-        return Ok(Pixels {
-            width,
-            height,
-            rgba,
+    // A tick lasts `tps_denominator / tps_numerator` seconds.
+    let ticks = image
+        .image_header()
+        .metadata
+        .animation
+        .as_ref()
+        .map(|animation| (animation.tps_numerator, animation.tps_denominator));
+    let render = |keyframe: usize| -> Result<Pixels, Error> {
+        let render = image.render_frame(keyframe).map_err(parse)?;
+        let frame = render.image_all_channels();
+        let stride = frame.channels();
+        let pixel_count = width as usize * height as usize;
+        if frame.buf().len() < pixel_count * stride {
+            return Err(Error::Parse(
+                "the JPEG XL frame is shorter than its header says".to_string(),
+            ));
+        }
+        let byte = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let mut rgba = Vec::with_capacity(pixel_count * 4);
+        for pixel in frame.buf().chunks_exact(stride).take(pixel_count) {
+            let (r, g, b) = if color == 1 {
+                (pixel[0], pixel[0], pixel[0])
+            } else {
+                (pixel[0], pixel[1], pixel[2])
+            };
+            let a = if alpha { pixel[color] } else { 1.0 };
+            rgba.extend_from_slice(&[byte(r), byte(g), byte(b), byte(a)]);
+        }
+        drop(render);
+        if let Some(converted) = profile.as_ref().and_then(|profile| srgb(profile, &rgba)) {
+            rgba = converted;
+        }
+        if auto_orient || orientation == 1 {
+            return Ok(Pixels {
+                width,
+                height,
+                rgba,
+                exif: None,
+            });
+        }
+        // Orientations 6 and 8 turn by a quarter in opposite directions. Each other one undoes
+        // itself.
+        let inverse = match orientation {
+            6 => 8,
+            8 => 6,
+            other => other,
+        };
+        let rgba = RgbaImage::from_raw(width, height, rgba).expect("the frame is width by height");
+        let mut stored = DynamicImage::ImageRgba8(rgba);
+        if let Some(turn) = u8::try_from(inverse).ok().and_then(Orientation::from_exif) {
+            stored.apply_orientation(turn);
+        }
+        let stored = stored.into_rgba8();
+        Ok(Pixels {
+            width: stored.width(),
+            height: stored.height(),
+            rgba: stored.into_raw(),
             exif: None,
+        })
+    };
+    let count = if every {
+        image.num_loaded_keyframes().max(1)
+    } else {
+        1
+    };
+    let mut out = Vec::new();
+    for keyframe in 0..count {
+        let delay_ms = match (ticks, image.frame_header(keyframe)) {
+            (Some((numerator, denominator)), Some(header)) => u64::from(header.duration)
+                .saturating_mul(u64::from(denominator))
+                .saturating_mul(1000)
+                .checked_div(u64::from(numerator))
+                .map_or(0, |ms| u32::try_from(ms).unwrap_or(u32::MAX)),
+            _ => 0,
+        };
+        out.push(Frame {
+            pixels: render(keyframe)?,
+            delay_ms,
         });
     }
-    // Orientations 6 and 8 turn by a quarter in opposite directions. Each other one undoes itself.
-    let inverse = match orientation {
-        6 => 8,
-        8 => 6,
-        other => other,
-    };
-    let rgba = RgbaImage::from_raw(width, height, rgba).expect("the frame is width by height");
-    let mut stored = DynamicImage::ImageRgba8(rgba);
-    if let Some(turn) = u8::try_from(inverse).ok().and_then(Orientation::from_exif) {
-        stored.apply_orientation(turn);
-    }
-    let stored = stored.into_rgba8();
-    Ok(Pixels {
-        width: stored.width(),
-        height: stored.height(),
-        rgba: stored.into_raw(),
-        exif: None,
-    })
+    Ok(out)
 }
 
 #[cfg(test)]

@@ -330,8 +330,10 @@ fn an_animation_is_capped_by_all_its_frames_and_decodes_each_one() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = component(&host);
     let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
-    for format in ["gif", "png", "webp"] {
+    for format in ["gif", "png", "webp", "avif", "jxl"] {
         let name = format!("anim.{format}");
+        // `anim.avif` is lossy, so its colours are near the source colours, not equal to them.
+        let tolerance = if format == "avif" { 8 } else { 1 };
         // Each frame is 16 by 12, which is 192 pixels, so the three are 576.
         let capped_at = |cap: u64| {
             run_args(
@@ -370,10 +372,11 @@ fn an_animation_is_capped_by_all_its_frames_and_decodes_each_one() {
         let colours = [[255u8, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]];
         assert!(
             firsts.len() == 3
-                && firsts
-                    .iter()
-                    .zip(colours)
-                    .all(|(got, want)| { got.iter().zip(want).all(|(&g, w)| g.abs_diff(w) <= 1) }),
+                && firsts.iter().zip(colours).all(|(got, want)| {
+                    got.iter()
+                        .zip(want)
+                        .all(|(&g, w)| g.abs_diff(w) <= tolerance)
+                }),
             "{name}: {firsts:?}"
         );
         assert!(

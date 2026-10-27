@@ -21,10 +21,9 @@ through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP,
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 `Image::info`'s `frames` is an animated input's real count, read off its header
-(`extensions/image/src/info.rs`). Every frame of a GIF, an APNG and an animated WebP decodes with its
-delay, and an AVIF or JPEG XL animation decodes its first frame (`extensions/image/src/decode.rs`).
-APNG is not encoded. Goal `image-second-wave` decodes every frame of an animated AVIF and JPEG XL. SVG
-decodes through `resvg` with an image
+(`extensions/image/src/info.rs`). Every frame of a GIF, an APNG, an animated WebP, an AVIF image
+sequence and a JPEG XL animation decodes with its delay (`extensions/image/src/decode.rs`,
+`extensions/image/src/avif.rs`). APNG is not encoded. SVG decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
 (`extensions/image/src/svg.rs`); its `<text>` is drawn with the twelve Liberation faces and never a
 system font, in `Novis\Image` and in a `Novis\Pdf` render (`extensions/pdf/src/fonts.rs`). A

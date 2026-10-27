@@ -23,8 +23,18 @@
 //! and `iprp`, each box bounded by its parent, and allocates only the primary item's list of
 //! property indices. `info` walks `iinf` and `iloc` the same way for the `Exif` item, and copies
 //! that item alone, at most the file's length, and reads an image sequence's frame count off the
-//! sample size box of its `moov` box's `pict` track, which allocates nothing. A box that runs past its parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
-//! `imir` are the orientation browsers follow. Turning the frame holds a second frame beside it.
+//! sample size box of its `moov` box's `pict` track, which allocates nothing. A box that runs past
+//! its parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot`
+//! and `imir` are the orientation browsers follow. Turning the frame holds a second frame beside
+//! it.
+//!
+//! **An image sequence decodes every frame** through [`decode_frames`]: the `pict` track's
+//! samples, found through its `stsz` or `stz2`, `stsc` and `stco` or `co64` boxes, go through one
+//! decoder in order, and an `auxv` track's the same way through a second for the alpha. Each
+//! frame shows for its `stts` delta over the `mdhd` timescale. The tables are read as the walk
+//! goes, so it allocates nothing beyond the frames, and a sample outside the file returns
+//! `Parse`. The primary item's `irot`, `imir` and `colr` apply to every frame, and a frame of
+//! another size than the first returns `Parse`.
 
 use std::io::{Cursor, Read};
 use std::mem::MaybeUninit;
@@ -45,7 +55,7 @@ use rav1d::src::lib::{
 use image::{RgbaImage, imageops};
 use moxcms::{ColorProfile, DataColorSpace};
 
-use crate::decode::{Pixels, check, srgb};
+use crate::decode::{Frame, Pixels, check, srgb};
 use crate::{Error, Format, Info};
 
 fn parse(what: impl std::fmt::Display) -> Error {
@@ -86,24 +96,133 @@ pub(crate) fn decode(
         cap,
     )?;
     let color = Picture::decode(&avif.primary_item, cap)?;
-    let (width, height) = color.size();
-    check(u64::from(width), u64::from(height), frames, cap)?;
     let alpha = match avif.alpha_item.as_deref() {
-        Some(item) => {
-            let alpha = Picture::decode(item, cap)?;
-            if alpha.size() != (width, height) {
-                return Err(parse("the alpha item is not the size of the image"));
-            }
-            Some(alpha)
-        }
+        Some(item) => Some(Picture::decode(item, cap)?),
         None => None,
     };
+    let profile = profile(&properties, to_srgb);
+    let rgba = composite(
+        &color,
+        alpha.as_ref(),
+        avif.premultiplied_alpha,
+        frames,
+        cap,
+    )?;
+    Ok(upright(
+        rgba,
+        &color,
+        profile.as_ref(),
+        &properties,
+        auto_orient,
+    ))
+}
+
+/// Decodes every frame of the AVIF file `data` as [`decode`] decodes the first. An image
+/// sequence decodes its `pict` track sample by sample on one decoder, and its `auxv` track the
+/// same way for the alpha, each frame shown for its `stts` delta over the `mdhd` timescale. The
+/// primary item's `irot`, `imir` and `colr` apply to every frame, so each frame is turned and
+/// converted as the first is. Each frame is held to the cap times the frame count, and has the
+/// first one's size. A still file gives its one frame.
+pub(crate) fn decode_frames(
+    data: &[u8],
+    cap: u64,
+    auto_orient: bool,
+    to_srgb: bool,
+) -> Result<Vec<Frame>, Error> {
+    let Some(colour_track) = track(data, b"pict")? else {
+        return Ok(vec![Frame {
+            pixels: decode(data, cap, auto_orient, to_srgb)?,
+            delay_ms: 0,
+        }]);
+    };
+    let avif = container(data)?;
+    let properties = Properties::read(data)?;
+    let meta = avif
+        .primary_item_metadata()
+        .map_err(|err| parse(format!("{err:?}")))?;
+    let frames = colour_track.count()?;
+    check(
+        u64::from(meta.max_frame_width.get()),
+        u64::from(meta.max_frame_height.get()),
+        frames,
+        cap,
+    )?;
+    let profile = profile(&properties, to_srgb);
+    let alpha_track = track(data, b"auxv")?;
+    let mut colour = Stream::open(cap)?;
+    let mut alpha = alpha_track
+        .as_ref()
+        .map(|_| Stream::open(cap))
+        .transpose()?;
+    let mut alpha_samples = match &alpha_track {
+        Some(track) => Some(track.samples(data)?),
+        None => None,
+    };
+    let mut out: Vec<Frame> = Vec::new();
+    for sample in colour_track.samples(data)? {
+        let (obus, delay_ms) = sample?;
+        let picture = colour.decode(obus)?;
+        let alpha_picture = match (alpha.as_mut(), alpha_samples.as_mut()) {
+            (Some(stream), Some(samples)) => match samples.next() {
+                Some(sample) => Some(stream.decode(sample?.0)?),
+                None => None,
+            },
+            _ => None,
+        };
+        let rgba = composite(
+            &picture,
+            alpha_picture.as_ref(),
+            avif.premultiplied_alpha,
+            frames,
+            cap,
+        )?;
+        let pixels = upright(rgba, &picture, profile.as_ref(), &properties, auto_orient);
+        if let Some(first) = out.first()
+            && (pixels.width, pixels.height) != (first.pixels.width, first.pixels.height)
+        {
+            return Err(parse(
+                "a frame of the sequence is not the size of the first",
+            ));
+        }
+        out.push(Frame { pixels, delay_ms });
+    }
+    if out.is_empty() {
+        return Err(parse("the image sequence has no frame"));
+    }
+    Ok(out)
+}
+
+/// The primary item's RGB ICC profile, when `to_srgb` is set and the profile parses.
+fn profile(properties: &Properties<'_>, to_srgb: bool) -> Option<ColorProfile> {
+    if !to_srgb {
+        return None;
+    }
+    properties
+        .icc
+        .and_then(|raw| ColorProfile::new_from_slice(raw).ok())
+        .filter(|profile| profile.color_space == DataColorSpace::Rgb)
+}
+
+/// `color` as RGBA8, its alpha the luma of `alpha` when there is one, divided back to straight
+/// alpha when `premultiplied`. The frame is held to the cap as one of `frames`.
+fn composite(
+    color: &Picture,
+    alpha: Option<&Picture>,
+    premultiplied: bool,
+    frames: u64,
+    cap: u64,
+) -> Result<Vec<u8>, Error> {
+    let (width, height) = color.size();
+    check(u64::from(width), u64::from(height), frames, cap)?;
+    if alpha.is_some_and(|alpha| alpha.size() != (width, height)) {
+        return Err(parse("the alpha item is not the size of the image"));
+    }
     let mut rgba = color.to_rgba();
     if let Some(alpha) = alpha {
         let values = alpha.luma();
         for (pixel, a) in rgba.chunks_exact_mut(4).zip(values) {
             pixel[3] = a;
-            if avif.premultiplied_alpha {
+            if premultiplied {
                 for channel in &mut pixel[..3] {
                     *channel = if a == 0 {
                         0
@@ -115,14 +234,21 @@ pub(crate) fn decode(
             }
         }
     }
-    if to_srgb {
-        let profile = properties
-            .icc
-            .and_then(|raw| ColorProfile::new_from_slice(raw).ok())
-            .filter(|profile| profile.color_space == DataColorSpace::Rgb);
-        if let Some(converted) = profile.and_then(|profile| srgb(&profile, &rgba)) {
-            rgba = converted;
-        }
+    Ok(rgba)
+}
+
+/// The RGBA8 `rgba` of `color`'s size converted from `profile` to sRGB when there is one, then
+/// turned by the primary item's `irot` and `imir` when `auto_orient` is set.
+fn upright(
+    mut rgba: Vec<u8>,
+    color: &Picture,
+    profile: Option<&ColorProfile>,
+    properties: &Properties<'_>,
+    auto_orient: bool,
+) -> Pixels {
+    let (width, height) = color.size();
+    if let Some(converted) = profile.and_then(|profile| srgb(profile, &rgba)) {
+        rgba = converted;
     }
     let mut image = RgbaImage::from_raw(width, height, rgba).expect("the frame is width by height");
     if auto_orient {
@@ -138,12 +264,12 @@ pub(crate) fn decode(
             None => {}
         }
     }
-    Ok(Pixels {
+    Pixels {
         width: image.width(),
         height: image.height(),
         rgba: image.into_raw(),
         exif: None,
-    })
+    }
 }
 
 /// The header of the AVIF file `data`, read off its container without decoding a frame. The
@@ -409,8 +535,23 @@ fn associations(ipma: &[u8], item: u32) -> Result<Option<Vec<u16>>, Error> {
 /// The frame count of an image sequence: the sample count of the `moov` box's `pict` track, read
 /// off its `stsz` or `stz2` box. A file with no `moov` is a still image, and `1`.
 fn sequence_frames(data: &[u8]) -> Result<u64, Error> {
+    match track(data, b"pict")? {
+        Some(track) => Ok(track.count()?.max(1)),
+        None => Ok(1),
+    }
+}
+
+/// One track of an image sequence: its `mdhd` and `stbl` box bodies, borrowed from the file.
+struct Track<'a> {
+    mdhd: &'a [u8],
+    stbl: &'a [u8],
+}
+
+/// The first track of the `moov` box whose handler type is `handler`, `pict` for the colour and
+/// `auxv` for the alpha.
+fn track<'a>(data: &'a [u8], handler: &[u8; 4]) -> Result<Option<Track<'a>>, Error> {
     let Some(moov) = find(data, b"moov")? else {
-        return Ok(1);
+        return Ok(None);
     };
     for entry in Boxes(moov) {
         let (name, trak) = entry?;
@@ -421,8 +562,8 @@ fn sequence_frames(data: &[u8]) -> Result<u64, Error> {
             continue;
         };
         // `hdlr` is version and flags, `pre_defined`, then the handler type.
-        let handler = find(mdia, b"hdlr")?.and_then(|hdlr| hdlr.get(8..12));
-        if handler != Some(b"pict") {
+        let found = find(mdia, b"hdlr")?.and_then(|hdlr| hdlr.get(8..12));
+        if found != Some(handler) {
             continue;
         }
         let Some(stbl) = find(mdia, b"minf")?
@@ -432,15 +573,211 @@ fn sequence_frames(data: &[u8]) -> Result<u64, Error> {
         else {
             continue;
         };
-        // Both boxes give the count after their version, flags and one 32-bit field.
-        let sizes = match find(stbl, b"stsz")? {
-            Some(stsz) => stsz,
-            None => find(stbl, b"stz2")?
-                .ok_or_else(|| parse("a sequence track has no sample size box"))?,
-        };
-        return Ok(u64::from(be_u32(full_box(sizes)?.1, 4)?).max(1));
+        let mdhd = find(mdia, b"mdhd")?.ok_or_else(|| parse("a sequence track has no `mdhd`"))?;
+        return Ok(Some(Track { mdhd, stbl }));
     }
-    Ok(1)
+    Ok(None)
+}
+
+impl<'a> Track<'a> {
+    /// The `stsz` or `stz2` box's body after its version and flags.
+    fn sizes(&self) -> Result<(bool, &'a [u8]), Error> {
+        match find(self.stbl, b"stsz")? {
+            Some(stsz) => Ok((false, full_box(stsz)?.1)),
+            None => Ok((
+                true,
+                full_box(
+                    find(self.stbl, b"stz2")?
+                        .ok_or_else(|| parse("a sequence track has no sample size box"))?,
+                )?
+                .1,
+            )),
+        }
+    }
+
+    /// The sample count. Both size boxes give it after one 32-bit field.
+    fn count(&self) -> Result<u64, Error> {
+        Ok(u64::from(be_u32(self.sizes()?.1, 4)?))
+    }
+
+    /// Each sample's bytes and its delay in milliseconds, in order. The tables are read as the
+    /// walk goes, so it allocates nothing, and a sample outside the file returns `Parse`.
+    fn samples(&self, data: &'a [u8]) -> Result<Samples<'a>, Error> {
+        let (compact, sizes) = self.sizes()?;
+        let (version, mdhd) = full_box(self.mdhd)?;
+        let timescale = be_u32(mdhd, if version == 1 { 16 } else { 8 })?;
+        let (wide, chunks) = match find(self.stbl, b"stco")? {
+            Some(stco) => (false, full_box(stco)?.1),
+            None => (
+                true,
+                full_box(
+                    find(self.stbl, b"co64")?
+                        .ok_or_else(|| parse("a sequence track has no chunk offset box"))?,
+                )?
+                .1,
+            ),
+        };
+        let stsc = full_box(
+            find(self.stbl, b"stsc")?
+                .ok_or_else(|| parse("a sequence track has no sample-to-chunk box"))?,
+        )?
+        .1;
+        let stts = full_box(
+            find(self.stbl, b"stts")?
+                .ok_or_else(|| parse("a sequence track has no time-to-sample box"))?,
+        )?
+        .1;
+        Ok(Samples {
+            data,
+            compact,
+            sizes,
+            count: be_u32(sizes, 4)?,
+            wide,
+            chunks,
+            stsc,
+            stts,
+            timescale,
+            sample: 0,
+            chunk: 0,
+            left_in_chunk: 0,
+            entry: 0,
+            per_chunk: None,
+            offset: 0,
+            run: 0,
+            left_in_run: 0,
+            delta: 0,
+        })
+    }
+}
+
+/// The walk over a track's samples that [`Track::samples`] starts.
+struct Samples<'a> {
+    data: &'a [u8],
+    /// Whether `sizes` is an `stz2` body, whose entries are 4, 8 or 16 bits wide.
+    compact: bool,
+    sizes: &'a [u8],
+    count: u32,
+    /// Whether `chunks` is a `co64` body, whose offsets are 64 bits wide.
+    wide: bool,
+    chunks: &'a [u8],
+    stsc: &'a [u8],
+    stts: &'a [u8],
+    timescale: u32,
+    /// The index of the next sample, and of the chunk it is in, counted from 0.
+    sample: u32,
+    chunk: u32,
+    left_in_chunk: u32,
+    /// The next `stsc` entry, and the sample count of the one before it.
+    entry: u32,
+    per_chunk: Option<u32>,
+    /// Where the next sample starts in the file.
+    offset: u64,
+    /// The next `stts` entry, and what is left of the one being read.
+    run: u32,
+    left_in_run: u32,
+    delta: u32,
+}
+
+impl<'a> Samples<'a> {
+    fn size(&self, sample: u32) -> Result<u64, Error> {
+        let sample = sample as usize;
+        if self.compact {
+            return match u8_at(self.sizes, 3)? {
+                4 => {
+                    let byte = u8_at(self.sizes, 8 + sample / 2)?;
+                    Ok(u64::from(if sample.is_multiple_of(2) {
+                        byte >> 4
+                    } else {
+                        byte & 15
+                    }))
+                }
+                8 => Ok(u64::from(u8_at(self.sizes, 8 + sample)?)),
+                16 => Ok(u64::from(be_u16(self.sizes, 8 + 2 * sample)?)),
+                _ => Err(parse(
+                    "the compact sample size box has a field size it may not",
+                )),
+            };
+        }
+        match be_u32(self.sizes, 0)? {
+            0 => Ok(u64::from(be_u32(self.sizes, 8 + 4 * sample)?)),
+            fixed => Ok(u64::from(fixed)),
+        }
+    }
+
+    /// The number of samples in the chunk counted from 0 as `chunk`, read off `stsc`'s last
+    /// entry whose first chunk, counted from 1, is at most `chunk + 1`. Chunks are asked for in
+    /// order, so the entry only moves forward.
+    fn samples_in(&mut self, chunk: u32) -> Result<u32, Error> {
+        let entries = be_u32(self.stsc, 0)?;
+        while self.entry < entries
+            && be_u32(self.stsc, 4 + 12 * self.entry as usize)? <= chunk.saturating_add(1)
+        {
+            self.per_chunk = Some(be_u32(self.stsc, 8 + 12 * self.entry as usize)?);
+            self.entry += 1;
+        }
+        self.per_chunk
+            .ok_or_else(|| parse("the sample-to-chunk box does not cover every chunk"))
+    }
+
+    fn next_sample(&mut self) -> Result<(&'a [u8], u32), Error> {
+        while self.left_in_chunk == 0 {
+            if self.chunk >= be_u32(self.chunks, 0)? {
+                return Err(parse(
+                    "the sequence's chunks hold fewer samples than it counts",
+                ));
+            }
+            let at = self.chunk as usize;
+            self.offset = if self.wide {
+                u64::from(be_u32(self.chunks, 4 + 8 * at)?) << 32
+                    | u64::from(be_u32(self.chunks, 8 + 8 * at)?)
+            } else {
+                u64::from(be_u32(self.chunks, 4 + 4 * at)?)
+            };
+            self.left_in_chunk = self.samples_in(self.chunk)?;
+            self.chunk += 1;
+        }
+        let size = self.size(self.sample)?;
+        let end = self.offset.saturating_add(size);
+        let bytes = usize::try_from(self.offset)
+            .ok()
+            .zip(usize::try_from(end).ok())
+            .and_then(|(start, end)| self.data.get(start..end))
+            .ok_or_else(|| parse("a sample of the sequence is past the end of the file"))?;
+        self.offset = end;
+        self.left_in_chunk -= 1;
+        self.sample += 1;
+        let runs = be_u32(self.stts, 0)?;
+        while self.left_in_run == 0 && self.run < runs {
+            let at = 4 + 8 * self.run as usize;
+            self.left_in_run = be_u32(self.stts, at)?;
+            self.delta = be_u32(self.stts, at + 4)?;
+            self.run += 1;
+        }
+        if self.left_in_run == 0 {
+            // A sample past `stts`'s entries shows for no time.
+            self.delta = 0;
+        }
+        self.left_in_run = self.left_in_run.saturating_sub(1);
+        let delay_ms = (u64::from(self.delta) * 1000)
+            .checked_div(u64::from(self.timescale))
+            .map_or(0, |ms| u32::try_from(ms).unwrap_or(u32::MAX));
+        Ok((bytes, delay_ms))
+    }
+}
+
+impl<'a> Iterator for Samples<'a> {
+    type Item = Result<(&'a [u8], u32), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.sample >= self.count {
+            return None;
+        }
+        let sample = self.next_sample();
+        if sample.is_err() {
+            self.count = 0;
+        }
+        Some(sample)
+    }
 }
 
 /// The boxes of an ISO BMFF body, each as its type and its body. A box that runs past the end
@@ -557,9 +894,17 @@ impl Drop for Picture {
 /// The negative error code `rav1d` returns when it needs more input or has no picture yet.
 const EAGAIN: i32 = -libc::EAGAIN;
 
-impl Picture {
-    /// Decodes the first frame of the AV1 bitstream `obus`, under a frame size limit of `cap`.
-    fn decode(obus: &[u8], cap: u64) -> Result<Picture, Error> {
+/// An open decoder that a sequence's samples go through in order, so a frame that predicts from
+/// an earlier one finds it.
+struct Stream {
+    // The guard is kept for its drop, which closes `context`.
+    _decoder: Decoder,
+    context: Dav1dContext,
+}
+
+impl Stream {
+    /// Opens a decoder under a frame size limit of `cap`.
+    fn open(cap: u64) -> Result<Stream, Error> {
         let mut settings = MaybeUninit::<Dav1dSettings>::uninit();
         // SAFETY: `dav1d_default_settings` writes every field of the settings it is handed.
         let mut settings = unsafe {
@@ -584,6 +929,15 @@ impl Picture {
                 return Err(Error::Runtime("the AVIF decoder did not start".to_string()));
             }
         };
+        Ok(Stream {
+            _decoder: decoder,
+            context,
+        })
+    }
+
+    /// Decodes the next frame of the stream from the AV1 bitstream `obus`.
+    fn decode(&mut self, obus: &[u8]) -> Result<Picture, Error> {
+        let context = self.context;
         let mut data = Data(Dav1dData::default());
         // SAFETY: `data.0` is a live value `dav1d_data_create` may overwrite.
         let buffer = unsafe { dav1d_data_create(Some(NonNull::from(&mut data.0)), obus.len()) };
@@ -624,8 +978,14 @@ impl Picture {
                 return Err(parse("the AV1 frame is missing a plane"));
             }
         }
-        drop(decoder);
         Ok(picture)
+    }
+}
+
+impl Picture {
+    /// Decodes the first frame of the AV1 bitstream `obus`, under a frame size limit of `cap`.
+    fn decode(obus: &[u8], cap: u64) -> Result<Picture, Error> {
+        Stream::open(cap)?.decode(obus)
     }
 
     fn size(&self) -> (u32, u32) {
