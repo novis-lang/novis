@@ -38,6 +38,9 @@
 //!   finished documents: breaking, additive or cosmetic per change, non-zero
 //!   exit on a breaking one. It compiles nothing, because the old side of a
 //!   diff is a released artifact rather than a program; see [`api_diff`].
+//! * `nvs pkg api <dir>` — a package's public API as JSON, read from the
+//!   checked program and never by running it
+//!   (`rule:packaging/only-a-major-may-break-the-api`); see [`package`].
 //! * `nvs config check` — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`
@@ -171,6 +174,7 @@ mod lsp;
 mod lsp_test;
 mod meta;
 mod openapi;
+mod package;
 mod peer;
 mod profile;
 mod queue;
@@ -428,6 +432,7 @@ fn carries_upload(command: &Command) -> bool {
         | Command::Test(_)
         | Command::Build(_)
         | Command::Api(_)
+        | Command::Pkg(_)
         | Command::Ext(_)
         | Command::Init(_)
         | Command::Config(_)
@@ -460,6 +465,7 @@ enum Command {
     Test(runner::Args),
     Build(build::Args),
     Api(api_diff::Args),
+    Pkg(package::Args),
     Ext(ext::Args),
     Init(init::Args),
     Config(config::Args),
@@ -492,7 +498,7 @@ enum Command {
 /// Every subcommand's name as clap writes it: the closed set a telemetry counter names
 /// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
 /// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
-const COMMAND_NAMES: [&str; 29] = [
+const COMMAND_NAMES: [&str; 30] = [
     "ast",
     "check",
     "run",
@@ -500,6 +506,7 @@ const COMMAND_NAMES: [&str; 29] = [
     "test",
     "build",
     "api",
+    "pkg",
     "ext",
     "init",
     "config",
@@ -774,6 +781,7 @@ fn main() -> ExitCode {
         Command::Test(args) => sealed(args.run(&cli.config, init)),
         Command::Build(args) => args.run(&cli.config),
         Command::Api(args) => args.run(),
+        Command::Pkg(args) => args.run(),
         Command::Ext(args) => args.run(&cli.config),
         Command::Init(args) => args.run(&cli.config),
         Command::Config(args) => args.run(&cli.config),

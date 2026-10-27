@@ -1,0 +1,12 @@
+<?nvs
+namespace Effect;
+
+echo "this line ran\n";
+
+final class Greeter
+{
+    public function greet(string $name): string
+    {
+        return "Hello, {$name}";
+    }
+}

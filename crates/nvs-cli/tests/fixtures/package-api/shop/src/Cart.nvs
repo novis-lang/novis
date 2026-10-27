@@ -1,0 +1,71 @@
+<?nvs
+namespace Shop;
+
+use Shop\Value\Item;
+use Shop\Value\Money;
+
+type Quantity = uint|int;
+
+interface Priced
+{
+    public function price(): Money;
+
+    public function label(): string
+    {
+        return 'item';
+    }
+}
+
+abstract class Base
+{
+    protected const string CURRENCY = 'EUR';
+
+    abstract public function total(): Money;
+
+    protected function round(float $value): float
+    {
+        return $value;
+    }
+}
+
+final class Cart extends Base implements Priced
+{
+    enum Status
+    {
+        Open,
+        Paid,
+    }
+
+    public const int LIMIT = 10;
+
+    private const int SECRET = 1;
+
+    public static int $made = 0;
+
+    public private(set) Status $status = Status::Open;
+
+    private string $note = '';
+
+    public function constructor(public readonly string $id, private int $owner = 0)
+    {
+    }
+
+    public function add(?Item $item, Quantity $count = 1, string ...$tags): self
+    {
+        return $this;
+    }
+
+    public function total(): Money
+    {
+        return new Money(0);
+    }
+
+    public function price(): Money
+    {
+        return $this->total();
+    }
+
+    private function forget(): void
+    {
+    }
+}

@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/api_diff.rs, crates/nvs-cli/src/main.rs, docs/rules
 stages:
   - id: 1
     title: "`nvs pkg api` writes a package's public API without running it"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/members.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-hir/src/symbol.rs, crates/nvs-cli/src/package/mod.rs]
     extra:
       context:
@@ -102,7 +102,25 @@ and `--to`.
 group, and the goal that runs first on the chain creates it.
 
 **Fixtures are package directory pairs written by the tests' author**, one `old/` and `new/` per
-change class, under `crates/nvs-cli/tests/fixtures/api/<class>/`, each a few lines of Novis.
+change class, under `crates/nvs-cli/tests/fixtures/package-api/<class>/`, each a few lines of Novis.
+Why not `fixtures/api/`: `crates/nvs-cli/tests/openapi.rs:1204` walks that directory as OpenAPI
+fixtures.
+
+**A package's source is its `src/` directory, compiled through an entry that is never on disk.**
+`nvs pkg api <dir>` requires every `.nvs` file under `<dir>/src` in path order, with the entry served
+from the source map (`crates/nvs-cli/src/package/api.rs:73`), checks it, and runs nothing. Files
+outside `src/`, such as tests, are not the API. A package that depends on another package does not
+check yet, because nothing fetches its dependencies; goal `package-client` brings `vendor/`.
+
+**The document is shape only, and every list but the parameters is sorted.** Each declaration has
+`kind` (`class`, `interface`, `enum`, `type`), and a class, interface or enum always has
+`constants`, `properties` and `methods`, empty or not. A member carries `visibility`, a property
+also `set` (who may write it), and a parameter `name`, `type`, `optional`, `variadic` and `inout`.
+A type is resolved and normalised: names fully qualified, an alias expanded, `self` and `parent`
+replaced, `?T` written `T|null`, union and intersection members sorted. Doc comments, defaults'
+values, constants' values and enum case values are left out, as behaviour. A class lists only the
+`extends` and `implements` it writes; stage 3 closes over the parents in the document. Why: a
+uniform shape keeps the stage 2 comparison one walk with no absent-key cases.
 
 **Trade-offs.** No program changes, and nothing runs on the request path. A publish pays one compile
 of each version. A package author loses the freedom to break a stable API in a minor, which is the
@@ -122,10 +140,10 @@ goal: it runs in its chain place.
 **Does:** the public classes, interfaces, enums, functions and constants of a package, with every
 public and protected member's signature, are written as deterministic JSON.
 
-- [ ] The `nvs pkg` group: `crates/nvs-cli/src/package/mod.rs` with its `Args`, and `Command::Pkg` beside `Command::Api` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/main.rs:380`, `crates/nvs-cli/src/package/mod.rs:1`
-- [ ] The extraction over resolved declarations: visibility, `abstract`, `final`, `readonly`, enum cases, parameters with their types, defaults present or not, return types, and each class's parents. `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-hir/src/members.rs:136`, `crates/nvs-hir/src/hierarchy.rs:222`
-- [ ] The JSON with a schema version, sorted so it is byte-identical across runs and platforms. `crates/nvs-cli/src/package/api.rs:1`
-- [ ] Tests: the JSON of a fixture package is pinned byte for byte, and a package with an effectful top-level statement produces no effect (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_api.rs:1`
+- [x] The `nvs pkg` group: `crates/nvs-cli/src/package/mod.rs` with its `Args`, and `Command::Pkg` beside `Command::Api` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/main.rs:380`, `crates/nvs-cli/src/package/mod.rs:1`
+- [x] The extraction over resolved declarations: visibility, `abstract`, `final`, `readonly`, enum cases, parameters with their types, defaults present or not, return types, and each class's parents. `crates/nvs-cli/src/package/api.rs:1`, `crates/nvs-hir/src/members.rs:136`, `crates/nvs-hir/src/hierarchy.rs:222`
+- [x] The JSON with a schema version, sorted so it is byte-identical across runs and platforms. `crates/nvs-cli/src/package/api.rs:1`
+- [x] Tests: the JSON of a fixture package is pinned byte for byte, and a package with an effectful top-level statement produces no effect (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_api.rs:1`
 
 ### 2. a removal, and an addition that breaks a caller, are breaks
 
@@ -138,7 +156,7 @@ one directory per class in the standing decision's break list and each additive 
 - [ ] A removed or renamed public declaration or member, and a lowered visibility, are breaks (`rule:packaging/only-a-major-may-break-the-api`). `crates/nvs-cli/src/package/diff.rs:1`
 - [ ] A new method on a public interface, a new abstract method, a new enum case and a new required parameter are breaks. `crates/nvs-cli/src/package/diff.rs:1`
 - [ ] A new class, a new concrete method and a new optional parameter are additive. `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] The fixture pairs, and a test that each gives its class. `crates/nvs-cli/tests/fixtures/api/removed-method/old/src/Api.nvs:1`, `crates/nvs-cli/tests/package_api.rs:1`
+- [ ] The fixture pairs, and a test that each gives its class. `crates/nvs-cli/tests/fixtures/package-api/removed-method/old/src/Api.nvs:1`, `crates/nvs-cli/tests/package_api.rs:1`
 
 ### 3. a parameter that narrows and a return that widens are breaks
 
@@ -181,22 +199,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `nvs api diff` compares two OpenAPI documents and is the shape to follow
-(`crates/nvs-cli/src/api_diff.rs:69`). There is no `nvs pkg` group, no `crates/nvs-cli/src/package/`,
-and nothing extracts a package's API.
+Stage 1 is done. `nvs pkg api <dir>` prints a package's API as schema-1 JSON
+(`crates/nvs-cli/src/package/api.rs:73`), and `Command::Pkg` and `"pkg"` in `COMMAND_NAMES` are in
+`crates/nvs-cli/src/main.rs`. The two standing decisions on the package's `src/` and the document's
+shape record what the extraction decided. `crates/nvs-cli/tests/package_api.rs` pins
+`tests/fixtures/package-api/shop.json` byte for byte and shows a top-level `echo` does not print.
+Both tests were run once and pass. Build and clippy are green.
+
+The acceptance sweep's four reds were already fixed on disk before this session: `env-secret-proofs`
+exits 0, and the three nightly Miri jobs failed on tests that 22f1e4ec4, e461612ce and c33a8b8f7
+(all after the nightly's commit) mark for Miri. The next nightly should be green.
+
+Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
+(updated to 30 entries, not run), and any proofs or help-text check that counts subcommands.
 
 ### Next
 
-**Stage 1: the `nvs pkg` group and the extraction**, one file set: `crates/nvs-cli/src/main.rs`,
-`crates/nvs-cli/src/package/`, `crates/nvs-cli/tests/package_api.rs`. No gate.
+**Stage 2: `nvs pkg diff` and the removal and addition classes**, one file set:
+`crates/nvs-cli/src/package/mod.rs:22`, a new `crates/nvs-cli/src/package/diff.rs`,
+`crates/nvs-cli/tests/package_api.rs`, `crates/nvs-cli/tests/fixtures/package-api/`. No gate.
 
-- [ ] `crates/nvs-cli/src/package/mod.rs` and `Command::Pkg` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/main.rs:380`
-- [ ] The extraction over resolved declarations (`rule:packaging/only-a-major-may-break-the-api`). `crates/nvs-hir/src/members.rs:136`
-- [ ] The deterministic JSON with its schema version. `crates/nvs-cli/src/package/api.rs:1`
-- [ ] Tests: the pinned JSON, and no effect from a top-level statement (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_api.rs:1`
+- [ ] `Command::Diff { old, new, json }` beside `Command::Api`; each side is a directory (run `api::extract`) or a `.json` file (refuse a `schema` other than `api::SCHEMA`). `crates/nvs-cli/src/package/mod.rs:22`, `crates/nvs-cli/src/package/api.rs:73`
+- [ ] The walk over the two documents keyed by declaration `name` and member `name`, with `api_diff.rs`'s `Class`/`Change` shape and its worst-first print. `crates/nvs-cli/src/api_diff.rs:96`
+- [ ] The break and additive classes the stage lists, then the fixture pairs under `package-api/<class>/{old,new}/src/` (the split's subagent) and one test per pair. `crates/nvs-cli/tests/package_api.rs:1`
 
 ### Backlog
 
+- Stage 3 needs each class's ancestors: close over `extends` and `implements` within the document,
+  and treat a parent the document does not declare (a `Core` class) by name alone.
 - Stage 4 waits for `docs/reference/tools/35-packages.md` from goal `namespace-grants`; if it is absent, stage 4 creates the file with its own heading. `docs/goals/namespace-grants.md`
 - The registry calls `nvs pkg diff` at publish in goal `registry-service` (`docs/goals/registry-service.md`).
 - The website shows the API diff per version in goal `registry-website` (`docs/goals/registry-website.md`).

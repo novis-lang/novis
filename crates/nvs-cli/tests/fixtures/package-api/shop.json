@@ -1,0 +1,274 @@
+{
+  "declarations": [
+    {
+      "abstract": true,
+      "constants": [
+        {
+          "final": false,
+          "name": "CURRENCY",
+          "type": "string",
+          "visibility": "protected"
+        }
+      ],
+      "final": false,
+      "implements": [],
+      "kind": "class",
+      "methods": [
+        {
+          "abstract": false,
+          "final": false,
+          "name": "round",
+          "params": [
+            {
+              "inout": false,
+              "name": "$value",
+              "optional": false,
+              "type": "float",
+              "variadic": false
+            }
+          ],
+          "returns": "float",
+          "static": false,
+          "visibility": "protected"
+        },
+        {
+          "abstract": true,
+          "final": false,
+          "name": "total",
+          "params": [],
+          "returns": "Shop\\Value\\Money",
+          "static": false,
+          "visibility": "public"
+        }
+      ],
+      "name": "Shop\\Base",
+      "properties": [],
+      "readonly": false
+    },
+    {
+      "abstract": false,
+      "constants": [
+        {
+          "final": false,
+          "name": "LIMIT",
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "extends": "Shop\\Base",
+      "final": true,
+      "implements": [
+        "Shop\\Priced"
+      ],
+      "kind": "class",
+      "methods": [
+        {
+          "abstract": false,
+          "final": false,
+          "name": "add",
+          "params": [
+            {
+              "inout": false,
+              "name": "$item",
+              "optional": false,
+              "type": "Shop\\Value\\Item|null",
+              "variadic": false
+            },
+            {
+              "inout": false,
+              "name": "$count",
+              "optional": true,
+              "type": "int|uint",
+              "variadic": false
+            },
+            {
+              "inout": false,
+              "name": "$tags",
+              "optional": true,
+              "type": "string",
+              "variadic": true
+            }
+          ],
+          "returns": "Shop\\Cart",
+          "static": false,
+          "visibility": "public"
+        },
+        {
+          "abstract": false,
+          "final": false,
+          "name": "constructor",
+          "params": [
+            {
+              "inout": false,
+              "name": "$id",
+              "optional": false,
+              "type": "string",
+              "variadic": false
+            },
+            {
+              "inout": false,
+              "name": "$owner",
+              "optional": true,
+              "type": "int",
+              "variadic": false
+            }
+          ],
+          "static": false,
+          "visibility": "public"
+        },
+        {
+          "abstract": false,
+          "final": false,
+          "name": "price",
+          "params": [],
+          "returns": "Shop\\Value\\Money",
+          "static": false,
+          "visibility": "public"
+        },
+        {
+          "abstract": false,
+          "final": false,
+          "name": "total",
+          "params": [],
+          "returns": "Shop\\Value\\Money",
+          "static": false,
+          "visibility": "public"
+        }
+      ],
+      "name": "Shop\\Cart",
+      "properties": [
+        {
+          "name": "$id",
+          "readonly": true,
+          "set": "public",
+          "static": false,
+          "type": "string",
+          "visibility": "public"
+        },
+        {
+          "name": "$made",
+          "readonly": false,
+          "set": "public",
+          "static": true,
+          "type": "int",
+          "visibility": "public"
+        },
+        {
+          "name": "$status",
+          "readonly": false,
+          "set": "private",
+          "static": false,
+          "type": "Shop\\Cart::Status",
+          "visibility": "public"
+        }
+      ],
+      "readonly": false
+    },
+    {
+      "cases": [
+        "Open",
+        "Paid"
+      ],
+      "constants": [],
+      "implements": [],
+      "kind": "enum",
+      "methods": [],
+      "name": "Shop\\Cart::Status",
+      "properties": []
+    },
+    {
+      "constants": [],
+      "extends": [],
+      "kind": "interface",
+      "methods": [
+        {
+          "abstract": false,
+          "final": false,
+          "name": "label",
+          "params": [],
+          "returns": "string",
+          "static": false,
+          "visibility": "public"
+        },
+        {
+          "abstract": true,
+          "final": false,
+          "name": "price",
+          "params": [],
+          "returns": "Shop\\Value\\Money",
+          "static": false,
+          "visibility": "public"
+        }
+      ],
+      "name": "Shop\\Priced",
+      "properties": []
+    },
+    {
+      "kind": "type",
+      "name": "Shop\\Quantity",
+      "type": "int|uint"
+    },
+    {
+      "abstract": false,
+      "constants": [],
+      "final": true,
+      "implements": [],
+      "kind": "class",
+      "methods": [],
+      "name": "Shop\\Value\\Item",
+      "properties": [],
+      "readonly": false
+    },
+    {
+      "abstract": false,
+      "constants": [],
+      "final": true,
+      "implements": [],
+      "kind": "class",
+      "methods": [
+        {
+          "abstract": false,
+          "final": false,
+          "name": "constructor",
+          "params": [
+            {
+              "inout": false,
+              "name": "$cents",
+              "optional": false,
+              "type": "int",
+              "variadic": false
+            }
+          ],
+          "static": false,
+          "visibility": "public"
+        }
+      ],
+      "name": "Shop\\Value\\Money",
+      "properties": [
+        {
+          "name": "$cents",
+          "readonly": true,
+          "set": "public",
+          "static": false,
+          "type": "int",
+          "visibility": "public"
+        }
+      ],
+      "readonly": false
+    },
+    {
+      "backing": "int",
+      "cases": [
+        "Large",
+        "Small"
+      ],
+      "constants": [],
+      "implements": [],
+      "kind": "enum",
+      "methods": [],
+      "name": "Shop\\Value\\Size",
+      "properties": []
+    }
+  ],
+  "schema": 1
+}

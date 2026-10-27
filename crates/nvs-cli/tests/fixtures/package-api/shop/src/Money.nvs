@@ -1,0 +1,19 @@
+<?nvs
+namespace Shop\Value;
+
+final class Money
+{
+    public function constructor(public readonly int $cents)
+    {
+    }
+}
+
+final class Item
+{
+}
+
+enum Size: int
+{
+    Small = 1,
+    Large = 2,
+}
