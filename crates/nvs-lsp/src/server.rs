@@ -711,10 +711,7 @@ fn answer(
             }
         }
         FoldingRangeRequest::METHOD => match serde_json::from_value::<FoldingRangeParams>(params) {
-            Ok(params) => Response::new_ok(
-                id,
-                folding_range(documents, &params.text_document.uri),
-            ),
+            Ok(params) => Response::new_ok(id, folding_range(documents, &params.text_document.uri)),
             Err(error) => unreadable(id, &method, &error),
         },
         SemanticTokensFullRequest::METHOD => {

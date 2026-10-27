@@ -252,7 +252,10 @@ fn strict_docs_accepts_a_redeclared_documented_constant_and_property() {
     // A constant and a property inherit a doc comment the way a method does:
     // a redeclaration means what its ancestor's declaration means. The
     // constant comes from an interface and the property from a parent class.
-    let dir = fixture("inherited-constant-property", INHERITED_CONSTANT_AND_PROPERTY);
+    let dir = fixture(
+        "inherited-constant-property",
+        INHERITED_CONSTANT_AND_PROPERTY,
+    );
     let out = check(&dir, &["--strict-docs"]);
     let shown = shown(&out);
     assert!(

@@ -2686,7 +2686,9 @@ mod tests {
         let manifest = dir.join(nvs_config::grants::FILE);
         let compiler = revalidating();
 
-        let (first, _routes) = compiler.compiled(&written).expect("no table, so it compiles");
+        let (first, _routes) = compiler
+            .compiled(&written)
+            .expect("no table, so it compiles");
         assert_eq!(said(first), "ran\n");
 
         std::fs::write(&manifest, "[grants]\n'Acme\\Http' = []\n").expect("an empty line");
