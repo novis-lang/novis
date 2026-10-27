@@ -1,0 +1,88 @@
+---
+title: The profiler
+covers: ['tools:cli/profiling']
+description: Measure how long each function call takes, and open the result in KCachegrind, speedscope or VS Code.
+---
+
+import Shot from '@components/Shot.astro'
+import Terminal from '@components/Terminal.astro'
+
+The profiler measures how long each function call takes. You do not change your program for this.
+Add the `--profile` option to `nvs run` or `nvs test`. When the run ends, Novis writes the result to
+a profile file.
+
+There are two formats. `--profile=callgrind` writes a Callgrind file. `--profile=speedscope` writes a
+speedscope file.
+
+| Format | The file | Open it with |
+|---|---|---|
+| `callgrind` | `callgrind.out.<pid>` | KCachegrind or Webgrind |
+| `speedscope` | `profile.<pid>.speedscope.json` | speedscope, or the *View Profile* command in VS Code |
+
+`<pid>` is the process ID of the run. The file is written in the current folder.
+
+## Name the file
+
+`--profile-out <file>` writes the profile to the file you name. At the end, the run prints
+`profile:` and the path of the file. It prints this line on standard error.
+
+## Totals for each function: Callgrind
+
+The program below counts Fibonacci numbers. It calls one method many times.
+
+<Terminal src="tools/profiler/callgrind.term" />
+
+A Callgrind file has two totals for each function. The first total is the time in the function
+itself. The second total also includes the time of the functions it called. The file also lists who
+called each function. Open it in KCachegrind or Webgrind.
+
+## Every call on a timeline: speedscope
+
+<Terminal src="tools/profiler/speedscope.term" />
+
+A speedscope file has every call on a timeline, in the order the calls ran. Open it in speedscope, or with the *View Profile* command in VS Code. This is the same profile in VS Code:
+
+<Shot src="tools/profiler/fibonacci.shot" alt="The speedscope view of main.nvs. It lists Fibonacci::square with 10 calls and Fibonacci::at with 1973 calls." />
+
+The loop calls `Fibonacci::square` 10 times. `Fibonacci::at` calls itself, so it has 1973 calls.
+
+## Profile your tests
+
+`nvs test --profile=speedscope` gives each test its own timeline in the file. A program that your
+code starts with `spawn` also gets its own timeline.
+
+A Callgrind file adds the totals of all of them together. The time a program waits for a program it
+started is also in that sum. So the total can be larger than the time the run took.
+
+## Every call costs a little more
+
+The profiler adds a small cost to every function call. In a speedscope profile, it is about 170
+nanoseconds per call on a current desktop processor. Every call has the same extra cost. So code
+that makes many small calls looks slower in a profile than it is without the profiler.
+
+`--profile` cannot be used together with `--dump-ir`, `--dump-asm` or `--count`.
+
+## Profile one part of a program
+
+A program can also profile one part of itself. `Core\Debug::startProfile` starts the profile, and
+`Core\Debug::stopProfile` stops it. Only the calls between them are in the profile. Novis writes
+them to a speedscope file. Use this when you want to measure one step, such as one step of a nightly
+job.
+
+Your `nvs.toml` must allow this. `[debug] mode` must include `"profile"`. `[capabilities.debug]
+profile` must list the folder of the profile file:
+
+```toml
+[debug]
+mode = ["profile"]
+
+# The program may write a profile file in this folder, and nowhere else.
+[capabilities.debug]
+profile = ["."]
+```
+
+A path in `[capabilities]` is relative to the `nvs.toml` file. `--profile` does not need these
+settings. Only the person who runs the command can add that option.
+
+Read more in [Reference: Profiling](/reference/cli/profiling/) and
+[Reference: Core\Debug::startProfile](/reference/core/debug/startprofile/).

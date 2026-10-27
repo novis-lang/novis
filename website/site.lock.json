@@ -329,6 +329,11 @@
     "tools:cli/one-binary": "990450b05d9aca43",
     "tools:cli/the-compile-cache": "a5080b1566be22a6"
   },
+  "tools/debug-viewer/index.mdx": {
+    "tools:cli/nvs-debug": "73b36a5bf356946f",
+    "tools:cli/nvs-debug-to-test": "92843f226f81dbce",
+    "tools:cli/the-debug-viewer": "4f8a552a766d4115"
+  },
   "tools/debugger/index.mdx": {
     "tools:editor/nvs-dap": "90b163dcf00c5f05"
   },
@@ -338,6 +343,9 @@
   },
   "tools/formatter/index.mdx": {
     "tools:cli/nvs-fmt": "938dea536a25bec4"
+  },
+  "tools/profiler/index.mdx": {
+    "tools:cli/profiling": "c1eeaaa3521cc23b"
   },
   "tools/test-runner/coverage.mdx": {
     "tools:cli/nvs-test": "7c1e89e0ca017553"

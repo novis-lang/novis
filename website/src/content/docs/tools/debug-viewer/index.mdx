@@ -1,0 +1,118 @@
+---
+title: The debug viewer
+covers: ['tools:cli/nvs-debug', 'tools:cli/the-debug-viewer', 'tools:cli/nvs-debug-to-test']
+description: See the requests your development server handled, compare two of them, send one again, and make a test from one.
+---
+
+import Shot from '@components/Shot.astro'
+import Terminal from '@components/Terminal.astro'
+
+The debug viewer is a page in your browser. It shows the requests that your server recorded. For each
+request, you see its status, its duration, its queries, its dumps and its log lines.
+
+`nvs debug` serves the viewer. It also reads the recorded requests into one database,
+`debug/index.sqlite` in the data folder.
+
+## Start the viewer
+
+Turn on recording in `nvs.toml`:
+
+```toml
+[debug]
+store = true
+```
+
+Then start your server in development. `nvs serve` starts `nvs debug` for you, and stops it when the
+server stops. `nvs debug` prints the address of the viewer. The address is `http://127.0.0.1:8137/`.
+`[debug] listen` or the `--listen` option sets another address.
+
+A production server never starts `nvs debug`. On a production host, you run `nvs debug` yourself.
+
+Every `file:line` in the viewer is a link. It opens the file in your editor. Choose the editor in the
+**Editor** dialog. Press `?` to see every key.
+
+## The request list
+
+The first page lists the requests, newest first. Each row has the method, the route, the status,
+the duration, the number of queries and dumps, and the exception the request threw.
+
+<Shot src="tools/debug-viewer/requests.shot" alt="The request list with four GET requests. Each row shows the route, such as App::home, the status 200 or 404, and 2 queries." />
+
+New rows appear at the top while you watch. Press `p` or scroll down to pause the list. The list
+then counts the new rows, and the rows on the page stay where they are.
+
+Press `j` and `k` to move the selection, and `Enter` to open a request.
+
+## A request's timeline
+
+When you open a request, you see its path, status, duration, trace id and span id. Below that is
+the timeline. It shows each query, how long it took, and how many rows it returned.
+
+<Shot src="tools/debug-viewer/timeline.shot" alt="The page of a GET request to App::home with status 200. The timeline lists two SQLite queries, and each returned 0 rows." />
+
+Below the timeline are the values the request dumped with `Core\Debug::dump`, and its log lines.
+
+## Search
+
+The search box searches the requests, the dumps, the log lines, the queries and the exceptions.
+Press `/` to go to the search box. The results are grouped by request, newest first.
+
+<Shot src="tools/debug-viewer/search.shot" alt="The results for the word notes. They are grouped by request, and each group lists the request and its queries." />
+
+Press `s` to save a search as a filter. You can also paste a trace id, or the value of a
+`traceresponse` header, into the search box. The viewer then opens that request.
+
+## Exceptions
+
+The exceptions page has one row for each exception class and the line that threw it. Each row has a
+count, and the dates when the exception was first and last seen.
+
+<Shot src="tools/debug-viewer/exceptions.shot" alt="The exceptions page with one row: RuntimeError at public/index.nvs:8, thrown 3 times, with the message There is no such invoice." />
+
+Here, three requests were for an invoice that does not exist. Each one threw the same
+`RuntimeError` on the same line. The page shows them as one row with the count `3`.
+
+## Compare two requests
+
+Press `c` to compare a request with the previous request to the same route. To compare any two
+requests, press `m` to mark one. The next request you open is compared with it.
+
+<Shot src="tools/debug-viewer/compare.shot" alt="Two GET requests side by side. The first has status 500 and the second has status 404. The page says that 6 rows differ." />
+
+The page shows the two requests side by side and marks each row that differs. It compares the
+request's path, query, headers and body. It also compares the response's status, headers and body.
+Then it compares the queries, the dumps and the log lines.
+
+## Send a request again
+
+Press `r` to replay a request. The viewer sends the recorded request to your development server
+again. Replay works only when `nvs serve` started `nvs debug`.
+
+<Shot src="tools/debug-viewer/replay.shot" alt="A dialog with the question Send this request again? It says that GET /api/notes/1 is sent to the server, and it has the buttons Cancel and Send." />
+
+Your handler runs again, with all its side effects. If it sends an email, the email is sent again.
+So the viewer first shows a dialog. The request is sent only when you click **Send**.
+
+## Make a test from a request
+
+Press `t` to make a test from a request. The test sends the same request to your program with
+`Core\Test::request`. It checks that the response is the same.
+
+<Shot src="tools/debug-viewer/to-test.shot" alt="A test made from a GET request to /api/notes. It checks that the status is 200, the content type is application/json and the JSON body is an empty list." />
+
+The test checks the status, the `Content-Type` header, the `Location` header of a redirect, and the
+body. A JSON body is compared as data, so spaces in it do not matter. The **Copy** button copies the
+test. Save it in your project and run it with `nvs test .`.
+
+`nvs debug to-test` prints the same test in a terminal. Give it the trace id that the viewer shows.
+`--write <file>` writes the test to a new file. When no recorded request has that trace id, the
+command prints an error:
+
+<Terminal src="tools/debug-viewer/unknown-trace.term" />
+
+Some headers, such as `Authorization`, are removed when a request is recorded. In the test, such a
+header has the value `'redacted'`. Replace it with a credential that your tests may use.
+
+Read more in [Reference: nvs debug](/reference/cli/nvs-debug/),
+[Reference: The debug viewer](/reference/cli/the-debug-viewer/) and
+[Reference: nvs debug to-test](/reference/cli/nvs-debug-to-test/).

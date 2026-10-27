@@ -1,0 +1,1 @@
+nvs run main.nvs --profile=speedscope --profile-out fibonacci.speedscope.json

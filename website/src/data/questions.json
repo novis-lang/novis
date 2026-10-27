@@ -1346,7 +1346,7 @@
       "Write a Callgrind file to open in KCachegrind",
       "Measure how long the function calls of each test take",
       "Where does nvs run save the profile file?",
-      "Why does code with many small calls look slower in a profile?"
+      "Does the profiler make my program slower while it runs?"
     ]
   },
   "/reference/cli/the-compile-cache/": {
@@ -1368,7 +1368,7 @@
       "How do I look at the requests my development server recorded?",
       "See the queries, dumps and log lines of one request on a timeline",
       "Which errors does my application throw most often?",
-      "Compare two requests to the same route side by side",
+      "Which rows differ between a 500 response and a 404 response?",
       "Send a recorded request to my server again, or make a test from it",
       "Use the debug viewer when my server runs in a Docker container"
     ]
@@ -17757,7 +17757,7 @@
   },
   "/tools/": {
     "feature": "tools/index.mdx",
-    "hash": "670c2fd0d985a833",
+    "hash": "5bca34a691025c28",
     "questions": [
       "Which developer tools come with Novis?",
       "Is there a debugger and a profiler for Novis?",
@@ -17786,6 +17786,18 @@
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
+    ]
+  },
+  "/tools/debug-viewer/": {
+    "feature": "tools/debug-viewer/index.mdx",
+    "hash": "03fe84a66c473102",
+    "questions": [
+      "How do I see the requests my development server handled?",
+      "Which queries did one request run, and how long did each take?",
+      "Find every request that threw the same exception",
+      "Compare two requests to the same route side by side",
+      "Send a recorded request to my server again",
+      "Make a test from a request I saw in the browser"
     ]
   },
   "/tools/debugger/": {
@@ -17821,6 +17833,17 @@
       "Check in CI that every file is formatted",
       "See what the formatter would change before it writes",
       "Can I change the indentation or the code style?"
+    ]
+  },
+  "/tools/profiler/": {
+    "feature": "tools/profiler/index.mdx",
+    "hash": "2f1bfc258c681673",
+    "questions": [
+      "Which function in my program takes the most time?",
+      "Open a Novis profile in KCachegrind or speedscope",
+      "See every call of my program on a timeline in VS Code",
+      "Profile only one slow part of my program",
+      "Why does code with many small calls look slower in a profile?"
     ]
   },
   "/tools/test-runner/": {

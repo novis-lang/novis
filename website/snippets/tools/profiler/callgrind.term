@@ -1,0 +1,1 @@
+nvs run main.nvs --profile=callgrind --profile-out callgrind.out.fibonacci

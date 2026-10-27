@@ -1,0 +1,26 @@
+<?nvs
+// This program counts Fibonacci numbers with a slow recursive method and prints the last one.
+class Fibonacci
+{
+    // Returns the number at position `$n`. Each call makes two more calls.
+    public static function at(int $n): int
+    {
+        if ($n < 2) {
+            return $n;
+        }
+        return self::at($n - 1) + self::at($n - 2);
+    }
+
+    // Returns `$x` times `$x`. The loop below calls it once for each number from 1 to 10.
+    public static function square(int $x): int
+    {
+        return $x * $x;
+    }
+}
+
+int $sum = 0;
+for (int $i = 1; $i <= 10; $i++) {
+    $sum += Fibonacci::square($i);
+}
+echo 'sum of squares: ', $sum, "\n";
+echo 'fibonacci 15: ', Fibonacci::at(15), "\n";

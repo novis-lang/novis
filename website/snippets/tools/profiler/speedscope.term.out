@@ -1,0 +1,5 @@
+$ nvs run main.nvs --profile=speedscope --profile-out fibonacci.speedscope.json
+sum of squares: 385
+fibonacci 15: 610
+profile: fibonacci.speedscope.json
+exit 0

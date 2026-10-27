@@ -1,0 +1,6 @@
+$ nvs --data data debug --once
+exit 0
+
+$ nvs --data data debug to-test 4bf92f3577b34da6a3ce929d0e0e4736
+error: No request in the index has this trace id and span id.
+exit 1

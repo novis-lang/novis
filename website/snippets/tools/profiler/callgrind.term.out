@@ -1,0 +1,5 @@
+$ nvs run main.nvs --profile=callgrind --profile-out callgrind.out.fibonacci
+sum of squares: 385
+fibonacci 15: 610
+profile: callgrind.out.fibonacci
+exit 0
