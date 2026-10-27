@@ -16,10 +16,10 @@
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "22826e899700692b",
     "Core\\Router\\Gate": "1b72464ba63dc2ad",
-    "Core\\Router\\Refusal": "ca9d5d448a908224",
+    "Core\\Router\\Refusal": "0c82800a768a2c66",
     "Core\\Router\\Responder": "71315f2767c27973",
     "lang:attributes/core-api-and-the-openapi-document": "8afa072ac27035d6",
-    "lang:attributes/core-route-and-core-access-the-route-table": "84453ba251cfab8a"
+    "lang:attributes/core-route-and-core-access-the-route-table": "e99da16ba3d135e3"
   },
   "syntax/attributes/writing-and-reading.mdx": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "852fea340a2bb893",

@@ -16892,12 +16892,12 @@
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "7b2a4c9b1b51ad0a",
+    "hash": "511d7092662166b8",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",
       "Return a 413 page when the request body is too large",
-      "What happens when a path value cannot be converted?",
+      "What happens when a path or query value cannot be converted?",
       "Respond to a failed CSRF check with my own page"
     ]
   },
@@ -17082,14 +17082,14 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "d7310152bbac5c36",
+    "hash": "e56edeabbcc283f8",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
       "Why does my route not compile without an access rule?",
       "How do I turn off the CSRF check for one route?",
       "Generate an OpenAPI document from my routes",
-      "Call the route method for each request with a gate"
+      "Read a typed value from the query string in a route method"
     ]
   },
   "/syntax/attributes/writing-and-reading/": {

@@ -33,7 +33,8 @@ class that implements `Core\Router\Gate`.
 <Snippet src="syntax/routes/02-dispatch.nvs" />
 
 - `failed` also runs when the program uses too much memory or time. The status is `500`.
-- A capture that cannot be converted gives `Refusal::BadCapture` and the status `400`.
+- A capture or a `#[Core\Query]` value that cannot be converted gives `Refusal::BadCapture` and the
+  status `400`. A missing required query key and a repeated one give the same.
 - A route method is `static`, or its class has a constructor without parameters.
 - A route method can return a value, such as its page. When the gate implements
   `Core\Router\Responder`, `dispatch` gives that value to the gate's `respond` method. A plain gate
