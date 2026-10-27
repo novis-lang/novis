@@ -1,10 +1,13 @@
 What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the completeness test reads it, and
+capability, with one row for each capability a member can ask. **The table is never read at run
+time.** The checker reads it while compiling, to hold each call to its namespace's grants
+(`rule:security/authority-is-the-enclosing-namespace`), the completeness test reads it, and
 the metadata command renders it as a roster of its own, which is how any renderer that wants a
 member's capability beside its card gets one (`rule:tooling/one-json-several-renderers`; the join is
-on `(class, member)` at render time). Enforcement is the doors
-(`rule:security/capability-check-at-the-door`), which do not consult it, so the table cannot be the
-thing an attacker edits to gain a permission.
+on `(class, member)` at render time). The operator's grant is enforced at the doors
+(`rule:security/capability-check-at-the-door`), which do not consult it, so no edit to the table
+widens what the operator granted. A row that understated its door would widen what a namespace
+compiles, which is why `rule:testing/capability-completeness-test` holds every door to its rows.
 
 A field on each member row was the obvious shape and is rejected for two reasons, in this order.
 **"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of

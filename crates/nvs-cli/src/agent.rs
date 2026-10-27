@@ -601,18 +601,23 @@ fn push_members(out: &mut Vec<Entry>, gates: &[(String, &str)], owner: &Value) {
         let symbol = format!("{owner_name}::{}", text(member, "name"));
         let signature = text(member, "signature");
         let mut line = format!("{owner_name}::{signature}");
+        // A member whose door asks by its argument has a row for each
+        // capability, such as `Core\IO::open`'s `fs.read` and `fs.write`.
         let capability = gates
             .iter()
-            .find(|(gated, _)| *gated == symbol)
-            .map(|(_, capability)| *capability);
-        if let Some(capability) = capability {
+            .filter(|(gated, _)| *gated == symbol)
+            .map(|(_, capability)| *capability)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let capability = (!capability.is_empty()).then_some(capability);
+        if let Some(capability) = &capability {
             line.push_str("  [");
             line.push_str(capability);
             line.push(']');
         }
         let mut entry = Entry::new("member", symbol, line);
         entry.signature = Some(signature.to_owned());
-        entry.capability = capability.map(str::to_owned);
+        entry.capability = capability;
         out.push(entry);
     }
 }

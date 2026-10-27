@@ -1808,16 +1808,23 @@ pub use crate::classes::CLASSES;
 /// module and a judgement about whether you found them all, which is precisely
 /// the judgement a security review is trying not to have to make.
 ///
-/// **Nothing reads this at run time.** It is audit data — `nvs meta` renders
-/// it, the reference documentation prints it beside a member's card (`rule:core-api/reference-card`),
-/// and § 7's completeness test reads it. Enforcement is
-/// `nvs_runtime::capability::require`, called inside the door that performs the
-/// effect, and that function never looks here — so an edit to this table cannot
-/// grant a permission, only misreport one.
+/// **Nothing reads this at run time.** `nvs meta` renders it, the reference
+/// documentation prints it beside a member's card (`rule:core-api/reference-card`),
+/// § 7's completeness test reads it, and the checker reads it through
+/// [`crate::cap::needs`] to hold a call site to its namespace's grants
+/// (`rule:security/authority-is-the-enclosing-namespace`). The operator's grant
+/// is `nvs_runtime::capability::require`, called inside the door that performs
+/// the effect, and that function never looks here. A row that misreported its
+/// door would let a namespace call a member it was not granted, so
+/// `every_door_names_the_capability_its_member_declares` holds every door's
+/// `Cap` to its member's row.
 ///
 /// Entries are `(class, member, Option<capability>)`, by the spellings
 /// [`CoreClass::name`] and [`CoreMethod::name`] use;
-/// `every_capability_entry_names_a_member` fails on one naming neither.
+/// `every_capability_entry_names_a_member` fails on one naming neither. A member
+/// whose door asks a different capability by its argument, such as
+/// `Core\IO::open` by its mode, has one row for each, and a call to it needs
+/// all of them. A `None` row is a member's only row.
 ///
 /// The rows naming a capability are the whole of what this runtime can do to a
 /// machine — the filesystem, another program, a socket, and the endpoints an
@@ -1931,10 +1938,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "canonicalize",
         Some(nvs_config::Cap::FsRead),
     ),
-    // `copy` reads one path and writes another, and this table names one
-    // capability per member, so it names the stronger — exactly as `open`'s row
-    // does for its `ReadWrite` mode and for that row's reason. The door checks
-    // both, and it is the door a refusal comes from.
+    // `copy` reads one path and writes another, so it has a row for each, as
+    // `open` does for its `ReadWrite` mode. The door checks both, and it is the
+    // door a refusal comes from.
+    (crate::io::NAME, "copy", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "copy", Some(nvs_config::Cap::FsWrite)),
     // `move` is `fs.write` on both ends and not `copy`'s pair: taking the
     // source away is destroying it.
@@ -1952,12 +1959,12 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::io::NAME, "lines", Some(nvs_config::Cap::FsRead)),
     // The one member whose capability its *argument* decides: `fs.read` for
     // `FileMode::Read`, `fs.write` for `Write` and `Append`, and both for
-    // `ReadWrite`. This table has one cap per member and cannot say that, so it
-    // names the stronger of the two — a row that understated the authority a
-    // member can exercise would be the wrong direction for a table a reviewer
-    // reads to find out what this runtime can do to a machine. The enforcement
-    // is `nvs_runtime::capability::open`, which asks per mode; this is the
+    // `ReadWrite`. So it has a row for each, and a call to it needs both: the
+    // checker sees a call and not its mode, and a namespace granted `fs.write`
+    // alone must not read through `ReadWrite`. The enforcement is
+    // `nvs_runtime::capability::open`, which asks per mode; this is the
     // declaration, and `rule:security/capability-check-at-the-door` is why the two are separate.
+    (crate::io::NAME, "open", Some(nvs_config::Cap::FsRead)),
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
     // The one member of this class that opens nothing and resolves no name:
     // standard input is a descriptor the process was started holding, so
@@ -2195,11 +2202,18 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // the whole difference between the two grants — and why they are two.
     (crate::db::NAME, "connect", Some(nvs_config::Cap::DbConnect)),
     (crate::db::NAME, "open", Some(nvs_config::Cap::DbOpen)),
+    // A program-supplied SQLite file is the file rule's, so `open` reads it
+    // under `fs.read`, and a call needs both rows for `Core\IO::open`'s reason.
+    (crate::db::NAME, "open", Some(nvs_config::Cap::FsRead)),
     // The two connectionless members reach no effect at all: they are pure
     // functions of their arguments, and the `None` rows are what make this
     // table's claim total rather than "all but a list".
     (crate::db::NAME, "inList", None),
     (crate::db::NAME, "quoteIdentifier", None),
+    // `rule:core-classes/db-capabilities`'s split again, for a directory: `connect`
+    // reaches a block an operator wrote, and `open` a server the program names.
+    (crate::ldap::NAME, "connect", Some(nvs_config::Cap::LdapConnect)),
+    (crate::ldap::NAME, "open", Some(nvs_config::Cap::LdapOpen)),
     // `rule:core-classes/schema-apply-capability`'s split, and the reason `Core\Db\Schema` is a
     // capability-bearing class at all: reaching a database is not permission to
     // change its shape. `db.schema` gates whether this program may issue DDL to
@@ -2280,11 +2294,12 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // the other two then declare what they reach, which is nothing: an archive
     // is octets a program already holds, so listing it and reading one entry
     // out of it touch no path at all. `extract` declares `fs.write` for the
-    // effect it has, and shows `fs.read` at the same door for the destination
-    // as well, because resolving a name is reading the directories above it —
-    // the reading this table's own `within` row already takes.
+    // effect it has, and `fs.read` for the destination as well, because
+    // resolving a name is reading the directories above it — the reading this
+    // table's own `within` row already takes.
     (crate::zip::NAME, "entries", None),
     (crate::zip::NAME, "read", None),
+    (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsRead)),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsWrite)),
 ];
 

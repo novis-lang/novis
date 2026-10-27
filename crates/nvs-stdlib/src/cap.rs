@@ -158,6 +158,29 @@ pub fn roster() -> String {
         .join(", ")
 }
 
+/// Every capability a call to `class::member` needs, and none for a member that
+/// needs none — `rule:security/authority-is-the-enclosing-namespace`'s
+/// question, asked of each `Core` call site while compiling.
+///
+/// Read from [`crate::registry::CAPABILITIES`], so the checker holds no copy of
+/// a row, as [`is_capability`] holds none of the roster. A member whose door
+/// asks by its argument, such as `Core\IO::open` by its mode, has a row for
+/// each capability and needs all of them, because the checker sees the call and
+/// not the argument. A member of a class with no row reaches no door, and needs
+/// nothing either. The door still asks
+/// the operator's grant when it runs (`rule:security/no-runtime-grant`), and
+/// `every_door_names_the_capability_its_member_declares` holds each door to its
+/// row, so a row that misreports fails a test rather than widening a namespace.
+///
+/// **What it costs:** one pass over the table per `Core` call site, at compile
+/// time only. Nothing is allocated, and nothing is read on the request path.
+pub fn needs<'a>(class: &'a str, member: &'a str) -> impl Iterator<Item = Cap> + 'a {
+    crate::registry::CAPABILITIES
+        .iter()
+        .filter(move |(name, found, _)| *name == class && *found == member)
+        .filter_map(|(_, _, cap)| *cap)
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {

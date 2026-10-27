@@ -317,19 +317,33 @@ fn every_capability_bearing_member_declares_its_capability() {
 
     for class in bearing {
         for member in class.members() {
-            let rows = nvs_stdlib::registry::CAPABILITIES
+            let rows: Vec<_> = nvs_stdlib::registry::CAPABILITIES
                 .iter()
                 .filter(|(name, found, _)| *name == class.name && *found == member.name)
-                .count();
-            assert_eq!(
-                rows, 1,
-                "`{}::{}` is a member of a capability-bearing class, so it owes exactly one row in \
+                .map(|(_, _, cap)| *cap)
+                .collect();
+            assert!(
+                !rows.is_empty(),
+                "`{}::{}` is a member of a capability-bearing class, so it owes a row in \
                  `registry::CAPABILITIES` — the capability it needs, or `None` beside the comment \
                  saying what it reaches instead. There is no allowlist to add it to \
                  (rule:testing/capability-completeness-test): a member that is hard to classify \
                  is a member whose capability has not been thought about",
                 class.name, member.name,
             );
+            assert!(
+                rows.len() == 1 || rows.iter().all(Option::is_some),
+                "`{}::{}` has a `None` row beside others. A member that needs nothing has that \
+                 one row, and a member that needs several has a row naming each",
+                class.name, member.name,
+            );
+            for (at, cap) in rows.iter().enumerate() {
+                assert!(
+                    !rows[..at].contains(cap),
+                    "`{}::{}` names {cap:?} twice",
+                    class.name, member.name,
+                );
+            }
         }
     }
 }
@@ -400,6 +414,268 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
                 );
             }
         }
+    }
+}
+
+/// What each `nvs_runtime::capability` door asks, by its name. `open` asks whichever of the two its
+/// `Access` names, and `copy` asks both, so a row naming either one agrees with them.
+const DOORS: &[(&str, &[Cap])] = &[
+    ("open_read", &[Cap::FsRead]),
+    ("open", &[Cap::FsRead, Cap::FsWrite]),
+    ("create", &[Cap::FsWrite]),
+    ("write", &[Cap::FsWrite]),
+    ("copy", &[Cap::FsRead, Cap::FsWrite]),
+    ("rename", &[Cap::FsWrite]),
+    ("create_dir", &[Cap::FsWrite]),
+    ("metadata", &[Cap::FsRead]),
+    ("metadata_if_present", &[Cap::FsRead]),
+    ("resolve_existing", &[Cap::FsRead]),
+    ("exists", &[Cap::FsRead]),
+    ("readable", &[Cap::FsRead]),
+    ("writable", &[Cap::FsWrite]),
+    ("canonicalize", &[Cap::FsRead]),
+    ("read_dir", &[Cap::FsRead]),
+    ("remove_file", &[Cap::FsWrite]),
+    ("remove_dir", &[Cap::FsWrite]),
+    ("temp_dir", &[Cap::FsWrite]),
+    ("exec", &[Cap::ProcessExec]),
+    ("exec_with", &[Cap::ProcessExec]),
+    ("pin_host", &[Cap::NetConnect]),
+    ("pin_host_addresses", &[Cap::NetConnect]),
+];
+
+/// The functions of `nvs_runtime::capability` that take a member and are not a door: `require` and
+/// `require_as` take the capability as an argument, which the scan below reads off the call, and
+/// the rest name the member in a refusal or a lookup and ask no grant. `require_as` is left out of
+/// the scan, because its one caller asks a relaxation of a member that already needs `net.connect`
+/// (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`), and a row names the ability.
+const NOT_DOORS: &[&str] = &[
+    "require",
+    "require_as",
+    "alias_refusal",
+    "relative",
+    "working_dir",
+    "refusal",
+    "resolve_host",
+    "resolve_addresses",
+    "pinned_addresses",
+    "pinned_address",
+    "io_failure",
+];
+
+/// The lines of `text` a release build compiles: everything above its `#[cfg(test)]` module, with
+/// each line's number. A comment line is left out, because it names a door without calling one.
+fn shipped_lines(text: &str) -> Vec<(usize, &str)> {
+    let lines: Vec<&str> = text.lines().collect();
+    let end = (0..lines.len())
+        .find(|&at| {
+            lines[at].trim_start() == "#[cfg(test)]"
+                && lines.get(at + 1).is_some_and(|next| {
+                    let next = next.trim_start();
+                    let next = next.strip_prefix("pub(crate) ").unwrap_or(next);
+                    let next = next.strip_prefix("pub ").unwrap_or(next);
+                    next.starts_with("mod ")
+                })
+        })
+        .unwrap_or(lines.len());
+    lines[..end]
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| !line.trim_start().starts_with("//"))
+        .map(|(at, line)| (at + 1, *line))
+        .collect()
+}
+
+/// The arguments of a call, split at its top-level commas, from `rest`, the text after its `(`.
+/// `None` when the call does not close.
+fn call_arguments(rest: &str) -> Option<Vec<String>> {
+    let (mut depth, mut quoted, mut escaped) = (0_usize, false, false);
+    let (mut args, mut current) = (Vec::new(), String::new());
+    for ch in rest.chars() {
+        if quoted {
+            current.push(ch);
+            match (escaped, ch) {
+                (true, _) => escaped = false,
+                (false, '\\') => escaped = true,
+                (false, '"') => quoted = false,
+                _ => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => quoted = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth == 0 => {
+                args.push(current.trim().to_owned());
+                return Some(args);
+            }
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                args.push(std::mem::take(&mut current).trim().to_owned());
+                continue;
+            }
+            _ => {}
+        }
+        current.push(ch);
+    }
+    None
+}
+
+/// The `Core\Class::member` an argument names, read off a string literal or off the `&str` const
+/// of that name declared last in `before`, the file's text above the call: a helper body declares
+/// its own `MEMBER`, so the same name means another member in the next function. `None` for
+/// anything else: a parameter forwarded from a caller, a `format!`, or a name that is not a `Core`
+/// member, such as `spawn script`.
+fn member_named(argument: &str, before: &str) -> Option<(String, String)> {
+    let literal = |text: &str| -> Option<String> {
+        let text = text.trim().trim_end_matches(';').trim();
+        if let Some(raw) = text.strip_prefix("r\"") {
+            return raw.strip_suffix('"').map(str::to_owned);
+        }
+        let plain = text.strip_prefix('"')?.strip_suffix('"')?;
+        Some(plain.replace("\\\\", "\\"))
+    };
+    let named = literal(argument).or_else(|| {
+        let ident = argument.trim();
+        if ident.is_empty() || !ident.chars().all(|ch| ch.is_ascii_uppercase() || ch == '_') {
+            return None;
+        }
+        let declared = format!("const {ident}: &str = ");
+        let at = before.rfind(&declared)?;
+        let value = before[at + declared.len()..].lines().next()?;
+        literal(value)
+    })?;
+    if !named.starts_with("Core\\") {
+        return None;
+    }
+    let (class, member) = named.rsplit_once("::")?;
+    Some((class.to_owned(), member.to_owned()))
+}
+
+/// `rule:security/authority-is-the-enclosing-namespace`'s check is made while compiling, from the
+/// row [`nvs_stdlib::cap::needs`] reads, and the door is made at run time, from the capability its
+/// call names. The two have to agree: a door asking `fs.write` behind a member whose row says
+/// `fs.read` would let a namespace granted only `fs.read` compile a call that writes, and the
+/// operator's grant, which the door still asks, is the application's and not the namespace's.
+///
+/// The scan reads every call to a door in `nvs-stdlib`'s shipped source. A call whose member is a
+/// literal or a `const` in its file is checked against that member's row. A call whose member is
+/// forwarded from a caller, such as `http.rs`'s `pin`, has no member on the line, and is checked
+/// where its own member has a row: `every_capability_bearing_member_declares_its_capability` holds
+/// that every member of the class has one.
+///
+/// `DOORS` and `NOT_DOORS` together are every function of `nvs_runtime::capability` that takes a
+/// member, so a door added there fails here until it says what it asks.
+#[test]
+fn every_door_names_the_capability_its_member_declares() {
+    let runtime = nvs_repo::path("crates/nvs-runtime/src/capability.rs");
+    let runtime = std::fs::read_to_string(&runtime).expect("nvs-runtime's capability module");
+    let shipped = shipped_lines(&runtime);
+    for (at, line) in &shipped {
+        let Some(name) = line.strip_prefix("pub fn ") else {
+            continue;
+        };
+        let name: String = name.chars().take_while(|ch| ch.is_alphanumeric() || *ch == '_').collect();
+        let after = shipped
+            .iter()
+            .skip_while(|(number, _)| number < at)
+            .map(|(_, line)| *line)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let signature = after.split('{').next().unwrap_or(&after);
+        if signature.contains("member: &str") {
+            assert!(
+                DOORS.iter().any(|(door, _)| *door == name) || NOT_DOORS.contains(&name.as_str()),
+                "`nvs_runtime::capability::{name}` takes a member and is in neither `DOORS` nor \
+                 `NOT_DOORS`: say which capability it asks, or that it asks none"
+            );
+        }
+    }
+
+    let (mut checked, mut disagreeing) = (Vec::new(), Vec::new());
+    for file in sources(&package().join("src")) {
+        let text = std::fs::read_to_string(&file).expect("a source file this crate compiled");
+        let lines = shipped_lines(&text);
+        for (index, (number, line)) in lines.iter().enumerate() {
+            let mut from = 0;
+            while let Some(found) = line[from..].find("capability::") {
+                let start = from + found;
+                from = start + "capability::".len();
+                let name: String = line[from..]
+                    .chars()
+                    .take_while(|ch| ch.is_alphanumeric() || *ch == '_')
+                    .collect();
+                let open = from + name.len();
+                if !line[open..].starts_with('(') {
+                    continue;
+                }
+                let rest = std::iter::once(&line[open + 1..])
+                    .chain(lines[index + 1..].iter().map(|(_, line)| *line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let Some(args) = call_arguments(&rest) else {
+                    continue;
+                };
+                let asked: Vec<Cap> = if name == "require" {
+                    let named = args.get(1).and_then(|cap| cap.rsplit_once("Cap::"));
+                    let Some(cap) = named.and_then(|(_, variant)| {
+                        Cap::ALL.iter().copied().find(|cap| format!("{cap:?}") == variant)
+                    }) else {
+                        continue;
+                    };
+                    vec![cap]
+                } else if let Some((_, caps)) = DOORS.iter().find(|(door, _)| *door == name) {
+                    let access = args.get(2).map_or("", String::as_str);
+                    match name.as_str() {
+                        "open" if access.ends_with("Access::Read") => vec![Cap::FsRead],
+                        "open" if access.ends_with("Access::Write") || access.ends_with("Access::Append") => {
+                            vec![Cap::FsWrite]
+                        }
+                        _ => caps.to_vec(),
+                    }
+                } else {
+                    continue;
+                };
+                let before = text.lines().take(*number).collect::<Vec<_>>().join("\n");
+                let Some((class, member)) = args.last().and_then(|last| member_named(last, &before))
+                else {
+                    continue;
+                };
+                let rows: Vec<Cap> = nvs_stdlib::cap::needs(&class, &member).collect();
+                for cap in asked.iter().filter(|cap| !rows.contains(cap)) {
+                    let declared = rows
+                        .iter()
+                        .map(|row| format!("`{}`", row.name()))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    disagreeing.push(format!(
+                        "{}:{number}: the `{name}` door asks `{}` for `{class}::{member}`, and \
+                         that member's rows say {}",
+                        file.display(),
+                        cap.name(),
+                        if declared.is_empty() { "none" } else { &declared },
+                    ));
+                }
+                checked.push(format!("{class}::{member}"));
+            }
+        }
+    }
+
+    assert!(
+        disagreeing.is_empty(),
+        "a door asks a capability its member's rows in `registry::CAPABILITIES` do not name. The \
+         checker reads the rows, so a namespace without that grant would compile the call \
+         (rule:security/authority-is-the-enclosing-namespace). Add a row for it:\n{}",
+        disagreeing.join("\n"),
+    );
+
+    // The positive controls: a door with a literal member, one with a `const` one, and one from a
+    // directory module. A scan that resolved none of them would pass by checking nothing.
+    for member in [r"Core\IO::open", r"Core\Net::listen", r"Core\Db::open"] {
+        assert!(
+            checked.iter().any(|found| found == member),
+            "the scan found no door call for `{member}`, so it no longer reads the calls it checks"
+        );
     }
 }
 
@@ -535,7 +811,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
     fn module_of(src: &Path, class: &str) -> std::path::PathBuf {
         let mut segments = class.split('\\').skip(1).map(str::to_ascii_lowercase);
         let first = segments.next().expect("a class name has a segment");
-        let mut candidates = vec![src.join(format!("{first}.rs"))];
+        let mut candidates = vec![src.join(format!("{first}.rs")), src.join(&first).join("mod.rs")];
         let mut directory = src.join(&first);
         for segment in segments {
             candidates.insert(0, directory.join(format!("{segment}.rs")));
