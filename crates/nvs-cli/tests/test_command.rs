@@ -309,6 +309,87 @@ final class StockTest {
 }
 "#;
 
+/// A program whose conditions are equalities: one on an `int`, one on an
+/// enum, and one on a `?int` whose `null` test narrows what the line after it
+/// reads.
+const EQUALITIES: &str = r#"<?nvs
+use Core\Test;
+
+enum Mode { Off, On }
+
+final class Gate {
+    public static function differsFromTen(int $n): bool { return $n != 10; }
+    public static function label(int $n): string {
+        if ($n == 10) {
+            return 'ten';
+        }
+        return 'other';
+    }
+    public static function isOff(Mode $m): bool { return $m == Mode::Off; }
+    public static function next(?int $n): int {
+        if ($n == null) {
+            return 0;
+        }
+        return $n + 1;
+    }
+}
+
+final class GateTest {
+    #[Test]
+    public function nine(): void { Test::assertTrue(Gate::differsFromTen(9)); }
+
+    #[Test]
+    public function ten(): void { Test::assertSame(Gate::label(10), 'ten'); }
+
+    #[Test]
+    public function off(): void { Test::assertTrue(Gate::isOff(Mode::Off)); }
+
+    #[Test]
+    public function next(): void { Test::assertSame(Gate::next(1), 2); }
+}
+"#;
+
+/// An equality is reversed, and an `if` on one is negated, wherever the value
+/// it tests is stored the same way on both edges: an `int` and an enum. A
+/// `?int` compared with `null` is narrowed to `int` on one edge, so that
+/// condition keeps its operator and its direction.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_reverses_an_equality_unless_it_narrows_a_nullable() {
+    let dir = scratch("mutate-equalities");
+    fs::write(dir.join("gate_test.nvs"), EQUALITIES).unwrap();
+
+    let json = test_in(&dir, &["gate_test.nvs", "--mutate", "--format", "json"]);
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let made: Vec<(u64, String)> = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .map(|m| {
+            (
+                m["line"].as_u64().unwrap_or_default(),
+                m["change"].as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect();
+    for (line, change) in [
+        (7, "`!=` to `==`"),
+        (9, "`==` to `!=`"),
+        (9, "`condition` to `!condition`"),
+        (14, "`==` to `!=`"),
+    ] {
+        assert!(
+            made.iter().any(|(l, c)| *l == line && c == change),
+            "no {change} mutant on line {line}: {made:?}"
+        );
+    }
+    assert!(
+        !made.iter().any(|(l, _)| *l == 16),
+        "the `null` test that narrows a `?int` was changed: {made:?}"
+    );
+}
+
 /// `nvs test --mutate` runs the tests, then each mutant: the human report
 /// names the survivor and its change, a survivor does not fail the run, and
 /// the JSON document's `mutants` records say how many tests ran each one. A

@@ -24,10 +24,13 @@
 //! (`nvs_types::locals`): a type the checker narrowed on one edge of a
 //! condition is read at that type on that edge, so a mutant that took the
 //! edge while the test was false would read a value at a representation it
-//! does not have. [`narrows`] is the syntactic over-approximation of the
-//! conditions the checker narrows on, and a condition it names keeps its
-//! connectors, its negation and its narrowing tests. A relational or
-//! arithmetic swap narrows nothing and is made anywhere.
+//! does not have. [`Lowering::narrows`] over-approximates the conditions
+//! whose narrowing changes a representation: an `is` test, and an equality
+//! with a literal, `null` or a class constant over a value stored as
+//! [`Ty::Tagged`]. A condition it names keeps its connectors, its negation
+//! and its narrowing tests. An equality over any other value is reversed and
+//! negated like any condition. A relational or arithmetic swap narrows
+//! nothing and is made anywhere.
 //!
 //! A `true` or `false` is not flipped where it is an `if` or loop condition,
 //! a `match` subject or an `==` operand: the checker reads a loop on `true` as
@@ -237,29 +240,70 @@ pub(crate) fn within<T>(test_code: bool, lower: impl FnOnce() -> T) -> T {
     out
 }
 
-/// Whether `cond` is a condition the checker may narrow a type on: an `is`
-/// test, or an `==`/`!=` with a literal, `null` or a class constant on one
-/// side, alone or under `!`, `&&`, `||` and parentheses. It names every
-/// shape `nvs_types::locals::narrow` reads, and some it does not.
-pub(crate) fn narrows(cond: &Expr) -> bool {
-    match &cond.kind {
-        ExprKind::Paren(inner)
-        | ExprKind::Unary {
-            op: AstUnaryOp::Not,
-            expr: inner,
-        } => narrows(inner),
-        ExprKind::Binary {
-            op: BinaryOp::And | BinaryOp::Or,
-            lhs,
-            rhs,
-        } => narrows(lhs) || narrows(rhs),
-        ExprKind::Binary {
-            op: BinaryOp::Eq | BinaryOp::NotEq,
-            lhs,
-            rhs,
-        } => is_narrowing_operand(lhs) || is_narrowing_operand(rhs),
-        ExprKind::TypeTest { .. } => true,
-        _ => false,
+impl Lowering<'_> {
+    /// Whether `cond` is a condition whose narrowing may change how a value is
+    /// read on one of its edges: an `is` test, or an `==`/`!=` that compares a
+    /// [`Ty::Tagged`] value with a literal, `null` or a class constant, alone or
+    /// under `!`, `&&`, `||` and parentheses. It names every such shape
+    /// `nvs_types::locals::narrow` reads, and some it does not.
+    ///
+    /// An equality narrows its tested side to a single value, or `?T` to `T`,
+    /// and `nvs_types::locals::subject` takes only a variable or a property
+    /// access as that side. A value stored at any representation but
+    /// [`Ty::Tagged`] narrows to the same one (a single value is stored as its
+    /// base, an enum case as its enum), so [`Lowering::untag_narrowed`] has
+    /// nothing to change and taking the edge with the test false reads it at the
+    /// representation it has. `int $n == 10` therefore narrows nothing here, and
+    /// `?int $n == null` does. A variable is judged by its slot, which stays
+    /// tagged after an earlier test narrowed it, so this over-approximates.
+    pub(crate) fn narrows(&self, cond: &Expr, env: &Env) -> bool {
+        match &cond.kind {
+            ExprKind::Paren(inner)
+            | ExprKind::Unary {
+                op: AstUnaryOp::Not,
+                expr: inner,
+            } => self.narrows(inner, env),
+            ExprKind::Binary {
+                op: BinaryOp::And | BinaryOp::Or,
+                lhs,
+                rhs,
+            } => self.narrows(lhs, env) || self.narrows(rhs, env),
+            ExprKind::Binary {
+                op: BinaryOp::Eq | BinaryOp::NotEq,
+                lhs,
+                rhs,
+            } => {
+                (is_narrowing_operand(rhs) && self.stored_tagged(lhs, env))
+                    || (is_narrowing_operand(lhs) && self.stored_tagged(rhs, env))
+            }
+            ExprKind::TypeTest { .. } => true,
+            _ => false,
+        }
+    }
+
+    /// Whether `e` is a narrowing subject stored as [`Ty::Tagged`]: a variable
+    /// whose slot (or `inout` pointee) is, or a property access whose checked
+    /// type erases to it. A property access the checker recorded nothing for is
+    /// counted as tagged, and nothing else is a subject.
+    fn stored_tagged(&self, e: &Expr, env: &Env) -> bool {
+        match &e.kind {
+            ExprKind::Paren(inner) => self.stored_tagged(inner, env),
+            ExprKind::Variable(span) => {
+                let name = strip_sigil(span_text(self.src, *span));
+                match env.get(name) {
+                    Some(&(_, Ty::Ref)) => self.pointee_of(name) == Ty::Tagged,
+                    Some(&(_, ty)) => ty == Ty::Tagged,
+                    None => true,
+                }
+            }
+            ExprKind::PropertyAccess { .. } => match self.exprs.lookup(e.span) {
+                Some(ExprInfo::Property { ty, .. }) => {
+                    erase_checked_ty(*ty, self.checked_types) == Ty::Tagged
+                }
+                _ => true,
+            },
+            _ => false,
+        }
     }
 }
 
@@ -361,9 +405,9 @@ impl Lowering<'_> {
     }
 
     /// `&&` or `||` at `whole`, swapped when this is the armed site and the
-    /// expression narrows nothing.
-    pub(crate) fn mutated_connector(&self, whole: &Expr, op: BinaryOp) -> BinaryOp {
-        if narrows(whole) {
+    /// expression narrows nothing ([`Self::narrows`]).
+    pub(crate) fn mutated_connector(&self, whole: &Expr, op: BinaryOp, env: &Env) -> BinaryOp {
+        if self.narrows(whole, env) {
             return op;
         }
         match op {
@@ -383,11 +427,19 @@ impl Lowering<'_> {
 
     /// The operator `lower_binary` lowers at `whole`, once both operands are
     /// lowered at `lty` and `rty`: `op`, or its swap when this is the armed
-    /// site and the swap keeps the result type.
-    pub(crate) fn mutated_binary(&self, whole: &Expr, op: BinaryOp, lty: Ty, rty: Ty) -> BinaryOp {
-        let ExprKind::Binary { lhs, rhs, .. } = &whole.kind else {
+    /// site, the swap keeps the result type, and an equality narrows nothing
+    /// ([`Self::narrows`]).
+    pub(crate) fn mutated_binary(
+        &self,
+        whole: &Expr,
+        op: BinaryOp,
+        lty: Ty,
+        rty: Ty,
+        env: &Env,
+    ) -> BinaryOp {
+        if !matches!(whole.kind, ExprKind::Binary { .. }) {
             return op;
-        };
+        }
         let numeric = |ty: Ty| {
             matches!(
                 ty,
@@ -400,11 +452,7 @@ impl Lowering<'_> {
             BinaryOp::LtEq => (Operator::RelationalBoundary, BinaryOp::Lt, "<=", "<"),
             BinaryOp::Gt => (Operator::RelationalBoundary, BinaryOp::GtEq, ">", ">="),
             BinaryOp::GtEq => (Operator::RelationalBoundary, BinaryOp::Gt, ">=", ">"),
-            BinaryOp::Eq | BinaryOp::NotEq
-                if is_narrowing_operand(lhs) || is_narrowing_operand(rhs) =>
-            {
-                return op;
-            }
+            BinaryOp::Eq | BinaryOp::NotEq if self.narrows(whole, env) => return op,
             BinaryOp::Eq => (Operator::EqualityNegated, BinaryOp::NotEq, "==", "!="),
             BinaryOp::NotEq => (Operator::EqualityNegated, BinaryOp::Eq, "!=", "=="),
             BinaryOp::Add | BinaryOp::Sub if !(numeric(lty) && numeric(rty)) => return op,
@@ -423,7 +471,8 @@ impl Lowering<'_> {
 
     /// An `if`, `elseif` or loop condition, lowered to the `bool` its branch
     /// tests, and inverted when this is the armed site. A condition that
-    /// narrows a type, or is a bare `true` or `false`, is never inverted.
+    /// narrows a tagged value ([`Self::narrows`]), or is a bare `true` or
+    /// `false`, is never inverted.
     pub(crate) fn lower_branch_cond(
         &mut self,
         cond: &Expr,
@@ -436,7 +485,7 @@ impl Lowering<'_> {
         while let ExprKind::Paren(inner) = &bare.kind {
             bare = inner;
         }
-        if narrows(cond)
+        if self.narrows(cond, env)
             || matches!(bare.kind, ExprKind::Bool(_))
             || !self.mutation_site(
                 cond.span,

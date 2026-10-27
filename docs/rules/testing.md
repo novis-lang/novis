@@ -1089,10 +1089,14 @@ mutant lowers and compiles with no second check:
 | branch condition negated | an `if`'s or a loop's condition is inverted |
 
 A swap is made only where it keeps the result type, so `*` and `/` swap over `float` and `decimal`
-alone. A condition the checker narrows a type on (an `is` test, or an `==` against a literal, `null`
-or a class constant) keeps its direction, its connectors and that test. A `true` or `false` that is a
-condition, a `match` subject or an `==` operand keeps its value. A mutant that took a narrowed edge
-with the test false would read a value at a type it does not have.
+alone. A condition whose narrowing changes how a value is read keeps its direction, its connectors
+and that test: an `is` test, and an `==` or `!=` that compares a value stored tagged (`?T`, a union,
+`mixed`) with a literal, `null` or a class constant. A mutant that took such an edge with the test
+false would read a value at a representation it does not have. An equality over a value stored any
+other way narrows it to a single value or an enum case, which is stored as its base, so
+`int $n == 10` and `$mode == Mode::Off` are reversed and their branches negated. A variable is judged
+by its slot, which an earlier test does not untag, so the line is drawn on the safe side. A `true` or
+`false` that is a condition, a `match` subject or an `==` operand keeps its value.
 
 The set is enumerated where it is implemented, so adding an operator changes no rule.
 
@@ -1140,6 +1144,9 @@ program under test, and its ramp fails when the test runs per mutant grow with t
 
 **Declined:**
 
+- *Keeping every equality against a literal, `null` or a constant*, which the syntax alone decides.
+  Nearly every condition an application writes is one, so the equality and branch operators made no
+  mutant in most programs.
 - *Mutating the syntax tree.* Each mutant would pay a check to find out whether it compiles, and the
   tree has no types for a swap to keep.
 - *Recompiling only the mutated function.* It needs a partial-recompile mechanism kept correct beside

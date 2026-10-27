@@ -163,7 +163,7 @@ impl<'a> Lowering<'a> {
                 op: op @ (BinaryOp::And | BinaryOp::Or),
                 lhs,
                 rhs,
-            } => match self.mutated_connector(expr, *op) {
+            } => match self.mutated_connector(expr, *op, env) {
                 BinaryOp::And => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
                 _ => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
             },

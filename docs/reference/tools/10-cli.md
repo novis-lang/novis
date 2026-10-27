@@ -341,6 +341,15 @@ Each change keeps the types of the code, so every mutant compiles. A test method
 inside it, never changes. A change that would give a value the wrong type is not made: `*` and `/`
 swap only on `float` and `decimal` values.
 
+Some conditions tell Novis the type of a value inside the `if`. These conditions are not changed:
+
+- an `is` test, such as `$x is int`
+- an `==` or `!=` that compares a value with `null`, a literal or a constant, when the value can
+  have more than one type, such as `?int`, `int|string` or `mixed`
+
+`if ($n == 10)` is changed when `$n` is an `int`. `if ($n == null)` is not changed when `$n` is a
+`?int`.
+
 Each mutant has one of four results:
 
 | Result | Meaning |

@@ -898,7 +898,7 @@ impl<'a> Lowering<'a> {
             };
         // A mutant's swap, made once both representations are known
         // (`rule:testing/mutation-testing`).
-        let op = self.mutated_binary(whole, op, lty, rty);
+        let op = self.mutated_binary(whole, op, lty, rty, env);
         // `rule:types/arithmetic`'s table is a set of runtime helpers rather than
         // a machine instruction, so a `decimal` on *either* side takes
         // its own path -- including the mixed `decimal ⊕ int` row,
