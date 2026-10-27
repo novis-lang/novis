@@ -139,46 +139,16 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<Named> {
     name(analysed, literal, &holders)
 }
 
-/// The string literal the cursor at `offset` is inside where it is the route
-/// name of a `Core\Router` link, quotes included.
-///
-/// A link whose name the table holds is recorded as
-/// `nvs_types::ExprInfo::RouteLink` over the call, in place of the call the
-/// checker resolved, and its one string literal argument is that name: the
-/// `$params` keys are inside an array. Every other link is still the resolved
-/// call, and its name is the argument at the parameter called `name` of a
-/// member `nvs_types::is_link` admits.
-pub(crate) fn route_name_at(analysed: &Analysed, offset: BytePos) -> Option<Span> {
-    let (literal, holders) = holders_at(analysed, offset)?;
-    let raw = text_of(analysed.map.file(analysed.entry), literal);
-    if !(raw.starts_with('\'') || raw.starts_with('"')) {
-        return None;
-    }
-    let parent = holders
-        .first()
-        .filter(|parent| CALLS.contains(&parent.kind))?;
-    if let Some(ExprInfo::RouteLink { .. }) = analysed.exprs.lookup(parent.span) {
-        return Some(literal);
-    }
-    let call = call_at(analysed, parent.span)?;
-    let index = parameter(analysed, call, parent, literal)?;
-    (nvs_types::is_link(&call.class, &call.method)
-        && call
-            .param_names
-            .get(index)
-            .is_some_and(|name| name == "name"))
-    .then_some(literal)
-}
-
 /// The string literal the cursor at `offset` is inside where it is a key of
 /// the `$params` array literal of a `Core\Router` link, quotes included, and
-/// the route name the same link writes as a string literal.
+/// the `Class::method` of the method reference the same link writes.
 ///
 /// A key is a string literal directly inside the array literal and not written
-/// after a `=>`, so an entry with no `=>` yet is a key being written. The
-/// link is found the way [`route_name_at`] finds one: a link that resolved
-/// writes one string literal argument, its name, and any other is a resolved
-/// call whose array fills the parameter called `params`.
+/// after a `=>`, so an entry with no `=>` yet is a key being written. A link
+/// whose route the table holds is recorded as `nvs_types::ExprInfo::RouteLink`
+/// over the call, and its reference is the first argument. Any other link is
+/// a resolved call whose array fills the parameter called `params`, and whose
+/// reference fills the one called `route`.
 pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span, String)> {
     let (literal, holders) = holders_at(analysed, offset)?;
     let file = analysed.map.file(analysed.entry);
@@ -204,11 +174,8 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
         .filter(|(child, _)| child.start >= open)
         .map(|(child, kind)| (*child, *kind))
         .collect();
-    let name = if let Some(ExprInfo::RouteLink { .. }) = analysed.exprs.lookup(call.span) {
-        written
-            .iter()
-            .find(|(_, kind)| *kind == "Str")
-            .map(|(span, _)| *span)?
+    let route = if let Some(ExprInfo::RouteLink { .. }) = analysed.exprs.lookup(call.span) {
+        written.first().map(|(span, _)| *span)?
     } else {
         let resolved = call_at(analysed, call.span)?;
         if !nvs_types::is_link(&resolved.class, &resolved.method) {
@@ -226,13 +193,13 @@ pub(crate) fn route_key_at(analysed: &Analysed, offset: BytePos) -> Option<(Span
         }
         written
             .iter()
-            .find(|(span, kind)| *kind == "Str" && slot_of(*span) == Some("name"))
+            .find(|(span, _)| slot_of(*span) == Some("route"))
             .map(|(span, _)| *span)?
     };
-    Some((
-        literal,
-        nvs_syntax::string_lit::cook_string_literal(file, name),
-    ))
+    let Some(ExprInfo::CallableRef(target)) = analysed.exprs.lookup(route) else {
+        return None;
+    };
+    Some((literal, format!("{}::{}", target.class, target.method)))
 }
 
 /// Every string literal argument the entry document writes, named by its

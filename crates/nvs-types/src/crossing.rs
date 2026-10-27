@@ -32,7 +32,6 @@ pub fn runtime_routes(exprs: &crate::ExprTypeTable) -> nvs_runtime::routes::Rout
                 let route = nvs_runtime::routes::Route::new(
                     row.verb.clone(),
                     row.path.clone(),
-                    row.name.as_ref().map(|(name, _)| name.clone()),
                     row.handler.clone(),
                     row.access.clone(),
                     row.params

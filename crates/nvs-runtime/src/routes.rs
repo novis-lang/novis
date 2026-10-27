@@ -386,7 +386,6 @@ impl Seg {
 pub struct Route {
     verb: String,
     path: String,
-    name: Option<String>,
     handler: String,
     access: Option<String>,
     csrf: bool,
@@ -424,7 +423,6 @@ impl Route {
     pub fn new(
         verb: impl Into<String>,
         path: impl Into<String>,
-        name: Option<String>,
         handler: impl Into<String>,
         access: Option<String>,
         captures: Vec<Capture>,
@@ -441,7 +439,6 @@ impl Route {
         Self {
             verb,
             path,
-            name,
             handler: handler.into(),
             access,
             csrf,
@@ -571,11 +568,6 @@ impl Route {
         &self.path
     }
 
-    /// § 1's `name`, or `None` where the route declares none.
-    #[must_use]
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
-    }
 
     /// `Class::method` the attribute was attached to.
     #[must_use]
@@ -1042,7 +1034,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/users/{id}",
-                Some("user.show".to_owned()),
                 "App\\Users::show",
                 Some("Core\\Audience::Public".to_owned()),
                 vec![Capture {
@@ -1050,12 +1041,11 @@ mod tests {
                     conv: CaptureConv::Uint,
                 }],
             ),
-            super::Route::new("Get", "/users/new", None, "App\\Users::new", None, vec![]),
-            super::Route::new("Post", "/users", None, "App\\Users::create", None, vec![]),
+            super::Route::new("Get", "/users/new", "App\\Users::new", None, vec![]),
+            super::Route::new("Post", "/users", "App\\Users::create", None, vec![]),
             super::Route::new(
                 "Get",
                 "/posts/{page?}",
-                None,
                 "App\\Posts::list",
                 None,
                 vec![Capture {
@@ -1066,7 +1056,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/files/{rest...}",
-                None,
                 "App\\Files::send",
                 None,
                 vec![Capture {
@@ -1077,7 +1066,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/{lang}/about",
-                None,
                 "App\\Pages::about",
                 None,
                 vec![Capture {
@@ -1100,7 +1088,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/{lang}/posts",
-                None,
                 "A::lang",
                 None,
                 vec![text("lang")],
@@ -1108,7 +1095,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/en/{page}",
-                None,
                 "A::page",
                 None,
                 vec![text("page")],
@@ -1116,7 +1102,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/en/{slug}",
-                None,
                 "A::slug",
                 None,
                 vec![text("slug")],
@@ -1124,7 +1109,6 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/{rest...}",
-                None,
                 "A::rest",
                 None,
                 vec![text("rest")],
@@ -1270,7 +1254,6 @@ mod tests {
             super::Route::new(
                 "Delete",
                 "/users/{id}",
-                None,
                 "App\\Users::destroy",
                 None,
                 text("id"),
@@ -1278,12 +1261,11 @@ mod tests {
             super::Route::new(
                 "Get",
                 "/users/{id}",
-                None,
                 "App\\Users::show",
                 None,
                 text("id"),
             ),
-            super::Route::new("Get", "/users/me", None, "App\\Users::me", None, vec![]),
+            super::Route::new("Get", "/users/me", "App\\Users::me", None, vec![]),
         ]);
         assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);
     }
@@ -1303,7 +1285,6 @@ mod tests {
         let routes = Routes::new(vec![super::Route::new(
             "Get",
             "/deploy/{target}",
-            None,
             "App\\Deploys::show",
             None,
             vec![Capture {
@@ -1354,7 +1335,6 @@ mod tests {
         let routes = Routes::new(vec![super::Route::new(
             "Get",
             "/orders/{total}",
-            None,
             "App\\Orders::show",
             None,
             vec![Capture {
@@ -1408,7 +1388,6 @@ mod tests {
         let routes = Routes::new(vec![super::Route::new(
             "Get",
             "/tenants/{tenant}",
-            None,
             "App\\Tenants::show",
             None,
             vec![Capture {

@@ -430,9 +430,8 @@ pub fn at(
         Asked::Literal(Literal::Values(literal, values) | Literal::Hole(literal, values)) => {
             file_values(&cursor, literal, &values)
         }
-        Asked::Literal(Literal::Route(text_start)) => route_names(&cursor, text_start),
-        Asked::Literal(Literal::RouteKey(text_start, name)) => {
-            route_keys(&cursor, text_start, &name)
+        Asked::Literal(Literal::RouteKey(text_start, handler)) => {
+            route_keys(&cursor, text_start, &handler)
         }
         Asked::Literal(Literal::Scheme(text_start)) => scheme_names(&cursor, text_start),
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
@@ -668,11 +667,9 @@ enum Literal {
     /// The hole of a `string<K>` literal the cursor is writing: the hole from
     /// its `{` to the end of the name in it, and the values it may hold.
     Hole(Span, Vec<Arc<completion_files::Value>>),
-    /// The route name of a `Core\Router` link, starting at this byte after
-    /// its opening quote.
-    Route(BytePos),
     /// A key of a `Core\Router` link's `$params`, starting at this byte after
-    /// its opening quote, and the route name the link writes.
+    /// its opening quote, and the `Class::method` the link's route is
+    /// declared on.
     RouteKey(BytePos, String),
     /// An entry of a `#[Core\Api]` `security` list, starting at this byte
     /// after its opening quote.
@@ -744,11 +741,8 @@ fn literal_at(
             keys.into_iter().map(Arc::new).collect(),
         ));
     }
-    if let Some(literal) = crate::arguments::route_name_at(analysed, offset) {
-        return Some(Literal::Route(literal.start + 1));
-    }
-    if let Some((literal, name)) = crate::arguments::route_key_at(analysed, offset) {
-        return Some(Literal::RouteKey(literal.start + 1, name));
+    if let Some((literal, handler)) = crate::arguments::route_key_at(analysed, offset) {
+        return Some(Literal::RouteKey(literal.start + 1, handler));
     }
     if let Some(text_start) = scheme_at(analysed, path, offset) {
         return Some(Literal::Scheme(text_start));
@@ -1217,57 +1211,20 @@ fn class_names(
         .collect()
 }
 
-/// The route names a `Core\Router` link may name, read off the route table the
-/// checker resolves the same link against
-/// (`rule:routing/link-target-and-params-are-checked`).
-///
-/// Each named row is offered once, since two rows share a name only where they
-/// share a path, and a row with no name is not offered: no link reaches it.
-/// The detail is the row's method and path. Each item replaces all the text
-/// written between the opening quote and the cursor, escaped for that quote.
-fn route_names(cursor: &Cursor<'_>, text_start: BytePos) -> Vec<CompletionItem> {
-    let file = cursor.analysed.map.file(cursor.analysed.entry);
-    let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
-        return Vec::new();
-    };
-    let quote = file.text()[..text_start as usize]
-        .chars()
-        .next_back()
-        .unwrap_or('\'');
-    let mut items: Vec<CompletionItem> = Vec::new();
-    for row in cursor.analysed.exprs.routes().rows() {
-        let Some((name, _)) = &row.name else {
-            continue;
-        };
-        if items.iter().any(|item| item.label == *name) {
-            continue;
-        }
-        items.push(CompletionItem {
-            text_edit: Some(cursor.replacing(written.len(), escaped(name, quote))),
-            ..item(
-                name.clone(),
-                CompletionItemKind::VALUE,
-                format!("{} {}", row.verb, row.path),
-            )
-        });
-    }
-    items
-}
-
-/// The keys the `$params` of a link to the route called `name` may write:
-/// each of the route's path captures and `#[Query]` parameters, read off the
-/// row the checker checks the same keys against. Nothing where no row has
-/// that name.
+/// The keys the `$params` of a link to the route declared on `handler` may
+/// write: each of the route's path captures and `#[Query]` parameters, read
+/// off the row the checker checks the same keys against. Nothing where the
+/// method has no route.
 ///
 /// The detail says where the value goes, its type where the route declares
 /// one, and whether the link may leave it out. Each item replaces the text
 /// written since the opening quote, escaped for that quote.
-fn route_keys(cursor: &Cursor<'_>, text_start: BytePos, name: &str) -> Vec<CompletionItem> {
+fn route_keys(cursor: &Cursor<'_>, text_start: BytePos, handler: &str) -> Vec<CompletionItem> {
     let file = cursor.analysed.map.file(cursor.analysed.entry);
     let Some(written) = file.text().get(text_start as usize..cursor.offset as usize) else {
         return Vec::new();
     };
-    let Some(row) = cursor.analysed.exprs.routes().named(name) else {
+    let Some(row) = cursor.analysed.exprs.routes().handled_by(handler) else {
         return Vec::new();
     };
     let quote = file.text()[..text_start as usize]

@@ -58,7 +58,6 @@ pub(crate) fn table(rows: usize) -> Routes {
                 Route::new(
                     VERBS[index % VERBS.len()],
                     path,
-                    Some(format!("resource{index}")),
                     format!("Resource{index}Controller::run"),
                     Some("Public".to_owned()),
                     captures,

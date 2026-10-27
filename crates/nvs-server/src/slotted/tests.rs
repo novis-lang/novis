@@ -434,7 +434,7 @@ fn slotted_from_a_route_attribute_and_from_the_call_are_the_same() {
     let by_route = served_page(
         |ctx| page(ctx, &[nvs_runtime::native_callable::<Writes>()]),
         Some(
-            nvs_runtime::routes::Route::new("GET", "/page", None, "Blog::show", None, vec![])
+            nvs_runtime::routes::Route::new("GET", "/page", "Blog::show", None, vec![])
                 .with_slotted(),
         ),
         whole,

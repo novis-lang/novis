@@ -88,8 +88,7 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
     // from it and a userland alias must not contribute a route.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
-         #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
-         name: \"Users::show\")]\n  \
+         #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -118,8 +117,8 @@ fn the_attribute_repeats_so_one_method_serves_two_verbs() {
     // Two *verbs*, because the rows are what § 3's duplicate-route error is
     // over and one path served twice by the same verb is that error.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get, name: \"health.get\")]\n  \
-         #[Route(path: \"/health\", method: Core\\Http\\Method::Head, name: \"health.head\")]\n  \
+        "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
+         #[Route(path: \"/health\", method: Core\\Http\\Method::Head)]\n  \
          public function health(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -168,17 +167,29 @@ fn csrf_on_the_route_row_is_refused_with_a_help_naming_access() {
 }
 
 #[test]
-fn a_path_and_a_name_are_strings_and_each_is_written_once() {
+fn a_written_name_is_an_unknown_option() {
+    // A route is named by its method, so `#[Route]` has no `name`.
+    let diags = check_src(&route_src(
+        "  #[Route(path: \"/health\", method: Core\\Http\\Method::Get, name: \"health\")]\n  \
+         public function health(): string { return \"\"; }\n",
+    ));
+    let refusal = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+        .expect("`name` on `#[Route]` is E0454");
+    assert!(
+        refusal.message.contains("`name` is not an option of `#[Route]`"),
+        "{}",
+        refusal.message
+    );
+}
+
+#[test]
+fn a_path_is_a_string_and_is_written_once() {
     // A path that reads plausibly — `path: 1` — is refused at the value rather
     // than accepted and folded to something no route table could match.
     let diags = check_src(&route_src(
         "  #[Route(path: 1)]\n  public function health(): string { return \"\"; }\n",
-    ));
-    assert!(diags.has_errors());
-
-    let diags = check_src(&route_src(
-        "  #[Route(path: \"/health\", name: true)]\n  \
-         public function health(): string { return \"\"; }\n",
     ));
     assert!(diags.has_errors());
 
@@ -198,7 +209,7 @@ fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
     // and the case is placed at it rather than at nothing.
     let diags = check_src(&with_access(
         "<?nvs\nclass Users {\n  \
-         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          public function index(): string { return \"\"; }\n}\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -232,7 +243,7 @@ fn a_row_needs_a_path_and_a_verb_and_says_which_is_missing() {
     // One diagnostic for the empty attribute above, and one here — never one
     // per missing field, which is the same attribute reported twice.
     let diags = check_src(&route_src(
-        "  #[Route(name: \"health\")]\n  public function health(): string { return \"\"; }\n",
+        "  #[Route(slotted: true)]\n  public function health(): string { return \"\"; }\n",
     ));
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 
@@ -252,9 +263,9 @@ fn one_route_shape_is_served_once_per_verb() {
     // § 2 matches by shape, so two captures differing only in name are the one
     // route both would match — the pair the written text would call different.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get)]\n  \
          public function other(uint $userId): string { return \"\"; }\n",
     ));
     assert!(reported(&diags, code::E_DUPLICATE_ROUTE), "{diags:?}");
@@ -263,11 +274,11 @@ fn one_route_shape_is_served_once_per_verb() {
     // different fixed segment is a different shape — the two halves that
     // stop this from being a rule about the path alone.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Delete, name: \"b\")]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Delete)]\n  \
          public function drop(uint $id): string { return \"\"; }\n  \
-         #[Route(path: \"/users/new\", method: Core\\Http\\Method::Get, name: \"c\")]\n  \
+         #[Route(path: \"/users/new\", method: Core\\Http\\Method::Get)]\n  \
          public function fresh(): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -321,9 +332,9 @@ fn the_collected_table_crosses_on_the_expression_table() {
     // other whole-program fact crosses by. Asserted through the table rather
     // than through a `url` call, because nothing reverses it yet.
     let (diags, exprs) = check_src_table(&route_src(
-        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"Users::index\")]\n  \
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          public function index(): string { return \"\"; }\n  \
-         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, name: \"Users::show\")]\n  \
+         #[Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
          public function show(uint $id): string { return \"\"; }\n  \
          #[Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
          public function health(): string { return \"\"; }\n",
@@ -338,14 +349,12 @@ fn the_collected_table_crosses_on_the_expression_table() {
     let paths: Vec<&str> = table.rows().iter().map(|row| row.path.as_str()).collect();
     assert_eq!(paths, ["/users", "/users/{id}", "/health"]);
 
-    // § 4 reverses the table by name, which is the one lookup a row is found
-    // by; a route that claimed no `name` is in the table and is reachable by
-    // nothing.
-    let show = table.named("Users::show").expect("the named route");
+    // § 4 reverses the table by the method a route is declared on, which is
+    // the one lookup a row is found by.
+    let show = table.handled_by("Users::show").expect("the method's route");
     assert_eq!(show.path, "/users/{id}");
     assert_eq!(show.verb, "Get");
-    assert_eq!(show.handler, "Users::show");
-    assert!(table.named("Users::health").is_none());
+    assert!(table.handled_by("Users::missing").is_none());
 
     // A program declaring no route pays nothing and reads back as empty
     // rather than as absent.
@@ -364,7 +373,7 @@ fn a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not() {
                         public function refused(Core\\Router\\Refusal $reason, ?Core\\Router\\Match $route): void {}\n  \
                         public function failed(?Core\\Router\\Match $route, ?Throwable $error): void {}\n}\n";
     let routes = route_src(
-        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get, name: \"users\")]\n  \
+        "  #[Route(path: \"/users\", method: Core\\Http\\Method::Get)]\n  \
          public function index(): void {}\n",
     );
 
@@ -378,7 +387,7 @@ fn a_call_to_dispatch_marks_the_unit_and_a_hand_written_dispatcher_does_not() {
     // A gate class and a link, with no `dispatch` call: dispatched by hand.
     let (diags, exprs) = check_src_table(&format!(
         "{routes}{GATE}echo Core\\Router::url(Users::index);\n\
-         echo Core\\Request::route()?->name() ?? \"\";\n"
+         echo (Core\\Request::route()?->is(Users::index) ?? false) ? \"here\" : \"\";\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
     assert!(!exprs.routes().dispatches());
@@ -647,9 +656,9 @@ fn a_shape_keeps_the_capture_form_it_erases_the_name_of() {
     // depend on declaration order. A shape erasing the form would report them
     // as the duplicate they are not.
     let diags = check_src(&route_src(
-        "  #[Route(path: \"/posts/{page}\", method: Core\\Http\\Method::Get, name: \"a\")]\n  \
+        "  #[Route(path: \"/posts/{page}\", method: Core\\Http\\Method::Get)]\n  \
          public function one(uint $page): string { return \"\"; }\n  \
-         #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Route(path: \"/posts/{page?}\", method: Core\\Http\\Method::Get)]\n  \
          public function two(uint $page = 1): string { return \"\"; }\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
@@ -712,8 +721,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
         (
             "table-main.nvs",
             "<?nvs\nrequire 'table-users.nvs';\nclass Health {\n  \
-             #[Core\\Route(path: \"/health\", method: Core\\Http\\Method::Get, \
-             name: \"Health::show\")]\n  \
+             #[Core\\Route(path: \"/health\", method: Core\\Http\\Method::Get)]\n  \
              #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(): string { return \"\"; }\n}\n\
              echo Core\\Router::url(Users::show, [\"id\" => 1]), \"\\n\";\n",
@@ -721,8 +729,7 @@ fn a_route_table_is_built_from_the_program_enumeration() {
         (
             "table-users.nvs",
             "<?nvs\nclass Users {\n  \
-             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
-             name: \"Users::show\")]\n  \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
              #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
@@ -792,16 +799,14 @@ fn a_duplicate_route_is_a_diagnostic() {
         (
             "dup-main.nvs",
             "<?nvs\nrequire 'dup-other.nvs';\nclass Users {\n  \
-             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
-             name: \"a\")]\n  \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
              #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
         (
             "dup-other.nvs",
             "<?nvs\nclass Admin {\n  \
-             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get, \
-             name: \"b\")]\n  \
+             #[Core\\Route(path: \"/users/{id}\", method: Core\\Http\\Method::Get)]\n  \
              #[Core\\Access(allow: Core\\Audience::Public)]\n  \
              public function show(uint $id): string { return \"\"; }\n}\n",
         ),
@@ -1096,8 +1101,7 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
     let src = |params: &str| {
         with_access(&format!(
             "<?nvs\nuse Core\\Query;\nclass Orders {{\n  \
-             #[Core\\Route(path: \"/orders/{{id}}\", method: Core\\Http\\Method::Get, \
-             name: \"orders.show\")]\n  \
+             #[Core\\Route(path: \"/orders/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
              public function show(uint $id, #[Query] uint $page = 1, string $sort = \"asc\"): \
              string {{ return \"\"; }}\n\
              }}\necho Core\\Router::url(Orders::show, {params}), \"\\n\";\n"
@@ -1566,21 +1570,19 @@ fn core_uuid_reaches_the_roster_through_the_interface_and_not_its_name() {
     // a reader cannot tell which class the library shipped.
     let (diags, exprs) = check_src_table(&format!(
         "<?nvs\n{SLUG}class Posts {{\n  \
-         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get, \
-         name: \"Posts::show\")]\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public function show(Slug $slug): string {{ return \"\"; }}\n  \
-         #[Core\\Route(path: \"/posts/by-id/{{id}}\", method: Core\\Http\\Method::Get, \
-         name: \"Posts::byId\")]\n  \
+         #[Core\\Route(path: \"/posts/by-id/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public function byId(Core\\Uuid $id): string {{ return \"\"; }}\n}}\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
     let table = exprs.routes();
-    let mine = &table.named("Posts::show").expect("the user's route").params[0];
+    let mine = &table.handled_by("Posts::show").expect("the user's route").params[0];
     let engines = &table
-        .named("Posts::byId")
+        .handled_by("Posts::byId")
         .expect("the engine's route")
         .params[0];
     assert_eq!(mine.ty.as_deref(), Some("Slug"));
@@ -1618,11 +1620,10 @@ fn a_parses_capture_names_no_closed_set_and_changes_no_route_rank() {
     // not part of it.
     let diags = check_src(&format!(
         "<?nvs\n{SLUG}class Posts {{\n  \
-         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get, \
-         name: \"a\")]\n  \
+         #[Core\\Route(path: \"/posts/{{slug}}\", method: Core\\Http\\Method::Get)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public function show(Slug $slug): string {{ return \"\"; }}\n  \
-         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get, name: \"b\")]\n  \
+         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public function other(string $id): string {{ return \"\"; }}\n}}\n"
     ));
@@ -1637,7 +1638,7 @@ fn dispatch_src(before: &str, head: &str, members: &str, modifier: &str) -> Stri
     format!(
         "<?nvs\n{before}class Posts{head} {{\n{members}\n  \
          #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get)]\n  \
-         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Head, name: \"h\")]\n  \
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Head)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public {modifier}function show(): void {{ }}\n}}\n"
     )

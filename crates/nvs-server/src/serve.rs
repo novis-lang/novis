@@ -9748,7 +9748,6 @@ pub(crate) mod tests {
             nvs_runtime::routes::Route::new(
                 "Get",
                 "/products/{id}",
-                Some("products.show".to_owned()),
                 "App\\Products::show",
                 None,
                 vec![nvs_runtime::routes::Capture {

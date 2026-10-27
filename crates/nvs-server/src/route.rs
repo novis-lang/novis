@@ -513,7 +513,6 @@ mod tests {
             Route::new(
                 "Get",
                 "/users/{id}",
-                Some("user.show".to_owned()),
                 "App\\Users::show",
                 Some("Core\\Audience::Public".to_owned()),
                 vec![Capture {
@@ -521,7 +520,7 @@ mod tests {
                     conv: CaptureConv::Uint,
                 }],
             ),
-            Route::new("Get", "/users/new", None, "App\\Users::new", None, vec![]),
+            Route::new("Get", "/users/new", "App\\Users::new", None, vec![]),
         ])
     }
 
@@ -565,7 +564,6 @@ mod tests {
             Route::new(
                 "Post",
                 "/orders",
-                Some("orders.create".to_owned()),
                 "App\\Orders::create",
                 Some("Core\\Audience::Public".to_owned()),
                 vec![],
@@ -573,7 +571,6 @@ mod tests {
             Route::new(
                 "Post",
                 "/hooks/stripe",
-                Some("hooks.stripe".to_owned()),
                 "App\\Hooks::stripe",
                 Some("Core\\Audience::Public".to_owned()),
                 vec![],
@@ -582,7 +579,6 @@ mod tests {
             Route::new(
                 "Get",
                 "/orders",
-                Some("orders.index".to_owned()),
                 "App\\Orders::index",
                 Some("Core\\Audience::Public".to_owned()),
                 vec![],
@@ -1044,9 +1040,9 @@ mod tests {
     #[test]
     fn a_cross_origin_upgrade_is_refused_unless_its_route_opted_out() {
         let routes = Routes::new(vec![
-            Route::new("Get", "/chat", None, "App\\Chat::open", None, vec![]),
-            Route::new("Get", "/feed", None, "App\\Feed::open", None, vec![]).without_csrf(),
-            Route::new("Post", "/orders", None, "App\\Orders::create", None, vec![]),
+            Route::new("Get", "/chat", "App\\Chat::open", None, vec![]),
+            Route::new("Get", "/feed", "App\\Feed::open", None, vec![]).without_csrf(),
+            Route::new("Post", "/orders", "App\\Orders::create", None, vec![]),
         ]);
         let arrived = |verb: &str, path: &str, headers: &[(&str, &str)]| {
             let mut inbound = Inbound::new(verb, path, "");

@@ -3371,7 +3371,6 @@ mod tests {
         let table = nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
             verb,
             "/pages",
-            None,
             "Pages::index",
             access.map(str::to_owned),
             Vec::new(),
@@ -3446,7 +3445,7 @@ mod tests {
     #[test]
     fn attribute_returns_the_payload_folded_for_the_matched_rows_handler() {
         let row = |path: &str, handler: &str| {
-            nvs_runtime::routes::Route::new("Get", path, None, handler, None, Vec::new())
+            nvs_runtime::routes::Route::new("Get", path, handler, None, Vec::new())
         };
         let table = std::sync::Arc::new(nvs_runtime::routes::Routes::new(vec![
             row("/pages", "Pages::index"),
@@ -3536,7 +3535,6 @@ mod tests {
             nvs_runtime::routes::Route::new(
                 "Get",
                 path,
-                Some(name.to_owned()),
                 name,
                 None,
                 vec![nvs_runtime::routes::Capture {
@@ -3610,7 +3608,6 @@ mod tests {
             nvs_runtime::routes::Route::new(
                 "Post",
                 "/articles/{id}",
-                Some("Articles::update".to_owned()),
                 "Articles::update",
                 Some("App\\Role::Editor".to_owned()),
                 vec![nvs_runtime::routes::Capture {
@@ -3621,7 +3618,6 @@ mod tests {
             nvs_runtime::routes::Route::new(
                 "Get",
                 "/health",
-                None,
                 "Status::health",
                 Some("Core\\Audience::Public".to_owned()),
                 Vec::new(),
@@ -3714,7 +3710,6 @@ mod tests {
             nvs_runtime::routes::Route::new(
                 verb,
                 "/shop/{id}",
-                Some(name.to_owned()),
                 name,
                 None,
                 vec![nvs_runtime::routes::Capture {
@@ -3880,7 +3875,6 @@ mod tests {
         let routes = nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
             "Get",
             "/deploy/{target}",
-            None,
             "App\\Deploys::show",
             None,
             vec![nvs_runtime::routes::Capture {
@@ -4212,7 +4206,6 @@ mod tests {
         nvs_runtime::routes::Routes::new(vec![nvs_runtime::routes::Route::new(
             "Get",
             "/shop/{id}",
-            Some("Shop::show".to_owned()),
             "Shop::show",
             None,
             vec![nvs_runtime::routes::Capture {
@@ -4667,15 +4660,14 @@ mod tests {
                 }]
             };
             Routes::new(vec![
-                Route::new("Get", "/shop/{id}", None, "App\\Shop::show", None, id())
+                Route::new("Get", "/shop/{id}", "App\\Shop::show", None, id())
                     .with_static_handler(),
-                Route::new("Post", "/shop/{id}", None, "App\\Shop::edit", None, id()),
-                Route::new("Get", "/page/{id}", None, "App\\Shop::list", None, id())
+                Route::new("Post", "/shop/{id}", "App\\Shop::edit", None, id()),
+                Route::new("Get", "/page/{id}", "App\\Shop::list", None, id())
                     .with_static_handler(),
                 Route::new(
                     "Get",
                     "/deploy/{id}",
-                    None,
                     "App\\Shop::show",
                     None,
                     vec![Capture {
@@ -4684,13 +4676,12 @@ mod tests {
                     }],
                 )
                 .with_static_handler(),
-                Route::new("Get", "/value/{id}", None, "App\\Shop::show", None, id())
+                Route::new("Get", "/value/{id}", "App\\Shop::show", None, id())
                     .with_static_handler()
                     .with_returned_value(),
                 Route::new(
                     "Get",
                     "/search",
-                    None,
                     "App\\Shop::search",
                     None,
                     Vec::new(),
@@ -4717,7 +4708,6 @@ mod tests {
                 Route::new(
                     "Get",
                     "/tagged",
-                    None,
                     "App\\Shop::tagged",
                     None,
                     Vec::new(),

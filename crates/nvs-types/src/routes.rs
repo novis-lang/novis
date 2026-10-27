@@ -5,7 +5,7 @@
 //!
 //! § 1 writes the attribute as an ordinary
 //! `rule:attributes/inert-metadata`
-//! `type Core\Route = { path: string, method: Core\Http\Method, name?: string };`
+//! `type Core\Route = { path: string, method: Core\Http\Method, slotted?: bool };`
 //! and then adds the one thing that makes it not one: the compiler acts on the
 //! attribute only when its name **resolves** to `Core\Route`, so a userland
 //! `type Route = {…};` is not it however it is spelled and a framework carrying
@@ -158,8 +158,11 @@ const REFRESH_URL: &str = "refreshUrl";
 /// the form the row carries and the form the check compares.
 const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
-/// `#[Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]` — `rule:routing/route-attribute`
+/// `#[Route(path: string, method: Core\Http\Method, slotted?: bool)]` — `rule:routing/route-attribute`
 /// 's own spelling, in the order that section writes it.
+///
+/// There is no `name` row: a route is named by the method it is declared on,
+/// so a written `name:` is a field no row declares.
 ///
 /// `method` is an enum case rather than a string
 /// (`rule:core-api/shape-rules` R11), and an
@@ -175,7 +178,6 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     (PATH, OptionTy::Str),
     (METHOD, OptionTy::Enum(METHOD_ENUM)),
-    (NAME, OptionTy::Str),
     (SLOTTED, OptionTy::Bool),
 ];
 
@@ -386,9 +388,7 @@ pub struct Route {
     /// grammar — [`parse_path`] is what a reader splits it with rather than a
     /// second reading of the same string.
     pub path: String,
-    /// § 1's optional `name`, with the span that wrote it — the span, because
-    /// a duplicate is reported at the field rather than at the attribute.
-    pub name: Option<(String, Span)>,
+
     /// `Class::method` the attribute is attached to, rendered as
     /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
     pub handler: String,
@@ -948,20 +948,6 @@ impl RouteTable {
     #[must_use]
     pub fn handled_by(&self, handler: &str) -> Option<&Route> {
         self.rows.iter().find(|row| row.handler == handler)
-    }
-
-    /// The row § 1's `name` names, or `None` where no route claims it — § 4's
-    /// `url`/`urlAbsolute` reverse the table by exactly this question.
-    ///
-    /// The first match. Nothing checks a name for duplicates any more: a route
-    /// is named by its method, and this lookup leaves with the `name` field.
-    #[must_use]
-    pub fn named(&self, name: &str) -> Option<&Route> {
-        self.rows.iter().find(|row| {
-            row.name
-                .as_ref()
-                .is_some_and(|(claimed, _)| claimed == name)
-        })
     }
 }
 
@@ -2287,7 +2273,6 @@ fn collect_route(
     };
     let mut params = check_captures(&captures, path_span, m, class, handler, env);
     params.extend(query_params(m, class, ctx, env));
-    let name = folded_str(attr, NAME, env);
     let slotted = folded_bool(attr, SLOTTED, env).unwrap_or(false);
     // Read before `access` is resolved to its name, because it is a field of
     // the attribute and that binding is about to become the string the row
@@ -2297,7 +2282,6 @@ fn collect_route(
     env.routes.rows.push(Route {
         verb,
         path,
-        name,
         handler: handler.to_owned(),
         static_handler: m.modifiers.contains(&nvs_syntax::ast::Modifier::Static),
         returns_value,

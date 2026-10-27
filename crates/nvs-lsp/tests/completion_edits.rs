@@ -141,15 +141,15 @@ fn a_class_name_item_replaces_all_the_text_written() {
     );
 }
 
-/// A program with three routes, two of them named, and a `Core\Router` link
-/// written at the [`CURSOR`] in `link`.
+/// A program with three routes and a `Core\Router` link written at the
+/// [`CURSOR`] in `link`.
 fn routed(link: &str) -> String {
     format!(
         "<?nvs\nclass Posts {{\n\
-         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get, name: \"Posts::list\")]\n\
+         #[Core\\Route(path: \"/posts\", method: Core\\Http\\Method::Get)]\n\
          #[Core\\Access(allow: Core\\Audience::Public)]\n\
          public function list(): string {{ return \"list\"; }}\n\
-         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get, name: \"Posts::show\")]\n\
+         #[Core\\Route(path: \"/posts/{{id}}\", method: Core\\Http\\Method::Get)]\n\
          #[Core\\Access(allow: Core\\Audience::Public)]\n\
          public function show(uint $id, #[Core\\Query] string $sort = \"new\"): string {{ return \"post\"; }}\n\
          #[Core\\Route(path: \"/about\", method: Core\\Http\\Method::Get)]\n\
@@ -159,9 +159,8 @@ fn routed(link: &str) -> String {
     )
 }
 
-/// What is offered at the [`CURSOR`] in `source`, and the names the analysis's
-/// own route table holds.
-fn offered_with_routes(source: &str) -> (Vec<CompletionItem>, Vec<String>) {
+/// What is offered at the [`CURSOR`] in `source`.
+fn offered_with_routes(source: &str) -> Vec<CompletionItem> {
     let cursor = source.find(CURSOR).expect("the document marks its cursor");
     let source = source.replacen(CURSOR, "", 1);
     let dir = nvs_repo::scratch("lsp-completion-route");
@@ -170,74 +169,28 @@ fn offered_with_routes(source: &str) -> (Vec<CompletionItem>, Vec<String>) {
     documents.open(uri.clone(), 1, source);
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
-    let items = completion::at(
+    completion::at(
         &analysis,
         &index,
         &CompletionFiles::default(),
         u32::try_from(cursor).expect("a test document is short"),
         EDITOR,
         PositionEncoding::Utf8,
-    );
-    let mut names: Vec<String> = analysis
-        .exprs
-        .routes()
-        .rows()
-        .iter()
-        .filter_map(|row| row.name.as_ref().map(|(name, _)| name.clone()))
-        .collect();
-    names.sort();
-    (items, names)
+    )
 }
 
-/// A link's name argument is offered exactly the names the compiled route
-/// table holds, whether the name written so far is one of them or not, and
-/// each item says the route's method and path.
-#[test]
-fn a_route_name_is_offered_from_the_compiled_route_table() {
-    for link in [
-        "$u = Core\\Router::url('Po<|>', []);",
-        "$u = Core\\Router::url('Posts::show<|>', ['id' => 1]);",
-        "$u = Core\\Router::urlAbsolute(params: [], name: '<|>');",
-    ] {
-        let (items, names) = offered_with_routes(&routed(link));
-        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
-        assert_eq!(labels, names, "{link}");
-        assert_eq!(names, ["Posts::list", "Posts::show"]);
-        assert_eq!(
-            named(&items, "Posts::show").detail.as_deref(),
-            Some("Get /posts/{id}")
-        );
-    }
-}
-
-/// A route name item replaces the text written since the opening quote, and
-/// a string literal that is not a link's name is offered no route.
-#[test]
-fn a_route_name_item_replaces_the_name_written_and_nothing_else_is_a_route() {
-    let (items, _) = offered_with_routes(&routed("$u = Core\\Router::url(\"Po<|>\", []);"));
-    let Some(CompletionTextEdit::Edit(edit)) = &named(&items, "Posts::list").text_edit else {
-        panic!("a route name item names the text it replaces");
-    };
-    assert_eq!(edit.new_text, "Posts::list");
-    assert_eq!(edit.range.end.character - edit.range.start.character, 2);
-
-    let (items, _) =
-        offered_with_routes(&routed("$u = Core\\Router::url('/', ['id' => 'Po<|>']);"));
-    assert!(items.iter().all(|item| item.label != "Posts::list"));
-}
-
-/// A key of a link's `$params` is offered the parameters of the route the link
-/// names, from the same row the checker checks those keys against, and a value
-/// in the same array is offered none of them.
+/// A key of a link's `$params` is offered the parameters of the route its
+/// method reference names, from the same row the checker checks those keys
+/// against, and a value in the same array is offered none of them.
 #[test]
 fn a_link_params_key_is_offered_the_routes_parameters() {
     for link in [
-        "$u = Core\\Router::url('Posts::show', ['<|>']);",
-        "$u = Core\\Router::url('Posts::show', ['id' => 1, 's<|>' => 'old']);",
-        "$u = Core\\Router::url(params: ['<|>' => 1], name: 'Posts::show');",
+        "$u = Core\\Router::url(Posts::show, ['<|>']);",
+        "$u = Core\\Router::url(Posts::show, ['id' => 1, 's<|>' => 'old']);",
+        "$u = Core\\Router::url(params: ['<|>' => 1], route: Posts::show);",
     ] {
         let source = routed(link);
-        let (items, _) = offered_with_routes(&source);
+        let items = offered_with_routes(&source);
         let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
         assert_eq!(labels, ["id", "sort"], "{link}");
         assert_eq!(named(&items, "id").detail.as_deref(), Some("uint (path)"));
@@ -246,8 +199,8 @@ fn a_link_params_key_is_offered_the_routes_parameters() {
             Some("string (query, optional)")
         );
     }
-    let (items, _) = offered_with_routes(&routed(
-        "$u = Core\\Router::url('Posts::show', ['id' => '<|>']);",
+    let items = offered_with_routes(&routed(
+        "$u = Core\\Router::url(Posts::show, ['id' => '<|>']);",
     ));
     assert!(items.iter().all(|item| item.label != "id"));
 }
