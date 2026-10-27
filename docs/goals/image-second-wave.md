@@ -34,7 +34,7 @@ stages:
     context: [docs/rules/core-api/tier-roster.md]
   - id: 8
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: image-proofs
@@ -230,44 +230,38 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done; only the gate is left. `nvs_image::decode_frames` gives every frame of
-every animated format (GIF, APNG and WebP through `image`, JPEG XL through `decode_jxl(.., every)`,
-AVIF through `avif::decode_frames`), and `decode` decodes the first frame alone.
+Every stage is done, and the goal is reached. The gate's first `bun nv affected --run` was green:
+23 of 23 steps, 7843 tests, 35 conformance cases, 676 reference examples, clippy clean. The
+goal-end gates are green: `bun nv verify --doc` resolves every link, `bun nv owners --closes
+image-second-wave` finds nothing, and `bun nv ci --check` passes. Its one red was the website's
+question guard: stage 5 changed the `Image::open` and `Image::info` about pages, so their search
+questions were stale. Both were rewritten in `website/src/data/questions.json` (frame count, EXIF
+date, AVIF and JPEG XL) and stamped.
 
-Stage 5 landed in two commits. `image-correct-by-default`, `image-format-roster`,
-`image-pixel-model` and `tier-roster` dropped their *Partly on disk* label and are `shipped`, with
-no `goal` field, guarded by `image_decode.rs` and `image_pipeline.rs` (`tier-roster` keeps its
-stdlib guards too). `image-pipeline` gained `image_decode.rs`; `image-pixel-cap` already had it.
-`bun nv rules --render` rewrote `docs/rules/core-*.md` and `docs/ground-rules.md`. `Image::open`
-gained `04-make-a-jpeg-from-an-avif` and `Image::info` gained `04-count-the-frames` (a two-frame
-GIF in hex, re-encoded to GIF and to PNG), and both about pages name JPEG XL, `exif` and the
-animated formats. `bun nv proofs --gate --only` over both members owes nothing, `--run` passes
-4 of 4 examples each, and `bun nv owners --closes image-second-wave` is green.
+Every standing decision is already recorded in a rule or a module doc: `image-pixel-cap`,
+`image-pipeline`, `image-correct-by-default`, `image-pixel-model`, and the module docs of
+`extensions/image/src/avif.rs`, `info.rs` and `encode.rs`.
 
-The sweep's findings were stale again: the `env-secret-proofs` log shows exit 0, and nightly run
+The sweep's findings were stale: the `env-secret-proofs` log shows exit 0, and nightly run
 `40291801939` is on `d6f131752`, before the fixes.
 
-No test is expected red. Nothing in Rust changed this session.
+No test is expected red.
 
 ### Next
 
-**Stage 8: the goal is verified once, and every failure is fixed.** Start `bun nv affected --run`
-with `run_in_background` and end the turn to wait; group the failures by cause and fix them in one
-pass. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes image-second-wave`,
-`bun nv ci --check`. `tools/nv/cmd/verify.ts:1`, `tools/nv/cmd/affected.ts:1`
+- [x] The first `bun nv affected --run` has run, and it was green. `tools/nv/cmd/verify.ts:1`
+- [x] The goal-end gates are green, then `DONE`. `tools/nv/cmd/owners.ts:1`
 
-- [ ] The first `bun nv affected --run` has run, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and the second run is green. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates are green, then `DONE`. `tools/nv/cmd/owners.ts:1`
+The driver retires the goal; the chain's next goal is `namespace-grants`.
 
 ### Backlog
 
-- Nothing beyond stage 8.
+- Nothing.
