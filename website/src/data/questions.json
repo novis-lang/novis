@@ -8758,11 +8758,12 @@
   },
   "/reference/core/novis-image-image/info/": {
     "feature": "Novis\\Image\\Image::info",
-    "hash": "c7713d2701556346",
+    "hash": "3e9911981bcae90a",
     "questions": [
       "How do I get the width and height of an image?",
       "Read the image size without loading the pixels",
-      "Check if a GIF is animated",
+      "How many frames does an animated GIF or WebP have?",
+      "Read the date a photo was taken from its EXIF data",
       "Reject an upload that is too large before decoding",
       "Find out if an image has transparency"
     ]
@@ -8800,10 +8801,10 @@
   },
   "/reference/core/novis-image-image/open/": {
     "feature": "Novis\\Image\\Image::open",
-    "hash": "9ce2b5ed1598771e",
+    "hash": "8e26910840794ea3",
     "questions": [
       "How do I load an uploaded image?",
-      "Open a JPEG from bytes",
+      "Open a JPEG, AVIF or JPEG XL file from bytes",
       "Fix photos from a phone that show sideways",
       "Limit the number of pixels an upload may have",
       "Convert image colours to sRGB when loading",
