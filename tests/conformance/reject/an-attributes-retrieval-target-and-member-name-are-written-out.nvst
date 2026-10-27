@@ -32,7 +32,7 @@ array<Tag> $both = Core\Attributes::all<Tag>(Target::constructor);
 
 // A `callable` variable is a value, and the reference it was built from is not
 // written here, so there is nothing at this call to read a declaration out of.
-callable $reference = Target::run;
+callable $reference = (new Target())->run(...);
 ?Tag $computedTarget = Core\Attributes::get<Tag>($reference);
 
 // `rows` written one letter wrong. The class declares no `$row`, and folding

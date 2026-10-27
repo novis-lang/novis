@@ -688,6 +688,12 @@ pub(crate) struct Env<'a> {
     /// nothing, so the reference skips the visibility check. Marked and read
     /// as [`Self::method_name_args`] is.
     pub link_target_args: FxHashSet<Span>,
+    /// A `spawn script` entry's written `Class::method`
+    /// (`rule:security/isolate-shares-nothing`). The entry lowers to its own
+    /// `Core` symbol, not to a callable, and `E0802` owns the question of
+    /// whether the method is `static`, so the reference skips `E0778`. Marked
+    /// and read as [`Self::method_name_args`] is.
+    pub spawn_entry_args: FxHashSet<Span>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

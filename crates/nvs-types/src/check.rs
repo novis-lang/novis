@@ -248,6 +248,7 @@ pub fn check_program_loaded(
             method_name_args: FxHashSet::default(),
             method_ref_args: FxHashSet::default(),
             link_target_args: FxHashSet::default(),
+            spawn_entry_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
             deprecated_uses: None,

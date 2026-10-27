@@ -333,7 +333,11 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Checked first and on every path: a typo *inside* the operand is worth
     // reporting whichever of the three it turns out to be, and with no expected
-    // type for the reason above.
+    // type for the reason above. A method reference is marked first, so that
+    // an instance method is refused once, as `E0802` below.
+    if is_method_reference(path) {
+        env.spawn_entry_args.insert(path.span);
+    }
     let ty = check_expr(path, None, live, scope, ctx, env);
     entry_operand(path, ty, "`spawn script`", env);
     // The path form is a path position

@@ -603,11 +603,11 @@ pub(crate) fn infer_static_call(
                     let in_own_constructor = matches!(class.kind, ExprKind::ParentExpr)
                         && ctx.in_constructor
                         && !matches!(args, CallArgs::MethodRef);
-                    if name == "constructor"
+                    let constructor_refused = name == "constructor"
                         && found.is_some()
                         && !named_for_attributes
-                        && !in_own_constructor
-                    {
+                        && !in_own_constructor;
+                    if constructor_refused {
                         report_constructor_called_directly(expr.span, true, env);
                     }
                     // The same narrowing of `Core`'s blanket trust
@@ -640,11 +640,15 @@ pub(crate) fn infer_static_call(
                     // is folded while checking needs no receiver: a
                     // `Core\Attributes` retrieval's target, a link's target and
                     // `Core\Test::assertCalled`'s method, each marked by the
-                    // call that reads it.
+                    // call that reads it. A constructor reference `E0885`
+                    // refused, and a `spawn script` entry, whose `static`
+                    // question is `E0802`'s, are already one report each.
                     let folded = matches!(args, CallArgs::MethodRef)
                         && (link_target
                             || named_for_attributes
-                            || env.method_name_args.contains(&expr.span));
+                            || constructor_refused
+                            || env.method_name_args.contains(&expr.span)
+                            || env.spawn_entry_args.contains(&expr.span));
                     if let Some((owner, _, sig)) = &found
                         && !sig.is_static
                     {

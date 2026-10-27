@@ -32,7 +32,7 @@ $m->value(inout $n);
 // A method reference (`rule:types/callable-values`) makes no call at all: it
 // names a callable, which carries its callee with it, and there is no class
 // here to read one off.
-$m->value(...);
+callable $ref = $m->value(...);
 --EXPECTF-ERROR--
 error[E0712]: `n:` names no parameter of a call through a `mixed` receiver
    --> %s:21:11
@@ -49,10 +49,10 @@ error[E0714]: `inout` names no parameter of a call through a `mixed` receiver
    = help: the method this call reaches is known only when the program runs, so it cannot take an `inout` argument. Test the receiver with `$x is ClassName` first
 
 error[E0732]: `value(...)` cannot be a method reference on a `mixed` value
-   --> %s:32:1
+   --> %s:32:17
    |
-32 | $m->value(...);
-   | ^^^^^^^^^^^^^^ a method reference is made here
+32 | callable $ref = $m->value(...);
+   |                 ^^^^^^^^^^^^^^ a method reference is made here
    = help: a call on a `mixed` value finds its method when the program runs. A method reference needs the class when the program compiles, and there is no class here. Call the method directly (`$m->value(…)`), or narrow the value first with `is` or `as ClassName`
 
 error: aborting due to 3 errors
