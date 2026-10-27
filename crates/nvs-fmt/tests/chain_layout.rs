@@ -1,6 +1,9 @@
 //! A `->` call chain is on one line or has one call per line
 //! (`rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`), and the
-//! author's line break before an arrow is what breaks it.
+//! author's line break before an arrow is what breaks it. A chain of any binary
+//! operator is on one line or has one operand per line, operator first, and a
+//! `.` chain keeps its author's lines
+//! (`rule:tooling/fmt-every-binary-operator-breaks-operator-first`).
 //!
 //! Each case is the smallest file that shows one half of the rule: what counts
 //! as a break in a chain, what does not, and the one layout a broken chain
@@ -74,7 +77,7 @@ fn a_break_between_two_operands_puts_every_operand_on_its_own_line_operator_firs
     );
     formats_to(
         "<?nvs\necho 'Hello, ' . $name\n. '!', \"\\n\";\n",
-        "<?nvs\necho 'Hello, '\n    . $name\n    . '!', \"\\n\";\n",
+        "<?nvs\necho 'Hello, ' . $name\n    . '!', \"\\n\";\n",
     );
     formats_to(
         "<?nvs\nvar $name = $given ?? $nick\n?? 'nobody';\n",
@@ -91,6 +94,60 @@ fn a_mixed_operator_run_breaks_at_its_lowest_precedence() {
     formats_to(
         "<?nvs\nvar $allowed = $user->isAdmin() || $user->isOwner() &&\n    $post->isOpen();\n",
         "<?nvs\nvar $allowed = $user->isAdmin() || $user->isOwner()\n    && $post->isOpen();\n",
+    );
+}
+
+#[test]
+fn a_broken_arithmetic_chain_is_one_operand_per_line_operator_first() {
+    formats_to(
+        "<?nvs\n$total = $total +\n((Core\\Bytes::contains($message, $needle) ? 2 : 1) as uint);\n",
+        "<?nvs\n$total = $total\n    + ((Core\\Bytes::contains($message, $needle) ? 2 : 1) as uint);\n",
+    );
+    formats_to(
+        "<?nvs\n$total = $price + $shipping\n- $discount + $tax;\n",
+        "<?nvs\n$total = $price\n    + $shipping\n    - $discount\n    + $tax;\n",
+    );
+}
+
+#[test]
+fn a_broken_comparison_is_a_chain_of_two() {
+    formats_to(
+        "<?nvs\n$late = $order->shippedAt() - $order->paidAt() >\n$policy->maxDelay();\n",
+        "<?nvs\n$late = $order->shippedAt() - $order->paidAt()\n    > $policy->maxDelay();\n",
+    );
+}
+
+#[test]
+fn a_broken_chain_inside_a_broken_chain_is_one_level_further_in() {
+    let canonical = "<?nvs\n$free = $isMember\n    || $hasCoupon\n        && $price * $quantity > 50;\n";
+    formats_to(
+        "<?nvs\n$free = $isMember ||\n$hasCoupon &&\n$price * $quantity > 50;\n",
+        canonical,
+    );
+    formats_to(
+        "<?nvs\n$free = $isMember ||\n$hasCoupon\n&& $price * $quantity > 50;\n",
+        canonical,
+    );
+    formats_to(
+        "<?nvs\nif ($isMember\n|| $hasCoupon\n&& $price > 50) {\n    echo 1;\n}\n",
+        "<?nvs\nif (\n    $isMember\n    || $hasCoupon\n        && $price > 50\n) {\n    echo 1;\n}\n",
+    );
+}
+
+#[test]
+fn a_broken_dot_chain_keeps_its_authors_lines_with_the_dot_first() {
+    let canonical = "<?nvs\n$message = 'Order ' . $order->id() . ' for ' . $customer->name()\n    . ' was paid on ' . $order->paidAt();\n";
+    formats_to(
+        "<?nvs\n$message = 'Order ' . $order->id() . ' for ' . $customer->name() .\n    ' was paid on ' . $order->paidAt();\n",
+        canonical,
+    );
+    formats_to(
+        "<?nvs\n$message = 'Order ' . $order->id() . ' for ' . $customer->name()\n. ' was paid on ' . $order->paidAt();\n",
+        canonical,
+    );
+    formats_to(
+        "<?nvs\n$message = 'Order ' . $order->id() .\n' for ' . $customer->name()\n        . ' was paid on ' . $order->paidAt();\n",
+        "<?nvs\n$message = 'Order ' . $order->id()\n    . ' for ' . $customer->name()\n    . ' was paid on ' . $order->paidAt();\n",
     );
 }
 

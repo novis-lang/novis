@@ -1,10 +1,11 @@
 //! A `->` call chain is on one line or has one call per line, and the author's
 //! line break before any of its arrows is what chooses
-//! (`rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`). An `&&`,
-//! `||`, `??` or `.` chain is on one line or has one operand per line, operator
-//! first, and a broken control-structure condition puts its parentheses on
-//! lines of their own
-//! (`rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`).
+//! (`rule:tooling/fmt-a-broken-call-chain-is-one-call-per-line`). A chain of
+//! any binary operator is on one line or has one operand per line, operator
+//! first, a `.` chain keeps the lines its author wrote, and a broken
+//! control-structure condition puts its parentheses on lines of their own
+//! (`rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`,
+//! `rule:tooling/fmt-every-binary-operator-breaks-operator-first`).
 //!
 //! # What a chain is
 //!
@@ -37,18 +38,26 @@
 //! # An operator chain
 //!
 //! A `Binary` node writes its operator as the first code after its left
-//! operand, and only `&&`, `||`, `??` and `.` make a chain. The chain is the
-//! outermost such node and every operand below it written with the same
-//! operator, flattened in source order. A parenthesised operand is a `Paren`
-//! node, so the flattening never reaches inside one. The parser has already
-//! put the lowest-precedence operator at the top of a mixed run, so the chain
-//! is the run at the lowest precedence, and an operand made of other operators
-//! is a chain of its own, judged on its own.
+//! operand, and every one of them makes a chain. [`OPERATORS`] gives each
+//! operator its precedence level, so `+` and `-` are one chain. The chain is
+//! the outermost such node and every operand below it written with an operator
+//! of the same level, flattened in source order. A parenthesised operand is a
+//! `Paren` node, so the flattening never reaches inside one. The parser has
+//! already put the lowest-precedence operator at the top of a mixed run, so the
+//! chain is the run at the lowest precedence, and an operand made of other
+//! operators is a chain of its own, judged on its own. `|>` leaves no node
+//! behind, so it is no chain here.
 //!
 //! An operator chain is broken when a line break sits between two of its
 //! operands, on either side of the operator. Each operator then opens a line
 //! one level in from the line the first operand starts on, and one space
-//! follows it.
+//! follows it. Where that first operand starts a line of a broken chain around
+//! it, the inner chain's lines are one level further in, which is what shows
+//! the reader that it binds tighter.
+//!
+//! A broken `.` chain is the exception: only an operator with a line break on
+//! one side of it opens a line, and operands written on one line stay there.
+//! A `.` its author ended a line with moves to the start of the next one.
 //!
 //! # A condition
 //!
@@ -87,8 +96,37 @@ const CALL: &str = "MethodCall";
 /// The production that writes an operator between two operands.
 const BINARY: &str = "Binary";
 
-/// The operators whose run is a chain.
-const OPERATORS: &[&str] = &["&&", "||", "??", "."];
+/// Every operator a `Binary` node writes, with its precedence level as
+/// `crates/nvs-syntax/src/parser/expr.rs` parses it, lowest first. Operators
+/// of one level make one chain. A spelling comes before every spelling it is
+/// a prefix of, so the first match is the operator written.
+const OPERATORS: &[(&str, u8)] = &[
+    ("??", 0),
+    ("||", 1),
+    ("&&", 2),
+    ("<=>", 6),
+    ("==", 6),
+    ("!=", 6),
+    ("<=", 7),
+    (">=", 7),
+    ("<<", 9),
+    (">>", 9),
+    ("**", 12),
+    ("|", 3),
+    ("^", 4),
+    ("&", 5),
+    ("<", 7),
+    (">", 7),
+    (".", CONCAT),
+    ("+", 10),
+    ("-", 10),
+    ("*", 11),
+    ("/", 11),
+    ("%", 11),
+];
+
+/// The level of `.`, whose chain keeps the lines its author wrote.
+const CONCAT: u8 = 8;
 
 /// The control structures whose condition a broken chain lays out.
 const CONDITIONS: &[&str] = &["If", "While", "DoWhile"];
@@ -279,10 +317,10 @@ fn arrow_runs(
 struct Operators {
     /// Every operand, in source order.
     operands: Vec<IndexNode>,
-    /// The first byte of every operator between two operands.
-    operators: Vec<usize>,
-    /// The operators' spelling.
-    spelling: &'static str,
+    /// The first byte and the spelling of every operator between two operands.
+    operators: Vec<(usize, &'static str)>,
+    /// Whether this is a `.` chain, which breaks only where its author did.
+    keeps_lines: bool,
     /// The `(` and the `)` around a condition, where this is one.
     condition: Option<(usize, usize)>,
     /// Whether a line break sits at the chain's own level.
@@ -302,22 +340,22 @@ impl Operators {
     ) -> Option<Self> {
         let mut operands = Vec::new();
         let mut operators = Vec::new();
-        let spelling = match operator_of(index, text, trivia, top) {
-            Some((_, spelling)) => {
+        let level = match operator_of(index, text, trivia, top) {
+            Some((_, _, level)) => {
                 flatten(
                     index,
                     text,
                     trivia,
                     top,
-                    spelling,
+                    level,
                     &mut operands,
                     &mut operators,
                 );
-                spelling
+                Some(level)
             }
             None if condition.is_some() => {
                 operands.push(top);
-                ""
+                None
             }
             None => return None,
         };
@@ -333,7 +371,7 @@ impl Operators {
         Some(Self {
             operands,
             operators,
-            spelling,
+            keeps_lines: level == Some(CONCAT),
             condition,
             broken,
         })
@@ -342,10 +380,21 @@ impl Operators {
     /// What opens an operator's line: one level in from the line the `(` of a
     /// condition is on, or from the line the first operand starts on.
     fn operator_base(&self, indent: &Indent<'_>) -> String {
-        let from = self
-            .condition
-            .map_or(self.operands[0].span.start as usize, |(open, _)| open);
-        indent.opening_of(from) + UNIT
+        match self.condition {
+            Some((open, _)) => indent.opening_of(open) + UNIT,
+            None => operand_opening(indent, self.operands[0].span.start as usize) + UNIT,
+        }
+    }
+
+    /// Whether the operator `operators[at]` of this broken chain starts a line:
+    /// every one does, except in a `.` chain, where only one with a line break
+    /// on either side of it does.
+    fn opens_line(&self, text: &str, trivia: &[Trivia], at: usize) -> bool {
+        let (operator, spelling) = self.operators[at];
+        let operand = self.operands[at + 1].span.start as usize;
+        !self.keeps_lines
+            || text[code_before(trivia, operator)..operator].contains('\n')
+            || text[operator + spelling.len()..operand].contains('\n')
     }
 
     /// Records the runs this broken chain requires.
@@ -362,12 +411,17 @@ impl Operators {
                 wanted.push((close, format!("{line_break}{closing}")));
             }
         }
-        for (&operator, operand) in self.operators.iter().zip(&self.operands[1..]) {
+        for (at, (&(operator, spelling), operand)) in
+            self.operators.iter().zip(&self.operands[1..]).enumerate()
+        {
+            if !self.opens_line(text, trivia, at) {
+                continue;
+            }
             if !text[code_before(trivia, operator)..operator].contains('\n') {
                 wanted.push((operator, format!("{line_break}{base}")));
             }
             let start = operand.span.start as usize;
-            let after = &text[operator + self.spelling.len()..start];
+            let after = &text[operator + spelling.len()..start];
             if after != " " && after.trim().is_empty() {
                 wanted.push((start, " ".to_owned()));
             }
@@ -375,38 +429,39 @@ impl Operators {
     }
 }
 
-/// The first byte of the operator `node` writes and its spelling, where `node`
-/// is a `Binary` whose operator makes a chain.
+/// The first byte of the operator `node` writes, its spelling and its level,
+/// where `node` is a `Binary`.
 fn operator_of(
     index: &SyntaxIndex,
     text: &str,
     trivia: &[Trivia],
     node: IndexNode,
-) -> Option<(usize, &'static str)> {
+) -> Option<(usize, &'static str, u8)> {
     if node.kind != BINARY {
         return None;
     }
     let lhs = object_of(index, node)?;
     let at = code_after(trivia, lhs.span.end as usize);
     let rest = text.get(at..)?;
-    let spelling = OPERATORS
+    let &(spelling, level) = OPERATORS
         .iter()
-        .find(|spelling| rest.starts_with(**spelling))?;
-    Some((at, spelling))
+        .find(|(spelling, _)| rest.starts_with(spelling))?;
+    Some((at, spelling, level))
 }
 
 /// Appends the operands and operators of `node`, flattened through every
-/// operand written with the same `spelling`.
+/// operand written with an operator of the same `level`.
 fn flatten(
     index: &SyntaxIndex,
     text: &str,
     trivia: &[Trivia],
     node: IndexNode,
-    spelling: &str,
+    level: u8,
     operands: &mut Vec<IndexNode>,
-    operators: &mut Vec<usize>,
+    operators: &mut Vec<(usize, &'static str)>,
 ) {
-    let Some((at, _)) = operator_of(index, text, trivia, node).filter(|&(_, own)| own == spelling)
+    let Some((at, spelling, _)) =
+        operator_of(index, text, trivia, node).filter(|&(_, _, own)| own == level)
     else {
         operands.push(node);
         return;
@@ -417,9 +472,9 @@ fn flatten(
         operands.push(node);
         return;
     };
-    flatten(index, text, trivia, lhs, spelling, operands, operators);
-    operators.push(at);
-    flatten(index, text, trivia, rhs, spelling, operands, operators);
+    flatten(index, text, trivia, lhs, level, operands, operators);
+    operators.push((at, spelling));
+    flatten(index, text, trivia, rhs, level, operands, operators);
 }
 
 /// The `(` and `)` around `expr`, where it is the condition of `holder`, a
@@ -452,10 +507,10 @@ fn operators_on(
     nodes: &[IndexNode],
     at: usize,
 ) -> Option<Operators> {
-    let (_, spelling) = operator_of(index, text, trivia, nodes[at])?;
+    let (_, _, level) = operator_of(index, text, trivia, nodes[at])?;
     let mut top = at;
     while let Some(&parent) = nodes.get(top + 1) {
-        if operator_of(index, text, trivia, parent).is_none_or(|(_, own)| own != spelling) {
+        if operator_of(index, text, trivia, parent).is_none_or(|(_, _, own)| own != level) {
             break;
         }
         top += 1;
@@ -530,11 +585,11 @@ pub(crate) fn seams_on(
     if let Some((open, _)) = chain.condition {
         seams.push((SeamKind::Open, open + 1, first));
     }
-    for (&operator, operand) in chain.operators.iter().zip(&chain.operands[1..]) {
+    for (&(operator, spelling), operand) in chain.operators.iter().zip(&chain.operands[1..]) {
         seams.push((SeamKind::Operator, code_before(trivia, operator), operator));
         seams.push((
             SeamKind::Operand,
-            operator + chain.spelling.len(),
+            operator + spelling.len(),
             operand.span.start as usize,
         ));
     }
@@ -558,8 +613,45 @@ fn operator_opening(indent: &Indent<'_>, nodes: &[IndexNode], offset: usize) -> 
     let beside = chain
         .operators
         .iter()
-        .any(|&operator| (code_before(trivia, operator)..=operator).contains(&offset));
+        .any(|&(operator, _)| (code_before(trivia, operator)..=operator).contains(&offset));
     (chain.broken && beside).then(|| chain.operator_base(indent))
+}
+
+/// What opens the line the operand starting at `start` is on. Where it follows
+/// an operator that starts a line of a broken chain, or the `(` of a broken
+/// condition, that line is the chain's, and a line the author did not break
+/// there is placed the same way.
+fn operand_opening(indent: &Indent<'_>, start: usize) -> String {
+    let (index, text, trivia) = indent.parse();
+    let before = code_before(trivia, start);
+    let Ok(pos) = BytePos::try_from(start) else {
+        return indent.opening_of(start);
+    };
+    let path = index.at(pos);
+    let nodes = path.nodes();
+    for at in 0..nodes.len() {
+        let chain = operators_on(index, text, trivia, nodes, at).filter(|chain| chain.broken);
+        let follows = chain.as_ref().and_then(|chain| {
+            let at = chain
+                .operators
+                .iter()
+                .position(|&(operator, spelling)| operator + spelling.len() == before)?;
+            chain.opens_line(text, trivia, at).then_some(chain)
+        });
+        if let Some(chain) = follows {
+            return chain.operator_base(indent);
+        }
+        let Some(&holder) = nodes.get(at + 1) else {
+            continue;
+        };
+        let condition = condition_of(text, trivia, holder, nodes[at])
+            .filter(|&(open, _)| open + 1 == before)
+            .and_then(|parens| Operators::of(index, text, trivia, nodes[at], Some(parens)));
+        if let Some(chain) = condition.filter(|chain| chain.broken) {
+            return chain.operator_base(indent);
+        }
+    }
+    indent.opening_of(start)
 }
 
 /// What opens the line at `offset` where it is the first operand or the `)`
@@ -594,7 +686,23 @@ fn operator_runs(
 ) {
     let (index, text, trivia) = indent.parse();
     for (offset, &byte) in text.as_bytes().iter().enumerate().take(to).skip(from) {
-        if !matches!(byte, b'&' | b'|' | b'?' | b'.' | b'(') {
+        if !matches!(
+            byte,
+            b'&' | b'|'
+                | b'?'
+                | b'.'
+                | b'('
+                | b'^'
+                | b'='
+                | b'!'
+                | b'<'
+                | b'>'
+                | b'+'
+                | b'-'
+                | b'*'
+                | b'/'
+                | b'%'
+        ) {
             continue;
         }
         let Ok(pos) = BytePos::try_from(offset) else {
@@ -616,7 +724,8 @@ fn operator_runs(
             })
         } else {
             operators_on(index, text, trivia, nodes, 0).filter(|chain| {
-                chain.condition.is_none() && chain.operators.first() == Some(&offset)
+                chain.condition.is_none()
+                    && chain.operators.first().map(|&(operator, _)| operator) == Some(offset)
             })
         };
         if let Some(chain) = chain.filter(|chain| chain.broken) {

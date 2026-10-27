@@ -1,8 +1,9 @@
 Every chain of a binary operator has the layout `rule:tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`
 gives `&&`, `||` and `??`: on one line, or one operand per line with the operator at the start of the
 line, one level in from the line the first operand starts on. The operators are the arithmetic ones,
-the comparisons, `<=>`, the bitwise ones, `|>`, `&&`, `||`, `??` and `.`. A chain is the run at the
-lowest precedence, and it is broken by a line break its author wrote between two of its operands, on
+the comparisons, `<=>`, the bitwise ones, `&&`, `||`, `??` and `.`. Operators of one precedence
+level make one chain, so `+` and `-` are one chain. A chain is the run at the lowest precedence, and
+it is broken by a line break its author wrote between two of its operands, on
 either side of an operator.
 
 ```nvs

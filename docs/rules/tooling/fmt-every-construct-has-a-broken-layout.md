@@ -15,7 +15,9 @@ The constructs with a broken layout are lists
 
 The constructs whose line breaks are the author's are assignment and every compound assignment, `=>`
 between a key and its value, `is`, `as`, a unary operator, `new`, `clone`, `throw`, `return`, `yield`,
-`await`, an index, and everything inside a string, a heredoc, a template or inline HTML. A line that
+`await`, an index, `|>`, and everything inside a string, a heredoc, a template or inline HTML. `|>`
+is here because the parser rewrites a pipeline into the nested call it stands for, so no node is left
+that says where one stage ends. A line that
 continues one of them starts one level in from the line the construct starts on. A construct that
 needs a layout later moves from the second list to the first with the rule that gives it.
 
