@@ -6,21 +6,21 @@
  * one in place 1 takes the accent colour.
  */
 import Bars from './Bars.astro'
-import { overLeast, places, record, sessionWaits } from '~/lib/compare'
+import { overLeast, places, positions, record, sessionWaits } from '~/lib/compare'
 
 // The wait from which the row counts the fast request as held, `SESSION_WAIT_LIMIT_MS` in `bun nv bench-compare`.
 const WAITED_MS = 1000
 const number =(n: number) => Math.round(n).toLocaleString('en-US')
 const longest = Math.max(...sessionWaits.map((s) => s.waitMs))
 const shortest = Math.min(...sessionWaits.map((s) => s.waitMs))
-const place = places(
-  sessionWaits.map((s) => s.waitMs),
-  true,
-)
+const waits = sessionWaits.map((s) => s.waitMs)
+const place = places(waits, true)
+const position = positions(waits, true)
 const bars = sessionWaits.map((s, i) => ({
   peer: s.peer,
   label: s.label,
   place: place[i]!,
+  position: position[i]!,
   share: longest > 0 ? s.waitMs / longest : 0,
   best: place[i] === 1,
   value: `${number(s.waitMs)} ms`,

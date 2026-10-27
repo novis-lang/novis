@@ -41,6 +41,8 @@ interface Bar {
   peer?: string
   /** The bar's place, 1 for the best, or none for a bar that is not ranked. */
   place?: number
+  /** The bar's position best first, from `positions`, which orders the bars that share a place. */
+  position?: number
   /** The bar's length, from 0 to 1. */
   share: number
   best: boolean
@@ -61,15 +63,23 @@ interface Bar {
 const { groups, legend } = Astro.props
 const percent = (share: number) => `${Math.round(share * 100)}%`
 
-/** `bars` as one block per peer, best first: a labelled bar starts a block. The sort is stable, so a tie keeps its order. */
+/**
+ * `bars` as one block per peer, best first: a labelled bar starts a block. Blocks that share a place
+ * are ordered by `position`, so the better figure of a tie is drawn first. The sort is stable after that.
+ */
 function blocks(bars: Bar[]): Bar[][] {
   const out: Bar[][] = []
   for (const b of bars) {
     if (b.label !== '' || out.length === 0) out.push([b])
     else out[out.length - 1]!.push(b)
   }
-  const key = (block: Bar[]) => block.find((b) => b.place !== undefined)?.place ?? Number.POSITIVE_INFINITY
-  return out.map((block, i) => ({ block, i })).sort((a, b) => key(a.block) - key(b.block) || a.i - b.i).map((x) => x.block)
+  const ranked = (block: Bar[]) => block.find((b) => b.place !== undefined)
+  const key = (block: Bar[]) => ranked(block)?.place ?? Number.POSITIVE_INFINITY
+  const tie = (block: Bar[]) => ranked(block)?.position ?? Number.POSITIVE_INFINITY
+  return out
+    .map((block, i) => ({ block, i }))
+    .sort((a, b) => key(a.block) - key(b.block) || tie(a.block) - tie(b.block) || a.i - b.i)
+    .map((x) => x.block)
 }
 /** The narrowest a part of a stacked bar is drawn, so a part above zero is never invisible. */
 const MIN_PART = '4px'

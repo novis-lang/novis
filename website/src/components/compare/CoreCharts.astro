@@ -10,7 +10,7 @@
  * `many-requests` every bar has a place.
  */
 import Bars from './Bars.astro'
-import { manyRequests, oneRequest, overLeast, places, record } from '~/lib/compare'
+import { manyRequests, oneRequest, overLeast, places, positions, record } from '~/lib/compare'
 
 export interface Props {
   chart: 'many-requests' | 'one-request'
@@ -22,15 +22,15 @@ const seconds = (n: number) => `${n.toFixed(2)} s`
 
 const groups = (() => {
   if (chart === 'many-requests') {
-    const best = Math.max(...manyRequests.map((s) => s.four))
-    const place = places(
-      manyRequests.map((s) => s.four),
-      false,
-    )
+    const fours = manyRequests.map((s) => s.four)
+    const best = Math.max(...fours)
+    const place = places(fours, false)
+    const position = positions(fours, false)
     const bars = manyRequests.map((s, i) => ({
       peer: s.peer,
       label: s.label,
       place: place[i]!,
+      position: position[i]!,
       share: best > 0 ? s.four / best : 0,
       best: place[i] === 1,
       value: number(s.four),
@@ -41,11 +41,10 @@ const groups = (() => {
   const longest = Math.max(...oneRequest.map((s) => Math.max(s.one, s.four)))
   const shortestOne = Math.min(...oneRequest.map((s) => s.one))
   const shortest = Math.min(...oneRequest.map((s) => s.four))
-  const place = places(
-    oneRequest.map((s) => s.four),
-    true,
-  )
-  const peers = oneRequest.map((s, i) => ({ ...s, place: place[i]! }))
+  const fours = oneRequest.map((s) => s.four)
+  const place = places(fours, true)
+  const position = positions(fours, true)
+  const peers = oneRequest.map((s, i) => ({ ...s, place: place[i]!, position: position[i]! }))
   return [peers].map((all) => ({
     bars: all.flatMap((s) => [
       {
@@ -61,6 +60,7 @@ const groups = (() => {
       {
         label: '',
         place: s.place,
+        position: s.position,
         share: s.four / longest,
         best: s.place === 1,
         value: seconds(s.four),

@@ -18,7 +18,7 @@
  * accent colour.
  */
 import Bars from './Bars.astro'
-import { type DeployRow, deploysOf, groupPlaces, grouped, places, record, runaways } from '~/lib/compare'
+import { type DeployRow, deploysOf, groupPlaces, grouped, places, positions, record, runaways } from '~/lib/compare'
 
 export interface Props {
   chart: DeployRow | 'memory' | 'loop'
@@ -46,6 +46,7 @@ const groups = (() => {
       wrong,
       true,
     )
+    const position = positions(wrong, true)
     const bars = deploys.map((d, i) => {
       const ok = Math.max(0, d.requests - d.failed - d.mixed)
       const of = (n: number) => (d.requests > 0 ? n / d.requests : 0)
@@ -53,6 +54,7 @@ const groups = (() => {
         peer: d.peer,
         label: d.label,
         place: place[i]!,
+        position: position[i]!,
         share: 1,
         best: place[i] === 1,
         value: ok === d.requests ? '100%' : `${(Math.floor((ok / d.requests) * 1000) / 10).toFixed(1)}%`,
@@ -71,10 +73,9 @@ const groups = (() => {
   // A server that stopped the runaway request and kept running ranks before one that did not, and the
   // failed requests rank inside each of the two.
   const handled = (r: (typeof runs)[number]) => r.stoppedAfter !== null && r.running && r.restarts === 0
-  const place = places(
-    runs.map((r) => (handled(r) ? 0 : 1_000_000_000) + r.failed),
-    true,
-  )
+  const ranks = runs.map((r) => (handled(r) ? 0 : 1_000_000_000) + r.failed)
+  const place = places(ranks, true)
+  const position = positions(ranks, true)
   const seconds = (s: number) => (s < 1 ? `${s.toFixed(1)} s` : `${Math.round(s)} s`)
   const bars = runs.map((r, i) => {
     const ok = Math.max(0, r.requests - r.failed)
@@ -91,6 +92,7 @@ const groups = (() => {
       peer: r.peer,
       label: r.label,
       place: place[i]!,
+      position: position[i]!,
       share: 1,
       best: place[i] === 1,
       value: r.failed === 0 ? '0 failed' : `${number(r.failed)} failed`,

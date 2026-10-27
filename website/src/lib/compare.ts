@@ -175,7 +175,7 @@ export const MARGIN = 0.03
  * cannot carry a place further than the margin.
  */
 export function places(values: number[], lessIsBetter: boolean): number[] {
-  const order = values.map((_, i) => i).sort((a, b) => (lessIsBetter ? values[a]! - values[b]! : values[b]! - values[a]!))
+  const order = bestFirst(values, lessIsBetter)
   const place = new Array<number>(values.length)
   let first = 0
   let firstPlace = 0
@@ -188,6 +188,22 @@ export function places(values: number[], lessIsBetter: boolean): number[] {
     place[i] = firstPlace
   })
   return place
+}
+
+/** The indexes of `values`, best figure first. Equal figures keep their order. */
+function bestFirst(values: number[], lessIsBetter: boolean): number[] {
+  return values.map((_, i) => i).sort((a, b) => (lessIsBetter ? values[a]! - values[b]! : values[b]! - values[a]!))
+}
+
+/**
+ * Each figure's position when the figures are sorted best first, 0 for the best, in the order of
+ * `values`. A chart draws the figures that share a place in this order, so the better figure of a tie
+ * is drawn first.
+ */
+export function positions(values: number[], lessIsBetter: boolean): number[] {
+  const position = new Array<number>(values.length)
+  bestFirst(values, lessIsBetter).forEach((i, rank) => (position[i] = rank))
+  return position
 }
 
 /** `places` counted inside each peer's group, where `peerIds[i]` is the peer of `values[i]`. */
@@ -209,6 +225,8 @@ export interface Bar {
   share: number
   /** The peer's place among all peers by requests per second, from `places`. */
   place: number
+  /** The peer's position by requests per second, from `positions`. */
+  position: number
   best: boolean
   p99Ms: number | null
   memoryMiB: number | null
@@ -238,10 +256,9 @@ export const charts: CaseChart[] = record
   ? Object.entries(record.cases).map(([id, c]) => {
       const best = Math.max(...Object.values(c.peers).map((p) => p.requests_per_sec))
       const figures = peers.flatMap((p) => (c.peers[p.id] === undefined ? [] : [{ peer: p.id, label: p.label, f: c.peers[p.id]! }]))
-      const speedPlaces = places(
-        figures.map(({ f }) => f.requests_per_sec),
-        false,
-      )
+      const speeds = figures.map(({ f }) => f.requests_per_sec)
+      const speedPlaces = places(speeds, false)
+      const speedPositions = positions(speeds, false)
       const withMemory = figures.filter(({ f }) => f.memory_peak_bytes !== null)
       const memoryPlaces = places(
         withMemory.map(({ f }) => f.memory_peak_bytes!),
@@ -253,6 +270,7 @@ export const charts: CaseChart[] = record
         requestsPerSec: f.requests_per_sec,
         share: best > 0 ? f.requests_per_sec / best : 0,
         place: speedPlaces[i]!,
+        position: speedPositions[i]!,
         best: speedPlaces[i] === 1,
         p99Ms: f.p99_ms,
         memoryMiB: f.memory_peak_bytes === null ? null : f.memory_peak_bytes / 1048576,
@@ -416,7 +434,7 @@ export const sessionWaits: SessionWait[] = evidenceOf('session')
     code: (e.code as string | null) ?? null,
   }))
 
-/** The `cores` row: the HTML page case's throughput with one core and with four, for every peer. */
+/** The `cores` row: the throughput of a one-part `parallel` request with one core and with four, for every peer. */
 export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ peer, label, evidence: e }) => ({
   peer,
   label,
