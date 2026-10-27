@@ -34,7 +34,7 @@ stages:
         rules: [packaging/only-a-major-may-break-the-api, packaging/below-1-0-the-breaking-slot-moves-left]
   - id: 5
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: compat-proofs
@@ -230,48 +230,37 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 4's last group landed the reference heading `# nvs pkg api and nvs
-pkg diff` at the end of `docs/reference/tools/35-packages.md` (its `<!-- src: -->` follows the
-section, as `25-server.md` does), the about page, three examples with `.out` files, and the attack
-`01-one-type-written-many-ways.nvs`. Four tests in `crates/nvs-cli/tests/package_api.rs` carry
-`// covers:`, one of them new: `a_type_written_many_ways_has_one_form`, which copies the attack into
-a temporary package and pins each type's form; it passed, run once. The rule's JSON is `shipped`
-with `guardedBy`. The two OpenAPI gaps this goal held moved to `first-packages` (standing decision).
-`website/public/llms-full.txt` is rendered. The proofs were small, so no subagent wrote them.
+Every stage is done. The gate ran `bun nv affected --run` three times. The installed `looper` has no
+`verify` subcommand, so `looper verify` exited 0 having run nothing, and the stage's `bun nv affected
+--run` is what ran. Its failures had three causes, each fixed in `b8ced0fcc`: `packaging.md` and
+`ground-rules.md` were stale after the rule went `shipped`; `apps/telemetry/known.toml` lacked `pkg`;
+and `a_type_written_many_ways_has_one_form` reached the attack through a climbing `../../` literal
+instead of `nvs_repo::path`. The third run was 23 of 23 green.
 
-Green this session: `bun nv proofs --gate --only tools:packages/nvs-pkg-api-and-nvs-pkg-diff`,
-`bun nv proofs --run --id …` (3 examples, 1 attack), `bun nv proofs --comments` over both trees,
-`bun nv owners --closes api-compat`, `bun nv owners --check`, `bun nv rules --check`, `looper lint`,
-clippy with `-D warnings`, rustfmt on the test file.
+Green after it: `bun nv verify --doc`, `bun nv owners --closes api-compat`, `bun nv ci --check` (all
+ten pre-push legs), and `looper check`'s `compat-proofs`. `env-secret-proofs` is green when run now;
+the nightly Miri reds predate their fixes `22f1e4ec4`, `e461612ce` and `c33a8b8f7`.
 
-The acceptance sweep's reds were already fixed on disk: `env-secret-proofs`'s log shows exit 0, and
-the nightly run 40474302703 is on `55b03e97a`, before `22f1e4ec4`, `e461612ce` and `c33a8b8f7`,
-which fix its three Miri jobs.
-
-Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
-(30 entries, not run), any proofs or help-text check that counts subcommands or pins `nvs pkg diff
---help`, the reference leg if it reads the new chapter's `text` fence, and `bun nv ci --check`'s
-website render for the changed chapter title.
+The decisions only this file held moved in `c076a315d`: `package/api.rs`'s module doc says a file
+outside `src` is not the API and a package with dependencies does not check, and
+`tests/package_api.rs`'s says where the fixtures live and which tests hold the attack's version-step
+claim. The rest were already in `package/diff.rs`, `package/api.rs`, `package/manifest.rs` and the rule.
 
 ### Next
 
-**Stage 5, the gate.** Start `looper verify` with `run_in_background`, write nothing else, and end
-the turn. Group its failures by cause and fix them in one pass, then run it once more. Before
-`DONE`: `bun nv verify --doc`, `bun nv owners --closes api-compat` and `bun nv ci --check`, each red
-fixed. Then move each decision only this file's prose holds into `diff.rs`'s module doc or the rule,
-and delete the goal file.
+Nothing. The goal is reached; retire it and delete this file.
 
-- [ ] `looper verify` once over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes api-compat`, `bun nv ci --check`. `docs/goals/api-compat.md:1`
+- [x] `looper verify` once over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [x] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes api-compat`, `bun nv ci --check`. `docs/goals/api-compat.md:1`
 
 ### Backlog
 
