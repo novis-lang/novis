@@ -997,6 +997,9 @@ mod tests {
     /// alone, and the thread's own allocations landed in the task's counts
     /// (`Queue::busy`). On macOS the answer slot's mutex is allocated by its
     /// first lock, so [`run`] takes that lock on the core before it submits.
+    /// The warm-up parks the task once on a wake it sent itself, because the
+    /// warm-up call may return before it parks, and the scheduler's parked set
+    /// allocates on its first park (one allocation, seen under TSAN).
     #[test]
     fn calls_one_after_another_use_one_thread_and_allocate_the_same() {
         const BATCH: usize = 500;
@@ -1007,6 +1010,11 @@ mod tests {
         let into = Rc::clone(&batches);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             run(|| ());
+            reactor::wake_this_task()
+                .expect("the task has a reactor")
+                .wake()
+                .expect("the poke failed");
+            assert!(suspend_current(Waiting::Parked).suspended());
             for _ in 0..4 {
                 let before = nvs_runtime::budget::allocations();
                 for _ in 0..BATCH {
