@@ -40,6 +40,8 @@
 //! call to a member whose body throws. That is why a **computed** name needs no
 //! handling here at all — nothing is recorded, the `Call` stands, and
 //! `nvs_stdlib::router`'s own body is § 4's "a computed `$name` throws".
+//! The link carries a copy of the call it is recorded over, so a reader that
+//! follows the name to its method finds it in either state.
 //!
 //! **A `name:` argument is folded like a positional one**, because which
 //! parameter each written argument fills arrives from
@@ -366,6 +368,12 @@ pub(crate) fn resolve(
             // Unreachable: a row exists only for a path § 2's grammar admitted.
             continue;
         };
+        let Some(ExprInfo::Call(call)) = exprs.lookup(site.span) else {
+            // Unreachable: a site is recorded only for a call that resolved,
+            // and that call recorded its `Call` at the same span.
+            continue;
+        };
+        let call = Box::new(call.clone());
         // Short-circuiting on purpose: a misspelled key is usually both a
         // capture with nothing supplying it and a key with nothing to be, and
         // naming the capture is the half that says what to write. § 5's
@@ -382,6 +390,7 @@ pub(crate) fn resolve(
         exprs.record(
             site.span,
             ExprInfo::RouteLink {
+                call,
                 spellings: spellings(&pieces, row),
                 pieces,
                 absolute: site.member == ABSOLUTE,

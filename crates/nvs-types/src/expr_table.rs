@@ -1306,6 +1306,13 @@ pub enum ExprInfo {
     /// *computed* name records nothing here and keeps its `Call`, which is how
     /// § 4's "a computed `$name` throws" stays true.
     RouteLink {
+        /// The resolved call this link is recorded over, copied out of the
+        /// `Call` entry it takes the span from. Lowering reads the link and not
+        /// this; it is here for a reader that asks which method the span calls,
+        /// which is every editor request that follows a name. Boxed so the
+        /// variant does not widen every entry; it spends one copy of the call
+        /// per resolved link, per compile.
+        call: Box<ResolvedCall>,
         /// The named route's declared path, already split by § 2's grammar.
         pieces: Vec<UrlPiece>,
         /// `true` for `urlAbsolute`, which prepends `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured

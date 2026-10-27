@@ -1,0 +1,24 @@
+--TEST--
+a link to a declared route, written in a `<?= ?>` hole of an html template passed as an argument, answers the stub of the `Core\Router` method it calls and not the method the template is an argument of, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Page
+{
+    public function document(Core\Html\Markup $body): Core\Html\Markup
+    {
+        return $body;
+    }
+
+    #[Core\Route(path: '/', method: Core\Http\Method::Get, name: 'shop.index')]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function render(): Core\Html\Markup
+    {
+        return $this->document(html`<h1>Shop</h1>
+<p><a href="<?= Core\Router::u<|>rl('shop.index', []) ?>">back</a></p>
+`);
+    }
+}
+--REQUEST--
+definition
+--EXPECT--
+stubs/Core/Router.nvs:81:28

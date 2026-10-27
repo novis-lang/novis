@@ -379,6 +379,7 @@ impl<'a> Lowering<'a> {
                     spellings,
                     params_at,
                     settings_at,
+                    ..
                 }) = self.exprs.lookup(expr.span)
                 {
                     let prepared = nvs_types::UrlPiece::prepared(pieces, spellings);
