@@ -28,6 +28,6 @@ that is not an `address:port`, and a `net.internal` entry that is not an IP addr
 nothing before, so the deployment that wrote it was denied with no word about why. The message names
 the entry and the file, and its help is the line that allows what the entry meant, under its table.
 
-Both read without the ownership check
-(`rule:config/the-ownership-check-runs-where-it-can-be-answered`). What a reload actually published is
+Both read without the ownership check, and `check --as <account>` runs it for the account that will
+serve (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). What a reload actually published is
 the record it writes to `Core\Log` (`rule:config/a-reload-names-what-it-could-not-apply`).

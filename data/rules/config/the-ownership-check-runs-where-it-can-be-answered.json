@@ -1,5 +1,5 @@
 {
-  "title": "The ownership check runs on `nvs serve` and on reload; `nvs run`, `config check` and `config dump` read without it, and an unchecked file can grant nothing",
+  "title": "The ownership check runs on `nvs serve`, on reload and in `config check --as` for the serving account; `nvs run`, plain `config check` and `config dump` read without it, and an unchecked file can grant nothing",
   "status": "shipped",
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",
@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/check_grants.rs",
+    "crates/nvs-cli/tests/config_audit.rs",
     "crates/nvs-cli/tests/serve_ownership.rs"
   ]
 }

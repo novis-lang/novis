@@ -13,7 +13,7 @@ stages:
         rules: [config/ownership-is-the-trust-boundary, config/the-ownership-check-runs-where-it-can-be-answered]
   - id: 2
     title: "`nvs config check --as <account>` runs the check for that account"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/config.rs, crates/nvs-cli/tests/config_audit.rs, crates/nvs-diagnostics/src/code/config.rs, docs/rules/config/check-and-dump-audit-the-tree-offline.md]
     extra:
       context:
@@ -103,8 +103,8 @@ it: `S-1-5-80-` and the SHA-1 of the upper-case service name in UTF-16LE, as fiv
 `nvs-config` takes `sha1.workspace = true` on Windows for it, because `Account::named` lives beside
 the SID type, and a test pins the value `sc showsid Shop` prints. On Linux a user name is looked up
 with `getpwnam_r` in `trust.rs` too, so `Account::named` is the one entry point on both platforms,
-and a number is taken as a uid. A name this machine cannot resolve is an error with a new code: the next free number in
-`crates/nvs-diagnostics/src/code/config.rs`, never `E0654`, whose note is about systemd.
+and a number is taken as a uid. A name this machine cannot resolve is `E0662`
+(`E_CHECK_NO_SUCH_ACCOUNT`), never `E0654`, whose note is about systemd.
 
 **The message names the account it judged for.** "neither this account nor an administrative one"
 (`crates/nvs-config/src/trust.rs:658`) becomes "neither the account `LocalSystem` nor an
@@ -196,11 +196,11 @@ process, and a `Files` impl resolves a tree through it.
 **Does:** `nvs config check --as <account>` resolves through the stage 1 `Files` impl and prints
 `E0607` for the first file that account would refuse.
 
-- [ ] The `--as` argument on `Command::Check`, with help text held to AGENTS.md § *Text an end user reads*. `crates/nvs-cli/src/config.rs:66`
-- [ ] `check` resolves through the account's `Files` impl when `--as` is given, and through `LocalFiles` otherwise. `crates/nvs-cli/src/config.rs:994`, `crates/nvs-cli/src/config.rs:146`
-- [ ] The new config-area code for an account this machine cannot resolve, with its card. `crates/nvs-diagnostics/src/code/config.rs:52`
-- [ ] Tests: on Unix (run in WSL with `bun nv linux-test`), a tree owned by the test's account passes `--as` that account and fails `--as` another uid with `E0607`; an unknown name fails with the new code. `crates/nvs-cli/tests/config_audit.rs:1`
-- [ ] Amend `rule:config/the-ownership-check-runs-where-it-can-be-answered` (`config check --as` answers the question, with the limits the standing decision states) and `rule:config/check-and-dump-audit-the-tree-offline`, and the first rule's JSON title. `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:1`, `docs/rules/config/check-and-dump-audit-the-tree-offline.md:31`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:2`
+- [x] The `--as` argument on `Command::Check`, with help text held to AGENTS.md § *Text an end user reads*. `crates/nvs-cli/src/config.rs:80`
+- [x] `check` resolves through the account's `Files` impl when `--as` is given, and through `LocalFiles` otherwise. `crates/nvs-cli/src/config.rs:1008`, `crates/nvs-cli/src/config.rs:146`
+- [x] `E0662`, the config-area code for an account this machine cannot resolve, with its card. `crates/nvs-diagnostics/src/code/config.rs:902`
+- [x] Tests: on Unix (run in WSL with `bun nv linux-test`), a tree owned by the test's account passes `--as` that account and fails `--as` another uid with `E0607`; an unknown name fails with the new code. `crates/nvs-cli/tests/config_audit.rs:1`
+- [x] Amend `rule:config/the-ownership-check-runs-where-it-can-be-answered` (`config check --as` answers the question, with the limits the standing decision states) and `rule:config/check-and-dump-audit-the-tree-offline`, and the first rule's JSON title. `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:1`, `docs/rules/config/check-and-dump-audit-the-tree-offline.md:31`, `data/rules/config/the-ownership-check-runs-where-it-can-be-answered.json:2`
 
 ### 3. `nvs service install`, its `--dry-run` and `nvs service status` judge the configuration as the service's account
 
@@ -267,32 +267,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `trust::Account` (`crates/nvs-config/src/trust.rs:222`) is a uid or a SID with the
-name it was given; `Account::current()` and `Account::named(name)` build one on both platforms
-(a number or `getpwnam_r` on Unix; `LocalSystem`, the computed `NT SERVICE\<name>` SID, or
-`LookupAccountNameW` on Windows). `Account::named` returns `Err(String)` "no account named `x`
-exists on this machine", which stage 2 wraps in its new code. `check_as` and `check_alone_as`
-(`crates/nvs-config/src/trust.rs:172`) are what `check` and `check_alone` call. A breach for a named
-account says "neither the account `LocalSystem` …", and the Unix help says "The account `x` (uid N)
-may own it instead". `resolve::JudgedFor(Account)` (`crates/nvs-config/src/resolve.rs:294`) is the
-`Files` impl. The rule `config/ownership-is-the-trust-boundary` has a paragraph on it. The Windows
-tests (`trust::platform::tests`) and the Unix ones (`trust::tests`, run in WSL) pass. No test is
-expected to go red. Nothing calls `check_as` from `nvs-cli` yet.
+Stages 1 and 2 are done. `trust::Account` (`crates/nvs-config/src/trust.rs:222`) is a uid or a SID,
+and `resolve::JudgedFor(Account)` (`crates/nvs-config/src/resolve.rs:294`) is the `Files` impl that
+judges through `trust::check_as`. `nvs config check --as <account>` (`crates/nvs-cli/src/config.rs:80`)
+resolves through `JudgedFor` and plain `check` through `LocalFiles` (`crates/nvs-cli/src/config.rs:1008`).
+An account `Account::named` cannot resolve is `E0662` (`crates/nvs-diagnostics/src/code/config.rs:902`,
+built by `crates/nvs-cli/src/config.rs:1068`), before any file is read. The two `check_as_*` tests in
+`crates/nvs-cli/tests/config_audit.rs:51` pass on Windows and in WSL. Both config rules and the
+rule's JSON title say what `--as` does and what it does not see; `docs/rules/config.md` and
+`docs/ground-rules.md` are rendered. No test is expected to go red. The nightly Miri failures the
+sweep named were already fixed on main (`e461612ce`, `c33a8b8f7`, and the `cfg_attr(miri, ignore)`
+on `json::tests::secret_spans_names_each_value_a_secret_property_takes`), and `env-secret-proofs`
+passes when run again.
 
 ### Next
 
-**Stage 2: `nvs config check --as <account>`**, one file set: `crates/nvs-cli/src/config.rs`,
-`crates/nvs-cli/tests/config_audit.rs`, `crates/nvs-diagnostics/src/code/config.rs`, the two config
-rules. No gate. The stage's items in § *Stages* are the list.
+**Stage 3: install, `--dry-run` and `status` judge as the service's account**, one file set:
+`crates/nvs-cli/src/service.rs` and the two rules the stage names. No gate. Follow the stage's
+`**Split:**` line first. The stage's items in § *Stages* are the list.
 
-- [ ] `--as` on `Command::Check`. `crates/nvs-cli/src/config.rs:66`
-- [ ] `check` resolves through `JudgedFor(Account::named(..)?)` with `--as`, `LocalFiles` otherwise. `crates/nvs-cli/src/config.rs:100`, `crates/nvs-cli/src/config.rs:146`
-- [ ] The new code after `E0661` for an account this machine cannot resolve. `crates/nvs-diagnostics/src/code/config.rs:891`
-- [ ] Tests in WSL with `bun nv linux-test`. `crates/nvs-cli/tests/config_audit.rs:1`
-- [ ] Amend the two rules and the JSON title. `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md:1`
+- [ ] The service's account as a `trust::Account`. `crates/nvs-cli/src/service.rs:2186`, `crates/nvs-cli/src/service.rs:2396`
+- [ ] `registration::install` judges through `JudgedFor` before the dry-run return and `prepare_data`. `crates/nvs-cli/src/service.rs:2868`
+- [ ] The data folder an install creates passes for the service's account. `crates/nvs-config/src/data.rs:701`
+- [ ] `status` judges the stored configuration. `crates/nvs-cli/src/service.rs:4307`
+- [ ] Recording-manager tests, then the Linux cases with `bun nv linux-test`. `crates/nvs-cli/src/service.rs:5897`
+- [ ] Amend the two rules. `docs/rules/packaging/a-service-runs-as-a-virtual-account.md:1`
 
 Stage 3 can take the service's uid from `Account::named` instead of `service.rs`'s own `lookup`
-(`crates/nvs-cli/src/service.rs:3089`), which also needs the gid, so that one stays.
+(`crates/nvs-cli/src/service.rs:3089`), which also needs the gid, so that one stays. The
+`--as` sentence in `docs/rules/config/the-ownership-check-runs-where-it-can-be-answered.md` is where
+stage 3 adds install and status.
 
 ### Backlog
 

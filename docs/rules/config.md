@@ -699,6 +699,15 @@ path the configuration names, keeps the full check, parent included. A file insi
 checked as any file is, with the private data folder as its directory. Novis creates the data folder
 private to its account and never re-permissions one that exists: it checks it.
 
+**The account is a value the check takes, not one it reads.** `nvs serve` judges for its own account,
+and a command that sets up or reports on a service judges for the account the service runs as, through
+the same function: `trust::check_as` with a `trust::Account`, a uid on Unix and a SID on Windows. On
+Unix a number is a uid and a name comes from the password database. On Windows `LocalSystem` is the
+well-known SID, `NT SERVICE\<name>` is computed as Windows computes it (`S-1-5-80-` and the SHA-1 of
+the upper-case name in UTF-16LE), because that account does not resolve until the service exists, and
+any other name goes through `LookupAccountNameW`. A breach for a named account names it: "neither the
+account `LocalSystem` nor an administrative one". `resolve::JudgedFor` resolves a tree that way.
+
 **Declined:**
 - **The full check on the default data folder.** It is correct in principle and unusable on a stock
   Windows drive, and it protects only against an account that could replace the binary anyway.
@@ -718,22 +727,32 @@ Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answer
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
-## The ownership check runs on `nvs serve` and on reload; `nvs run`, `config check` and `config dump` read without it, and an unchecked file can grant nothing
+## The ownership check runs on `nvs serve`, on reload and in `config check --as` for the serving account; `nvs run`, plain `config check` and `config dump` read without it, and an unchecked file can grant nothing
 
 `rule:config/the-ownership-check-runs-where-it-can-be-answered`
 
-The ownership check runs where its question can be answered — `nvs serve` and reload, on the host and
-as the account that will serve — and three readers resolve the tree without it, each for a reason of
-its own.
+The ownership check runs where its question can be answered: `nvs serve` and reload, on the host and
+as the account that will serve, and `nvs config check --as <account>`, which names that account.
+Three readers resolve the tree without it, each for a reason of its own.
 
 `nvs run` executes a program the invoking account named, from a working directory that account chose,
 as that account: whoever can write its `./nvs.toml` can write the program, so the file adds no
 authority the check would take away, and the Windows default would otherwise refuse nearly every
 checkout. The data folder's `nvs.toml` read at step 3 is the same account's file, in a folder Novis
-created private to it. `nvs config check` and `nvs config dump` run on the auditing machine as the
-auditing account, where the check answers a different question than the one it exists for — it
+created private to it. Plain `nvs config check` and `nvs config dump` run on the auditing machine as
+the auditing account, where the check answers a different question than the one it exists for — it
 refuses trees the server would accept and passes trees the server would refuse, and a green result
 that means neither is worse than one that does not claim to have looked.
+
+**`nvs config check --as <account>` asks the question for the account that will serve.** It resolves
+through `resolve::JudgedFor`, whose `trust` is `trust::check_as`, the function `nvs serve`'s boot runs,
+so it stops at the same first file with the same `E0607` and help. On Unix the account is a user name
+or a uid; on Windows a name, `LocalSystem`, or `NT SERVICE\<service>`, computed before the service
+exists. A name this machine cannot resolve is `E0662`, before any file is read. `--as` judges the files
+on this machine as they are now. It does not see the server's own copy of the files, a container's
+read-only mount, whose owner waiver applies only where that mount is, or a deploy step that changes an
+owner. The check trusts no group but the administrators one, so the account's group membership does
+not change its answer. `config dump` takes no `--as`: it lists keys, and `check` is the verdict.
 
 `nvs serve` checks every file it reads, every time it reads it: the root, each include, each secret
 file and each `[[app]]` fold a request or a queue job asks for, at boot and at every reload. A boot
@@ -1518,8 +1537,8 @@ that is not an `address:port`, and a `net.internal` entry that is not an IP addr
 nothing before, so the deployment that wrote it was denied with no word about why. The message names
 the entry and the file, and its help is the line that allows what the entry meant, under its table.
 
-Both read without the ownership check
-([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
+Both read without the ownership check, and `check --as <account>` runs it for the account that will
+serve ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
 the record it writes to `Core\Log` ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
 <sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>

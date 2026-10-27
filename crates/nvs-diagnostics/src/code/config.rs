@@ -894,4 +894,15 @@ codes! {
          `..`, with an absolute path or through a symbolic link. Change the path, or move the \
          file into the package.",
     );
+
+    /// `nvs config check --as <account>` names an account `trust::Account::named` cannot
+    /// resolve on this machine
+    /// (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). The check has no
+    /// account to judge for, so it stops before it reads a file.
+    pub const E_CHECK_NO_SUCH_ACCOUNT: Code = Code::new("E0662").card(
+        "The account that `--as` names does not exist on this machine. Give the name of the \
+         account that runs the server. On Linux, a user ID number also works. On Windows, \
+         `LocalSystem` and `NT SERVICE\\<service>` always work, even before the service is \
+         installed.",
+    );
 }

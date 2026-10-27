@@ -42,6 +42,59 @@ fn scratch(case: &str) -> PathBuf {
     dir
 }
 
+/// `--as <uid>` judges the tree for that uid, as its `nvs serve` would: the tree this test's
+/// account owns passes for it, and fails for another uid with `E0607`, unless the owner is root,
+/// whom every account trusts. The modes are set, so the runner's umask decides nothing.
+// covers: tools:cli/nvs-config-check-and-nvs-config-dump
+#[cfg(unix)]
+#[test]
+fn check_as_judges_the_tree_for_the_named_account() {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+
+    let dir = scratch("as-uid");
+    std::fs::write(dir.join("nvs.toml"), "[limits]\nmemory = \"64M\"\n")
+        .expect("the root is written");
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+        .expect("the directory is private");
+    std::fs::set_permissions(dir.join("nvs.toml"), std::fs::Permissions::from_mode(0o600))
+        .expect("the root is private");
+    let owner = std::fs::metadata(&dir).expect("the directory exists").uid();
+
+    let mine = owner.to_string();
+    let (out, err, code) = nvs_in(&dir, &["config", "check", "--as", &mine, "nvs.toml"]);
+    assert_eq!(code, Some(0), "the owner's own tree passes for it: {err}");
+    assert!(out.starts_with("ok: 1 file,"), "{out}");
+
+    let other = (owner + 1).to_string();
+    let (_, err, code) = nvs_in(&dir, &["config", "check", "--as", &other, "nvs.toml"]);
+    if owner == 0 {
+        assert_eq!(code, Some(0), "a root-owned tree passes for every account: {err}");
+    } else {
+        assert_eq!(code, Some(1), "another uid's server would refuse the tree: {err}");
+        assert!(err.contains("E0607"), "{err}");
+        assert!(err.contains(&format!("the account `{other}`")), "{err}");
+    }
+
+    drop(std::fs::remove_dir_all(&dir));
+}
+
+/// An `--as` account this machine does not have is `E0662`, and the check reads no file.
+#[test]
+fn check_as_an_account_that_does_not_exist_is_e0662() {
+    let dir = scratch("as-missing");
+    let (out, err, code) = nvs_in(
+        &dir,
+        &["config", "check", "--as", "nvs-no-such-account", "missing.toml"],
+    );
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("E0662"), "{err}");
+    assert!(err.contains("`nvs-no-such-account`"), "{err}");
+    assert!(!err.contains("E0605"), "no file is read before the account resolves: {err}");
+    assert!(out.is_empty(), "{out}");
+
+    drop(std::fs::remove_dir_all(&dir));
+}
+
 /// The example's tree: `nvs.toml` includes `production.toml`, which sets
 /// `limits.memory` again. `check` counts both files and the one override, and
 /// `dump` lists the four keys in force with the later file's value; `--origin`

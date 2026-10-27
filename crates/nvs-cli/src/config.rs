@@ -11,23 +11,23 @@
 //! are offline and need no server, which is what lets a tree be validated in CI
 //! before it is deployed.
 //!
-//! ## Why the audit does not apply `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s ownership check
+//! ## The ownership check runs only with `--as`
 //!
-//! [`LocalFiles`] reads without that check, and `nvs config check` is a second
-//! caller that wants it that way — for a reason of its own rather than by
-//! inheriting `nvs run`'s. `rule:config/the-ownership-check-runs-where-it-can-be-answered` asks whether a file is owned by **the account the
-//! runtime runs as** and unwritable by anyone else. A machine auditing a tree
-//! before deployment is not that account and usually not that host, so the check
-//! run there answers a different question than the one it exists for: it refuses
-//! trees the server would accept and passes trees the server will refuse. A
-//! green `nvs config check` that means neither is worse than one that does not
-//! claim to have looked.
+//! `rule:config/the-ownership-check-runs-where-it-can-be-answered` asks whether
+//! a file is owned by **the account the runtime runs as** and unwritable by
+//! anyone else. The account running `nvs config check` is usually not that
+//! account, so plain `check` reads through [`LocalFiles`], without the check,
+//! and reports what is decidable offline: syntax, unknown keys, a duplicate key
+//! within one file, an include cycle, a missing include, and the precedence the
+//! tree flattens to. A check judged for the auditor would refuse trees the
+//! server accepts and pass trees it refuses.
 //!
-//! So the boundary is asserted where it can be answered — `nvs serve` and each
-//! reload it runs, through `nvs_config::resolve::Disk`, on the host and as the
-//! account that will serve — and `check` reports what is decidable offline:
-//! syntax, unknown keys, a duplicate key within one file, an include cycle, a
-//! missing include, and the precedence the tree flattens to.
+//! `check --as <account>` names the account the question is about, and reads
+//! through `nvs_config::resolve::JudgedFor` that account: the same
+//! `trust::check_as` that `nvs serve` runs at boot, so the two cannot drift. It
+//! judges the files on this machine as they are now, and the rule names what
+//! that does not see. `dump` takes no `--as`: it lists keys, and `check` is the
+//! verdict.
 //!
 
 use std::ffi::OsStr;
@@ -71,6 +71,14 @@ enum Command {
         // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
         // steps 1 to 4.
         files: Vec<PathBuf>,
+        /// Also check that the files are safe for this account to use. Give the
+        /// account that runs the server, such as `www-data` or `LocalSystem`.
+        /// The check fails when another account owns a file, or when another
+        /// account can change a file or its folder. It checks the files on this
+        /// machine as they are now.
+        // `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s pre-flight.
+        #[arg(long = "as", value_name = "ACCOUNT")]
+        account: Option<String>,
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
@@ -97,7 +105,7 @@ impl Args {
     /// Runs the `nvs config` subcommand clap parsed, over the run's `--config` list.
     pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
         match self.command {
-            Command::Check { files } => check(config, &files),
+            Command::Check { files, account } => check(config, &files, account.as_deref()),
             Command::Dump {
                 files,
                 origin,
@@ -132,8 +140,8 @@ impl Args {
 ///   inheritance. That is the right price for a served host and the wrong one
 ///   for `nvs run examples/hello.nvs`.
 ///
-/// [`check`] reads through it for a reason of its own, which is this module's
-/// own doc comment.
+/// [`check`] reads through it without `--as` for a reason of its own, which is
+/// this module's own doc comment.
 ///
 /// **Where a capability is checked is not this reader's concern.** The check
 /// sits inside the function that performs each effect, so that no member can
@@ -991,13 +999,29 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// force, how many of those overrode an earlier assignment, and how many
 /// advisories (`rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s readable secret file today) were raised. `dump --origin`
 /// is where each override is named; this line is what CI reads.
-pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
-    let files = LocalFiles;
+///
+/// With `--as <account>` it resolves through
+/// [`JudgedFor`](nvs_config::resolve::JudgedFor) that account instead of
+/// [`LocalFiles`], so the first file the account's `nvs serve` would refuse is
+/// refused here with the same `E0607` and help. A name this machine cannot
+/// resolve is `E0662`, before any file is read.
+pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf], account: Option<&str>) -> ExitCode {
+    let judged;
+    let files: &dyn nvs_config::resolve::Files = match account {
+        None => &LocalFiles,
+        Some(name) => match nvs_config::trust::Account::named(name) {
+            Ok(account) => {
+                judged = nvs_config::resolve::JudgedFor(account);
+                &judged
+            }
+            Err(why) => return rendered(no_such_account(&why), &SourceMap::new()),
+        },
+    };
     let mut sources = SourceMap::new();
     let named = named_roots(config, paths);
     let resolved = working_directory().and_then(|cwd| {
         let roots = roots_in(&named, &cwd);
-        nvs_config::resolve::resolve(&roots, &mut sources, &files)
+        nvs_config::resolve::resolve(&roots, &mut sources, files)
     });
     let resolved = match resolved {
         Ok(resolved) => resolved,
@@ -1038,6 +1062,15 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
         plural(resolved.warnings.len()),
     );
     ExitCode::SUCCESS
+}
+
+/// `E0662` for an `--as` account that `Account::named` could not find for `why`.
+fn no_such_account(why: &str) -> Diagnostic {
+    Diagnostic::error(nvs_diagnostics::code::E_CHECK_NO_SUCH_ACCOUNT, why.to_owned()).with_help(
+        "give the name of an account that exists on this machine. On Linux, a user ID number \
+         also works. On Windows, `LocalSystem` and `NT SERVICE\\<service>` always work"
+            .to_owned(),
+    )
 }
 
 /// `nvs config dump [--origin] [--toml] [<file>...]` — every key in force, one
