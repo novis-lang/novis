@@ -12,11 +12,9 @@ The server matches each request to a route before your program runs. Your entry 
 `Core\Router::dispatch`, which calls that route's method. A program can also read the match with
 `Core\Request::route()`.
 
-A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A
-parameter with a default value makes its key optional. If the key is missing, the parameter has the
-default value. A value that does not convert, a missing key with no default and a key sent twice are
-each a `400`. The route method does not run.
+A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A bad
+value is a `400`.
 
-**The examples below** show a route and its link, the three captures, product list links, routes in
-another file, calling a route method yourself, a route with no `#[Core\Access]`, which does not
-compile, and a query parameter with a bad value.
+**The examples below** show a route and its link, the three captures, product lists, routes in
+another file, calling a route method yourself, a route with no `#[Core\Access]`, and a bad query
+value.

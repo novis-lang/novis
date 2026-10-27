@@ -16,10 +16,17 @@ A capture with no parameter of the same name is `E0751`. A `float` parameter is 
 A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
 `#[Core\Query]` on a method with no route is `E0765`.
 
-`Core\Router::dispatch` reads the query string key with the same name as the parameter. A key with
-brackets, such as `page[]=1`, is a `400` too. For each `400`, `refused` gets
-`Core\Router\Refusal::BadCapture` and the match. A path capture that does not convert is a `404`,
-because then no route matches the request.
+`Core\Router::dispatch` reads the query string key with the same name as the parameter. A parameter
+with a default value makes its key optional, and a missing key gives the default. These requests
+are a `400`, and the route method does not run:
+
+- a value that does not convert to the parameter's type,
+- a missing key for a parameter with no default value,
+- a key that is sent twice,
+- a key with brackets, such as `page[]=1`.
+
+For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
+does not convert is a `404`, because then no route matches the request.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The

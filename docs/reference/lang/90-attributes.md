@@ -1050,14 +1050,12 @@ The server matches each request to a route before your program runs. Your entry 
 `Core\Router::dispatch`, which calls that route's method. A program can also read the match with
 `Core\Request::route()`.
 
-A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A
-parameter with a default value makes its key optional. If the key is missing, the parameter has the
-default value. A value that does not convert, a missing key with no default and a key sent twice are
-each a `400`. The route method does not run.
+A parameter with `#[Core\Query]` gets its value from the query string, converted to its type. A bad
+value is a `400`.
 
-**The examples below** show a route and its link, the three captures, product list links, routes in
-another file, calling a route method yourself, a route with no `#[Core\Access]`, which does not
-compile, and a query parameter with a bad value.
+**The examples below** show a route and its link, the three captures, product lists, routes in
+another file, calling a route method yourself, a route with no `#[Core\Access]`, and a bad query
+value.
 
 A path must start with `/`, or it is `E0750`. A `{name?}` or `{name...}` capture that is not the last
 segment is `E0750` too. A route with no `method:` is `E0747`, and a `method:` that is not a case of
@@ -1077,10 +1075,17 @@ A capture with no parameter of the same name is `E0751`. A `float` parameter is 
 A `#[Core\Query]` parameter takes the same types as a capture, so a `?string` one is `E0752`.
 `#[Core\Query]` on a method with no route is `E0765`.
 
-`Core\Router::dispatch` reads the query string key with the same name as the parameter. A key with
-brackets, such as `page[]=1`, is a `400` too. For each `400`, `refused` gets
-`Core\Router\Refusal::BadCapture` and the match. A path capture that does not convert is a `404`,
-because then no route matches the request.
+`Core\Router::dispatch` reads the query string key with the same name as the parameter. A parameter
+with a default value makes its key optional, and a missing key gives the default. These requests
+are a `400`, and the route method does not run:
+
+- a value that does not convert to the parameter's type,
+- a missing key for a parameter with no default value,
+- a key that is sent twice,
+- a key with brackets, such as `page[]=1`.
+
+For each `400`, `refused` gets `Core\Router\Refusal::BadCapture` and the match. A path capture that
+does not convert is a `404`, because then no route matches the request.
 
 A route with no `#[Core\Access]` is `E0762`. `#[Core\Access]` on a method with no route is `E0788`.
 Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` is `E0760`. The
