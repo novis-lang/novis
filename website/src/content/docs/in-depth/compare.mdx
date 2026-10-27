@@ -87,11 +87,7 @@ takes about one millisecond of CPU time. The test runs each server with one core
 cores.
 
 Each bar shows how many times more requests per second the server answers with four cores than with
-one. With four cores, four times is the most possible, and that is the full bar. The line under the bar has the requests per
-second.
-
-The loop only does arithmetic. So the requests per second show how fast each language runs a loop,
-and not how fast it handles a request. The tests in "Speed and memory" measure that.
+one. With four cores, four times is the most possible, and that is the full bar.
 
 The HTML page test is not used here. Some servers answer it so fast that nginx becomes the limit
 with four cores. The test would then measure nginx and not the server.
