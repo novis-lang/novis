@@ -19,6 +19,14 @@ request holds — a 24-megapixel frame is 96 MB at RGBA8 — so a request pays o
 crossing per terminal, and the pixel buffer never leaves the guest. The builder grows a member
 without touching the ABI, because a new operation is a new plan step rather than a new export.
 
+**An animation moves through the plan as one value.** Every step runs on every frame, in the order
+written, and the frames keep their delays. Only a GIF output keeps the frames: `encode` to GIF writes
+every one with its delay, every other target writes the first frame, and `raw()` returns the first
+frame. A plan whose output is not GIF decodes the first frame alone, so a thumbnail of an animation
+costs one frame's decode, as a still image does. The pixel cap counts every frame the header states
+either way (`rule:core-classes/image-pixel-cap`), so a request's pixel memory is bounded by the cap
+however many frames it keeps.
+
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
 encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the size header alone
@@ -63,7 +71,10 @@ rows and then the overlay to the table, renumbering the overlay's steps by the r
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
 `Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
 `Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
-pixel source is held to the default pixel cap, not the `[image]` one.
+pixel source is held to the default pixel cap, not the `[image]` one. The component decodes every
+frame of a GIF, an APNG and an animated WebP with its delay (`nvs_image::decode_frames`), but `run`
+still runs its plan on the first frame alone; goal `image-second-wave` runs every step on every frame
+and writes them to a GIF output.
 
 The image world is called typed (`crates/nvs-ext/src/typed/image.rs`), so decoded pixels cross the
 boundary in one copy each way, and their host bytes are charged to the request at their own size. A

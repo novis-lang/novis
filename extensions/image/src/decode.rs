@@ -2,8 +2,9 @@
 //! (`rule:core-classes/image-format-roster`, `rule:core-classes/image-pixel-cap`).
 //!
 //! **The cap is read off the header.** Each format's decoder is constructed, which parses the
-//! header and nothing past it, and the declared width times height is held to the cap before a
-//! pixel buffer exists. An image over it returns `Runtime` naming both numbers. The decoders are
+//! header and nothing past it, and the declared width times height times the frame count `info`
+//! reads is held to the cap before a pixel buffer exists, whether one frame decodes or every one.
+//! An image over it returns `Runtime` naming the numbers. The decoders are
 //! also handed an allocation limit of two RGBA8 frames at the cap, so a header that lies about its
 //! size still cannot make one allocate past it.
 //!
@@ -13,8 +14,12 @@
 //!
 //! JPEG, PNG, WebP and GIF decode through `image`; JPEG XL through `jxl-oxide`; AVIF through
 //! `rav1d` (`avif`'s module doc); SVG through `resvg` (`svg`'s module doc), which reads nothing but
-//! the bytes it is given. Only the first frame of an animated input is decoded, so `frames`
-//! is `1` in the cap. A CMYK JPEG XL returns `Runtime`.
+//! the bytes it is given. A CMYK JPEG XL returns `Runtime`.
+//!
+//! **Every frame** of a GIF, an APNG and an animated WebP decodes through [`decode_frames`], each
+//! composited onto the canvas by `image`'s animation decoder and kept with its delay, at most as
+//! many as the header counted. [`decode`] decodes the first frame alone. An AVIF or JPEG XL gives
+//! its first frame either way.
 //!
 //! **Auto-orient** (`rule:core-classes/image-correct-by-default`) applies the EXIF orientation to
 //! the formats `image` decodes, and resets the tag to `1` in the EXIF block `Pixels` carries, so a
@@ -35,8 +40,13 @@
 
 use std::io::Cursor;
 
+use image::codecs::gif::GifDecoder;
+use image::codecs::png::PngDecoder;
+use image::codecs::webp::WebPDecoder;
 use image::metadata::Orientation;
-use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits, RgbaImage};
+use image::{
+    AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits, RgbaImage,
+};
 use jxl_oxide::{EnumColourEncoding, JxlImage, PixelFormat, RenderingIntent};
 use moxcms::{ColorProfile, DataColorSpace, Layout, TransformOptions};
 use zune_core::bytestream::ZCursor;
@@ -57,6 +67,14 @@ pub struct Pixels {
     /// The input's raw EXIF block, from the TIFF header on, for an encoder that keeps metadata.
     /// When the orientation was applied to the pixels, the block's orientation tag says `1`.
     pub exif: Option<Vec<u8>>,
+}
+
+/// One decoded frame: its pixels, and how long it shows in milliseconds, `0` for a still image.
+/// Only an animation's first frame carries the EXIF block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Frame {
+    pub pixels: Pixels,
+    pub delay_ms: u32,
 }
 
 /// The format `data` is in, read from its first bytes. Bytes in no format the roster decodes
@@ -82,12 +100,17 @@ pub fn sniff(data: &[u8]) -> Result<Format, Error> {
     }
 }
 
-/// `Runtime` when `width` by `height` is over `cap` pixels.
-pub(crate) fn check(width: u64, height: u64, cap: u64) -> Result<(), Error> {
-    let pixels = width.saturating_mul(height);
+/// `Runtime` when `frames` frames of `width` by `height` are over `cap` pixels together.
+pub(crate) fn check(width: u64, height: u64, frames: u64, cap: u64) -> Result<(), Error> {
+    let pixels = width.saturating_mul(height).saturating_mul(frames);
     if pixels > cap {
+        let frames = if frames > 1 {
+            format!(" in {frames} frames")
+        } else {
+            String::new()
+        };
         return Err(Error::Runtime(format!(
-            "the image is {width}x{height}, which is {pixels} pixels, over the cap of {cap} pixels"
+            "the image is {width}x{height}{frames}, which is {pixels} pixels, over the cap of {cap} pixels"
         )));
     }
     Ok(())
@@ -140,7 +163,12 @@ pub fn decode_page(
         return Err(crate::past_end(page, 1));
     }
     if let Some(known) = image_format(format) {
-        return decode_with_image(data, known, cap, auto_orient, to_srgb);
+        let first = decode_with_image(data, format, known, cap, auto_orient, to_srgb, false)?;
+        return first
+            .into_iter()
+            .next()
+            .map(|frame| frame.pixels)
+            .ok_or_else(no_frame);
     }
     match format {
         Format::Jxl => decode_jxl(data, cap, auto_orient, to_srgb),
@@ -152,15 +180,42 @@ pub fn decode_page(
     }
 }
 
-fn decode_with_image(
+/// Decodes every frame of `data` as [`decode`] decodes the first, the cap counting all of them.
+/// A GIF, an APNG and an animated WebP give each frame with its delay; every other format gives
+/// its first frame alone.
+pub fn decode_frames(
     data: &[u8],
-    format: ImageFormat,
     cap: u64,
     auto_orient: bool,
     to_srgb: bool,
-) -> Result<Pixels, Error> {
+) -> Result<Vec<Frame>, Error> {
+    let format = sniff(data)?;
+    match image_format(format) {
+        Some(known) => decode_with_image(data, format, known, cap, auto_orient, to_srgb, true),
+        None => Ok(vec![Frame {
+            pixels: decode(data, cap, auto_orient, to_srgb)?,
+            delay_ms: 0,
+        }]),
+    }
+}
+
+fn no_frame() -> Error {
+    Error::Parse("the image has no frame".to_string())
+}
+
+/// Decodes `data`, which is in `format` and which `image` reads as `known`: every frame of an
+/// animation when `every` is set, and otherwise the first one.
+fn decode_with_image(
+    data: &[u8],
+    format: Format,
+    known: ImageFormat,
+    cap: u64,
+    auto_orient: bool,
+    to_srgb: bool,
+    every: bool,
+) -> Result<Vec<Frame>, Error> {
     let parse = |err: image::ImageError| Error::Parse(err.to_string());
-    let mut reader = ImageReader::with_format(Cursor::new(data), format);
+    let mut reader = ImageReader::with_format(Cursor::new(data), known);
     reader.no_limits();
     // A header whose buffer would not fit in the guest's address space is refused by the decoder
     // itself, before it reports a size.
@@ -171,10 +226,11 @@ fn decode_with_image(
         other => parse(other),
     })?;
     let (width, height) = decoder.dimensions();
-    check(u64::from(width), u64::from(height), cap)?;
+    let count = crate::info::frames(format, data);
+    check(u64::from(width), u64::from(height), count, cap)?;
     let mut limits = Limits::no_limits();
     limits.max_alloc = Some(cap.saturating_mul(8));
-    decoder.set_limits(limits).map_err(parse)?;
+    decoder.set_limits(limits.clone()).map_err(parse)?;
     let mut exif = decoder
         .exif_metadata()
         .map_err(parse)?
@@ -193,40 +249,84 @@ fn decode_with_image(
     } else {
         None
     };
+    if auto_orient && let Some(raw) = exif.as_mut() {
+        let _ = Orientation::remove_from_exif_chunk(raw);
+    }
+    let rgb = profile
+        .as_ref()
+        .filter(|profile| profile.color_space == DataColorSpace::Rgb);
+    let finish = |rgba: RgbaImage, exif: Option<Vec<u8>>| {
+        let rgba = upright(rgba, rgb, orientation);
+        Pixels {
+            width: rgba.width(),
+            height: rgba.height(),
+            rgba: rgba.into_raw(),
+            exif,
+        }
+    };
+    if every && count > 1 {
+        // `info::frames` counts more than one frame only for a GIF, a PNG or a WebP.
+        let cursor = Cursor::new(data);
+        let animation = match format {
+            Format::Gif => {
+                let mut gif = GifDecoder::new(cursor).map_err(parse)?;
+                gif.set_limits(limits).map_err(parse)?;
+                gif.into_frames()
+            }
+            Format::Png => {
+                let mut png = PngDecoder::new(cursor).map_err(parse)?;
+                png.set_limits(limits).map_err(parse)?;
+                png.apng().map_err(parse)?.into_frames()
+            }
+            _ => {
+                let mut webp = WebPDecoder::new(cursor).map_err(parse)?;
+                webp.set_limits(limits).map_err(parse)?;
+                webp.into_frames()
+            }
+        };
+        let mut frames = Vec::new();
+        for frame in animation.take(usize::try_from(count).unwrap_or(usize::MAX)) {
+            let frame = frame.map_err(parse)?;
+            let (numer, denom) = frame.delay().numer_denom_ms();
+            frames.push(Frame {
+                pixels: finish(frame.into_buffer(), exif.take()),
+                delay_ms: numer.checked_div(denom).unwrap_or(0),
+            });
+        }
+        if frames.is_empty() {
+            return Err(no_frame());
+        }
+        return Ok(frames);
+    }
     let cmyk = profile.as_ref().filter(|profile| {
-        format == ImageFormat::Jpeg && profile.color_space == DataColorSpace::Cmyk
+        known == ImageFormat::Jpeg && profile.color_space == DataColorSpace::Cmyk
     });
     let rgba = match cmyk.and_then(|profile| cmyk_jpeg(data, profile).transpose()) {
         Some(converted) => converted?,
-        None => {
-            let mut rgba = DynamicImage::from_decoder(decoder)
-                .map_err(parse)?
-                .into_rgba8();
-            if let Some(profile) =
-                profile.filter(|profile| profile.color_space == DataColorSpace::Rgb)
-            {
-                if let Some(converted) = srgb(&profile, &rgba) {
-                    rgba = RgbaImage::from_raw(rgba.width(), rgba.height(), converted)
-                        .expect("the conversion keeps the frame's size");
-                }
-            }
-            rgba
-        }
+        None => DynamicImage::from_decoder(decoder)
+            .map_err(parse)?
+            .into_rgba8(),
     };
-    let mut image = DynamicImage::ImageRgba8(rgba);
-    if auto_orient {
-        image.apply_orientation(orientation);
-        if let Some(raw) = exif.as_mut() {
-            let _ = Orientation::remove_from_exif_chunk(raw);
-        }
+    Ok(vec![Frame {
+        pixels: finish(rgba, exif),
+        delay_ms: 0,
+    }])
+}
+
+/// `rgba` converted from the RGB `profile` to sRGB when there is one, then turned by
+/// `orientation`.
+fn upright(
+    mut rgba: RgbaImage,
+    profile: Option<&ColorProfile>,
+    orientation: Orientation,
+) -> RgbaImage {
+    if let Some(converted) = profile.and_then(|profile| srgb(profile, &rgba)) {
+        rgba = RgbaImage::from_raw(rgba.width(), rgba.height(), converted)
+            .expect("the conversion keeps the frame's size");
     }
-    let rgba = image.into_rgba8();
-    Ok(Pixels {
-        width: rgba.width(),
-        height: rgba.height(),
-        rgba: rgba.into_raw(),
-        exif,
-    })
+    let mut image = DynamicImage::ImageRgba8(rgba);
+    image.apply_orientation(orientation);
+    image.into_rgba8()
 }
 
 /// The four-channel `pixels` converted from `profile` to sRGB RGBA8: RGBA for an RGB profile, ink
@@ -312,7 +412,8 @@ fn decode_jxl(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result
     }
     let mut image = JxlImage::builder().read(Cursor::new(data)).map_err(parse)?;
     let (width, height) = (image.width(), image.height());
-    check(u64::from(width), u64::from(height), cap)?;
+    let frames = u64::try_from(image.num_loaded_keyframes().max(1)).unwrap_or(u64::MAX);
+    check(u64::from(width), u64::from(height), frames, cap)?;
     // `jxl-oxide` renders an XYB image, or one with no profile, to sRGB itself. Any other image
     // renders in its embedded profile, which converts below as the other formats' does.
     let embedded = image.original_icc().is_some() && !image.image_header().metadata.xyb_encoded;

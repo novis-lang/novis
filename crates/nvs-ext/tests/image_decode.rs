@@ -326,6 +326,71 @@ fn info_counts_the_frames_of_every_animated_format() {
 }
 
 #[test]
+fn an_animation_is_capped_by_all_its_frames_and_decodes_each_one() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    for format in ["gif", "png", "webp"] {
+        let name = format!("anim.{format}");
+        // Each frame is 16 by 12, which is 192 pixels, so the three are 576.
+        let capped_at = |cap: u64| {
+            run_args(
+                &request,
+                &extension,
+                capped(
+                    encoded(fixture(&name), None),
+                    plan(Vec::new(), "Size"),
+                    cap,
+                ),
+            )
+        };
+        assert_eq!(
+            expect_error(capped_at(575)),
+            Error::Runtime(
+                "the image is 16x12 in 3 frames, which is 576 pixels, over the cap of 575 pixels"
+                    .to_owned()
+            ),
+            "{name}"
+        );
+        assert_eq!(
+            size_of(&capped_at(576).expect("three frames fit a cap of 576")),
+            (16, 12),
+            "{name}"
+        );
+        let frames = nvs_image::decode_frames(&fixture(&name), 576, true, true)
+            .unwrap_or_else(|err| panic!("{name}: {err:?}"));
+        let firsts: Vec<_> = frames
+            .iter()
+            .map(|frame| {
+                assert_eq!(
+                    (frame.pixels.width, frame.pixels.height, frame.delay_ms),
+                    (16, 12, 100),
+                    "{name}"
+                );
+                <[u8; 4]>::try_from(&frame.pixels.rgba[..4]).unwrap()
+            })
+            .collect();
+        // `image-webp` blends each frame onto the canvas, which rounds 255 down to 254.
+        let colours = [[255u8, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]];
+        assert!(
+            firsts.len() == 3
+                && firsts.iter().zip(colours).all(|(got, want)| {
+                    got.iter().zip(want).all(|(&g, w)| g.abs_diff(w) <= 1)
+                }),
+            "{name}: {firsts:?}"
+        );
+        assert!(
+            matches!(
+                nvs_image::decode_frames(&fixture(&name), 575, true, true),
+                Err(nvs_image::Error::Runtime(_))
+            ),
+            "{name}"
+        );
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
 fn jpeg_xl_decodes_and_does_not_encode() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = component(&host);

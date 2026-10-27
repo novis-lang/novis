@@ -78,14 +78,16 @@ pub(crate) fn decode(
     let meta = avif
         .primary_item_metadata()
         .map_err(|err| parse(format!("{err:?}")))?;
+    let frames = sequence_frames(data)?;
     check(
         u64::from(meta.max_frame_width.get()),
         u64::from(meta.max_frame_height.get()),
+        frames,
         cap,
     )?;
     let color = Picture::decode(&avif.primary_item, cap)?;
     let (width, height) = color.size();
-    check(u64::from(width), u64::from(height), cap)?;
+    check(u64::from(width), u64::from(height), frames, cap)?;
     let alpha = match avif.alpha_item.as_deref() {
         Some(item) => {
             let alpha = Picture::decode(item, cap)?;

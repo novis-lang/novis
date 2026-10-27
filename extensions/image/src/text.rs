@@ -253,7 +253,7 @@ pub fn render(layout: &Layout<'_>, color: [u8; 4], cap: u64) -> Result<Pixels, E
     let font = font(layout.font)?;
     let set = set(&font, layout)?;
     let (width, height) = size(&set, layout.text)?;
-    within_cap(width, height, cap)?;
+    within_cap(width, height, 1, cap)?;
     let (w, h) = (width as usize, height as usize);
     let mut rgba = [color[0], color[1], color[2], 0].repeat(w * h);
     let share = match layout.align {

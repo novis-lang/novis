@@ -18,7 +18,7 @@ stages:
     context: [extensions/image/src/info.rs, extensions/image/src/avif.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 4
     title: "the rules say what an animation costs, and GIF, APNG and WebP decode every frame"
-    status: open
+    status: done
     context: [extensions/image/src/decode.rs, extensions/image/src/lib.rs, docs/rules/core-classes/image-pipeline.md]
   - id: 6
     title: "the plan runs every step on every frame, and a GIF output keeps them"
@@ -162,10 +162,10 @@ JPEG XL) gives its frame count, and a still image gives `1`.
 **Does:** the two rules state the standing decision, the cap counts every frame, and the three formats
 `image` decodes give every frame.
 
-- [ ] `rule:core-classes/image-pixel-cap` says the cap counts the sum of the frames, and `rule:core-classes/image-pipeline` says every step runs on every frame and which outputs keep them. `docs/rules/core-classes/image-pixel-cap.md:5`, `docs/rules/core-classes/image-pipeline.md:13`
-- [ ] The cap check takes `frames` from the header and holds width times height times frames to the cap before any frame decodes (`rule:core-classes/image-pixel-cap`). `extensions/image/src/decode.rs:83`, `extensions/image/src/lib.rs:233`
-- [ ] GIF, APNG and WebP decode every frame through `image`'s animation decoders, with each frame's delay kept. `extensions/image/src/decode.rs:152`
-- [ ] Tests: an animation whose frames together pass the cap is refused before a frame decodes, and each `anim.*` of the three formats decodes three frames. `crates/nvs-ext/tests/image_decode.rs:185`
+- [x] `rule:core-classes/image-pixel-cap` says the cap counts the sum of the frames, and `rule:core-classes/image-pipeline` says every step runs on every frame and which outputs keep them. `docs/rules/core-classes/image-pixel-cap.md:5`, `docs/rules/core-classes/image-pipeline.md:13`
+- [x] The cap check takes `frames` from the header and holds width times height times frames to the cap before any frame decodes (`rule:core-classes/image-pixel-cap`). `extensions/image/src/decode.rs:83`, `extensions/image/src/lib.rs:233`
+- [x] GIF, APNG and WebP decode every frame through `image`'s animation decoders, with each frame's delay kept. `extensions/image/src/decode.rs:152`
+- [x] Tests: an animation whose frames together pass the cap is refused before a frame decodes, and each `anim.*` of the three formats decodes three frames. `crates/nvs-ext/tests/image_decode.rs:185`
 
 ### 6. the plan runs every step on every frame, and a GIF output keeps them
 
@@ -218,41 +218,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `Image::info`'s `frames` is read off the bytes with no pixel
-decoded: `apng_frames`, `gif_frames` and `webp_frames` in `extensions/image/src/info.rs`, JPEG XL's
-`num_loaded_keyframes`, and AVIF's `sequence_frames` (`extensions/image/src/avif.rs`), the sample
-count of the `moov` box's `pict` track. `avif-parse` refuses the major brand `avis`, so
-`avif::container` chains the bytes with the brand read as `avif`; `decode` of `anim.avif` now opens
-its primary still item too, where it returned `Parse` before.
+Stages 1 to 4 are done. `decode::check(width, height, frames, cap)` holds every frame to the cap,
+and its message says `16x12 in 3 frames` when there is more than one. Each format's decoder counts
+the frames off the header before it decodes: `info::frames` for PNG, GIF and WebP, `sequence_frames`
+for AVIF, `num_loaded_keyframes` for JPEG XL. A canvas, a pixel source, an SVG, a PDF page and an
+op's output count one frame.
 
-The fixtures are as stage 1 left them: `anim.*` are red, green and blue, 100 ms each; `anim.avif`
-is a still primary item plus a `moov` track, and `anim.jxl` is a bare codestream.
+`nvs_image::decode_frames` returns a `Vec<Frame>` (pixels and `delay_ms`). GIF, APNG and WebP go
+through `image`'s animation decoders, taking at most the header's count, with orientation and the
+RGB profile applied to each frame through `decode::upright`; only the first frame carries the EXIF
+block. AVIF and JPEG XL give their first frame alone. `decode` still decodes one frame, and `run`
+still runs its plan on one frame. `image-webp` blends WebP frames onto the canvas, so a pure 255
+comes out as 254.
 
-The sweep's findings are closed. `env-secret-proofs`'s log shows exit 0. The nightly run
-`40291801939` is on `d6f131752`, which has neither `c244b4b36` (the yanked `crypto-bigint`) nor
-`9c8b0fe16`. The later push runs' failures (`runner.rs` property seed, viewer shots,
-`live_config.rs` cache dir, `dap.rs` catch stop, TSAN's blocking-call count) are fixed by
-`dc8ff66e9`, `dd773711a`, `b358c465f`, `c7f684405` and `ff918f7b7`.
+The rules say what an animation costs: `image-pixel-cap` counts the sum of the frames,
+`image-pipeline` says every step runs on every frame and only GIF output keeps them, with a
+*Partly on disk* line for what stage 6 owes, and `image-format-roster`'s stale "`frames` is always
+`1`" sentence now names stage 7's gap instead.
+
+The sweep's findings were already closed: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0
+now, and nightly run `40291801939` is on `d6f131752`, before the fixes the last handoff names.
 
 No test is expected red. The new test passed once by name:
-`info_counts_the_frames_of_every_animated_format`. `cargo clippy` inside `extensions/image/`
-reports 35 lints that predate this goal (`chunks_exact` with a constant size); the workspace
-clippy is green.
+`an_animation_is_capped_by_all_its_frames_and_decodes_each_one`. The workspace clippy is green.
 
 ### Next
 
-**Stage 4: the rules say what an animation costs, and GIF, APNG and WebP decode every frame.**
-Files: the two rules, `extensions/image/src/decode.rs`, `extensions/image/src/lib.rs`,
-`crates/nvs-ext/tests/image_decode.rs`. No gate. Write the rules first, as the standing decision on
-an animation's cost says.
+**Stage 6: the plan runs every step on every frame, and a GIF output keeps them.** Files:
+`extensions/image/src/lib.rs`, `extensions/image/src/ops.rs`, `extensions/image/src/encode.rs`,
+`crates/nvs-ext/tests/image_pipeline.rs`. No gate.
 
-- [ ] `image-pixel-cap` replaces its first-frame sentence with the sum of the frames. `docs/rules/core-classes/image-pixel-cap.md:5`
-- [ ] `image-pipeline` says every step runs on every frame, and only GIF output keeps them. `docs/rules/core-classes/image-pipeline.md:13`
-- [ ] `decode::check` takes `frames` (from `info`'s readers) and holds width times height times frames to the cap. `extensions/image/src/decode.rs:86`, `extensions/image/src/lib.rs:253`, `extensions/image/src/lib.rs:285`
-- [ ] GIF, APNG and WebP decode every frame through `image`'s `AnimationDecoder`, delays kept. `extensions/image/src/decode.rs:155`
-- [ ] Tests: frames that together pass the cap are refused before one decodes, and each `anim.*` of the three decodes three frames. `crates/nvs-ext/tests/image_decode.rs:297`
+- [ ] `frame` returns the frames: `decode_frames` when the plan's output is GIF, `decode_page` otherwise. `extensions/image/src/lib.rs:281`
+- [ ] `run`, `variants` and `finish` run the steps over every frame; `sizes` counts the frames in its per-step cap. `extensions/image/src/lib.rs:170`, `extensions/image/src/lib.rs:179`, `extensions/image/src/lib.rs:265`, `extensions/image/src/lib.rs:342`
+- [ ] `encode` to GIF writes every frame with its delay through `GifEncoder::encode_frames`; `raw` and the other formats take the first. `extensions/image/src/encode.rs:73`
+- [ ] Tests: a resized `anim.gif` keeps three frames and their delays, and the same plan to PNG decodes one frame. `crates/nvs-ext/tests/image_pipeline.rs:63`
 
 ### Backlog
 
-- Stages 4, 6 and 7 write the frame cost into the rules first. `docs/rules/core-classes/image-pixel-cap.md`
-- Stage 5 closes the rules. `docs/rules/core-api/tier-roster.md`
+- Stage 7: AVIF's sequence track and JPEG XL's frames through `decode_frames`. `extensions/image/src/decode.rs:186`, `extensions/image/src/avif.rs:70`
+- Stage 5 closes the rules, including `image-pipeline`'s new *Partly on disk* sentence. `docs/rules/core-classes/image-pipeline.md:75`

@@ -86,12 +86,7 @@ pub fn info(data: &[u8]) -> Result<Info, Error> {
         width: u64::from(width),
         height: u64::from(height),
         has_alpha,
-        frames: match format {
-            Format::Png => apng_frames(data),
-            Format::Gif => gif_frames(data),
-            Format::Webp => webp_frames(data),
-            _ => 1,
-        },
+        frames: frames(format, data),
         orientation: u64::from(orientation.to_exif()),
         exif,
         has_icc: icc.is_some_and(|profile| !profile.is_empty()),
@@ -146,6 +141,17 @@ pub(crate) fn exif_fields(raw: &[u8]) -> Result<Vec<(String, String)>, Error> {
             (field.tag.to_string(), value)
         })
         .collect())
+}
+
+/// The frame count of a PNG, GIF or WebP `data` in `format`, read off its chunks or blocks
+/// without decoding a frame. Every other format is `1`.
+pub(crate) fn frames(format: Format, data: &[u8]) -> u64 {
+    match format {
+        Format::Png => apng_frames(data),
+        Format::Gif => gif_frames(data),
+        Format::Webp => webp_frames(data),
+        _ => 1,
+    }
 }
 
 /// The frame count an APNG's `acTL` chunk states, or `1` for a PNG without one. Only the chunk

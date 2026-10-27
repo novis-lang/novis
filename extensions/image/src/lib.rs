@@ -45,7 +45,7 @@ mod svg;
 pub mod text;
 mod webp;
 
-pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, decode_page, sniff};
+pub use decode::{DEFAULT_MAX_PIXELS, Frame, Pixels, decode, decode_frames, decode_page, sniff};
 pub use encode::{DEFAULT_JPEG_QUALITY, encode};
 pub use info::{Info, info};
 pub use ops::Op;
@@ -229,8 +229,10 @@ pub(crate) fn past_end(page: u64, count: u64) -> Error {
 }
 
 /// The size of the frame `input` makes, when it is known before anything is decoded and within
-/// `cap`. An encoded source's size is read from its header, turned as `auto_orient` turns it.
+/// `cap` with every frame counted. An encoded source's size is read from its header, turned as
+/// `auto_orient` turns it.
 fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
+    let mut frames = 1;
     let (width, height) = match *input {
         Input::Canvas { width, height, .. } | Input::Pixels { width, height, .. } => {
             (width, height)
@@ -243,6 +245,7 @@ fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
             data, auto_orient, ..
         } => {
             let info = info(data).ok()?;
+            frames = info.frames;
             if auto_orient && info.orientation >= 5 {
                 (info.height, info.width)
             } else {
@@ -250,7 +253,7 @@ fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
             }
         }
     };
-    if width == 0 || height == 0 || decode::check(width, height, cap).is_err() {
+    if width == 0 || height == 0 || decode::check(width, height, frames, cap).is_err() {
         return None;
     }
     Some((u32::try_from(width).ok()?, u32::try_from(height).ok()?))
@@ -282,7 +285,7 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
                 "an image of {width}x{height} has no pixel"
             )));
         }
-        decode::check(width, height, cap)?;
+        decode::check(width, height, 1, cap)?;
         let too_big = || Error::Invalid(format!("an image of {width}x{height} is too big"));
         let w = u32::try_from(width).map_err(|_| too_big())?;
         let h = u32::try_from(height).map_err(|_| too_big())?;

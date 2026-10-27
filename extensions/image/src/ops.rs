@@ -458,7 +458,7 @@ fn scale(size: u32, by: f64) -> u64 {
 
 /// `Runtime` when a `width` by `height` frame is over `cap`, and the size as `u32`s otherwise.
 fn frame(width: u64, height: u64, cap: u64) -> Result<(u32, u32), Error> {
-    within_cap(width, height, cap)?;
+    within_cap(width, height, 1, cap)?;
     match (u32::try_from(width), u32::try_from(height)) {
         (Ok(width), Ok(height)) => Ok((width, height)),
         _ => Err(Error::Runtime(format!(

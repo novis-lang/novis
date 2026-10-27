@@ -176,7 +176,7 @@ fn settings(seen: &Arc<Mutex<Option<InterpreterWarning>>>) -> InterpreterSetting
 pub(crate) fn decode(data: &[u8], cap: u64, page: u64, dpi: f64) -> Result<Pixels, Error> {
     let pdf = open(data)?;
     let (width, height) = scaled(points(&pdf, page)?, dpi);
-    check(width, height, cap)?;
+    check(width, height, 1, cap)?;
     let too_big = || {
         Error::Runtime(format!(
             "page {page} at {dpi} dpi is {width}x{height} pixels. A side may be at most 65535 pixels"

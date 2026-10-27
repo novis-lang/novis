@@ -115,7 +115,7 @@ pub(crate) fn info(data: &[u8]) -> Result<crate::info::Info, Error> {
 pub(crate) fn decode(data: &[u8], cap: u64) -> Result<Pixels, Error> {
     let tree = parse(data)?;
     let (width, height) = size(&tree);
-    check(width, height, cap)?;
+    check(width, height, 1, cap)?;
     let too_big = || Error::Runtime(format!("an SVG of {width}x{height} is too big"));
     let width = u32::try_from(width).map_err(|_| too_big())?;
     let height = u32::try_from(height).map_err(|_| too_big())?;
