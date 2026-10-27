@@ -154,7 +154,7 @@ pub(crate) fn print(file: &SourceFile, parsed: &Parsed, reported: &Diagnostics) 
     wanted.extend(statement::runs(&indent));
     // The space between two tokens comes last, so every stage above that
     // names the same byte wins over it.
-    wanted.extend(gap::runs(&parsed.index, text, &parsed.trivia));
+    wanted.extend(gap::runs(parsed, text));
     let runs = Runs::new(wanted, &parsed.trivia);
     let mut edits = modifiers::rewrites(parsed, text);
     edits.extend(tokens::rewrites(&parsed.index, text, &parsed.trivia));

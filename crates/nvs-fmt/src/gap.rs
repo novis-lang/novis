@@ -16,9 +16,12 @@
 //! node holding the token's offset is the production the token belongs to, so
 //! a `-` whose node is `Binary` is a subtraction, a `?` whose node is `Ternary`
 //! is a ternary's, and a `(` whose node is a `Call` opens its arguments. A
-//! written type is no node of its own, so a `?`, `|`, `<` or `>` inside one
-//! sits in the declaration around it, and none of the rows below reads it as an
-//! operator. Those are the type rows, which this stage leaves to their author.
+//! written type is no node of its own, so this stage collects the span of every
+//! type the file writes ([`nvs_syntax::written::written_types_in`]), and a `?`,
+//! `|`, `&`, `<`, `>`, `(` or `)` with both of its pair inside one span is type
+//! punctuation: nothing on either side of it. A unary operator's node is
+//! `Unary`, `PreIncDec` or `PostIncDec`, and nothing separates it from its
+//! operand.
 //!
 //! A keyword written where a name goes is a name: `$row->list`, `Foo::print`
 //! and `function match()` space as a word does.
@@ -27,17 +30,22 @@
 //!
 //! A pair this table does not name keeps its author's run, and so does every
 //! pair inside text a program prints (a string, a heredoc, an html template's
-//! body) and every pair that touches `<?nvs`, `<?=`, `?>` or inline HTML.
-//! A run is never emptied where its two tokens, written together, would lex
-//! as something else.
+//! body) and every pair that touches a kind on [`AUTHORS`]: `<?nvs`, `<?=`,
+//! `?>` and inline HTML among them. A run is never emptied where its two
+//! tokens, written together, would lex as something else.
+//!
+//! `crates/nvs-fmt/tests/token_gaps.rs` reads every `TokenKind` the lexer has
+//! and fails naming one this file mentions nowhere, so a new token kind is
+//! given a row or put on [`AUTHORS`] before it is ever spaced.
 //!
 //! # What it spends
 //!
-//! One more lex of the file and one token vector, both dropped once the runs
-//! are pushed. This runs only in `nvs fmt` and the editor's formatting request.
+//! One more lex of the file, one token vector and one vector of the file's
+//! written types, all dropped once the runs are pushed. This runs only in
+//! `nvs fmt` and the editor's formatting request.
 
-use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceMap};
-use nvs_syntax::{Keyword, SyntaxIndex, Token, TokenKind, Trivia, TriviaKind};
+use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, SourceMap, Span};
+use nvs_syntax::{Keyword, Parsed, SyntaxIndex, Token, TokenKind, Trivia, TriviaKind};
 
 /// One space, the only run this stage writes that is not empty.
 const SPACE: &str = " ";
@@ -142,17 +150,46 @@ const LABELS: &[&str] = &["Case", "Switch"];
 /// reference.
 const OPERATION: &str = "Binary";
 
-/// Every run this table decides in `text`, which must be `index`'s and
-/// `trivia`'s own file: the run that has to precede an offset, by that offset.
+/// The token kinds whose every run is the author's, whatever the other token
+/// of the pair is. An open or a close tag and inline HTML sit beside markup
+/// the program prints. A string's text, a `$` and a `\` the table names no
+/// row for, and the end of the file and a byte the lexer does not know are
+/// never spaced by a guess.
+const AUTHORS: &[TokenKind] = &[
+    TokenKind::InlineHtml,
+    TokenKind::OpenTagNvs,
+    TokenKind::OpenTagPhp,
+    TokenKind::OpenTagEcho,
+    TokenKind::CloseTag,
+    TokenKind::StringPart,
+    TokenKind::Dollar,
+    TokenKind::Backslash,
+    TokenKind::Unknown,
+    TokenKind::Eof,
+];
+
+/// The node kinds of a prefix operator, which nothing separates from the
+/// operand after it.
+const PREFIXES: &[&str] = &["Unary", "PreIncDec"];
+
+/// Every run this table decides in `parsed`'s file, whose text is `text`: the
+/// run that has to precede an offset, by that offset.
 ///
 /// A run already as the table wants it is not pushed, so the printer leaves
 /// it as it is.
-pub(crate) fn runs(index: &SyntaxIndex, text: &str, trivia: &[Trivia]) -> Vec<(usize, String)> {
+pub(crate) fn runs(parsed: &Parsed, text: &str) -> Vec<(usize, String)> {
     let mut map = SourceMap::new();
     let id = map.add("gap.nvs", text);
     let mut scratch = Diagnostics::new();
     let tokens = nvs_syntax::tokenize(map.file(id), &mut scratch);
-    let pairs = Pairs::new(index, &tokens);
+    let mut types: Vec<Span> =
+        nvs_syntax::written::written_types_in(&parsed.stmts, 0, BytePos::MAX)
+            .into_iter()
+            .map(|ty| ty.span)
+            .collect();
+    types.sort_unstable_by_key(|span| span.start);
+    let trivia = &parsed.trivia;
+    let pairs = Pairs::new(&parsed.index, &tokens, types);
     let mut wanted = Vec::new();
     for at in 0..tokens.len().saturating_sub(1) {
         let (left, right) = (tokens[at], tokens[at + 1]);
@@ -190,10 +227,13 @@ struct Pairs<'a> {
     in_code: Vec<bool>,
     /// The `;` tokens inside a `for` header, as indices into `tokens`.
     for_semicolons: Vec<usize>,
+    /// The span of every type the file writes, by where it starts. None of
+    /// them holds another.
+    types: Vec<Span>,
 }
 
 impl<'a> Pairs<'a> {
-    fn new(index: &'a SyntaxIndex, tokens: &'a [Token]) -> Self {
+    fn new(index: &'a SyntaxIndex, tokens: &'a [Token], types: Vec<Span>) -> Self {
         let in_code = code_after_each(tokens);
         let mut for_semicolons = Vec::new();
         for at in 0..tokens.len() {
@@ -224,6 +264,7 @@ impl<'a> Pairs<'a> {
             tokens,
             in_code,
             for_semicolons,
+            types,
         }
     }
 
@@ -265,6 +306,12 @@ impl<'a> Pairs<'a> {
             return Some(NOTHING);
         }
         if is_member_access(l) || is_member_access(r) {
+            return Some(NOTHING);
+        }
+        if (is_type_mark(l) || is_type_mark(r)) && self.in_one_type(at) {
+            return Some(NOTHING);
+        }
+        if self.is_unary(at) {
             return Some(NOTHING);
         }
         if l == TokenKind::FatArrow || r == TokenKind::FatArrow {
@@ -384,6 +431,37 @@ impl<'a> Pairs<'a> {
         }
     }
 
+    /// Whether the pair `at`, `at + 1` is a unary operator and its operand,
+    /// in either order.
+    fn is_unary(&self, at: usize) -> bool {
+        let (l, r) = (self.tokens[at].kind, self.tokens[at + 1].kind);
+        match l {
+            TokenKind::Bang | TokenKind::Tilde | TokenKind::At | TokenKind::Ellipsis => {
+                return true;
+            }
+            TokenKind::Minus | TokenKind::Plus | TokenKind::PlusPlus | TokenKind::MinusMinus
+                if self
+                    .node_at(at)
+                    .is_some_and(|kind| PREFIXES.contains(&kind)) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+        matches!(r, TokenKind::PlusPlus | TokenKind::MinusMinus)
+            && self.node_at(at + 1) == Some("PostIncDec")
+    }
+
+    /// Whether both tokens of the pair `at`, `at + 1` sit inside one written
+    /// type.
+    fn in_one_type(&self, at: usize) -> bool {
+        let (left, right) = (self.tokens[at].span, self.tokens[at + 1].span);
+        let before = self.types.partition_point(|ty| ty.start <= left.start);
+        before
+            .checked_sub(1)
+            .is_some_and(|last| right.end <= self.types[last].end)
+    }
+
     /// Whether token `at` is a `?` or a `:` that a ternary owns.
     fn is_ternary(&self, at: usize) -> bool {
         matches!(self.tokens[at].kind, TokenKind::Question | TokenKind::Colon)
@@ -398,17 +476,24 @@ impl<'a> Pairs<'a> {
 }
 
 /// Whether a pair touching `kind` is left to its author, whatever the other
-/// token is: an open or close tag and inline HTML sit beside markup.
+/// token is: whether `kind` is on [`AUTHORS`].
 fn is_aside(kind: TokenKind) -> bool {
+    AUTHORS.contains(&kind)
+}
+
+/// Whether `kind` is punctuation a written type uses: `?`, `|`, `&`, `<`,
+/// `>`, `>>` closing two argument lists, `(` and `)`.
+fn is_type_mark(kind: TokenKind) -> bool {
     matches!(
         kind,
-        TokenKind::InlineHtml
-            | TokenKind::OpenTagNvs
-            | TokenKind::OpenTagPhp
-            | TokenKind::OpenTagEcho
-            | TokenKind::CloseTag
-            | TokenKind::Unknown
-            | TokenKind::Eof
+        TokenKind::Question
+            | TokenKind::Pipe
+            | TokenKind::Amp
+            | TokenKind::Lt
+            | TokenKind::Gt
+            | TokenKind::GtGt
+            | TokenKind::LParen
+            | TokenKind::RParen
     )
 }
 

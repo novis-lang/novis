@@ -109,6 +109,7 @@ mod todo;
 mod token;
 pub mod visit;
 pub mod walk;
+pub mod written;
 
 pub use casing::check_declarations;
 pub use index::{IndexNode, NodePath, SyntaxIndex};

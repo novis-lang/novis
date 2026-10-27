@@ -351,6 +351,113 @@ int $b = 2; // two
 }
 
 #[test]
+fn a_written_type_has_nothing_around_its_punctuation() {
+    let signature = "total(?int $a, int|string $b, Pair<string, int> $c, array<array<int> > $d)";
+    let canonical = in_a_method("        return 1;\n").replace("total(int $a, int $b)", signature);
+    let mangled = canonical
+        .replace("?int", "? int")
+        .replace("int|string", "int | string")
+        .replace("Pair<string, int>", "Pair < string, int >");
+    assert_eq!(formatted(&mangled), canonical);
+}
+
+#[test]
+fn a_signature_type_has_nothing_around_its_punctuation() {
+    let mangled = in_a_method("        return $a;\n").replace("): int", "): ? int");
+    let canonical = in_a_method("        return $a;\n").replace("): int", "): ?int");
+    assert_eq!(formatted(&mangled), canonical);
+}
+
+#[test]
+fn a_unary_operator_has_nothing_before_its_operand() {
+    let mangled = "\
+<?nvs
+int $x = 1;
+bool $ok = true;
+int $neg = - $x;
+bool $not = ! $ok;
+$x ++;
+-- $x;
+int $kept = $x - - $x;
+";
+    let canonical = "\
+<?nvs
+int $x = 1;
+bool $ok = true;
+int $neg = -$x;
+bool $not = !$ok;
+$x++;
+--$x;
+int $kept = $x - -$x;
+";
+    assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
+fn a_run_beside_a_block_comment_a_tag_or_an_unnamed_pair_is_the_authors() {
+    let canonical = "\
+<?nvs
+int $a = /* one */  1;
+echo  -$a;
+?>
+<p><?=  $a  ?></p>
+";
+    assert_eq!(formatted(canonical), canonical);
+}
+
+/// The variants of `pub enum TokenKind`, read from the lexer's own source so
+/// that a kind added there is a kind this test sees.
+fn token_kinds() -> Vec<&'static str> {
+    let source = include_str!("../../nvs-syntax/src/token.rs");
+    let start = source
+        .find("pub enum TokenKind {")
+        .expect("token.rs declares `pub enum TokenKind`");
+    let body = &source[start..];
+    let end = body.find("\n}").expect("`TokenKind` has a closing brace");
+    body[..end]
+        .lines()
+        .skip(1)
+        .filter_map(|line| {
+            let rest = line.strip_prefix("    ")?;
+            let name: &str = rest
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .next()
+                .unwrap_or("");
+            name.starts_with(|c: char| c.is_ascii_uppercase())
+                .then_some(name)
+        })
+        .collect()
+}
+
+/// `rule:tooling/fmt-one-run-between-two-tokens`: a token kind is either in the
+/// table or on its list of kinds whose runs are the author's, so a new kind is
+/// never spaced by a guess.
+#[test]
+fn every_token_kind_has_a_row_or_is_the_authors() {
+    let table = include_str!("../src/gap.rs");
+    let kinds = token_kinds();
+    assert!(
+        kinds.len() > 80,
+        "only {} `TokenKind` variant(s) were read from token.rs, so this test reads it wrong",
+        kinds.len()
+    );
+    let missing: Vec<&str> = kinds
+        .into_iter()
+        .filter(|kind| {
+            let spelled = format!("TokenKind::{kind}");
+            !table.match_indices(&spelled).any(|(at, _)| {
+                !table[at + spelled.len()..].starts_with(|c: char| c.is_ascii_alphanumeric())
+            })
+        })
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "`crates/nvs-fmt/src/gap.rs` names no row for these token kinds and does not list them \
+         on `AUTHORS`: {missing:?}"
+    );
+}
+
+#[test]
 fn text_a_program_prints_and_a_unary_operator_keep_their_runs() {
     let canonical = "\
 <?nvs

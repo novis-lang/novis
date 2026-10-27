@@ -141,6 +141,101 @@ fn formatting_the_whole_corpus_twice_changes_nothing_the_second_time() {
     );
 }
 
+/// The token kinds `text` lexes to, sorted, with the rewrites the formatter
+/// makes on purpose undone.
+///
+/// A plain double-quoted string counts as a single-quoted one
+/// (`rule:tooling/fmt-quotes`), a comma before a closing bracket counts as
+/// nothing (the comma a multi-line list ends on), and `else if` counts as
+/// `elseif`. The kinds are sorted because a modifier list and a run of imports
+/// go out in their canonical order. Two tokens written together that lex as
+/// one change the sorted kinds as well as the order, so sorting hides no
+/// fused pair.
+fn token_kinds(text: &str) -> Vec<String> {
+    use nvs_syntax::{Keyword, TokenKind};
+    let mut map = SourceMap::new();
+    let id = map.add("kinds.nvs".to_owned(), text);
+    let mut scratch = nvs_diagnostics::Diagnostics::new();
+    let tokens: Vec<TokenKind> = nvs_syntax::tokenize(map.file(id), &mut scratch)
+        .into_iter()
+        .map(|token| token.kind)
+        .collect();
+    let mut kinds = Vec::new();
+    let mut at = 0;
+    while at < tokens.len() {
+        let kind = tokens[at];
+        let next = tokens.get(at + 1).copied();
+        match kind {
+            TokenKind::Comma
+                if matches!(
+                    next,
+                    Some(TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace)
+                ) => {}
+            TokenKind::Keyword(Keyword::Else) if next == Some(TokenKind::Keyword(Keyword::If)) => {
+                kinds.push(format!("{:?}", TokenKind::Keyword(Keyword::Elseif)));
+                at += 1;
+            }
+            TokenKind::DoubleQuoteOpen => {
+                let mut end = at + 1;
+                while tokens.get(end) == Some(&TokenKind::StringPart) {
+                    end += 1;
+                }
+                if tokens.get(end) == Some(&TokenKind::DoubleQuoteClose) {
+                    kinds.push(format!("{:?}", TokenKind::SingleQuotedString));
+                    at = end;
+                } else {
+                    kinds.push(format!("{kind:?}"));
+                }
+            }
+            _ => kinds.push(format!("{kind:?}")),
+        }
+        at += 1;
+    }
+    kinds.sort_unstable();
+    kinds
+}
+
+/// `rule:tooling/fmt-one-run-between-two-tokens`'s invariant: a run the
+/// formatter empties never joins two tokens into another one, so `- -$x` is
+/// never `--$x` and `> >` is never `>>`.
+#[test]
+fn every_formatted_corpus_file_lexes_to_its_inputs_token_kinds() {
+    let mut changed = Vec::new();
+    let mut compared = 0_usize;
+    for path in corpus() {
+        let name = path.display().to_string();
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Some(output) = formatted(&name, &text) else {
+            continue;
+        };
+        compared += 1;
+        let (before, after) = (token_kinds(&text), token_kinds(&output));
+        if before != after {
+            let lost: Vec<&String> = before.iter().filter(|k| !after.contains(k)).collect();
+            let gained: Vec<&String> = after.iter().filter(|k| !before.contains(k)).collect();
+            changed.push(format!(
+                "{name}: {} token(s) before, {} after; only before: {lost:?}; only after: {gained:?}",
+                before.len(),
+                after.len()
+            ));
+        }
+    }
+
+    assert!(
+        compared > 50,
+        "only {compared} corpus file(s) were formatted — this test is measuring nothing"
+    );
+    assert!(
+        changed.is_empty(),
+        "{} corpus file(s) lex to other token kinds after formatting, so a run the formatter \
+         emptied joined two tokens:\n{}",
+        changed.len(),
+        changed.join("\n")
+    );
+}
+
 /// The goal's § *Standing decisions*, "never a semantic change": the file that
 /// comes back is the same program, whatever its layout now is.
 #[test]
