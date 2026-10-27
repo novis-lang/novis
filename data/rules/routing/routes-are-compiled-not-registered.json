@@ -1,6 +1,6 @@
 {
   "title": "A route is a `#[Route]` compiled into the unit's table, its three runtime bugs are compile errors, and one method's routes share one path",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/table-is-opt-in",
     "routing/matching-is-not-dispatching",
@@ -13,6 +13,5 @@
     "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
     "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
     "crates/nvs-types/tests/routes.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

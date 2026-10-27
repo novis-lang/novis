@@ -1,6 +1,6 @@
 {
   "title": "`#[Route]` is `{path, method, slotted?}` on a method, recognized by name and never by shape, and the method is the route's identity",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/derive-attribute",
     "attributes/inert-metadata",
@@ -14,6 +14,5 @@
     "crates/nvs-types/tests/routes.rs",
     "tests/conformance/core/http-method-is-eight-verbs-whose-unsafe-four-are-the-tail.nvst",
     "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

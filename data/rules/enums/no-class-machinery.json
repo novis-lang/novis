@@ -1,6 +1,6 @@
 {
   "title": "A case is an integer constant, and an enum body declares nothing but cases",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "enums/closed-integer-type",
     "enums/representation",
@@ -12,6 +12,5 @@
     "crates/nvs-ir/tests/class_constants.rs",
     "tests/conformance/enum/an-enum-orders-and-sums-through-its-integer.nvst",
     "tests/conformance/reject/an-enum-case-is-not-an-array-key.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

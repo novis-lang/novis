@@ -3,8 +3,6 @@
 
 # Statements
 
-*1 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
 ## `<?nvs` is the only code-mode open tag; `<?php` is refused
@@ -415,7 +413,7 @@ position.
 
 <a id="statements-static-is-a-member-modifier"></a>
 
-## `static` marks a class member and names a class-relative type, and nothing else  *(designed — owned by goal routes-by-method)*
+## `static` marks a class member and names a class-relative type, and nothing else
 
 `rule:statements/static-is-a-member-modifier`
 

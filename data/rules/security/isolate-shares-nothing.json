@@ -1,6 +1,6 @@
 {
   "title": "Running another script is an in-process isolate that shares nothing with its parent but compiled code",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/isolate-values-cross-by-copy",
     "security/isolate-budget-is-the-trees",
@@ -15,6 +15,5 @@
     "crates/nvs-cli/tests/spawn_entry.rs",
     "benches/abi-probe/tests/perf_guards.rs",
     "crates/nvs-host/tests/limits.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*3 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3145,7 +3145,7 @@ it ([`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-o
 
 <a id="core-classes-router-signed-url"></a>
 
-## `Core\Router` signs a route's path pattern and its parameters, so a signature survives a remount and a method rename  *(designed — owned by goal routes-by-method)*
+## `Core\Router` signs a route's path pattern and its parameters, so a signature survives a remount and a method rename
 
 `rule:core-classes/router-signed-url`
 

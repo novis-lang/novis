@@ -3,8 +3,6 @@
 
 # Observability
 
-*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
 ## Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path
@@ -263,7 +261,7 @@ than a throw.
 
 <a id="observability-route-label-is-the-path-pattern"></a>
 
-## The `route` label carries the matched route's path pattern, never the request path  *(designed — owned by goal routes-by-method)*
+## The `route` label carries the matched route's path pattern, never the request path
 
 `rule:observability/route-label-is-the-path-pattern`
 

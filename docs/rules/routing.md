@@ -3,11 +3,9 @@
 
 # Routing
 
-*15 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="routing-routes-are-compiled-not-registered"></a>
 
-## A route is a `#[Route]` compiled into the unit's table, its three runtime bugs are compile errors, and one method's routes share one path  *(designed — owned by goal routes-by-method)*
+## A route is a `#[Route]` compiled into the unit's table, its three runtime bugs are compile errors, and one method's routes share one path
 
 `rule:routing/routes-are-compiled-not-registered`
 
@@ -57,7 +55,7 @@ costs nothing.
 
 <a id="routing-route-attribute"></a>
 
-## `#[Route]` is `{path, method, slotted?}` on a method, recognized by name and never by shape, and the method is the route's identity  *(designed — owned by goal routes-by-method)*
+## `#[Route]` is `{path, method, slotted?}` on a method, recognized by name and never by shape, and the method is the route's identity
 
 `rule:routing/route-attribute`
 
@@ -383,7 +381,7 @@ more. An absent optional key gives the declared default. Every failure above is 
 
 <a id="routing-a-method-is-one-endpoint-everywhere"></a>
 
-## A method is one `url()` target, one `Match::is` for every verb, and one `operationId` per verb  *(designed — owned by goal routes-by-method)*
+## A method is one `url()` target, one `Match::is` for every verb, and one `operationId` per verb
 
 `rule:routing/a-method-is-one-endpoint-everywhere`
 
@@ -413,7 +411,7 @@ folds to the row index while compiling.
 
 <a id="routing-matching-is-not-dispatching"></a>
 
-## A match is a route identity and typed parameters, and running a handler is a separate call the program makes  *(designed — owned by goal routes-by-method)*
+## A match is a route identity and typed parameters, and running a handler is a separate call the program makes
 
 `rule:routing/matching-is-not-dispatching`
 
@@ -478,7 +476,7 @@ routing is not a case that forces [`types/grammar`](types.md#types-grammar)'s de
 
 <a id="routing-a-match-is-not-invocable"></a>
 
-## A match carries its row and typed parameters and nothing invocable, and typed `callable` would not change that  *(designed — owned by goal routes-by-method)*
+## A match carries its row and typed parameters and nothing invocable, and typed `callable` would not change that
 
 `rule:routing/a-match-is-not-invocable`
 
@@ -532,7 +530,7 @@ compiler-recognised attributes this table draws on has one home
 
 <a id="routing-a-match-reads-an-attribute-as-data"></a>
 
-## `Core\Router\Match::attribute<T>()` returns the one attribute payload on the matched route's method that satisfies the shape `T`, folded while compiling  *(designed — owned by goal routes-by-method)*
+## `Core\Router\Match::attribute<T>()` returns the one attribute payload on the matched route's method that satisfies the shape `T`, folded while compiling
 
 `rule:routing/a-match-reads-an-attribute-as-data`
 
@@ -573,7 +571,7 @@ The refusals are the retrieval's own, reported at the call:
 
 <a id="routing-matched-once-before-the-handler"></a>
 
-## A request is matched once, before any application code runs, and `Core\Request::route()` is that match  *(designed — owned by goal routes-by-method)*
+## A request is matched once, before any application code runs, and `Core\Request::route()` is that match
 
 `rule:routing/matched-once-before-the-handler`
 
@@ -814,7 +812,7 @@ from the request target.
 
 <a id="routing-link-target-and-params-are-checked"></a>
 
-## `Core\Router::url` is a launderer that takes its route as a method reference, and a reference and `$params` written in the code are checked against the compiled table  *(designed — owned by goal routes-by-method)*
+## `Core\Router::url` is a launderer that takes its route as a method reference, and a reference and `$params` written in the code are checked against the compiled table
 
 `rule:routing/link-target-and-params-are-checked`
 
@@ -861,7 +859,7 @@ is built on is the mount-relative one ([`routing/link-carries-the-mount-prefix`]
 
 <a id="routing-link-carries-the-mount-prefix"></a>
 
-## A link carries the mount prefix the request arrived under, so one table serves at any mount  *(designed — owned by goal routes-by-method)*
+## A link carries the mount prefix the request arrived under, so one table serves at any mount
 
 `rule:routing/link-carries-the-mount-prefix`
 
@@ -886,7 +884,7 @@ signed is the route's path pattern and its parameters, never the mounted URL. A 
 
 <a id="routing-a-leftover-link-key-is-a-query-string"></a>
 
-## A `url()` key that is not a capture becomes a percent-encoded query string, and one that is neither a capture nor a declared `#[Query]` parameter does not compile  *(designed — owned by goal routes-by-method)*
+## A `url()` key that is not a capture becomes a percent-encoded query string, and one that is neither a capture nor a declared `#[Query]` parameter does not compile
 
 `rule:routing/a-leftover-link-key-is-a-query-string`
 
@@ -912,7 +910,7 @@ constrain what a link may be handed, except that a literal outside a closed set 
 
 <a id="routing-an-absolute-link-takes-a-configured-origin"></a>
 
-## `urlAbsolute` prepends a configured origin and never one sniffed from a request header  *(designed — owned by goal routes-by-method)*
+## `urlAbsolute` prepends a configured origin and never one sniffed from a request header
 
 `rule:routing/an-absolute-link-takes-a-configured-origin`
 
@@ -973,7 +971,7 @@ and the reason is logged.
 
 <a id="routing-table-is-opt-in"></a>
 
-## The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing  *(designed — owned by goal routes-by-method)*
+## The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing
 
 `rule:routing/table-is-opt-in`
 
@@ -1012,7 +1010,7 @@ records for a hard cross-module reference, arriving in a second place.
 
 <a id="routing-api-document-is-generated-from-the-route-table"></a>
 
-## The API document is generated from the route table while compiling, so it cannot drift from the code  *(designed — owned by goal routes-by-method)*
+## The API document is generated from the route table while compiling, so it cannot drift from the code
 
 `rule:routing/api-document-is-generated-from-the-route-table`
 
@@ -1113,7 +1111,7 @@ handler removes the warning.
 
 <a id="routing-a-security-scheme-is-declared-in-code"></a>
 
-## A security scheme is declared in code by `#[Api\Scheme]`, and every `#[Api]` `security` name must be a declared one  *(designed — owned by goal routes-by-method)*
+## A security scheme is declared in code by `#[Api\Scheme]`, and every `#[Api]` `security` name must be a declared one
 
 `rule:routing/a-security-scheme-is-declared-in-code`
 
@@ -1254,7 +1252,7 @@ against the last release's document and a broken client turns from an incident i
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 
-## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own  *(designed — owned by goal routes-by-method)*
+## A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own
 
 `rule:routing/a-quick-fix-writes-a-derived-path`
 

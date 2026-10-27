@@ -3,8 +3,6 @@
 
 # Expressions
 
-*2 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="expressions-truthy-positions"></a>
 
 ## Six syntax positions test truthiness; every other `bool` position stays checked
@@ -796,7 +794,7 @@ normally, and the enclosing statement's probe is unaffected either way.
 
 <a id="expressions-pipeline-substitution"></a>
 
-## `|>` substitutes one hole at parse time, and has no run-time representation  *(designed — owned by goal routes-by-method)*
+## `|>` substitutes one hole at parse time, and has no run-time representation
 
 `rule:expressions/pipeline-substitution`
 
@@ -1094,7 +1092,7 @@ zero on the happy path ([`errors/throw-is-not-slower`](errors.md#errors-throw-is
 
 <a id="expressions-method-reference"></a>
 
-## A method reference is the bare `Class::method` on a class and `$obj->method(...)` on an object, one form per receiver, and a dropped reference is a compile error  *(designed — owned by goal routes-by-method)*
+## A method reference is the bare `Class::method` on a class and `$obj->method(...)` on an object, one form per receiver, and a dropped reference is a compile error
 
 `rule:expressions/method-reference`
 

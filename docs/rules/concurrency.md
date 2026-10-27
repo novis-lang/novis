@@ -3,8 +3,6 @@
 
 # Concurrency
 
-*2 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="concurrency-one-scheduler"></a>
 
 ## Concurrency is the `Core\Task` roster over the runtime's own single scheduler
@@ -61,7 +59,7 @@ that runs a program makes a task first even where one buys nothing else.
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
-## A child spawned `on: "worker"` is started on another core first and on its parent's core last, copies at every node in both directions, and is still its parent's child  *(designed — owned by goal routes-by-method)*
+## A child spawned `on: "worker"` is started on another core first and on its parent's core last, copies at every node in both directions, and is still its parent's child
 
 `rule:concurrency/on-worker-runs-the-child-on-another-core`
 
@@ -912,7 +910,7 @@ wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and th
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
-## An upgrade names compiled code — a file or a static method — and never a callable  *(designed — owned by goal routes-by-method)*
+## An upgrade names compiled code — a file or a static method — and never a callable
 
 `rule:concurrency/an-upgrade-is-spawn-shaped`
 

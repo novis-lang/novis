@@ -1,6 +1,6 @@
 {
   "title": "A match carries its row and typed parameters and nothing invocable, and typed `callable` would not change that",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
     "types/grammar",
@@ -13,6 +13,5 @@
     "tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst",
     "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst",
     "crates/nvs-stdlib/src/router.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

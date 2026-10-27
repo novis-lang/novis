@@ -3,8 +3,6 @@
 
 # Attributes
 
-*2 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="attributes-inert-metadata"></a>
 
 ## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
@@ -206,7 +204,7 @@ other thing.
 
 <a id="attributes-structural-retrieval"></a>
 
-## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under  *(designed — owned by goal routes-by-method)*
+## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under
 
 `rule:attributes/structural-retrieval`
 
@@ -270,7 +268,7 @@ is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no 
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 
-## `#[Api]` may add to the generated document and may not contradict the code  *(designed — owned by goal routes-by-method)*
+## `#[Api]` may add to the generated document and may not contradict the code
 
 `rule:attributes/api-adds-and-cannot-contradict`
 

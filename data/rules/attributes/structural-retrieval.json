@@ -1,6 +1,6 @@
 {
   "title": "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/retrieval-folds-while-checking",
     "attributes/call-site-type-argument",
@@ -11,6 +11,5 @@
     "tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst",
     "crates/nvs-types/tests/attributes.rs",
     "crates/nvs-types/src/retrieval.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

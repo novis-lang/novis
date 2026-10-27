@@ -3,8 +3,6 @@
 
 # Types
 
-*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -2000,7 +1998,7 @@ name, never by a namespace path: `Ns\Order\Meta` is also the spelling of a class
 
 <a id="types-callable-values"></a>
 
-## `callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable  *(designed — owned by goal routes-by-method)*
+## `callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable
 
 `rule:types/callable-values`
 

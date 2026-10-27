@@ -3,8 +3,6 @@
 
 # Enums
 
-*1 of 10 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -382,7 +380,7 @@ and no comparison at all.
 
 <a id="enums-no-class-machinery"></a>
 
-## A case is an integer constant, and an enum body declares nothing but cases  *(designed — owned by goal routes-by-method)*
+## A case is an integer constant, and an enum body declares nothing but cases
 
 `rule:enums/no-class-machinery`
 

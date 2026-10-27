@@ -1,6 +1,6 @@
 {
   "title": "A method is one `url()` target, one `Match::is` for every verb, and one `operationId` per verb",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/routes-are-compiled-not-registered",
     "routing/api-document-is-generated-from-the-route-table",
@@ -9,6 +9,5 @@
   ],
   "guardedBy": [
     "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

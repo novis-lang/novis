@@ -1,6 +1,6 @@
 {
   "title": "A method reference is the bare `Class::method` on a class and `$obj->method(...)` on an object, one form per receiver, and a dropped reference is a compile error",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/nullable-conversion-availability",
@@ -10,6 +10,5 @@
     "tests/conformance/lang/a-method-reference-names-a-method-not-a-class.nvst",
     "tests/conformance/reject/a-method-reference-forwards-every-argument.nvst",
     "crates/nvs-types/tests/callable.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

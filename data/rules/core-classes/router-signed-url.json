@@ -1,6 +1,6 @@
 {
   "title": "`Core\\Router` signs a route's path pattern and its parameters, so a signature survives a remount and a method rename",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/signature"
   ],
@@ -8,6 +8,5 @@
     "tests/conformance/core/router-url-signed-signs-the-route-identity-and-not-the-path-it-renders-to.nvst",
     "tests/conformance/core/router-url-signed-is-url-with-the-reserved-parameter-on-the-end.nvst",
     "tests/conformance/core/router-signed-route-answers-the-match-the-door-already-took.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

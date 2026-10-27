@@ -1,6 +1,6 @@
 {
   "title": "A metric label value refuses `tainted`, and there is deliberately no launderer for one",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/sink-predicate",
     "security/assert-trusted",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "crates/nvs-types/src/core_lib.rs",
     "crates/nvs-stdlib/src/metrics.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

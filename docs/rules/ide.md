@@ -3,8 +3,6 @@
 
 # The editor
 
-*1 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="ide-one-grammar-one-tree"></a>
 
 ## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
@@ -1691,7 +1689,7 @@ that is absent, or that the service holds locked, gives no lens and no error.
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
-## The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network  *(designed — owned by goal routes-by-method)*
+## The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network
 
 `rule:ide/completion-offers-only-what-the-compiler-derived`
 

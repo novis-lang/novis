@@ -1,6 +1,6 @@
 {
   "title": "The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "ide/completion-files-offer-values-at-named-parameters",
     "routing/routes-are-compiled-not-registered",
@@ -23,6 +23,5 @@
     "tests/lsp/completion/a-path-argument-offers-the-files-and-directories-its-text-reaches.lspt",
     "tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt",
     "crates/nvs-lsp/tests/completion_edits.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

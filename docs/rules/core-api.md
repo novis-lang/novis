@@ -3,8 +3,6 @@
 
 # The Core API
 
-*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -1430,7 +1428,7 @@ unbounded lifetime on a field that must be written either way.
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
-## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines  *(designed — owned by goal routes-by-method)*
+## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines
 
 `rule:core-api/signing-is-over-a-payload`
 

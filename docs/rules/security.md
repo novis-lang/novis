@@ -3,11 +3,11 @@
 
 # Security and isolation
 
-*3 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
-## Running another script is an in-process isolate that shares nothing with its parent but compiled code  *(designed — owned by goal routes-by-method)*
+## Running another script is an in-process isolate that shares nothing with its parent but compiled code
 
 `rule:security/isolate-shares-nothing`
 
@@ -1739,7 +1739,7 @@ stays two lines, the second of which is the launderer that records the decision.
 
 <a id="security-metric-label-refuses-tainted"></a>
 
-## A metric label value refuses `tainted`, and there is deliberately no launderer for one  *(designed — owned by goal routes-by-method)*
+## A metric label value refuses `tainted`, and there is deliberately no launderer for one
 
 `rule:security/metric-label-refuses-tainted`
 

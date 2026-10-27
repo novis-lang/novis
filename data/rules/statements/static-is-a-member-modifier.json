@@ -1,6 +1,6 @@
 {
   "title": "`static` marks a class member and names a class-relative type, and nothing else",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/an-anonymous-function-captures-this-only-where-it-uses-it",
@@ -23,6 +23,5 @@
     "tests/conformance/reject/a-static-property-is-refused-uninitialized-and-late-bound.nvst",
     "tests/conformance/lang/a-static-parameter-type-is-the-class-the-call-names.nvst",
     "tests/conformance/lang/a-static-array-return-is-the-class-the-call-names.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

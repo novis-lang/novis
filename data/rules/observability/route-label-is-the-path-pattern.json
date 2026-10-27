@@ -1,6 +1,6 @@
 {
   "title": "The `route` label carries the matched route's path pattern, never the request path",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "observability/default-series",
     "routing/routes-are-compiled-not-registered",
@@ -10,6 +10,5 @@
   "guardedBy": [
     "crates/nvs-server/src/route.rs",
     "crates/nvs-server/src/metrics.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

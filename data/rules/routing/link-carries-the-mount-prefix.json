@@ -1,12 +1,11 @@
 {
   "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "routing/link-target-and-params-are-checked",
     "routing/a-request-reads-its-mount"
   ],
   "guardedBy": [
     "tests/conformance/core/router-url-prepends-the-mount-prefix-the-door-stripped.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

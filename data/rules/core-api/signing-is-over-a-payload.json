@@ -1,6 +1,6 @@
 {
   "title": "A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-api/a-lifetime-is-written",
     "core-api/one-refusal-except-expiry",
@@ -13,6 +13,5 @@
     "tests/conformance/core/uri-sign-covers-every-component-present-and-verify-answers-nothing.nvst",
     "tests/conformance/core/uri-sign-replaces-the-reserved-parameter-and-two-of-them-fail.nvst",
     "tests/conformance/core/router-url-signed-covers-every-parameter-and-not-the-order-they-are-written-in.nvst"
-  ],
-  "goal": "routes-by-method"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "title": "`#[Api]` may add to the generated document and may not contradict the code",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/inert-metadata"
@@ -8,6 +8,5 @@
   "guardedBy": [
     "crates/nvs-cli/tests/openapi.rs",
     "crates/nvs-types/src/routes.rs"
-  ],
-  "goal": "routes-by-method"
+  ]
 }
