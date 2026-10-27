@@ -41,6 +41,15 @@
 //!
 //! There is no cosmetic class: the document is shape alone, so every change in it is a change to
 //! what a caller may write.
+//!
+//! ## The version step
+//!
+//! A break fails the command only when the step from the old version to the new one does not
+//! allow it ([`Step`]). Each side's version is its directory's `package.toml` `version`, which
+//! `--from` and `--to` replace; a side given as a document has none unless they give it. A
+//! `0.0.x` version on either side allows anything, and so does a higher major. A higher minor or
+//! patch allows no break, and neither does a new version that is not higher. A side with no version
+//! allows no break, which is what a bare `nvs pkg diff` of two documents checks.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -49,6 +58,7 @@ use std::process::ExitCode;
 use serde_json::{Map, Value};
 
 use super::api;
+use super::manifest::{self, Version};
 
 /// One JSON object of the document: a declaration, a member or a parameter.
 type Obj = Map<String, Value>;
@@ -81,16 +91,111 @@ pub(crate) struct Change {
     what: String,
 }
 
-/// `nvs pkg diff <old> <new> [--json]` — the whole subcommand: one line per change worst-first,
-/// or the JSON form, and a non-zero exit if any change is breaking. A side that cannot be read is a
-/// failure naming it, never an empty diff.
-pub(crate) fn run(old: &Path, new: &Path, json: bool) -> ExitCode {
+/// What the step from the old version to the new one allows.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Step {
+    /// A side has no version, so no break is allowed.
+    Unknown,
+    /// A side is `0.0.x`, so nothing is checked.
+    Experimental,
+    Major,
+    Minor,
+    Patch,
+    /// The new version is the old one or lower, so no break is allowed.
+    NotHigher,
+}
+
+impl Step {
+    /// The step between two sides' versions.
+    fn between(old: Option<Version>, new: Option<Version>) -> Self {
+        let (Some(old), Some(new)) = (old, new) else {
+            return Self::Unknown;
+        };
+        let experimental = |v: Version| v.major == 0 && v.minor == 0;
+        if experimental(old) || experimental(new) {
+            Self::Experimental
+        } else if new <= old {
+            Self::NotHigher
+        } else if new.major > old.major {
+            Self::Major
+        } else if new.minor > old.minor {
+            Self::Minor
+        } else {
+            Self::Patch
+        }
+    }
+
+    /// Whether a breaking change passes.
+    const fn allows_a_break(self) -> bool {
+        matches!(self, Self::Experimental | Self::Major)
+    }
+
+    /// The word the JSON form prints.
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Experimental => "experimental",
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::Patch => "patch",
+            Self::NotHigher => "not-higher",
+        }
+    }
+
+    /// The report's last line: which step was read, and what it allows.
+    fn sentence(self, old: Option<Version>, new: Option<Version>) -> String {
+        let (Some(old), Some(new)) = (old, new) else {
+            let missing = match (old, new) {
+                (None, None) => "Neither version is known",
+                (None, Some(_)) => "The old version is not known",
+                _ => "The new version is not known",
+            };
+            return format!("{missing}, so no breaking change is allowed.");
+        };
+        match self {
+            Self::Experimental => {
+                format!(
+                    "{old} to {new}: a 0.0.x version is experimental, so every change is allowed."
+                )
+            }
+            Self::Major => {
+                format!("{old} to {new} is a major release, so every change is allowed.")
+            }
+            Self::Minor => {
+                format!("{old} to {new} is a minor release, so no breaking change is allowed.")
+            }
+            Self::Patch => {
+                format!("{old} to {new} is a patch release, so no breaking change is allowed.")
+            }
+            Self::NotHigher | Self::Unknown => {
+                format!("{new} is not higher than {old}, so no breaking change is allowed.")
+            }
+        }
+    }
+}
+
+/// `nvs pkg diff <old> <new> [--from <version>] [--to <version>] [--json]` — the whole
+/// subcommand: one line per change worst-first and the summary, or the JSON form, and a non-zero
+/// exit if a change is breaking and the version step does not allow it. A side that cannot be
+/// read, or whose version cannot, is a failure naming it, never an empty diff.
+pub(crate) fn run(
+    old: &Path,
+    new: &Path,
+    from: Option<Version>,
+    to: Option<Version>,
+    json: bool,
+) -> ExitCode {
+    let (Ok(from), Ok(to)) = (version(old, from), version(new, to)) else {
+        return ExitCode::FAILURE;
+    };
     let (Ok(old), Ok(new)) = (side(old), side(new)) else {
         return ExitCode::FAILURE;
     };
+    let step = Step::between(from, to);
     let changes = diff(&old, &new);
     let count = |class: Class| changes.iter().filter(|c| c.class == class).count();
     let breaking = count(Class::Breaking);
+    let allowed = breaking == 0 || step.allows_a_break();
     if json {
         let list = changes
             .iter()
@@ -102,8 +207,13 @@ pub(crate) fn run(old: &Path, new: &Path, json: bool) -> ExitCode {
                 Value::Object(entry)
             })
             .collect();
+        let named = |v: Option<Version>| v.map_or(Value::Null, |v| Value::from(v.to_string()));
         let mut out = Map::new();
         out.insert("schema".into(), Value::from(api::SCHEMA));
+        out.insert("from".into(), named(from));
+        out.insert("to".into(), named(to));
+        out.insert("step".into(), Value::from(step.label()));
+        out.insert("allowed".into(), Value::from(allowed));
         out.insert("changes".into(), Value::Array(list));
         let text = serde_json::to_string_pretty(&Value::Object(out))
             .expect("a tree of strings serialises");
@@ -119,11 +229,22 @@ pub(crate) fn run(old: &Path, new: &Path, json: bool) -> ExitCode {
             changes.len(),
             count(Class::Additive),
         );
+        println!("{}", step.sentence(from, to));
     }
-    if breaking > 0 {
-        ExitCode::FAILURE
-    } else {
+    if allowed {
         ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
+}
+
+/// One side's version: the one `--from` or `--to` gave, else a directory's `package.toml`'s, else
+/// none. A version that cannot be read has already reported on standard error.
+fn version(path: &Path, given: Option<Version>) -> Result<Option<Version>, ExitCode> {
+    match given {
+        Some(version) => Ok(Some(version)),
+        None if path.is_dir() => manifest::version(path),
+        None => Ok(None),
     }
 }
 

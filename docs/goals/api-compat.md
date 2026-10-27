@@ -69,6 +69,16 @@ the first `0.1.0` or higher, the API is stable: a minor or patch release may add
 break. A major may change anything. This is not the toolchain's own scheme
 (`rule:packaging/below-1-0-the-breaking-slot-moves-left`), and the new rule says so in one sentence.
 
+**A step the versions cannot name allows no break.** A side with no version (no `package.toml`, no
+`version` key, or a document with no `--from`/`--to`) allows no break, and so does a new version that
+is the old one or lower. A version is three plain decimal numbers with no leading zero and nothing
+after the third, so `1.2.3-beta` is an error naming the file. `0.0.9` to `0.1.0` is experimental
+because a side is `0.0.x`: the first stable release freezes whatever it ships. The JSON form adds
+`from`, `to`, `step` and `allowed` beside `changes`, at the same schema `1`, since nothing reads it
+yet. Why: the standing decision errs towards breaking, and the registry, which always knows both
+versions, reads one `allowed` rather than redoing the step. `crates/nvs-cli/src/package/diff.rs`'s
+§ *The version step* is the home.
+
 **The break list is the brief's, and it errs towards breaking**, as `nvs api diff` does for OpenAPI
 (`crates/nvs-cli/src/api_diff.rs:24`). A break is: removing or renaming anything public, a new method
 on a public interface, a new abstract method, a new enum case (it breaks an exhaustive `match`), a
@@ -190,8 +200,8 @@ proofs.
 **Split:** after the version step lands, one writing subagent writes the about page and the examples,
 then a second the attack, each held to § *Text an end user reads* in `AGENTS.md`.
 
-- [ ] `package/manifest.rs` reads `version` from each side's `package.toml`, and `--from` and `--to` replace it. `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] `0.0.x` on either side is never checked, a major allows anything, and a minor or patch allows only additions; a test for each. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-cli/tests/package_api.rs:1`
+- [x] `package/manifest.rs` reads `version` from each side's `package.toml`, and `--from` and `--to` replace it. `crates/nvs-cli/src/package/manifest.rs:1`
+- [x] `0.0.x` on either side is never checked, a major allows anything, and a minor or patch allows only additions; a test for each. `crates/nvs-cli/src/package/diff.rs:1`, `crates/nvs-cli/tests/package_api.rs:1`
 - [ ] The heading `# nvs pkg api and nvs pkg diff` in `docs/reference/tools/35-packages.md`, which says the guarantee is about shape only. `docs/reference/tools/35-packages.md:1`
 - [ ] The about page and the examples. `docs/examples/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/about.md:1`
 - [ ] The attack: a minor release that removes a method, with the version step trying to hide it, is refused. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-a-break-in-a-minor.nvs:1`
@@ -215,38 +225,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `nvs pkg diff <old> <new> [--json]` compares two package directories
-or two `nvs pkg api` documents (`crates/nvs-cli/src/package/diff.rs`), prints one line per change
-worst-first and a summary, and exits non-zero on any break. The version step is not read yet.
+Stages 1, 2 and 3 are done, and stage 4's version step has landed. `nvs pkg diff <old> <new>
+[--from V] [--to V] [--json]` reads each directory side's `package.toml` `version`
+(`crates/nvs-cli/src/package/manifest.rs`, `version` alone), lets `--from`/`--to` replace it, and
+exits non-zero only when a change is breaking and `Step::allows_a_break` is false
+(`crates/nvs-cli/src/package/diff.rs`, § *The version step*). The text report's last line is the
+step sentence, such as "1.2.0 to 1.3.0 is a minor release, so no breaking change is allowed.";
+"no change" stays a line of its own. The JSON form adds `from`, `to`, `step` and `allowed`. The new
+standing decision records the edge cases.
 
-Stage 3: a parameter's `type` is classified by `directed` with `Side::Passed` (may widen) and a
-method's `returns` with `Side::Returned` (may narrow); a property's, a constant's and an alias's
-type stay `same`. `Lineage::covers` splits on `|` and `&` and closes a class over the parents each
-document lists, and an answer must hold in both documents. An undecidable change is a break whose
-line ends "and the comparison cannot tell which way it moved". The module doc's § *Types* and the
-new standing decision record the rules. `each_change_between_two_versions_gets_its_class` now runs
-sixteen pairs, the new ones `widened-parameter`, `narrowed-return`, `parent-parameter` (a class
-replaced by its parent) and `undecidable-parameter` (`array<int>` to `array<int|string>`); it
-passed, run once. Build, clippy and rustfmt are green.
+Tests: `the_version_step_decides_whether_a_break_fails` (nine cases over `removed-method` and
+`new-class`), `each_side_reads_its_version_from_package_toml` (new fixture pair `versioned/`, `1.4.0`
+to `1.5.0`) and the unit test `a_version_is_three_plain_numbers`; the two existing diff tests were
+updated for the step line and the JSON keys. All of `--test package_api` passed, run once. Build,
+clippy and rustfmt are green.
 
-The acceptance sweep's reds were already fixed on disk: `env-secret-proofs` exits 0 when run, and
+The acceptance sweep's reds were already fixed on disk: `env-secret-proofs`'s log shows exit 0, and
 the nightly run 40474302703 is on `55b03e97a`, before `22f1e4ec4`, `e461612ce` and `c33a8b8f7`,
 which fix its three Miri jobs.
 
 Tests that may go red at the gate: `COMMAND_NAMES`' table test in `crates/nvs-cli/src/main.rs`
-(30 entries, not run), and any proofs or help-text check that counts subcommands.
+(30 entries, not run), any proofs or help-text check that counts subcommands or pins `nvs pkg diff
+--help`, and the about page's `.out` files once examples exist.
 
 ### Next
 
-**Stage 4, first group: the version step decides.** Files: `crates/nvs-cli/src/package/mod.rs`,
-`crates/nvs-cli/src/package/diff.rs`, a new `crates/nvs-cli/src/package/manifest.rs`,
-`crates/nvs-cli/tests/package_api.rs` and its fixtures. The about page, examples and attack follow
-in a second group, by writing subagents as the stage's `**Split:**` line says.
+**Stage 4, second group: the reference heading and the proofs.** The session writes the heading
+first, since `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` reports "no feature"
+until it exists. Then, as the stage's `**Split:**` line says, one writing subagent writes the about
+page and three examples, and a second the attack, each held to § *Text an end user reads* in
+`AGENTS.md`. The grants feature beside it (`docs/examples/tools/packages/grants-what-each-namespace-may-do/`,
+`tests/hostile/tools/packages/grants-what-each-namespace-may-do/`) shows how a package-directory
+example and attack are laid out.
 
-- [ ] `manifest.rs` reads `version` alone from `<dir>/package.toml`, as `MAJOR.MINOR.PATCH`; a side given as a JSON document has no version unless `--from`/`--to` gives it. `crates/nvs-cli/src/package/mod.rs:40`
-- [ ] `--from <version>` and `--to <version>` on `Command::Diff`, replacing each side's read version. `crates/nvs-cli/src/package/mod.rs:40`
-- [ ] `run` exits non-zero only on a break the step forbids: `0.0.x` on either side is never checked, a major allows anything, a minor or patch allows additions only; no version at all keeps today's "any break fails". The summary line says which step was read. `crates/nvs-cli/src/package/diff.rs:87`
-- [ ] A test for each step, over an existing fixture pair with `--from`/`--to` and one pair with `package.toml` files. `crates/nvs-cli/tests/package_api.rs:86`
+- [ ] The heading `# nvs pkg api and nvs pkg diff` after the grants chapter in `docs/reference/tools/35-packages.md`, with its `<!-- src: -->` naming `rule:packaging/only-a-major-may-break-the-api`, saying the guarantee is about shape only, and the version steps as `diff.rs` § *The version step* reads them. `docs/reference/tools/35-packages.md:10`
+- [ ] `bun nv proofs --id 'tools:packages/nvs-pkg-api-and-nvs-pkg-diff'` lists what is owed; the about page and three examples by the first subagent. `docs/examples/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/about.md:1`
+- [ ] The attack by the second subagent: a minor release that removes a method, with `--from`/`--to` or `package.toml` trying to hide it, fails. `tests/hostile/tools/packages/nvs-pkg-api-and-nvs-pkg-diff/01-a-break-in-a-minor.nvs:1`
+- [ ] The rule's JSON `shipped`, with `crates/nvs-cli/tests/package_api.rs`'s tests in `guardedBy`, then `bun nv owners --closes api-compat`. `data/rules/packaging/only-a-major-may-break-the-api.json:3`
 
 ### Backlog
 

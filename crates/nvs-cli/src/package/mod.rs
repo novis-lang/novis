@@ -4,13 +4,15 @@
 //! One module per subcommand under this one. [`api`] is
 //! `rule:packaging/only-a-major-may-break-the-api`'s extraction: a package's public API, read
 //! from the checked program and never by running any of it, and [`diff`] is its comparison: every
-//! change between two versions, breaking or additive.
+//! change between two versions, breaking or additive, and whether the version step allows it.
+//! [`manifest`] reads a package's `package.toml`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
+mod manifest;
 
 /// Work with Novis packages.
 #[derive(clap::Args)]
@@ -36,12 +38,26 @@ enum Command {
     ///
     /// OLD and NEW are each a package directory or a JSON file that
     /// `nvs pkg api` printed. Each change prints on one line, as breaking or
-    /// additive. The command exits with an error if a change is breaking.
+    /// additive.
+    ///
+    /// The version numbers decide which changes are allowed. Each version is
+    /// the `version` in the directory's `package.toml`. `--from` and `--to`
+    /// replace them. A major release may change anything. A minor or a patch
+    /// release may only add. A `0.0.x` version is experimental, so nothing is
+    /// checked. Without a version, every breaking change is an error.
+    ///
+    /// The command exits with an error if a change is not allowed.
     Diff {
         /// The older version: a package directory or an API JSON file.
         old: PathBuf,
         /// The newer version: a package directory or an API JSON file.
         new: PathBuf,
+        /// The version number of OLD, such as `1.4.0`.
+        #[arg(long, value_name = "VERSION")]
+        from: Option<manifest::Version>,
+        /// The version number of NEW, such as `1.5.0`.
+        #[arg(long, value_name = "VERSION")]
+        to: Option<manifest::Version>,
         /// Print the changes as JSON.
         #[arg(long)]
         json: bool,
@@ -53,7 +69,13 @@ impl Args {
     pub(crate) fn run(self) -> ExitCode {
         match self.command {
             Command::Api { dir } => api::run(&dir),
-            Command::Diff { old, new, json } => diff::run(&old, &new, json),
+            Command::Diff {
+                old,
+                new,
+                from,
+                to,
+                json,
+            } => diff::run(&old, &new, from, to, json),
         }
     }
 }

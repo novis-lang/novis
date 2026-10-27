@@ -79,9 +79,12 @@ fn diff(old: &Path, new: &Path, extra: &[&str]) -> (bool, String) {
     )
 }
 
+/// The report's last line when neither side has a version.
+const NO_VERSION: &str = "Neither version is known, so no breaking change is allowed.";
+
 /// Each pair under `package-api/<class>/` makes one change, and the report is that change alone:
-/// its class, where it is and what it is. A pair with a break exits non-zero, and one without
-/// exits zero.
+/// its class, where it is and what it is. No side has a version, so a pair with a break exits
+/// non-zero, and one without exits zero.
 #[test]
 fn each_change_between_two_versions_gets_its_class() {
     let cases: &[(&str, &[&str])] = &[
@@ -172,9 +175,10 @@ fn each_change_between_two_versions_gets_its_class() {
         let (ok, printed) = diff(&pair.join("old"), &pair.join("new"), &[]);
         let lines: Vec<&str> = printed.lines().collect();
         let breaks = want.iter().any(|line| line.starts_with("breaking"));
-        let fits = lines
-            .split_last()
-            .is_some_and(|(summary, changes)| changes == *want && summary.ends_with(" additive"));
+        let fits = lines.len() >= 2 && {
+            let (changes, tail) = lines.split_at(lines.len() - 2);
+            changes == *want && tail[0].ends_with(" additive") && tail[1] == NO_VERSION
+        };
         if !fits || ok == breaks {
             wrong.push(format!("{name}: exit ok {ok}\n{printed}"));
         }
@@ -200,6 +204,10 @@ fn a_side_may_be_an_api_document() {
         report,
         serde_json::json!({
             "schema": 1,
+            "from": null,
+            "to": null,
+            "step": "unknown",
+            "allowed": false,
             "changes": [
                 {"class": "breaking", "at": "Api\\Client::send()", "what": "method removed"}
             ]
@@ -219,4 +227,110 @@ fn a_side_may_be_an_api_document() {
     assert!(out.stdout.is_empty());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("has API schema 2"), "{stderr}");
+}
+
+/// The version step decides whether a break fails. `removed-method` breaks and `new-class` only
+/// adds, and `--from` and `--to` give each side's version, since neither has a `package.toml`.
+#[test]
+fn the_version_step_decides_whether_a_break_fails() {
+    let cases: &[(&str, &[&str], bool, &str)] = &[
+        (
+            "removed-method",
+            &["--from", "1.2.0", "--to", "1.3.0"],
+            false,
+            "1.2.0 to 1.3.0 is a minor release, so no breaking change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "1.2.0", "--to", "1.2.1"],
+            false,
+            "1.2.0 to 1.2.1 is a patch release, so no breaking change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "0.1.0", "--to", "0.2.0"],
+            false,
+            "0.1.0 to 0.2.0 is a minor release, so no breaking change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "1.2.0", "--to", "2.0.0"],
+            true,
+            "1.2.0 to 2.0.0 is a major release, so every change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "0.0.3", "--to", "0.0.4"],
+            true,
+            "0.0.3 to 0.0.4: a 0.0.x version is experimental, so every change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "0.0.9", "--to", "0.1.0"],
+            true,
+            "0.0.9 to 0.1.0: a 0.0.x version is experimental, so every change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--from", "1.3.0", "--to", "1.2.0"],
+            false,
+            "1.2.0 is not higher than 1.3.0, so no breaking change is allowed.",
+        ),
+        (
+            "removed-method",
+            &["--to", "2.0.0"],
+            false,
+            "The old version is not known, so no breaking change is allowed.",
+        ),
+        (
+            "new-class",
+            &["--from", "1.2.0", "--to", "1.2.1"],
+            true,
+            "1.2.0 to 1.2.1 is a patch release, so no breaking change is allowed.",
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (name, extra, passes, step) in cases {
+        let pair = fixture(name);
+        let (ok, printed) = diff(&pair.join("old"), &pair.join("new"), extra);
+        if ok != *passes || printed.lines().last() != Some(*step) {
+            wrong.push(format!("{name} {extra:?}: exit ok {ok}\n{printed}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Each side's version is the `version` in its `package.toml`, and `--to` replaces the new one.
+/// `versioned` removes a method from `1.4.0` to `1.5.0`, which a minor does not allow, and the
+/// JSON form names the step. A version that is not three numbers is an error.
+#[test]
+fn each_side_reads_its_version_from_package_toml() {
+    let pair = fixture("versioned");
+    let (old, new) = (pair.join("old"), pair.join("new"));
+    let (ok, printed) = diff(&old, &new, &[]);
+    assert!(!ok, "{printed}");
+    assert_eq!(
+        printed.lines().last(),
+        Some("1.4.0 to 1.5.0 is a minor release, so no breaking change is allowed.")
+    );
+
+    let (ok, printed) = diff(&old, &new, &["--to", "2.0.0", "--json"]);
+    assert!(ok, "{printed}");
+    let report: serde_json::Value = serde_json::from_str(&printed).expect("stdout is JSON");
+    assert_eq!(report["from"], "1.4.0");
+    assert_eq!(report["to"], "2.0.0");
+    assert_eq!(report["step"], "major");
+    assert_eq!(report["allowed"], true);
+
+    let out = nvs(&[
+        "pkg".as_ref(),
+        "diff".as_ref(),
+        old.as_os_str(),
+        new.as_os_str(),
+        "--from".as_ref(),
+        "1.4".as_ref(),
+    ]);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("`1.4` is not a version"), "{stderr}");
 }
