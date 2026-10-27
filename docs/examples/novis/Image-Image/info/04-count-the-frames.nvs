@@ -1,0 +1,18 @@
+<?nvs
+use Novis\Image\Format;
+// Shows how to count the frames of an animated GIF.
+use Novis\Image\Image;
+
+// These bytes are a GIF with two frames of 1 by 1 pixel. The first frame is red, the second is blue.
+bytes $gif = Core\Encoding::fromHex('47494638396101000100800000ff00000000ff21f904000a0000002c000000000100010000020244010021f904000a0000002c00000000010001000002024c01003b');
+
+// `frames` is the number of frames in the file. This prints 2.
+echo Image::info($gif)->frames, "\n";
+
+// When the output is a GIF, every frame is written. This prints 2 again.
+bytes $copy = Image::open($gif)->format(Format::Gif)->encode();
+echo Image::info($copy)->frames, "\n";
+
+// A PNG output has only the first frame. This prints 1.
+bytes $still = Image::open($gif)->format(Format::Png)->encode();
+echo Image::info($still)->frames, "\n";

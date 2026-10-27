@@ -1,0 +1,14 @@
+<?nvs
+use Novis\Image\Color;
+use Novis\Image\Format;
+// Shows how to open an AVIF photo and save a smaller copy as a JPEG.
+use Novis\Image\Image;
+
+// These AVIF bytes replace a photo that a user uploaded from a phone.
+bytes $upload = Image::create(800, 600, Color::hex('#336699'))->format(Format::Avif)->encode();
+
+// `open` reads AVIF like every other format. This prints 200x150 and jpg.
+bytes $copy = Image::open($upload)->resize({ width: 200 })->format(Format::Jpeg)->encode();
+var $info = Image::info($copy);
+echo $info->width, 'x', $info->height, "\n";
+echo Image::extension($info->format), "\n";
