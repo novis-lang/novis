@@ -30,7 +30,7 @@ stages:
     context: [extensions/image/src/avif.rs, extensions/image/src/decode.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 5
     title: "the four rules are shipped, and the roster says the component is whole"
-    status: open
+    status: done
     context: [docs/rules/core-api/tier-roster.md]
   - id: 8
     title: the goal is verified once, and every failure is fixed
@@ -214,12 +214,12 @@ tests in `guardedBy`, and the changed members owe no proof.
 **Split:** the about pages and examples of `open` and `info` go to one writing subagent, one member
 after the other, held to § *Text an end user reads* in `AGENTS.md`.
 
-- [ ] `rule:core-classes/image-correct-by-default` loses its AVIF and JPEG XL gap and is `shipped`. `docs/rules/core-classes/image-correct-by-default.md:18`, `data/rules/core-classes/image-correct-by-default.json:3`
-- [ ] `rule:core-classes/image-format-roster` loses its first-frame sentence and is `shipped`. `docs/rules/core-classes/image-format-roster.md:23`, `data/rules/core-classes/image-format-roster.json:3`
-- [ ] `rule:core-classes/image-pixel-model` loses its `exif` sentence and is `shipped`. `docs/rules/core-classes/image-pixel-model.md:32`, `data/rules/core-classes/image-pixel-model.json:3`
-- [ ] `rule:core-api/tier-roster` stops naming the image gap and is `shipped`. `docs/rules/core-api/tier-roster.md:36`, `data/rules/core-api/tier-roster.json:3`
-- [ ] `image-pixel-cap` and `image-pipeline` stay `shipped` with stage 4's and 6's tests in `guardedBy`. `data/rules/core-classes/image-pixel-cap.json:3`, `data/rules/core-classes/image-pipeline.json:3`
-- [ ] `open` and `info` show an AVIF photo and an animation in an example each, and `bun nv proofs --id 'Novis\Image\Image::info'` and `--id 'Novis\Image\Image::open'` owe nothing. `docs/examples/novis/Image-Image/info/about.md:1`, `docs/examples/novis/Image-Image/open/about.md:1`
+- [x] `rule:core-classes/image-correct-by-default` loses its AVIF and JPEG XL gap and is `shipped`. `docs/rules/core-classes/image-correct-by-default.md:18`, `data/rules/core-classes/image-correct-by-default.json:3`
+- [x] `rule:core-classes/image-format-roster` loses its first-frame sentence and is `shipped`. `docs/rules/core-classes/image-format-roster.md:23`, `data/rules/core-classes/image-format-roster.json:3`
+- [x] `rule:core-classes/image-pixel-model` loses its `exif` sentence and is `shipped`. `docs/rules/core-classes/image-pixel-model.md:32`, `data/rules/core-classes/image-pixel-model.json:3`
+- [x] `rule:core-api/tier-roster` stops naming the image gap and is `shipped`. `docs/rules/core-api/tier-roster.md:36`, `data/rules/core-api/tier-roster.json:3`
+- [x] `image-pixel-cap` and `image-pipeline` stay `shipped` with stage 4's and 6's tests in `guardedBy`. `data/rules/core-classes/image-pixel-cap.json:3`, `data/rules/core-classes/image-pipeline.json:3`
+- [x] `open` and `info` show an AVIF photo and an animation in an example each, and `bun nv proofs --id 'Novis\Image\Image::info'` and `--id 'Novis\Image\Image::open'` owe nothing. `docs/examples/novis/Image-Image/info/about.md:1`, `docs/examples/novis/Image-Image/open/about.md:1`
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -238,38 +238,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4, 6 and 7 are done. `nvs_image::decode_frames` gives every frame of every animated
-format: GIF, APNG and WebP through `image`, JPEG XL through `decode_jxl(.., every)`, which renders
-each keyframe with its duration over the tick rate, and AVIF through `avif::decode_frames`, which
-walks the `pict` track's samples (`Track`, `Samples`) through one `Stream` decoder and the `auxv`
-track through a second. The standing decision *An AVIF sequence's frames are its track's samples*
-records the choices. `decode` still decodes the first frame alone.
+Stages 1 to 7 are done; only the gate is left. `nvs_image::decode_frames` gives every frame of
+every animated format (GIF, APNG and WebP through `image`, JPEG XL through `decode_jxl(.., every)`,
+AVIF through `avif::decode_frames`), and `decode` decodes the first frame alone.
 
-The rules' sentences that named AVIF and JPEG XL animation as first-frame-only are rewritten:
-`image-format-roster`'s *Partly on disk*, `image-pipeline`'s, and `tier-roster`'s, which no longer
-names this goal. None is `shipped` yet.
+Stage 5 landed in two commits. `image-correct-by-default`, `image-format-roster`,
+`image-pixel-model` and `tier-roster` dropped their *Partly on disk* label and are `shipped`, with
+no `goal` field, guarded by `image_decode.rs` and `image_pipeline.rs` (`tier-roster` keeps its
+stdlib guards too). `image-pipeline` gained `image_decode.rs`; `image-pixel-cap` already had it.
+`bun nv rules --render` rewrote `docs/rules/core-*.md` and `docs/ground-rules.md`. `Image::open`
+gained `04-make-a-jpeg-from-an-avif` and `Image::info` gained `04-count-the-frames` (a two-frame
+GIF in hex, re-encoded to GIF and to PNG), and both about pages name JPEG XL, `exif` and the
+animated formats. `bun nv proofs --gate --only` over both members owes nothing, `--run` passes
+4 of 4 examples each, and `bun nv owners --closes image-second-wave` is green.
 
 The sweep's findings were stale again: the `env-secret-proofs` log shows exit 0, and nightly run
 `40291801939` is on `d6f131752`, before the fixes.
 
-No test is expected red. The two changed tests passed once by name:
-`an_animation_is_capped_by_all_its_frames_and_decodes_each_one` (now with `avif` and `jxl`, AVIF
-held to 8 per channel because it is lossy) and
-`a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png` (now resizing `anim.avif`
-and `anim.jxl` to a GIF). The workspace clippy is green. `extensions/image`'s own `cargo clippy`
-runs a newer lint set that is red on code across the crate (`chunks_exact`), which is not the gate.
+No test is expected red. Nothing in Rust changed this session.
 
 ### Next
 
-**Stage 5: the four rules are shipped, and the roster says the component is whole.** Files: the
-rule fragments and their `data/rules/` records, and the `open` and `info` example pages. Its
-checks are `image-proofs` and `owners-closes`.
+**Stage 8: the goal is verified once, and every failure is fixed.** Start `bun nv affected --run`
+with `run_in_background` and end the turn to wait; group the failures by cause and fix them in one
+pass. Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes image-second-wave`,
+`bun nv ci --check`. `tools/nv/cmd/verify.ts:1`, `tools/nv/cmd/affected.ts:1`
 
-- [ ] Each of `image-correct-by-default`, `image-format-roster`, `image-pixel-model` and `tier-roster` drops the *Partly on disk* gap this goal closed, and its record goes from `designed` to `shipped` with the goal's tests in `guardedBy`. `docs/rules/core-classes/image-correct-by-default.md:21`, `docs/rules/core-classes/image-format-roster.md:18`, `docs/rules/core-classes/image-pixel-model.md:32`, `docs/rules/core-api/tier-roster.md:36`, `data/rules/core-classes/image-format-roster.json:3`
-- [ ] `image-pixel-cap` and `image-pipeline` keep `shipped`, with stage 4's, 6's and 7's tests in `guardedBy`. `data/rules/core-classes/image-pixel-cap.json:3`, `data/rules/core-classes/image-pipeline.json:3`
-- [ ] The examples of `open` and `info` (one writing subagent, held to § *Text an end user reads*), then `bun nv proofs --id` for each owes nothing. `docs/examples/novis/Image-Image/info/about.md:1`, `docs/examples/novis/Image-Image/open/about.md:1`
-- [ ] `looper check --name image-proofs` and `bun nv owners --closes image-second-wave` are green. `tools/nv/cmd/owners.ts:1`
+- [ ] The first `bun nv affected --run` has run, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass, and the second run is green. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates are green, then `DONE`. `tools/nv/cmd/owners.ts:1`
 
 ### Backlog
 
-- Stage 8 is the gate: `bun nv affected --run` over the whole goal, every failure fixed in one pass.
+- Nothing beyond stage 8.
