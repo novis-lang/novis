@@ -59,8 +59,9 @@
 //! it. **A member is what the flag reports** — a method, a property, a class
 //! constant — and public is the absence of `private` and `protected`, since
 //! that is the visibility the language gives a member written without one. A
-//! method that overrides or implements a documented method of an ancestor
-//! inherits that doc comment and is not reported ([`check_documented`]). A
+//! member that overrides, implements or redeclares a documented member of the
+//! same kind on an ancestor inherits that doc comment and is not reported
+//! ([`check_documented`]). A
 //! class, an interface, an enum, an enum case and a `type` alias are
 //! deliberately not reported: the rule names a member, and widening it to every
 //! declaration is a decision for the publisher that turns the flag on rather
@@ -121,14 +122,25 @@ pub struct ClassMembers {
     pub methods: FxHashSet<String>,
     /// The names in [`Self::methods`] declared with a `///` above them. An
     /// undocumented override of one of these inherits its doc comment, which
-    /// is what [`check_documented`] asks of it.
+    /// is what [`check_documented`] asks of it. The three `documented_*` sets
+    /// below do the same for their kinds.
     pub documented_methods: FxHashSet<String>,
     /// Constant names, enum cases included.
     pub consts: FxHashSet<String>,
+    /// The names in [`Self::consts`] declared with a `///` above them. An
+    /// enum case is never among them: no case is a member `--strict-docs`
+    /// reports, so none is inherited from.
+    pub documented_consts: FxHashSet<String>,
     /// Static property names, `$` sigil stripped.
     pub static_props: FxHashSet<String>,
+    /// The names in [`Self::static_props`] declared with a `///` above them.
+    pub documented_static_props: FxHashSet<String>,
     /// Instance property names, `$` sigil stripped.
     pub props: FxHashSet<String>,
+    /// The names in [`Self::props`] declared with a `///` above them. A
+    /// promoted constructor parameter is never among them: a parameter carries
+    /// no doc comment of its own.
+    pub documented_props: FxHashSet<String>,
 }
 
 /// Every declaration's own [`ClassMembers`], keyed by its [`QName`].
@@ -172,6 +184,17 @@ impl MemberKind {
             Self::Const => "constant",
             Self::StaticProp => "static property",
             Self::Prop => "property",
+        }
+    }
+
+    /// The names of this kind that `members` declares with a `///` above
+    /// them, which an undocumented redeclaration inherits from.
+    const fn documented(self, members: &ClassMembers) -> &FxHashSet<String> {
+        match self {
+            Self::Method => &members.documented_methods,
+            Self::Const => &members.documented_consts,
+            Self::StaticProp => &members.documented_static_props,
+            Self::Prop => &members.documented_props,
         }
     }
 }
@@ -333,18 +356,24 @@ impl<'a> MemberResolver<'a> {
                     entry.methods.insert(name);
                 }
                 ClassMemberKind::Const(c) => {
-                    entry
-                        .consts
-                        .insert(src.span_text(c.name).unwrap_or_default().to_owned());
+                    let name = src.span_text(c.name).unwrap_or_default().to_owned();
+                    if member.doc.is_some() {
+                        entry.documented_consts.insert(name.clone());
+                    }
+                    entry.consts.insert(name);
                 }
                 ClassMemberKind::Property(p) => {
                     let text = src.span_text(p.name).unwrap_or_default();
                     let name = text.strip_prefix('$').unwrap_or(text).to_owned();
-                    if p.modifiers.contains(&Modifier::Static) {
-                        entry.static_props.insert(name);
+                    let (names, documented) = if p.modifiers.contains(&Modifier::Static) {
+                        (&mut entry.static_props, &mut entry.documented_static_props)
                     } else {
-                        entry.props.insert(name);
+                        (&mut entry.props, &mut entry.documented_props)
+                    };
+                    if member.doc.is_some() {
+                        documented.insert(name.clone());
                     }
+                    names.insert(name);
                 }
                 ClassMemberKind::Error => {}
                 _ => {}
@@ -598,11 +627,14 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
 /// whatever it stood in for, and a second diagnostic about its documentation
 /// would be a cascade.
 ///
-/// **A method inherits a doc comment** from a method of the same name on an
-/// ancestor that has one: a parent class, an interface the class implements,
-/// or any class or interface those extend or implement in turn. An override
-/// or an implementation says what its ancestor already says, so it passes
-/// without a `///` of its own. A property and a constant inherit nothing.
+/// **A member inherits a doc comment** from a member of the same kind and name
+/// on an ancestor that has one: a parent class, an interface the class
+/// implements, or any class or interface those extend or implement in turn. An
+/// override, an implementation or a redeclared constant or property means what
+/// its ancestor's declaration means, so it passes without a `///` of its own.
+/// The kind is the table's: a method, a constant, a static property and an
+/// instance property each look only in their own `documented_*` set, since a
+/// static and an instance property of one name do not override each other.
 ///
 /// Reported at the member's **name** rather than at [`ClassMember::span`],
 /// which reaches back over its attributes and modifiers: the repair is one line
@@ -612,10 +644,13 @@ fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: 
     if !env.strict_docs || member.doc.is_some() {
         return;
     }
-    let (modifiers, name) = match &member.kind {
-        ClassMemberKind::Method(m) => (&m.modifiers, m.name),
-        ClassMemberKind::Property(p) => (&p.modifiers, p.name),
-        ClassMemberKind::Const(c) => (&c.modifiers, c.name),
+    let (modifiers, name, kind) = match &member.kind {
+        ClassMemberKind::Method(m) => (&m.modifiers, m.name, MemberKind::Method),
+        ClassMemberKind::Property(p) if p.modifiers.contains(&Modifier::Static) => {
+            (&p.modifiers, p.name, MemberKind::StaticProp)
+        }
+        ClassMemberKind::Property(p) => (&p.modifiers, p.name, MemberKind::Prop),
+        ClassMemberKind::Const(c) => (&c.modifiers, c.name, MemberKind::Const),
         _ => return,
     };
     if modifiers
@@ -625,11 +660,10 @@ fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: 
         return;
     }
     let written = src.span_text(name).unwrap_or_default();
-    if matches!(member.kind, ClassMemberKind::Method(_))
-        && ctx.current_class.is_some_and(|class| {
-            documented_on_an_ancestor(class, written, env, &mut FxHashSet::default())
-        })
-    {
+    let bare = written.strip_prefix('$').unwrap_or(written);
+    if ctx.current_class.is_some_and(|class| {
+        documented_on_an_ancestor(class, bare, kind, env, &mut FxHashSet::default())
+    }) {
         return;
     }
     let owner = ctx
@@ -648,13 +682,14 @@ fn check_documented(member: &ClassMember, src: &SourceFile, ctx: &Ctx<'_>, env: 
     );
 }
 
-/// Whether something `qname` extends or implements, at any depth, declares the
-/// method `name` with a doc comment. `qname` itself is not asked:
-/// its own declaration is the one being checked. `seen` stops a cycle, which
-/// [`crate::hierarchy`] has already reported.
+/// Whether something `qname` extends or implements, at any depth, declares a
+/// member of `kind` called `name` with a doc comment. `qname` itself is not
+/// asked: its own declaration is the one being checked. `seen` stops a cycle,
+/// which [`crate::hierarchy`] has already reported.
 fn documented_on_an_ancestor(
     qname: &QName,
     name: &str,
+    kind: MemberKind,
     env: &Env<'_>,
     seen: &mut FxHashSet<QName>,
 ) -> bool {
@@ -670,8 +705,8 @@ fn documented_on_an_ancestor(
                 && (env
                     .table
                     .get(parent)
-                    .is_some_and(|members| members.documented_methods.contains(name))
-                    || documented_on_an_ancestor(parent, name, env, seen))
+                    .is_some_and(|members| kind.documented(members).contains(name))
+                    || documented_on_an_ancestor(parent, name, kind, env, seen))
         })
 }
 

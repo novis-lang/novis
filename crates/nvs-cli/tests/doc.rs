@@ -113,6 +113,31 @@ class Post extends Item implements Printable {
 echo Post::blank()->render(), "\n";
 "#;
 
+/// `Page` redeclares a documented interface constant and a documented parent
+/// property, with no `///` above either.
+const REDECLARED: &str = r#"<?nvs
+namespace Shop;
+
+/// Something a shop shows on its own page.
+interface Listed {
+    /// The heading a reader sees above the page.
+    public const string TITLE = "Shop";
+}
+
+/// A thing a shop sells.
+class Item {
+    /// What the item costs, in cents.
+    public int $price = 100;
+}
+
+/// A page of a shop, sold like any other item.
+class Page extends Item implements Listed {
+    public const string TITLE = "Page";
+
+    public int $price = 250;
+}
+"#;
+
 /// A fresh directory holding `case.nvs`, and the `pages` directory `nvs doc`
 /// will be pointed at.
 fn fixture(name: &str) -> nvs_repo::Scratch {
@@ -299,5 +324,33 @@ fn nvs_doc_shows_an_undocumented_override_the_doc_it_inherits() {
              The text a reader sees.\n"
         ),
         "the inherited doc comment is not shown under `render`: {page}"
+    );
+}
+
+#[test]
+fn nvs_doc_shows_a_redeclared_constant_and_property_the_doc_they_inherit() {
+    // A constant and a property inherit a doc comment the way a method does,
+    // so the page shows the ancestor's card under each and names its owner.
+    let dir = fixture_of("inherited-constant-property", REDECLARED);
+    let out = doc(&dir);
+    assert!(
+        out.status.success(),
+        "`nvs doc` failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let page = page(&dir, "Shop.Page.md");
+    assert!(
+        page.contains(
+            "Inherited from [Shop\\Listed::TITLE](Shop.Listed.md#title).\n\n\
+             The heading a reader sees above the page.\n"
+        ),
+        "the inherited doc comment is not shown under `TITLE`: {page}"
+    );
+    assert!(
+        page.contains(
+            "Inherited from [Shop\\Item::$price](Shop.Item.md#price).\n\n\
+             What the item costs, in cents.\n"
+        ),
+        "the inherited doc comment is not shown under `$price`: {page}"
     );
 }

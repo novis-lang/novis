@@ -93,6 +93,46 @@ class Post extends Item {
 }
 "#;
 
+/// An undocumented constant and an undocumented property, each redeclaring a
+/// documented one: `TITLE` from the interface `Page` implements, and `price`
+/// from the parent class. Each inherits its ancestor's doc comment, so this
+/// checks clean under the flag.
+const INHERITED_CONSTANT_AND_PROPERTY: &str = r#"<?nvs
+/// Something a shop shows on its own page.
+interface Listed {
+    /// The heading a reader sees above the page.
+    public const string TITLE = "Shop";
+}
+
+/// A thing a shop sells.
+class Item {
+    /// What the item costs, in cents.
+    public int $price = 100;
+}
+
+/// A page of a shop, sold like any other item.
+class Page extends Item implements Listed {
+    public const string TITLE = "Page";
+
+    public int $price = 250;
+}
+"#;
+
+/// A constant redeclared from an ancestor that does not document it either.
+/// There is no doc comment to inherit, so `Post::TITLE` is reported beside
+/// `Item::TITLE`.
+const A_CONSTANT_OVER_AN_UNDOCUMENTED_ONE: &str = r#"<?nvs
+/// A thing a shop sells.
+class Item {
+    public const string TITLE = "Item";
+}
+
+/// A post, sold like any other item.
+class Post extends Item {
+    public const string TITLE = "Post";
+}
+"#;
+
 /// A fresh directory holding `case.nvs`. The name is the test's, so two tests
 /// never share a working directory.
 fn fixture(name: &str, program: &str) -> nvs_repo::Scratch {
@@ -204,6 +244,42 @@ fn strict_docs_reports_a_subclass_method_that_overrides_nothing() {
     assert!(
         !shown.contains("Post::price"),
         "the override of a documented method was reported: {shown}"
+    );
+}
+
+#[test]
+fn strict_docs_accepts_a_redeclared_documented_constant_and_property() {
+    // A constant and a property inherit a doc comment the way a method does:
+    // a redeclaration means what its ancestor's declaration means. The
+    // constant comes from an interface and the property from a parent class.
+    let dir = fixture("inherited-constant-property", INHERITED_CONSTANT_AND_PROPERTY);
+    let out = check(&dir, &["--strict-docs"]);
+    let shown = shown(&out);
+    assert!(
+        out.status.success(),
+        "a redeclared documented constant or property failed --strict-docs: {shown}"
+    );
+    assert!(
+        !shown.contains("E0326"),
+        "a redeclared documented constant or property was reported: {shown}"
+    );
+}
+
+#[test]
+fn strict_docs_reports_a_constant_that_redeclares_an_undocumented_one() {
+    // Inheriting needs an ancestor that documents the name. A constant
+    // redeclared from an undocumented one has nothing to inherit, so it is
+    // reported like any other undocumented public member.
+    let dir = fixture("undocumented-constant", A_CONSTANT_OVER_AN_UNDOCUMENTED_ONE);
+    let out = check(&dir, &["--strict-docs"]);
+    let shown = shown(&out);
+    assert!(
+        !out.status.success(),
+        "a constant over an undocumented one checked clean under --strict-docs: {shown}"
+    );
+    assert!(
+        shown.contains("Post::TITLE"),
+        "the redeclared constant is not reported: {shown}"
     );
 }
 

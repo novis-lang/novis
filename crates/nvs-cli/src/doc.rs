@@ -134,10 +134,11 @@ fn render(page: &Page<'_>, pages: &[Page<'_>], names: &[&str]) -> String {
 /// which is what an empty roster is, per `rule:tooling/meta-json`'s omission
 /// rule.
 ///
-/// A method with no `doc` of its own shows the card of the method it
-/// overrides or implements, found by [`inherited`], under a line naming
-/// where it comes from. That is the same doc comment `nvs check
-/// --strict-docs` accepts for it (`rule:tooling/strict-docs`).
+/// A method, constant or property with no `doc` of its own shows the card of
+/// the member it overrides, implements or redeclares, found by [`inherited`],
+/// under a line naming where it comes from. That is the same doc comment `nvs
+/// check --strict-docs` accepts for it (`rule:tooling/strict-docs`). An enum
+/// case inherits nothing.
 fn section(
     out: &mut String,
     page: &Page<'_>,
@@ -172,9 +173,8 @@ fn section(
                 .map_or(String::new(), |ty| format!("{ty} "));
             out.push_str(&format!("\n```nvs\n{ty}{name} = {value}\n```\n"));
         }
-        let is_method = entry["signature"].is_string() && entry["kind"] != "property";
-        let from = if entry["doc"].is_null() && is_method {
-            inherited(page.value, name, pages, &mut Vec::new())
+        let from = if entry["doc"].is_null() && key != "cases" {
+            inherited(page.value, key, entry, pages, &mut Vec::new())
         } else {
             None
         };
@@ -192,17 +192,23 @@ fn section(
     }
 }
 
-/// The page and the `doc` of the nearest documented method called `name` on
-/// something `value` extends or implements, searched depth first in the order
-/// the document lists them: the parent class, then each interface. Only the
-/// pages of this run are searched, so a method inherited from a `Core` class
-/// or interface shows no card. `seen` stops a cycle.
+/// The page and the `doc` of the nearest documented member of `entry`'s name
+/// and kind on something `value` extends or implements, searched depth first
+/// in the order the document lists them: the parent class, then each
+/// interface. `key` is the roster `entry` came from, so a constant is looked
+/// for among constants, and in `members` a property matches only a property
+/// and a method only a method. Only the pages of this run are searched, so a
+/// member inherited from a `Core` class or interface shows no card. `seen`
+/// stops a cycle.
 fn inherited<'a, 'p>(
     value: &Value,
-    name: &str,
+    key: &str,
+    entry: &Value,
     pages: &'p [Page<'a>],
     seen: &mut Vec<&'a str>,
 ) -> Option<(&'p Page<'a>, &'a Value)> {
+    let name = &entry["name"];
+    let is_property = entry["kind"] == "property";
     let parents = match &value["extends"] {
         Value::String(parent) => vec![parent.as_str()],
         Value::Array(items) => items.iter().filter_map(Value::as_str).collect(),
@@ -221,15 +227,17 @@ fn inherited<'a, 'p>(
             continue;
         }
         seen.push(owner.name);
-        let documented = owner.value["members"].as_array().and_then(|members| {
-            members
-                .iter()
-                .find(|member| member["name"] == name && member["doc"].is_object())
+        let documented = owner.value[key].as_array().and_then(|members| {
+            members.iter().find(|member| {
+                member["name"] == *name
+                    && (member["kind"] == "property") == is_property
+                    && member["doc"].is_object()
+            })
         });
         if let Some(member) = documented {
             return Some((owner, &member["doc"]));
         }
-        if let Some(found) = inherited(owner.value, name, pages, seen) {
+        if let Some(found) = inherited(owner.value, key, entry, pages, seen) {
             return Some(found);
         }
     }
