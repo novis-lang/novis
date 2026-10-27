@@ -1065,8 +1065,12 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf], account: Option<&str>
 }
 
 /// `E0662` for an `--as` account that `Account::named` could not find for `why`.
-fn no_such_account(why: &str) -> Diagnostic {
-    Diagnostic::error(nvs_diagnostics::code::E_CHECK_NO_SUCH_ACCOUNT, why.to_owned()).with_help(
+pub(crate) fn no_such_account(why: &str) -> Diagnostic {
+    Diagnostic::error(
+        nvs_diagnostics::code::E_CHECK_NO_SUCH_ACCOUNT,
+        why.to_owned(),
+    )
+    .with_help(
         "give the name of an account that exists on this machine. On Linux, a user ID number \
          also works. On Windows, `LocalSystem` and `NT SERVICE\\<service>` always work"
             .to_owned(),

@@ -1,5 +1,6 @@
 The ownership check runs where its question can be answered: `nvs serve` and reload, on the host and
-as the account that will serve, and `nvs config check --as <account>`, which names that account.
+as the account that will serve, `nvs config check --as <account>`, which names that account, and
+`nvs service install`, its `--dry-run` included, for the account the service runs as.
 Three readers resolve the tree without it, each for a reason of its own.
 
 `nvs run` executes a program the invoking account named, from a working directory that account chose,
@@ -20,6 +21,14 @@ on this machine as they are now. It does not see the server's own copy of the fi
 read-only mount, whose owner waiver applies only where that mount is, or a deploy step that changes an
 owner. The check trusts no group but the administrators one, so the account's group membership does
 not change its answer. `config dump` takes no `--as`: it lists keys, and `check` is the verdict.
+
+**`nvs service install` asks it for the service's account before it changes anything.** Every
+`--config` file the stored argv names resolves through the same `JudgedFor`, for `LocalSystem` or the
+`--account` on Windows and for root or the `--account` user on Linux. The first file that account
+would refuse is that `E0607`, from a dry run as from a real install, before the data folder is
+prepared and before the service manager is asked for anything. A file that is not there yet is the
+template the install writes, and is not judged. On Linux a path the install gives to root or the
+account, with the directory that holds it, is judged as the install leaves it, so it passes.
 
 `nvs serve` checks every file it reads, every time it reads it: the root, each include, each secret
 file and each `[[app]]` fold a request or a queue job asks for, at boot and at every reload. A boot

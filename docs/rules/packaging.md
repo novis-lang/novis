@@ -3572,6 +3572,14 @@ it. Every path the service reads is then owned by root or by itself and writable
 is what [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) checks at boot. An uninstall gives each path back
 to root with the owner's bits of its mode only.
 
+**An install refuses a configuration the account would refuse at boot.** Before anything is
+installed, and under `--dry-run` too, it runs [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)'s check for
+the account the service runs as, over every `--config` file the stored argv names. The first file
+that account would refuse is the boot's own `E0607`, with its repair
+([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). No flag overrides it: the check is
+the one `nvs serve` runs at every start, and a service that cannot start is not what the operator
+asked for.
+
 **Declined:**
 - **Read/write on the whole data folder for the service account.** It is simpler to grant, and it lets
   the service rewrite the configuration that limits it.

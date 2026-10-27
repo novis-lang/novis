@@ -68,9 +68,17 @@ fn check_as_judges_the_tree_for_the_named_account() {
     let other = (owner + 1).to_string();
     let (_, err, code) = nvs_in(&dir, &["config", "check", "--as", &other, "nvs.toml"]);
     if owner == 0 {
-        assert_eq!(code, Some(0), "a root-owned tree passes for every account: {err}");
+        assert_eq!(
+            code,
+            Some(0),
+            "a root-owned tree passes for every account: {err}"
+        );
     } else {
-        assert_eq!(code, Some(1), "another uid's server would refuse the tree: {err}");
+        assert_eq!(
+            code,
+            Some(1),
+            "another uid's server would refuse the tree: {err}"
+        );
         assert!(err.contains("E0607"), "{err}");
         assert!(err.contains(&format!("the account `{other}`")), "{err}");
     }
@@ -84,12 +92,21 @@ fn check_as_an_account_that_does_not_exist_is_e0662() {
     let dir = scratch("as-missing");
     let (out, err, code) = nvs_in(
         &dir,
-        &["config", "check", "--as", "nvs-no-such-account", "missing.toml"],
+        &[
+            "config",
+            "check",
+            "--as",
+            "nvs-no-such-account",
+            "missing.toml",
+        ],
     );
     assert_eq!(code, Some(1), "{err}");
     assert!(err.contains("E0662"), "{err}");
     assert!(err.contains("`nvs-no-such-account`"), "{err}");
-    assert!(!err.contains("E0605"), "no file is read before the account resolves: {err}");
+    assert!(
+        !err.contains("E0605"),
+        "no file is read before the account resolves: {err}"
+    );
     assert!(out.is_empty(), "{out}");
 
     drop(std::fs::remove_dir_all(&dir));

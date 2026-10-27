@@ -19,7 +19,10 @@
 //! `E0634` (a bundle installing itself), `E0653` (a data folder the
 //! service cannot use) and `E0654` (a Linux `--account` this machine does not
 //! have, which is looked up after [`plan`], through the manager, because the
-//! lookup is the machine's). `rule:packaging/the-installer-is-a-sink`'s table carries more rows than there are codes
+//! lookup is the machine's). After those, an install runs
+//! `rule:config/ownership-is-the-trust-boundary`'s check for the service's
+//! account, whose `E0607` and `E0662` are the boot's and `--as`'s
+//! (`rule:packaging/a-service-runs-as-a-virtual-account`). `rule:packaging/the-installer-is-a-sink`'s table carries more rows than there are codes
 //! here, because rows that share a reason share a code: the subcommand
 //! allowlist, `--fault-inject` and an argv the command line's own parser
 //! refuses are all "the stored argv names something a service manager must
@@ -2152,6 +2155,19 @@ pub(crate) mod registration {
                 "this service manager has no Linux accounts",
             ))
         }
+
+        /// The account `name` names, as the ownership check judges for it:
+        /// the account the service will run as
+        /// (`rule:config/ownership-is-the-trust-boundary`).
+        ///
+        /// A method of the manager, like [`Manager::account`], because the
+        /// answer is the machine's. The recording manager answers with this
+        /// process's own account, so a case's verdict is its tree's alone.
+        ///
+        /// # Errors
+        ///
+        /// A message that says this machine has no such account.
+        fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String>;
     }
 
     /// Where a verb is being performed.
@@ -2187,6 +2203,121 @@ pub(crate) mod registration {
         match &plan.account {
             Some(account) if !is_local_system(account) => account.clone(),
             _ => LOCAL_SYSTEM.to_owned(),
+        }
+    }
+
+    /// `rule:config/ownership-is-the-trust-boundary`'s check of every
+    /// `--config` file `plan` stores, made for the account the service runs as
+    /// and before the install changes anything.
+    ///
+    /// It is the function `nvs serve` runs at every boot, so a file it refuses
+    /// here is one the service would refuse at every start. A file that is not
+    /// there yet is the template the install writes, and is not judged. On
+    /// Linux a path an [`Action::Own`] of this install sets is judged as the
+    /// install leaves it, root's or the account's and writable by no group, so
+    /// it passes. With no file to judge, the account is not looked up.
+    ///
+    /// # Errors
+    ///
+    /// `E0607` for the first file the account would refuse, as the boot names
+    /// it, and `E0662` for an account this machine has not got.
+    fn judge(plan: &Plan, site: &Site<'_>) -> Result<(), Diagnostic> {
+        let named: Vec<PathBuf> = super::values_of(&plan.argv, "--config")
+            .into_iter()
+            .map(PathBuf::from)
+            .filter(|file| file.is_file())
+            .collect();
+        if named.is_empty() {
+            return Ok(());
+        }
+        let name = match site.platform {
+            Platform::Windows => account_of(plan),
+            Platform::Linux => plan.account.clone().unwrap_or_else(|| "root".to_owned()),
+        };
+        let account = site
+            .manager
+            .judged_for(&name)
+            .map_err(|why| crate::config::no_such_account(&why))?;
+        let owned = match (site.platform, &plan.owner) {
+            (Platform::Linux, Some(_)) => {
+                let data_folder = plan.data.as_ref().map(nvs_config::data::Folder::root);
+                owned(grants(plan), data_folder)
+                    .into_iter()
+                    .map(|(path, _)| path)
+                    .collect()
+            }
+            _ => Vec::new(),
+        };
+        let files = Installing {
+            judged: nvs_config::resolve::JudgedFor(account),
+            owned,
+        };
+        let cwd = crate::config::working_directory()?;
+        let roots = crate::config::roots_in(&crate::config::named_roots(&[], &named), &cwd);
+        nvs_config::resolve::resolve(&roots, &mut SourceMap::new(), &files).map(drop)
+    }
+
+    /// [`JudgedFor`](nvs_config::resolve::JudgedFor) the service's account,
+    /// passing a path the install itself gives to root or that account
+    /// together with the directory that holds it.
+    struct Installing {
+        judged: nvs_config::resolve::JudgedFor,
+        /// The paths an [`Action::Own`] of this install sets.
+        owned: Vec<PathBuf>,
+    }
+
+    impl Installing {
+        /// Whether this install sets the owner of `path`.
+        fn owns(&self, path: &Path) -> bool {
+            let canonical = nvs_config::trust::canonical(path).ok();
+            self.owned
+                .iter()
+                .any(|owned| owned == path || canonical.as_deref() == Some(owned.as_path()))
+        }
+    }
+
+    impl nvs_config::resolve::Files for Installing {
+        fn trust(&self, path: &Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
+            if self.owns(path) && path.parent().is_some_and(|parent| self.owns(parent)) {
+                return nvs_config::resolve::Unowned.trust(path);
+            }
+            self.judged.trust(path)
+        }
+
+        fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+            self.judged.canonical(path)
+        }
+
+        fn canonical_block(&self, path: &Path) -> Result<PathBuf, String> {
+            self.judged.canonical_block(path)
+        }
+
+        fn read(&self, path: &Path) -> Result<String, String> {
+            self.judged.read(path)
+        }
+
+        fn read_config(&self, path: &Path) -> Result<String, String> {
+            self.judged.read_config(path)
+        }
+
+        fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
+            self.judged.read_bytes(path)
+        }
+
+        fn exposure(&self, path: &Path) -> Option<String> {
+            self.judged.exposure(path)
+        }
+
+        fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+            self.judged.list(dir)
+        }
+
+        fn exists(&self, path: &Path) -> bool {
+            self.judged.exists(path)
+        }
+
+        fn missing(&self, path: &Path) -> bool {
+            self.judged.missing(path)
         }
     }
 
@@ -2866,6 +2997,7 @@ pub(crate) mod registration {
     ) -> Result<(), Refused> {
         let mut checked = plan(request, host).map_err(Refused::Installer)?;
         resolve_account(&mut checked, site).map_err(Refused::Installer)?;
+        judge(&checked, site).map_err(Refused::Installer)?;
         if dry_run {
             if let Some(data) = &checked.data {
                 writeln!(out, "create the data folder {}", data.root().display())
@@ -3032,6 +3164,10 @@ pub(crate) mod registration {
 
         fn account(&self, name: &str) -> std::io::Result<Account> {
             owners::lookup(name)
+        }
+
+        fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String> {
+            nvs_config::trust::Account::named(name)
         }
     }
 
@@ -3375,6 +3511,10 @@ pub(crate) mod registration {
                     data_folder: None,
                     exe,
                 })
+            }
+
+            fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String> {
+                nvs_config::trust::Account::named(name)
             }
         }
 
@@ -4069,6 +4209,10 @@ pub(crate) mod registration {
                 uid: id,
                 gid: id,
             })
+        }
+
+        fn judged_for(&self, _name: &str) -> Result<nvs_config::trust::Account, String> {
+            nvs_config::trust::Account::current().map_err(|why| why.message().to_owned())
         }
     }
 }
@@ -6627,6 +6771,87 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 
+    /// Lets another account write `path`: its group on Unix, and
+    /// `Authenticated Users` on Windows.
+    fn open_to_others(path: &Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(path)
+                .expect("a file")
+                .permissions()
+                .mode();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode | 0o020))
+                .expect("the group may write");
+        }
+        #[cfg(windows)]
+        {
+            let status = nvs_repo::spawn("icacls", &[])
+                .arg(path)
+                .args(["/grant", "*S-1-5-11:(M)"])
+                .stdout(std::process::Stdio::null())
+                .status()
+                .expect("icacls runs");
+            assert!(status.success(), "icacls granted the write");
+        }
+    }
+
+    /// `rule:config/ownership-is-the-trust-boundary`, run by the install for
+    /// the account the service runs as: a tree that account trusts installs,
+    /// and once another account can write its `nvs.toml`, a dry run and a real
+    /// install both stop with the boot's `E0607` before the manager is asked.
+    // covers: tools:server/nvs-service
+    #[test]
+    fn an_install_over_a_configuration_the_service_account_refuses_is_e0607_before_the_manager() {
+        let scratch = nvs_repo::scratch_private("service-judged");
+        let config = scratch.join("nvs.toml");
+        std::fs::write(&config, "").expect("a configuration file");
+        let argv = vec![
+            "serve".to_owned(),
+            absolute("app/index.nvs"),
+            "--config".to_owned(),
+            config.display().to_string(),
+        ];
+        let root = unit_root("judged");
+        let install = |dry_run: bool| {
+            let manager = registration::Recording::default();
+            let site = registration::Site {
+                platform: registration::Platform::host(),
+                unit_root: &root,
+                manager: &manager,
+            };
+            let done = registration::install(
+                &request(&argv),
+                &host(),
+                &registration(),
+                &site,
+                dry_run,
+                &mut Vec::new(),
+            );
+            (done, manager.applied())
+        };
+
+        let (done, applied) = install(false);
+        assert!(done.is_ok(), "a tree the account trusts installs: {done:?}");
+        assert!(!applied.is_empty());
+
+        open_to_others(&config);
+        for dry_run in [true, false] {
+            let (done, applied) = install(dry_run);
+            let Err(registration::Refused::Installer(refusal)) = done else {
+                panic!("an install over a file another account can write went ahead: {done:?}")
+            };
+            assert_eq!(coded(&refusal), code::E_UNTRUSTED_CONFIG, "{refusal:?}");
+            assert!(
+                refusal.message.contains("nvs.toml"),
+                "the refusal names the file: {}",
+                refusal.message
+            );
+            assert!(applied.is_empty(), "the manager was asked: {applied:?}");
+        }
+        std::fs::remove_dir_all(&scratch).expect("a removed scratch directory");
+    }
+
     /// A manager that refuses the actions `refuses` picks, the way the SCM
     /// answers "access denied" to one step of a list, and applies the rest.
     #[derive(Debug)]
@@ -6654,6 +6879,10 @@ mod tests {
 
         fn account(&self, name: &str) -> std::io::Result<registration::Account> {
             self.applied.account(name)
+        }
+
+        fn judged_for(&self, name: &str) -> Result<nvs_config::trust::Account, String> {
+            self.applied.judged_for(name)
         }
     }
 
