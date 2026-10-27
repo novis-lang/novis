@@ -10,7 +10,7 @@ use Core\Api\SchemeType;
 #[Scheme(name: "key", type: SchemeType::ApiKey, in: KeyIn::Header, parameter: "X-Api-Key")]
 class Auth { … }
 
-#[Route(path: "/orders/{id}", method: Method::Get, name: "orders.show")]
+#[Route(path: "/orders/{id}", method: Method::Get)]
 #[Access(allow: Role::User)]
 #[Api(security: ["bearer"])]
 public static function show(uint $id): Order { … }

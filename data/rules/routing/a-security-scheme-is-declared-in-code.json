@@ -1,6 +1,6 @@
 {
   "title": "A security scheme is declared in code by `#[Api\\Scheme]`, and every `#[Api]` `security` name must be a declared one",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "attributes/api-adds-and-cannot-contradict",
     "routing/api-document-is-generated-from-the-route-table",
@@ -9,5 +9,6 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/openapi.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

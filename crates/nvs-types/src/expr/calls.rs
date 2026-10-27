@@ -880,7 +880,7 @@ pub(crate) fn infer_static_call(
         crate::program::expand(expr, &written, live, scope, ctx, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
-    // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
+    // `rule:routing/link-target-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
     // a name written in the code asks for may be declared in a file § 5's scan has not
     // reached, so the site is only recorded and the lookup happens after the
     // whole walk. The `ExprInfo::Call` recorded below deliberately stands until

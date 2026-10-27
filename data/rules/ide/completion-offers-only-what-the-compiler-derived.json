@@ -1,10 +1,10 @@
 {
   "title": "The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "ide/completion-files-offer-values-at-named-parameters",
     "routing/routes-are-compiled-not-registered",
-    "routing/link-name-and-params-are-checked",
+    "routing/link-target-and-params-are-checked",
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "routing/api-document-is-generated-from-the-route-table",
     "programs/no-first-party-framework"
@@ -23,5 +23,6 @@
     "tests/lsp/completion/a-path-argument-offers-the-files-and-directories-its-text-reaches.lspt",
     "tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt",
     "crates/nvs-lsp/tests/completion_edits.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

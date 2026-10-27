@@ -31,17 +31,17 @@ const ALLOWED: &[(&str, &str, &str)] = &[
     (
         r"Core\Router",
         "url",
-        "rule:routing/link-name-and-params-are-checked",
+        "rule:routing/link-target-and-params-are-checked",
     ),
     (
         r"Core\Router",
         "urlAbsolute",
-        "rule:routing/link-name-and-params-are-checked",
+        "rule:routing/link-target-and-params-are-checked",
     ),
     (
         r"Core\Router",
         "urlSigned",
-        "rule:routing/link-name-and-params-are-checked",
+        "rule:routing/link-target-and-params-are-checked",
     ),
     (r"Core\Jwt", "signObject", "rule:security/jws-issued-subset"),
 ];

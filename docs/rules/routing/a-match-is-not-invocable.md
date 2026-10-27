@@ -1,18 +1,24 @@
-`Core\Router\Match` carries a declared name, the typed captures the path filled, the declared verb and
-the access decision's name, and nothing invocable: no `->invoke()`, no callable, no class-and-method
+`Core\Router\Match` carries the matched row, which `is` compares a method reference against, the
+typed captures the path filled, the declared verb and the access decision's name, and nothing
+invocable: no `->invoke()`, no callable, no class-and-method
 strings, and the handler's `Class::method` label never crosses. A first-class reference to the
 matched method would need `callable` to carry a signature, which `rule:types/grammar` defers — but
 routing is not a forcing case for that deferral, and a typed `callable` on the match would not be the
 way to dispatch, for three independent reasons.
 
-What a match returns beyond its name and captures, and why:
+What a match returns beyond its captures, and why:
+
+- **`is(Shop::show)` returns whether that method's route matched.** It takes a method reference and
+  returns a `bool`, so it identifies a route the way a link names one without handing anything
+  invocable back. A written reference folds to the row index while compiling; a reference passed as
+  a value is compared by row when the call runs.
 
 - **`access()` returns the decision's name**, such as `App\Role::Admin`, never the constant's value.
   The compiler checks that the name resolves and promises nothing about what it means, so the name is
   the one thing the row carries without interpreting it. `null` comes only from a table built by hand,
   because a route with no decision does not compile, and a dispatcher treats `null` as denied.
-- **`method()` returns the verb the matched row declares.** Two `#[Route]`s on one method may share a
-  `name` when they share a path, so only the verb tells a `Get` match from a `Post` match.
+- **`method()` returns the verb the matched row declares.** Two `#[Route]`s on one method share
+  its path, and `is` is `true` for both, so only the verb tells a `Get` match from a `Post` match.
 - **The handler's `Class::method` label stays off the match**, because it is the one field of the row
   a program could turn into a call.
 - **`attribute<T>()` returns the matched method's attribute payload of the shape `T`**, folded while
@@ -35,5 +41,5 @@ compiler-recognised attributes this table draws on has one home
 **Declined:**
 - **The server calls the matched method.** The program calls `dispatch`, and a program that does not
   is served as before (`rule:routing/the-servers-match-dispatches-nothing`).
-- **`params` as a shape per route, narrowed by comparing `name`.** The checker has no such narrowing,
+- **`params` as a shape per route, narrowed by `is`.** The checker has no such narrowing,
   and it would save only one `as`. The generated jump binds typed parameters without it.

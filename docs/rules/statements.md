@@ -3,6 +3,8 @@
 
 # Statements
 
+*1 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
 ## `<?nvs` is the only code-mode open tag; `<?php` is refused
@@ -413,7 +415,7 @@ position.
 
 <a id="statements-static-is-a-member-modifier"></a>
 
-## `static` marks a class member and names a class-relative type, and nothing else
+## `static` marks a class member and names a class-relative type, and nothing else  *(designed — owned by goal routes-by-method)*
 
 `rule:statements/static-is-a-member-modifier`
 
@@ -421,7 +423,7 @@ position.
 static()` and `: static` all bind late, to the called class, and `new static()` compiled as `new
 self()` would return the wrong class rather than fail to compile. A static method called through an
 instance, `$base->m()`, names the object's run-time class, as `$this->m()` does: a `Child` held in a
-`Base` variable runs `Child::m`, which reads `Child` as `static`. A callable taken with `static::m(...)`
+`Base` variable runs `Child::m`, which reads `Child` as `static`. A callable taken with `static::m`
 keeps the frame's called class and runs that class's `m`. A static property does not:
 its storage is fixed where the access is written, so `static::$prop` is refused (`E0499`). For a
 subclass that redeclares the property it would silently name the parent's storage, while a reader
@@ -471,7 +473,7 @@ anonymous function's `$this`, which the call captures, and reads `$this`'s class
 does everywhere. For `parent::m()` the class the call is made on is still the one the function is
 written in: the parent is only where the method is looked up. PHP forwards the enclosing method's
 called class into the anonymous function instead, so there a static method reached this way sees the
-subclass. `self::` already means the written class for constants, `::class` and `self::m(...)`, and
+subclass. `self::` already means the written class for constants, `::class` and `self::m`, and
 this reading stores nothing new.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an

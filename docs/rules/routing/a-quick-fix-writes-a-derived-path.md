@@ -1,6 +1,6 @@
-Nothing derives a `path` or a `name` from the declaring class. The compiler checks every *internal*
+Nothing derives a `path` from the declaring class. The compiler checks every *internal*
 reference to a route and exactly zero *external* ones, so a derivation rule would turn a class
-rename into a tidy set of compile errors for the `url()` calls and a silent move of the URL that is
+rename into a silent move of the URL that is
 in a bookmark, an email, another service's configuration and a search index. A path is a public
 interface; a class name is an implementation detail.
 
@@ -34,7 +34,7 @@ The fix is backed by a diagnostic the checker already emits, since `path` is a r
 not safe, since the URL it writes is a starting point.
 
 **Declined:**
-- **Convention routing**, a `path` or `name` the compiler derives from the class and method. It makes a
+- **Convention routing**, a `path` the compiler derives from the class and method. It makes a
   route free to declare, and is pleasant where the URLs are nobody's API, but it welds a public interface
   to an implementation detail. A quick fix writes the derived path once instead, and that path is real
   text: searchable, and stable under every later rename.

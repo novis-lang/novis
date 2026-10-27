@@ -1,5 +1,5 @@
 --TEST--
-The route table's seven contradictions, refused in one compilation — `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/link-name-and-params-are-checked` and `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/a-leftover-link-key-is-a-query-string`
+The route table's seven contradictions, refused in one compilation — `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/link-target-and-params-are-checked` and `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/a-leftover-link-key-is-a-query-string`
 --FILE--
 <?nvs
 // Seven wrong route declarations in one program, because the point is not that
@@ -60,7 +60,7 @@ class Orders {
     public function show(uint $id, #[Core\Query] uint $page = 1): string { return ""; }
 }
 
-// 6. `rule:routing/link-name-and-params-are-checked`: a *literal* name is checked against the compiled table. A
+// 6. `rule:routing/link-target-and-params-are-checked`: a *literal* name is checked against the compiled table. A
 // computed one is not checked here at all and throws at run time instead.
 echo Core\Router::url("orders.missing", ["id" => 1]), "\n";
 

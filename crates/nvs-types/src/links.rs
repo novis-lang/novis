@@ -1,4 +1,4 @@
-//! `rule:routing/link-name-and-params-are-checked`'s link:
+//! `rule:routing/link-target-and-params-are-checked`'s link:
 //! `Core\Router::url`, `::urlAbsolute` and `::urlSigned` over a **literal**
 //! route name, resolved against § 5's finished table while compiling.
 //!
@@ -633,7 +633,7 @@ fn within_set(
     true
 }
 
-/// `rule:routing/link-name-and-params-are-checked`'s value check: a literal
+/// `rule:routing/link-target-and-params-are-checked`'s value check: a literal
 /// value that the conversion of the parameter it supplies refuses.
 ///
 /// [`within_set`] asks this of a closed set, and this asks it of the types the

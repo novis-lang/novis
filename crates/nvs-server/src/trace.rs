@@ -400,7 +400,7 @@ pub struct Access<'a> {
     /// the line has no `clientIp` field at all, not a `null` one
     /// (`rule:http-server/a-log-line-can-leave-out-the-client-address`).
     pub client_ip_logged: bool,
-    /// `rule:observability/route-label-is-the-declared-name`'s label, where a
+    /// `rule:observability/route-label-is-the-path-pattern`'s label, where a
     /// route matched.
     pub route: Option<&'a str>,
     /// The trace the door decided for this request.

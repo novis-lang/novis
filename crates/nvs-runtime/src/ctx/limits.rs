@@ -161,7 +161,7 @@ impl Ctx {
     /// [`Self::memory_peak`] already holds, so neither adds a probe site. Called
     /// by the isolate root while this context still exists, because the door
     /// that counts the request never holds it. Both carry the declared route
-    /// name, `rule:observability/route-label-is-the-declared-name`'s label.
+    /// name, `rule:observability/route-label-is-the-path-pattern`'s label.
     ///
     /// The ceiling a fraction is taken of is the one the operator wrote, which
     /// is [`Self::memory_limit`] with [`Self::fatal_reserve`] added back. A

@@ -1,8 +1,8 @@
 {
-  "title": "A match is a name and typed parameters, and running a handler is a separate call the program makes",
-  "status": "shipped",
+  "title": "A match is a route identity and typed parameters, and running a handler is a separate call the program makes",
+  "status": "designed",
   "seeAlso": [
-    "routing/link-name-and-params-are-checked",
+    "routing/link-target-and-params-are-checked",
     "routing/routes-are-compiled-not-registered",
     "core-classes/router-signed-url",
     "core-classes/ratelimit-two-members",
@@ -18,5 +18,6 @@
     "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst",
     "tests/conformance/core/a-match-answers-the-access-decision-as-the-name-its-route-resolved.nvst",
     "tests/conformance/core/a-match-answers-the-access-decision-as-a-case-of-the-written-enum.nvst"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

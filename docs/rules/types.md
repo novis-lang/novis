@@ -3,6 +3,8 @@
 
 # Types
 
+*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -1998,14 +2000,15 @@ name, never by a namespace path: `Ns\Order\Meta` is also the spelling of a class
 
 <a id="types-callable-values"></a>
 
-## `callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable
+## `callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable  *(designed — owned by goal routes-by-method)*
 
 `rule:types/callable-values`
 
 `callable` is satisfied by exactly two kinds of value: an anonymous function (`fn (...) => ...`) and a
-method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound),
-`static::helper(...)` (late-bound). A method reference names a member, and the checker records the
-resolved target. Both make the same kind of value, a callable.
+method reference — `Core\Str::length`, `$user->getName(...)`, `self::helper` (early-bound),
+`static::helper` (late-bound), one form per receiver ([`expressions/method-reference`](expressions.md#expressions-method-reference)). A method
+reference names a member, and the checker records the resolved target. Both make the same kind of
+value, a callable.
 
 Three other ways to name a function are refused where they are written, each with a diagnostic naming the
 replacement: a bare name string (`'strlen'`), a `"Class::method"` string, and a `[$obj, 'method']`

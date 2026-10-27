@@ -2,7 +2,7 @@
 example — to the OpenAPI document `nvs build --openapi` writes.
 
 ```nvs
-#[Route(path: "/orders/{id}", method: Http\Method::Get, name: "orders.show")]
+#[Route(path: "/orders/{id}", method: Http\Method::Get)]
 #[Access(allow: Role::User)]
 #[Api(tags: ["Orders"], errors: [{status: 404, type: Api\NotFound}], example: {id: 7})]
 public static function show(uint $id): Order { … }
@@ -16,6 +16,12 @@ type (a nested object and each object in a nested array held to their field's cl
 same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
 `#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
 `#[Route]` attributes the method carries.
+
+**`operationId` is optional and replaces the derived `Class.method`**
+(`rule:routing/a-method-is-one-endpoint-everywhere`), for a public API whose clients must keep their
+function names across a method rename. It takes the lowercased verb as a suffix exactly as the derived
+id does when the method serves several verbs. An `operationId` that another operation in the document
+also carries is `E0771` too, naming both sites, because OpenAPI requires the id to be unique.
 
 That list is why the attribute exists. The compiler holds both the annotation and the code it
 describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal

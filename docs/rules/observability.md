@@ -3,6 +3,8 @@
 
 # Observability
 
+*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
 ## Production telemetry is read from the instrumentation that already exists, and adds no probe site to the measured path
@@ -227,7 +229,7 @@ came near their ceiling. It reads the mark
 [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for) already holds, so it adds no probe site.
 
 `route` is the one label that would otherwise be unbounded, and
-[`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name) is what keeps it closed. `method` is one of
+[`observability/route-label-is-the-path-pattern`](observability.md#observability-route-label-is-the-path-pattern) is what keeps it closed. `method` is one of
 RFC 9110's nine methods as the request wrote it, and `other` for any verb outside them, so a client
 that makes up verbs adds one series and never one each. The eleven are seeded
 into a core's registry ahead of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused)'s
@@ -238,7 +240,7 @@ quietly turn "present the moment an exporter is configured" into a different con
 - **A statement label on `nvs_db_query_duration_seconds`**, normalised SQL beside `operation`.
   Valuable, and a cardinality question that needs a bound before it is offered.
 
-<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind).</sub>
+<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-path-pattern`](observability.md#observability-route-label-is-the-path-pattern), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind).</sub>
 
 <a id="observability-a-name-is-fixed-to-one-kind"></a>
 
@@ -259,29 +261,37 @@ than a throw.
 
 <sub>See also [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused).</sub>
 
-<a id="observability-route-label-is-the-declared-name"></a>
+<a id="observability-route-label-is-the-path-pattern"></a>
 
-## The `route` label carries the route's declared name, never the request path, and a route without one has no label
+## The `route` label carries the matched route's path pattern, never the request path  *(designed — owned by goal routes-by-method)*
 
-`rule:observability/route-label-is-the-declared-name`
+`rule:observability/route-label-is-the-path-pattern`
 
-The `route` label on the request series carries the route's **declared name** from the compile-time
-table of [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) — a closed set known when the program is
-built — and never the request's raw path. A program with no route table simply has no `route` label,
-and a matched route that declared no name has none either. There is no fallback to the path.
+The `route` label on the request series carries the matched route's **path pattern**, the
+mount-relative `#[Route]` `path` such as `/users/{id}`, from the compile-time table of
+[`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) — a closed set known when the program is built — and
+never the request's raw path. Every matched route has the label. A program with no route table, and a
+request no route matched, has no `route` label, and there is no fallback to the raw path.
+
+The verb stays in its own label where the series has one, and the `route` label adds none, so a method
+serving several verbs shares one pattern and the series splits by verb only where it already did.
 
 This is the one place the route table is read by something other than the application, and the
 label reads the match the request already made rather than matching again. Per-endpoint latency is
 the second thing anyone looks at on a dashboard, so an application that does not use the route
 table loses something real; the alternative was worse, and the coupling is deliberate.
 
-A route name is one of the values that are already unqualified and are what a label should have
-been, which is why it passes [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) for free.
+A path pattern is one of the values that are already unqualified and are what a label should have
+been: it comes from the compiled table and never from the request, which is why it passes
+[`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) for free. It is also what a reader of the dashboard
+recognises, and a rename of the handler method keeps its series.
 
 **Declined:**
 - **Labelling by the request path**, which would need no route table. `/users/1`, `/users/2`, … is
   one series per user, the cardinality bomb every label rule in this chapter exists to prevent, and
   offering it as an option means it would be chosen.
+- **Labelling by the handler's `Class::method`.** A refactor that renames a method would break the
+  dashboard's series, and the name means nothing to an operator who did not write the code.
 
 <sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
 

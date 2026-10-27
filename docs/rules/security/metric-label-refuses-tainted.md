@@ -5,8 +5,8 @@ There is deliberately **no launderer for it**, because there is no sanitisation 
 safe. The hazard is not the value's content, it is that the value is drawn from an unbounded set, and
 an unbounded label set is how a metrics collector falls over. What exists instead is everything that
 is already unqualified and is what a label should have been: an enum case or an integer converted with
-`as`, which laundering makes free (`rule:security/taint-propagation`); a route name from the compiled
-table; a literal, a class constant or a configured value; and, for a genuinely bounded user-derived
+`as`, which laundering makes free (`rule:security/taint-propagation`); a route's path pattern from the
+compiled table; a literal, a class constant or a configured value; and, for a genuinely bounded user-derived
 set, `rule:security/assert-trusted`.
 
 `secret` is refused there too and needs no new rule: a metric export is output, and every output sink

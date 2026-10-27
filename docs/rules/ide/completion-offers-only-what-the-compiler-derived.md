@@ -5,9 +5,10 @@ reason uses, or where a completion file under a `.novis/completion/` folder list
 the cursor is at (`rule:ide/completion-files-offer-values-at-named-parameters`). This is the whole of
 Novis's answer to "framework support", and it is a closed rule, not a starting point.
 
-What that admits: route names and their parameters, from the route table
+What that admits: the methods that carry a `#[Route]`, offered first in a link's or a match
+check's first argument, and their parameters, from the route table
 `rule:routing/routes-are-compiled-not-registered` builds while compiling — the same table
-`rule:routing/link-name-and-params-are-checked` checks a link against; configuration directives in a
+`rule:routing/link-target-and-params-are-checked` checks a link against; configuration directives in a
 file named `nvs.toml` (`rule:ide/the-extension-claims-nvs-only`), from the default file the binary ships,
 which `bun nv directives --check-template` holds to the parser that refuses an unknown key
 (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`), so completion, hover with type and
@@ -88,8 +89,8 @@ checker seeds its signatures from, so a suggestion never writes a call that then
 editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
 the suggestion's mistake from their own.
 
-The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
-completed from the compile-time route table is correct, where one recovered by scanning a conventions
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route's
+method completed from the compile-time route table is correct, where one recovered by scanning a conventions
 directory is a good guess. Columns recovered from migrations, facades followed through a runtime
 container and components found by directory convention are each a heuristic replacing a fact the
 language does not make available; Novis makes those facts available, so the heuristic has nothing to

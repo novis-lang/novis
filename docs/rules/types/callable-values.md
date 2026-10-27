@@ -1,7 +1,8 @@
 `callable` is satisfied by exactly two kinds of value: an anonymous function (`fn (...) => ...`) and a
-method reference — `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound),
-`static::helper(...)` (late-bound). A method reference names a member, and the checker records the
-resolved target. Both make the same kind of value, a callable.
+method reference — `Core\Str::length`, `$user->getName(...)`, `self::helper` (early-bound),
+`static::helper` (late-bound), one form per receiver (`rule:expressions/method-reference`). A method
+reference names a member, and the checker records the resolved target. Both make the same kind of
+value, a callable.
 
 Three other ways to name a function are refused where they are written, each with a diagnostic naming the
 replacement: a bare name string (`'strlen'`), a `"Class::method"` string, and a `[$obj, 'method']`

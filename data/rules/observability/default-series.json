@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "observability/the-runtime-exports-what-it-already-measures",
-    "observability/route-label-is-the-declared-name",
+    "observability/route-label-is-the-path-pattern",
     "observability/past-max-series-a-new-series-is-refused",
     "concurrency/deferred-is-bounded-by-two-directives",
     "config/scheduled-work-is-a-config-block",

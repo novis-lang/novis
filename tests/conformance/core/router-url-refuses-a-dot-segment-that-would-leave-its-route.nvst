@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` throws for a capture value that is `.` or `..`, and for a rest capture with one of them between its `/`s, because a browser resolves a dot segment against the path in front of it and no encoding of one stays inside its route — `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url` throws for a capture value that is `.` or `..`, and for a rest capture with one of them between its `/`s, because a browser resolves a dot segment against the path in front of it and no encoding of one stays inside its route — `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
 // `.` is unreserved, so percent-encoding leaves it alone, and a browser reads

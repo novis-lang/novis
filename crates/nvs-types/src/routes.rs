@@ -911,7 +911,7 @@ impl RouteTable {
     /// `url`/`urlAbsolute` reverse the table by exactly this question.
     ///
     /// The first match, and never an ambiguous one: two rows may share a name
-    /// only when they share a path (`rule:routing/repeated-routes-share-a-name-when-they-share-a-path`),
+    /// only when they share a path (`rule:routing/routes-are-compiled-not-registered`),
     /// so name-to-path is a function and every other duplicate is
     /// [`code::E_DUPLICATE_ROUTE_NAME`] and does not compile.
     #[must_use]
@@ -3388,7 +3388,7 @@ pub(crate) fn check_responders(table: &RouteTable, diags: &mut Diagnostics) {
 /// on the filesystem.
 ///
 /// The `name` half carries
-/// `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+/// `rule:routing/routes-are-compiled-not-registered`
 /// 's exception — repetitions on one method sharing a path share a name —
 /// and it is asked here rather than in [`check_class_routes`] because it is the
 /// same question the rest of this walk asks: two rows, and whether they are the
@@ -3419,7 +3419,7 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             continue;
         };
         if let Some(prior) = names.insert(name.as_str(), row) {
-            // `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`'s exception: repetitions on one method may share a
+            // `rule:routing/routes-are-compiled-not-registered`'s exception: repetitions on one method may share a
             // name when they share a path, because then `url()` has one answer
             // to give. Both halves are required — the same name on two methods
             // is the copy-paste the rule was written for, and one method whose

@@ -1,6 +1,6 @@
 {
   "title": "The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "programs/implementing",
     "programs/no-runtime-autoload",
@@ -13,5 +13,6 @@
     "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
     "crates/nvs-types/tests/routes.rs",
     "crates/nvs-hir/src/requires.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

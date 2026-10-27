@@ -489,7 +489,7 @@ fn the_warning_names_three_route_methods_and_counts_the_rest() {
 #[test]
 fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     // `rule:attributes/repeatable`'s repetition, read as `rule:routing/route-attribute` writes it: one method
-    // serving three verbs declares three routes rather than one. `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+    // serving three verbs declares three routes rather than one. `rule:routing/routes-are-compiled-not-registered`
     // then lets them carry the same `name`, because they carry the same path
     // and `url()` therefore has one answer to give.
     let webhook = |name: &str| {

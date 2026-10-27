@@ -372,7 +372,7 @@ impl<'a> Lowering<'a> {
                     let ctors = ctors.clone();
                     return self.lower_program_instances(&classes, &ctors, env, cur);
                 }
-                // `rule:routing/link-name-and-params-are-checked`'s link, resolved in `nvs check` against § 5's
+                // `rule:routing/link-target-and-params-are-checked`'s link, resolved in `nvs check` against § 5's
                 // finished table and recorded as the named route's path,
                 // already split by § 2's grammar. The call still happens — a
                 // link percent-encodes runtime values and is not a constant —
@@ -3918,7 +3918,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `Core\Router::url(...)`/`::urlAbsolute(...)` over a route name
-    /// `nvs_types::links` resolved — `rule:routing/link-name-and-params-are-checked`
+    /// `nvs_types::links` resolved — `rule:routing/link-target-and-params-are-checked`
     /// 's link.
     ///
     /// Two arguments in and two out, and only the first is different: the

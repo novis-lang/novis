@@ -1219,7 +1219,7 @@ fn class_names(
 
 /// The route names a `Core\Router` link may name, read off the route table the
 /// checker resolves the same link against
-/// (`rule:routing/link-name-and-params-are-checked`).
+/// (`rule:routing/link-target-and-params-are-checked`).
 ///
 /// Each named row is offered once, since two rows share a name only where they
 /// share a path, and a row with no name is not offered: no link reaches it.

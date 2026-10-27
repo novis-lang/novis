@@ -3,6 +3,8 @@
 
 # Concurrency
 
+*2 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="concurrency-one-scheduler"></a>
 
 ## Concurrency is the `Core\Task` roster over the runtime's own single scheduler
@@ -59,7 +61,7 @@ that runs a program makes a task first even where one buys nothing else.
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
-## A child spawned `on: "worker"` is started on another core first and on its parent's core last, copies at every node in both directions, and is still its parent's child
+## A child spawned `on: "worker"` is started on another core first and on its parent's core last, copies at every node in both directions, and is still its parent's child  *(designed — owned by goal routes-by-method)*
 
 `rule:concurrency/on-worker-runs-the-child-on-another-core`
 
@@ -92,7 +94,7 @@ call does not return until the cancellation it sent has been acknowledged from t
 child's own teardown has run there.
 
 **Both entry forms cross, and each is prepared by the core that runs the child.** A
-`Class::method(...)` entry is a label the compiled unit's class table carries, and every core reads that
+`Class::method` entry is a label the compiled unit's class table carries, and every core reads that
 unit. A path entry is compiled through a resolver, which is per thread — so the process publishes one
 handle to the compiler it already built, and a core installs it on its own thread as it starts. What is
 shared either way is compiled code and nothing else, which is the sharing
@@ -910,13 +912,13 @@ wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and th
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
-## An upgrade names compiled code — a file or a static method — and never a callable
+## An upgrade names compiled code — a file or a static method — and never a callable  *(designed — owned by goal routes-by-method)*
 
 `rule:concurrency/an-upgrade-is-spawn-shaped`
 
 `Core\Socket::upgrade('sockets/chat.nvs', args: {room: $room})` takes a spawned script's operand and
 nothing else: a file path, resolved and root-checked exactly as that construct's is, or a static
-method written `Chat::run(...)` whose parameters `args:` binds to **by name**. Which of the two it is
+method written `Chat::run` whose parameters `args:` binds to **by name**. Which of the two it is
 is decided syntactically at the call site ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
 It is never a callable. A capture would carry state across the boundary the isolate exists to create,

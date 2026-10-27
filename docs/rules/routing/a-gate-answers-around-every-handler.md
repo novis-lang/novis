@@ -77,7 +77,7 @@ The door chooses the mount before it checks the verb, which moves nothing else b
 chosen by path, and the in-process door does the same, so `Core\Test::request` exercises it.
 
 **Only a program that calls `Core\Router::dispatch` gets refusal mode.** The compiler sees the call, as
-it sees a link (`rule:routing/link-name-and-params-are-checked`), and marks the unit. A program that
+it sees a link (`rule:routing/link-target-and-params-are-checked`), and marks the unit. A program that
 dispatches by hand keeps the empty answers, because it would read a refused request as an ordinary one
 with no route. `Core\Request::route()` and `Core\Router::match` serve it unchanged.
 

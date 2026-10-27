@@ -16,7 +16,7 @@ autoload 'App' from './routes';
 // `examples/octets.nvs` is where `match` is read back, over a route of its
 // own. What asserts the table here is therefore the compiler, not the
 // output: the two `Core\Router::url` calls below take a name written *directly in the code*, and
-// `rule:routing/link-name-and-params-are-checked` makes an unknown name, and a `$params` array that does not cover the
+// `rule:routing/link-target-and-params-are-checked` makes an unknown name, and a `$params` array that does not cover the
 // route's captures, compile errors. If `Users::show` were not in the table,
 // or its `{id}` did not bind to a `uint $id` parameter, this program would
 // not build.
@@ -24,7 +24,7 @@ echo 'GET /users/{id} -> Users::show', "\n";
 echo 'GET /users -> Users::index', "\n";
 echo 'POST /users -> Users::create', "\n";
 
-// `rule:routing/link-name-and-params-are-checked`: `url` is the launderer for the URL-path sink — it percent-encodes each
+// `rule:routing/link-target-and-params-are-checked`: `url` is the launderer for the URL-path sink — it percent-encodes each
 // substituted value and prepends the mount prefix, which is why a link is
 // built through this member and never by concatenating a declared path.
 echo 'url=', Core\Router::url('Users::show', ['id' => 7]), "\n";

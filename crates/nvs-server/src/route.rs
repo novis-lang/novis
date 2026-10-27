@@ -5,7 +5,7 @@
 //! # Why the door and not the program
 //!
 //! § 1 names three rules that were already written against a match the server
-//! had not got — `rule:security/csrf-is-on-by-default`'s CSRF check, `rule:observability/route-label-is-the-declared-name`'s `route` label, and
+//! had not got — `rule:security/csrf-is-on-by-default`'s CSRF check, `rule:observability/route-label-is-the-path-pattern`'s `route` label, and
 //! § 8's access decision — and each of them needs the answer *before* the
 //! handler is called. A program that matched for itself would make two matches
 //! of one question and could not have answered the first three at all, so the
@@ -21,7 +21,7 @@
 //! # What the answer is read for
 //!
 //! Two of § 1's three rules read it here: [`csrf`] is `rule:security/csrf-is-on-by-default`'s
-//! refusal, over [`csrf_required`]'s question, and [`label`] is `rule:observability/route-label-is-the-declared-name`'s `route` label. Neither matches
+//! refusal, over [`csrf_required`]'s question, and [`label`] is `rule:observability/route-label-is-the-path-pattern`'s `route` label. Neither matches
 //! anything — each is a field of the row the door already found — which is what
 //! § 1 buys and is why they live beside [`take`] rather than beside the
 //! subsystem each belongs to. § 8's access decision has no reader here on
@@ -479,7 +479,7 @@ fn decoded(text: &[u8]) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// `rule:observability/route-label-is-the-declared-name`'s `route` label for this request: the matched route's
+/// `rule:observability/route-label-is-the-path-pattern`'s `route` label for this request: the matched route's
 /// **declared name**.
 ///
 /// The one label of that table which would otherwise be unbounded, which is why
@@ -592,7 +592,7 @@ mod tests {
         ])
     }
 
-    /// `rule:security/csrf-is-on-by-default`'s CSRF check and `rule:observability/route-label-is-the-declared-name`'s `route` label, which are two
+    /// `rule:security/csrf-is-on-by-default`'s CSRF check and `rule:observability/route-label-is-the-path-pattern`'s `route` label, which are two
     /// of the three rules `rule:routing/matched-once-before-the-handler` was written for: each reads the match the
     /// door already made rather than making a second one.
     ///
@@ -1103,7 +1103,7 @@ mod tests {
         );
     }
 
-    /// `rule:observability/route-label-is-the-declared-name`'s label carries the route's **declared name** and never the
+    /// `rule:observability/route-label-is-the-path-pattern`'s label carries the route's **declared name** and never the
     /// request's path, so a matched row that declared none has no label — the
     /// case a fallback would silently turn into the cardinality bomb that rule
     /// exists to prevent.

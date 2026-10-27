@@ -1,7 +1,7 @@
-`Core\Router::urlAbsolute(string $name, array<string, mixed> $params): string` is `Core\Router::url`
+`Core\Router::urlAbsolute(callable $route, array<string, mixed> $params = []): string` is `Core\Router::url`
 with the configured origin in front — the same laundered path, the same query-string rule
-(`rule:routing/a-leftover-link-key-is-a-query-string`), the same compile errors for an unknown name or
-an uncovered capture — joined with exactly one `/` whatever the origin's trailing slash.
+(`rule:routing/a-leftover-link-key-is-a-query-string`), the same compile errors for a method with no
+route or an uncovered capture — joined with exactly one `/` whatever the origin's trailing slash.
 
 **The origin is configuration, never inference.** It is resolved before the program runs, out of
 `[[app]] origin`, and is never derived from `Host` or `X-Forwarded-Host`: deriving an origin from a

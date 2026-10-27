@@ -261,7 +261,7 @@ const KEY_IN_DOC: EnumDoc = EnumDoc {
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Router";
 
-/// `$params` — `rule:routing/link-name-and-params-are-checked` writes it `array<string, mixed>`, and that is a
+/// `$params` — `rule:routing/link-target-and-params-are-checked` writes it `array<string, mixed>`, and that is a
 /// spelling the type system has no form for: `nvs_types::ty::Ty::Array` carries
 /// one element type, because a Novis array's keys are `int|string` by
 /// construction and are not part of its type. So the row declares the half that
@@ -303,7 +303,7 @@ const CARD: ClassDoc = ClassDoc {
 /// about the path it is already serving would be matching twice, which is what
 /// § 1 exists to remove.
 ///
-/// The link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
+/// The link half only — `rule:routing/link-target-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
 /// `methodsFor` answer a request and land with the server; [`crate::router`]
 /// owns why, and owns the enum the `method` parameter takes.
 // rank: 380
@@ -1161,7 +1161,7 @@ const GATE_FAILED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// The two symbols `rule:routing/link-name-and-params-are-checked`'s **folded** link is lowered to, and the wire
+/// The two symbols `rule:routing/link-target-and-params-are-checked`'s **folded** link is lowered to, and the wire
 /// format they read argument 0 as.
 ///
 /// Neither is a [`CoreMethod`] row, and that is the point: a program calls
@@ -1280,7 +1280,7 @@ pub fn native_conv(ty: &str) -> Option<nvs_runtime::routes::CaptureConv> {
 /// Whether `segment` converts to a capture declared at `ty`, or `None` where
 /// `ty` is not one [`native_conv`] reads.
 ///
-/// `rule:routing/link-name-and-params-are-checked`'s value check, asked by
+/// `rule:routing/link-target-and-params-are-checked`'s value check, asked by
 /// `nvs_types::links` of a literal `$params` value. A `false` is a link the
 /// route does not match, because the matcher runs this same conversion
 /// ([`nvs_runtime::routes::CaptureConv::convert`]) on the segment.
@@ -1962,7 +1962,7 @@ fn produced(text: &str) -> HelperResult {
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
 /// reaching its helper is a compiler bug. These two are ordinary runtime
-/// members — `rule:routing/link-name-and-params-are-checked` says a *computed* `$name` throws — so the throw is a
+/// members — `rule:routing/link-target-and-params-are-checked` says a *computed* `$name` throws — so the throw is a
 /// real answer a program can catch, and it stays the answer for an unknown name
 /// after the table lands. What changes then is only which names are unknown.
 fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
@@ -1975,7 +1975,7 @@ fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/link-name-and-params-are-checked`
+    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/link-target-and-params-are-checked`
     /// 's launderer for the URL-path sink.
     ///
     /// This is the *unfolded* member — reached only by a name the compiler
@@ -2344,7 +2344,7 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::name(): ?string` — `rule:routing/matched-once-before-the-handler`'s declared name,
-    /// which `rule:observability/route-label-is-the-declared-name`'s `route` label reads and `Core\Router::url` resolves.
+    /// which `rule:observability/route-label-is-the-path-pattern`'s `route` label reads and `Core\Router::url` resolves.
     fn nvs_core_router_match_name(_ctx, args: [1]) {
         match_slot(args, MATCH_ROUTE_NAME, "name")
     }

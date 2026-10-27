@@ -357,7 +357,7 @@ fn oauth_flow(flow: &OAuthFlow) -> Value {
 /// The id is `#[Route]`'s `name`. A route that declared none falls back to
 /// its handler label, which is unique by construction — a method declares one
 /// route per verb, and `Class::method` names it — and a *shared* name takes
-/// `rule:routing/a-shared-name-is-one-endpoint-everywhere`
+/// `rule:routing/a-method-is-one-endpoint-everywhere`
 /// 's lowercased-verb suffix, which is what keeps the id unique when one
 /// method's repeated routes deliberately share one name.
 ///

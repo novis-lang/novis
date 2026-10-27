@@ -23,7 +23,7 @@ debugger wiring (`editors/vscode/src/debug.ts`), the four write actions
 services and formatting through `nvs fmt` (`crates/nvs-lsp/src/capabilities.rs`,
 `editors/vscode/src/`).
 
-Completion from the compiler's own tables — route names, `nvs.toml` directives, `#[Api]` fields — is
+Completion from the compiler's own tables — the methods that carry a route, `nvs.toml` directives, `#[Api]` fields — is
 offered only where the compiler already derives the value for another reason, never from a convention
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.

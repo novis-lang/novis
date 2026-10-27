@@ -11,8 +11,8 @@ consequences (`rule:programs/implementing`):
   and an entry whose only call is `dispatch` would compile none of the classes it dispatches to. `Core\Request::mount()`
   reads the mount table and does not opt in. A program with no `#[Route]` anywhere pays nothing,
   including no pass. A running program with no table matches nothing and serves the request however
-  it likes. The table still holds every `#[Route]` of every class the program compiles, named or
-  required, so the door's CSRF check covers every handler that can run, scan or no scan.
+  it likes. The table still holds every `#[Route]` of every class the program compiles, each one
+  linkable by its method, so the door's CSRF check covers every handler that can run, scan or no scan.
 - **The scan makes the compiled unit depend on directory contents**, so every listed directory joins
   the revalidation set: no new dependency kind and no new directive. Zero under `validate = never`,
   which is what production runs.

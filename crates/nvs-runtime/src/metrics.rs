@@ -1591,7 +1591,7 @@ mod tests {
     }
 
     /// `rule:observability/default-series`'s two request series are recorded together, carrying
-    /// `rule:observability/route-label-is-the-declared-name`'s declared name — and a request that matched nothing carries the label
+    /// `rule:observability/route-label-is-the-path-pattern`'s declared name — and a request that matched nothing carries the label
     /// empty rather than not at all.
     #[test]
     fn a_request_records_both_series_under_the_routes_declared_name() {

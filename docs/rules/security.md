@@ -3,11 +3,11 @@
 
 # Security and isolation
 
-*1 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
-## Running another script is an in-process isolate that shares nothing with its parent but compiled code
+## Running another script is an in-process isolate that shares nothing with its parent but compiled code  *(designed — owned by goal routes-by-method)*
 
 `rule:security/isolate-shares-nothing`
 
@@ -19,10 +19,10 @@ globals, class statics, runtime-defined constants, output buffer, include graph,
 config overlay. Open resources are not shared and cannot be passed.
 
 The operand is decided syntactically at the spawn site — a `string` expression, or a
-`Class::method(...)` reference written there — and nothing else. A `callable` variable is refused,
+`Class::method` reference written there — and nothing else. A `callable` variable is refused,
 because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
 naming the method form. A method entry is called with `args:`'s entries as **named arguments**, after
-the copy, so `spawn script Reports::monthly(...) with(args: ["month" => $m])` runs
+the copy, so `spawn script Reports::monthly with(args: ["month" => $m])` runs
 `Reports::monthly(month: $m)` in the fresh isolate: the entry is an ordinary function with an ordinary
 signature, typed at the boundary and callable and testable directly. A name `args:` holds that the
 entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
@@ -79,8 +79,8 @@ the thread's, and a request is charged its difference since its context was made
 - **An HTTP request to the server's own listener.** It needs a listener, an authentication story and a
   serialisation format to do what an arena boundary does in microseconds.
 - **A method entry that ignores its parameter list and reads `Core\Script::args()`.**
-  `Reports::monthly(...)` is first-class-callable syntax, which everywhere else means "call this with
-  arguments", so a reader who writes `monthly(int $month)` expects the binding. An entry that reads the
+  `Reports::monthly` is a method reference, and everywhere else a reference is called with its
+  arguments, so a reader who writes `monthly(int $month)` expects the binding. An entry that reads the
   accessor cannot be called or tested as an ordinary function, and the copy is just as visible either
   way: it is the `args:` key at the spawn site.
 - **An `fn` literal that captures nothing as the entry.** A closure minus its capture is a function
@@ -1739,7 +1739,7 @@ stays two lines, the second of which is the launderer that records the decision.
 
 <a id="security-metric-label-refuses-tainted"></a>
 
-## A metric label value refuses `tainted`, and there is deliberately no launderer for one
+## A metric label value refuses `tainted`, and there is deliberately no launderer for one  *(designed — owned by goal routes-by-method)*
 
 `rule:security/metric-label-refuses-tainted`
 
@@ -1750,8 +1750,8 @@ There is deliberately **no launderer for it**, because there is no sanitisation 
 safe. The hazard is not the value's content, it is that the value is drawn from an unbounded set, and
 an unbounded label set is how a metrics collector falls over. What exists instead is everything that
 is already unqualified and is what a label should have been: an enum case or an integer converted with
-`as`, which laundering makes free ([`security/taint-propagation`](security.md#security-taint-propagation)); a route name from the compiled
-table; a literal, a class constant or a configured value; and, for a genuinely bounded user-derived
+`as`, which laundering makes free ([`security/taint-propagation`](security.md#security-taint-propagation)); a route's path pattern from the
+compiled table; a literal, a class constant or a configured value; and, for a genuinely bounded user-derived
 set, [`security/assert-trusted`](security.md#security-assert-trusted).
 
 `secret` is refused there too and needs no new rule: a metric export is output, and every output sink

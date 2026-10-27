@@ -27,7 +27,7 @@ call does not return until the cancellation it sent has been acknowledged from t
 child's own teardown has run there.
 
 **Both entry forms cross, and each is prepared by the core that runs the child.** A
-`Class::method(...)` entry is a label the compiled unit's class table carries, and every core reads that
+`Class::method` entry is a label the compiled unit's class table carries, and every core reads that
 unit. A path entry is compiled through a resolver, which is per thread — so the process publishes one
 handle to the compiler it already built, and a core installs it on its own thread as it starts. What is
 shared either way is compiled code and nothing else, which is the sharing

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` writes an enum case as the segment the match claims — the written backing value where every admitted case wrote one, and the case name where any counted — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url` writes an enum case as the segment the match claims — the written backing value where every admitted case wrote one, and the case name where any counted — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
 // Both halves of the rule in one file, because the spelling is decided per

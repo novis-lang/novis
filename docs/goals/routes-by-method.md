@@ -6,11 +6,11 @@ context: [docs/rules/routing.md, crates/nvs-types/src/routes.rs, crates/nvs-type
 stages:
   - id: 1
     title: the rules say a route is named by its method, and a method reference needs no `(...)`
-    status: open
-    context: [docs/rules/expressions/method-reference.md, docs/rules/routing/route-attribute.md, docs/rules/routing/link-name-and-params-are-checked.md, docs/rules/core-classes/router-signed-url.md, docs/rules/observability/route-label-is-the-declared-name.md]
+    status: done
+    context: [docs/rules/expressions/method-reference.md, docs/rules/routing/route-attribute.md, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/core-classes/router-signed-url.md, docs/rules/observability/route-label-is-the-path-pattern.md]
     extra:
       context:
-        rules: [expressions/method-reference, routing/route-attribute, routing/routes-are-compiled-not-registered, routing/repeated-routes-share-a-name-when-they-share-a-path, routing/a-shared-name-is-one-endpoint-everywhere, routing/matching-is-not-dispatching, routing/a-match-is-not-invocable, routing/link-name-and-params-are-checked, routing/link-carries-the-mount-prefix, routing/api-document-is-generated-from-the-route-table, core-classes/router-signed-url, observability/route-label-is-the-declared-name, types/callable-values]
+        rules: [expressions/method-reference, routing/route-attribute, routing/routes-are-compiled-not-registered, routing/a-method-is-one-endpoint-everywhere, routing/matching-is-not-dispatching, routing/a-match-is-not-invocable, routing/link-target-and-params-are-checked, routing/link-carries-the-mount-prefix, routing/api-document-is-generated-from-the-route-table, core-classes/router-signed-url, observability/route-label-is-the-path-pattern, types/callable-values]
   - id: 2
     title: "`Class::method` without `(...)` is a method reference everywhere"
     status: open
@@ -24,14 +24,14 @@ stages:
     context: [crates/nvs-types/src/routes.rs, crates/nvs-types/src/links.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-types/tests/routes.rs]
     extra:
       context:
-        rules: [routing/route-attribute, routing/link-name-and-params-are-checked, routing/routes-are-compiled-not-registered]
+        rules: [routing/route-attribute, routing/link-target-and-params-are-checked, routing/routes-are-compiled-not-registered]
   - id: 4
     title: "`Match::is`, signed links, the `operationId` and the metrics label read the method or the path"
     status: open
     context: [crates/nvs-stdlib/src/router.rs, crates/nvs-cli/src/openapi.rs, crates/nvs-types/src/routes.rs]
     extra:
       context:
-        rules: [routing/a-match-is-not-invocable, core-classes/router-signed-url, routing/api-document-is-generated-from-the-route-table, observability/route-label-is-the-declared-name]
+        rules: [routing/a-match-is-not-invocable, core-classes/router-signed-url, routing/api-document-is-generated-from-the-route-table, observability/route-label-is-the-path-pattern]
   - id: 5
     title: the editor follows a link to its method
     status: open
@@ -100,7 +100,7 @@ trap the bare form opens.
 **`#[Route]` is `{path, method, slotted?}`, and a route is identified by its method.** The `name` field
 is removed. Several `#[Route]`s on one method must share their `path` and differ by verb; two
 different paths on one method do not compile, and the message suggests an optional segment `{x?}` or a
-second method. `E0749` (duplicate name) and `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+second method. `E0749` (duplicate name) and the rule that let one method's routes share a name
 go away; the code is retired, not reused. Why: one identity per route, and no mapping to learn.
 
 **A link names its route by a method reference.** `Router::url`, `urlAbsolute` and `urlSigned` take a
@@ -128,7 +128,7 @@ replaces it, for a public API whose clients must keep their function names. A me
 the `operationId`, and `nvs api diff` reports it as breaking, which is its job.
 
 **The metrics `route` label carries the route's path pattern**, such as `/users/{id}`
-(`rule:observability/route-label-is-the-declared-name`, renamed to `route-label-is-the-path-pattern`).
+(`rule:observability/route-label-is-the-path-pattern`, renamed from the declared-name rule).
 It is still a closed set known when the program is built, never the request's raw path, so it passes
 `rule:security/metric-label-refuses-tainted` as the name did. Every matched route now has the label,
 where an unnamed route had none. The verb stays in its own label if the series has one, and no label is
@@ -162,16 +162,16 @@ disjoint by folder and go to writing subagents side by side.
 **Does:** every rule this goal changes states the design in § *Standing decisions*, is `designed` with
 `"goal": "routes-by-method"`, and no rule cites a removed one. No code changes.
 
-- [ ] `rule:expressions/method-reference`: a bare `Class::method`, `self::method` and `static::method` is the reference, `Class::method(...)` does not compile, `$obj->method(...)` keeps its form, and a dropped reference is an error; replace "the only spelling" with one form per receiver and say why the casing rules allow it. `docs/rules/expressions/method-reference.md:1`, `data/rules/expressions/method-reference.json:1`
-- [ ] `rule:types/callable-values` and every other fragment that writes `Class::method(...)` say the bare form; an `Explore` subagent lists them first (the grep `::[a-z]\w*\(\.\.\.\)` under `docs/rules/*/`). `docs/rules/types/callable-values.md:1`
-- [ ] `rule:routing/route-attribute`: `{path, method, slotted?}`; the Declined entry on deriving a name becomes one on a `name` field. `docs/rules/routing/route-attribute.md:1`
-- [ ] `rule:routing/repeated-routes-share-a-name-when-they-share-a-path` is deleted, with its data file; `rule:routing/routes-are-compiled-not-registered` says several routes on one method share one path, and the two-paths error. `docs/rules/routing/repeated-routes-share-a-name-when-they-share-a-path.md:1`, `docs/rules/routing/routes-are-compiled-not-registered.md:1`
-- [ ] `rule:routing/a-shared-name-is-one-endpoint-everywhere` is renamed `a-method-is-one-endpoint-everywhere`: one `url()` target, one `Match::is`, one `operationId` per verb. `docs/rules/routing/a-shared-name-is-one-endpoint-everywhere.md:1`
-- [ ] `rule:routing/link-name-and-params-are-checked` is renamed `link-target-and-params-are-checked`: a written reference is checked while compiling, a reference passed as a value throws when the method has no route, `$params` defaults to `[]`, and visibility is not checked. `docs/rules/routing/link-name-and-params-are-checked.md:1`
-- [ ] `rule:routing/matching-is-not-dispatching` and `rule:routing/a-match-is-not-invocable`: `Match::is` replaces `Match::name`. `docs/rules/routing/matching-is-not-dispatching.md:1`, `docs/rules/routing/a-match-is-not-invocable.md:1`
-- [ ] `rule:core-classes/router-signed-url` signs the path pattern; `rule:routing/api-document-is-generated-from-the-route-table` derives the `operationId` and names the `#[Api]` override; `rule:observability/route-label-is-the-declared-name` is renamed `route-label-is-the-path-pattern`. `docs/rules/core-classes/router-signed-url.md:1`, `docs/rules/routing/api-document-is-generated-from-the-route-table.md:1`, `docs/rules/observability/route-label-is-the-declared-name.md:1`
-- [ ] The other fragments that mention a route name are rewritten: `routing/link-carries-the-mount-prefix`, `routing/table-is-opt-in`, `routing/a-match-reads-an-attribute-as-data`, `routing/a-quick-fix-writes-a-derived-path`, `routing/a-security-scheme-is-declared-in-code`, `testing/in-process-request`, `security/metric-label-refuses-tainted`, `ide/completion-offers-only-what-the-compiler-derived`. `docs/rules/routing/link-carries-the-mount-prefix.md:1`
-- [ ] `bun nv rules --check` passes, and the chapter files and `docs/ground-rules.md` are regenerated as that command says. `docs/ground-rules.md:1`
+- [x] `rule:expressions/method-reference`: a bare `Class::method`, `self::method` and `static::method` is the reference, `Class::method(...)` does not compile, `$obj->method(...)` keeps its form, and a dropped reference is an error; replace "the only spelling" with one form per receiver and say why the casing rules allow it. `docs/rules/expressions/method-reference.md:1`, `data/rules/expressions/method-reference.json:1`
+- [x] `rule:types/callable-values` and every other fragment that writes `Class::method(...)` say the bare form; an `Explore` subagent lists them first (the grep `::[a-z]\w*\(\.\.\.\)` under `docs/rules/*/`). `docs/rules/types/callable-values.md:1`
+- [x] `rule:routing/route-attribute`: `{path, method, slotted?}`; the Declined entry on deriving a name becomes one on a `name` field. `docs/rules/routing/route-attribute.md:1`
+- [x] The rule that let one method's routes share a `name` is deleted, with its data file; `rule:routing/routes-are-compiled-not-registered` says several routes on one method share one path, and the two-paths error. `docs/rules/routing/routes-are-compiled-not-registered.md:1`
+- [x] The shared-name endpoint rule is renamed `rule:routing/a-method-is-one-endpoint-everywhere`: one `url()` target, one `Match::is`, one `operationId` per verb. `docs/rules/routing/a-method-is-one-endpoint-everywhere.md:1`
+- [x] The link rule is renamed `rule:routing/link-target-and-params-are-checked`: a written reference is checked while compiling, a reference passed as a value throws when the method has no route, `$params` defaults to `[]`, and visibility is not checked. `docs/rules/routing/link-target-and-params-are-checked.md:1`
+- [x] `rule:routing/matching-is-not-dispatching` and `rule:routing/a-match-is-not-invocable`: `Match::is` replaces `Match::name`. `docs/rules/routing/matching-is-not-dispatching.md:1`, `docs/rules/routing/a-match-is-not-invocable.md:1`
+- [x] `rule:core-classes/router-signed-url` signs the path pattern; `rule:routing/api-document-is-generated-from-the-route-table` derives the `operationId` and names the `#[Api]` override; the metrics-label rule is renamed `rule:observability/route-label-is-the-path-pattern`. `docs/rules/core-classes/router-signed-url.md:1`, `docs/rules/routing/api-document-is-generated-from-the-route-table.md:1`, `docs/rules/observability/route-label-is-the-path-pattern.md:1`
+- [x] The other fragments that mention a route name are rewritten: `routing/link-carries-the-mount-prefix`, `routing/table-is-opt-in`, `routing/a-match-reads-an-attribute-as-data`, `routing/a-quick-fix-writes-a-derived-path`, `routing/a-security-scheme-is-declared-in-code`, `testing/in-process-request`, `security/metric-label-refuses-tainted`, `ide/completion-offers-only-what-the-compiler-derived`. `docs/rules/routing/link-carries-the-mount-prefix.md:1`
+- [x] `bun nv rules --check` passes, and the chapter files and `docs/ground-rules.md` are regenerated as that command says. `docs/ground-rules.md:1`
 
 ### 2. `Class::method` without `(...)` is a method reference everywhere
 
@@ -256,19 +256,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. Routes carry `name`, links take a name string, and a method reference is
-written `Class::method(...)`. `Core\Test` already takes a bare `Interface::method` through
-`CoreTy::MethodRef` (`crates/nvs-stdlib/src/test.rs:863`, `crates/nvs-types/src/expr/calls.rs:1498`),
-which is the mechanism stage 2 makes general and stage 3 gives the link members.
+Stage 1 is done: the rules state the design, and the code still writes the old one. Every rule this
+goal changes is `designed` with `"goal": "routes-by-method"` (30 records, `grep -l routes-by-method
+data/rules/*/*.json`). Three rules were renamed, `a-method-is-one-endpoint-everywhere`,
+`link-target-and-params-are-checked` and `route-label-is-the-path-pattern`, and every citation of the
+old ids in code, tests and docs was rewritten by id. The shared-name rule was deleted, and its
+citations in `crates/nvs-types/src/routes.rs` and `crates/nvs-types/tests/routes.rs` now point at
+`rule:routing/routes-are-compiled-not-registered`. Their comments still describe a shared `name`, and
+stage 3 rewrites them with the code. `bun nv rules --check` is clean, and the chapters are rendered.
+
+Two choices the rules settle beyond the standing decisions: `#[Api]`'s `operationId` takes the verb
+suffix like the derived id when a method serves several verbs, and a duplicate `operationId` is
+`E0771` (`docs/rules/attributes/api-adds-and-cannot-contradict.md:20`). The spawn, upgrade, worker,
+structural-retrieval, `static` and enum rules now write the bare `Class::method` form, so stage 2's
+checker change covers their entry operands and `Core\Attributes::get<T>(Class::method)` too.
+`parent::constructor(...)`, `Category::find(...)` and `$cls::f(...)` in the rules are calls with
+elided arguments, not references, and stay.
+
+No tests are expected red: the only code edits are rule-id citations in comments.
 
 ### Next
 
-**Stage 1: the rules**, one file set: `docs/rules/expressions/`, `docs/rules/routing/`,
-`docs/rules/core-classes/router-signed-url.md`, `docs/rules/observability/`, `data/rules/`. No gate.
+**Stage 2: the bare method reference**, files `crates/nvs-syntax/src/parser/expr.rs`,
+`crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/members.rs`,
+`crates/nvs-hir/src/members.rs`, `crates/nvs-diagnostics/src/code/types_e07.rs`.
 
-- [ ] `rule:expressions/method-reference` and `rule:types/callable-values` say the bare form. `docs/rules/expressions/method-reference.md:1`
-- [ ] `rule:routing/route-attribute`, `routes-are-compiled-not-registered`, and the deleted `repeated-routes-share-a-name-when-they-share-a-path`. `docs/rules/routing/route-attribute.md:1`
-- [ ] The renamed link, endpoint and metrics-label rules, and `router-signed-url`. `docs/rules/routing/link-name-and-params-are-checked.md:1`
-- [ ] The remaining fragments that mention a route name, then `bun nv rules --check`. `docs/rules/routing/link-carries-the-mount-prefix.md:1`
+- [ ] A `camelCase` `ClassConstAccess` that resolves to a method is a method reference, recorded as `ExprInfo::CallableRef`; `note_method_ref_args`' `Core\Test` case becomes the general rule. `crates/nvs-types/src/expr/members.rs:77`, `crates/nvs-types/src/expr/calls.rs:225`
+- [ ] The member walk resolves a bare method name when no constant has it. `crates/nvs-hir/src/members.rs:1286`
+- [ ] `Class::method(...)`, `self::method(...)` and `static::method(...)` are refused with a new code and a fix that drops `(...)`. `crates/nvs-types/src/expr/calls.rs:240`
+- [ ] A dropped reference as a statement is refused with the fix `Class::method()`, and the non-callable type error adds the hint. `crates/nvs-types/src/expr/calls.rs:1`
+- [ ] The three conformance cases, then the corpus rewrite in stage 2's **Split**, which also covers the `spawn script`, `Socket::upgrade`, `on worker` and `Core\Attributes::get` operands. `tests/conformance/reject/a-dropped-method-reference-is-refused.nvst:1`
 
 ### Backlog

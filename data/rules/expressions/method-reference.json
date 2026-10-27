@@ -1,13 +1,15 @@
 {
-  "title": "A method reference, `Name(...)`, is the only spelling that takes a reference to a declared member",
-  "status": "shipped",
+  "title": "A method reference is the bare `Class::method` on a class and `$obj->method(...)` on an object, one form per receiver, and a dropped reference is a compile error",
+  "status": "designed",
   "seeAlso": [
     "expressions/pipeline-substitution",
-    "expressions/nullable-conversion-availability"
+    "expressions/nullable-conversion-availability",
+    "types/callable-values"
   ],
   "guardedBy": [
     "tests/conformance/lang/a-method-reference-names-a-method-not-a-class.nvst",
     "tests/conformance/reject/a-method-reference-forwards-every-argument.nvst",
     "crates/nvs-types/tests/callable.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

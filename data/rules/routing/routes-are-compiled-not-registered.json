@@ -1,18 +1,18 @@
 {
-  "title": "A route is a `#[Route]` compiled into the unit's table, and its three runtime bugs are compile errors",
-  "status": "shipped",
+  "title": "A route is a `#[Route]` compiled into the unit's table, its three runtime bugs are compile errors, and one method's routes share one path",
+  "status": "designed",
   "seeAlso": [
     "routing/table-is-opt-in",
     "routing/matching-is-not-dispatching",
-    "routing/link-name-and-params-are-checked",
+    "routing/link-target-and-params-are-checked",
     "programs/implementing",
     "core-classes/derive-attribute",
-    "security/route-capture-is-laundered-by-its-type",
-    "routing/repeated-routes-share-a-name-when-they-share-a-path"
+    "security/route-capture-is-laundered-by-its-type"
   ],
   "guardedBy": [
     "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
     "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
     "crates/nvs-types/tests/routes.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

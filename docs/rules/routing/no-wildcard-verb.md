@@ -14,8 +14,8 @@ A wildcard could not even mean *any* verb honestly: `Core\Http\Method` is closed
 (`rule:enums/closed-integer-type`), so it would mean the cases this version of `Core` happens to
 name, silently changing meaning when one is added.
 
-`rule:routing/repeated-routes-share-a-name-when-they-share-a-path` gives the ergonomics a wildcard
-was wanted for — one name, one `url()` target, one metrics series. What it does not give is one
+`rule:routing/routes-are-compiled-not-registered` gives the ergonomics a wildcard
+was wanted for — one method, one `url()` target, one metrics series. What it does not give is one
 *line*, and that is the point: each verb a route answers stays visible at the declaration, where
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.

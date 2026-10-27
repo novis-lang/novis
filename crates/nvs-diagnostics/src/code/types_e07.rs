@@ -1030,7 +1030,7 @@ codes! {
 
     /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
     ///
-    /// `rule:routing/link-name-and-params-are-checked`: a `$name` given as a string literal that is
+    /// `rule:routing/link-target-and-params-are-checked`: a `$name` given as a string literal that is
     /// not a declared route is a compile error, and a computed one throws instead — so this is
     /// reported at the argument rather than at the call, which is where the string is.
     /// The table it is checked against is the whole program's, which is why
@@ -1044,7 +1044,7 @@ codes! {
     /// A `Core\Router::url` `$params` array literal covers none of some capture the
     /// named route's path declares.
     ///
-    /// `rule:routing/link-name-and-params-are-checked`: a `$params` array that does not cover the route's
+    /// `rule:routing/link-target-and-params-are-checked`: a `$params` array that does not cover the route's
     /// captures is a compile error. Only a `{name?}` may be absent — its
     /// segment simply is not emitted — so every `{name}` and `{name...}` the
     /// path writes needs a key of that name. A `$params` that is not an array
@@ -1303,7 +1303,7 @@ codes! {
     ///
     /// The same code covers a literal the parameter's conversion refuses, such
     /// as `"x"` or `-3` for a `uint`
-    /// (`rule:routing/link-name-and-params-are-checked`): that link is a
+    /// (`rule:routing/link-target-and-params-are-checked`): that link is a
     /// `404` for the same reason, and the card already says so.
     pub const E_ROUTE_LINK_VALUE_NOT_IN_SET: Code = Code::new("E0772").card(
         "A value in the `$params` of `Core\\Router::url` is not one of the values its route \

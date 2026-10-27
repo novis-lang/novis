@@ -1712,7 +1712,7 @@ where
         // an answer the door wrote for itself.
         let mut traced: Option<nvs_runtime::TraceContext> = None;
         let mut ran_under: Option<Arc<nvs_config::Snapshot>> = None;
-        // `rule:observability/route-label-is-the-declared-name`'s label, filled
+        // `rule:observability/route-label-is-the-path-pattern`'s label, filled
         // by the one arm below that can have it and empty for every answer the
         // door writes for itself. Owned rather than borrowed because the match
         // it is read off goes down with the request's own context
@@ -9775,7 +9775,7 @@ pub(crate) mod tests {
     /// `rule:observability/a-registry-is-per-core-and-nothing-reads-it` on the
     /// served path: the core that accepts builds the registry `[metrics]` asks
     /// for, and the request it answers is counted on that registry under
-    /// `rule:observability/route-label-is-the-declared-name`'s declared name.
+    /// `rule:observability/route-label-is-the-path-pattern`'s declared name.
     ///
     /// **Both series and the label together**, because each is a different
     /// failure: a counter with no histogram beside it is a door that recorded

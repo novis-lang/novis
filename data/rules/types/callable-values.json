@@ -1,6 +1,6 @@
 {
   "title": "`callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "types/anonymous-function",
     "types/callable-is-the-only-function-type",
@@ -13,5 +13,6 @@
     "tests/conformance/reject/every-php-spelling-this-chapter-drops-is-refused-in-one-program.nvst",
     "tests/conformance/reject/a-callable-refuses-a-string-name-a-call-through-one-answers-mixed-a-bare-string-is-not-a-class-and-a-shape-wants-its-fields.nvst",
     "tests/conformance/reject/a-call-on-a-string-variable-does-not-compile.nvst"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

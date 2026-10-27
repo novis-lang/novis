@@ -7,7 +7,7 @@
     "enums/declaration",
     "enums/one-backing-type",
     "security/route-capture-is-laundered-by-its-type",
-    "routing/link-name-and-params-are-checked"
+    "routing/link-target-and-params-are-checked"
   ],
   "guardedBy": [
     "tests/conformance/core/router-an-enum-capture-matches-its-backing-value-and-hands-over-the-case.nvst",

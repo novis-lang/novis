@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router\Match::method` answers the verb of the row that matched, which is what tells two `#[Route]`s on one method apart when they share a name — `rule:routing/matching-is-not-dispatching` `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+`Core\Router\Match::method` answers the verb of the row that matched, which is what tells two `#[Route]`s on one method apart when they share a name — `rule:routing/matching-is-not-dispatching` `rule:routing/routes-are-compiled-not-registered`
 --FILE--
 <?nvs
 // covers: Core\Router\Match::method

@@ -3,6 +3,8 @@
 
 # Enums
 
+*1 of 10 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -380,7 +382,7 @@ and no comparison at all.
 
 <a id="enums-no-class-machinery"></a>
 
-## A case is an integer constant, and an enum body declares nothing but cases
+## A case is an integer constant, and an enum body declares nothing but cases  *(designed — owned by goal routes-by-method)*
 
 `rule:enums/no-class-machinery`
 
@@ -393,7 +395,7 @@ refused with **`E0218`**; a method, a property, a class constant or a trait use 
 refused with **`E0220`**, which names the class such a member belongs on instead. A case has no
 members of its own, and is not an array key — index with `$case as int`.
 
-An enum has no constructor. `new E()` and the constructor reference `E::constructor(...)` are each
+An enum has no constructor. `new E()` and the constructor reference `E::constructor` are each
 **`E0870`** at the enum's name, whose help says a case is written `E::Case`. A user attribute on an
 enum or an enum case is `E0871` ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 

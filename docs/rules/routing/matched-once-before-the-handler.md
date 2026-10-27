@@ -6,7 +6,7 @@ the match lives on the request carrier rather than on the context, so there is n
 could be written from inside the program.
 
 It is what three readers were written against. The CSRF check (`rule:security/csrf-is-on-by-default`)
-needs to know which handler a `POST` is for, the `route` metric label needs the declared name, and the
+needs to know which handler a `POST` is for, the `route` metric label needs the route's path pattern, and the
 access decision rides on it uninterpreted (`rule:security/access-is-checked-for-presence-not-meaning`).
 Each reads the door's answer rather than matching again, which **removes** a match for most requests
 rather than adding one — a match is about a quarter of the header parse the server performs anyway.

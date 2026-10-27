@@ -1,6 +1,6 @@
 {
-  "title": "`Core\\Router::url` is a launderer whose `$name` and `$params`, when written in the code, are checked against the compiled table",
-  "status": "shipped",
+  "title": "`Core\\Router::url` is a launderer that takes its route as a method reference, and a reference and `$params` written in the code are checked against the compiled table",
+  "status": "designed",
   "seeAlso": [
     "routing/route-attribute",
     "routing/link-carries-the-mount-prefix",
@@ -15,5 +15,6 @@
     "tests/conformance/core/router-url-and-url-absolute-refuse-the-same-unknown-names.nvst",
     "tests/conformance/core/router-url-encodes-a-capture-into-its-own-segment.nvst",
     "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

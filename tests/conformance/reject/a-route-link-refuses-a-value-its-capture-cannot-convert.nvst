@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` refuses a literal `$params` value that the conversion of its capture or `#[Query]` parameter refuses, so a link never names a path its route does not match — `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url` refuses a literal `$params` value that the conversion of its capture or `#[Query]` parameter refuses, so a link never names a path its route does not match — `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
 class Shop {

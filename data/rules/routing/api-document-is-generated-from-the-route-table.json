@@ -1,10 +1,10 @@
 {
   "title": "The API document is generated from the route table while compiling, so it cannot drift from the code",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "routing/api-document-is-a-deterministic-build-artifact",
     "routing/api-diff-fails-a-breaking-change",
-    "routing/a-shared-name-is-one-endpoint-everywhere",
+    "routing/a-method-is-one-endpoint-everywhere",
     "attributes/api-adds-and-cannot-contradict",
     "core-classes/derive-attribute",
     "security/route-capture-is-laundered-by-its-type",
@@ -12,5 +12,6 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/tests/openapi.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

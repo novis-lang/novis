@@ -3,6 +3,8 @@
 
 # Attributes
 
+*2 of 11 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="attributes-inert-metadata"></a>
 
 ## An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it
@@ -204,7 +206,7 @@ other thing.
 
 <a id="attributes-structural-retrieval"></a>
 
-## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under
+## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under  *(designed — owned by goal routes-by-method)*
 
 `rule:attributes/structural-retrieval`
 
@@ -220,8 +222,8 @@ written and is never part of how a caller asks for it, so there is no namespace 
 for unrelated libraries to collide in.
 
 `$target` names a declaration through a first-class-callable reference, read syntactically and never
-evaluated. A method is its own reference, `Foo::bar(...)`. A class or interface has none of its own and
-is named by its `constructor`'s, `Foo::constructor(...)`, which every class definitely has. A parameter
+evaluated. A method is its own reference, `Foo::bar`. A class or interface has none of its own and
+is named by its `constructor`'s, `Foo::constructor`, which every class definitely has. A parameter
 is the owning method's reference plus its name as `$member`; a property is the owning class's
 `constructor` reference plus its name. Those two overlap deliberately: for a promoted constructor
 parameter they are the same declaration, so both rosters are consulted and their attributes joined.
@@ -268,7 +270,7 @@ is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no 
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 
-## `#[Api]` may add to the generated document and may not contradict the code
+## `#[Api]` may add to the generated document and may not contradict the code  *(designed — owned by goal routes-by-method)*
 
 `rule:attributes/api-adds-and-cannot-contradict`
 
@@ -276,7 +278,7 @@ is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no 
 example — to the OpenAPI document `nvs build --openapi` writes.
 
 ```nvs
-#[Route(path: "/orders/{id}", method: Http\Method::Get, name: "orders.show")]
+#[Route(path: "/orders/{id}", method: Http\Method::Get)]
 #[Access(allow: Role::User)]
 #[Api(tags: ["Orders"], errors: [{status: 404, type: Api\NotFound}], example: {id: 7})]
 public static function show(uint $id): Order { … }
@@ -290,6 +292,12 @@ type (a nested object and each object in a nested array held to their field's cl
 same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
 `#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
 `#[Route]` attributes the method carries.
+
+**`operationId` is optional and replaces the derived `Class.method`**
+([`routing/a-method-is-one-endpoint-everywhere`](routing.md#routing-a-method-is-one-endpoint-everywhere)), for a public API whose clients must keep their
+function names across a method rename. It takes the lowercased verb as a suffix exactly as the derived
+id does when the method serves several verbs. An `operationId` that another operation in the document
+also carries is `E0771` too, naming both sites, because OpenAPI requires the id to be unique.
 
 That list is why the attribute exists. The compiler holds both the annotation and the code it
 describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal

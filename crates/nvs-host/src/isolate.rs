@@ -366,7 +366,7 @@ impl Isolate {
     /// fact about it after handing the carrier over.
     ///
     /// The reader is `nvs_server::serve`, and the fact is
-    /// `rule:observability/route-label-is-the-declared-name`'s `route` label:
+    /// `rule:observability/route-label-is-the-path-pattern`'s `route` label:
     /// the match rides on the carrier ([`Self::answering`]), the label is read
     /// off the match, and the *status* it is counted beside does not exist
     /// until the request has ended — by which time [`Self::start`] has moved

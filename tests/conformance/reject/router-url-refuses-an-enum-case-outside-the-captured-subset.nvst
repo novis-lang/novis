@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` refuses an enum case the capture's subset does not admit, and refuses the spelling that subset did not take — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url` refuses an enum case the capture's subset does not admit, and refuses the spelling that subset did not take — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
 // One enum per half of the rule: `Lang` wrote every value, so its subsets are

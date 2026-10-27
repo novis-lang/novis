@@ -27,7 +27,7 @@ fine, because the names are still distinct.
 A segment naming no admitted case is not a match and falls through to a `404`
 (`rule:security/route-capture-is-laundered-by-its-type`), exactly as a failed `int` conversion does.
 One spelling serves every position: it is what the match converts, what `Core\Router::url` writes
-into a link and refuses outside the set (`rule:routing/link-name-and-params-are-checked`), and what
+into a link and refuses outside the set (`rule:routing/link-target-and-params-are-checked`), and what
 the generated document lists in `enum: [...]`, so a route, its links and its document cannot
 disagree.
 

@@ -1,6 +1,6 @@
 {
   "title": "An upgrade names compiled code — a file or a static method — and never a callable",
-  "status": "shipped",
+  "status": "designed",
   "seeAlso": [
     "security/isolate-shares-nothing",
     "classes/graph-copy",
@@ -12,5 +12,6 @@
     "tests/conformance/core/an-upgrade-refuses-an-entry-it-cannot-see-the-function-behind.nvst",
     "tests/conformance/core/a-socket-upgrades-entry-is-a-sink-and-refuses-a-tainted-path.nvst",
     "crates/nvs-ir/tests/callable_names.rs"
-  ]
+  ],
+  "goal": "routes-by-method"
 }

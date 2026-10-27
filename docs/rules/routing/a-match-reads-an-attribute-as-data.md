@@ -1,5 +1,5 @@
 `$match->attribute<T>()` returns the one attribute payload on the matched route's method that satisfies
-the shape `T`, or `null` where none does. It is the payload `Core\Attributes::get<T>(Class::method(...))`
+the shape `T`, or `null` where none does. It is the payload `Core\Attributes::get<T>(Class::method)`
 returns for that method (`rule:attributes/structural-retrieval`), so a gate reads a per-route option such
 as `#[{seconds: 60}]` with `$route->attribute<{seconds: int}>()` and keeps no table of routes of its
 own.
@@ -24,8 +24,8 @@ The refusals are the retrieval's own, reported at the call:
   it returns when it returns. A program that never calls `attribute` pays the integer only.
 
 **Declined:**
-- **Options keyed by route name.** A route need not have a name, and one method may serve two routes,
-  so the method is what carries an option.
+- **Options keyed by a route's path.** One method may serve two routes, and a route is identified
+  by its method, so the method is what carries an option.
 - **Returning the handler label, so a program looks the payload up itself.** The label is the one field
   of a row a program could turn into a call (`rule:routing/a-match-is-not-invocable`).
 - **A reflection table read at run time.** Retrieval has an answer before the program starts, and a

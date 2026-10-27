@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/link-name-and-params-are-checked`
+`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
 // The path half of § 6. `router-url-turns-a-leftover-params-key-into-a-query-
@@ -77,7 +77,7 @@ echo "segments=", $intact as string, "/", Core\Arr::count($hostile) as string, "
 // The one value encoding cannot hold in its segment: `.` is unreserved, and a
 // resolver reads `%2e` as `.` too, so a `..` value would be a link one segment
 // up. The member throws for it instead, which is what keeps the result safe as
-// a path (`rule:routing/link-name-and-params-are-checked`).
+// a path (`rule:routing/link-target-and-params-are-checked`).
 try {
     echo "dots=", Core\Router::url("Docs::show", ["slug" => ".."]), "\n";
 } catch (RuntimeError $e) {

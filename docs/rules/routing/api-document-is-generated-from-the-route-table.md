@@ -3,9 +3,12 @@ decided by the front end and is read off a row; the emitter parses, resolves and
 A specification generated from the code cannot disagree with the code, which is the failure every
 hand-written or annotation-scanned API document eventually has.
 
-What supplies what: the path, verb and `operationId` come from `#[Route]`'s `path`, `method` and
-`name` (a shared name takes the verb as a suffix — `rule:routing/a-shared-name-is-one-endpoint-everywhere`);
-path parameters from the handler's own parameters, by declared type, which is the binding matching
+What supplies what: the path and verb come from `#[Route]`'s `path` and `method`; the `operationId`
+is the handler's `Class.method`, with the lowercased verb as a suffix when the method serves several
+verbs (`rule:routing/a-method-is-one-endpoint-everywhere`), and `#[Api]`'s optional `operationId`
+replaces it for a public API whose clients must keep their function names. A method rename changes
+the derived `operationId`, and `rule:routing/api-diff-fails-a-breaking-change` reports it as
+breaking, which is its job. Path parameters from the handler's own parameters, by declared type, which is the binding matching
 already makes; query parameters from `#[Query]` parameters, a default making one optional; the
 response body from the declared return type, a class in it being a `components.schemas` entry of
 its JSON codec's fields (`rule:core-classes/derive-attribute`) and an enum its backing values, which

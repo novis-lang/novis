@@ -5,7 +5,7 @@
     "routing/a-refused-verb-is-not-a-missing-path",
     "errors/ambiguous-input-refused",
     "routing/path-grammar",
-    "routing/repeated-routes-share-a-name-when-they-share-a-path"
+    "routing/routes-are-compiled-not-registered"
   ],
   "guardedBy": [
     "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",

@@ -3,6 +3,8 @@
 
 # The editor
 
+*1 of 84 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="ide-one-grammar-one-tree"></a>
 
 ## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
@@ -654,7 +656,7 @@ debugger wiring (`editors/vscode/src/debug.ts`), the four write actions
 services and formatting through `nvs fmt` (`crates/nvs-lsp/src/capabilities.rs`,
 `editors/vscode/src/`).
 
-Completion from the compiler's own tables — route names, `nvs.toml` directives, `#[Api]` fields — is
+Completion from the compiler's own tables — the methods that carry a route, `nvs.toml` directives, `#[Api]` fields — is
 offered only where the compiler already derives the value for another reason, never from a convention
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
@@ -1689,7 +1691,7 @@ that is absent, or that the service holds locked, gives no lens and no error.
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
-## The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network
+## The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network  *(designed — owned by goal routes-by-method)*
 
 `rule:ide/completion-offers-only-what-the-compiler-derived`
 
@@ -1700,9 +1702,10 @@ reason uses, or where a completion file under a `.novis/completion/` folder list
 the cursor is at ([`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters)). This is the whole of
 Novis's answer to "framework support", and it is a closed rule, not a starting point.
 
-What that admits: route names and their parameters, from the route table
+What that admits: the methods that carry a `#[Route]`, offered first in a link's or a match
+check's first argument, and their parameters, from the route table
 [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) builds while compiling — the same table
-[`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked) checks a link against; configuration directives in a
+[`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked) checks a link against; configuration directives in a
 file named `nvs.toml` ([`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only)), from the default file the binary ships,
 which `bun nv directives --check-template` holds to the parser that refuses an unknown key
 ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)), so completion, hover with type and
@@ -1783,8 +1786,8 @@ checker seeds its signatures from, so a suggestion never writes a call that then
 editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
 the suggestion's mistake from their own.
 
-The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
-completed from the compile-time route table is correct, where one recovered by scanning a conventions
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route's
+method completed from the compile-time route table is correct, where one recovered by scanning a conventions
 directory is a good guess. Columns recovered from migrations, facades followed through a runtime
 container and components found by directory convention are each a heuristic replacing a fact the
 language does not make available; Novis makes those facts available, so the heuristic has nothing to
@@ -1819,7 +1822,7 @@ a running program, which is why no completion source fetches anything.
 - **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
   member needs it, and a new mark field would be read by nothing but the editor.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-target-and-params-are-checked`](routing.md#routing-link-target-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/no-first-party-framework`](programs.md#programs-no-first-party-framework).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 

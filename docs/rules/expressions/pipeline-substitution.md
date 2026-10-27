@@ -32,7 +32,7 @@ one composition.
 - **Methods on scalars** (`$s->trim()->upper()`). They erase the class name from the call site, need
   a scalar-to-`Core` map in the type checker instead of a parser rewrite, and collide with `->` on a
   `mixed` receiver, where it already means instance access.
-- **A `|>` that applies a callable at run time.** Every step would need `Class::method(...)` as a
+- **A `|>` that applies a callable at run time.** Every step would need `Class::method` as a
   value, and most `Core` methods take a trailing options argument, so they are not unary: nearly every
   step would carry a closure wrapper and read worse than the nesting it replaces. Resolving the right
   side by name at run time is a spelling `rule:expressions/method-reference` already closed. The shared

@@ -3,6 +3,8 @@
 
 # The Core API
 
+*1 of 57 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="core-api-core-means-always-present"></a>
 
 ## `Core` means always present, so nothing outside Tier 0 may register a name under it
@@ -1428,7 +1430,7 @@ unbounded lifetime on a field that must be written either way.
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
-## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines
+## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines  *(designed — owned by goal routes-by-method)*
 
 `rule:core-api/signing-is-over-a-payload`
 
@@ -1451,7 +1453,7 @@ The fragment is never signed, since it is not sent to the server.
 
 **There are three doors onto the one construction.** `Core\Signature` signs and verifies a payload map;
 `$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
-query parameter for the token; and `Core\Router`'s pair signs a route's name and parameters, so a
+query parameter for the token; and `Core\Router`'s pair signs a route's path pattern and parameters, so a
 signature survives a remount ([`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url)). Signing a URI that already carries
 `_sig` replaces it rather than nesting, `_sig` is left out of its own input, and a URL carrying two of
 them fails rather than picking one.

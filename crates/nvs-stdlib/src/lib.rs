@@ -332,7 +332,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // rosters are chained rather than the constructor being folded into
         // one of them.
         .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
-        // `rule:routing/link-name-and-params-are-checked`'s two prepared link implementations, which no member row
+        // `rule:routing/link-target-and-params-are-checked`'s two prepared link implementations, which no member row
         // names on purpose — `router::link`'s own docs own why one member has
         // two entry points.
         .chain(router::link::SYMBOLS)
@@ -557,7 +557,7 @@ mod tests {
                 .map(|class| class.members().count())
                 .sum::<usize>()
                 + registry::CONSTRUCTORS.len()
-                // `rule:routing/link-name-and-params-are-checked`'s two prepared link entry points, which belong
+                // `rule:routing/link-target-and-params-are-checked`'s two prepared link entry points, which belong
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
