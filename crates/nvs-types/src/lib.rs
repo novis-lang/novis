@@ -290,6 +290,9 @@ pub use routes::{
 };
 pub use ty::{CoreShape, CoreShapeField, Ty, TypeId, TypeInterner};
 
+/// The application's `[grants]` table, which [`check::check_program_loaded`] takes.
+pub use nvs_config::grants::Grants;
+
 use nvs_diagnostics::{SourceFile, Span};
 use nvs_hir::{AliasTable, ClassGraph, QName, SymbolTable};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -458,6 +461,12 @@ pub(crate) struct Env<'a> {
     /// door does, and a scope this pass cannot resolve statically is left to
     /// the door.
     pub grants: Option<&'a nvs_config::tree::Capabilities>,
+    /// The `[grants]` table of the application's `package.toml`, keyed on
+    /// namespaces (`rule:security/grants-are-keyed-on-a-namespace`). Every
+    /// `Core` call site is held to the line of the namespace that encloses it
+    /// ([`crate::capability::reject_ungranted_call`]). The empty table holds
+    /// nothing back.
+    pub namespace_grants: &'a nvs_config::grants::Grants,
     pub src: &'a SourceFile,
     /// The file's top-level statements, which is where the `use` line an
     /// undeclared name's fix inserts would go (`nvs_hir::import_site`) — the

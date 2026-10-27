@@ -830,6 +830,9 @@ struct Checked {
     /// enum and `type` alias, and every `use` import. `--count`'s `names`,
     /// read here because the [`nvs_hir::Module`] it is read from is not kept.
     names: usize,
+    /// The `[grants]` table the program was checked against, which every
+    /// unit's key folds in (`nvs_config::cache::env_hash`).
+    grants: nvs_config::grants::Grants,
 }
 
 impl Checked {
@@ -1114,6 +1117,25 @@ fn front_end_in(
     };
     let extensions = extensions::with_built_in(extensions);
     let classes = nvs_types::ext_lib::hir_classes(&extensions);
+    // `rule:security/grants-are-keyed-on-a-namespace`'s table, from the nearest
+    // `package.toml` at or above the entry. The walk starts at the entry and not
+    // the working directory: a run started from another directory would
+    // otherwise read no table, and every package would hold the application's
+    // authority. Absolute, so a relative entry still walks above the working
+    // directory.
+    let start = std::path::absolute(configured).unwrap_or_else(|_| configured.to_path_buf());
+    let namespace_grants = match nvs_config::grants::Grants::read(&start, &mut map) {
+        Ok(read) => read,
+        Err(refused) => {
+            let mut diags = Diagnostics::new();
+            diags.report(refused);
+            emit_diagnostics(&mut diags, &map, sink);
+            if let Some(looked) = looked {
+                looked.take(&map, None);
+            }
+            return Err(ExitCode::FAILURE);
+        }
+    };
 
     let core = nvs_stdlib::registry::link_targets();
     let closed = nvs_stdlib::registry::closed_interfaces();
@@ -1158,6 +1180,7 @@ fn front_end_in(
             &files,
             &module,
             grants.as_ref(),
+            &namespace_grants,
             &extensions,
             &mut interner,
             &mut exprs,
@@ -1230,6 +1253,7 @@ fn front_end_in(
         layouts,
         autoload,
         names: module.symbols.len() + module.imports.len(),
+        grants: namespace_grants,
     })
 }
 
@@ -2067,10 +2091,7 @@ fn run_run(
     ctx.set_program_id(
         nvs_config::cache::program_id(
             &cache::unit_digests(&checked.program_files()),
-            nvs_config::cache::env_hash(
-                &for_compiler.config,
-                &nvs_config::grants::Grants::default(),
-            ),
+            nvs_config::cache::env_hash(&for_compiler.config, &checked.grants),
         )
         .to_string()
         .into(),

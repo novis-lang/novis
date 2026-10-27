@@ -115,7 +115,16 @@ pub fn check_program_granted(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) -> crate::EnumTable {
-    check_program_loaded(files, module, grants, &[], interner, exprs, diags)
+    check_program_loaded(
+        files,
+        module,
+        grants,
+        &nvs_config::grants::EMPTY,
+        &[],
+        interner,
+        exprs,
+        diags,
+    )
 }
 
 /// [`check_program_granted`] with the manifests of the loaded extension set,
@@ -125,10 +134,22 @@ pub fn check_program_granted(
 /// `module` must have been resolved with the same set's
 /// [`crate::ext_lib::hir_classes`] declared, so a reference to an extension
 /// class resolves before this pass types it.
+///
+/// `namespace_grants` is the application's `[grants]` table, and every `Core`
+/// call site is held to the line of its enclosing namespace
+/// (`rule:security/authority-is-the-enclosing-namespace`). It is a parameter
+/// rather than a fourth entry point, so a caller that checks a whole program
+/// names the table it read, or the empty one.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each input is a separate table the caller read, and a struct of them \
+              would be built at each caller only to be taken apart here"
+)]
 pub fn check_program_loaded(
     files: &[crate::ProgramFile<'_>],
     module: &Module,
     grants: Option<&nvs_config::tree::Capabilities>,
+    namespace_grants: &nvs_config::grants::Grants,
     extensions: &[nvs_ext::manifest::Manifest],
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
@@ -197,6 +218,7 @@ pub fn check_program_loaded(
             deprecations: &deprecations,
             test_code: &test_code,
             grants,
+            namespace_grants,
             src: file.src,
             stmts: file.stmts,
             files,

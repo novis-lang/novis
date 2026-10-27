@@ -1,0 +1,55 @@
+--TEST--
+a `Core` call that needs a capability compiles only where the enclosing namespace's `[grants]` line lists it: file-scope code, an anonymous function and a `use` import are all held, and an empty line grants nothing — `rule:security/authority-is-the-enclosing-namespace`, `rule:security/package-authority-is-granted-one-line-at-a-time`
+--FILE--
+<?nvs
+// This file is in the namespace `Acme\Http`. The `[grants]` line for it lists
+// `net.connect` and nothing else.
+namespace Acme\Http;
+
+use Core\IO;
+
+autoload 'Acme\Cache' from './cache';
+
+// Code at the top of a file has the capabilities of its namespace.
+echo Core\IO::read("note.txt"), "\n";
+// An anonymous function has the capabilities of the namespace it is written in.
+var $exists = fn (): bool => Core\IO::exists("note.txt");
+// A `use` line does not add a capability.
+echo IO::size("note.txt"), "\n";
+// The line lists `net.connect`, so this call compiles.
+var $pinned = Core\Http::allowUrl("https://example.com/status");
+echo Acme\Cache\Store::load(), "\n";
+--FILE cache/Store.nvs--
+<?nvs
+// The line for `Acme\Cache` is empty, so code in it has no capability.
+namespace Acme\Cache;
+
+final class Store
+{
+    public static function load(): string
+    {
+        return Core\IO::readText("../note.txt");
+    }
+}
+--FILE package.toml--
+[grants]
+'Acme\Http\*' = ["net.connect"]
+'Acme\Cache' = []
+--FILE note.txt--
+note
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0658]: the namespace `Acme\Http` does not have the capability `fs.read`
+   --> case.nvs:11:6
+%A
+error[E0658]: the namespace `Acme\Http` does not have the capability `fs.read`
+   --> case.nvs:13:30
+%A
+error[E0658]: the namespace `Acme\Http` does not have the capability `fs.read`
+   --> case.nvs:15:6
+%A
+error[E0658]: the namespace `Acme\Cache` does not have the capability `fs.read`
+%A
+error: aborting due to 4 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

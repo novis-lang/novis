@@ -42,6 +42,7 @@ fn check(body: &str, set: &[Manifest]) -> Diagnostics {
         }],
         &module,
         None,
+        &nvs_types::Grants::default(),
         set,
         &mut TypeInterner::new(),
         &mut ExprTypeTable::new(),

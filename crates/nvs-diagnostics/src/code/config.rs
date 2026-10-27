@@ -852,4 +852,15 @@ codes! {
         "A key in the `[grants]` table of `package.toml` names `Core` or a namespace below it. \
          `Core` is the standard library, and you cannot grant it capabilities. Delete the line.",
     );
+
+    /// A call to a `Core` member that needs a capability the enclosing
+    /// namespace's `[grants]` line does not grant
+    /// (`rule:security/authority-is-the-enclosing-namespace`). The message names
+    /// the namespace, the capability and the line to change.
+    pub const E_CAPABILITY_NOT_GRANTED: Code = Code::new("E0658").card(
+        "This code calls a `Core` method that needs a capability, such as `fs.read`. The code is \
+         in a namespace that has a line in the `[grants]` table of `package.toml`. That line does \
+         not list the capability, so the call does not compile. Add the capability to the line if \
+         this code should have it. The message shows the line.",
+    );
 }

@@ -766,6 +766,9 @@ fn analyse_over(
             &files,
             &module,
             None,
+            // The editor does not read the `[grants]` table yet, so it shows
+            // no `E0658`. `nvs check` and every run still refuse the call.
+            &nvs_types::Grants::default(),
             &extensions,
             &mut interner,
             &mut exprs,

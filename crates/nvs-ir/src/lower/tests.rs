@@ -4911,6 +4911,7 @@ fn an_extension_static_call_lowers_to_a_direct_call_of_its_export_trampoline() {
         &files,
         &module,
         None,
+        &nvs_types::Grants::default(),
         &set,
         &mut checked_types,
         &mut exprs,

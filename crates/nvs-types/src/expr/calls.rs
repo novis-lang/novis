@@ -180,6 +180,10 @@ pub(crate) fn infer_method_call(
     // is the shape that reaches it here. See [`crate::intrinsics`], which
     // reports and replaces nothing.
     if let Some((owner, name, _)) = &resolved {
+        // `rule:security/authority-is-the-enclosing-namespace`, before the
+        // method-reference branch below, so a reference is held where it is
+        // written. See [`crate::capability::reject_ungranted_call`].
+        crate::capability::reject_ungranted_call(owner, name, expr.span, ctx, env);
         crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
         // `rule:core-classes/html-to-source`'s written reason, at the same point and matched the same
         // way — the one pass that refuses an argument *for* being dynamic. See
@@ -392,6 +396,7 @@ fn infer_union_method_call(
     };
     let before = env.diags.len();
     for (_, owner) in &owners {
+        crate::capability::reject_ungranted_call(owner, name, expr.span, ctx, env);
         crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
         crate::reasons::check_call(owner, name, args, &slots, ctx, env);
         reject_secret_cached_argument(owner, name, args, &arg_types, &slots, env);
@@ -712,6 +717,9 @@ pub(crate) fn infer_static_call(
         crate::secret_directive::types_secret(owner, name, expr.span, args, env)
     });
     if let Some((owner, name, _)) = &resolved {
+        // The static half of the namespace's grant, reached by a call and a
+        // method reference alike. See [`crate::capability::reject_ungranted_call`].
+        crate::capability::reject_ungranted_call(owner, name, expr.span, ctx, env);
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
         // `rule:security/secret-sinks-refuse`'s cross-boundary sink, at the same end and for the same
         // reason — `Core\Serialize::encode` declares `mixed` too. See

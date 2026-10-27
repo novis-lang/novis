@@ -999,6 +999,7 @@ pub fn build_signatures(
             // capability question — the placeholder tables beside it are here
             // for the same reason.
             grants: None,
+            namespace_grants: &nvs_config::grants::EMPTY,
             src: file.src,
             stmts: file.stmts,
             files,

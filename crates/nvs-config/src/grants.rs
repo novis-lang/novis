@@ -127,6 +127,12 @@ impl Grant {
     }
 }
 
+/// The empty table, for a caller that holds no table of its own and needs a reference to one.
+pub static EMPTY: Grants = Grants {
+    keys: Vec::new(),
+    file: None,
+};
+
 impl Grants {
     /// The table of the `package.toml` that [`find`] finds from `start`, or the empty table when
     /// there is none.

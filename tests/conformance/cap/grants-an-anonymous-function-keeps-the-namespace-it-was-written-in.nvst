@@ -1,0 +1,29 @@
+--TEST--
+an anonymous function written in the application keeps the application's capabilities when a namespace granted nothing calls it — `rule:security/authority-is-the-enclosing-namespace`
+--FILE--
+<?nvs
+// This file has no namespace, so it is the application. The function below
+// reads a file, and `Acme\Cache` calls it.
+autoload 'Acme\Cache' from './cache';
+
+echo Acme\Cache\Store::call(fn (): string => Core\IO::readText("note.txt")), "\n";
+--FILE cache/Store.nvs--
+<?nvs
+// The line for `Acme\Cache` is empty. Calling a function that the application
+// wrote is still allowed.
+namespace Acme\Cache;
+
+final class Store
+{
+    public static function call(callable(): string $read): string
+    {
+        return $read();
+    }
+}
+--FILE package.toml--
+[grants]
+'Acme\Cache' = []
+--FILE note.txt--
+note
+--EXPECT--
+note

@@ -1207,6 +1207,7 @@ mod tests {
             deprecations: &deprecations,
             test_code: &test_code,
             grants: None,
+            namespace_grants: &nvs_config::grants::EMPTY,
             src: map.file(file),
             stmts: &stmts,
             files: &files,
