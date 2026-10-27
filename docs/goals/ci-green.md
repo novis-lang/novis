@@ -104,16 +104,13 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `f71846dd1`. Its Website run is green. Its CI run 40445599454 ended red on
-`tsan` alone, and every other job of 37 is green, so the four fixes of run 40432495152 held.
-`ff918f7b7` fixes `tsan`, and it is not yet pushed:
-`crates/nvs-host/src/blocking.rs:calls_one_after_another_use_one_thread_and_allocate_the_same`
-counted `[1001, 1000, 1000, 1000]`. Its warm-up call can return before the task parks, and the
-scheduler's `parked` map (`TaskMap::default()`) allocates on its first insert, inside batch one.
-The warm-up now parks the task once on a wake it sent itself. It passes on Windows.
+`origin/main` is at `55b03e97a`. Its CI run 40455321666 (39 jobs) and its Website run
+40455321488 are both green. The run carries `ff918f7b7`, so the `tsan` fix of run 40445599454
+held: `crates/nvs-host/src/blocking.rs:calls_one_after_another_use_one_thread_and_allocate_the_same`
+parks its task once before it counts. Nothing this goal committed waits for a push.
 
-At `HEAD` before the fix, `bun nv proofs --gate --limit 0` owed nothing and `bun nv site --check
-stale questions` was green, so the router work handed to the main loop is done.
+Before the watch, at `c3f5e33c5`, `bun nv proofs --gate --limit 0` owed nothing and `bun nv site
+--check stale questions` was green.
 
 `.agent-tmp/wt-perf`, `wt-csv`, `wt-render`, `wt-ci`, `wt-cig` and `wt-rec` are stray folders
 that Windows keeps while looper runs. `wt-ci` holds only a `.looper` that this goal did not write.
@@ -125,7 +122,7 @@ looper is stopped.
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
 - [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  Run 40445599454's one red is fixed in a local commit. If `tsan`'s allocation test fails
+  Run 40455321666 on `55b03e97a` is green. If `tsan`'s allocation test fails
   again with a different batch off by one, the first-use allocation is elsewhere on the core:
   compare `crates/nvs-host/src/scheduler.rs:Scheduler::new`'s empty collections with the parked path.
   If the cache dir test fails again, the edit is now one rename, so print `artifacts(&dir("two"))`
