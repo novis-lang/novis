@@ -22,10 +22,11 @@
 //! (`rule:core-classes/image-correct-by-default`). The walk reads only the `meta` box's `pitm`
 //! and `iprp`, each box bounded by its parent, and allocates only the primary item's list of
 //! property indices. `info` walks `iinf` and `iloc` the same way for the `Exif` item, and copies
-//! that item alone, at most the file's length. A box that runs past its parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
+//! that item alone, at most the file's length, and reads an image sequence's frame count off the
+//! sample size box of its `moov` box's `pict` track, which allocates nothing. A box that runs past its parent returns `Parse`. An EXIF orientation inside an AVIF is not applied, because `irot` and
 //! `imir` are the orientation browsers follow. Turning the frame holds a second frame beside it.
 
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 
@@ -51,6 +52,18 @@ fn parse(what: impl std::fmt::Display) -> Error {
     Error::Parse(format!("the AVIF file does not parse: {what}"))
 }
 
+/// The container of the AVIF file `data`, read by `avif-parse`. An image sequence's major brand
+/// `avis` is read as `avif`, because `avif-parse` refuses that brand, so a sequence's primary
+/// still item is read as a still file's is. The bytes are chained, not copied.
+fn container(data: &[u8]) -> Result<avif_parse::AvifData, Error> {
+    let read = if data.get(4..12) == Some(&b"ftypavis"[..]) {
+        avif_parse::read_avif(&mut data[..8].chain(&b"avif"[..]).chain(&data[12..]))
+    } else {
+        avif_parse::read_avif(&mut Cursor::new(data))
+    };
+    read.map_err(|err| parse(format!("{err:?}")))
+}
+
 /// Decodes the AVIF file `data` to RGBA8, refusing one over `cap` pixels before a buffer exists.
 /// With `auto_orient`, the primary item's `irot` and `imir` are applied; with `to_srgb`, its RGB
 /// ICC profile is converted to sRGB.
@@ -60,8 +73,7 @@ pub(crate) fn decode(
     auto_orient: bool,
     to_srgb: bool,
 ) -> Result<Pixels, Error> {
-    let avif =
-        avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
+    let avif = container(data)?;
     let properties = Properties::read(data)?;
     let meta = avif
         .primary_item_metadata()
@@ -136,8 +148,7 @@ pub(crate) fn decode(
 /// orientation is the EXIF value that names the turn `irot` and `imir` make, and `exif` is the
 /// `Exif` item's fields.
 pub(crate) fn info(data: &[u8]) -> Result<Info, Error> {
-    let avif =
-        avif_parse::read_avif(&mut Cursor::new(data)).map_err(|err| parse(format!("{err:?}")))?;
+    let avif = container(data)?;
     let meta = avif
         .primary_item_metadata()
         .map_err(|err| parse(format!("{err:?}")))?;
@@ -157,7 +168,7 @@ pub(crate) fn info(data: &[u8]) -> Result<Info, Error> {
         width: u64::from(meta.max_frame_width.get()),
         height: u64::from(meta.max_frame_height.get()),
         has_alpha: avif.alpha_item.is_some(),
-        frames: 1,
+        frames: sequence_frames(data)?,
         orientation: u64::from(properties.orientation()),
         exif,
         has_icc: properties.icc.is_some(),
@@ -391,6 +402,43 @@ fn associations(ipma: &[u8], item: u32) -> Result<Option<Vec<u16>>, Error> {
         }
     }
     Ok(None)
+}
+
+/// The frame count of an image sequence: the sample count of the `moov` box's `pict` track, read
+/// off its `stsz` or `stz2` box. A file with no `moov` is a still image, and `1`.
+fn sequence_frames(data: &[u8]) -> Result<u64, Error> {
+    let Some(moov) = find(data, b"moov")? else {
+        return Ok(1);
+    };
+    for entry in Boxes(moov) {
+        let (name, trak) = entry?;
+        if name != b"trak" {
+            continue;
+        }
+        let Some(mdia) = find(trak, b"mdia")? else {
+            continue;
+        };
+        // `hdlr` is version and flags, `pre_defined`, then the handler type.
+        let handler = find(mdia, b"hdlr")?.and_then(|hdlr| hdlr.get(8..12));
+        if handler != Some(b"pict") {
+            continue;
+        }
+        let Some(stbl) = find(mdia, b"minf")?
+            .map(|minf| find(minf, b"stbl"))
+            .transpose()?
+            .flatten()
+        else {
+            continue;
+        };
+        // Both boxes give the count after their version, flags and one 32-bit field.
+        let sizes = match find(stbl, b"stsz")? {
+            Some(stsz) => stsz,
+            None => find(stbl, b"stz2")?
+                .ok_or_else(|| parse("a sequence track has no sample size box"))?,
+        };
+        return Ok(u64::from(be_u32(full_box(sizes)?.1, 4)?).max(1));
+    }
+    Ok(1)
 }
 
 /// The boxes of an ISO BMFF body, each as its type and its body. A box that runs past the end

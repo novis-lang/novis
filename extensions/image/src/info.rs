@@ -2,8 +2,10 @@
 //!
 //! The decoder is constructed, which parses the header and the metadata segments before the pixel
 //! data, and is dropped before it reads further. An AVIF is read off its container (`avif`'s
-//! `info`) and a JPEG XL off its codestream header, and neither frame is decoded. `frames` is `1`:
-//! the animation frame count is goal `image-second-wave`'s. An SVG document is parsed whole,
+//! `info`) and a JPEG XL off its codestream header, and neither frame is decoded. `frames` is read
+//! off the container too: an APNG's `acTL` count, a GIF's image descriptors, a WebP's `ANMF`
+//! chunks, the sample count of an AVIF's sequence track and a JPEG XL's keyframe headers. A still
+//! image is `1`. An SVG document is parsed whole,
 //! because its size is computed from its root element's attributes, and nothing is drawn.
 //!
 //! **`exif` is every field of the file's EXIF block**, each as its tag's name and its value as
@@ -84,7 +86,12 @@ pub fn info(data: &[u8]) -> Result<Info, Error> {
         width: u64::from(width),
         height: u64::from(height),
         has_alpha,
-        frames: 1,
+        frames: match format {
+            Format::Png => apng_frames(data),
+            Format::Gif => gif_frames(data),
+            Format::Webp => webp_frames(data),
+            _ => 1,
+        },
         orientation: u64::from(orientation.to_exif()),
         exif,
         has_icc: icc.is_some_and(|profile| !profile.is_empty()),
@@ -111,7 +118,7 @@ fn jxl(data: &[u8]) -> Result<Info, Error> {
         width: u64::from(header.size.width),
         height: u64::from(header.size.height),
         has_alpha: matches!(image.pixel_format(), PixelFormat::Graya | PixelFormat::Rgba),
-        frames: 1,
+        frames: u64::try_from(image.num_loaded_keyframes().max(1)).unwrap_or(u64::MAX),
         orientation: u64::from(header.metadata.orientation),
         exif,
         has_icc: image.original_icc().is_some(),
@@ -139,6 +146,89 @@ pub(crate) fn exif_fields(raw: &[u8]) -> Result<Vec<(String, String)>, Error> {
             (field.tag.to_string(), value)
         })
         .collect())
+}
+
+/// The frame count an APNG's `acTL` chunk states, or `1` for a PNG without one. Only the chunk
+/// headers are read, up to the first `IDAT`, which the `acTL` comes before.
+fn apng_frames(data: &[u8]) -> u64 {
+    let mut at = 8usize;
+    while let Some(head) = data.get(at..at.saturating_add(8)) {
+        let length = u32::from_be_bytes([head[0], head[1], head[2], head[3]]) as usize;
+        match &head[4..8] {
+            b"acTL" => {
+                return data
+                    .get(at + 8..at + 12)
+                    .map_or(1, |n| {
+                        u64::from(u32::from_be_bytes([n[0], n[1], n[2], n[3]]))
+                    })
+                    .max(1);
+            }
+            b"IDAT" | b"IEND" => break,
+            _ => at = at.saturating_add(length).saturating_add(12),
+        }
+    }
+    1
+}
+
+/// The number of image descriptors in a GIF. Each one's colour table and LZW data are skipped
+/// by their stated sizes, and the walk ends at the trailer, at an unknown block or at the end of
+/// the data, so a truncated file counts the frames it has.
+fn gif_frames(data: &[u8]) -> u64 {
+    let table = |packed: u8| {
+        if packed & 0x80 != 0 {
+            3usize << ((packed & 7) + 1)
+        } else {
+            0
+        }
+    };
+    let skip_sub_blocks = |mut at: usize| -> Option<usize> {
+        loop {
+            let size = *data.get(at)? as usize;
+            at += 1 + size;
+            if size == 0 {
+                return Some(at);
+            }
+        }
+    };
+    let Some(&packed) = data.get(10) else {
+        return 1;
+    };
+    let mut at = 13 + table(packed);
+    let mut frames = 0u64;
+    while let Some(&block) = data.get(at) {
+        let next = match block {
+            0x2c => data.get(at + 9).and_then(|&packed| {
+                frames += 1;
+                // The descriptor, the local colour table and the LZW minimum code size.
+                skip_sub_blocks(at + 10 + table(packed) + 1)
+            }),
+            0x21 => skip_sub_blocks(at + 2),
+            _ => None,
+        };
+        match next {
+            Some(next) => at = next,
+            None => break,
+        }
+    }
+    frames.max(1)
+}
+
+/// The number of `ANMF` chunks in a WebP, or `1` for a still image, read off the RIFF chunk
+/// headers alone.
+fn webp_frames(data: &[u8]) -> u64 {
+    let mut at = 12usize;
+    let mut frames = 0u64;
+    while let Some(head) = data.get(at..at.saturating_add(8)) {
+        if &head[..4] == b"ANMF" {
+            frames += 1;
+        }
+        let size = u32::from_le_bytes([head[4], head[5], head[6], head[7]]) as usize;
+        at = at
+            .saturating_add(8)
+            .saturating_add(size)
+            .saturating_add(size & 1);
+    }
+    frames.max(1)
 }
 
 #[cfg(test)]

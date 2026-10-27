@@ -14,7 +14,7 @@ stages:
     context: [extensions/image/src/info.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 3
     title: "`Image::info`'s `frames` is an animated input's real count"
-    status: open
+    status: done
     context: [extensions/image/src/info.rs, extensions/image/src/avif.rs, crates/nvs-ext/tests/image_decode.rs]
   - id: 4
     title: "the rules say what an animation costs, and GIF, APNG and WebP decode every frame"
@@ -154,8 +154,8 @@ the standing decision says, and records each command in the README. It touches o
 **Does:** an animated fixture of each animated format the roster decodes (APNG, GIF, WebP, AVIF and
 JPEG XL) gives its frame count, and a still image gives `1`.
 
-- [ ] The count from each container's header: APNG `acTL`, GIF's image descriptors, WebP `ANMF` chunks, AVIF's image sequence track, JPEG XL's frame headers, with no pixel decoded. `extensions/image/src/info.rs:68`, `extensions/image/src/avif.rs:43`
-- [ ] Tests: each `anim.*` fixture gives `3`, and each `gradient.*` gives `1`. `crates/nvs-ext/tests/image_decode.rs:185`
+- [x] The count from each container's header: APNG `acTL`, GIF's image descriptors, WebP `ANMF` chunks, AVIF's image sequence track, JPEG XL's frame headers, with no pixel decoded. `extensions/image/src/info.rs:68`, `extensions/image/src/avif.rs:43`
+- [x] Tests: each `anim.*` fixture gives `3`, and each `gradient.*` gives `1`. `crates/nvs-ext/tests/image_decode.rs:185`
 
 ### 4. the rules say what an animation costs, and GIF, APNG and WebP decode every frame
 
@@ -218,35 +218,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Image::info` returns the EXIF fields of a JPEG, PNG, WebP, AVIF and
-JPEG XL input through `exif_fields` (`extensions/image/src/info.rs`), as the standing decision on
-IFDs and text values says. `info` now reads an AVIF (`avif::info`, `extensions/image/src/avif.rs:138`)
-and a JPEG XL (`jxl`, `extensions/image/src/info.rs:96`), which it returned `Parse` for before. The
-AVIF `Exif` item is found by `exif_item` (`extensions/image/src/avif.rs:240`), a walk of `iinf`
-and `iloc` beside `Properties::read`. `image-pixel-model` and `tier-roster` say what is on disk now.
+Stages 1, 2 and 3 are done. `Image::info`'s `frames` is read off the bytes with no pixel
+decoded: `apng_frames`, `gif_frames` and `webp_frames` in `extensions/image/src/info.rs`, JPEG XL's
+`num_loaded_keyframes`, and AVIF's `sequence_frames` (`extensions/image/src/avif.rs`), the sample
+count of the `moov` box's `pict` track. `avif-parse` refuses the major brand `avis`, so
+`avif::container` chains the bytes with the brand read as `avif`; `decode` of `anim.avif` now opens
+its primary still item too, where it returned `Parse` before.
 
 The fixtures are as stage 1 left them: `anim.*` are red, green and blue, 100 ms each; `anim.avif`
-is a still primary item plus a `moov` track, and `anim.jxl` is a bare codestream. There is no
-`exif.jpg`: the test splices `exif.webp`'s block into `gradient.jpg` as an APP1 segment.
+is a still primary item plus a `moov` track, and `anim.jxl` is a bare codestream.
 
-The sweep's findings are closed. `env-secret-proofs` is green on a rerun. The nightly's yanked
-`crypto-bigint` was fixed in the root lock by `c244b4b36`, and this session bumped `fuzz/Cargo.lock`
-too. Its Windows and macOS failure, `two_counted_runs_with_a_collection_print_the_same_line`, was
-fixed by `9c8b0fe16`, which the nightly's commit did not have yet.
+The sweep's findings are closed. `env-secret-proofs`'s log shows exit 0. The nightly run
+`40291801939` is on `d6f131752`, which has neither `c244b4b36` (the yanked `crypto-bigint`) nor
+`9c8b0fe16`. The later push runs' failures (`runner.rs` property seed, viewer shots,
+`live_config.rs` cache dir, `dap.rs` catch stop, TSAN's blocking-call count) are fixed by
+`dc8ff66e9`, `dd773711a`, `b358c465f`, `c7f684405` and `ff918f7b7`.
 
 No test is expected red. The new test passed once by name:
-`info_returns_the_exif_fields_of_every_format_that_carries_them`.
+`info_counts_the_frames_of_every_animated_format`. `cargo clippy` inside `extensions/image/`
+reports 35 lints that predate this goal (`chunks_exact` with a constant size); the workspace
+clippy is green.
 
 ### Next
 
-**Stage 3: `Image::info`'s `frames` is the real count**, one file set: `extensions/image/src/info.rs`,
-`extensions/image/src/avif.rs`, `crates/nvs-ext/tests/image_decode.rs`. No gate.
+**Stage 4: the rules say what an animation costs, and GIF, APNG and WebP decode every frame.**
+Files: the two rules, `extensions/image/src/decode.rs`, `extensions/image/src/lib.rs`,
+`crates/nvs-ext/tests/image_decode.rs`. No gate. Write the rules first, as the standing decision on
+an animation's cost says.
 
-- [ ] APNG's `acTL` count, GIF's image descriptors (each one's LZW data skipped by its sub-block lengths), WebP's `ANMF` chunks, all read off the bytes beside the `image` decoder. `extensions/image/src/info.rs:87`
-- [ ] AVIF's sequence track: the sample count of the `moov` track's `stsz` (or `stz2`), through `Boxes` and `find`; a file with no `moov` is `1`. `extensions/image/src/avif.rs:160`
-- [ ] JPEG XL's frame count from `jxl-oxide`'s loaded frame headers (`num_loaded_keyframes`), with no frame rendered. `extensions/image/src/info.rs:114`
-- [ ] The module doc's `frames` sentence says what is read. `extensions/image/src/info.rs:4`
-- [ ] Tests: each `anim.*` gives `3`, and each `gradient.*` gives `1`, beside the EXIF test. `crates/nvs-ext/tests/image_decode.rs:245`
+- [ ] `image-pixel-cap` replaces its first-frame sentence with the sum of the frames. `docs/rules/core-classes/image-pixel-cap.md:5`
+- [ ] `image-pipeline` says every step runs on every frame, and only GIF output keeps them. `docs/rules/core-classes/image-pipeline.md:13`
+- [ ] `decode::check` takes `frames` (from `info`'s readers) and holds width times height times frames to the cap. `extensions/image/src/decode.rs:86`, `extensions/image/src/lib.rs:253`, `extensions/image/src/lib.rs:285`
+- [ ] GIF, APNG and WebP decode every frame through `image`'s `AnimationDecoder`, delays kept. `extensions/image/src/decode.rs:155`
+- [ ] Tests: frames that together pass the cap are refused before one decodes, and each `anim.*` of the three decodes three frames. `crates/nvs-ext/tests/image_decode.rs:297`
 
 ### Backlog
 

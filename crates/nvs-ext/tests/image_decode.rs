@@ -292,6 +292,40 @@ fn info_returns_the_exif_fields_of_every_format_that_carries_them() {
 }
 
 #[test]
+fn info_counts_the_frames_of_every_animated_format() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(60), None)));
+    let frames_of = |name: &str| {
+        let info =
+            block_on(request.call_values(&extension, "info", vec![Value::Bytes(fixture(name))]))
+                .expect("`info` answers");
+        let Value::Array(fields) = info.expect("`info` returns a value") else {
+            panic!("a shape was expected")
+        };
+        fields
+            .into_iter()
+            .find(|(k, _)| *k == Key::String("frames".to_owned()))
+            .map(|(_, v)| v)
+            .expect("the shape has `frames`")
+    };
+    for format in ["png", "gif", "webp", "avif", "jxl"] {
+        assert_eq!(
+            frames_of(&format!("anim.{format}")),
+            Value::Uint(3),
+            "anim.{format}"
+        );
+        assert_eq!(
+            frames_of(&format!("gradient.{format}")),
+            Value::Uint(1),
+            "gradient.{format}"
+        );
+    }
+    assert_eq!(frames_of("gradient.jpg"), Value::Uint(1), "gradient.jpg");
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
 fn jpeg_xl_decodes_and_does_not_encode() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
     let extension = component(&host);
