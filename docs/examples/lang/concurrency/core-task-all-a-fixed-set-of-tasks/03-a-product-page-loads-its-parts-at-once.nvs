@@ -22,9 +22,9 @@ class Catalog
 }
 
 var $page = Core\Task::all({
-    product: Catalog::product(...),
-    stock:   Catalog::stock(...),
-    reviews: Catalog::reviews(...),
+    product: Catalog::product,
+    stock:   Catalog::stock,
+    reviews: Catalog::reviews,
 });
 
 echo $page->product, "\n";

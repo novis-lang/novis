@@ -55,7 +55,7 @@ foreach ($described->attributes() as Core\Reflect\AttributeInfo $one) {
 // The door that *does* resolve the three named constants, and the reason the
 // refusal above costs a program nothing: `Core\Attributes::get` matches by
 // shape at compile time, through the scope the payload was written in.
-?{cap: int} $folded = Core\Attributes::get<{cap: int}>(Job::constructor(...));
+?{cap: int} $folded = Core\Attributes::get<{cap: int}>(Job::constructor);
 if ($folded != null) { echo "cap=", $folded->cap as string, "\n"; }
 --EXPECT--
 name=[] target=[] parameter=[]

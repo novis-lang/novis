@@ -78,13 +78,13 @@ foreach (Core\Program::implementing<Tool>() as Tool $tool) {
     // from the attribute rather than from a second string.
     ?Command $command = null;
     if ($name == 'migrate') {
-        $command = Core\Attributes::get<Command>(Migrate::migrate(...));
+        $command = Core\Attributes::get<Command>(Migrate::migrate);
     }
     if ($name == 'purge') {
-        $command = Core\Attributes::get<Command>(Purge::purge(...));
+        $command = Core\Attributes::get<Command>(Purge::purge);
     }
     if ($name == 'seed') {
-        $command = Core\Attributes::get<Command>(Seed::seed(...));
+        $command = Core\Attributes::get<Command>(Seed::seed);
     }
     if ($command != null) {
         echo '  ', Core\Str::padEnd($command->name, 10), $command->about, "\n";

@@ -175,18 +175,18 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Command $bulky = Core\Attributes::get<Command>(Bulky::bulky(...));
+            ?Command $bulky = Core\Attributes::get<Command>(Bulky::bulky);
             if ($bulky != null) {
                 $total = $total + Core\Str::length($bulky->about);
             }
-            ?Option $first = Core\Attributes::get<Option>(Crowded::crowded(...), 'o01');
-            ?Option $last = Core\Attributes::get<Option>(Crowded::crowded(...), 'o32');
+            ?Option $first = Core\Attributes::get<Option>(Crowded::crowded, 'o01');
+            ?Option $last = Core\Attributes::get<Option>(Crowded::crowded, 'o32');
             if ($first != null) {
                 if ($last != null) {
                     $total = $total + Core\Str::length($first->long) + Core\Str::length($last->long);
                 }
             }
-            array<Command> $rows = Core\Attributes::all<Command>(Many::c24(...));
+            array<Command> $rows = Core\Attributes::all<Command>(Many::c24);
             $total = $total + Core\Arr::count($rows) + $total % 2;
             $i = $i + 1;
         }

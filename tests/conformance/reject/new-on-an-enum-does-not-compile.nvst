@@ -9,7 +9,7 @@ enum Mode {
 
 new Mode();
 Mode $m = new Mode();
-var $f = Mode::constructor(...);
+var $f = Mode::constructor;
 
 echo Mode::Read as int, "\n";
 --EXPECT--

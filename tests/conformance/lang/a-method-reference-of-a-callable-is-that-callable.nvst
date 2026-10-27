@@ -16,7 +16,7 @@ class C {
 
 // A local holding a static-method reference. The read borrows the local's
 // slot, so this is the shape that owes a retain.
-callable $f = C::twice(...);
+callable $f = C::twice;
 callable $g = $f(...);
 echo $g(3), "\n";
 echo $g == $f ? "same\n" : "different\n";

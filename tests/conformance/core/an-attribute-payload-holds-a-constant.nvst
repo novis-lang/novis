@@ -19,7 +19,7 @@ use Other\Mode;
 
 ?{code: int, label: string, mode: App\Mode, owner: string} $meta =
     Core\Attributes::get<{code: int, label: string, mode: App\Mode, owner: string}>(
-        App\Job::constructor(...)
+        App\Job::constructor
     );
 echo "meta=", $meta != null ? "some" : "none", "\n";
 if ($meta != null) {
@@ -32,7 +32,7 @@ if ($meta != null) {
 // the payload reads the entry a *read* of `App\Limits::ROWS` inlines, so a
 // container folds whole or not at all.
 ?{rows: array<int>} $rows = Core\Attributes::get<{rows: array<int>}>(
-    App\Job::constructor(...),
+    App\Job::constructor,
     "tries"
 );
 echo "rows=", $rows != null ? "some" : "none", "\n";

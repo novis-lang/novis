@@ -50,14 +50,14 @@ class Attack
         while ($i < $rounds) {
             // 4. 40 payloads compared in full, and the answer is `null`.
             ?{ a: int, b: string, c: int, d: bool } $missed =
-                Core\Attributes::get<{ a: int, b: string, c: int, d: bool }>(AllMisses::constructor(...));
+                Core\Attributes::get<{ a: int, b: string, c: int, d: bool }>(AllMisses::constructor);
             if ($missed == null) {
                 $total = $total + 1;
             }
 
             // 5. The same comparison over a roster whose last entry matches.
             ?{ a: int, b: string, c: int, d: bool } $hit =
-                Core\Attributes::get<{ a: int, b: string, c: int, d: bool }>(OneHit::constructor(...));
+                Core\Attributes::get<{ a: int, b: string, c: int, d: bool }>(OneHit::constructor);
             if ($hit != null) {
                 $total = $total + $hit->a;
             }
@@ -65,7 +65,7 @@ class Attack
             // 6. The deep descent, which ends in no match because the innermost
             //    field is an `int` and this asks for a `string`.
             ?{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: string } } } } } } } } } } } } $deep =
-                Core\Attributes::get<{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: string } } } } } } } } } } } }>(Nested::constructor(...));
+                Core\Attributes::get<{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: string } } } } } } } } } } } }>(Nested::constructor);
             if ($deep == null) {
                 $total = $total + 1;
             }

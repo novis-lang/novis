@@ -12,5 +12,5 @@ class Chat
 }
 
 // A request can upgrade only once, so the measured operation happens one time per run.
-Core\Socket::upgrade(Chat::run(...), args: ['user' => 'Ana', 'room' => 'support']);
+Core\Socket::upgrade(Chat::run, args: ['user' => 'Ana', 'room' => 'support']);
 echo "upgraded\n";

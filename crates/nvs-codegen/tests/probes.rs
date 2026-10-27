@@ -217,7 +217,7 @@ fn every_function_counts_into_its_own_part_of_the_table() {
 /// A retrieval the checker answers whole — `rule:attributes/retrieval-folds-while-checking`'s
 /// fold — written as one statement's entire expression, with an ordinary statement on either side
 /// of it.
-const A_FOLDED_CALL: &str = "<?nvs\nclass Row {\n    #[{column: \"name\"}]\n    public string $name = \"\";\n}\necho \"a\";\n?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor(...), \"name\");\necho \"b\";\n";
+const A_FOLDED_CALL: &str = "<?nvs\nclass Row {\n    #[{column: \"name\"}]\n    public string $name = \"\";\n}\necho \"a\";\n?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor, \"name\");\necho \"b\";\n";
 
 #[test]
 fn a_statement_holding_a_folded_intrinsic_call_is_still_reported_covered() {

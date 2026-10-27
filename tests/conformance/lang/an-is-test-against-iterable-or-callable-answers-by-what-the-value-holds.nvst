@@ -48,7 +48,7 @@ array<mixed> $values = [
     "iterable" => new Bag(),
     "plain object" => new Plain(),
     "anonymous function" => fn(): int => 1,
-    "method reference" => Plain::twice(...),
+    "method reference" => Plain::twice,
     "int" => 7,
     "string" => "x",
     "null" => null,
@@ -96,7 +96,7 @@ array<mixed> $fns = [
     "int: int" => fn(int $n): int => $n,
     "mixed: string" => fn(mixed $m): string => "b",
     "no parameters" => fn(): string => "c",
-    "method reference" => Plain::label(...),
+    "method reference" => Plain::label,
     "int" => 7,
 ];
 foreach ($fns as tainted string $key => mixed $f) {

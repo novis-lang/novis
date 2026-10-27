@@ -58,7 +58,7 @@ echo 'step 1: built ', $seen, " characters and kept none of them\n";
 try {
     var $mixed = Core\Task::all({
         slow:  fn(): int => Nest::deeper(50),
-        cross: Nest::angry(...),
+        cross: Nest::angry,
     });
     echo "step 2: the group finished, which it must not\n";
 } catch (RuntimeError $gave) {
@@ -68,7 +68,7 @@ try {
 // Step 3: the same throw, one level down, thrown from a group inside a job of a group.
 try {
     var $outer = Core\Task::all({
-        inner: fn(): int => Core\Task::all({ deep: Nest::angry(...) })->deep,
+        inner: fn(): int => Core\Task::all({ deep: Nest::angry })->deep,
     });
     echo "step 3: the outer group finished, which it must not\n";
 } catch (RuntimeError $again) {

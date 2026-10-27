@@ -14,7 +14,7 @@ var $kept = fn(): string => 'from a variable';
 
 var $group = Core\Task::all({
     here:   fn(): string => 'written in place',
-    method: Stock::onHand(...),
+    method: Stock::onHand,
     kept:   $kept,
 });
 

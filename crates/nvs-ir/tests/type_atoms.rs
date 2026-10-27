@@ -419,7 +419,7 @@ const LOWERS_IN_A_BODY: &[&str] = &[
     "mixed $v = $any->greet();",
     "string $v = Core\\Str::upper(\"a\");",
     "mixed $v = $fn();",
-    "callable $v = Base::make(...);",
+    "callable $v = Base::make;",
     // The remaining `ExprKind`s that are constructs rather than operators.
     "print \"x\";",
     "bool $v = isset($this->count);",

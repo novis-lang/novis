@@ -29,7 +29,7 @@ class Other {
 
 ?{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>} $job =
     Core\Attributes::get<{modes: array<Mode>, weights: array<Weight>, grid: array<array<Mode>>}>(
-        Job::constructor(...)
+        Job::constructor
     );
 echo "job: ", $job == null ? "null" : "matched", "\n";
 if ($job != null) {
@@ -47,15 +47,15 @@ if ($job != null) {
 }
 
 // The same payload still matches the wider `array<mixed>`.
-?{modes: array<mixed>} $wide = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor(...));
+?{modes: array<mixed>} $wide = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor);
 echo "wide: ", $wide == null ? "null" : "matched", "\n";
 
 // A case of another enum keeps the array from being an `array<Mode>`.
-?{modes: array<Mode>} $mixed = Core\Attributes::get<{modes: array<Mode>}>(Mixed::constructor(...));
+?{modes: array<Mode>} $mixed = Core\Attributes::get<{modes: array<Mode>}>(Mixed::constructor);
 echo "mixed: ", $mixed == null ? "null" : "matched", "\n";
-?{modes: array<Mode>} $other = Core\Attributes::get<{modes: array<Mode>}>(Other::constructor(...));
+?{modes: array<Mode>} $other = Core\Attributes::get<{modes: array<Mode>}>(Other::constructor);
 echo "other: ", $other == null ? "null" : "matched", "\n";
-?{modes: array<Weight>} $weights = Core\Attributes::get<{modes: array<Weight>}>(Other::constructor(...));
+?{modes: array<Weight>} $weights = Core\Attributes::get<{modes: array<Weight>}>(Other::constructor);
 echo "other as Weight: ", $weights == null ? "null" : "matched", "\n";
 --EXPECT--
 job: matched

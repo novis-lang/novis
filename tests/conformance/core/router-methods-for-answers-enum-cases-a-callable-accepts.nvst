@@ -27,7 +27,7 @@ array<Core\Http\Method> $allowed = Core\Router::methodsFor("/pages");
 
 // The `Allow` header of a `405`, in one expression. `Core\Arr::map` calls the
 // callable itself, which checks each argument's tag.
-echo "allow: ", Core\Str::join(Core\Arr::map($allowed, Core\Http::methodName(...)), ", "), "\n";
+echo "allow: ", Core\Str::join(Core\Arr::map($allowed, Core\Http::methodName), ", "), "\n";
 
 // The same check through `Core\Arr::filter`.
 echo "get: ", Core\Arr::count(Core\Arr::filter($allowed, fn(Core\Http\Method $m): bool => $m == Core\Http\Method::Get)) as string, "\n";

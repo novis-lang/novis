@@ -29,7 +29,7 @@ callable $plain = fn(int $x) => $x;
 // An anonymous function in place of `strlen(...)`.
 callable $len = fn(string $s): uint => Core\Str::length($s);
 // A method reference to the `Core` method in place of `strlen(...)`.
-callable $lenRef = Core\Str::length(...);
+callable $lenRef = Core\Str::length;
 
 // A call through `callable` returns `mixed`, so the result is converted.
 int $r = $add(1) as int;
@@ -40,11 +40,11 @@ array<int> $a = [100, 200];
 array<int> $doubled = Core\Arr::map($a, fn($x) => $x * 2);
 echo $doubled[0], " ", $doubled[1], "\n";
 
-// `A::f(...)` and `$o->m(...)` name a method as a value.
-callable $tax = Price::withTax(...);
+// `A::f` and `$o->m(...)` name a method as a value.
+callable $tax = Price::withTax;
 Price $sale = new Price(50);
 callable $off = $sale->apply(...);
-array<int> $taxed = Core\Arr::map($a, Price::withTax(...));
+array<int> $taxed = Core\Arr::map($a, Price::withTax);
 echo $tax(1) as int, " ", $off(200) as int, " ", $taxed[1], "\n";
 --EXPECT--
 4 11 7 5 5

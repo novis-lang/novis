@@ -126,22 +126,22 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Command $real = Core\Attributes::get<Command>(Jobs::import(...));
+            ?Command $real = Core\Attributes::get<Command>(Jobs::import);
             if ($real != null) {
                 $total = $total + Core\Str::length($real->name);
             }
-            ?Command $spoofed = Core\Attributes::get<Command>(Spoof01::constructor(...));
-            ?Command $nameless = Core\Attributes::get<Command>(Nameless::run(...));
+            ?Command $spoofed = Core\Attributes::get<Command>(Spoof01::constructor);
+            ?Command $nameless = Core\Attributes::get<Command>(Nameless::run);
             if ($spoofed != null) {
                 if ($nameless != null) {
                     $total = $total + Core\Str::length($spoofed->about) + Core\Str::length($nameless->about);
                 }
             }
-            ?Command $bulky = Core\Attributes::get<Command>(Bulky::run(...));
+            ?Command $bulky = Core\Attributes::get<Command>(Bulky::run);
             if ($bulky != null) {
                 $total = $total + Core\Str::length($bulky->about) + $total % 2;
             }
-            array<Field> $fields = Core\Attributes::all<Field>(Spoof08::constructor(...), 'rows');
+            array<Field> $fields = Core\Attributes::all<Field>(Spoof08::constructor, 'rows');
             $total = $total + Core\Arr::count($fields);
             $i = $i + 1;
         }

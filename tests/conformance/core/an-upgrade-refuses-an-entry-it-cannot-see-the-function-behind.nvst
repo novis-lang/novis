@@ -16,10 +16,10 @@ string $room = "lobby";
 Core\Socket::upgrade(fn(): string => $room);
 
 // The other spelling, and the one no rule phrased over *types* could tell from
-// the accepted `Chat::run(...)`: `$entry` holds what that reference produces
+// the accepted `Chat::run`: `$entry` holds what that reference produces
 // and has the same type, so what separates them is that the compiler can see
 // the function in one and not in the other.
-callable $entry = Chat::run(...);
+callable $entry = Chat::run;
 Core\Socket::upgrade($entry);
 --EXPECT--
 

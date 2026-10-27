@@ -20,7 +20,7 @@ class Reports
 // slot is still 40 afterwards.
 Reports::$runs = 40;
 
-var $job = spawn script Reports::monthly(...);
+var $job = spawn script Reports::monthly;
 var $result = await $job;
 
 echo $result->ok ? 'ok' : 'failed', "\n";

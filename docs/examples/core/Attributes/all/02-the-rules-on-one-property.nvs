@@ -14,9 +14,9 @@ class Signup
     public string $password = '';
 }
 
-// `Signup::constructor(...)` names the class, and `"email"` picks the property
+// `Signup::constructor` names the class, and `"email"` picks the property
 // out of it. This prints `not-empty, an-email-address`.
-array<Rule> $rules = Core\Attributes::all<Rule>(Signup::constructor(...), 'email');
+array<Rule> $rules = Core\Attributes::all<Rule>(Signup::constructor, 'email');
 string $line = '';
 foreach ($rules as Rule $rule) {
     $line = $line == '' ? $rule->check : $line . ', ' . $rule->check;
@@ -24,4 +24,4 @@ foreach ($rules as Rule $rule) {
 echo $line, "\n";
 
 // The other property carries one rule, so this prints 1.
-echo Core\Arr::count(Core\Attributes::all<Rule>(Signup::constructor(...), 'password')), "\n";
+echo Core\Arr::count(Core\Attributes::all<Rule>(Signup::constructor, 'password')), "\n";

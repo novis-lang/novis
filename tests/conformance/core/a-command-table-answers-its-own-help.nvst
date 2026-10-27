@@ -98,15 +98,15 @@ class Help {
 
 // § 4's method spelling: a method reference names the method the
 // `#[Command]` is attached to.
-?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy(...));
-?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...));
-?{name: string} $migrateName = Core\Attributes::get<{name: string}>(Migrate::migrate(...));
-?{about: string} $migrateAbout = Core\Attributes::get<{about: string}>(Migrate::migrate(...));
+?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy);
+?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy);
+?{name: string} $migrateName = Core\Attributes::get<{name: string}>(Migrate::migrate);
+?{about: string} $migrateAbout = Core\Attributes::get<{about: string}>(Migrate::migrate);
 
 // `all<T>` rather than `get<T>`, because this method declares two rows and
 // `get<T>` answers the first — the alias is invisible to the singular form.
-array<{name: string}> $seedNames = Core\Attributes::all<{name: string}>(Seed::seed(...));
-array<{about: string}> $seedAbouts = Core\Attributes::all<{about: string}>(Seed::seed(...));
+array<{name: string}> $seedNames = Core\Attributes::all<{name: string}>(Seed::seed);
+array<{about: string}> $seedAbouts = Core\Attributes::all<{about: string}>(Seed::seed);
 
 array<string> $names = [
     Help::name($deployName),
@@ -143,12 +143,12 @@ echo "unique=", $unique, "\n";
 // § 4's parameter spelling: the same reference plus the parameter's own name,
 // written as a literal. The three options are asked the one `about` shape the
 // two commands above were asked, and the two that carry a sentence answer it.
-?{about: string} $dryRunAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "dryRun");
-?{about: string} $retriesAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "retries");
-?{about: string} $pretendAbout = Core\Attributes::get<{about: string}>(Migrate::migrate(...), "pretend");
-?{short: string} $dryRunShort = Core\Attributes::get<{short: string}>(Deploy::deploy(...), "dryRun");
-?{short: string} $pretendShort = Core\Attributes::get<{short: string}>(Migrate::migrate(...), "pretend");
-?{long: string} $dryRunLong = Core\Attributes::get<{long: string}>(Deploy::deploy(...), "dryRun");
+?{about: string} $dryRunAbout = Core\Attributes::get<{about: string}>(Deploy::deploy, "dryRun");
+?{about: string} $retriesAbout = Core\Attributes::get<{about: string}>(Deploy::deploy, "retries");
+?{about: string} $pretendAbout = Core\Attributes::get<{about: string}>(Migrate::migrate, "pretend");
+?{short: string} $dryRunShort = Core\Attributes::get<{short: string}>(Deploy::deploy, "dryRun");
+?{short: string} $pretendShort = Core\Attributes::get<{short: string}>(Migrate::migrate, "pretend");
+?{long: string} $dryRunLong = Core\Attributes::get<{long: string}>(Deploy::deploy, "dryRun");
 
 array<string> $optionAbouts = [
     Help::about($dryRunAbout),
@@ -176,7 +176,7 @@ echo "shorts=", $shorts, "\n";
 // `none` here. § 6's table tells them apart because it matches the attribute
 // *nominally* off `nvs_types::derive::ATTRIBUTES` — which is the whole reason
 // that roster exists, and is why the table is not built out of this pass.
-?{about: string} $targetAbout = Core\Attributes::get<{about: string}>(Deploy::deploy(...), "target");
+?{about: string} $targetAbout = Core\Attributes::get<{about: string}>(Deploy::deploy, "target");
 echo "positional=", $targetAbout != null ? "some" : "none", "\n";
 echo "bare option=", $retriesAbout != null ? "some" : "none", "\n";
 

@@ -11,8 +11,8 @@ class User
 }
 
 // `Core\Attributes::all` returns the matching attributes in the order they were
-// written. `User::constructor(...)` names the class itself. This prints 2.
-array<Tag> $tags = Core\Attributes::all<Tag>(User::constructor(...));
+// written. `User::constructor` names the class itself. This prints 2.
+array<Tag> $tags = Core\Attributes::all<Tag>(User::constructor);
 echo Core\Arr::count($tags), "\n";
 
 // This prints `users` and then `audited`.
@@ -25,4 +25,4 @@ foreach ($tags as Tag $tag) {
 class Session
 {}
 
-echo Core\Arr::count(Core\Attributes::all<Tag>(Session::constructor(...))), "\n";
+echo Core\Arr::count(Core\Attributes::all<Tag>(Session::constructor)), "\n";

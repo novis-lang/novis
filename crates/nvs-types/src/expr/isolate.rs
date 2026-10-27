@@ -305,7 +305,7 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 ///
 /// Syntactically is the load-bearing word, and it is why this is a match on the
 /// operand's shape before it is a question about its type. A
-/// `Class::method(...)` reference and a variable holding the callable that
+/// `Class::method` reference and a variable holding the callable that
 /// reference produces have the same type and are not the same operand: the
 /// first names a function the compiler can see, and the second names a value
 /// whose provenance — and therefore whether it captures — is not knowable here.
@@ -529,7 +529,7 @@ fn check_upgrade_placement(value: &Expr, form: &str, env: &mut Env<'_>) {
     check_placement(value, env);
 }
 
-/// Whether the operand is `Class::method(...)` — the reference
+/// Whether the operand is `Class::method` — the reference
 /// `rule:security/isolate-shares-nothing` accepts,
 /// and not a call.
 ///
@@ -570,13 +570,13 @@ fn refuse_entry(span: Span, path: &Expr, form: &str) -> Diagnostic {
     if matches!(path.kind, ExprKind::Fn(_)) {
         diag.with_primary(span, "this is an anonymous function")
             .with_help(
-                "write a `static` method and use `Class::method(...)` as the entry. \
+                "write a `static` method and use `Class::method` as the entry. \
                  An anonymous function can capture the variables around it, \
                  and an isolate shares only compiled code",
             )
     } else {
         diag.with_primary(span, "this is a `callable`").with_help(
-            "write the entry here: a path, or `Class::method(...)`. \
+            "write the entry here: a path, or `Class::method`. \
              A `callable` in a variable can capture variables, \
              and an isolate shares only compiled code",
         )

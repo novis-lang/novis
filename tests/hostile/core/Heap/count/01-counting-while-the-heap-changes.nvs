@@ -28,7 +28,7 @@ class Attack
 Core\Config::set('memory', '64M');
 
 // 1. The comparator counts the heap on every call. Every value pushed must be counted.
-var $counted = new Core\Heap<int>(Attack::byCount(...));
+var $counted = new Core\Heap<int>(Attack::byCount);
 Attack::$heap = $counted;
 int $i = 0;
 while ($i < 1000) {
@@ -43,7 +43,7 @@ Attack::$heap = null;
 echo 'step 1: ', $counted->count(), ' after emptying', "\n";
 
 // 2. The second push fails in the comparator. The value is kept, so the count is 2.
-var $refusing = new Core\Heap<int>(Attack::refuses(...));
+var $refusing = new Core\Heap<int>(Attack::refuses);
 $refusing->push(1);
 try {
     $refusing->push(2);

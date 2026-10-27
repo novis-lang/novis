@@ -197,7 +197,7 @@ fn an_awaited_result_s_ok_is_not_assignable_to_a_string() {
 
 /// `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection with `spawn script`'s operand, so the rule above
 /// has a second site — and the accepted method form is the half a member call
-/// could not have got for free: `Chat::run(...)` is a `callable`-typed
+/// could not have got for free: `Chat::run` is a `callable`-typed
 /// expression, and at a `string` parameter it was an ordinary mismatch.
 ///
 /// Both spellings in one case because what is asserted is that the parameter
@@ -211,7 +211,7 @@ fn an_upgrades_entry_takes_a_path_and_a_static_method_reference_alike() {
         "<?nvs\nclass Chat {\n  static function run(string $room): void {}\n}\n\
          class T {\n  function m(): void {\n\
          Core\\Socket::upgrade(\"sockets/chat.nvs\");\n\
-         Core\\Socket::upgrade(Chat::run(...), args: {room: \"lobby\"});\n\
+         Core\\Socket::upgrade(Chat::run, args: {room: \"lobby\"});\n\
          }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -229,7 +229,7 @@ fn an_upgrade_refuses_a_callable_variable_as_its_entry() {
     let diags = check_src(
         "<?nvs\nclass Chat {\n  static function run(string $room): void {}\n}\n\
          class T {\n  function m(): void {\n\
-         callable $entry = Chat::run(...);\n\
+         callable $entry = Chat::run;\n\
          Core\\Socket::upgrade($entry);\n\
          }\n}\n",
     );

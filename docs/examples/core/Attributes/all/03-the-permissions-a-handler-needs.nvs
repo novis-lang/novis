@@ -28,8 +28,8 @@ class Access
     }
 }
 
-// `Orders::cancelAll(...)` names the method. Both of its permissions come back.
-array<Needs> $needed = Core\Attributes::all<Needs>(Orders::cancelAll(...));
+// `Orders::cancelAll` names the method. Both of its permissions come back.
+array<Needs> $needed = Core\Attributes::all<Needs>(Orders::cancelAll);
 array<string> $held = ['orders.read'];
 
 // This user may read orders but not write them, so this prints `not allowed`.

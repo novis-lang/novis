@@ -28,7 +28,7 @@ try {
 }
 
 // A callable value does not know which class the path starts at.
-callable $steps = Core\Reflect::steps(...);
+callable $steps = Core\Reflect::steps;
 try {
     $steps($path);
     echo "not reached\n";

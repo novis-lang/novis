@@ -21,7 +21,7 @@
 //
 // The bodies are named static methods for the reason
 // `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst`
-// gives -- a method reference `Class::method(...)` does not exist yet, so
+// gives -- a method reference `Class::method` does not exist yet, so
 // each row's `callable` is an anonymous function calling one.
 
 final class Ask {

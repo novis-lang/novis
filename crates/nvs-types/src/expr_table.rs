@@ -87,8 +87,8 @@ pub struct WrittenShape {
 }
 
 /// A statically resolved call target — an instance method call
-/// (`$obj->method(...)`), a static call (`self::method(...)`/
-/// `Class::method(...)`), or `new`'s own constructor invocation — whenever
+/// (`$obj->method()`), a static call (`self::method()`/
+/// `Class::method()`), or `new`'s own constructor invocation — whenever
 /// [`crate::signatures::resolve_method`] found a declared signature for it.
 /// Deliberately does not record *whether* it needs a receiver value at the
 /// call site: that is a property of which [`nvs_syntax::ast::ExprKind`]
@@ -482,7 +482,7 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
-    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-values`'s method
+    /// `Foo::bar` / `$obj->method(...)` — `rule:types/callable-values`'s method
     /// reference, which *names* the resolved member rather than calling it,
     /// and whose value is a callable bound to it.
     ///
@@ -508,7 +508,7 @@ pub enum ExprInfo {
     /// sentinel, not an argument list, so there are no written arguments to
     /// map. Every other field is the one an ordinary call would carry,
     /// [`ResolvedCall::static_class`] included — `rule:types/callable-values` makes
-    /// `static::helper(...)` late-bound exactly as `static::helper()` is.
+    /// `static::helper` late-bound exactly as `static::helper()` is.
     CallableRef(ResolvedCall),
     /// A bare name in callee position that is
     /// `rule:types/anonymous-function-self-name`'s self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
@@ -592,7 +592,7 @@ pub enum ExprInfo {
         /// is § 4's "resolves against `T`" as a consumer sees it.
         ty: TypeId,
     },
-    /// `$cls::f(...)` over a `class<T>` class side — `rule:types/class-reference-sites`'s second
+    /// `$cls::f` over a `class<T>` class side — `rule:types/class-reference-sites`'s second
     /// site, and an [`ExprInfo::Call`] in every field it carries.
     ///
     /// A variant of its own for [`ExprInfo::NewDynamic`]'s reason, one step
@@ -608,7 +608,7 @@ pub enum ExprInfo {
     /// reference has nothing to do with. [`crate::expr::calls`]'s
     /// static-call refusal is where that is reported.
     ///
-    /// `$cls::f(...)` written as `rule:expressions/method-reference`'s method
+    /// `$cls::f` written as `rule:expressions/method-reference`'s method
     /// reference records [`ExprInfo::CallableRef`] instead, like any other class
     /// side, with `T`'s declaration as the same fallback. `nvs-ir` tells it from
     /// a written class side with [`crate::is_written_class_side`], stores the
@@ -3250,7 +3250,7 @@ mod tests {
     #[test]
     fn a_static_method_ref_records_the_resolved_target() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?nvs\nclass T {\n  static function make(int $x): int { return $x; }\n  function m(): callable {\n    return self::make(...);\n  }\n}\n",
+            "<?nvs\nclass T {\n  static function make(int $x): int { return $x; }\n  function m(): callable {\n    return self::make;\n  }\n}\n",
         );
         let Some(ExprInfo::CallableRef(call)) = exprs.lookup(span) else {
             panic!("expected a recorded `CallableRef` entry");
@@ -3272,7 +3272,7 @@ mod tests {
     #[test]
     fn a_named_class_method_ref_records_its_static_class() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?nvs\nclass T {\n  static function make(): int { return 1; }\n  function m(): callable {\n    return T::make(...);\n  }\n}\n",
+            "<?nvs\nclass T {\n  static function make(): int { return 1; }\n  function m(): callable {\n    return T::make;\n  }\n}\n",
         );
         let Some(ExprInfo::CallableRef(call)) = exprs.lookup(span) else {
             panic!("expected a recorded `CallableRef` entry");

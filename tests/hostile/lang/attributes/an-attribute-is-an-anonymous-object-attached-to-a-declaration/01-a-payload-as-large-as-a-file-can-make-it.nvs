@@ -47,13 +47,13 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<{ n: int }> $rows = Core\Attributes::all<{ n: int }>(Crowded::constructor(...));
+            array<{ n: int }> $rows = Core\Attributes::all<{ n: int }>(Crowded::constructor);
             $total = $total + Core\Arr::count($rows);
-            ?{ text: string } $text = Core\Attributes::get<{ text: string }>(Bulky::constructor(...), 'text');
+            ?{ text: string } $text = Core\Attributes::get<{ text: string }>(Bulky::constructor, 'text');
             if ($text != null) {
                 $total = $total + Core\Str::length($text->text);
             }
-            ?{ rows: array<mixed> } $list = Core\Attributes::get<{ rows: array<mixed> }>(Bulky::take(...), 'id');
+            ?{ rows: array<mixed> } $list = Core\Attributes::get<{ rows: array<mixed> }>(Bulky::take, 'id');
             if ($list != null) {
                 $total = $total + Core\Arr::count($list->rows);
             }

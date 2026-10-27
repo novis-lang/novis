@@ -60,9 +60,9 @@ type Named = {name: string, about: string};
 type Described = {about: string};
 
 array<Named> $commands = [];
-$commands[] = Core\Attributes::get<Named>(Greet::greet(...)) ?? throw new RuntimeError("no greet");
-$commands[] = Core\Attributes::get<Named>(Migrate::migrate(...)) ?? throw new RuntimeError("no migrate");
-$commands[] = Core\Attributes::get<Named>(Purge::purge(...)) ?? throw new RuntimeError("no purge");
+$commands[] = Core\Attributes::get<Named>(Greet::greet) ?? throw new RuntimeError("no greet");
+$commands[] = Core\Attributes::get<Named>(Migrate::migrate) ?? throw new RuntimeError("no migrate");
+$commands[] = Core\Attributes::get<Named>(Purge::purge) ?? throw new RuntimeError("no purge");
 
 // Every name is distinct, which is what a table collapsing two rows onto one
 // would print. `rule:tooling/commands-are-compiled` requires it of the program
@@ -86,17 +86,17 @@ foreach ($commands as Named $one) {
 // three different commands. A read that answered the command's own payload
 // instead would print `Say hello` on every line.
 array<string> $options = [
-    Core\Attributes::get<Described>(Greet::greet(...), "loud")?->about ?? "-",
-    Core\Attributes::get<Described>(Migrate::migrate(...), "pretend")?->about ?? "-",
-    Core\Attributes::get<Described>(Migrate::migrate(...), "count")?->about ?? "-",
-    Core\Attributes::get<Described>(Purge::purge(...), "force")?->about ?? "-",
+    Core\Attributes::get<Described>(Greet::greet, "loud")?->about ?? "-",
+    Core\Attributes::get<Described>(Migrate::migrate, "pretend")?->about ?? "-",
+    Core\Attributes::get<Described>(Migrate::migrate, "count")?->about ?? "-",
+    Core\Attributes::get<Described>(Purge::purge, "force")?->about ?? "-",
 ];
 foreach ($options as string $about) {
     echo "option: ", $about, "\n";
 }
 
 // A positional parameter carries no `#[Option]`, so nothing is there to read.
-?Described $positional = Core\Attributes::get<Described>(Greet::greet(...), "name");
+?Described $positional = Core\Attributes::get<Described>(Greet::greet, "name");
 echo "positional=", $positional == null ? "none" : "something", "\n";
 
 foreach (Core\Program::implementing<Command>() as Command $command) {

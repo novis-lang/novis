@@ -54,7 +54,7 @@ echo 'step 1: ', $caught, ' errors caught', "\n";
 // 2. While `pop` reorders the heap, the comparator takes more values out. The heap
 // must not be left with a gap that a later `pop` reads.
 Attack::$calls = 100;
-var $reentrant = new Core\Heap<int>(Attack::shrinks(...));
+var $reentrant = new Core\Heap<int>(Attack::shrinks);
 array<int> $mixed = [8, 3, 9, 1, 7, 2, 6, 4, 5, 10, 11, 12];
 foreach ($mixed as int $n) {
     $reentrant->push($n);
@@ -74,7 +74,7 @@ Attack::$heap = null;
 // 3. The comparator throws while `pop` reorders a heap of texts. The error is caught,
 // the text `pop` had already taken is freed, and the rest can still be emptied.
 Attack::$calls = 100;
-var $refusing = new Core\Heap<string>(Attack::refuses(...));
+var $refusing = new Core\Heap<string>(Attack::refuses);
 foreach ($mixed as int $n) {
     $refusing->push(Core\Str::repeat('z', ($n * 1000) as uint));
 }

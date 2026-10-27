@@ -1,8 +1,8 @@
 error[E0728]: `Engine::constructor` has 2 attribute payloads that match this shape
    --> 04-get-with-two-matching-attributes.nvs:13:13
    |
-13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
+13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error: aborting due to 1 error

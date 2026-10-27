@@ -26,7 +26,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
+            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show);
             // Chained: the entry read this round is picked with the total carried
             // out of the round before.
             $total = $total + Core\Str::length($layers[($total % 3) as int]->name);

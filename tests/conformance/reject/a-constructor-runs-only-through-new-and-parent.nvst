@@ -30,7 +30,7 @@ class Crate extends Box {
         }
     }
 }
-?{} $none = Core\Attributes::get<{}>(Box::constructor(...));
+?{} $none = Core\Attributes::get<{}>(Box::constructor);
 
 var $box = new Box(new Dog("Rex", 3));
 mixed $m = $box;
@@ -40,7 +40,7 @@ $box->constructor(new Cat("Tom"));
 $m->constructor(new Cat("Tom"));
 
 // Refused: a constructor reference that a later call would run.
-var $again = Box::constructor(...);
+var $again = Box::constructor;
 
 // Refused: a second call on one path, and a call from another method.
 class Twice extends Box {

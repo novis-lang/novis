@@ -26,26 +26,26 @@ class Target {
 // rather than as a missing refusal. Every target below is written out, every
 // member name names a real declaration, and the class's two matching literals
 // are read with `all`, which is what `get`'s refusal names as the fix.
-array<Tag> $both = Core\Attributes::all<Tag>(Target::constructor(...));
-?Tag $property = Core\Attributes::get<Tag>(Target::constructor(...), "rows");
-?Tag $parameter = Core\Attributes::get<Tag>(Target::run(...), "id");
+array<Tag> $both = Core\Attributes::all<Tag>(Target::constructor);
+?Tag $property = Core\Attributes::get<Tag>(Target::constructor, "rows");
+?Tag $parameter = Core\Attributes::get<Tag>(Target::run, "id");
 
 // A `callable` variable is a value, and the reference it was built from is not
 // written here, so there is nothing at this call to read a declaration out of.
-callable $reference = Target::run(...);
+callable $reference = Target::run;
 ?Tag $computedTarget = Core\Attributes::get<Tag>($reference);
 
 // `rows` written one letter wrong. The class declares no `$row`, and folding
 // this to the empty result would make the misspelling look like an absent
 // attribute for the rest of the program's life.
-?Tag $misspelled = Core\Attributes::get<Tag>(Target::constructor(...), "row");
+?Tag $misspelled = Core\Attributes::get<Tag>(Target::constructor, "row");
 
 // A parameter name asked of the class rather than of the method that declares
 // it. Neither of the class's two rosters names `id`.
-?Tag $wrongRoster = Core\Attributes::get<Tag>(Target::constructor(...), "id");
+?Tag $wrongRoster = Core\Attributes::get<Tag>(Target::constructor, "id");
 
 // Two attribute payload objects satisfy `Tag` here, and `get` answers at most one.
-?Tag $ambiguous = Core\Attributes::get<Tag>(Target::constructor(...));
+?Tag $ambiguous = Core\Attributes::get<Tag>(Target::constructor);
 
 echo "unreachable\n";
 --EXPECT--
@@ -55,10 +55,10 @@ error[E0730]: a `Core\Attributes` retrieval names no declaration
    --> case.nvs:33:50
 %A
 error[E0798]: a `Core\Attributes` retrieval names `$row`, which `Target` does not declare
-   --> case.nvs:38:72
+   --> case.nvs:38:67
 %A
 error[E0798]: a `Core\Attributes` retrieval names `$id`, which `Target` does not declare
-   --> case.nvs:42:73
+   --> case.nvs:42:68
 %A
 error[E0728]: `Target::constructor` has 2 attribute payloads that match this shape
    --> case.nvs:45:19

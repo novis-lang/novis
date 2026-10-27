@@ -33,7 +33,7 @@ while ($i < 100000) {
     $i = $i + 1;
 }
 try {
-    Core\Sse::upgrade(Flood::run(...), args: ['history' => $deep]);
+    Core\Sse::upgrade(Flood::run, args: ['history' => $deep]);
 } catch (Throwable $tooDeep) {
     echo 'deep: ', $tooDeep->message, "\n";
 }
@@ -43,7 +43,7 @@ $i = 0;
 uint $refused = 0;
 while ($i < 10000) {
     try {
-        Core\Sse::upgrade(Flood::run(...), args: ['history' => ['entry ' . $i]]);
+        Core\Sse::upgrade(Flood::run, args: ['history' => ['entry ' . $i]]);
     } catch (RuntimeError $again) {
         $refused = $refused + 1;
     }

@@ -31,5 +31,5 @@ try {
 }
 
 // 3. A real function is called last. This prints `3` when the program reaches its end.
-callable $length = Core\Str::length(...);
+callable $length = Core\Str::length;
 echo $length($name), "\n";

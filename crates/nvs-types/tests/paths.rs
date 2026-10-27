@@ -58,7 +58,7 @@ fn a_written_relative_path_naming_an_isolates_script_is_joined_to_its_file() {
         "spawns.nvs",
         "<?nvs\nclass Chat {\n  public static function run(): void {}\n}\n\
          var $job = spawn script 'jobs/child.nvs';\n\
-         var $other = spawn script Chat::run(...);\n\
+         var $other = spawn script Chat::run;\n\
          Core\\Socket::upgrade('sockets/chat.nvs', null);\n\
          Core\\Sse::upgrade('streams/feed.nvs', null);\n",
     )]);

@@ -1449,7 +1449,7 @@ fn a_hole_outside_a_pipeline_is_refused() {
 /// *is* a callable is the shape a reader carrying that habit reaches for.
 #[test]
 fn the_php_callable_shape_is_named_in_the_help_of_the_no_hole_refusal() {
-    for src in ["$a |> Str::trim(...)", "$a |> fn($x) => $x"] {
+    for src in ["$a |> Str::trim", "$a |> fn($x) => $x"] {
         let (_, diags) = parse_with_diags(src);
         let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
         assert!(

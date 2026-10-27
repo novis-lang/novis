@@ -19,8 +19,8 @@ class Adder {
     }
 }
 
-callable $bump = Adder::bump(...);
-callable $total = Adder::total(...);
+callable $bump = Adder::bump;
+callable $total = Adder::total;
 echo "unreachable\n";
 --EXPECT--
 

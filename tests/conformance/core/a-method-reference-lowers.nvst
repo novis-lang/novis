@@ -1,5 +1,5 @@
 --TEST--
-`Class::method(...)` and `$obj->method(...)` build an ordinary `callable`, over a static target, an instance one, an overridden one and a `Core` member alike — `rule:types/callable-values`, `rule:types/anonymous-function` and `rule:types/implicit-capture`
+`Class::method` and `$obj->method(...)` build an ordinary `callable`, over a static target, an instance one, an overridden one and a `Core` member alike — `rule:types/callable-values`, `rule:types/anonymous-function` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
 // `rule:types/callable-values`: the `(...)` names the member rather than calling it, and its
@@ -34,7 +34,7 @@ class Box implements Shape {
     // `self::` over a static member binds the declaring class, and needs no
     // receiver to remember.
     public static function labelled(): tainted string {
-        callable $named = self::label(...);
+        callable $named = self::label;
         return $named() as string;
     }
 }
@@ -46,7 +46,7 @@ class Slab extends Box {
 }
 
 // A static target: no receiver, the called class baked in.
-callable $shout = Box::label(...);
+callable $shout = Box::label;
 echo $shout() as string, "\n";
 
 // An instance target, reached through the declaring class.
@@ -64,7 +64,7 @@ echo $virtual() as int, "\n";
 
 // A Tier 0 `Core` member is native Rust behind a helper symbol, and takes
 // the same shape.
-callable $upper = Core\Str::upper(...);
+callable $upper = Core\Str::upper;
 echo $upper("shout") as string, "\n";
 
 // The whole point of the syntax: a `Core` member that takes a callback
@@ -73,7 +73,7 @@ echo $upper("shout") as string, "\n";
 // element type is what `abs` answers and the subject must be something
 // `abs` accepts.
 array<int> $sides = [1, 2, 3];
-array<int|float|decimal> $doubled = Core\Arr::map($sides, Core\Math::abs(...));
+array<int|float|decimal> $doubled = Core\Arr::map($sides, Core\Math::abs);
 foreach ($doubled as mixed $one) {
     echo $one, " ";
 }

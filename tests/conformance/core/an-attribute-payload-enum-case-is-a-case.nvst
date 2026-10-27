@@ -29,7 +29,7 @@ class Check {
     }
 }
 
-?{modes: array<mixed>} $list = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor(...));
+?{modes: array<mixed>} $list = Core\Attributes::get<{modes: array<mixed>}>(Job::constructor);
 if ($list != null) {
     foreach ($list->modes as mixed $mode) {
         Check::show("element", $mode);
@@ -42,7 +42,7 @@ if ($list != null) {
     }
 }
 
-?{mode: Mode, weight: Weight} $one = Core\Attributes::get<{mode: Mode, weight: Weight}>(Job::constructor(...));
+?{mode: Mode, weight: Weight} $one = Core\Attributes::get<{mode: Mode, weight: Weight}>(Job::constructor);
 if ($one != null) {
     mixed $shape = $one;
     var $info = Core\Reflect::forObject($shape);

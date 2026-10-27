@@ -30,7 +30,7 @@ class Stone {}
 class Parent1 {
     public static function m(): Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
-    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m; echo $at, Show::of($f()), "\n"; }
 }
 class Child1 extends Parent1 {
     public static function m(): Animal { return new Dog(); }
@@ -45,7 +45,7 @@ Child1::viaCallable("same callable: ");
 class Parent2 {
     public static function m(): Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
-    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m; echo $at, Show::of($f()), "\n"; }
 }
 class Child2 extends Parent2 {
     public static function m(): Dog { return new Puppy(); }
@@ -60,7 +60,7 @@ Child2::viaCallable("subclass callable: ");
 class Parent5 {
     public static function m(): int|string { return "p"; }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
-    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m; echo $at, Show::of($f()), "\n"; }
 }
 class Child5 extends Parent5 {
     public static function m(): int { return 2; }
@@ -75,7 +75,7 @@ Child5::viaCallable("int-under-int-string callable: ");
 class Parent8 {
     public static function m(): ?Animal { return new Animal(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
-    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m; echo $at, Show::of($f()), "\n"; }
 }
 class Child8 extends Parent8 {
     public static function m(): Animal { return new Dog(); }
@@ -90,7 +90,7 @@ Child8::viaCallable("t-under-nullable callable: ");
 class Parent10 {
     public static function m(): Animal|Plant { return new Plant(); }
     public static function viaStatic(string $at): void { echo $at, Show::of(static::m()), "\n"; }
-    public static function viaCallable(string $at): void { var $f = static::m(...); echo $at, Show::of($f()), "\n"; }
+    public static function viaCallable(string $at): void { var $f = static::m; echo $at, Show::of($f()), "\n"; }
 }
 class Child10 extends Parent10 {
     public static function m(): Animal { return new Dog(); }

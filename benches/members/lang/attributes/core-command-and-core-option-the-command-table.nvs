@@ -31,8 +31,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Command $command = Core\Attributes::get<Command>(Migrate::migrate(...));
-            ?Option $option = Core\Attributes::get<Option>(Migrate::migrate(...), 'pretend');
+            ?Command $command = Core\Attributes::get<Command>(Migrate::migrate);
+            ?Option $option = Core\Attributes::get<Option>(Migrate::migrate, 'pretend');
             if ($command != null) {
                 if ($option != null) {
                     // Chained: the length counted this round is picked with the

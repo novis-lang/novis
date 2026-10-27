@@ -45,6 +45,6 @@ array<string> $granted = ['orders.read'];
 
 // This prints one line per action: `show` is allowed, `cancel` needs a
 // permission this user does not have, and `ping` needs none at all.
-echo Access::check('show', Core\Attributes::get<Requires>(Orders::show(...)), $granted), "\n";
-echo Access::check('cancel', Core\Attributes::get<Requires>(Orders::cancel(...)), $granted), "\n";
-echo Access::check('ping', Core\Attributes::get<Requires>(Orders::ping(...)), $granted), "\n";
+echo Access::check('show', Core\Attributes::get<Requires>(Orders::show), $granted), "\n";
+echo Access::check('cancel', Core\Attributes::get<Requires>(Orders::cancel), $granted), "\n";
+echo Access::check('ping', Core\Attributes::get<Requires>(Orders::ping), $granted), "\n";

@@ -18,8 +18,8 @@ class Orders
 // No function here is marked `async`, and none of them returns a promise.
 // Each field is a function that takes no arguments.
 var $page = Core\Task::all({
-    total: Orders::total(...),
-    title: Orders::title(...),
+    total: Orders::total,
+    title: Orders::title,
     note:  fn(): string => 'ready',
 });
 

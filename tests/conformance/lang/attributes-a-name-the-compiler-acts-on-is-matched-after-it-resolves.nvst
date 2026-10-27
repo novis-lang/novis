@@ -79,7 +79,7 @@ try {
 }
 
 // The userland twin is ordinary metadata and reads back as itself.
-?Command $mine = Core\Attributes::get<Command>(Jobs::mine(...));
+?Command $mine = Core\Attributes::get<Command>(Jobs::mine);
 if ($mine != null) {
     if ($mine->note == "mine") { $agreed = $agreed + 1; }
 }
@@ -87,10 +87,10 @@ if ($mine != null) {
 // Recognition does not take a payload object out of the structural roster: the
 // recognized `#[Core\Command]` payload, the userland twin and the `use`d
 // `#[Derive]` are each one entry where they are attached.
-if (Core\Arr::count(Core\Attributes::all<{name: string}>(Jobs::real(...))) == 1) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{}>(Jobs::mine(...))) == 1) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{}>(Short::constructor(...))) == 1) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{}>(Plain::constructor(...))) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{name: string}>(Jobs::real)) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Jobs::mine)) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Short::constructor)) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Plain::constructor)) == 1) { $agreed = $agreed + 1; }
 
 echo "agreed: ", $agreed, " of 7\n";
 --EXPECT--

@@ -11,7 +11,7 @@ class Plain {}
 // than as a missing refusal. `rule:classes/definite-property-initialization` gives every class a constructor,
 // definitely, so `rule:attributes/structural-retrieval`'s class target names it whether or not the body
 // writes one.
-?Route $route = Core\Attributes::get<Route>(Plain::constructor(...));
+?Route $route = Core\Attributes::get<Route>(Plain::constructor);
 echo $route != null ? "some" : "none", "\n";
 
 // The exemption is that one spelling and no wider: a written call resolves to

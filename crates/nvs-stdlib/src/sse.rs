@@ -98,7 +98,7 @@
 //! The response half is behind the door. `nvs_server::serve_connection` answers
 //! a request that filled the cell with a `200 text/event-stream` and hands the
 //! isolate that body, which is what [`nvs_core_sse_current`] answers inside
-//! door one. A method entry — `Feed::run(...)` — opens the same isolate a path
+//! door one. A method entry — `Feed::run` — opens the same isolate a path
 //! entry does, because the parameter names `rule:security/isolate-shares-nothing`
 //! binds `args:` by ride on the callable value: [`crate::socket`] § *The method
 //! form carries its names on the value* is the home of that.
@@ -153,7 +153,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["entry", "args", "limits", "grants", "on"],
             // The same five marks the sibling row carries, and for the same
             // reasons: [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
-            // method written `Feed::run(...)`, never a `callable` in a variable
+            // method written `Feed::run`, never a `callable` in a variable
             // — `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
             // what may cross at run time, and the last three are
             // `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
@@ -283,7 +283,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "entry",
             desc: "What the stream runs. It is a file path, or a static method written \
-                   `Feed::run(...)`. A file path is resolved and checked the same way as for \
+                   `Feed::run`. A file path is resolved and checked the same way as for \
                    `spawn script`. It cannot be an anonymous function. An anonymous function can \
                    capture variables, and an isolate shares only compiled code.",
             shape: &[],

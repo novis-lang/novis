@@ -24,7 +24,7 @@ class Listing
 }
 
 // `Invoices` carries a `PageSize`, so this prints 100.
-echo Listing::rowsOf(Core\Attributes::get<PageSize>(Invoices::constructor(...))), "\n";
+echo Listing::rowsOf(Core\Attributes::get<PageSize>(Invoices::constructor)), "\n";
 
 // `Customers` carries none, so the result is `null` and this prints 25.
-echo Listing::rowsOf(Core\Attributes::get<PageSize>(Customers::constructor(...))), "\n";
+echo Listing::rowsOf(Core\Attributes::get<PageSize>(Customers::constructor)), "\n";

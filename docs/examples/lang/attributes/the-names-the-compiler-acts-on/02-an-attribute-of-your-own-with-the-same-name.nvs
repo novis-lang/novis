@@ -22,7 +22,7 @@ class Reports
     {}
 }
 
-?Command $mine = Core\Attributes::get<Command>(Reports::daily(...));
+?Command $mine = Core\Attributes::get<Command>(Reports::daily);
 
 // This prints `import runs every night`.
 if ($mine != null) {

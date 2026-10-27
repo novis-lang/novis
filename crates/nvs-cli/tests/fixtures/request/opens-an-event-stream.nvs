@@ -18,4 +18,4 @@ class Feed
     }
 }
 
-Core\Sse::upgrade(Feed::run(...), args: ['who' => 'ada']);
+Core\Sse::upgrade(Feed::run, args: ['who' => 'ada']);

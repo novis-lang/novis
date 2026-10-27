@@ -208,7 +208,7 @@ fn map_binds_its_result_from_a_callable_typed_variable() {
 fn map_binds_its_result_from_a_method_ref() {
     let bound = check_in_method(
         "array<string> $a = [\"ab\", \"c\"];\n\
-         array<uint> $out = Core\\Arr::map($a, Core\\Str::length(...));\n\
+         array<uint> $out = Core\\Arr::map($a, Core\\Str::length);\n\
          echo Core\\Arr::count($out);\n",
     );
     assert!(!bound.has_errors(), "{bound:?}");
@@ -217,7 +217,7 @@ fn map_binds_its_result_from_a_method_ref() {
     // type and nothing else will hold it.
     let wrong = check_in_method(
         "array<string> $a = [\"ab\"];\n\
-         array<string> $out = Core\\Arr::map($a, Core\\Str::length(...));\n",
+         array<string> $out = Core\\Arr::map($a, Core\\Str::length);\n",
     );
     assert!(
         wrong.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),

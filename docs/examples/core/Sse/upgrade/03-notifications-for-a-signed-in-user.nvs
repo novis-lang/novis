@@ -26,7 +26,7 @@ string $user = $users[$session] ?? '';
 if ($user == '') {
     echo "401: sign in first\n";
 } else {
-    Core\Sse::upgrade(Notifications::run(...), args: ['user' => $user]);
+    Core\Sse::upgrade(Notifications::run, args: ['user' => $user]);
 }
 
 // The `.nvse` file publishes two notifications for Ana and one for Ben.

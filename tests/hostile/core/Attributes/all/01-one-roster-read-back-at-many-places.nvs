@@ -37,37 +37,37 @@ class Attack
 
         // 2. Twelve reads with the empty shape `{}`, which every payload
         //    satisfies. Each place gets its own copy of all 80 values.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{}>(Crowded::constructor));
 
         // 3. Twelve more, naming one field. All 80 payloads are compared at each
         //    of the twelve places, and all 80 match again.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ tag: string }>(Crowded::constructor));
 
         // 4. A shape no payload has. All 80 are compared and the answer is an
         //    empty array, so this adds nothing to the total.
-        $total = $total + Core\Arr::count(Core\Attributes::all<{ missing: int }>(Crowded::constructor(...)));
+        $total = $total + Core\Arr::count(Core\Attributes::all<{ missing: int }>(Crowded::constructor));
 
         return $total;
     }

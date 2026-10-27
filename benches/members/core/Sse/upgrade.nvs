@@ -12,5 +12,5 @@ class Notifications
 }
 
 // A request can open only one stream, so the measured operation happens one time per run.
-Core\Sse::upgrade(Notifications::run(...), args: ['user' => 'ana']);
+Core\Sse::upgrade(Notifications::run, args: ['user' => 'ana']);
 echo "upgraded\n";

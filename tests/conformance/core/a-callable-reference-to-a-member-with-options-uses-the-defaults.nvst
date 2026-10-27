@@ -5,7 +5,7 @@ A method reference to a `Core` member with an options bag takes the parameters b
 // `Core\Str::split` takes `{limit?: int}` after its two strings. A call
 // through a `callable` writes no bag, so the reference is
 // `callable(string, string): array<string>` and every option has its default.
-callable(string, string): array<string> $split = Core\Str::split(...);
+callable(string, string): array<string> $split = Core\Str::split;
 array<string> $parts = $split("a,b,c", ",");
 echo Core\Arr::count($parts), "\n";
 echo Core\Str::join($parts, "|"), "\n";

@@ -52,7 +52,7 @@ codes! {
     /// is `callable`.
     ///
     /// One code for both because it is one rule: the entry is **decided
-    /// syntactically at the spawn site**, a path or a `Class::method(...)`
+    /// syntactically at the spawn site**, a path or a `Class::method`
     /// reference written there, and everything else is refused for the same
     /// reason — whether a callable captures is not a question the spawn site
     /// can answer, and an isolate that captured would share more than compiled
@@ -65,7 +65,7 @@ codes! {
     /// unrelated shapes, so "expected `string`" describes half the rule and
     /// sends the reader to fix the wrong half.
     pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802").card(
-        "`spawn script` needs a path or a `static` method written as `Class::method(...)`. An \
+        "`spawn script` needs a path or a `static` method written as `Class::method`. An \
          anonymous function written with `fn` or a `callable` variable is not allowed. Move the code into a `static` \
          method and spawn that method.",
     );
@@ -958,7 +958,7 @@ codes! {
          write it with the class name, as in `Counter::$count`, or with `self::$count` inside the \
          class.",
     );
-    /// `new E()` or `E::constructor(...)` where `E` is an enum
+    /// `new E()` or `E::constructor` where `E` is an enum
     /// (`rule:enums/no-class-machinery`). A case is an integer constant, so
     /// an enum has no object form and no constructor to call or name.
     pub const E_ENUM_HAS_NO_CONSTRUCTOR: Code = Code::new("E0870").card(

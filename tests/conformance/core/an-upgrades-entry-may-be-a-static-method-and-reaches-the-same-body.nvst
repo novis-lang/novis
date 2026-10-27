@@ -21,7 +21,7 @@ class Chat {
 // `nvs_stdlib::socket`'s § *The method form waits on a name* owns what this
 // form still cannot prepare once there is a slot to prepare it into.
 try {
-    Core\Socket::upgrade(Chat::run(...), args: {room: "lobby"});
+    Core\Socket::upgrade(Chat::run, args: {room: "lobby"});
     echo "upgraded\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

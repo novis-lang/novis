@@ -25,7 +25,7 @@ int $n = 1;
 Job::pass(inout $n);
 
 // An entry with an `inout` parameter does not compile.
-var $refused = spawn script Job::bump(...) with(args: ["x" => 1]);
+var $refused = spawn script Job::bump with(args: ["x" => 1]);
 --EXPECT--
 
 --EXPECTF-ERROR--

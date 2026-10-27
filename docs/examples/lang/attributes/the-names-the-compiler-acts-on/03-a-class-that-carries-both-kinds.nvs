@@ -26,7 +26,7 @@ var $payment = new Payment('PAY-1042', 2599);
 echo Core\Json::encode($payment), "\n";
 
 // Your own attribute is read with `Core\Attributes::get`.
-?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor(...));
+?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor);
 if ($owner != null) {
     echo 'owned by ', $owner->by, ' since ', $owner->since, "\n";
 }

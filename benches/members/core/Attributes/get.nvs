@@ -24,7 +24,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Route $route = Core\Attributes::get<Route>(Orders::show(...));
+            ?Route $route = Core\Attributes::get<Route>(Orders::show);
             if ($route != null) {
                 // Chained: the length counted this round is added to the total
                 // carried out of the round before.

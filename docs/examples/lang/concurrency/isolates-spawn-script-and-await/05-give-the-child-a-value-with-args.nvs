@@ -15,5 +15,5 @@ var $sum = await spawn script 'jobs/add-up.nvs' with(args: [10, 20, 30]);
 echo 'total: ', $sum->value as int, "\n";
 
 // Each key of the array is the name of one parameter.
-var $report = await spawn script Report::title(...) with(args: ['month' => 'July', 'year' => 2026]);
+var $report = await spawn script Report::title with(args: ['month' => 'July', 'year' => 2026]);
 echo $report->value as string, "\n";

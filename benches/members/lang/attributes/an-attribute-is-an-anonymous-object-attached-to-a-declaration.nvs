@@ -26,8 +26,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Route $onClass = Core\Attributes::get<Route>(Orders::constructor(...));
-            ?Route $onMethod = Core\Attributes::get<Route>(Orders::index(...));
+            ?Route $onClass = Core\Attributes::get<Route>(Orders::constructor);
+            ?Route $onMethod = Core\Attributes::get<Route>(Orders::index);
             if ($onClass != null) {
                 if ($onMethod != null) {
                     // Chained: the length counted this round is picked with the

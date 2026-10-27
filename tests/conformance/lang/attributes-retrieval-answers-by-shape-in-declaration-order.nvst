@@ -39,11 +39,11 @@ class Names {
 
 // Each roster read whole. A bare anonymous object and a named one are both answers, and
 // the wider `{name, weight}` object on the class satisfies the narrower `Tag`.
-echo "class: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...))), "\n";
-echo "property: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...), "rows")), "\n";
-echo "method: ", Names::of(Core\Attributes::all<Tag>(Target::run(...))), "\n";
-echo "parameter: ", Names::of(Core\Attributes::all<Tag>(Target::run(...), "id")), "\n";
-echo "bare: ", Names::of(Core\Attributes::all<Tag>(Bare::constructor(...))), "\n";
+echo "class: ", Names::of(Core\Attributes::all<Tag>(Target::constructor)), "\n";
+echo "property: ", Names::of(Core\Attributes::all<Tag>(Target::constructor, "rows")), "\n";
+echo "method: ", Names::of(Core\Attributes::all<Tag>(Target::run)), "\n";
+echo "parameter: ", Names::of(Core\Attributes::all<Tag>(Target::run, "id")), "\n";
+echo "bare: ", Names::of(Core\Attributes::all<Tag>(Bare::constructor)), "\n";
 
 // `rule:attributes/retrieval-folds-while-checking`: the answer is compiled in, so the six
 // below are decided by `nvs check` and not by this run. They are counted rather
@@ -54,17 +54,17 @@ uint $agreed = 0;
 // A `$member` that is not a string literal has no name to check, so it folds to
 // the empty result — `"rows"` written out is the reject case's other half.
 string $computed = "ro" . "ws";
-if (Core\Arr::count(Core\Attributes::all<Tag>(Target::constructor(...), $computed)) == 0) { $agreed = $agreed + 1; }
-if (Core\Attributes::get<Tag>(Target::constructor(...), $computed) == null) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<Tag>(Target::constructor, $computed)) == 0) { $agreed = $agreed + 1; }
+if (Core\Attributes::get<Tag>(Target::constructor, $computed) == null) { $agreed = $agreed + 1; }
 
 // Nothing anywhere satisfies this shape, so `get` folds to `null` and `all` to [].
-if (Core\Attributes::get<{missing: int}>(Target::constructor(...)) == null) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{missing: int}>(Target::run(...))) == 0) { $agreed = $agreed + 1; }
+if (Core\Attributes::get<{missing: int}>(Target::constructor) == null) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{missing: int}>(Target::run)) == 0) { $agreed = $agreed + 1; }
 
 // The empty shape is satisfied by every attached payload object, so it answers the
 // whole roster wherever it is asked.
-if (Core\Arr::count(Core\Attributes::all<{}>(Target::constructor(...))) == 2) { $agreed = $agreed + 1; }
-if (Core\Arr::count(Core\Attributes::all<{}>(Target::run(...), "id")) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Target::constructor)) == 2) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Target::run, "id")) == 1) { $agreed = $agreed + 1; }
 
 echo "agreed: ", $agreed, " of 6\n";
 --EXPECT--

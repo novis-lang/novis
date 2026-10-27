@@ -26,7 +26,7 @@ class Counter {
 
 // A static `void` target: the called class is baked in, the body runs, and
 // nothing comes back.
-callable $announce = Counter::announce(...);
+callable $announce = Counter::announce;
 mixed $said = $announce("open");
 echo $said == null ? "null\n" : "not null\n";
 

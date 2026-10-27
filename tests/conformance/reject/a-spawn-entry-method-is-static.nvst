@@ -15,10 +15,10 @@ class Job {
 }
 
 // Compiles: `start` is static.
-var $first = spawn script Job::start(...);
+var $first = spawn script Job::start;
 
 // Refused: `run` reads `$this`, and the script has no object for it.
-var $second = spawn script Job::run(...);
+var $second = spawn script Job::run;
 --EXPECTF-ERROR--
 error[E0802]: a `spawn script` entry is a path or a static method
    --> case.nvs:18:28

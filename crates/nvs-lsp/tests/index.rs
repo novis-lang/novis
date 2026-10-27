@@ -591,7 +591,7 @@ final class ShopTest
     #[Test]
     public function takesACallable(): void
     {
-        var $later = Shop::untouched(...);
+        var $later = Shop::untouched;
         Test::assertEquals($later(), 1);
     }
 }

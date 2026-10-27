@@ -22,7 +22,7 @@ Core\Config::set('memory', '64M');
 int $threw = 0;
 int $round = 0;
 while ($round < 1000) {
-    var $heap = new Core\Heap<string>(Order::byText(...));
+    var $heap = new Core\Heap<string>(Order::byText);
     Order::$refuse = false;
     $heap->push(Core\Str::repeat('c', 100000));
     $heap->push(Core\Str::repeat('a', 100000));

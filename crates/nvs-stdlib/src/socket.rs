@@ -6,7 +6,7 @@
 //! upgrading request's heap. § 2 makes opening one `spawn script`-shaped, so
 //! the operand here is that construct's operand under exactly
 //! `rule:security/isolate-shares-nothing`'s rule — a path, or
-//! a static method written `Chat::run(...)`, and never an anonymous function.
+//! a static method written `Chat::run`, and never an anonymous function.
 //!
 //! # What is here, and what is not
 //!
@@ -49,7 +49,7 @@
 //!
 //! The `entry` parameter is a [`CoreTy::Entry`](crate::registry::CoreTy::Entry)
 //! and that is the whole of how § 2's operand rule reaches a call site: the
-//! mark is what `nvs_types::expr::isolate` finds, so `Chat::run(...)` is
+//! mark is what `nvs_types::expr::isolate` finds, so `Chat::run` is
 //! accepted here and a `callable` in a variable is refused with the same
 //! `E0802` a `spawn script` reports. Its variant doc is the home of why the
 //! rule cannot be a parameter type.
@@ -94,7 +94,7 @@
 //! # The method form carries its names on the value
 //!
 //! A method arrives as a **method reference** — the entry interns as
-//! `mixed`, so `Chat::run(...)` reaches this body as the callable `nvs_ir`'s
+//! `mixed`, so `Chat::run` reaches this body as the callable `nvs_ir`'s
 //! `lower_method_ref` built. `rule:security/isolate-shares-nothing` binds `args:` to the
 //! entry's parameters **by name**, and the sibling construct has those names as
 //! a constant its lowering wrote into the call (`nvs_ir::lower`'s
@@ -255,7 +255,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["entry", "args", "limits", "grants", "on"],
             // [`CoreTy::Entry`] is § 2's `spawn script` operand, as the one mark that
             // carries `rule:security/isolate-shares-nothing`'s whole operand rule to a call site: a path or a static
-            // method written `Chat::run(...)`, and never a `callable` in a
+            // method written `Chat::run`, and never a `callable` in a
             // variable. It classifies as a sink for the reason a path always does
             // — its content becomes the instruction "execute this file", `rule:security/sink-predicate`
             // 's definition, and
@@ -365,7 +365,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "entry",
             desc: "What the connection runs: the path of a file, the same as `spawn script` \
-                   takes, or a static method written `Chat::run(...)`. An anonymous function is \
+                   takes, or a static method written `Chat::run`. An anonymous function is \
                    not allowed, because the connection shares no values with the request.",
             shape: &[],
         },
@@ -659,7 +659,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// The two written forms are told apart by the value's own tag and by nothing
 /// else, which is what the module doc's "the entry interns as `mixed`" costs
-/// and buys: a path arrives as text, and a `Class::method(...)` reference
+/// and buys: a path arrives as text, and a `Class::method` reference
 /// arrives as the callable `nvs_ir`'s `lower_method_ref` built. Anything else
 /// is unreachable from source — `nvs_types::expr::isolate`'s `entry_operand`
 /// refuses every other spelling with `E0802` where it is written — so a third
@@ -798,7 +798,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     let Some(names) = nvs_runtime::callable_param_names(entry)? else {
         return Err(Fault::thrown(format!(
             "`{member}` was handed a `callable` that records no parameter names, so `rule:security/isolate-shares-nothing`'s \
-             `args:` binding has nothing to bind by. Name a static method — `Chat::run(...)` — \
+             `args:` binding has nothing to bind by. Name a static method — `Chat::run` — \
              or the file the connection runs"
         )));
     };
@@ -1929,7 +1929,7 @@ mod tests {
     }
 
     /// The object `nvs_ir::lower`'s `lower_method_ref` builds for a written
-    /// `Chat::run(...)`: the two reserved fields every callable carries, plus
+    /// `Chat::run`: the two reserved fields every callable carries, plus
     /// the third only a method reference has — `rule:security/isolate-shares-nothing`'s parameter names,
     /// comma-joined in declaration order.
     ///

@@ -32,7 +32,7 @@ echo "start\n";
 
 // The parent parks in the `await` and spends nothing. The child spends the
 // whole ceiling on another core, which is what stops it.
-var $child = spawn script Spinner::spin(...)
+var $child = spawn script Spinner::spin
     with(args: ["from" => 0], output: "capture", on: "worker");
 var $done = await $child;
 echo "child ok=", $done->ok ? "true" : "false", "\n";

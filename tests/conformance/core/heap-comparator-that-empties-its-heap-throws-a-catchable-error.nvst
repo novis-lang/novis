@@ -17,7 +17,7 @@ final class Drain {
     }
 }
 
-var $h = new Core\Heap<int>(Drain::empties(...));
+var $h = new Core\Heap<int>(Drain::empties);
 int $i = 0;
 while ($i < 8) {
     $h->push(8 - $i);

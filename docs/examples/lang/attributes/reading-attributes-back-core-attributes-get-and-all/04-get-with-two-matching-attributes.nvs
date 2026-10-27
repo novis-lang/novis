@@ -10,4 +10,4 @@ type Tag = { label: string };
 class Engine
 {}
 
-?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor(...));
+?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);

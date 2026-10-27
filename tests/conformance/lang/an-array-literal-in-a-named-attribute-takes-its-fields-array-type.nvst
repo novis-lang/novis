@@ -9,7 +9,7 @@ class Shop {
     public static function open(): void {}
 }
 
-?Tags $tags = Core\Attributes::get<Tags>(Shop::open(...));
+?Tags $tags = Core\Attributes::get<Tags>(Shop::open);
 if ($tags != null) {
     echo $tags->ids[1] + 1, " ", $tags->names[0], " ", $tags->rows[0][1], "\n";
 }

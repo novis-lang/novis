@@ -32,5 +32,5 @@ class Help
 }
 
 // This prints one line per command.
-echo Help::line(Core\Attributes::get<Row>(Jobs::import(...))), "\n";
-echo Help::line(Core\Attributes::get<Row>(Jobs::export(...))), "\n";
+echo Help::line(Core\Attributes::get<Row>(Jobs::import)), "\n";
+echo Help::line(Core\Attributes::get<Row>(Jobs::export)), "\n";

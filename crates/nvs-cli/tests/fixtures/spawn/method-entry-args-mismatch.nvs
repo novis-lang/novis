@@ -12,7 +12,7 @@ class Reports
 }
 
 var $args = ['moth' => 7];
-var $job = spawn script Reports::monthly(...) with(args: $args);
+var $job = spawn script Reports::monthly with(args: $args);
 var $result = await $job;
 
 echo "unreachable\n";

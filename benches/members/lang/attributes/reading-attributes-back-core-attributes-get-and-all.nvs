@@ -29,9 +29,9 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            ?Route $route = Core\Attributes::get<Route>(Orders::show(...));
-            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
-            ?{ max: int } $limit = Core\Attributes::get<{ max: int }>(Orders::show(...), 'id');
+            ?Route $route = Core\Attributes::get<Route>(Orders::show);
+            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show);
+            ?{ max: int } $limit = Core\Attributes::get<{ max: int }>(Orders::show, 'id');
             if ($route != null) {
                 if ($limit != null) {
                     // Chained: the length counted this round is picked with the

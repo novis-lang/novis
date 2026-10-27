@@ -23,7 +23,7 @@ class Feed {
 // form still cannot prepare once there is a cell to prepare it into, and it is
 // one rule for both doors.
 try {
-    Core\Sse::upgrade(Feed::run(...), args: {room: "lobby"});
+    Core\Sse::upgrade(Feed::run, args: {room: "lobby"});
     echo "opened\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

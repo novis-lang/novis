@@ -1,9 +1,9 @@
 //! `rule:security/isolate-shares-nothing`'s `args:`-by-name, from the one end that can still
-//! see a declaration: what a written `Class::method(...)` records on the object
+//! see a declaration: what a written `Class::method` records on the object
 //! it produces, and what an anonymous function deliberately does not.
 //!
 //! `rule:concurrency/an-upgrade-is-spawn-shaped` makes
-//! `Core\Socket::upgrade(Chat::run(...), args: {…})` an isolate entry, and
+//! `Core\Socket::upgrade(Chat::run, args: {…})` an isolate entry, and
 //! `rule:security/isolate-shares-nothing` binds that map to the entry's parameters **by name**. A `callable`
 //! carries its arity and its parameter tags and nothing else, so the names are
 //! written at the site — `lower::FN_PARAM_NAMES` — and read off the object by
@@ -94,7 +94,7 @@ fn a_method_reference_records_its_targets_parameter_names() {
 class Chat {
     public static function run(string $room, int $userId): void {}
 }
-var $entry = Chat::run(...);
+var $entry = Chat::run;
 ",
     );
 
@@ -127,7 +127,7 @@ fn a_static_target_declaring_no_parameters_records_an_empty_name_list() {
 class Chat {
     public static function run(): void {}
 }
-var $entry = Chat::run(...);
+var $entry = Chat::run;
 ",
     );
 

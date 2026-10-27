@@ -149,7 +149,7 @@ codes! {
     /// See `rule:types/callable-values`.
     pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418").card(
         "A string cannot be called as a function, even if it contains the name of one. Write \
-         `Class::method(...)` or `$obj->method(...)` to get a callable.",
+         `Class::method` or `$obj->method(...)` to get a callable.",
     );
     /// A `[$obj, 'method']`-shaped array passed where `callable` is the
     /// declared type. See `rule:types/callable-values`.
@@ -162,7 +162,7 @@ codes! {
     /// `rule:types/callable-values`.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420").card(
         "Only a `callable` can be called with `(...)`, and this value is not one. Write an \
-         anonymous function with `fn`, or get a callable with `Class::method(...)` or \
+         anonymous function with `fn`, or get a callable with `Class::method` or \
          `$obj->method(...)`. An object cannot be called, because Novis has no `__invoke`.",
     );
     /// A `secret`-qualified value reaching a `Core\Html\Markup`-building

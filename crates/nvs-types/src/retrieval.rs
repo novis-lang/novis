@@ -30,7 +30,7 @@
 //!
 //! § 4 fixes four spellings and this pass inspects them **syntactically**,
 //! exactly as `rule:security/secret-sinks-refuse`'s sinks inspect a literal argument: the reference
-//! is never evaluated, so `Foo::bar(...)` here is a written name rather than a
+//! is never evaluated, so `Foo::bar` here is a written name rather than a
 //! callable value. A method is its own method reference; a class
 //! is its `constructor`'s; a parameter is its method's reference plus
 //! `$member`; a property is its class's `constructor` reference plus
@@ -366,8 +366,8 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(target.span, "this is not a declaration reference")
             .with_help(
-                "write a method reference: `Foo::bar(...)` for a method, or \
-                 `Foo::constructor(...)` for the class itself. A property or parameter name in \
+                "write a method reference: `Foo::bar` for a method, or \
+                 `Foo::constructor` for the class itself. A property or parameter name in \
                  quotes can follow it",
             ),
         );

@@ -20,7 +20,7 @@ class Invoice
 
 // `Core\Attributes::all` returns every attached value that fits the shape, in
 // the order you wrote them. This prints 2, `billing` and `nightly`.
-array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor(...));
+array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor);
 echo Core\Arr::count($tags), "\n";
 foreach ($tags as Tag $tag) {
     echo $tag->label, "\n";
@@ -28,14 +28,14 @@ foreach ($tags as Tag $tag) {
 
 // A property and a parameter can carry an attribute too. The second argument is
 // the name of the property or the parameter. This prints `money`.
-?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor(...), 'cents');
+?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor, 'cents');
 if ($onProperty != null) {
     echo $onProperty->label, "\n";
 }
 
 // The attribute on the parameter `$to` was written without a name. You read it
 // back by writing the shape you expect. This prints `config`.
-?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send(...), 'to');
+?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send, 'to');
 if ($onParameter != null) {
     echo $onParameter->from, "\n";
 }

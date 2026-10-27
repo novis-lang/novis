@@ -57,17 +57,17 @@ class Attack
         while ($i < $rounds) {
             // The empty shape `{}` matches every attached value, so this is the
             // widest result a retrieval can return.
-            array<{}> $all = Core\Attributes::all<{}>(Crowded::constructor(...));
+            array<{}> $all = Core\Attributes::all<{}>(Crowded::constructor);
             $total = $total + (Core\Arr::count($all) as int);
 
             ?{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: int } } } } } } } } } } } } $deep =
-                Core\Attributes::get<{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: int } } } } } } } } } } } }>(Nested::constructor(...));
+                Core\Attributes::get<{ l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { l11: { l12: int } } } } } } } } } } } }>(Nested::constructor);
             if ($deep != null) {
                 $total = $total + ($deep->l1->l2->l3->l4->l5->l6->l7->l8->l9->l10->l11->l12 as int);
             }
 
-            ?{ p: int } $first = Core\Attributes::get<{ p: int }>(Many::take(...), 'a');
-            ?{ p: int } $last = Core\Attributes::get<{ p: int }>(Many::take(...), 'h');
+            ?{ p: int } $first = Core\Attributes::get<{ p: int }>(Many::take, 'a');
+            ?{ p: int } $last = Core\Attributes::get<{ p: int }>(Many::take, 'h');
             if ($first != null) {
                 if ($last != null) {
                     $total = $total + $first->p + $last->p;

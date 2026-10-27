@@ -41,12 +41,12 @@ class Row {
     #[{table: \"rows\"}]
     public string $id = \"\";
 }
-?{column: string} $absent = Core\\Attributes::get<{column: string}>(Row::constructor(...), \"id\");
+?{column: string} $absent = Core\\Attributes::get<{column: string}>(Row::constructor, \"id\");
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
     let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor(...), \"id\")");
+        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"id\")");
     assert!(
         matches!(
             folded,
@@ -67,12 +67,12 @@ class Row {
     #[{column: \"name\", unique: true}]
     public string $name = \"\";
 }
-?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor(...), \"name\");
+?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor, \"name\");
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
     let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor(...), \"name\")");
+        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"name\")");
     let Some(ExprInfo::CoreConst {
         value: ConstArg::Shape(fields),
     }) = folded
@@ -103,7 +103,7 @@ class Row {
 ";
     let (diags, _) = check_src_declared(&format!(
         "{two_columns}?{{column: string}} $both = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor(...), \"name\");\n"
+         Core\\Attributes::get<{{column: string}}>(Row::constructor, \"name\");\n"
     ));
     assert!(
         reported(&diags, code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS),
@@ -121,11 +121,11 @@ class Row {
     // — or neither — would still satisfy the half above.
     let (diags, run) = check_src_declared(&format!(
         "{two_columns}array<{{column: string}}> $both = \
-         Core\\Attributes::all<{{column: string}}>(Row::constructor(...), \"name\");\n"
+         Core\\Attributes::all<{{column: string}}>(Row::constructor, \"name\");\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
     let folded =
-        run.folded_at("Core\\Attributes::all<{column: string}>(Row::constructor(...), \"name\")");
+        run.folded_at("Core\\Attributes::all<{column: string}>(Row::constructor, \"name\")");
     let Some(ExprInfo::CoreConst {
         value: ConstArg::Array(entries),
     }) = folded
@@ -148,7 +148,7 @@ class Row {
     // § 4 checks the written name here rather than leaving it to a test run.
     let (diags, _) = check_src_declared(&format!(
         "{row}?{{column: string}} $typo = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor(...), \"nmae\");\n"
+         Core\\Attributes::get<{{column: string}}>(Row::constructor, \"nmae\");\n"
     ));
     assert!(
         reported(&diags, code::E_ATTRIBUTE_MEMBER_NOT_DECLARED),
@@ -161,11 +161,11 @@ class Row {
     let (diags, run) = check_src_declared(&format!(
         "{row}string $computed = \"nm\" . \"ae\";
 ?{{column: string}} $dynamic = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor(...), $computed);\n"
+         Core\\Attributes::get<{{column: string}}>(Row::constructor, $computed);\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
     let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor(...), $computed)");
+        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, $computed)");
     assert!(
         matches!(
             folded,

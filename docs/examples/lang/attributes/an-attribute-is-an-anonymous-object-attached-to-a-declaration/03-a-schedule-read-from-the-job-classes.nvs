@@ -52,9 +52,9 @@ class ChargeCards implements Job
 }
 
 array<Job::Meta> $schedule = [];
-$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor(...)) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor(...)) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor(...)) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor) ?? throw new RuntimeError('no job');
+$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor) ?? throw new RuntimeError('no job');
 
 foreach ($schedule as Job::Meta $job) {
     string $mark = $job->level == Job::Level::Urgent ? ' (urgent)' : '';

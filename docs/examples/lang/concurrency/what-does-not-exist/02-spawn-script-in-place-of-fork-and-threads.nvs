@@ -13,9 +13,9 @@ class Report
 // The first kind of entry is a file. The path starts at the folder of this file.
 var $file = spawn script 'scripts/count-orders.nvs' with(output: 'capture');
 
-// The second kind is a static method, written `Class::method(...)`. `args:` gives it
+// The second kind is a static method, written `Class::method`. `args:` gives it
 // the values its parameters need.
-var $method = spawn script Report::build(...) with(args: ['days' => 7]);
+var $method = spawn script Report::build with(args: ['days' => 7]);
 
 // An anonymous function is not allowed as the entry, because it captures variables.
 // A spawned file shares nothing with your program except compiled code.

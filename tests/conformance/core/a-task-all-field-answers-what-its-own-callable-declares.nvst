@@ -22,7 +22,7 @@ class Held {
 // fields are typed by what that signature returns.
 var $page = Core\Task::all({
     literal:    fn(): int => 1,
-    firstClass: Held::job(...),
+    firstClass: Held::job,
 });
 int $one = $page->literal;
 int $seven = $page->firstClass;

@@ -1187,7 +1187,7 @@ fn captures_this(e: &Expr, env: &Env<'_>) -> bool {
     )
 }
 
-/// Whether `class::method(...)` calls an instance method with `$this` as its
+/// Whether `class::method()` calls an instance method with `$this` as its
 /// receiver: `class` is `parent`, `self` or `static`, and the method it names
 /// is not `static`. A name that does not resolve counts, so an escape the
 /// checker cannot see is refused.
@@ -1712,7 +1712,7 @@ mod tests {
             "$b->constructor(2);",
             "mixed $m = $b; $m->constructor(2);",
             "Box::constructor(2);",
-            "var $f = Box::constructor(...);",
+            "var $f = Box::constructor;",
             "var $f = $b->constructor(...);",
         ] {
             let src = format!("<?nvs\n{BOX}var $b = new Box(1);\n{call}\n");
@@ -1723,7 +1723,7 @@ mod tests {
         );
         assert_eq!(direct_constructor_calls(&inside), 3);
         let named = format!(
-            "<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor(...));\n"
+            "<?nvs\n{BOX}?{{}} $none = Core\\Attributes::get<{{}}>(Box::constructor);\n"
         );
         assert_eq!(
             direct_constructor_calls(&named),

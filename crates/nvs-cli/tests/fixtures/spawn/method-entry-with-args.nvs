@@ -14,7 +14,7 @@ class Reports
 // The map is written in the *other* order, which is the whole claim: the names
 // decide, and a positional reading of this would put an `int` in a `string`
 // parameter and be refused at the boundary rather than answer wrongly.
-var $job = spawn script Reports::span(...) with(args: ['months' => 3, 'from' => 'may']);
+var $job = spawn script Reports::span with(args: ['months' => 3, 'from' => 'may']);
 var $result = await $job;
 
 echo $result->ok ? 'ok' : 'failed', "\n";

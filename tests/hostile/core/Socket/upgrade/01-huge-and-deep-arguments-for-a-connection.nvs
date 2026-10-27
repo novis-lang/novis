@@ -20,7 +20,7 @@ while ($i < 100000) {
     $i = $i + 1;
 }
 try {
-    Core\Socket::upgrade(Room::run(...), args: ['history' => $deep]);
+    Core\Socket::upgrade(Room::run, args: ['history' => $deep]);
 } catch (Throwable $tooDeep) {
     echo 'deep: ', $tooDeep->message, "\n";
 }
@@ -33,7 +33,7 @@ while ($i < 1000000) {
     $i = $i + 1;
 }
 try {
-    Core\Socket::upgrade(Room::run(...), args: ['history' => $large]);
+    Core\Socket::upgrade(Room::run, args: ['history' => $large]);
 } catch (Throwable $tooLarge) {
     echo 'large: ', $tooLarge->message, "\n";
 }
@@ -43,7 +43,7 @@ $i = 0;
 uint $refused = 0;
 while ($i < 10000) {
     try {
-        Core\Socket::upgrade(Room::run(...), args: ['history' => ['entry ' . $i]]);
+        Core\Socket::upgrade(Room::run, args: ['history' => ['entry ' . $i]]);
     } catch (RuntimeError $again) {
         $refused = $refused + 1;
     }

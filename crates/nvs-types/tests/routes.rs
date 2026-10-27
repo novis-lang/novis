@@ -1693,7 +1693,7 @@ fn a_body_read_two_calls_deep_warns_and_names_the_reading_method() {
 #[test]
 fn a_body_read_through_a_callable_or_the_handler_itself_does_not_warn() {
     let members = "  #[Route(path: \"/drafts\", method: Core\\Http\\Method::Post)]\n  \
-                   public function create(): void {\n    Runner::run(Users::decode(...));\n  }\n  \
+                   public function create(): void {\n    Runner::run(Users::decode);\n  }\n  \
                    public static function decode(): void {\n    \
                    var $draft = Core\\Request::jsonAs<Draft>();\n  }\n";
     let helpers = "class Runner {\n  public static function run(callable $f): void {\n    \

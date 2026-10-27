@@ -6,7 +6,7 @@ a `|>` whose right side is a method reference is refused, and the note names PHP
 // PHP 8.5's applies a callable, so the habit is caught at the character where
 // it goes wrong rather than meaning something else.
 string $padded = "  x  ";
-echo $padded |> Core\Str::trim(...), "\n";
+echo $padded |> Core\Str::trim, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--

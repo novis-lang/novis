@@ -56,7 +56,7 @@
 //   (`rule:types/erased-member-access`), so it says nothing about a redeclaration. `mixed` is its erased
 //   path. A class's own method has no interface path, because no interface declares it.
 // - A static method's paths are `static::`, both class names, a variable of the parent's type that holds
-//   the child, and a callable taken with `static::m(...)`. A static method binds late to the called
+//   the child, and a callable taken with `static::m`. A static method binds late to the called
 //   class (`rule:statements/static-is-a-member-modifier`), and through an instance that is the
 //   object's class, so `$parent->m()` runs the child's body.
 // - A static property has no `property<T>` path, because a key names instance properties only
@@ -525,7 +525,7 @@ function methodPiece(c: Ctx): Piece {
   } else {
     decl.push(`class ${parentName} {`, `    ${mod} ${sig(c.parent)} ${body(parentName, c.parent, 0)}`);
     if (kind === "static" && c.paths.includes("static")) decl.push(`    public static function viaStatic(string $at): void { ${stmt("$at", "static::m")} }`);
-    if (kind === "static" && c.paths.includes("callable")) decl.push(`    public static function viaCallable(string $at): void { var $f = static::m(...); ${stmt("$at", "$f")} }`);
+    if (kind === "static" && c.paths.includes("callable")) decl.push(`    public static function viaCallable(string $at): void { var $f = static::m; ${stmt("$at", "$f")} }`);
     decl.push("}");
   }
   decl.push(`class ${childName} ${kind === "interface" ? "implements" : "extends"} ${parentName} {`);

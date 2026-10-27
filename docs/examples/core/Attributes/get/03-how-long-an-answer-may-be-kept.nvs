@@ -31,10 +31,10 @@ class Answer
     }
 }
 
-// `Reports::monthly(...)` names the method, so this prints
+// `Reports::monthly` names the method, so this prints
 // `the monthly report (keep for 300 seconds)`.
-Answer::send(Reports::monthly(), Core\Attributes::get<Cache>(Reports::monthly(...)));
+Answer::send(Reports::monthly(), Core\Attributes::get<Cache>(Reports::monthly));
 
 // `live` carries no `Cache`, so the result is `null` and this prints
 // `the live report (do not keep)`.
-Answer::send(Reports::live(), Core\Attributes::get<Cache>(Reports::live(...)));
+Answer::send(Reports::live(), Core\Attributes::get<Cache>(Reports::live));

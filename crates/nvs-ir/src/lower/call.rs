@@ -94,7 +94,7 @@ impl<'a> Lowering<'a> {
                 "nvs-ir: a resolved call/`new` reached argument lowering with \
                  {args:?} where a written argument list belongs — this crate trusts \
                  nvs_types::check_program to have settled every other shape. The \
-                 roster is closed: `rule:types/callable-values`'s `Class::method(...)` and \
+                 roster is closed: `rule:types/callable-values`'s `Class::method` and \
                  `$obj->method(...)` record `ExprInfo::CallableRef` and never reach \
                  this function, `$m->method(...)` on a `mixed` receiver is `E0732`, \
                  and `new C(...)` is `E0740`"

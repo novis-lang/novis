@@ -21,11 +21,11 @@ class Article
 }
 
 // This prints `news`, `sport` and `local`, one per line, in that order.
-array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish(...));
+array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish);
 foreach ($tags as Tag $tag) {
     echo $tag->name, "\n";
 }
 
 // `archive` carries no attribute. The result is an empty list, so this prints 0.
-array<Tag> $none = Core\Attributes::all<Tag>(Article::archive(...));
+array<Tag> $none = Core\Attributes::all<Tag>(Article::archive);
 echo Core\Arr::count($none), "\n";

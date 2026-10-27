@@ -26,8 +26,8 @@ class Store
 
 // Neither answer needs the other, so both are asked for at the same time.
 var $page = Core\Task::all({
-    customer: Store::customer(...),
-    orders: Store::orders(...),
+    customer: Store::customer,
+    orders: Store::orders,
 });
 
 echo $page->customer, "\n";

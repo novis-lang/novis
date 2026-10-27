@@ -12,8 +12,8 @@ class User
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
-// when the class carries none. `User::constructor(...)` names the class itself.
-?Table $table = Core\Attributes::get<Table>(User::constructor(...));
+// when the class carries none. `User::constructor` names the class itself.
+?Table $table = Core\Attributes::get<Table>(User::constructor);
 if ($table != null) {
     // This prints `users`.
     echo $table->name, "\n";
@@ -23,5 +23,5 @@ if ($table != null) {
 class Session
 {}
 
-?Table $none = Core\Attributes::get<Table>(Session::constructor(...));
+?Table $none = Core\Attributes::get<Table>(Session::constructor);
 echo $none == null ? "no table name\n" : "a table name\n";

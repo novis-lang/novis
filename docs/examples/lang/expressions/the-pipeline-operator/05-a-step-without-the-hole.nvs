@@ -3,4 +3,4 @@
 // proof: compile-error
 
 string $s = "hi";
-echo $s |> Core\Str::upper(...), "\n";
+echo $s |> Core\Str::upper, "\n";

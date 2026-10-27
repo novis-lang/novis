@@ -61,12 +61,12 @@ fn an_anon_fn_is_refused_as_a_spawn_target_naming_the_method_form() {
         "the label names what was written: {stderr}"
     );
     assert!(
-        stderr.contains("Class::method(...)"),
+        stderr.contains("Class::method"),
         "`rule:security/isolate-shares-nothing` requires the diagnostic to name the method form: {stderr}"
     );
     assert!(
         stderr.contains(
-            "help: write a `static` method and use `Class::method(...)` as the entry. An \
+            "help: write a `static` method and use `Class::method` as the entry. An \
              anonymous function can capture the variables around it, and an isolate shares \
              only compiled code"
         ),

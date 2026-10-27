@@ -40,11 +40,11 @@ Report::$runs = 40;
 // which every core already holds, so the far core prepares this child with no
 // resolver in the picture at all — the path form is the sibling case, and
 // `crates/nvs-host/src/placed.rs`'s *Both entry forms cross* is what each needs.
-var $elsewhere = spawn script Report::span(...)
+var $elsewhere = spawn script Report::span
     with(args: ["from" => "may", "months" => 3], output: "capture", on: "worker");
 var $answered = await $elsewhere;
 
-var $athome = spawn script Report::span(...)
+var $athome = spawn script Report::span
     with(args: ["from" => "may", "months" => 3], output: "capture", on: "here");
 var $local = await $athome;
 

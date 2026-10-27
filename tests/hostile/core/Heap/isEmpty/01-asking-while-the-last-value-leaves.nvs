@@ -27,7 +27,7 @@ Core\Config::set('memory', '64M');
 
 // 1. While `pop` reorders the heap, the comparator empties it. `pop` throws a `RuntimeError`.
 // `isEmpty` and `count` must still give true answers, and the heap can still be emptied.
-var $reentrant = new Core\Heap<int>(Attack::empties(...));
+var $reentrant = new Core\Heap<int>(Attack::empties);
 int $i = 0;
 while ($i < 64) {
     $reentrant->push(64 - $i);

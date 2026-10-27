@@ -544,7 +544,7 @@ const PARITY: &str = "<?nvs\nfinal class Parity\n{\n    \
                       if ($n == 0) {\n            return false;\n        }\n        \
                       return Parity::even($n - 1);\n    }\n\n    \
                       public static function start(): bool\n    {\n        \
-                      var $later = Parity::odd(...);\n        \
+                      var $later = Parity::odd;\n        \
                       return Parity::even(4);\n    }\n}\n";
 
 /// The cursor on each method's own name in [`PARITY`].

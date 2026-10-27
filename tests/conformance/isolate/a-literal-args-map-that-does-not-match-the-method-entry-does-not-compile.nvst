@@ -9,16 +9,16 @@ class Reports {
 }
 
 // A key the entry does not declare. `moths` is not a parameter.
-var $typo = spawn script Reports::span(...) with(args: ["moths" => 3, "from" => "may"]);
+var $typo = spawn script Reports::span with(args: ["moths" => 3, "from" => "may"]);
 
 // A parameter the map leaves out. `from` has no entry.
-var $short = spawn script Reports::span(...) with(args: ["months" => 3]);
+var $short = spawn script Reports::span with(args: ["months" => 3]);
 
 // No `args:` at all, so neither parameter has an entry.
-var $none = spawn script Reports::span(...);
+var $none = spawn script Reports::span;
 
 // Every parameter has an entry, so this spawn compiles.
-var $ok = spawn script Reports::span(...) with(args: ["months" => 3, "from" => "may"]);
+var $ok = spawn script Reports::span with(args: ["months" => 3, "from" => "may"]);
 --EXPECT--
 
 --EXPECTF-ERROR--

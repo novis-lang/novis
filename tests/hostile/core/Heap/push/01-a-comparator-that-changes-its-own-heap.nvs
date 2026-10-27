@@ -39,7 +39,7 @@ Core\Config::set('memory', '64M');
 
 // 1. The comparator pushes into the heap during each push. The order may be wrong,
 // but every value must still be in the heap.
-var $growing = new Core\Heap<int>(Attack::grows(...));
+var $growing = new Core\Heap<int>(Attack::grows);
 Attack::$heap = $growing;
 try {
     int $i = 0;
@@ -59,7 +59,7 @@ Attack::$heap = null;
 // 2. The comparator throws in the middle of a push. The error is caught, and the
 // heap can still be emptied.
 Attack::$calls = 0;
-var $refusing = new Core\Heap<int>(Attack::refuses(...));
+var $refusing = new Core\Heap<int>(Attack::refuses);
 array<int> $falls = [9, 8, 7, 6, 5, 4, 3, 2, 1];
 try {
     foreach ($falls as int $fall) {

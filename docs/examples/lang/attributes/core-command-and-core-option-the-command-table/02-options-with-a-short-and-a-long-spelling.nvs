@@ -23,8 +23,8 @@ class Serve
 array<Option> $options = [];
 // Write the parameter name here. A name you compute is not looked up, and the
 // result is `null`.
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'listenPort') ?? throw new RuntimeError('no option');
-$options[] = Core\Attributes::get<Option>(Serve::serve(...), 'silent') ?? throw new RuntimeError('no option');
+$options[] = Core\Attributes::get<Option>(Serve::serve, 'listenPort') ?? throw new RuntimeError('no option');
+$options[] = Core\Attributes::get<Option>(Serve::serve, 'silent') ?? throw new RuntimeError('no option');
 
 foreach ($options as Option $option) {
     echo '  -', $option->short, ', --', $option->long, '  ', $option->about, "\n";

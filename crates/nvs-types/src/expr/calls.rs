@@ -493,7 +493,7 @@ fn reject_engine_call(qname: &QName, name: &str, span: Span, env: &mut Env<'_>) 
     env.diags.report(diagnostic);
 }
 
-/// `Class::method(...)` — [`super::infer`]'s `ExprKind::StaticCall` arm.
+/// `Class::method` — [`super::infer`]'s `ExprKind::StaticCall` arm.
 ///
 /// `nvs_hir::members` already checks this reference's existence
 /// (`self::`/`static::`/`parent::`/an explicit class name), so this only
@@ -560,7 +560,7 @@ pub(crate) fn infer_static_call(
                 .or(class_ref)
                 .and_then(|qname| {
                     let name = span_text(env.src, *name_span).to_owned();
-                    // `E::constructor(...)` names a constructor an enum does
+                    // `E::constructor` names a constructor an enum does
                     // not have (`rule:enums/no-class-machinery`), the same
                     // mistake `new E()` makes.
                     if name == "constructor" && enum_backing(&qname, env).is_some() {
@@ -578,7 +578,7 @@ pub(crate) fn infer_static_call(
                     // `rule:classes/constructor-is-a-method-named-constructor`:
                     // `parent::constructor(...)` written in a constructor's own
                     // body is the one call by name, and `crate::ctor_init`
-                    // refuses a second one on a path. `Foo::constructor(...)`
+                    // refuses a second one on a path. `Foo::constructor`
                     // names the class for `Core\Attributes` and calls nothing.
                     // A constructor that does not resolve is `E0309` already.
                     // Anywhere else the reference is a callable that runs
@@ -619,9 +619,9 @@ pub(crate) fn infer_static_call(
                     // that frame's `$this` and are the ordinary spelling, so what is
                     // refused is a non-static target reached where no receiver is in
                     // scope — the frame `nvs_ir::lower::expr` would panic on. A
-                    // method reference, `Class::method(...)`
+                    // method reference, `Class::method`
                     // (`rule:expressions/method-reference`), is not that frame and not a call:
-                    // it names the method, and `Core\Attributes::get<T>(C::m(...))`
+                    // it names the method, and `Core\Attributes::get<T>(C::m)`
                     // folds it at check time without ever needing a receiver
                     // (`docs/reference/lang/90-attributes.md`).
                     if let Some((owner, _, sig)) = &found
@@ -831,7 +831,7 @@ pub(crate) fn infer_static_call(
     // See [`infer_method_call`]: a method reference names a callable,
     // not the resolved method's return type, and records `CallableRef` rather
     // than `Call` for the same span. `static_class` is set here exactly as it
-    // is for a call — `rule:types/callable-values` keeps `static::helper(...)` late-bound.
+    // is for a call — `rule:types/callable-values` keeps `static::helper` late-bound.
     if matches!(args, CallArgs::MethodRef) {
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
             && !reject_unforwardable_method_ref(qname, name, sig, expr.span, env)
@@ -1021,7 +1021,7 @@ fn called_class_set_at(class: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QNa
 /// class, or a class or interface above it, declares the method with one —
 /// the same chain the run-time dispatch walks. `self::`, `static::` and
 /// `parent::` outside an anonymous function forward the called class and are not asked.
-/// A `Class::method(...)` reference is not a call and is not asked
+/// A `Class::method` reference is not a call and is not asked
 /// either: an attribute retrieval names an abstract method that way.
 fn reject_abstract_static_call(
     span: Span,
@@ -1363,7 +1363,7 @@ fn constructor_accepts_everything(
 /// The type a `Name(...)` reference has: the member's own signature, spelled
 /// as `rule:types/callable-signature`'s callable type, so a reference
 /// satisfies a typed position exactly as the anonymous function wrapping the
-/// same call would — `Core\Arr::map($xs, Core\Math::abs(...))` binds `U` from
+/// same call would — `Core\Arr::map($xs, Core\Math::abs)` binds `U` from
 /// `abs`'s declared return type and needs no anonymous function to read it out of.
 ///
 /// **Every declared parameter, not just the required ones.** A member with an
@@ -1374,12 +1374,12 @@ fn constructor_accepts_everything(
 /// direction, and bare `callable` is still the way to write "any callable".
 ///
 /// A bounded variable (`MethodSig::type_bounds`) is its bound here: no argument
-/// binds it at a reference, so `Core\Math::abs(...)` is
+/// binds it at a reference, so `Core\Math::abs` is
 /// `callable(int|float|decimal): int|float|decimal`.
 ///
 /// **The list stops before a `Core` options bag.** A bag is a literal written
 /// at a call site, and a call through a `callable` writes none, so
-/// `Core\Str::split(...)` is `callable(string, string): array<string>` and
+/// `Core\Str::split` is `callable(string, string): array<string>` and
 /// the thunk passes the bag's defaults ([`method_ref_arity`]).
 fn method_ref_type(sig: &MethodSig, env: &mut Env<'_>) -> TypeId {
     let arity = method_ref_arity(&sig.params, env.interner);
@@ -1464,7 +1464,7 @@ fn reject_unforwardable_method_ref(
     true
 }
 
-/// Marks a `Core\Attributes` retrieval's target, `Foo::constructor(...)`, as
+/// Marks a `Core\Attributes` retrieval's target, `Foo::constructor`, as
 /// the one place a constructor reference is written
 /// (`rule:attributes/structural-retrieval`). The retrieval folds it at check
 /// time and nothing calls it, so [`infer_static_call`] does not refuse it.
@@ -1783,7 +1783,7 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
                     "a string is not callable in Novis. Use a method reference instead",
                 )
                 .with_primary(expr.span, "this string")
-                .with_help("e.g. `Class::method(...)` or `$obj->method(...)`"),
+                .with_help("e.g. `Class::method` or `$obj->method(...)`"),
             );
             true
         }
@@ -1835,7 +1835,7 @@ pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
         .with_primary(span, "called with `(...)` here")
         .with_help(
             "only an anonymous function or a method reference can be called. Write \
-             `fn (...) => ...`, or `Class::method(...)` or `$obj->method(...)`. A string \
+             `fn (...) => ...`, or `Class::method` or `$obj->method(...)`. A string \
              with a function's name cannot be called",
         ),
     );
@@ -2514,7 +2514,7 @@ fn enum_backing(qname: &QName, env: &Env<'_>) -> Option<crate::enums::EnumBackin
     (declared || env.enums.get(qname).is_some()).then(|| env.enums.backing_of(qname))
 }
 
-/// `E0870`: `new E()` or `E::constructor(...)` names an enum, which has no
+/// `E0870`: `new E()` or `E::constructor` names an enum, which has no
 /// constructor (`rule:enums/no-class-machinery`).
 /// `constructor` called by name anywhere but `parent::constructor(...)` in a
 /// constructor's own body: on an object that exists (`$x->constructor(...)`),

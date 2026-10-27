@@ -25,7 +25,7 @@ string $user = $users[$session] ?? '';
 if ($user == '') {
     echo "401: sign in first\n";
 } else {
-    Core\Socket::upgrade(Chat::run(...), args: ['user' => $user, 'room' => 'support']);
+    Core\Socket::upgrade(Chat::run, args: ['user' => $user, 'room' => 'support']);
 }
 
 // The client sends two messages. This prints `sent: Ana joined support`,

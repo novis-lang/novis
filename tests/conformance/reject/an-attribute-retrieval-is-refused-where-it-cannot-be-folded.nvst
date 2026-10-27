@@ -25,15 +25,15 @@ class Relay {}
 
 // Accepted first, so a position that stops being accepted fails here rather
 // than as a missing refusal: `all<T>` is what two matches are for.
-array<Route> $ok = Core\Attributes::all<Route>(Twice::constructor(...));
+array<Route> $ok = Core\Attributes::all<Route>(Twice::constructor);
 echo Core\Arr::count($ok) as string, "\n";
 
 // § 5: `get` answers at most one, and two is decided here rather than by a
 // test run.
-?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
+?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor);
 
 // § 4: retrieval is structural, so `T` has to be a shape.
-?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
+?int $scalar = Core\Attributes::get<int>(Twice::constructor);
 
 // § 4: the target is a method reference, inspected where it is written —
 // an anonymous function names no declaration.
@@ -43,13 +43,13 @@ callable $fn = fn (): int => 1;
 // § 5: the payload satisfies the shape, and the class constant it holds has no
 // value of its own to compile in — the constant folder's gap surfacing at the
 // one site that needs the value rather than the name.
-?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor(...));
+?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor);
 
 // § 4: a *written* member name is checked against the target's real
 // declarations. It has to be — the `null` a misspelling folds to is the answer
 // a correct retrieval of an absent attribute gives, so nothing downstream
 // could tell them apart. Only a computed name falls back to that empty result.
-?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor(...), "path");
+?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor, "path");
 --EXPECTF-ERROR--
 error[E0792]: `Limits::RELAY` has no compile-time value to inline
    --> case.nvs:20:10
@@ -68,15 +68,15 @@ error[E0731]: this attribute satisfies the retrieved shape, but holds a value wi
 error[E0728]: `Twice::constructor` has 2 attribute payloads that match this shape
    --> case.nvs:30:21
    |
-30 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor(...));
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
+30 | ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor);
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
    = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
    --> case.nvs:33:16
    |
-33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
-   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
+33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor);
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
    = help: an attribute matches when its value has every field of the shape `T`. Write `T` as a shape `{...}`, or as a `type` alias of a shape
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
@@ -84,13 +84,13 @@ error[E0730]: a `Core\Attributes` retrieval names no declaration
    |
 38 | ?Route $computed = Core\Attributes::get<Route>($fn);
    |                                                ^^^ this is not a declaration reference
-   = help: write a method reference: `Foo::bar(...)` for a method, or `Foo::constructor(...)` for the class itself. A property or parameter name in quotes can follow it
+   = help: write a method reference: `Foo::bar` for a method, or `Foo::constructor` for the class itself. A property or parameter name in quotes can follow it
 
 error[E0798]: a `Core\Attributes` retrieval names `$path`, which `Twice` does not declare
-   --> case.nvs:49:75
+   --> case.nvs:49:70
    |
-49 | ?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor(...), "path");
-   |                                                                           ^^^^^^ no parameter or property of that name
+49 | ?Route $misspelled = Core\Attributes::get<Route>(Twice::constructor, "path");
+   |                                                                      ^^^^^^ no parameter or property of that name
    = help: a misspelled name would give `null` or an empty array. A correct name with no attribute gives the same result, so the name is checked here. Correct the name
 
 error: aborting due to 6 errors

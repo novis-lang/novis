@@ -605,13 +605,13 @@ codes! {
     /// declaration this unit holds — `rule:attributes/structural-retrieval`.
     ///
     /// § 4 fixes the spelling: a method (a constructor included) is named by
-    /// its own method reference `Foo::bar(...)`, and a class by
+    /// its own method reference `Foo::bar`, and a class by
     /// its `constructor`'s. Retrieval is resolved entirely at compile time, so
     /// the reference is *inspected* where it is written rather than evaluated
     /// — anything else has no declaration to read an attribute list off.
     pub const E_ATTRIBUTE_TARGET_NOT_A_DECLARATION: Code = Code::new("E0730").card(
         "The target of `Core\\Attributes::get` or `all` must name a declaration. Write \
-         `Foo::bar(...)` for a method, and `Foo::constructor(...)` for the class itself.",
+         `Foo::bar` for a method, and `Foo::constructor` for the class itself.",
     );
     /// An attached payload object satisfies the `T` a `Core\Attributes` retrieval
     /// asked for, but holds a value this compiler cannot materialize.
@@ -773,8 +773,8 @@ codes! {
     );
     /// A method reference written on `new`: `new C(...)`.
     ///
-    /// `rule:types/callable-values`'s kept list is a list of *members* — `Class::method(...)`,
-    /// `$obj->method(...)`, `self`/`static`/`parent::method(...)` — and a
+    /// `rule:types/callable-values`'s kept list is a list of *members* — `Class::method`,
+    /// `$obj->method(...)`, `self`/`static`/`parent::method` — and a
     /// constructor is not one of them: `new` names a class, and the callable
     /// this syntax builds carries a callee, not an allocation. PHP refuses it
     /// for the same reason ("cannot create Closure for new expression"), so

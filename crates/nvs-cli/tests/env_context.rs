@@ -461,7 +461,7 @@ fn an_event_stream_connection_is_a_connection() {
         Core\\Sse::current()->send(Kind::of(Core\\Env::context()));
     }
 }
-Core\\Sse::upgrade(Feed::run(...));
+Core\\Sse::upgrade(Feed::run);
 ",
     );
     let server = Server::start("event-stream", &[("app.nvs", &app)], &[]);

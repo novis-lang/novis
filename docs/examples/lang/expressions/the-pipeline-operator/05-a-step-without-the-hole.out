@@ -1,8 +1,8 @@
 error[E0129]: the right side of `|>` needs the hole `$_`
   --> 05-a-step-without-the-hole.nvs:6:12
   |
-6 | echo $s |> Core\Str::upper(...), "\n";
-  |            ^^^^^^^^^^^^^^^^^^^^ no `$_` here, so the piped value has nowhere to go
+6 | echo $s |> Core\Str::upper, "\n";
+  |            ^^^^^^^^^^^^^^^ no `$_` here, so the piped value has nowhere to go
   = help: write the hole where the value goes — `Str::trim($_)`
   = note: PHP 8.5's `|>` applies a callable; Novis's substitutes `$_` at compile time
 

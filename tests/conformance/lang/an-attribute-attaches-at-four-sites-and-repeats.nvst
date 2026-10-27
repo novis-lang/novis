@@ -23,16 +23,16 @@ class Target {
 
 uint $agreed = 0;
 
-?Site $onClass = Core\Attributes::get<Site>(Target::constructor(...));
+?Site $onClass = Core\Attributes::get<Site>(Target::constructor);
 if ($onClass != null) { if ($onClass->site == "class") { $agreed = $agreed + 1; } }
 
-?Site $onMethod = Core\Attributes::get<Site>(Target::run(...));
+?Site $onMethod = Core\Attributes::get<Site>(Target::run);
 if ($onMethod != null) { if ($onMethod->site == "method") { $agreed = $agreed + 1; } }
 
-?Site $onProperty = Core\Attributes::get<Site>(Target::constructor(...), "rows");
+?Site $onProperty = Core\Attributes::get<Site>(Target::constructor, "rows");
 if ($onProperty != null) { if ($onProperty->site == "property") { $agreed = $agreed + 1; } }
 
-?Site $onParameter = Core\Attributes::get<Site>(Target::run(...), "id");
+?Site $onParameter = Core\Attributes::get<Site>(Target::run, "id");
 if ($onParameter != null) { if ($onParameter->site == "parameter") { $agreed = $agreed + 1; } }
 
 echo "sites=", $agreed as string, "/4\n";
@@ -47,7 +47,7 @@ echo "sites=", $agreed as string, "/4\n";
 #[Site(site: "third"), {site: "fourth"}]
 class Repeated {}
 
-array<Site> $all = Core\Attributes::all<Site>(Repeated::constructor(...));
+array<Site> $all = Core\Attributes::all<Site>(Repeated::constructor);
 echo "attachments=", Core\Arr::count($all) as string, "\n";
 foreach ($all as Site $one) { echo "  ", $one->site, "\n"; }
 
@@ -61,8 +61,8 @@ class Named {}
 #[{site: "same"}]
 class Bare {}
 
-?Site $fromNamed = Core\Attributes::get<Site>(Named::constructor(...));
-?Site $fromBare = Core\Attributes::get<Site>(Bare::constructor(...));
+?Site $fromNamed = Core\Attributes::get<Site>(Named::constructor);
+?Site $fromBare = Core\Attributes::get<Site>(Bare::constructor);
 string $agree = "no";
 if ($fromNamed != null) {
     if ($fromBare != null) {
@@ -76,7 +76,7 @@ echo "spellings agree=", $agree, "\n";
 # `null` here the assertion that none was attached.
 class Plain {}
 
-?{} $nothing = Core\Attributes::get<{}>(Plain::constructor(...));
+?{} $nothing = Core\Attributes::get<{}>(Plain::constructor);
 echo "plain=", $nothing == null ? "none" : "some", "\n";
 --EXPECT--
 sites=4/4

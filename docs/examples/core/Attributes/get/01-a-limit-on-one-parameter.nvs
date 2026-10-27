@@ -12,14 +12,14 @@ class Signup
     }
 }
 
-// `Signup::register(...)` names the method, and `"email"` picks the parameter out
+// `Signup::register` names the method, and `"email"` picks the parameter out
 // of it. This prints 64.
-?MaxLength $limit = Core\Attributes::get<MaxLength>(Signup::register(...), 'email');
+?MaxLength $limit = Core\Attributes::get<MaxLength>(Signup::register, 'email');
 if ($limit != null) {
     echo $limit->max, "\n";
 }
 
 // The method itself carries no `MaxLength`. Leave the name out and the result is
 // `null`, so this prints `the method has no limit`.
-?MaxLength $onTheMethod = Core\Attributes::get<MaxLength>(Signup::register(...));
+?MaxLength $onTheMethod = Core\Attributes::get<MaxLength>(Signup::register);
 echo $onTheMethod == null ? "the method has no limit\n" : "the method has a limit\n";

@@ -3279,7 +3279,7 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// `rule:types/callable-values`'s `Class::method(...)` / `$obj->method(...)`, which *names* the
+    /// `rule:types/callable-values`'s `Class::method` / `$obj->method(...)`, which *names* the
     /// resolved member rather than calling it and whose value is a callable
     /// over it.
     ///
@@ -3292,10 +3292,10 @@ impl<'a> Lowering<'a> {
     /// the representation and the one divergence it carries.
     ///
     /// `receiver` is the written receiver for the `$obj->method(...)`
-    /// spelling and `None` for the `Class::method(...)` one — but *which*
+    /// spelling and `None` for the `Class::method` one — but *which*
     /// spelling was written does not decide whether a receiver is stored:
     /// `ResolvedCall::is_static` does, exactly as it does for a call, so
-    /// `self::helper(...)` over a non-`static` member captures this frame's
+    /// `self::helper` over a non-`static` member captures this frame's
     /// own `$this`.
     ///
     /// The arity written into the object is the target's **whole** parameter
@@ -3368,10 +3368,10 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// `rule:expressions/method-reference`'s `$cls::f(...)` over a `class<T>`
+    /// `rule:expressions/method-reference`'s `$cls::f` over a `class<T>`
     /// class side: [`Self::lower_method_ref`]'s object, with the descriptor
     /// `$cls` holds when the reference is made stored in [`FCC_DESC`].
-    /// `static::f(...)` over a static `f` is the same object, with this
+    /// `static::f` over a static `f` is the same object, with this
     /// frame's called class as `desc`.
     ///
     /// The thunk dispatches on that descriptor with `call`'s label as the
@@ -3461,7 +3461,7 @@ impl<'a> Lowering<'a> {
         );
         // The target's parameter *names*, which only a resolved call knows and
         // only this crate is still holding — `rule:security/isolate-shares-nothing` binds an
-        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
+        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run)`
         // is such an entry with no constant beside it to carry them. See
         // `FN_PARAM_NAMES` for why the sibling anonymous function gets no such field.
         let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names));
@@ -3917,7 +3917,7 @@ impl<'a> Lowering<'a> {
         self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
     }
 
-    /// `Core\Router::url(...)`/`::urlAbsolute(...)` over a route name
+    /// `Core\Router::url`/`::urlAbsolute` over a route name
     /// `nvs_types::links` resolved — `rule:routing/link-target-and-params-are-checked`
     /// 's link.
     ///
@@ -4639,7 +4639,7 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
+    /// `parent::method`/`self::method`/`Class::method`.
     ///
     /// Written like a static call, but *not* necessarily one: PHP's
     /// `parent::constructor(...)` and `self::helper()` invoke an
@@ -4662,7 +4662,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // `rule:types/callable-values`'s `Class::method(...)` — as for an instance call, the
+        // `rule:types/callable-values`'s `Class::method` — as for an instance call, the
         // variant is what selects this and the resolved facts are the same.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
@@ -4671,7 +4671,7 @@ impl<'a> Lowering<'a> {
                 let (desc, _) = self.lower_expr(class, Some(Ty::ClassDesc), env, cur);
                 return self.lower_method_ref_on_a_class_reference(&call, desc, expr, env, cur);
             }
-            // `static::m(...)` over a static `m` binds late, as `static::m()`
+            // `static::m` over a static `m` binds late, as `static::m()`
             // does: the callable keeps this frame's called class and runs that
             // class's `m` (`rule:types/callable-values`).
             if matches!(class.kind, ExprKind::StaticExpr) && call.is_static {
@@ -4680,7 +4680,7 @@ impl<'a> Lowering<'a> {
             }
             return self.lower_method_ref(&call, None, expr, env, cur);
         }
-        // `rule:types/class-reference-sites`'s `$cls::f(...)`, which is the same resolved call
+        // `rule:types/class-reference-sites`'s `$cls::f`, which is the same resolved call
         // reached through a value rather than a name — see
         // [`Self::lower_static_call_on_a_class_reference`].
         if let Some(ExprInfo::ClassRefCall(call)) = self.exprs.lookup(expr.span) {
@@ -4691,7 +4691,7 @@ impl<'a> Lowering<'a> {
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
                  nvs_types::check_program with the same table? `rule:types/callable-values`'s \
-                 `Class::method(...)` records `ExprInfo::CallableRef` rather than \
+                 `Class::method` records `ExprInfo::CallableRef` rather than \
                  `Call` — it names the member rather than calling it, and is answered \
                  by `Lowering::lower_method_ref` above",
                 expr.span
@@ -4960,7 +4960,7 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// `rule:types/class-reference-sites`'s `$cls::f(...)` — [`Self::lower_static_call`]'s class-reference
+    /// `rule:types/class-reference-sites`'s `$cls::f` — [`Self::lower_static_call`]'s class-reference
     /// half.
     ///
     /// One [`InstKind::CallVirtual`], and **always** virtual: the class side is

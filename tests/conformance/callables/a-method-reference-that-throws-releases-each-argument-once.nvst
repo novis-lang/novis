@@ -1,5 +1,5 @@
 --TEST--
-A call through `Class::method(...)` whose target throws releases each argument exactly once, so the caller's strings, array and object are intact after a thousand caught throws, as they are after a direct call — `rule:types/anonymous-function`
+A call through `Class::method` whose target throws releases each argument exactly once, so the caller's strings, array and object are intact after a thousand caught throws, as they are after a direct call — `rule:types/anonymous-function`
 --FILE--
 <?nvs
 final class Refuse {
@@ -29,7 +29,7 @@ final class Box {
 string $text = Core\Str::repeat('t', 64);
 array<int> $list = Core\Arr::fill(8, 7);
 var $box = new Box(Core\Str::repeat('b', 64));
-var $static = Refuse::all(...);
+var $static = Refuse::all;
 var $refuse = new Refuse();
 var $method = $refuse->on(...);
 
@@ -54,7 +54,7 @@ while ($round < 1000) {
 // The same values through `Core\Arr::sort`, which calls the reference from native code.
 array<string> $words = [Core\Str::repeat('c', 32), Core\Str::repeat('a', 32)];
 try {
-    Core\Arr::sort($words, { comparator: Refuse::pair(...) });
+    Core\Arr::sort($words, { comparator: Refuse::pair });
 } catch (LogicError $e) {
     $threw = $threw + 1;
 }
