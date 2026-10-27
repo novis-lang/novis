@@ -4,7 +4,7 @@
 // - `startJob` makes the job's folder, resolves the argv (`program.ts`) and starts it as a tree in a
 //   Job Object named after the job's id. The command runs with `LOOPER_JOB` set to the job's id and
 //   `LOOPER_EVENTS` naming `events.ndjson` in the job's folder. Its record is written once the
-//   command runs. A command that cannot start leaves no folder behind. A job started with `hide` opens
+//   command runs, and names the loop that the command's own `LOOPER_LOOP` names. A command that cannot start leaves no folder behind. A job started with `hide` opens
 //   its first window without the focus, and a window watcher keeps every window of the tree off the
 //   screen until the job ends (`../os/windows-desktop.ts`).
 // - This process is the job's runner. It drains the tree's pipe every `PUMP_MS` into the job's log,
@@ -35,7 +35,7 @@ import { LOG_PART, LogWriter } from "./log.ts";
 import { Fold } from "./fold.ts";
 import { record as recordRuns, runsOf } from "./history.ts";
 import { program } from "./program.ts";
-import { EVENTS, EVENTS_VAR, EXIT, type JobExit, type JobRecord, jobName, type Kind, PARENT_VAR, RECORD, type Store } from "./store.ts";
+import { EVENTS, EVENTS_VAR, EXIT, type JobExit, type JobRecord, jobName, type Kind, LOOP_VAR, PARENT_VAR, RECORD, type Store } from "./store.ts";
 import { writeState } from "../store/state.ts";
 
 /** How often the runner drains the tree's pipe while it holds nothing. */
@@ -94,8 +94,8 @@ export function startJob(store: Store, spec: JobSpec): Job {
   const id = store.create(started);
   const dir = store.dir(id);
   let tree: Tree;
+  const base = spec.env ?? process.env;
   try {
-    const base = spec.env ?? process.env;
     const env = { ...base, [PARENT_VAR]: id, [EVENTS_VAR]: join(dir, EVENTS) };
     const run = program(spec.argv, env);
     tree = spawnTree(run.argv, { cwd: spec.cwd, env, line: run.line, pipe: true, split: spec.onError !== undefined, input: spec.stdin !== undefined, name: jobName(id), hide: spec.hide });
@@ -104,6 +104,7 @@ export function startJob(store: Store, spec: JobSpec): Job {
     throw e;
   }
   const parent = process.env[PARENT_VAR];
+  const loop = base[LOOP_VAR];
   const record: JobRecord = {
     kind: spec.kind,
     project: spec.project ?? null,
@@ -116,6 +117,7 @@ export function startJob(store: Store, spec: JobSpec): Job {
     root: tree.pid,
     started,
     ...(parent ? { parent } : {}),
+    ...(loop ? { loop } : {}),
   };
   let log: LogWriter;
   try {

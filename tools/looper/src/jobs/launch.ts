@@ -46,8 +46,6 @@ export const STOP = "stop";
 export const START = "start.json";
 /** The supervisor's own log in a launcher's folder. */
 export const SUPERVISOR_LOG = "supervisor.log";
-/** The variable that names the loop whose session started a launch. */
-export const LOOP_VAR = "LOOPER_LOOP";
 /** The variable that names the Claude Code session that started a launch. */
 export const SESSION_VAR = "CLAUDE_CODE_SESSION_ID";
 /** How long a start waits for its supervisor to name its job. */

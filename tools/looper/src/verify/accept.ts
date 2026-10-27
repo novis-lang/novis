@@ -51,7 +51,8 @@
 // results of an every-session sweep's checks that are not due in `counted`, and does not run those.
 //
 // A run reports itself to a `Progress` sink as it goes: the whole run so far, one `Report` per check in
-// the order the checks run, first with none started, then again as each group starts and as it ends.
+// the order the checks run, first with none started, then again as each group starts, as its command's
+// job starts, and as it ends. A report names that job, so a reader can follow the check's progress.
 //
 // # The bounds it keeps
 //
@@ -126,6 +127,8 @@ export interface Report {
   green: boolean | null;
   /** How long it ran, once it has ended. */
   duration_ms: number | null;
+  /** The id of the job its command runs as, once that job has started. Null for a check with no command. */
+  job: string | null;
 }
 
 /** Where a run reports itself: the whole run so far, each time it changes. */
@@ -209,18 +212,23 @@ export async function runReported(
   let at = run.length;
   for (const i of order.flat()) {
     const c = checks[i] as Check;
-    run.push({ id: c.id, name: c.name ?? "", started: null, green: null, duration_ms: null });
+    run.push({ id: c.id, name: c.name ?? "", started: null, green: null, duration_ms: null, job: null });
   }
   progress(run);
   const verdicts: Verdict[] = [];
   for (const group of order) {
     const members = group.map((i) => checks[i] as Check);
     const started = Date.now();
-    for (const r of run.slice(at, at + members.length)) r.started = started;
+    const reports = run.slice(at, at + members.length);
+    for (const r of reports) r.started = started;
     progress(run);
-    const judged = await runGroup(root, members, logDir, units, project, opened);
+    const onJob = (job: string) => {
+      for (const r of reports) r.job = job;
+      progress(run);
+    };
+    const judged = await runGroup(root, members, logDir, units, project, opened, onJob);
     const ms = Date.now() - started;
-    run.slice(at, at + members.length).forEach((r, k) => {
+    reports.forEach((r, k) => {
       r.green = judged[k]?.green ?? null;
       r.duration_ms = ms;
     });
@@ -275,9 +283,17 @@ interface Due {
  * Judges the checks of one group of `groups`, in its order. A check with `file` is judged alone. A unit
  * whose last green still holds is kept, unless `units` says every check runs. The group's command runs
  * once for every other check, unless none is left. The store opens into `opened` the first time a
- * unit needs it.
+ * unit needs it. The id of the job the command runs as goes to `onJob` as soon as the job starts.
  */
-async function runGroup(root: string, members: Check[], logDir: string, units: Units, project: Project, opened: { store?: Store }): Promise<Verdict[]> {
+async function runGroup(
+  root: string,
+  members: Check[],
+  logDir: string,
+  units: Units,
+  project: Project,
+  opened: { store?: Store },
+  onJob: (job: string) => void,
+): Promise<Verdict[]> {
   const first = members[0];
   if (first === undefined) return [];
   if (first.run.length === 0) return [verdict(first, judgeFile(root, first), null)];
@@ -312,6 +328,7 @@ async function runGroup(root: string, members: Check[], logDir: string, units: U
       kind: "check",
       hide: project.checks.hide_windows,
       onWait: toStderr,
+      onStart: onJob,
     });
     for (const [i, due] of judged) {
       const c = members[i] as Check;
@@ -491,6 +508,8 @@ export interface CommandRun {
   onWait: ((line: string) => void) | null;
   /** The command's stdin. `NUL` when absent. */
   stdin?: string;
+  /** Gets the id of the command's job as soon as the job starts. */
+  onStart?: (job: string) => void;
 }
 
 /**
@@ -523,6 +542,7 @@ export async function runCommand(cmd: CommandRun): Promise<Ran> {
     } catch (e) {
       return { code: null, stdout: "", stderr: `cannot run \`${cmd.argv[0] ?? ""}\`: ${(e as Error).message}`, ended: "exited" };
     }
+    cmd.onStart?.(job.id);
     await lease?.hold(job.id);
     let timedOut = false;
     let cut = false;

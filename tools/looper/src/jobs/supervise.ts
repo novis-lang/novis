@@ -40,13 +40,13 @@ import { basename, isAbsolute, join, resolve } from "node:path";
 import { type Config, type Launch as Launcher, READY_WINDOW, ruleRegex } from "../goal/config.ts";
 import { ctrlBreak, type Mutex, noErrorBoxes, openMutex, spawnTree, type Tree } from "../os/index.ts";
 import { writeState } from "../store/state.ts";
-import { type Launch, LOOP_VAR, liveLaunches, launchDir, type Phase, type Refusal, type Request, SESSION_VAR, stopAsked, SUPERVISOR_LOG, TICK_MS, tell, writeLaunch } from "./launch.ts";
+import { type Launch, liveLaunches, launchDir, type Phase, type Refusal, type Request, SESSION_VAR, stopAsked, SUPERVISOR_LOG, TICK_MS, tell, writeLaunch } from "./launch.ts";
 import { LogWriter } from "./log.ts";
 import { type Chosen, clashText, lockPorts, readTaken, remember, remembered } from "./ports.ts";
 import { program } from "./program.ts";
 import { type Lease, looperHome, takeSlots } from "./slots.ts";
 import { PUMP_MS } from "./spawn.ts";
-import { EXIT, type JobExit, type JobRecord, jobName, KILLED_CODE, PARENT_VAR, RECORD, type Store, storeOf, WINDOWS_VAR } from "./store.ts";
+import { EXIT, type JobExit, type JobRecord, jobName, KILLED_CODE, LOOP_VAR, PARENT_VAR, RECORD, type Store, storeOf, WINDOWS_VAR } from "./store.ts";
 
 /** The most output the ready matcher reads. */
 export const READY_BYTES = 1 << 20;
@@ -352,6 +352,7 @@ async function supervised(root: string, cfg: Config, l: Launcher, req: Request, 
       runner: process.pid,
       root: 0,
       started,
+      ...(loop !== null ? { loop } : {}),
     };
     writeState(join(store.dir(id), RECORD), record);
     const launch: Launch = { name: l.name, project: cfg.project.name, root, port, phase: build.length > 0 ? "building" : "starting", ready: null, hidden, loop };

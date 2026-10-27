@@ -16,7 +16,8 @@
 // The job's Job Object is named after its id (`jobName`), so `Store.kill` reaches it from any process.
 //
 // A runner sets `PARENT_VAR` to its job's id for the command it runs. A job started below that command
-// names it as its parent, so a list can show the jobs as a tree.
+// names it as its parent, so a list can show the jobs as a tree. A job names the loop its command runs
+// in too, from that command's `LOOP_VAR`, so looper lists a loop's jobs by its name.
 //
 // A job is `running` while its runner runs, `exited` once `exit` is written, and `lost` when its runner
 // ended without writing `exit`. A runner is matched by its pid and its start time, so a pid the OS
@@ -53,6 +54,8 @@ export const SWEPT = "swept";
 
 /** The variable a runner sets to its job's id for the command it runs. */
 export const PARENT_VAR = "LOOPER_JOB";
+/** The variable that names the loop a process runs in, which a job records as its loop. */
+export const LOOP_VAR = "LOOPER_LOOP";
 /** The variable that names a job's event file to every process of the job. */
 export const EVENTS_VAR = "LOOPER_EVENTS";
 /** The variable that says whether a job's windows are hidden: `show` leaves them alone. */
@@ -93,6 +96,8 @@ export interface JobRecord {
   started: number;
   /** The job this one runs below, from `PARENT_VAR`. */
   parent?: string;
+  /** The loop the job ran in, from the `LOOP_VAR` of the command's environment. Absent outside every loop. */
+  loop?: string;
 }
 
 /** How a job ended: its folder's `exit`. */
