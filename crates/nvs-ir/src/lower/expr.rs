@@ -328,6 +328,13 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     return self.emit_const_arg(&value, None, env, *cur);
                 }
+                // `rule:testing/interaction-after-the-fact`'s `Mailer::send`
+                // at a `Core\Test` argument, which the checker folded to the
+                // method's name and recorded as a class constant.
+                if let Some(ExprInfo::ClassConst { value, .. }) = self.exprs.lookup(expr.span) {
+                    let value = value.clone();
+                    return self.emit_const_arg(&value, None, env, *cur);
+                }
                 // `Core\Path::thisFile` and `thisDir`, which the checker
                 // replaced with the path of the file that wrote them, under
                 // the call's span in the table a path given as a string literal uses
@@ -3936,8 +3943,8 @@ impl<'a> Lowering<'a> {
     /// argument vector by hand rather than through
     /// [`Self::lower_call_args`](crate::lower::Lowering::lower_call_args), and
     /// a value lowered but never *staged* is one `release_temporaries_since`
-    /// cannot see — without both lines below, `Core\Router::url("…", ["id" =>
-    /// 7])` leaks its literal array once per call.
+    /// cannot see — without both lines below, `Core\Router::url(Users::show,
+    /// ["id" => 7])` leaks its literal array once per call.
     /// `spawn script <path> with(…)` — `rule:security/isolate-shares-nothing`'s isolate spawn,
     /// as one [`InstKind::CoreCall`] answering a `Core\Script\Handle`.
     ///
