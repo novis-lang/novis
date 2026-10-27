@@ -317,11 +317,14 @@ about 330 route lines across `docs/examples/`, `tests/conformance/`, `tests/host
 one folder each, side by side, none of them building; each `.nvs` they touch is held to § *Text an end
 user reads*. A link that loops over a list of names becomes a list of method references.
 
-- [ ] The corpus rewrite in **Split**, including `apps/notes/src/App.nvs` and `apps/notes/src/Pages.nvs`. `apps/notes/src/App.nvs:18`, `apps/notes/src/Pages.nvs:24`
-- [ ] The `Match::name` feature becomes `Match::is`: its examples, bench and attack move to `Router-Match/is/`, and the menu example marks the open page with `is`. `docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`, `docs/examples/core/Request/route/03-marking-the-current-page-in-a-menu.nvs:1`, `benches/members/core/Router-Match/name.nvs:1`, `tests/hostile/core/Router-Match/name/01-names-read-from-many-matches.nvs:1`
-- [ ] `about.md` of the route table, `url`, `urlAbsolute`, `urlSigned`, `signedRoute` and `lang:expressions/calls`, and the reference chapters that show a route or a `(...)` reference. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`, `docs/reference/lang/90-attributes.md:1`
+- [x] The corpus rewrite in **Split**, including `apps/notes/src/App.nvs` and `apps/notes/src/Pages.nvs`. `apps/notes/src/App.nvs:18`, `apps/notes/src/Pages.nvs:24`
+- [x] The `Match::name` feature becomes `Match::is`: its examples, bench and attack move to `Router-Match/is/`, and the menu example marks the open page with `is`. `docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`, `docs/examples/core/Request/route/03-marking-the-current-page-in-a-menu.nvs:1`, `benches/members/core/Router-Match/name.nvs:1`, `tests/hostile/core/Router-Match/name/01-names-read-from-many-matches.nvs:1`
+- [x] `about.md` of the route table, `url`, `urlAbsolute`, `urlSigned`, `signedRoute` and `lang:expressions/calls`, and the reference chapters that show a route or a `(...)` reference. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`, `docs/reference/lang/90-attributes.md:1`
 - [ ] `bun nv proofs --id` owes nothing for each feature in the `router-proofs` check. `docs/examples/core/Router/url/03-the-links-of-a-menu.nvs:1`
-- [ ] Every rule stage 1 set `designed` is `shipped` with the tests that guard it, and `bun nv owners --closes routes-by-method` passes. `data/rules/routing/route-attribute.json:1`
+  - [x] Every feature has its about, examples, tests and attack; only perf is owed.
+  - [ ] `Match::is` makes no allocation per call, as its bench claims (`allocations 0`); `nvs run --count` shows one of about 12 bytes. `crates/nvs-stdlib/src/router.rs:2547`, `benches/members/core/Router-Match/is.nvs:4`
+  - [ ] `bun nv proofs --record-perf` over the eight features, once the words and the code are settled.
+- [x] Every rule stage 1 set `designed` is `shipped` with the tests that guard it, and `bun nv owners --closes routes-by-method` passes. `data/rules/routing/route-attribute.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -340,33 +343,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. The editor offers routed methods at a link's route argument
-(`completion::routed_methods`, `Tier::Route`); definition, references and rename follow the
-reference with no new code, since it is an ordinary `CallableRef`. Passing when run by name:
-the new completion test, `every_completion_source_names_a_compiler_table`, and the four link
-`.lspt` cases. The sweep's reds are stale: `env-secret-proofs`' log says exit 0, and Miri run
-40474302703 predates the fixes `22f1e4ec4`, `e461612ce` and `c33a8b8f7`.
-`crates/nvs-cli/src/main.rs:1562` is the command table's `name`, not a route's, and stays.
+Stage 6 is done but for perf. No file outside `docs/goals/`, `data/perf/` and the generated
+website data writes a route `name:`, a link by a quoted name or `Match::name` (`d46037f05` ships
+the 30 rules, `9fadbcf69` rewrites 292 corpus files). `Router-Match/name/` is now
+`Router-Match/is/` in examples, bench and attack. `rules --check` and `owners --closes
+routes-by-method` pass. The `router-proofs` gate owes only stale perf. The sweep's reds were stale.
 
-Expected red until stages 6 and 7: every `.nvs`, `.nvst`, `.lspt` and Rust test source that writes
-`#[Route(..., name: ...)]` (now `E0454`) or calls a link with a quoted route name. That includes
-`examples/routes.nvs`, which the openapi tests read, the fixtures under
-`crates/nvs-cli/tests/fixtures/api/` and `fixtures/openapi/every-feature.nvs`, the conformance cases
-under `tests/conformance/`, the `.lspt` cases, and the Rust test files the earlier handoffs named
-(`crates/nvs-types/tests/attributes.rs`, `isolates.rs`, `core_members.rs`, `paths.rs`,
-`crates/nvs-ir/tests/callable_names.rs`, `crates/nvs-lsp/tests/index.rs`, `navigation.rs`,
-`crates/nvs-cli/tests/spawn_entry.rs`). The website's generated `core.json` and `llms-full.txt`
-still quote `Match::name`, and they are rebuilt at the goal end.
+`6dc1ccfeb` fixes a stage 2 panic: `Core\Test::assertCalled($d, Mailer::send)` reached
+`lower_static_call` with a folded `ExprInfo::ClassConst` and no arm for it
+(`crates/nvs-ir/src/lower/expr.rs:330`). The four `assertCalled` cases pass again.
+
+Expected red at stage 7's first run, each a double report the earlier stages added:
+- `reject/a-constructor-runs-only-through-new-and-parent`: `Box::constructor` gets `E0778` beside `E0885`.
+- `reject/a-spawn-entry-method-is-static`: `Job::run` gets `E0778` beside `E0802`.
+- `reject/an-attributes-retrieval-target-and-member-name-are-written-out`: `callable $reference = Target::run;` is now `E0778`, which the design wants; update the expectation.
+- `reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer`: `$m->value(...);` gets `E0137` beside `E0732`.
+Decide each: one report per mistake, so the first two and the last suppress the second code
+where the first already fired. Also expected red: three attacks time out under a parallel run
+and pass alone (`tests/hostile/core/Request/query/01-a-name-nested-a-hundred-deep.nvs`, the two
+`lang/attributes` payload and retrieval attacks); `benches/scaling/app/modules.nvs` and
+`editor.nvs` generate programs with `E0403` on `Core\Json::encode`, unrelated to routes.
+The generated website `core.json` and `llms-full.txt` are rebuilt at the goal end.
 
 ### Next
 
-**Stage 6, the corpus.** Follow its `**Split:**` line: an `Explore` subagent lists the files by
-folder, then writing subagents take one folder each, side by side, and none of them builds.
-The session builds once they all end.
+**Stage 6's last item, then stage 7.**
 
-- [ ] The corpus rewrite, `apps/notes/` included. `apps/notes/src/App.nvs:18`, `apps/notes/src/Pages.nvs:24`
-- [ ] `Router-Match/name/` becomes `Router-Match/is/`. `docs/examples/core/Router-Match/name/03-call-the-method-for-each-route.nvs:1`
-- [ ] The `about.md` files and reference chapters. `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md:1`
-- [ ] The rules stage 1 set `designed` are `shipped`. `data/rules/routing/route-attribute.json:1`
+- [ ] `Match::is` allocates about 12 bytes per call (`nvs run --count` on its bench), and its bench claims `allocations 0`. Find the allocation in the written-reference path and remove it; the label is a constant. `crates/nvs-stdlib/src/router.rs:2547`, `benches/members/core/Router-Match/is.nvs:4`
+- [ ] `bun nv proofs --record-perf` over the eight `router-proofs` features, then the gate passes. `docs/examples/core/Router-Match/is/about.md:1`
+- [ ] Stage 7: `bun nv affected --run`, fix the reds above in one pass. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
