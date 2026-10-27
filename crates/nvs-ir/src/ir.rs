@@ -2326,6 +2326,10 @@ pub enum Prepared {
     /// checker typed the call `?secret string`. The member throws for a secret
     /// directive that arrives without this word.
     SecretDirective,
+    /// A `Core\Config::set` written in a namespace no `[grants]` line matches,
+    /// which is the application's own code. Without this word the member lets
+    /// a `[limits]` key move down and never up.
+    ApplicationSet,
 }
 
 impl Prepared {
@@ -2338,6 +2342,7 @@ impl Prepared {
             Self::RegexBacktracking => nvs_types::CORE_REGEX_PREPARED_BACKTRACKING,
             Self::CldrPattern => nvs_types::CORE_CLDR_PREPARED_PATTERN,
             Self::SecretDirective => nvs_types::CORE_CONFIG_PREPARED_SECRET,
+            Self::ApplicationSet => nvs_types::CORE_CONFIG_PREPARED_APPLICATION,
         }
     }
 }

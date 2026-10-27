@@ -56,6 +56,7 @@ use nvs_hir::QName;
 use nvs_syntax::ast::CallArgs;
 
 use crate::defaults::ConstArg;
+use crate::expr_table::{Prepared, PreparedFact};
 use crate::ty::Ty;
 use crate::{Ctx, Env};
 
@@ -103,6 +104,44 @@ pub(crate) fn reject_unknown_capability(
             nvs_stdlib::cap::roster()
         )),
     );
+}
+
+/// Files [`PreparedFact::ApplicationSet`] for a `Core\Config::set` written in
+/// the application's own code: a namespace no `[grants]` line matches, or the
+/// global namespace.
+///
+/// A package may lower a limit and never raise one
+/// (`rule:security/package-authority-is-granted-one-line-at-a-time`), and the
+/// member cannot see its caller's namespace. So the fact is the word that lets
+/// a `set` raise, and a call without it may only lower. A method reference
+/// lowers to a thunk that carries no word, so it can only lower wherever it
+/// was written. Cost: two segment compares per static call named `set`, and
+/// one table lookup for a `Core\Config::set`, while compiling.
+pub(crate) fn prepare_config_set(
+    owner: &QName,
+    member: &str,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if member != "set" || owner.segments() != ["Core", "Config"] {
+        return;
+    }
+    let application = ctx.namespace.is_empty()
+        || env.namespace_grants.is_empty()
+        || env
+            .namespace_grants
+            .lookup(&ctx.namespace.join("\\"))
+            .is_none();
+    if application {
+        env.exprs.record_prepared(
+            span,
+            Prepared {
+                literal: span,
+                fact: PreparedFact::ApplicationSet,
+            },
+        );
+    }
 }
 
 /// Refuses a call to `owner::member` where the enclosing namespace's

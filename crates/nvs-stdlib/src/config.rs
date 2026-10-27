@@ -38,6 +38,17 @@
 //! result would be a plain `?string` any sink takes. This is the one rule
 //! `get` holds itself. **What it spends:** one walk of the secret rows per
 //! call, and no memory.
+//!
+//! # A package may lower a limit and never raise one
+//!
+//! `rule:security/package-authority-is-granted-one-line-at-a-time` holds a
+//! `set` written in a package's namespace below the value in force for every
+//! `[limits]` key. Which namespace a call is in is known only while compiling,
+//! so the checker hands a `set` written in the application's own code
+//! [`PREPARED_APPLICATION`] as its argument 0, and every other call reaches
+//! `nvs_config::Request::set_as_package`. A method reference carries no word,
+//! so it can only lower, wherever it was written: the rule fails closed.
+//! **What it spends:** one integer compare per call, and no memory.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -54,6 +65,13 @@ pub(crate) const NAME: &str = "Core\\Config";
 /// `?secret string`. Minted from the space [`crate::cldr::PREPARED_PATTERN`]
 /// is, so a word meant for another member never reads as this one.
 pub const PREPARED_SECRET: i64 = 4;
+
+/// The word `crate::registry::PREPARED_MEMBERS`' argument 0 carries when a
+/// `set` call is written in the application's own code: a namespace no
+/// `[grants]` line matches. Any other word, a method reference's included,
+/// reaches `set` as a package's call, which may lower a limit and never raise
+/// one. Minted from the same space as [`PREPARED_SECRET`].
+pub const PREPARED_APPLICATION: i64 = 5;
 
 /// `Core\Config`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -245,16 +263,25 @@ nvs_runtime::nvs_helper! {
     /// exception: `rule:config/ini-set-is-core-config-set` pins a set above the `[limits.hard]`
     /// ceiling as `false` with the previous value intact, and a version of it
     /// that threw would be a different API.
-    fn nvs_core_config_set(ctx, args: [2]) {
-        let name = text(&args[0], "set")?;
-        let value = text(&args[1], "set")?;
+    ///
+    /// Argument 0 is the prepared word. Without [`PREPARED_APPLICATION`] the
+    /// call is a package's, and a `[limits]` key may only move down
+    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+    fn nvs_core_config_set(ctx, args: [3]) {
+        let application = args[0].as_int() == Some(PREPARED_APPLICATION);
+        let name = text(&args[1], "set")?;
+        let value = text(&args[2], "set")?;
         // Cloned out of the arguments because the overlay is borrowed mutably
         // below and the arguments are borrowed from the same call frame; the
         // pair is two short strings, on a member no request calls in a loop.
         let (name, value) = (name.to_string(), value.to_string());
-        let accepted = ctx
-            .config_mut()
-            .is_some_and(|config| config.set(&name, &value));
+        let accepted = ctx.config_mut().is_some_and(|config| {
+            if application {
+                config.set(&name, &value)
+            } else {
+                config.set_as_package(&name, &value)
+            }
+        });
         // A ceiling the runtime caches off the snapshot moved with it — see
         // `nvs_runtime::Ctx::memory_limit`'s field doc for why the value is
         // held as an integer and refreshed here rather than parsed per poll.
@@ -304,8 +331,8 @@ mod tests {
     use nvs_runtime::{Ctx, NvsArray, Value, call};
 
     use super::{
-        PREPARED_SECRET, nvs_core_config_all, nvs_core_config_get, nvs_core_config_restore,
-        nvs_core_config_set,
+        PREPARED_APPLICATION, PREPARED_SECRET, nvs_core_config_all, nvs_core_config_get,
+        nvs_core_config_restore, nvs_core_config_set,
     };
 
     /// A context configured out of the TOML an operator would have written.
@@ -370,9 +397,21 @@ mod tests {
         out
     }
 
-    /// `Core\Config::set`'s answer for a name and a value.
+    /// `Core\Config::set`'s answer for a name and a value, called from the
+    /// application's own code.
     fn set(ctx: &mut Ctx, name: &str, value: &str) -> bool {
-        let args = [text(name), text(value)];
+        set_with(ctx, PREPARED_APPLICATION, name, value)
+    }
+
+    /// `Core\Config::set` called from a package's namespace, which lowering
+    /// hands the absent word.
+    fn set_from_package(ctx: &mut Ctx, name: &str, value: &str) -> bool {
+        set_with(ctx, crate::regex::PREPARED_NONE, name, value)
+    }
+
+    /// `Core\Config::set` with `word` as its argument 0.
+    fn set_with(ctx: &mut Ctx, word: i64, name: &str, value: &str) -> bool {
+        let args = [Value::int(word), text(name), text(value)];
         let answered =
             call(nvs_core_config_set, ctx, &args).expect("a refusal is `false` and never a fault");
         #[expect(
@@ -381,8 +420,8 @@ mod tests {
                       member borrows rather than consumes them"
         )]
         unsafe {
-            args[0].release();
             args[1].release();
+            args[2].release();
         }
         answered.as_bool().expect("`set` answers a bool")
     }
@@ -656,6 +695,32 @@ mod tests {
         assert!(
             !set(&mut ceilinged, "memory", "513M"),
             "a CLI program raised its memory past the hard ceiling the file wrote"
+        );
+    }
+
+    /// `rule:security/package-authority-is-granted-one-line-at-a-time`: on the
+    /// CLI run where the application raises `memory` freely, a package's `set`
+    /// lowers it and never raises it, even back to where it started.
+    #[test]
+    fn a_package_lowers_a_limit_and_never_raises_one() {
+        let mut command = configured("");
+        assert!(
+            !set_from_package(&mut command, "memory", "2G"),
+            "a package raised the memory limit"
+        );
+        assert_eq!(get(&mut command, "memory").as_deref(), Some("128M"));
+        assert!(set_from_package(&mut command, "memory", "64M"));
+        assert!(
+            !set_from_package(&mut command, "memory", "128M"),
+            "a package raised the memory limit back up"
+        );
+        assert!(
+            set(&mut command, "memory", "2G"),
+            "the application could not raise what a package lowered"
+        );
+        assert!(
+            set_from_package(&mut command, "limits.memory", "1G"),
+            "a package could not lower a limit the application raised"
         );
     }
 

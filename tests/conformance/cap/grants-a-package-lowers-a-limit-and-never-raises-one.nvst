@@ -1,0 +1,40 @@
+--TEST--
+a `Core\Config::set` in a package's namespace may lower a `[limits]` key and never raise one, while the application's own code on a command-line run raises `memory` freely — `rule:security/package-authority-is-granted-one-line-at-a-time`
+--FILE--
+<?nvs
+// `Acme\Cache` has a line in `[grants]`, so it is a package.
+autoload 'Acme\Cache' from './cache';
+
+echo Acme\Cache\Store::tune(), "\n";
+echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+
+// This file has no namespace, so it is the application. It may raise the limit.
+echo "application=", (Core\Config::set("memory", "1G") ? "ok" : "refused"), "\n";
+echo "memory=", Core\Config::get("memory") ?? "unset", "\n";
+--FILE cache/Store.nvs--
+<?nvs
+namespace Acme\Cache;
+
+final class Store
+{
+    public static function tune(): string
+    {
+        // A package may not raise the limit, so this returns `false`.
+        bool $raised = Core\Config::set("memory", "2G");
+        // A package may lower the limit, so this returns `true`.
+        bool $lowered = Core\Config::set("memory", "64M");
+        // 128M is higher than the 64M now in force, so this returns `false`.
+        bool $back = Core\Config::set("memory", "128M");
+        return "raise=" . ($raised ? "ok" : "refused")
+            . " lower=" . ($lowered ? "ok" : "refused")
+            . " back=" . ($back ? "ok" : "refused");
+    }
+}
+--FILE package.toml--
+[grants]
+'Acme\Cache' = []
+--EXPECT--
+raise=refused lower=ok back=refused
+memory=64M
+application=ok
+memory=1G

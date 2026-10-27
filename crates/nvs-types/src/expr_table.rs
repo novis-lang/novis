@@ -1435,6 +1435,11 @@ pub enum PreparedFact {
     /// call is typed `?secret string`. `crate::secret_directive` owns why the
     /// member needs to be told.
     SecretDirective,
+    /// That a `Core\Config::set` call is written in the application's own
+    /// code, so it may raise a limit up to its ceiling.
+    /// `crate::capability::prepare_config_set` owns why the member needs to be
+    /// told.
+    ApplicationSet,
 }
 
 /// One piece of a `Core\Str::format` call that `nvs-ir` lowers to a string
@@ -2637,7 +2642,9 @@ impl ExprTypeTable {
             .values()
             .filter_map(|prepared| match prepared.fact {
                 PreparedFact::RegexTier(tier) => Some(tier),
-                PreparedFact::CldrPattern | PreparedFact::SecretDirective => None,
+                PreparedFact::CldrPattern
+                | PreparedFact::SecretDirective
+                | PreparedFact::ApplicationSet => None,
             })
     }
 
@@ -2650,7 +2657,9 @@ impl ExprTypeTable {
             .values()
             .filter_map(|prepared| match prepared.fact {
                 PreparedFact::RegexTier(tier) => Some((prepared.literal, tier)),
-                PreparedFact::CldrPattern | PreparedFact::SecretDirective => None,
+                PreparedFact::CldrPattern
+                | PreparedFact::SecretDirective
+                | PreparedFact::ApplicationSet => None,
             })
     }
 

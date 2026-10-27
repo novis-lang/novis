@@ -720,6 +720,7 @@ pub(crate) fn infer_static_call(
         // The static half of the namespace's grant, reached by a call and a
         // method reference alike. See [`crate::capability::reject_ungranted_call`].
         crate::capability::reject_ungranted_call(owner, name, expr.span, ctx, env);
+        crate::capability::prepare_config_set(owner, name, expr.span, ctx, env);
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
         // `rule:security/secret-sinks-refuse`'s cross-boundary sink, at the same end and for the same
         // reason — `Core\Serialize::encode` declares `mixed` too. See

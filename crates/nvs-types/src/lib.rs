@@ -240,6 +240,7 @@ pub use nvs_hir::errors::FINISH_MARKER as CORE_SCRIPT_FINISH_CLASS;
 /// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
 /// `Core\Config::get` whose literal name is a secret directive, reached from
 /// `nvs-ir` through this crate as the CLDR word below is.
+pub use nvs_stdlib::CONFIG_PREPARED_APPLICATION as CORE_CONFIG_PREPARED_APPLICATION;
 pub use nvs_stdlib::CONFIG_PREPARED_SECRET as CORE_CONFIG_PREPARED_SECRET;
 /// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
 /// literal CLDR date pattern, reached from `nvs-ir` through this crate exactly

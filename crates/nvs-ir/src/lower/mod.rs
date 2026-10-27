@@ -3122,6 +3122,7 @@ impl<'a> Lowering<'a> {
                 ) => Prepared::RegexBacktracking,
                 nvs_types::expr_table::PreparedFact::CldrPattern => Prepared::CldrPattern,
                 nvs_types::expr_table::PreparedFact::SecretDirective => Prepared::SecretDirective,
+                nvs_types::expr_table::PreparedFact::ApplicationSet => Prepared::ApplicationSet,
             });
         self.emit(b, Ty::Int, InstKind::PreparedConst { fact }).0
     }

@@ -315,6 +315,30 @@ impl Request {
         true
     }
 
+    /// [`Self::set`] for code in a package's namespace: a `[limits]` key may move down and never
+    /// up, whatever ceiling the application may raise it to
+    /// (`rule:security/package-authority-is-granted-one-line-at-a-time`). The bound is the value
+    /// in force, or the key's default where nothing set it. A limit with neither is unbounded,
+    /// so any value lowers it. A `[limits]` key whose values cannot be compared is refused,
+    /// because nothing shows the set lowers it.
+    pub fn set_as_package(&mut self, name: &str, value: &str) -> bool {
+        let key = canonical(name);
+        if key.starts_with("limits.") {
+            let current = self
+                .in_force(key)
+                .or_else(|| self.default_of(key).map(Setting::Text));
+            if let Some(current) = current
+                && !matches!(
+                    value::within_ceiling(key, &Setting::Text(value.to_string()), &current),
+                    Ok(Some(true))
+                )
+            {
+                return false;
+            }
+        }
+        self.set(name, value)
+    }
+
     /// `rule:config/a-program-may-read-and-flip-its-mode`'s mode flip: the mode this request runs in, and `rule:config/a-mode-is-five-defaults`'s five defaults with it.
     ///
     /// Two things make this more than an overlay insert, and both are in those rules rather than in a
