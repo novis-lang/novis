@@ -185,7 +185,10 @@ impl Folder {
 
     /// `registry/`: the last root file `nvs pkg` read from each registry, so it still finds the
     /// registry's file hosts when the registry's URL does not answer
-    /// (`rule:packaging/registry-hosting-is-configuration`). `nvs pkg` creates it.
+    /// (`rule:packaging/registry-hosting-is-configuration`), and the newest checkpoint of each
+    /// registry's log it saw, which every later one must extend
+    /// (`rule:packaging/the-registry-keeps-an-append-only-log`). `nvs pkg` creates it and reads
+    /// the checkpoints only once it passes the ownership check.
     #[must_use]
     pub fn registry(&self) -> PathBuf {
         self.root.join("registry")

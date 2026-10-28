@@ -16,6 +16,11 @@
 //!
 //! `log verify` reads the checkpoint with a pinned verifier key and checks the whole directory
 //! from scratch ([`log::verify`]), every entry included.
+//!
+//! `key` makes a new key: it writes the signer key to a file that did not exist, readable and
+//! writable by this account alone on Unix, and prints the verifier key that clients pin as the
+//! `key` of the registry's `[registries]` line. The key's name is the origin of every checkpoint
+//! the log signs, so a client opens a checkpoint with the key's name as its origin.
 
 use std::fs;
 use std::io::{self, BufRead as _};
@@ -40,6 +45,19 @@ pub(crate) struct Args {
 
 #[derive(clap::Subcommand)]
 enum Command {
+    /// Make a new signing key for the registry's log.
+    ///
+    /// The command writes the private key to a new file and prints the
+    /// public key. Clients write the public key as the `key` of the
+    /// registry's line under `[registries]`.
+    Key {
+        /// The file to write the private key to. It must not exist yet.
+        file: PathBuf,
+        /// The key's name. It is also the log's name, the first line of every
+        /// checkpoint, such as `registry.example.com`.
+        #[arg(long)]
+        name: String,
+    },
     /// Work with the registry's log, the list of every change to the registry.
     Log {
         #[command(subcommand)]
@@ -84,10 +102,14 @@ enum LogCommand {
 impl Args {
     /// Runs the `nvs registry` subcommand clap parsed.
     pub(crate) fn run(self) -> ExitCode {
-        let Command::Log { command } = self.command;
-        let done = match command {
-            LogCommand::Append { dir, key, origin } => append(&dir, &key, &origin),
-            LogCommand::Verify { dir, vkey, origin } => verify(&dir, &vkey, &origin),
+        let done = match self.command {
+            Command::Key { file, name } => key(&file, &name),
+            Command::Log {
+                command: LogCommand::Append { dir, key, origin },
+            } => append(&dir, &key, &origin),
+            Command::Log {
+                command: LogCommand::Verify { dir, vkey, origin },
+            } => verify(&dir, &vkey, &origin),
         };
         match done {
             Ok(message) => {
@@ -100,6 +122,20 @@ impl Args {
             }
         }
     }
+}
+
+/// `nvs registry key`: the verifier key of a new key, whose signer key is written to `file`.
+fn key(file: &Path, name: &str) -> Result<String, String> {
+    let (signer, skey) = Signer::generate(name).map_err(|err| format!("--name: {err}"))?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let written = options
+        .open(file)
+        .and_then(|mut opened| io::Write::write_all(&mut opened, format!("{skey}\n").as_bytes()));
+    written.map_err(|err| format!("{}: {err}", file.display()))?;
+    Ok(signer.verifier().to_string())
 }
 
 /// `nvs registry log append`.

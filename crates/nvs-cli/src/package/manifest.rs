@@ -81,6 +81,10 @@ const FILE: &str = nvs_config::grants::FILE;
 /// The registry every vendor that `[registries]` does not name resolves from.
 pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.novis-lang.org";
 
+/// The verifier key of [`DEFAULT_REGISTRY`]'s log. It is `None` until the registry service makes
+/// its key, and until then no archive is read from the default registry.
+const DEFAULT_KEY: Option<&str> = None;
+
 /// The namespace no package may take, compared without case (`rule:core-api/reserved-namespace`).
 const RESERVED: &str = "Core";
 
@@ -241,6 +245,19 @@ impl Manifest {
             .iter()
             .find(|line| line.vendor.to_lowercase() == vendor.to_lowercase())
             .map_or(DEFAULT_REGISTRY, |line| line.url.as_str())
+    }
+
+    /// The verifier key of the registry `vendor` resolves from: its `[registries]` line's `key`,
+    /// or [`DEFAULT_KEY`].
+    pub(crate) fn registry_key(&self, vendor: &str) -> Option<&str> {
+        match self
+            .registries
+            .iter()
+            .find(|line| line.vendor.to_lowercase() == vendor.to_lowercase())
+        {
+            Some(line) => line.key.as_deref(),
+            None => DEFAULT_KEY,
+        }
     }
 }
 

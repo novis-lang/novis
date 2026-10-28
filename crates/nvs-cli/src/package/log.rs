@@ -24,6 +24,7 @@
 #![cfg_attr(not(test), expect(dead_code, reason = "no client checks a proof yet"))]
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -57,6 +58,8 @@ pub(crate) enum Error {
     OutOfRange(String),
     /// A proof does not lead to the hashes it claims.
     ProofFailed,
+    /// A file of a log served by a file host could not be fetched.
+    Fetch { path: String, reason: String },
 }
 
 impl fmt::Display for Error {
@@ -66,6 +69,7 @@ impl fmt::Display for Error {
             Self::Malformed { path, reason } => write!(f, "{}: {reason}", path.display()),
             Self::OutOfRange(what) => f.write_str(what),
             Self::ProofFailed => f.write_str("the proof does not match the tree"),
+            Self::Fetch { path, reason } => write!(f, "{path}: {reason}"),
         }
     }
 }
@@ -618,43 +622,20 @@ impl Log {
         }
     }
 
-    /// The width tile `(level, index)` has at the log's size.
-    fn width_at_size(&self, level: u8, index: u64) -> u64 {
-        let count = self.size >> (u32::from(level) * TILE_HEIGHT);
-        count.saturating_sub(index * TILE_WIDTH).min(TILE_WIDTH)
-    }
-
     /// The stored hash at `index`.
     fn read_hash(&mut self, index: u64) -> Result<Hash, Error> {
         if let Some(hash) = self.pending.get(&index) {
             return Ok(*hash);
         }
-        let (tile, range) = tile_for_index(index);
-        let Level::Hashes(level) = tile.level else {
-            unreachable!("a stored hash is in a hash tile")
-        };
-        let width = self.width_at_size(level, tile.index);
-        if width < tile.width {
-            return Err(Error::OutOfRange(format!(
-                "stored hash {index} is not in a tree of {} records",
-                self.size
-            )));
-        }
-        if !self.tiles.contains_key(&(level, tile.index)) {
-            let path = self.dir.join(Tile { width, ..tile }.path());
+        let dir = &self.dir;
+        read_stored(self.size, &mut self.tiles, index, |tile| {
+            let path = dir.join(tile.path());
             let data = fs::read(&path).map_err(|error| Error::Io {
                 path: path.clone(),
                 error,
             })?;
-            if u64::try_from(data.len()).ok() != Some(width * HASH_SIZE as u64) {
-                return Err(Error::Malformed {
-                    path,
-                    reason: format!("a tile of {width} hashes is {} bytes", data.len()),
-                });
-            }
-            self.tiles.insert((level, tile.index), data);
-        }
-        Ok(tile_hash(&self.tiles[&(level, tile.index)][range]))
+            Ok((path.display().to_string(), data))
+        })
     }
 }
 
@@ -664,29 +645,193 @@ impl HashReader for Log {
     }
 }
 
+/// The width tile `(level, index)` has in a tree of `size` records.
+fn width_at_size(size: u64, level: u8, index: u64) -> u64 {
+    let count = size >> (u32::from(level) * TILE_HEIGHT);
+    count.saturating_sub(index * TILE_WIDTH).min(TILE_WIDTH)
+}
+
+/// Stored hash `index` of the tree of `size` records, from the hash tile that holds it at that
+/// size. `load` reads a tile the first time and gives its bytes and where they came from, and
+/// `tiles` keeps each tile read, by level and index.
+fn read_stored(
+    size: u64,
+    tiles: &mut HashMap<(u8, u64), Vec<u8>>,
+    index: u64,
+    load: impl FnOnce(Tile) -> Result<(String, Vec<u8>), Error>,
+) -> Result<Hash, Error> {
+    let (tile, range) = tile_for_index(index);
+    let Level::Hashes(level) = tile.level else {
+        unreachable!("a stored hash is in a hash tile")
+    };
+    let width = width_at_size(size, level, tile.index);
+    if width < tile.width {
+        return Err(Error::OutOfRange(format!(
+            "stored hash {index} is not in a tree of {size} records"
+        )));
+    }
+    let data = match tiles.entry((level, tile.index)) {
+        Entry::Occupied(read) => read.into_mut(),
+        Entry::Vacant(unread) => {
+            let (from, data) = load(Tile { width, ..tile })?;
+            if u64::try_from(data.len()).ok() != Some(width * HASH_SIZE as u64) {
+                return Err(Error::Malformed {
+                    path: PathBuf::from(from),
+                    reason: format!("a tile of {width} hashes is {} bytes", data.len()),
+                });
+            }
+            unread.insert(data)
+        }
+    };
+    Ok(tile_hash(&data[range]))
+}
+
+/// A log served by a file host, as the checkpoint of `size` records describes it, read through
+/// the tiles `fetch` gives by their C2SP path.
+///
+/// `fetch` returns `None` for a file the host does not have. A partial tile the host no longer
+/// has is read from the full tile that replaced it, as C2SP allows a host to do. Nothing read
+/// here is trusted: a proof built from it is checked against a signed root.
+pub(crate) struct Fetched<F> {
+    size: u64,
+    fetch: F,
+    /// Each tile read so far, by level and index.
+    tiles: HashMap<(u8, u64), Vec<u8>>,
+}
+
+impl<F> Fetched<F>
+where
+    F: FnMut(&str) -> Result<Option<Vec<u8>>, Error>,
+{
+    /// The log of `size` records whose files `fetch` reads.
+    pub(crate) fn new(size: u64, fetch: F) -> Self {
+        Self {
+            size,
+            fetch,
+            tiles: HashMap::new(),
+        }
+    }
+
+    /// Record `n`, read from its entry bundle.
+    pub(crate) fn record(&mut self, n: u64) -> Result<Vec<u8>, Error> {
+        if n >= self.size {
+            return Err(Error::OutOfRange(format!(
+                "record {n} is not in a tree of {} records",
+                self.size
+            )));
+        }
+        let mut bundle = self.bundle(n >> TILE_HEIGHT)?;
+        Ok(bundle.swap_remove(usize::try_from(n % TILE_WIDTH).expect("a bundle has 256 records")))
+    }
+
+    /// The records of entry bundle `index` at the log's size, which holds at least one.
+    fn bundle(&mut self, index: u64) -> Result<Vec<Vec<u8>>, Error> {
+        let width = width_at_size(self.size, 0, index);
+        let tile = Tile {
+            level: Level::Entries,
+            index,
+            width,
+        };
+        let (path, data) = fetch_tile(&mut self.fetch, tile)?;
+        let mut entries = parse_bundle(&data).map_err(|reason| Error::Malformed {
+            path: PathBuf::from(&path),
+            reason,
+        })?;
+        // A full bundle read in place of a partial one holds more records than the size has.
+        if u64::try_from(entries.len()).is_ok_and(|count| count >= width) {
+            entries.truncate(usize::try_from(width).expect("a bundle has 256 records"));
+            return Ok(entries);
+        }
+        Err(Error::Malformed {
+            path: PathBuf::from(path),
+            reason: format!("the bundle holds {} of its {width} records", entries.len()),
+        })
+    }
+}
+
+impl<F> HashReader for Fetched<F>
+where
+    F: FnMut(&str) -> Result<Option<Vec<u8>>, Error>,
+{
+    fn read_hashes(&mut self, indexes: &[u64]) -> Result<Vec<Hash>, Error> {
+        let fetch = &mut self.fetch;
+        indexes
+            .iter()
+            .map(|index| {
+                read_stored(self.size, &mut self.tiles, *index, |tile| {
+                    let (path, mut data) = fetch_tile(fetch, tile)?;
+                    let width = usize::try_from(tile.width).expect("a tile has 256 hashes");
+                    // A full tile read in place of a partial one: its first hashes are the same.
+                    if data.len() == HASH_SIZE << TILE_HEIGHT {
+                        data.truncate(width * HASH_SIZE);
+                    }
+                    Ok((path, data))
+                })
+            })
+            .collect()
+    }
+}
+
+/// The bytes of `tile` from `fetch`, or of the full tile at its place when a partial one is gone,
+/// and the path they were read from.
+fn fetch_tile(
+    fetch: &mut impl FnMut(&str) -> Result<Option<Vec<u8>>, Error>,
+    tile: Tile,
+) -> Result<(String, Vec<u8>), Error> {
+    let path = tile.path();
+    if let Some(data) = fetch(&path)? {
+        return Ok((path, data));
+    }
+    if tile.width < TILE_WIDTH {
+        let full = Tile {
+            width: TILE_WIDTH,
+            ..tile
+        }
+        .path();
+        if let Some(data) = fetch(&full)? {
+            return Ok((full, data));
+        }
+    }
+    Err(Error::Fetch {
+        path,
+        reason: "the file host does not have it".to_owned(),
+    })
+}
+
+/// The entries of an entry bundle, each after its big-endian `u16` length.
+pub(crate) fn parse_bundle(data: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+    let mut entries = Vec::new();
+    let mut rest = data;
+    while let Some((length, after)) = rest.split_first_chunk::<2>() {
+        let length = usize::from(u16::from_be_bytes(*length));
+        if after.len() < length {
+            return Err("an entry runs past the end of the bundle".to_owned());
+        }
+        let (entry, after) = after.split_at(length);
+        entries.push(entry.to_vec());
+        rest = after;
+    }
+    if !rest.is_empty() {
+        return Err("the bundle ends inside an entry's length".to_owned());
+    }
+    Ok(entries)
+}
+
 /// The entries of the bundle at `path`, which holds `width` records.
 fn read_bundle(path: &Path, width: u64) -> Result<Vec<Vec<u8>>, Error> {
     let data = fs::read(path).map_err(|error| Error::Io {
         path: path.to_path_buf(),
         error,
     })?;
-    let malformed = |reason: &str| Error::Malformed {
+    let malformed = |reason: String| Error::Malformed {
         path: path.to_path_buf(),
-        reason: reason.to_owned(),
+        reason,
     };
-    let mut entries = Vec::new();
-    let mut rest = data.as_slice();
-    while let Some((length, after)) = rest.split_first_chunk::<2>() {
-        let length = usize::from(u16::from_be_bytes(*length));
-        if after.len() < length {
-            return Err(malformed("an entry runs past the end of the bundle"));
-        }
-        let (entry, after) = after.split_at(length);
-        entries.push(entry.to_vec());
-        rest = after;
-    }
-    if !rest.is_empty() || u64::try_from(entries.len()).ok() != Some(width) {
-        return Err(malformed("the bundle does not hold its width of entries"));
+    let entries = parse_bundle(&data).map_err(malformed)?;
+    if u64::try_from(entries.len()).ok() != Some(width) {
+        return Err(malformed(
+            "the bundle does not hold its width of entries".to_owned(),
+        ));
     }
     Ok(entries)
 }

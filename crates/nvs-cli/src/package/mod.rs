@@ -20,7 +20,8 @@
 //! registry's transparency log in C2SP tlog-tiles, with its inclusion and consistency proofs
 //! (`rule:packaging/the-registry-keeps-an-append-only-log`), [`entry`] is the closed list of
 //! events it records, and [`note`] signs and opens the C2SP signed notes its checkpoints are.
-//! The registry's own commands over the log are `crate::registry`'s, outside `nvs pkg`.
+//! [`proof`] is the client's side of the log: the checkpoint it keeps per registry, the fork
+//! check, and the inclusion proof of every archive it fetches. The registry's own commands over the log are `crate::registry`'s, outside `nvs pkg`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -40,6 +41,7 @@ mod manifest;
 mod minimum;
 pub(crate) mod note;
 mod pack;
+mod proof;
 mod report;
 mod resolve;
 

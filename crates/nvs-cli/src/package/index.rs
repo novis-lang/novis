@@ -3,7 +3,9 @@
 //!
 //! **The registry's URL serves one file, `registry.json`** ([`ROOT_FILE`]), which lists the file
 //! hosts in order. Every other file is under each file host: `index/<vendor>/<name>.json` for a
-//! package and `archive/<digest>.tar` for a version. A root file with no file host has the files
+//! package, `archive/<digest>.tar` for a version, and the registry's transparency log under
+//! `log/`. Each version in an index file names, as `log`, the number of the log record that
+//! publishes it, so the client proves that record is in the log ([`super::proof`]). A root file with no file host has the files
 //! under the registry's URL itself, as a `file:` registry has them. The schema of both files is
 //! the digest rule's fragment, and [`SCHEMA`] is the version this client reads. The files can move
 //! to a CDN, or gain a second host, by a change to the root file and no `nvs` release.
@@ -215,6 +217,7 @@ struct ReleaseLine {
     capabilities: Capabilities,
     repository: String,
     commit: String,
+    log: u64,
 }
 
 /// A version's state, as written: a bare string, or an object with the state's fields.
@@ -278,6 +281,9 @@ pub(crate) struct Release {
     pub(crate) repository: String,
     /// The commit the registry built the archive from.
     pub(crate) commit: String,
+    /// The number of the record in the registry's log that publishes this version. A git
+    /// dependency has none.
+    pub(crate) log: Option<u64>,
 }
 
 /// One package's index: its owners and every version, in version order.
@@ -304,6 +310,8 @@ pub(crate) struct Registry {
     pub(crate) url: String,
     /// The file hosts, in the order they are tried.
     hosts: Vec<Place>,
+    /// The name of the files kept for this registry under the data folder's `registry/`.
+    pub(crate) kept: String,
     /// Whether the root file is the kept copy, because the registry's URL did not answer.
     pub(crate) from_kept: bool,
 }
@@ -319,7 +327,8 @@ impl Registry {
     /// or has a newer schema, and a file host that is not a URL.
     pub(crate) fn open(url: &str, base: &Path, keep: Option<&Path>) -> Result<Self, Fault> {
         let place = Place::new(url, base)?;
-        let kept = keep.map(|dir| dir.join(format!("{}.json", kept_name(&place))));
+        let name = kept_name(&place);
+        let kept = keep.map(|dir| dir.join(format!("{name}.json")));
         let (bytes, from_kept) = match place.get(ROOT_FILE, MAX_ROOT_BYTES) {
             Ok(Some(bytes)) => (bytes, false),
             Ok(None) => {
@@ -353,8 +362,34 @@ impl Registry {
         Ok(Self {
             url: url.to_owned(),
             hosts,
+            kept: name,
             from_kept,
         })
+    }
+
+    /// The file hosts, in the order they are tried.
+    pub(crate) fn hosts(&self) -> std::ops::Range<usize> {
+        0..self.hosts.len()
+    }
+
+    /// The name of file host `host`, as a message names it.
+    pub(crate) fn host_name(&self, host: usize) -> String {
+        self.hosts[host].to_string()
+    }
+
+    /// The file at `path` under file host `host`, at most `limit` bytes, or `None` when the host
+    /// answered that there is no such file.
+    ///
+    /// # Errors
+    ///
+    /// The host did not answer, the read failed, or the file is over `limit`.
+    pub(crate) fn get(
+        &self,
+        host: usize,
+        path: &str,
+        limit: u64,
+    ) -> Result<Option<Vec<u8>>, Fault> {
+        self.hosts[host].get(path, limit)
     }
 
     /// The index of `name`, from the first file host that answers, or `None` when that host has
@@ -424,9 +459,16 @@ fn unanswered(what: &str, failures: &[String]) -> Fault {
     fault(message)
 }
 
-/// The kept root file's name for `place`: a hash, because a URL is not a file name.
+/// The kept root file's name for `place`: a hash, because a URL is not a file name. A directory
+/// is named by its canonical path, so two applications that reach the same registry through
+/// different relative `file:` URLs keep one root file and one checkpoint for it.
 fn kept_name(place: &Place) -> String {
-    let hex = blake3::hash(place.to_string().as_bytes()).to_hex();
+    let named = match place {
+        Place::Dir(dir) => nvs_config::trust::canonical(dir)
+            .map_or_else(|_| place.to_string(), |dir| Place::Dir(dir).to_string()),
+        Place::Https(_) => place.to_string(),
+    };
+    let hex = blake3::hash(named.as_bytes()).to_hex();
     hex[..32].to_owned()
 }
 
@@ -499,6 +541,7 @@ fn parse_index(bytes: &[u8], name: &Name, host: &Place) -> Result<Index, Fault> 
             capabilities: line.capabilities,
             repository: line.repository,
             commit: line.commit,
+            log: Some(line.log),
         });
     }
     releases.sort_by_key(|release| release.version);

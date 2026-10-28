@@ -10,9 +10,19 @@
 //! The pack tests pin one fixture's digest, show the bytes do not depend on file times or on the
 //! order the files were written in, and show each file-set refusal through the binary. Each path
 //! rule and both limits are unit tests in `src/package/pack.rs`, which need no file on disk.
+//!
+//! The log tests show `nvs pkg fetch` reads an archive only once the registry's log proves it
+//! (`rule:packaging/the-registry-keeps-an-append-only-log`): an index line whose record publishes
+//! another digest is refused, a log that does not continue the checkpoint the data folder kept is
+//! refused as forked, and a log that only grew is accepted. Each registry's log is signed by
+//! `nvs registry log append` under a key `nvs registry key` makes. The proofs themselves are unit
+//! tests in `src/package/log.rs`; these tests show the binary refuses what they do not prove.
 
+use std::cell::{Cell, RefCell};
+use std::fs;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
 
 /// A package directory under a fresh scratch folder, with `manifest` as its `package.toml` and one
 /// class under `src`.
@@ -324,5 +334,286 @@ fn a_symlink_is_refused() {
                 .expect("the test makes a symlink");
         },
         "`src/Link.nvs` is a symbolic link.",
+    );
+}
+
+/// The name of the log key of [`Logged`], which is also its log's origin.
+const KEY_NAME: &str = "registry.example.com";
+
+/// The repository every publish record of [`Logged`] names.
+const REPOSITORY: &str = "https://git.example.com/acme/http";
+
+/// A `file:` registry of `Acme\Http` whose log the binary signs, applications beside it, and the
+/// private data folder every application's commands share.
+struct Logged {
+    root: nvs_repo::Scratch,
+    data: nvs_repo::Scratch,
+    /// The private folder of the log's signing key.
+    keys: nvs_repo::Scratch,
+    /// The verifier key every application's registry line pins.
+    key: String,
+    /// The number of records in the registry's log.
+    records: Cell<u64>,
+    /// The index lines of `Acme\Http`.
+    versions: RefCell<Vec<serde_json::Value>>,
+}
+
+impl Logged {
+    /// An empty registry with a new log key.
+    fn new(name: &str) -> Self {
+        let keys = nvs_repo::scratch_private(&format!("{name}-key"));
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "key"])
+            .arg(keys.join("log.key"))
+            .args(["--name", KEY_NAME])
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
+        let logged = Self {
+            root: nvs_repo::scratch(name),
+            data: nvs_repo::scratch_private(&format!("{name}-data")),
+            key: String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+            keys,
+            records: Cell::new(0),
+            versions: RefCell::default(),
+        };
+        fs::create_dir_all(logged.registry()).expect("the test makes the registry");
+        fs::write(
+            logged.registry().join("registry.json"),
+            r#"{ "schema": 1, "hosts": [] }"#,
+        )
+        .expect("the test writes the root file");
+        logged
+    }
+
+    fn registry(&self) -> PathBuf {
+        self.root.join("registry")
+    }
+
+    /// The registry's URL. It is absolute, so every application names the registry the same
+    /// way, and they share the checkpoint the data folder keeps for it.
+    fn url(&self) -> String {
+        format!("file:{}", self.registry().display())
+    }
+
+    /// A new application folder `name` beside the registry, which needs `Acme\Http` at `minimum`.
+    fn app(&self, name: &str, minimum: &str) -> PathBuf {
+        let app = self.root.join(name);
+        fs::create_dir_all(&app).expect("the test makes the application");
+        fs::write(
+            app.join("package.toml"),
+            format!(
+                "[dependencies]\n'Acme\\Http' = \"{minimum}\"\n\n\
+                 [registries]\nAcme = {{ url = '{}', key = \"{}\" }}\n",
+                self.url(),
+                self.key
+            ),
+        )
+        .expect("the test writes the manifest");
+        app
+    }
+
+    /// `Acme\Http` at `version`, packed by the binary into the registry's archive folder. Its
+    /// digest in hex.
+    fn pack(&self, version: &str) -> String {
+        let dir = self.root.join(format!("packages/acme-http-{version}"));
+        fs::create_dir_all(dir.join("src")).expect("the test makes the package");
+        fs::write(
+            dir.join("package.toml"),
+            format!("[package]\nname = 'Acme\\Http'\nversion = \"{version}\"\n"),
+        )
+        .expect("the test writes the package's manifest");
+        fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
+        fs::write(
+            dir.join("src/Main.nvs"),
+            "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n}\n",
+        )
+        .expect("the test writes the class");
+        let tar = self.root.join(format!("packages/acme-http-{version}.tar"));
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["pkg", "pack"])
+            .arg(&dir)
+            .arg("--out")
+            .arg(&tar)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
+        let bytes = fs::read(&tar).expect("the archive was written");
+        let digest = blake3::hash(&bytes).to_hex().to_string();
+        let archive = self.registry().join("archive");
+        fs::create_dir_all(&archive).expect("the test makes the archive folder");
+        fs::write(archive.join(format!("{digest}.tar")), &bytes).expect("the test copies it");
+        digest
+    }
+
+    /// A publish record of `package` at `version` with `digest`, appended to the registry's log
+    /// by the binary. Its record number.
+    fn append(&self, package: &str, version: &str, digest: &str) -> u64 {
+        let entry = serde_json::json!({
+            "v": 1,
+            "kind": "publish",
+            "package": package,
+            "version": version,
+            "digest": digest,
+            "repository": REPOSITORY,
+            "commit": "0".repeat(40),
+        });
+        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "log", "append"])
+            .arg(self.registry().join("log"))
+            .arg("--key")
+            .arg(self.keys.join("log.key"))
+            .args(["--origin", KEY_NAME])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside runs");
+        child
+            .stdin
+            .take()
+            .expect("the child's input is piped")
+            .write_all(format!("{entry}\n").as_bytes())
+            .expect("the test writes the entry");
+        let out = child.wait_with_output().expect("the append ends");
+        assert!(out.status.success(), "{}", shown(&out));
+        let n = self.records.get();
+        self.records.set(n + 1);
+        n
+    }
+
+    /// The index of `Acme\Http` with a released line for `version` added, its archive `digest`
+    /// and its log record `record`.
+    fn list(&self, version: &str, digest: &str, record: u64) {
+        let mut versions = self.versions.borrow_mut();
+        versions.push(serde_json::json!({
+            "version": version,
+            "digest": digest,
+            "state": "released",
+            "dependencies": {},
+            "capabilities": { "required": [], "optional": [] },
+            "repository": REPOSITORY,
+            "commit": "0".repeat(40),
+            "log": record,
+        }));
+        let index = serde_json::json!({
+            "schema": 1,
+            "name": "Acme\\Http",
+            "owners": ["owner"],
+            "versions": *versions,
+        });
+        let path = self.registry().join("index/acme/http.json");
+        fs::create_dir_all(path.parent().expect("an index file has a folder"))
+            .expect("the test makes the index folder");
+        fs::write(path, index.to_string()).expect("the test writes the index");
+    }
+
+    /// `Acme\Http` at `version`, packed, published in the log and listed in the index.
+    fn publish(&self, version: &str) {
+        let digest = self.pack(version);
+        let record = self.append("acme/http", version, &digest);
+        self.list(version, &digest, record);
+    }
+
+    /// The log and the index emptied, so the next records start a new history under the same
+    /// key.
+    fn forget(&self) {
+        fs::remove_dir_all(self.registry().join("log")).expect("the test removes the log");
+        self.records.set(0);
+        self.versions.borrow_mut().clear();
+    }
+
+    /// `nvs <args>` in `app`, with the shared data folder.
+    fn nvs(&self, app: &Path, args: &[&str]) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .arg("--data")
+            .arg(&*self.data)
+            .arg("--no-init")
+            .args(args)
+            .current_dir(app)
+            .output()
+            .expect("the `nvs` binary this test was built beside runs")
+    }
+}
+
+/// Both streams, for a message on failure.
+fn shown(out: &Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    )
+}
+
+/// An index line whose log record publishes another digest is not fetched, even though its
+/// archive is on the host and matches the index.
+#[test]
+fn an_archive_absent_from_the_log_is_refused() {
+    let logged = Logged::new("package-client-log-absent");
+    let digest = logged.pack("1.0.0");
+    let record = logged.append("acme/http", "1.0.0", &"ab".repeat(32));
+    logged.list("1.0.0", &digest, record);
+    let app = logged.app("app", "1.0.0");
+
+    let out = logged.nvs(&app, &["pkg", "fetch"]);
+    assert!(
+        !out.status.success(),
+        "fetched an archive the log does not publish"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("is not in the log of the registry"),
+        "{stderr}"
+    );
+    assert!(
+        !app.join("vendor/acme/http").exists(),
+        "the package was written"
+    );
+}
+
+/// A registry whose log no longer continues the checkpoint this computer kept is refused as
+/// forked, and nothing is fetched from it.
+#[test]
+fn a_forked_log_is_refused() {
+    let logged = Logged::new("package-client-log-forked");
+    logged.publish("1.0.0");
+    let first = logged.app("first", "1.0.0");
+    let out = logged.nvs(&first, &["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+
+    logged.forget();
+    logged.append("acme/other", "1.0.0", &"cd".repeat(32));
+    logged.publish("1.0.0");
+    let second = logged.app("second", "1.0.0");
+    let out = logged.nvs(&second, &["pkg", "fetch"]);
+    assert!(!out.status.success(), "fetched from a forked log");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("was forked"), "{stderr}");
+    assert!(stderr.contains(&logged.url()), "{stderr}");
+    assert!(
+        !second.join("vendor/acme/http").exists(),
+        "the package was written"
+    );
+}
+
+/// A log that only grew since the kept checkpoint is accepted, and its new version is fetched.
+#[test]
+fn a_log_that_grew_is_accepted() {
+    let logged = Logged::new("package-client-log-grew");
+    logged.publish("1.0.0");
+    let first = logged.app("first", "1.0.0");
+    let out = logged.nvs(&first, &["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+
+    logged.publish("1.1.0");
+    let second = logged.app("second", "1.1.0");
+    let out = logged.nvs(&second, &["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert!(second.join("vendor/acme/http/src/Main.nvs").is_file());
+    assert!(
+        fs::read_to_string(second.join("package.lock"))
+            .unwrap_or_default()
+            .contains("1.1.0"),
+        "the lock does not name 1.1.0"
     );
 }

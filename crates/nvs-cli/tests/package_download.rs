@@ -11,11 +11,12 @@
 //! `src/package/download.rs`; these tests show what the binary places and what it refuses, and
 //! that the package's code reads a placed file with an empty grant line.
 
+use std::cell::Cell;
 use std::fs;
 use std::io::{BufRead as _, BufReader, Write as _};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
@@ -201,18 +202,38 @@ fn entry(path: &str, urls: &[String], body: &[u8]) -> String {
 /// The package's `src/Main.nvs` when a case does not run it.
 const EMPTY_MAIN: &str = "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n}\n";
 
+/// The name of the registry's log key, which is also its log's origin.
+const KEY_NAME: &str = "registry.example.com";
+
 /// A registry, an application that needs `Acme\Http` from it, and a private data folder.
 struct Tree {
     root: nvs_repo::Scratch,
     data: nvs_repo::Scratch,
+    /// The private folder of the log's signing key.
+    keys: nvs_repo::Scratch,
+    /// The verifier key the application's registry line pins.
+    key: String,
+    /// The number of records in the registry's log.
+    records: Cell<u64>,
 }
 
 impl Tree {
     /// An empty registry, and an application whose `package.toml` needs `Acme\Http` 1.0.0.
     fn new(name: &str) -> Self {
+        let keys = nvs_repo::scratch_private(&format!("{name}-key"));
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "key"])
+            .arg(keys.join("log.key"))
+            .args(["--name", KEY_NAME])
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
         let tree = Self {
             root: nvs_repo::scratch(name),
             data: nvs_repo::scratch_private(&format!("{name}-data")),
+            key: String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+            keys,
+            records: Cell::new(0),
         };
         fs::create_dir_all(tree.registry()).expect("the test makes the registry");
         fs::write(
@@ -221,13 +242,84 @@ impl Tree {
         )
         .expect("the test writes the root file");
         fs::create_dir_all(tree.app()).expect("the test makes the application");
+        tree.manifest("file:../registry");
+        tree
+    }
+
+    /// The application's `package.toml`: it needs `Acme\Http` 1.0.0 from the registry at `url`,
+    /// whose log key is the tree's.
+    fn manifest(&self, url: &str) {
         fs::write(
-            tree.app().join("package.toml"),
-            "[dependencies]\n'Acme\\Http' = \"1.0.0\"\n\n\
-             [registries]\nAcme = { url = \"file:../registry\" }\n",
+            self.app().join("package.toml"),
+            format!(
+                "[dependencies]\n'Acme\\Http' = \"1.0.0\"\n\n\
+                 [registries]\nAcme = {{ url = \"{url}\", key = \"{}\" }}\n",
+                self.key
+            ),
         )
         .expect("the test writes the manifest");
-        tree
+    }
+
+    /// A publish record of `Acme\Http` 1.0.0 with `digest`, `repository` and `commit`, appended
+    /// to the registry's log by the binary. Its record number.
+    fn log(&self, digest: &str, repository: &str, commit: &str) -> u64 {
+        let entry = serde_json::json!({
+            "v": 1,
+            "kind": "publish",
+            "package": "acme/http",
+            "version": "1.0.0",
+            "digest": digest,
+            "repository": repository,
+            "commit": commit,
+        });
+        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "log", "append"])
+            .arg(self.registry().join("log"))
+            .arg("--key")
+            .arg(self.keys.join("log.key"))
+            .args(["--origin", KEY_NAME])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside runs");
+        child
+            .stdin
+            .take()
+            .expect("the child's input is piped")
+            .write_all(format!("{entry}\n").as_bytes())
+            .expect("the test writes the entry");
+        let out = child.wait_with_output().expect("the append ends");
+        assert!(out.status.success(), "{}", shown(&out));
+        let n = self.records.get();
+        self.records.set(n + 1);
+        n
+    }
+
+    /// Every file of the registry's log, as its path under the registry with a leading `/`, and
+    /// its bytes.
+    fn log_files(&self) -> Vec<(String, Vec<u8>)> {
+        let mut files = Vec::new();
+        let mut dirs = vec![self.registry().join("log")];
+        while let Some(dir) = dirs.pop() {
+            for entry in fs::read_dir(&dir).expect("the log folder reads").flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let relative = path
+                    .strip_prefix(self.registry())
+                    .expect("a log file is under the registry")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                files.push((
+                    format!("/{relative}"),
+                    fs::read(&path).expect("the log file reads"),
+                ));
+            }
+        }
+        files
     }
 
     fn registry(&self) -> PathBuf {
@@ -303,6 +395,9 @@ impl Tree {
         let archive = self.registry().join("archive");
         fs::create_dir_all(&archive).expect("the test makes the archive folder");
         fs::write(archive.join(format!("{digest}.tar")), &bytes).expect("the test copies it");
+        let repository = "https://git.example.com/acme/http";
+        let commit = "0".repeat(40);
+        let record = self.log(&digest, repository, &commit);
         let index = serde_json::json!({
             "schema": 1,
             "name": "Acme\\Http",
@@ -313,8 +408,9 @@ impl Tree {
                 "state": "released",
                 "dependencies": {},
                 "capabilities": { "required": [], "optional": [] },
-                "repository": "https://git.example.com/acme/http",
-                "commit": "0".repeat(40),
+                "repository": repository,
+                "commit": commit,
+                "log": record,
             }],
         });
         let path = self.registry().join("index/acme/http.json");
@@ -541,8 +637,8 @@ fn a_provided_file_is_placed_without_its_url() {
 }
 
 /// An `https:` registry gives an archive over 1 MiB, and `nvs pkg fetch` writes the package from
-/// it. The host serves the registry's three files, built as [`Tree::publish`] builds a `file:`
-/// one.
+/// it. The host serves the registry's three files and its log, built as [`Tree::publish`] builds
+/// a `file:` one.
 #[test]
 fn an_https_registry_gives_an_archive_over_one_mebibyte() {
     let tree = Tree::new("package-download-large-archive");
@@ -560,27 +656,23 @@ fn an_https_registry_gives_an_archive_over_one_mebibyte() {
         .expect("one archive was published");
     let tar = served(&format!("archive/{archive}"));
     assert!(tar.len() > 1 << 20, "the archive is {} bytes", tar.len());
-    let host = Host::start(
-        &tree.root,
-        vec![
-            ("/registry.json", Reply::ok(&served("registry.json"))),
-            (
-                "/index/acme/http.json",
-                Reply::ok(&served("index/acme/http.json")),
-            ),
-            (&format!("/archive/{archive}"), Reply::ok(&tar)),
-        ],
-    );
-    tree.trust(&host);
-    fs::write(
-        tree.app().join("package.toml"),
-        format!(
-            "[dependencies]\n'Acme\\Http' = \"1.0.0\"\n\n\
-             [registries]\nAcme = {{ url = \"{}\" }}\n",
-            host.url("")
+    let log = tree.log_files();
+    let archive_path = format!("/archive/{archive}");
+    let mut routes = vec![
+        ("/registry.json", Reply::ok(&served("registry.json"))),
+        (
+            "/index/acme/http.json",
+            Reply::ok(&served("index/acme/http.json")),
         ),
-    )
-    .expect("the test writes the manifest");
+        (archive_path.as_str(), Reply::ok(&tar)),
+    ];
+    routes.extend(
+        log.iter()
+            .map(|(path, bytes)| (path.as_str(), Reply::ok(bytes))),
+    );
+    let host = Host::start(&tree.root, routes);
+    tree.trust(&host);
+    tree.manifest(&host.url(""));
 
     let out = tree.nvs(&["pkg", "fetch"]);
     assert!(out.status.success(), "{}", shown(&out));

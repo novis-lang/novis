@@ -13,23 +13,45 @@
 //! literal with an empty grant line, and a write, a `..` out of its set, an unlisted file, another
 //! package's file and a link out of its folder are `E0658`.
 
+use std::cell::Cell;
 use std::fs;
+use std::io::Write as _;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+
+/// The name of the registry's log key, which is also its log's origin.
+const KEY_NAME: &str = "registry.example.com";
 
 /// A registry, an application that resolves `Acme` from it, and a private data folder.
 struct Tree {
     root: nvs_repo::Scratch,
     data: nvs_repo::Scratch,
+    /// The private folder of the log's signing key.
+    keys: nvs_repo::Scratch,
+    /// The verifier key the application's registry line pins.
+    key: String,
+    /// The number of records in the registry's log.
+    records: Cell<u64>,
 }
 
 impl Tree {
     /// An empty registry, and an application whose `package.toml` is `manifest` with the
     /// registry line added.
     fn new(name: &str, dependencies: &str) -> Self {
+        let keys = nvs_repo::scratch_private(&format!("{name}-key"));
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "key"])
+            .arg(keys.join("log.key"))
+            .args(["--name", KEY_NAME])
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
         let tree = Self {
             root: nvs_repo::scratch(name),
             data: nvs_repo::scratch_private(&format!("{name}-data")),
+            key: String::from_utf8_lossy(&out.stdout).trim().to_owned(),
+            keys,
+            records: Cell::new(0),
         };
         fs::create_dir_all(tree.registry()).expect("the test makes the registry");
         fs::write(
@@ -60,10 +82,47 @@ impl Tree {
         fs::write(
             self.app().join("package.toml"),
             format!(
-                "[dependencies]\n{dependencies}\n[registries]\nAcme = {{ url = \"file:../registry\" }}\n"
+                "[dependencies]\n{dependencies}\n[registries]\nAcme = {{ url = \"file:../registry\", key = \"{}\" }}\n",
+                self.key
             ),
         )
         .expect("the test writes the manifest");
+    }
+
+    /// A publish record of `slug` at `version` with `digest`, `repository` and `commit`,
+    /// appended to the registry's log by the binary. Its record number.
+    fn log(&self, slug: &str, version: &str, digest: &str, repository: &str, commit: &str) -> u64 {
+        let entry = serde_json::json!({
+            "v": 1,
+            "kind": "publish",
+            "package": slug,
+            "version": version,
+            "digest": digest,
+            "repository": repository,
+            "commit": commit,
+        });
+        let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "log", "append"])
+            .arg(self.registry().join("log"))
+            .arg("--key")
+            .arg(self.keys.join("log.key"))
+            .args(["--origin", KEY_NAME])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside runs");
+        child
+            .stdin
+            .take()
+            .expect("the child's input is piped")
+            .write_all(format!("{entry}\n").as_bytes())
+            .expect("the test writes the entry");
+        let out = child.wait_with_output().expect("the append ends");
+        assert!(out.status.success(), "{}", shown(&out));
+        let n = self.records.get();
+        self.records.set(n + 1);
+        n
     }
 
     /// `namespace` 1.0.0, released and requesting `fs.read`, with `files` under its `src`, packed
@@ -150,14 +209,18 @@ impl Tree {
         fs::write(archive.join(format!("{digest}.tar")), &bytes).expect("the test copies it");
         let state: serde_json::Value =
             serde_json::from_str(state).unwrap_or_else(|_| serde_json::json!(state));
+        let repository = format!("https://git.example.com/{slug}");
+        let commit = "0".repeat(40);
+        let record = self.log(&slug, version, &digest, &repository, &commit);
         let line = serde_json::json!({
             "version": version,
             "digest": digest,
             "state": state,
             "dependencies": {},
             "capabilities": { "required": required, "optional": [] },
-            "repository": format!("https://git.example.com/{slug}"),
-            "commit": "0".repeat(40),
+            "repository": repository,
+            "commit": commit,
+            "log": record,
         });
         let path = self.registry().join(format!("index/{slug}.json"));
         let mut index = fs::read_to_string(&path).map_or_else(

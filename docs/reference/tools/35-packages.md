@@ -138,7 +138,7 @@ This is an application's file:
 'Acme\Fork' = { git = "https://git.example.com/acme/fork.git", rev = "4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e" }
 
 [registries]
-Acme = { url = "https://packages.example.com" }
+Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1f0e+AW0nQ8Kq3s9xUjvL4kz5Ff2hN1pYc7RbT0eGdMiSo8Ax" }
 
 [grants]
 'Acme\Slug\*' = []  # required: fs.read
@@ -176,6 +176,11 @@ other vendor's packages come from `https://registry.novis-lang.org`. A registry 
 `https:`, or with `file:` for a folder on your disk. `nvs pkg fetch` never looks for a vendor's
 package in a second registry. So nobody can publish a package with your vendor's name in another
 registry and have it used.
+
+The `key` is the public key of the registry's log. You get it from the people who run the registry.
+`nvs pkg` uses a package only if the log contains it. The log is a list of every change to the
+registry, and nobody can rewrite it. If the log does not continue the one `nvs pkg` saw last time,
+`nvs pkg` stops with an error and fetches nothing.
 
 <!-- src: `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted` -->
 

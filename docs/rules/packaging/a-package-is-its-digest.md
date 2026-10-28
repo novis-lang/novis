@@ -46,7 +46,11 @@ registry's URL. Under each file host:
 - **`index/<vendor>/<name>.json`**, named by the package's slug, holds `name` (the namespace),
   `owners`, and `versions`. Each version has `version`, `digest` (64 lowercase hex digits),
   `state`, `dependencies` (each namespace to its minimum), `capabilities` (`required` and
-  `optional`), and the `repository` and `commit` the registry built it from.
+  `optional`), the `repository` and `commit` the registry built it from, and `log`, the number of
+  the record in the registry's log that publishes it
+  (`rule:packaging/the-registry-keeps-an-append-only-log`).
+- **`log/`** is the registry's transparency log in C2SP tlog-tiles: `log/checkpoint` and
+  `log/tile/...`.
 - **`state`** is `"released"`, `"unlisted"`, `{"pending": {"selectable_at": <Unix seconds>}}`,
   `{"retracted": {"reason": ..., "fixed_in": <version or null>}}` or
   `{"withheld": {"reason": ...}}`.

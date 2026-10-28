@@ -1,6 +1,7 @@
 //! A registry on disk, built at test time from package directories through [`pack::file_set`]
 //! and [`pack::write`], so a digest in it is always the one the code packs today
-//! (`crates/nvs-cli/tests/fixtures/registry/README.md` describes the layout).
+//! (`crates/nvs-cli/tests/fixtures/registry/README.md` describes the layout). Each publish is
+//! also a record of the file host's log, signed under a key made for the fixture.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -9,9 +10,15 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::SourceMap;
 
+use super::entry::Entry;
 use super::index::{ROOT_FILE, SCHEMA};
+use super::log;
 use super::manifest::{self, Name};
+use super::note::{Checkpoint, Signer};
 use super::pack;
+
+/// The name of the fixture's log key, which is also its log's origin.
+const KEY_NAME: &str = "registry.example.com";
 
 /// A scratch folder with a registry's URL directory, its one file host and the packages behind
 /// them.
@@ -19,14 +26,21 @@ pub(crate) struct Fixture {
     scratch: nvs_repo::Scratch,
     /// Each package's index lines, by slug.
     lines: RefCell<BTreeMap<String, (String, Vec<serde_json::Value>)>>,
+    /// The key the log's checkpoints are signed with.
+    signer: Signer,
+    /// The log's size.
+    size: RefCell<u64>,
 }
 
 impl Fixture {
     /// An empty registry whose root file lists [`Self::files`] as its one file host.
     pub(crate) fn new(name: &str) -> Self {
+        let (signer, _) = Signer::generate(KEY_NAME).expect("a key is made");
         let fixture = Self {
             scratch: nvs_repo::scratch(name),
             lines: RefCell::default(),
+            signer,
+            size: RefCell::default(),
         };
         fs::create_dir_all(fixture.registry()).expect("the test makes the registry");
         fs::create_dir_all(fixture.files().join("archive")).expect("the test makes the host");
@@ -52,6 +66,25 @@ impl Fixture {
     /// The registry's URL.
     pub(crate) fn url(&self) -> String {
         format!("file:{}", self.registry().display())
+    }
+
+    /// The verifier key of the registry's log, as a `[registries]` line names it.
+    pub(crate) fn key(&self) -> String {
+        self.signer.verifier().to_string()
+    }
+
+    /// `entry` appended to the file host's log, under a newly signed checkpoint. Its record
+    /// number.
+    pub(crate) fn append(&self, entry: &Entry) -> u64 {
+        let dir = self.files().join("log");
+        let n = *self.size.borrow();
+        let (size, root) = log::append(&dir, n, &[entry.canonical()]).expect("the log appends");
+        let note = Checkpoint::new(KEY_NAME, size, root)
+            .and_then(|checkpoint| checkpoint.sign(&self.signer))
+            .expect("the checkpoint signs");
+        fs::write(dir.join("checkpoint"), note).expect("the test writes the checkpoint");
+        *self.size.borrow_mut() = size;
+        n
     }
 
     /// The root file rewritten to list `hosts`, in order.
@@ -102,6 +135,15 @@ impl Fixture {
             &bytes,
         )
         .expect("the test writes the archive");
+        let repository = format!("https://git.example.com/{}", name.slug());
+        let commit = "0".repeat(40);
+        let record = self.append(&Entry::Publish {
+            package: name.slug(),
+            version: version.to_owned(),
+            digest: digest.to_hex().to_string(),
+            repository: repository.clone(),
+            commit: commit.clone(),
+        });
         let dependencies: BTreeMap<&str, &str> = dependencies.iter().copied().collect();
         let line = serde_json::json!({
             "version": version,
@@ -109,8 +151,9 @@ impl Fixture {
             "state": serde_json::from_str::<serde_json::Value>(state).expect("the state is JSON"),
             "dependencies": dependencies,
             "capabilities": { "required": [], "optional": [] },
-            "repository": format!("https://git.example.com/{}", name.slug()),
-            "commit": "0".repeat(40),
+            "repository": repository,
+            "commit": commit,
+            "log": record,
         });
         let mut lines = self.lines.borrow_mut();
         let (_, versions) = lines

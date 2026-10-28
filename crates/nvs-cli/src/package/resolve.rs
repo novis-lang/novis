@@ -40,6 +40,7 @@ use super::git::{self, Limits, Outbound};
 use super::index::{Capabilities, Fault, Index, Registry, Release, State, fault};
 use super::lock::Lock;
 use super::manifest::{Manifest, Name, Source, Version};
+use super::proof::{self, Seen};
 
 /// Who asked for a version.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -115,6 +116,8 @@ pub(crate) struct Registries<'a> {
     keep: Option<PathBuf>,
     open: BTreeMap<String, Registry>,
     indexes: BTreeMap<String, Option<Index>>,
+    /// Each registry's log, by URL, once an archive is read from it.
+    logs: BTreeMap<String, Seen>,
     /// Where a git dependency is written out while it is packed: the data folder's `tmp/`, or
     /// nothing when there is no data folder, and a git dependency then fails.
     scratch: Option<PathBuf>,
@@ -140,6 +143,7 @@ impl<'a> Registries<'a> {
             keep: keep.map(Path::to_path_buf),
             open: BTreeMap::new(),
             indexes: BTreeMap::new(),
+            logs: BTreeMap::new(),
             scratch: None,
             limits: git::LIMITS,
             outbound: Outbound::default(),
@@ -169,23 +173,29 @@ impl<'a> Registries<'a> {
 
     /// The archive of `selected`: its git dependency's clone, or the archive its registry serves,
     /// read on the first call and kept until [`Self::release`], so a report and the write read it
-    /// once.
+    /// once. A registry archive is read only once its registry's log proves its publish record
+    /// ([`Seen::include`]).
     ///
     /// # Errors
     ///
-    /// [`Registry::archive`]'s.
+    /// [`Seen::open`]'s, [`Seen::include`]'s and [`Registry::archive`]'s.
     pub(crate) fn archive(&mut self, selected: &Selected) -> Result<&[u8], Fault> {
         let slug = selected.name.slug();
         if self.cloned.contains_key(&slug) {
             return Ok(&self.cloned[&slug]);
         }
         if !self.fetched.contains_key(&slug) {
-            let release = &selected.release;
-            let archive = self.registry(&selected.name)?.archive(
-                &selected.name,
-                release.version,
-                &release.digest,
-            )?;
+            let (name, release) = (&selected.name, &selected.release);
+            let url = self.manifest.registry(name.vendor()).to_owned();
+            self.registry(name)?;
+            let registry = &self.open[&url];
+            if !self.logs.contains_key(&url) {
+                let verifier = proof::verifier(&url, self.manifest.registry_key(name.vendor()))?;
+                let seen = Seen::open(registry, &verifier, self.keep.as_deref())?;
+                self.logs.insert(url.clone(), seen);
+            }
+            self.logs[&url].include(registry, name, release)?;
+            let archive = registry.archive(name, release.version, &release.digest)?;
             self.fetched.insert(slug.clone(), archive);
         }
         Ok(&self.fetched[&slug])
@@ -438,6 +448,7 @@ fn cloned(
             capabilities,
             repository: url.to_owned(),
             commit: rev.to_owned(),
+            log: None,
         },
         source: format!("git+{url}"),
         owners: Vec::new(),
@@ -509,8 +520,9 @@ pub(crate) mod tests {
             text.push_str(&format!("'{name}' = \"{minimum}\"\n"));
         }
         text.push_str(&format!(
-            "\n[registries]\nAcme = {{ url = '{}' }}\n",
-            fixture.url()
+            "\n[registries]\nAcme = {{ url = '{}', key = '{}' }}\n",
+            fixture.url(),
+            fixture.key()
         ));
         let path = fixture.root().join("app/package.toml");
         manifest::parse(&mut SourceMap::new(), &path, &text).expect("the test's manifest reads")
@@ -558,8 +570,9 @@ pub(crate) mod tests {
     fn with_git(fixture: &Fixture, url: &str, rev: &str) -> Manifest {
         let text = format!(
             "[dependencies]\n'Acme\\Git' = {{ git = '{url}', rev = '{rev}' }}\n\n\
-             [registries]\nAcme = {{ url = '{}' }}\n",
-            fixture.url()
+             [registries]\nAcme = {{ url = '{}', key = '{}' }}\n",
+            fixture.url(),
+            fixture.key()
         );
         let path = fixture.root().join("app/package.toml");
         manifest::parse(&mut SourceMap::new(), &path, &text).expect("the test's manifest reads")
