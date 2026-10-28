@@ -1,4 +1,5 @@
-//! `nvs registry` — the commands a registry service runs over its transparency log
+//! `nvs registry` — the commands a registry service runs: its build of each release
+//! (`rule:packaging/the-registry-builds-the-archive-from-git`) and its transparency log
 //! (`rule:packaging/the-registry-keeps-an-append-only-log`). They are operator surface, hidden from
 //! the command list: a user of packages never types them.
 //!
@@ -23,6 +24,8 @@
 //! service runs it after each publish and once a day over every file, so no client refuses an
 //! index file as older than seven days. Each file is replaced through a rename, so a run that stops
 //! part way leaves every file signed, some of them by the run before.
+//!
+//! `build` is [`crate::package::build`]: one release's archive, built from a git commit.
 //!
 //! `key` makes a new key: it writes the signer key to a file that did not exist, readable and
 //! writable by this account alone on Unix, and prints the verifier key that clients pin as the
@@ -52,6 +55,13 @@ pub(crate) struct Args {
 
 #[derive(clap::Subcommand)]
 enum Command {
+    /// Build a package's archive from a commit of its git repository.
+    ///
+    /// The command fetches the one commit over HTTPS, packs the package's
+    /// folder and checks it. It prints one JSON object. `"ok": true` has
+    /// the name, the version, the digest and every file. `"ok": false` has
+    /// the reason in `refusal`, and the command exits with an error.
+    Build(crate::package::build::Build),
     /// Make a new signing key for the registry's log.
     ///
     /// The command writes the private key to a new file and prints the
@@ -139,6 +149,7 @@ impl Args {
     /// Runs the `nvs registry` subcommand clap parsed.
     pub(crate) fn run(self) -> ExitCode {
         let done = match self.command {
+            Command::Build(build) => return crate::package::build::run(&build),
             Command::Key { file, name } => key(&file, &name),
             Command::Log {
                 command: LogCommand::Append { dir, key, origin },

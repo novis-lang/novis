@@ -24,11 +24,15 @@
 //! check, and the inclusion proof of every archive it fetches. The registry's own commands over the log are `crate::registry`'s, outside `nvs pkg`.
 //! [`login`] is `nvs pkg login` and `nvs pkg whoami`: the publish token stored in the data folder
 //! and checked with the registry (`rule:packaging/a-publish-token-is-scoped-and-expires`).
+//! [`publish`] is `nvs pkg publish`, which sends a commit for the registry to build, and
+//! [`build`] is that build, `nvs registry build`
+//! (`rule:packaging/the-registry-builds-the-archive-from-git`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
+pub(crate) mod build;
 mod diff;
 mod download;
 pub(crate) mod entry;
@@ -45,6 +49,7 @@ mod minimum;
 pub(crate) mod note;
 mod pack;
 mod proof;
+mod publish;
 mod report;
 mod resolve;
 
@@ -238,6 +243,32 @@ enum Command {
         #[arg(long, value_name = "URL")]
         registry: Option<String>,
     },
+    /// Publish the package at the last commit of its git repository.
+    ///
+    /// The command sends the repository's URL, the commit, the version and
+    /// the package's folder in the repository. It sends no file. The
+    /// registry downloads the commit and builds the package from it, so
+    /// push the commit first. Changes that are not committed are not
+    /// published.
+    ///
+    /// Before it sends anything, the command builds the package from the
+    /// commit on this computer. It also downloads each `[[download]]` file
+    /// from every URL and checks its size and hash. Run `nvs pkg login`
+    /// first to store a publish token.
+    Publish {
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+        /// The repository's public URL, starting with `https://`. The
+        /// default is the URL of the remote `origin`.
+        #[arg(long, value_name = "URL")]
+        repository: Option<String>,
+        /// Build the package and print every file, its size, the total and
+        /// the digest, and send nothing. The digest is the one the registry
+        /// builds from the same commit.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 impl Args {
@@ -262,6 +293,11 @@ impl Args {
             Command::Provide { file } => download::run_provide(&file),
             Command::Login { registry } => login::login(registry.as_deref()),
             Command::Whoami { registry } => login::whoami(registry.as_deref()),
+            Command::Publish {
+                registry,
+                repository,
+                dry_run,
+            } => publish::run(registry.as_deref(), repository.as_deref(), dry_run),
         }
     }
 }

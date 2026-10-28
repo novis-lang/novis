@@ -861,13 +861,18 @@ pub(crate) fn grants(
 /// The tree's `[http.client.tls]` builds the process's one outbound TLS client
 /// here too, as [`install_tls_client`] builds it for a run, so a registry, a
 /// clone or a download behind a private certificate authority is reached with
-/// the anchors the operator wrote.
+/// the anchors the operator wrote. `ca_file` adds one more anchor to those, for
+/// `nvs registry build --ca-file`, an operator's flag, and is checked by the
+/// ownership check a configured anchor gets.
 ///
 /// # Errors
 ///
-/// The exit code to return when the tree does not resolve or its TLS client
-/// does not build. The diagnostic is rendered before it comes back.
-pub(crate) fn package_network() -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
+/// The exit code to return when the tree does not resolve, `ca_file` is not
+/// trusted, or the TLS client does not build. The reason is printed before it
+/// comes back.
+pub(crate) fn package_network(
+    ca_file: Option<&Path>,
+) -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
     let mut sources = SourceMap::new();
     let found_a_tree = matches!(
         working_directory().map(|cwd| roots_in(&[], &cwd)),
@@ -880,7 +885,28 @@ pub(crate) fn package_network() -> Result<Option<nvs_config::tree::Capabilities>
             render_diagnostics(&mut diags, &sources);
             ExitCode::FAILURE
         })?;
-    if found_a_tree {
+    if let Some(ca_file) = ca_file {
+        if let Err(why) = nvs_config::trust::check(ca_file) {
+            eprintln!(
+                "error: `--ca-file {}` cannot be used: {}.",
+                ca_file.display(),
+                why.message()
+            );
+            return Err(ExitCode::FAILURE);
+        }
+        let mut policy = policy_of(&snapshot);
+        if policy.roots.is_empty() {
+            policy.roots.push(nvs_host::tls::BUNDLED.to_owned());
+        }
+        policy.roots.push(ca_file.to_string_lossy().into_owned());
+        nvs_host::tls::configure(&policy).map_err(|err| {
+            eprintln!(
+                "error: `--ca-file {}` does not build a TLS client: {err}",
+                ca_file.display()
+            );
+            ExitCode::FAILURE
+        })?;
+    } else if found_a_tree {
         install_tls_client(&snapshot).map_err(|diagnostic| {
             let mut diags = Diagnostics::new();
             diags.report(diagnostic);

@@ -131,7 +131,7 @@ fn print_holder(out: &mut impl io::Write, holder: &Holder) {
 /// # Errors
 ///
 /// A URL that is not `https:` with a host, or `http:` with a loopback host.
-fn origin(given: Option<&str>) -> Result<String, Fault> {
+pub(crate) fn origin(given: Option<&str>) -> Result<String, Fault> {
     let url = given.unwrap_or(DEFAULT_REGISTRY).trim_end_matches('/');
     let wrong = || {
         fault(format!(
@@ -210,6 +210,43 @@ fn well_formed(text: &str) -> bool {
 /// A failed request, another status, and a reply that is not the expected JSON.
 fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
     let url = format!("{origin}/api/whoami");
+    let (status, body) = send(origin, token, "/api/whoami", None)?;
+    match status {
+        200 => {}
+        401 => return Ok(None),
+        status => {
+            return Err(fault(format!(
+                "The registry `{origin}` returned status {status} for `/api/whoami`."
+            )));
+        }
+    }
+    let bad = || fault(format!("The reply of `{url}` is not what a registry returns."));
+    let json: serde_json::Value = serde_json::from_slice(&body).map_err(|_| bad())?;
+    let text = |key: &str| json.get(key).and_then(serde_json::Value::as_str).map(str::to_owned);
+    Ok(Some(Holder {
+        account: text("account").ok_or_else(bad)?,
+        scope: text("scope").ok_or_else(bad)?,
+        expires_at: json
+            .get("expiresAt")
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(bad)?,
+    }))
+}
+
+/// One request to the registry at `origin`'s `path` with `token` as its bearer token: a `GET`, or
+/// a `POST` of the JSON `body`. The reply's status and its body, of at most [`REPLY_LIMIT`]
+/// bytes.
+///
+/// # Errors
+///
+/// A registry that cannot be reached, and a reply that cannot be read.
+pub(crate) fn send(
+    origin: &str,
+    token: &str,
+    path: &str,
+    body: Option<Vec<u8>>,
+) -> Result<(i64, Vec<u8>), Fault> {
+    let url = format!("{origin}{path}");
     let headers = vec![
         (
             "User-Agent".to_owned(),
@@ -228,32 +265,14 @@ fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
             format!("resolves to `{address}`, which is not this computer. Use `https://` for it.")
         })
     };
-    let mut reply = nvs_stdlib::tool_stream(MEMBER, &url, headers, None, bounds, &refused)
+    let body = body.map(|bytes| ("application/json", bytes));
+    let mut reply = nvs_stdlib::tool_stream(MEMBER, &url, headers, body, bounds, &refused)
         .map_err(|why| fault(format!("The registry `{origin}` cannot be reached: {why}")))?;
-    match reply.status {
-        200 => {}
-        401 => return Ok(None),
-        status => {
-            return Err(fault(format!(
-                "The registry `{origin}` returned status {status} for `/api/whoami`."
-            )));
-        }
-    }
-    let mut body = Vec::new();
+    let mut read = Vec::new();
     reply
-        .read_to_end(&mut body)
+        .read_to_end(&mut read)
         .map_err(|why| fault(format!("The reply of `{url}` cannot be read: {why}")))?;
-    let bad = || fault(format!("The reply of `{url}` is not what a registry returns."));
-    let json: serde_json::Value = serde_json::from_slice(&body).map_err(|_| bad())?;
-    let text = |key: &str| json.get(key).and_then(serde_json::Value::as_str).map(str::to_owned);
-    Ok(Some(Holder {
-        account: text("account").ok_or_else(bad)?,
-        scope: text("scope").ok_or_else(bad)?,
-        expires_at: json
-            .get("expiresAt")
-            .and_then(serde_json::Value::as_i64)
-            .ok_or_else(bad)?,
-    }))
+    Ok((reply.status, read))
 }
 
 /// The data folder's `tokens/`.
@@ -334,7 +353,7 @@ fn write_private(path: &Path, token: &str) -> io::Result<()> {
 /// # Errors
 ///
 /// No stored token, a file the check refuses, and a file that does not contain a token.
-fn stored(origin: &str) -> Result<String, Fault> {
+pub(crate) fn stored(origin: &str) -> Result<String, Fault> {
     let file = file_of(&tokens_dir()?, origin);
     if !file.exists() {
         return Err(fault(format!(

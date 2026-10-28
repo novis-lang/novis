@@ -197,25 +197,7 @@ pub(crate) fn run(
     let breaking = count(Class::Breaking);
     let allowed = breaking == 0 || step.allows_a_break();
     if json {
-        let list = changes
-            .iter()
-            .map(|change| {
-                let mut entry = Map::new();
-                entry.insert("class".into(), Value::from(change.class.label()));
-                entry.insert("at".into(), Value::from(change.at.as_str()));
-                entry.insert("what".into(), Value::from(change.what.as_str()));
-                Value::Object(entry)
-            })
-            .collect();
-        let named = |v: Option<Version>| v.map_or(Value::Null, |v| Value::from(v.to_string()));
-        let mut out = Map::new();
-        out.insert("schema".into(), Value::from(api::SCHEMA));
-        out.insert("from".into(), named(from));
-        out.insert("to".into(), named(to));
-        out.insert("step".into(), Value::from(step.label()));
-        out.insert("allowed".into(), Value::from(allowed));
-        out.insert("changes".into(), Value::Array(list));
-        let text = serde_json::to_string_pretty(&Value::Object(out))
+        let text = serde_json::to_string_pretty(&document(&changes, step, allowed, from, to))
             .expect("a tree of strings serialises");
         println!("{text}");
     } else if changes.is_empty() {
@@ -238,6 +220,50 @@ pub(crate) fn run(
     }
 }
 
+/// The changes from `old` to `new` as `--json` prints them, and whether the version step from
+/// `from` to `to` allows every one. The registry's build reports a release's API with it.
+pub(crate) fn report(
+    old: &Value,
+    new: &Value,
+    from: Option<Version>,
+    to: Option<Version>,
+) -> (Value, bool) {
+    let step = Step::between(from, to);
+    let changes = diff(old, new);
+    let allowed =
+        step.allows_a_break() || changes.iter().all(|change| change.class != Class::Breaking);
+    (document(&changes, step, allowed, from, to), allowed)
+}
+
+/// The `--json` document of `changes` over `step`, and whether the step `allowed` them.
+fn document(
+    changes: &[Change],
+    step: Step,
+    allowed: bool,
+    from: Option<Version>,
+    to: Option<Version>,
+) -> Value {
+    let list = changes
+        .iter()
+        .map(|change| {
+            let mut entry = Map::new();
+            entry.insert("class".into(), Value::from(change.class.label()));
+            entry.insert("at".into(), Value::from(change.at.as_str()));
+            entry.insert("what".into(), Value::from(change.what.as_str()));
+            Value::Object(entry)
+        })
+        .collect();
+    let named = |v: Option<Version>| v.map_or(Value::Null, |v| Value::from(v.to_string()));
+    let mut out = Map::new();
+    out.insert("schema".into(), Value::from(api::SCHEMA));
+    out.insert("from".into(), named(from));
+    out.insert("to".into(), named(to));
+    out.insert("step".into(), Value::from(step.label()));
+    out.insert("allowed".into(), Value::from(allowed));
+    out.insert("changes".into(), Value::Array(list));
+    Value::Object(out)
+}
+
 /// One side's version: the one `--from` or `--to` gave, else a directory's `package.toml`'s, else
 /// none. A version that cannot be read has already reported on standard error.
 fn version(path: &Path, given: Option<Version>) -> Result<Option<Version>, ExitCode> {
@@ -250,7 +276,7 @@ fn version(path: &Path, given: Option<Version>) -> Result<Option<Version>, ExitC
 
 /// One side's API document: a directory's extracted, or a file's read. Each way to fail has
 /// already reported on standard error.
-fn side(path: &Path) -> Result<Value, ExitCode> {
+pub(crate) fn side(path: &Path) -> Result<Value, ExitCode> {
     if path.is_dir() {
         return api::extract(path);
     }

@@ -7,7 +7,9 @@
 //! [`pack::file_set`] then reads that directory exactly as `nvs pkg pack` reads a package, so a git
 //! package's digest is the digest of the same bytes a registry would serve. A symlink or a
 //! submodule at one of those paths is refused, as `nvs pkg pack` refuses a symlink, and every
-//! other path of the repository is never written.
+//! other path of the repository is never written. A package in a folder of its repository, as a
+//! registry build and `nvs pkg publish` name one ([`clone_within`]), has those paths read from
+//! that folder alone.
 //!
 //! **A `file:` remote is opened where it is**, with gix's isolated options, so no configuration
 //! file, hook or helper program of that repository or of this user is read or run. It reaches only
@@ -122,7 +124,26 @@ pub(crate) fn clone(
     limits: Limits,
     outbound: &Outbound,
 ) -> Result<Cloned, Fault> {
+    clone_within(url, rev, "", base, scratch, limits, outbound)
+}
+
+/// [`clone`], with the package in the folder `within` of the repository rather than at its root.
+/// `within` is `/`-separated, and empty for the root.
+///
+/// # Errors
+///
+/// [`clone`]'s, and a `within` that is not a folder of the commit.
+pub(crate) fn clone_within(
+    url: &str,
+    rev: &str,
+    within: &str,
+    base: &Path,
+    scratch: &Path,
+    limits: Limits,
+    outbound: &Outbound,
+) -> Result<Cloned, Fault> {
     let started = Instant::now();
+    let within = folder_path(within)?;
     let id = gix::ObjectId::from_hex(rev.as_bytes())
         .map_err(|err| fault(format!("`{rev}` is not a commit hash: {err}")))?;
     let folder = Folder::new(scratch)?;
@@ -144,7 +165,7 @@ pub(crate) fn clone(
         started,
         read: 0,
     };
-    let manifest = walk.write(id, &folder.0)?;
+    let manifest = walk.write(id, &within, &folder.0)?;
     let entries = pack::file_set(&folder.0, &manifest)
         .map_err(|refusal| fault(format!("`{url}` at `{rev}` does not pack: {refusal}")))?;
     let mut archive = Vec::new();
@@ -155,6 +176,26 @@ pub(crate) fn clone(
         archive,
         digest,
     })
+}
+
+/// The names of the folders on the way to `within`, a package's folder in its repository.
+///
+/// # Errors
+///
+/// An absolute path, a `\`, and an empty, `.` or `..` part.
+fn folder_path(within: &str) -> Result<Vec<String>, Fault> {
+    let within = within.trim_end_matches('/');
+    if within.is_empty() {
+        return Ok(Vec::new());
+    }
+    let parts: Vec<String> = within.split('/').map(str::to_owned).collect();
+    if within.contains('\\') || parts.iter().any(|part| matches!(part.as_str(), "" | "." | "..")) {
+        return Err(fault(format!(
+            "`{within}` is not a folder of a repository. Write it relative to the repository's \
+             root, with `/` between folders, such as `packages/http`."
+        )));
+    }
+    Ok(parts)
 }
 
 /// A scratch folder of its own, removed when it is dropped.
@@ -586,18 +627,36 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    /// The commit `id`'s `package.toml`, read, and every path the archive can carry written
-    /// under `dir`.
-    fn write(&mut self, id: gix::ObjectId, dir: &Path) -> Result<Manifest, Fault> {
+    /// The `package.toml` in the folder `within` of the commit `id`, read, and every path of that
+    /// folder the archive can carry written under `dir`.
+    fn write(
+        &mut self,
+        id: gix::ObjectId,
+        within: &[String],
+        dir: &Path,
+    ) -> Result<Manifest, Fault> {
         let url = self.url;
         let commit = self
             .repo
             .find_commit(id)
             .map_err(|err| fault(format!("`{url}` has no commit `{id}`: {err}")))?;
-        let tree = commit
+        let mut tree = commit
             .tree_id()
             .map_err(|err| fault(format!("cannot read the commit `{id}` of `{url}`: {err}")))?
             .detach();
+        for part in within {
+            let entries = self.entries(tree)?;
+            let Some((_, _, next)) = entries
+                .iter()
+                .find(|(name, mode, _)| name == part && mode.is_tree())
+            else {
+                return Err(fault(format!(
+                    "`{url}` has no folder `{}` at the commit `{id}`",
+                    within.join("/")
+                )));
+            };
+            tree = *next;
+        }
         let root = self.entries(tree)?;
         let Some(toml) = root
             .iter()

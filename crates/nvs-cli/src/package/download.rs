@@ -280,6 +280,30 @@ impl Store {
         )))
     }
 
+    /// `entry`'s file downloaded from each of its URLs, and checked against its size and hash
+    /// each time, so a publisher learns of a URL that fails before anybody fetches the package.
+    ///
+    /// # Errors
+    ///
+    /// The first URL that fails: the fault names `package`, the path, the URL and the reason.
+    pub(crate) fn check_every_url(
+        &self,
+        package: &Name,
+        entry: &Download,
+        outbound: &Outbound,
+    ) -> Result<(), Fault> {
+        for url in &entry.urls {
+            self.download(url, entry, outbound).map_err(|why| {
+                fault(format!(
+                    "`{package}` lists `{url}` for the file `{}`, and it does not give the \
+                     declared file: {why}",
+                    entry.path
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
     /// `entry`'s file from `url`, checked and renamed into the cache.
     fn download(
         &self,
