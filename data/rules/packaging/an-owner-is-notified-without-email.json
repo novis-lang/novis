@@ -7,6 +7,9 @@
     "packaging/an-account-stays-active-by-proof-not-by-token",
     "packaging/a-registry-account-is-a-passkey"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/FeedsTest.nvs",
+    "apps/registry/src/PushTest.nvs",
+    "apps/registry/src/WebhooksTest.nvs"
+  ]
 }

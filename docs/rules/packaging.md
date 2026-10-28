@@ -1470,7 +1470,7 @@ written yet.
 
 <a id="packaging-the-registry-is-a-novis-program"></a>
 
-## The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands  *(designed — owned by goal registry-service)*
+## The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands  *(designed — owned by goal registry-website)*
 
 `rule:packaging/the-registry-is-a-novis-program`
 
