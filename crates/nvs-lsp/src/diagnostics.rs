@@ -95,6 +95,13 @@ fn in_bands(diagnostic: &Diagnostic, bands: &[&str]) -> bool {
         .is_some_and(|code| bands.contains(&band(code)))
 }
 
+/// Whether `diagnostic` is a lexer or parser error, which means the file it
+/// points into did not parse.
+#[must_use]
+pub fn breaks_the_tree(diagnostic: &Diagnostic) -> bool {
+    diagnostic.is_error() && in_bands(diagnostic, A_BROKEN_TREE)
+}
+
 /// The diagnostics of `diags` an editor publishes, with the phase gate applied.
 ///
 /// Order is preserved, and every diagnostic that survives is the one the walk
@@ -104,7 +111,7 @@ fn in_bands(diagnostic: &Diagnostic, bands: &[&str]) -> bool {
 pub fn phase_gated(diags: &Diagnostics) -> Vec<&Diagnostic> {
     let broken: BTreeSet<SourceId> = diags
         .iter()
-        .filter(|diagnostic| diagnostic.is_error() && in_bands(diagnostic, A_BROKEN_TREE))
+        .filter(|diagnostic| breaks_the_tree(diagnostic))
         .filter_map(file_of)
         .collect();
 

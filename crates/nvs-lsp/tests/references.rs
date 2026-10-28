@@ -499,6 +499,51 @@ fn a_lens_counts_every_use_the_index_holds_of_a_declaration() {
     });
 }
 
+/// While the open document does not parse, its lens rows stay on the lines of
+/// the last text that did, moved by the lines added above them.
+///
+/// Each row the client draws is a line of its own, so a row added or dropped
+/// moves every line below it. The half-written `half(` is a declaration that
+/// takes `bump` out of the tree, and neither change shows until the text
+/// parses again.
+#[test]
+fn a_lens_row_stays_while_the_document_does_not_parse() {
+    let dir = TempDir::new("lens-steady");
+    let lib = dir.uri("lib.nvs");
+    let main = dir.uri("main.nvs");
+    let half = LIB.replace(
+        "    public function bump",
+        "    public function half(\n    public function bump",
+    );
+    let whole = LIB.replace(
+        "    public function bump",
+        "    public function half(): int { return 0; }\n    public function bump",
+    );
+
+    served(|client| {
+        open(client, &main, MAIN);
+        open(client, &lib, LIB);
+        let rows = |answer: Vec<(u32, String)>| -> Vec<u32> {
+            answer.into_iter().map(|(line, _)| line).collect()
+        };
+        assert_eq!(rows(lenses(client, 2, &lib)), [1, 2, 3]);
+
+        change(client, &lib, 2, &half);
+        assert_eq!(
+            rows(lenses(client, 3, &lib)),
+            [1, 2, 4],
+            "`bump`'s row moved down one line, and `half(` has none yet"
+        );
+
+        change(client, &lib, 3, &whole);
+        assert_eq!(
+            rows(lenses(client, 4, &lib)),
+            [1, 2, 3, 4],
+            "the text parses, so `half` has a row"
+        );
+    });
+}
+
 /// `nvs.codeLens.enable` turned off is no answer rather than an empty one.
 ///
 /// The index is built and the declarations are in it either way: the setting

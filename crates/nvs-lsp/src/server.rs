@@ -122,6 +122,7 @@ use crate::hints;
 use crate::hover;
 use crate::imports;
 use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
+use crate::lens_rows::LensRows;
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
 use crate::query;
@@ -243,6 +244,10 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // The coverage reports the client keeps, read when a lens is asked for.
     let mut reports = Reports::new(settings.coverage.clone(), settings.root.clone());
 
+    // Each open document's lens rows, held in place while its text does not
+    // parse.
+    let mut lens_rows = LensRows::default();
+
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
     // moment it runs if nothing gets there first. `None` is a server at rest,
     // which is what it is between one burst of typing and the next.
@@ -352,12 +357,22 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 // lens, and only a lens reads one.
                 if request.method == CodeLensRequest::METHOD {
                     reports.refresh();
+                    let answered = lenses(
+                        &documents,
+                        &index,
+                        &reports,
+                        &mut lens_rows,
+                        &settings,
+                        encoding,
+                        request,
+                    );
+                    connection.sender.send(answered.into())?;
+                    continue;
                 }
                 let answered = answer(
                     &documents,
                     &index,
                     &completion_files,
-                    &reports,
                     &settings,
                     encoding,
                     request,
@@ -409,6 +424,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 let Some(changed) = apply(&mut documents, notification) else {
                     continue;
                 };
+                if let Some(closed) = &changed.closed {
+                    lens_rows.forget(closed);
+                }
                 // A keystroke in the buffer whose analysis is already waiting
                 // replaces it, and that analysis never runs — the whole of what
                 // `nvs.lsp.debounce` buys. Anything else flushes it first, so
@@ -693,7 +711,6 @@ fn answer(
     documents: &Documents,
     index: &SymbolIndex,
     completion_files: &CompletionFiles,
-    reports: &Reports,
     settings: &Settings,
     encoding: PositionEncoding,
     request: Request,
@@ -849,20 +866,6 @@ fn answer(
                 Err(error) => unreadable(id, &method, &error),
             }
         }
-        CodeLensRequest::METHOD => match serde_json::from_value::<CodeLensParams>(params) {
-            Ok(params) => Response::new_ok(
-                id,
-                code_lens(
-                    documents,
-                    index,
-                    reports,
-                    settings,
-                    encoding,
-                    &params.text_document.uri,
-                ),
-            ),
-            Err(error) => unreadable(id, &method, &error),
-        },
         TypeHierarchyPrepare::METHOD => {
             match serde_json::from_value::<TypeHierarchyPrepareParams>(params) {
                 Ok(params) => Response::new_ok(
@@ -1864,6 +1867,38 @@ fn code_lens(
             .chain(queries)
             .collect(),
     )
+}
+
+/// `textDocument/codeLens`: [`code_lens`]'s answer, with its rows held in
+/// place while the document's text does not parse ([`LensRows`]).
+///
+/// Answered outside [`answer`] because it is the one read that keeps something
+/// for the next answer. No lenses for a document frees what is kept for it, so
+/// turning lenses off frees it.
+fn lenses(
+    documents: &Documents,
+    index: &SymbolIndex,
+    reports: &Reports,
+    lens_rows: &mut LensRows,
+    settings: &Settings,
+    encoding: PositionEncoding,
+    request: Request,
+) -> Response {
+    let Request { id, method, params } = request;
+    let params = match serde_json::from_value::<CodeLensParams>(params) {
+        Ok(params) => params,
+        Err(error) => return unreadable(id, &method, &error),
+    };
+    let uri = &params.text_document.uri;
+    let Some(fresh) = code_lens(documents, index, reports, settings, encoding, uri) else {
+        lens_rows.forget(uri);
+        return Response::new_ok(id, None::<Vec<CodeLens>>);
+    };
+    let Some(document) = documents.get(uri) else {
+        return Response::new_ok(id, fresh);
+    };
+    let parses = document.path().is_some_and(|path| index.parses(path));
+    Response::new_ok(id, lens_rows.steady(uri, document.text(), parses, fresh))
 }
 
 /// One lens above each `Core\Db` call in `path` that the newest recorded

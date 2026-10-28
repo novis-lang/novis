@@ -345,6 +345,9 @@ struct Indexed {
     /// Whether the analysis that indexed this file reported an error inside
     /// it, in which case a use written there may be missing from the index.
     errors: bool,
+    /// Whether one of those errors is the lexer's or the parser's, so this
+    /// file's text did not parse and its declarations may be missing.
+    broken: bool,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::invalidate`] follows.
@@ -779,6 +782,15 @@ impl SymbolIndex {
         self.files.contains_key(&canonical_key(path))
     }
 
+    /// Whether the index holds `path` and its text parsed, with no lexer or
+    /// parser error in the analysis that indexed it.
+    #[must_use]
+    pub fn parses(&self, path: &Path) -> bool {
+        self.files
+            .get(&canonical_key(path))
+            .is_some_and(|indexed| !indexed.broken)
+    }
+
     /// How many files the index holds.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -836,6 +848,12 @@ impl SymbolIndex {
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
                 errors: analysed.diags.iter().any(|diag| {
                     diag.is_error()
+                        && diag
+                            .primary_span()
+                            .is_some_and(|span| span.file == loaded.id)
+                }),
+                broken: analysed.diags.iter().any(|diag| {
+                    crate::diagnostics::breaks_the_tree(diag)
                         && diag
                             .primary_span()
                             .is_some_and(|span| span.file == loaded.id)

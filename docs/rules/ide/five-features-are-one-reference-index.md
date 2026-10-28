@@ -10,7 +10,13 @@ large file is where it is least welcome. A click on a lens lists the places it c
 `nvs.showLocations` with the document, its position and those places, and only for a client that names
 that id in `capabilities.experimental.commands`; every other client gets a label. The VS Code client
 registers the id and opens the editor's reference view. The id is frozen like a contributed command, and
-the places cost one file load per file that holds one, per lens request. `textDocument/typeHierarchy` shows supertypes and subtypes,
+the places cost one file load per file that holds one, per lens request. While an open document does not
+parse, its lens rows stay on the lines of the last text that did (`crates/nvs-lsp/src/lens_rows.rs`). A
+client draws each line with a lens as a row of its own, so a half-typed declaration that drops or adds a
+row would move every line below it on each keystroke. A row moves with the lines added or removed above
+it, shows what the current text counts on its line, and shows `…` where it counts nothing. A lens on a
+line that is not a row waits until the text parses. This costs one copy of the last text that parsed and
+its lenses per open document, freed when the document closes. `textDocument/typeHierarchy` shows supertypes and subtypes,
 including `rule:classes/interface-default-methods` and `rule:classes/delegation-by-property`, which is
 where a reader most needs to see the shape rather than reconstruct it.
 
