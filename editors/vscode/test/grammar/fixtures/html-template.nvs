@@ -1,0 +1,4 @@
+<?nvs
+$url = '/cart';
+$page = html`<a href="{$url}" title="<?= Core\Str::upper($url) ?>">open</a>`;
+echo $page;

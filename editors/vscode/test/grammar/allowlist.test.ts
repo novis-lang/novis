@@ -58,6 +58,7 @@ const ALLOWED = [
   "constant.character.escape.nvs",
   "invalid.illegal.escape.nvs",
   "meta.embedded.line.nvs",
+  "meta.embedded.block.html.nvs",
   "variable.other.nvs",
   "variable.other.property.nvs",
   "punctuation.accessor.nvs",
@@ -103,6 +104,12 @@ describe("the grammars the manifest contributes", () => {
         language: "nvs",
         scopeName: "source.nvs",
         path: "./syntaxes/nvs.tmLanguage.json",
+        // An html template's body is HTML to the editor, which is what gives it HTML's comment
+        // toggling and brackets. A slot inside it is Novis again.
+        embeddedLanguages: {
+          "meta.embedded.block.html.nvs": "html",
+          "meta.embedded.line.nvs": "nvs",
+        },
       },
       {
         // The embedded mapping is what gives a `--FILE--` body Novis's own comment toggling and

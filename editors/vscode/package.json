@@ -92,7 +92,11 @@
       {
         "language": "nvs",
         "scopeName": "source.nvs",
-        "path": "./syntaxes/nvs.tmLanguage.json"
+        "path": "./syntaxes/nvs.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.html.nvs": "html",
+          "meta.embedded.line.nvs": "nvs"
+        }
       },
       {
         "language": "nvst",

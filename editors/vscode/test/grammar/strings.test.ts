@@ -189,3 +189,48 @@ describe("a heredoc, which interpolates, and a nowdoc, which does not", () => {
     assert.equal(span(spans, "$inner").scopes.includes(NOWDOC), false);
   });
 });
+
+describe("an html template's body, which is HTML with Novis slots in it", () => {
+  const TEMPLATE = "string.quoted.other.html-template.nvs";
+  const MARKUP = "meta.embedded.block.html.nvs";
+  const ATTRIBUTE = "string.quoted.double.html";
+  let markup: Span[];
+
+  before(async () => {
+    // With the HTML stub, so each attribute value is an HTML rule that has already begun.
+    markup = await tokenize(readFileSync(join(FIXTURES, "html-template.nvs"), "utf8"), true);
+  });
+
+  it("gives the body the embedded HTML scope, and the delimiters only the template's", () => {
+    for (const text of ["<a href=", ">open</a>"]) {
+      const found = span(markup, text);
+      assert.ok(found.scopes.includes(MARKUP), `${text} is ${found.scopes.join(" ")}`);
+      assert.ok(found.scopes.includes(TEMPLATE), `${text} escaped the template`);
+    }
+    for (const delimiter of ["html`", "`"]) {
+      assert.equal(span(markup, delimiter).scopes.includes(MARKUP), false, `${delimiter} is markup`);
+    }
+  });
+
+  it("opens a slot inside an attribute value, which an HTML rule has already begun", () => {
+    // `$url` is written twice in an attribute value: the `{$` slot in `href`, and the argument in
+    // the `<?=` slot in `title`.
+    const inside = markup.filter((s) => s.text === "$url" && s.scopes.includes(ATTRIBUTE));
+    assert.equal(inside.length, 2, "a slot in an attribute value is not inside the attribute value");
+    for (const found of inside) {
+      assert.ok(found.scopes.includes(SLOT), "a slot in an attribute value opened no slot");
+      assert.ok(found.scopes.includes(VARIABLE));
+    }
+    const open = span(markup, "<?=");
+    assert.ok(open.scopes.includes(ATTRIBUTE), "the <?= slot is not inside the attribute value");
+    assert.ok(open.scopes.includes("punctuation.section.embedded.begin.nvs"));
+    assert.ok(span(markup, "upper").scopes.includes("entity.name.function.member.nvs"),
+              "the code in the slot is not read as code");
+  });
+
+  it("ends at the backtick, and the code after it is code again", () => {
+    const semicolon = markup.filter((s) => s.text === ";" && !s.scopes.includes(TEMPLATE));
+    assert.equal(semicolon.length, 3, "a statement after the template was read as part of it");
+    assert.ok(span(markup, "echo").scopes.includes("keyword.other.nvs"));
+  });
+});

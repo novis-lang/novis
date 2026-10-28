@@ -11,6 +11,10 @@
     "L:source.nvs -meta.embedded": {
       "comment": "The openers are an injection rather than a top-level pattern because text mode nests: an HTML rule that has begun an attribute value owns every position until its own end, so a `<?nvs` inside `class=\"...\"` reaches no pattern of ours. An injection is offered at every position whatever rule is on the stack, and `L:` puts it ahead of that rule. The selector is `source.nvs` and not `text.html`, which is what a template grammar usually injects into: an external grammar included from `patterns` has its patterns inlined without its scope name being pushed, so a `text.html` selector matches nothing until the HTML grammar's own rules have begun. Excluding `meta.embedded` is what keeps it out of code mode, where the file is already open.",
       "patterns": [{ "include": "#code-mode" }]
+    },
+    "L:meta.embedded.block.html.nvs -meta.embedded.line.nvs": {
+      "comment": "The slots of an html template, offered inside every HTML rule its body begins, for the reason the openers above are an injection: a slot inside `class=\"...\"` would otherwise reach no pattern of ours. Excluding `meta.embedded.line.nvs` keeps it out of the code inside a slot. The template's closing backtick is not offered here, because only the rule on top of the stack can end. Markup that leaves a tag open at the backtick runs on as HTML until the next `>`, which is also what an unclosed tag does in an HTML file.",
+      "patterns": [{ "include": "#html-template-slots" }]
     }
   },
   "repository": {
@@ -395,12 +399,20 @@
       ]
     },
     "html-template": {
-      "comment": "``html`…` `` (rule:core-classes/html-template), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is coloured as a string rather than handed to the HTML grammar: the template is not yet a region the server answers (crates/nvs-lsp/src/regions.rs, known gap `nvs-lsp/html-templates-body-is-not-a`), and when it becomes one the HTML services follow that answer rather than this pattern.",
+      "comment": "``html`…` `` (rule:core-classes/html-template), lexed by crates/nvs-syntax/src/lexer.rs as a double-quoted string's body with the delimiter swapped, so its body carries the same escapes and the same `{$…}` and `$name` slots — plus the one slot a string does not have, `<?= … ?>`, which holds any expression. The prefix and the backtick are one token there, so the pattern requires them together; a backtick in the body is `\\``. The body is markup, so it is handed to the HTML grammar after Novis's own slots, which come first so a `<?=` is a slot and never HTML's processing instruction. It carries `meta.embedded.block.html.nvs`, which the manifest's `embeddedLanguages` maps to `html`: that is what gives the body HTML's comment toggling and brackets, and what a theme reads to draw text between tags in its body colour, not its string colour. The template keeps its string scope around all of it. The server answers the same body as an HTML region (crates/nvs-lsp/src/regions.rs), which is where the HTML services come from (rule:ide/a-template-region-gets-the-editors-services-and-formatter).",
       "name": "string.quoted.other.html-template.nvs",
+      "contentName": "meta.embedded.block.html.nvs",
       "begin": "(html`)",
       "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.nvs" } },
       "end": "(`)",
       "endCaptures": { "1": { "name": "punctuation.definition.string.end.nvs" } },
+      "patterns": [
+        { "include": "#html-template-slots" },
+        { "include": "text.html.basic" }
+      ]
+    },
+    "html-template-slots": {
+      "comment": "What Novis reads inside an html template's body before HTML does: the two escapes of its own delimiters, a string's escapes, and the three slots. It is offered twice: from #html-template, and from the injection into the body, because an HTML rule that has begun a tag or an attribute value owns every position until its own end, and `href=\"{$url}\"` is where a slot is most often written.",
       "patterns": [
         { "name": "constant.character.escape.nvs", "match": "\\\\[`{]" },
         { "include": "#escape" },
@@ -409,7 +421,7 @@
       ]
     },
     "html-template-echo-hole": {
-      "comment": "`<?= … ?>` inside an html template holds an expression that may begin with anything, where `{$…}` must begin with `$`: crates/nvs-syntax/src/lexer.rs opens it in the html template body alone, never in a double-quoted string, so it is offered from #html-template and from nowhere else. Its body is `#code` for the same reason a `{$…}` slot's is, and the scope is the slot's own, since to a theme the two are the one thing: Novis inside text.",
+      "comment": "`<?= … ?>` inside an html template holds an expression that may begin with anything, where `{$…}` must begin with `$`: crates/nvs-syntax/src/lexer.rs opens it in the html template body alone, never in a double-quoted string, so it is offered from #html-template-slots and from nowhere else. Its body is `#code` for the same reason a `{$…}` slot's is, and the scope is the slot's own, since to a theme the two are the one thing: Novis inside text.",
       "name": "meta.embedded.line.nvs",
       "begin": "(<\\?=)",
       "beginCaptures": { "1": { "name": "punctuation.section.embedded.begin.nvs" } },
