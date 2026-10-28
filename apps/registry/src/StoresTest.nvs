@@ -56,6 +56,29 @@ final class StoresTest
     }
 
     #[Test]
+    public function anHttpStoreGetsADeleteWithItsKey(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::URL . 'archive/aa.tar', 404);
+            var $stores = new Stores(StoresTest::database(), StoresTest::site($folder, [StoresTest::http($folder)]));
+
+            // The store does not have the file, and that is not an error.
+            Test::assertTrue($stores->remove('archive/aa.tar'));
+            array<SentRequest> $sent = Test::sentHttp();
+            Test::assertSame(Core\Arr::count($sent), 1);
+            Test::assertTrue($sent[0]->method() == Method::Delete);
+            Test::assertSame($sent[0]->url(), StoresTest::URL . 'archive/aa.tar');
+            Test::assertSame($sent[0]->header('AccessKey'), 'the store key');
+
+            Test::answerHttp(StoresTest::URL . 'archive/bb.tar', 500);
+            Test::assertTrue(!$stores->remove('archive/bb.tar'));
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    #[Test]
     public function aStoreThatAnswers500StopsTheSendBeforeTheCheckpoint(): void
     {
         string $folder = StoresTest::folder();

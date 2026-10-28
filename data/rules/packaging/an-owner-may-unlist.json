@@ -1,11 +1,13 @@
 {
   "title": "An owner may unlist a package or a version with a passkey, which hides it from search and keeps it fetchable, logged and reversible",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/the-operator-only-withholds",
     "packaging/the-registry-keeps-an-append-only-log"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/ReleasesTest.nvs",
+    "crates/nvs-cli/tests/package_retract.rs"
+  ]
 }

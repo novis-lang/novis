@@ -1,7 +1,7 @@
 <?nvs
 // Withholds the bytes of one version, for malware or a legal order. Only the person who runs the
 // registry starts it, such as `nvs run jobs/withhold.nvs --config nvs.toml 'Acme\Http' 1.4.0 'Malware.'`.
-// The version stays in the index and the log with the reason, and its archive is no longer sent.
+// The version stays in the index and the log with the reason. Its archive is deleted from every store.
 autoload 'Registry' from '../src';
 
 array<tainted string> $words = Core\Cli::arguments();
@@ -35,5 +35,9 @@ if (!$releases->withhold($package, $version, $reason)) {
 }
 if (!new Registry\Index($db, new Registry\NvsLog($site, Registry\Index::work($site)), $site)->flush()) {
     throw new RuntimeError('The log or a store failed. Run this again to send the change.');
+}
+// The log and the index have the reason now. Then the archive is deleted from every store.
+if (!new Registry\Stores($db, $site)->remove(Registry\Releases::archiveOf($db, $package, $version))) {
+    throw new RuntimeError('A store did not delete the archive. Run this again to delete it.');
 }
 echo 'Version ', $version, ' of ', $package, ' is withheld.', "\n";

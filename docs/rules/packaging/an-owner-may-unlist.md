@@ -15,6 +15,14 @@ retracted instead, which is what tells the people who already use it.
 - **Deletion by the owner.** It breaks every lockfile that holds the digest, and a deleted name would
   invite somebody to publish different code under it.
 
-**Not on disk.** There is no registry. The client resolves and fetches an unlisted version a minimum
-names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
+An owner signed in with a passkey in the last 15 minutes unlists a version, or every version, with
+`POST /api/packages/<vendor>/<name>/unlist` and reverses it with `.../relist`
+(`apps/registry/src/App.nvs`). Each change is an `unlist` or `relist` log entry saved with it, and the
+index file shows the version as `unlisted`. A token cannot unlist: the request is answered `202` with
+the page where an owner confirms it, and `nvs pkg unlist` prints that page
+(`crates/nvs-cli/src/package/unlist.rs`). The client resolves and fetches an unlisted version a
+minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
 (`crates/nvs-cli/src/package/minimum.rs`).
+
+**Not on disk.** There is no search, no package page and no owners' notification yet, so nothing
+hides an unlisted package from a listing, and no owner is told of an unlist.

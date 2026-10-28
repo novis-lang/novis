@@ -1,12 +1,15 @@
 {
   "title": "The registry's operator may only withhold a version's bytes, for malware or a legal order, as a signed and logged advisory, and never deletes, edits or reassigns",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/the-registry-keeps-an-append-only-log",
     "packaging/an-owner-may-unlist",
     "packaging/a-package-name-is-vendor-slash-name"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/ReleasesTest.nvs",
+    "apps/registry/src/StoresTest.nvs",
+    "crates/nvs-cli/src/package/resolve.rs"
+  ]
 }

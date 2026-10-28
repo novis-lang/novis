@@ -172,6 +172,22 @@ final class ReleasesTest
             Test::assertSame(ReleasesTest::digestIn($folder), Str::slice($digest, 7));
             Test::assertSame(ReleasesTest::logged($folder), ['withhold']);
             Test::assertTrue(Str::contains(IO::read($folder . '/log.txt'), '"reason":"A court order."'));
+
+            // The archive is deleted from the store and from the work folder, and is not sent again.
+            string $path = Releases::archiveOf($db, ReleasesTest::KEY, '0.0.9');
+            Test::assertSame($path, 'archive/' . Str::slice($digest, 7) . '.tar');
+            IO::makeDir($folder . '/files/archive');
+            IO::makeDir($folder . '/work/archive');
+            IO::write($folder . '/files/' . $path, 'bytes');
+            IO::write($folder . '/work/' . $path, 'bytes');
+            var $stores = new Stores($db, ReleasesTest::site($folder));
+            $stores->queue($path, Stores::ARCHIVE);
+            Test::assertTrue($stores->remove($path));
+            Test::assertTrue(!IO::exists($folder . '/files/' . $path));
+            Test::assertTrue(!IO::exists($folder . '/work/' . $path));
+            Test::assertSame($db->query('select count(*) from unsent', [])->value() as int, 0);
+            // A second run finds nothing to delete, and that is not an error.
+            Test::assertTrue($stores->remove($path));
         } finally {
             ReleasesTest::remove($folder);
         }

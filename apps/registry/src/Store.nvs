@@ -102,6 +102,25 @@ final class Store
         return true;
     }
 
+    // Deletes the file at `$path` in this store. A file that is not there is not an error.
+    // An `http` store gets a `DELETE` request with the same credential header as `put`.
+    // It throws a `RuntimeError` when the store gives another error.
+    public function delete(string $path): void
+    {
+        if ($this->kind == 'dir') {
+            string $target = Path::join($this->location, $path);
+            if (IO::isFile($target)) {
+                IO::remove($target);
+            }
+            return;
+        }
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::delete($this->location . $path, { headers: [$this->header => $credential] });
+        if ($response->status() != 404 && ($response->status() < 200 || $response->status() > 299)) {
+            throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $path . '.');
+        }
+    }
+
     // Returns the full path of `$path` in a `dir` store, or `null` for an `http` store.
     public function fileOf(string $path): ?string
     {

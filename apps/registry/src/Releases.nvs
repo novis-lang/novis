@@ -7,6 +7,7 @@ use Core\Db\Transaction;
 use Core\Json;
 use Core\Str;
 use Core\Time;
+use RuntimeError;
 
 // The state of each release after it is published: pending, released, unlisted, retracted or withheld.
 // A release by token alone is pending for seven days, and an owner's passkey releases it at once.
@@ -218,6 +219,16 @@ final class Releases
             return true;
         }
         return false;
+    }
+
+    // Returns the path of a version's archive in the stores, such as `archive/` and 64 hex characters and `.tar`.
+    public static function archiveOf(Connection $db, string $key, string $version): string
+    {
+        foreach ($db->query('select digest from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
+            string $digest = Releases::trusted($row->string('digest'));
+            return 'archive/' . (Str::startsWith($digest, 'blake3:') ? Str::slice($digest, 7) : $digest) . '.tar';
+        }
+        throw new RuntimeError('The package ' . $key . ' has no version ' . $version . '.');
     }
 
     private function ensureRow(Transaction $tx, string $key, string $version): void

@@ -23,5 +23,14 @@ registry can carry.
 - **A review queue before publication.** It delays every release and implies a safety promise no
   reviewer can keep.
 
-**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a withheld version
-and prints its reason (`crates/nvs-cli/src/package/resolve.rs`).
+The operator withholds from a shell on the server, with `nvs run jobs/withhold.nvs --config nvs.toml
+<package> <version> <reason>` (`apps/registry/jobs/withhold.nvs`). No web credential can withhold,
+because the website has no operator account. `Releases::withhold` saves the reason and a `withhold` log
+entry together, and the index file, signed with the log's key, shows `{"withheld": {"reason"}}`. The
+registry's own archive route answers `451` for a withheld digest. Once the log and the index have the
+reason, the job deletes the archive from every store and from the work folder (`Stores::remove`), and
+running it again finishes a delete a store failed. Resolution refuses a withheld version and prints its
+reason (`crates/nvs-cli/src/package/resolve.rs`).
+
+**Not on disk.** There is no `nvs pkg audit` and no policy page. A CDN in front of a store may serve
+a cached archive until its cache lifetime ends, because the service never purges a CDN.

@@ -33,6 +33,26 @@ final class Stores
         $this->db->execute('insert into unsent (path, rank) values (?, ?) on conflict (path) do update set rank = excluded.rank', [$path, $rank]);
     }
 
+    // Deletes the file `$path` from every store and from the work folder, such as the archive of a
+    // withheld version. A store that does not have it is not an error, and the file is not sent again.
+    // It returns `false` when a store fails. Running it again deletes the rest.
+    public function remove(string $path): bool
+    {
+        $this->db->execute('delete from unsent where path = ?', [$path]);
+        try {
+            foreach ($this->site->stores as Store $store) {
+                $store->delete($path);
+            }
+        } catch (RuntimeError $error) {
+            return false;
+        }
+        string $local = Path::join($this->site->work, $path);
+        if (Core\IO::isFile($local)) {
+            Core\IO::remove($local);
+        }
+        return true;
+    }
+
     // Sends every waiting file to every store. Every store gets all files of one rank before any
     // store gets a file of the next rank, so no store has the checkpoint while another store fails.
     // It returns `true` when every store has every file. When one store fails, it stops and returns
