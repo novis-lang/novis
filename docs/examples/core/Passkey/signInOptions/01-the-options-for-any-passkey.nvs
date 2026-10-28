@@ -1,0 +1,23 @@
+<?nvs
+// Shows the options a server sends to the browser to sign in with a passkey.
+// requires: redis
+
+// The challenge in the options is saved in the session, so start it first.
+Core\Session::start();
+
+// The account is not known yet, so no passkeys are passed.
+string $json = Core\Passkey::signInOptions('example.com');
+
+// The challenge is random, so this prints only the fields that are the same each time.
+var $options = Core\Json::decode($json) as array<mixed>;
+echo 'site: ', $options['rpId'] as string, "\n";
+echo 'user verification: ', $options['userVerification'] as string, "\n";
+
+// `timeout` is in milliseconds. This prints `300000`, which is five minutes.
+echo 'timeout: ', $options['timeout'] as int, "\n";
+
+// The list of allowed passkeys is empty. The browser shows every passkey it has for the site.
+echo 'allowed passkeys: ', Core\Arr::count($options['allowCredentials'] as array<mixed>), "\n";
+
+// The challenge is 32 random bytes, written as 43 characters.
+echo 'challenge: ', Core\Str::length($options['challenge'] as string), " characters\n";

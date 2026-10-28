@@ -1,0 +1,34 @@
+<?nvs
+// Measures `Core\Passkey::signInOptions` for an account that has many passkeys, at growing numbers of passkeys.
+// bench: start 16
+// bench: max 1024
+// requires: redis
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        bytes $raw = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        bytes $publicKey = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+        array<Core\Passkey\Credential> $allowed = [];
+        uint $n = 0;
+        while ($n < $size) {
+            $allowed[] = Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            string $json = Core\Passkey::signInOptions('example.com', $allowed);
+            if (Core\Str::length($json) > 0) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+echo Bench::run(16), "\n";

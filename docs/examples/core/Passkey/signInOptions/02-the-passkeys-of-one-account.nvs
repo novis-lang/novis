@@ -1,0 +1,28 @@
+<?nvs
+// Shows how the passkeys of one account go into the options to sign in.
+// requires: redis
+
+Core\Session::start();
+
+// The account has a passkey on a laptop and one on a phone. The application stored them.
+// Here they are made up: an Ed25519 public key from `Core\Crypto`, and random ids.
+var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $raw = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $publicKey = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+array<Core\Passkey\Credential> $passkeys = [
+    Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0),
+    Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0),
+];
+
+// `$allowed` lists the passkeys the browser may use. Other passkeys are not offered.
+string $json = Core\Passkey::signInOptions('example.com', $passkeys);
+
+// The options list both passkeys under `allowCredentials`. This prints `2`.
+var $options = Core\Json::decode($json) as array<mixed>;
+var $allowed = $options['allowCredentials'] as array<mixed>;
+echo 'allowed passkeys: ', Core\Arr::count($allowed), "\n";
+
+// Each id in the options is the stored id, written in base64url.
+var $second = $allowed[1] as array<mixed>;
+bool $same = ($second['id'] as string) == Core\Encoding::toBase64Url($passkeys[1]->id());
+echo 'the second one is the phone: ', $same ? 'yes' : 'no', "\n";

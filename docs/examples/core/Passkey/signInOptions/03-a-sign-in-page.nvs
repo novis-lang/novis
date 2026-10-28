@@ -1,0 +1,31 @@
+<?nvs
+// Shows the browser half and the server half of a sign-in page that gets its options.
+// requires: redis
+
+class SignInPage
+{
+    // The browser half. This JavaScript gets the options from the server,
+    // lets the user sign in with a passkey and sends the answer back to the server.
+    public static function script(): string
+    {
+        return "const response = await fetch('/sign-in/options', { method: 'POST' });\n"
+            . "const options = PublicKeyCredential.parseRequestOptionsFromJSON(await response.json());\n"
+            . "const credential = await navigator.credentials.get({ publicKey: options });\n"
+            . "await fetch('/sign-in', { method: 'POST', body: JSON.stringify(credential.toJSON()) });\n";
+    }
+
+    // The server half. It answers the first `fetch` in the script.
+    public static function options(): string
+    {
+        Core\Session::start();
+        return Core\Passkey::signInOptions('example.com');
+    }
+}
+
+// The page contains this script.
+echo SignInPage::script(), "\n";
+
+// This request is the script's first `fetch`. The challenge is new for every request,
+// so this prints only the site.
+var $options = Core\Json::decode(SignInPage::options()) as array<mixed>;
+echo 'options for ', $options['rpId'] as string, "\n";

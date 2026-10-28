@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/sign-in
+--HEADERS--
+host: example.com

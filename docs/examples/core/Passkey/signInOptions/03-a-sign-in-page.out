@@ -1,0 +1,6 @@
+const response = await fetch('/sign-in/options', { method: 'POST' });
+const options = PublicKeyCredential.parseRequestOptionsFromJSON(await response.json());
+const credential = await navigator.credentials.get({ publicKey: options });
+await fetch('/sign-in', { method: 'POST', body: JSON.stringify(credential.toJSON()) });
+
+options for example.com

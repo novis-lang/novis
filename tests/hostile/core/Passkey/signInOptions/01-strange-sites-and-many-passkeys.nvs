@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a request sends empty, huge and strange site values, thousands of passkeys,
+// and thousands of calls. Each call should return JSON or throw an error, and nothing should crash or leak.
+// requires: redis
+// hostile: timeout-ms 60000
+// hostile: ends-early 7 FATAL
+
+// 1. Asks for options before the session is started. The error is caught, so step 2 still runs.
+try {
+    Core\Passkey::signInOptions('example.com');
+    echo "options without a session\n";
+} catch (RuntimeError $e) {
+    echo "no session: error\n";
+}
+Core\Session::start();
+
+// 2. An empty site. The error is caught.
+try {
+    Core\Passkey::signInOptions('');
+    echo "empty site: options\n";
+} catch (LogicError $emptySite) {
+    echo "empty site: error\n";
+}
+
+// 3. Sites with quotes, a closing script tag, a NUL byte, emoji and right-to-left text.
+// The JSON is decoded again, and each site should come back unchanged.
+array<string> $strange = ["\",\"rpId\":\"evil.example", '</script><script>alert(1)</script>', "a\0b", '👩🏽‍💻🇦🇹', "\u{202E}moc.elpmaxe", '\\u0022'];
+int $same = 0;
+foreach ($strange as string $site) {
+    var $options = Core\Json::decode(Core\Passkey::signInOptions($site)) as array<mixed>;
+    if (($options['rpId'] as string) == $site && Core\Arr::count($options['allowCredentials'] as array<mixed>) == 0) {
+        $same = $same + 1;
+    }
+}
+echo $same, ' of ', Core\Arr::count($strange), " strange sites came back unchanged\n";
+
+// 4. A site of 4 MB. The two strings are freed afterwards.
+string $huge = Core\Str::repeat('a', 4194304);
+string $big = Core\Passkey::signInOptions($huge);
+echo 'huge options: ', Core\Str::length($big) > 4194304 ? 'complete' : 'too short', "\n";
+$huge = '';
+$big = '';
+
+// 5. An account with 5000 passkeys, each with the longest id there is. All of them are in the options.
+var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $raw = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $publicKey = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+array<Core\Passkey\Credential> $allowed = [];
+int $n = 0;
+while ($n < 5000) {
+    $allowed[] = Core\Passkey\Credential::of(Core\Random::bytes(1023), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, $n);
+    $n = $n + 1;
+}
+string $many = Core\Passkey::signInOptions('example.com', $allowed);
+var $decoded = Core\Json::decode($many) as array<mixed>;
+echo 'allowed: ', Core\Arr::count($decoded['allowCredentials'] as array<mixed>), "\n";
+$many = '';
+$decoded = [];
+
+// 6. 20000 calls in one session. Each call replaces the last challenge, so the session does not grow.
+int $calls = 0;
+while ($calls < 20000) {
+    Core\Passkey::signInOptions('example.com');
+    $calls = $calls + 1;
+}
+echo $calls, " calls done\n";
+
+// 7. Asks for options for 40000 passkeys with the longest id. They do not fit in memory.
+// The program should stop at the memory limit, with no crash.
+echo "step 7\n";
+while ($n < 40000) {
+    $allowed[] = Core\Passkey\Credential::of(Core\Random::bytes(1023), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, $n);
+    $n = $n + 1;
+}
+echo "40000 passkeys\n";
+Core\Passkey::signInOptions('example.com', $allowed);
+echo "options for 40000 passkeys\n";

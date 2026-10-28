@@ -1,0 +1,5 @@
+site: example.com
+user verification: required
+timeout: 300000
+allowed passkeys: 0
+challenge: 43 characters
