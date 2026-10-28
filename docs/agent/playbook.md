@@ -181,6 +181,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `Bench::run(...)` means the call, and dropping the `(...)` there changes what it says. Rewrite from
   `git show HEAD:<file>` with a list of the calls to keep, then run the touched cases once. See
   `crates/nvs-syntax/src/parser/expr.rs`. `until: gone crates/nvs-syntax/src/parser/expr.rs:names_a_method`
+- **A test that passes alone and fails in the suite is shared state, and the first suspect is a
+  pool.** A `UNIQUE` failure on a row a test wrote into its own `:memory:` database was another
+  test's database, handed back by the per-core connection pool. Run the failures alone with
+  `--rerun-failed` first; a pass there means two tests meet in a pool, a file or a shared table.
+  `until: gone crates/nvs-stdlib/src/db/pool.rs:is_private`
 
 ## Splitting a file
 

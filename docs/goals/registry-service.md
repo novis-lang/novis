@@ -526,7 +526,7 @@ the first stable API at once, and unlisting and withholding work as their rules 
   - [x] the eight tests over a database of their own: the wait, the passkey release, the stable wait, the dependency, unlist, retract, withhold, one entry per change
   - [x] the three route tests: a passkey release, a token unlist answered `202`, `451` from a withheld archive
   - [x] `IndexTest` and `PublishTest` read the stable wait and the shifted log numbers
-- [ ] `nvs test` over a folder answers `Core\Test::request` with `public/index.nvs` alone, so the scripts under `jobs/` do not run per request (standing decision *A test request runs the request entry*). `crates/nvs-cli/src/runner.rs:1307`, `crates/nvs-cli/src/main.rs:3185`, `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1`
+- [x] `nvs test` over a folder answers `Core\Test::request` with `public/index.nvs` alone, so the scripts under `jobs/` do not run per request (standing decision *A test request runs the request entry*). `crates/nvs-cli/src/runner.rs:1307`, `crates/nvs-cli/src/main.rs:3185`, `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1`
 - [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
 
 ### 5. an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
@@ -614,25 +614,27 @@ Stages 1, 2, 3, 7 and 11 are done. Stage 4's service side, Rust lane and tests l
 `Index::flush` and `catchUp` append before any index file changes), the `release`, `stable`,
 `api`, `unlist`, `relist` and `retract` routes in `apps/registry/src/App.nvs`, the owner and
 token entries in `Vendors` and `Tokens`, `jobs/withhold.nvs` with `451` from the archive route,
-and `nvs pkg retract` and `nvs pkg unlist`. Stage 4's tests landed in
-`apps/registry/src/ReleasesTest.nvs` (11 tests); `IndexTest` publishes `0.0.9` (every version at
-`0.1.0` or higher waits for an owner, `0.9.0` too) and reads the log number the release saved,
-because waiting token entries in the shared database now go into the log first. Run once with
-`apps/registry/jobs/` moved aside: `ReleasesTest` 11 passed, and `IndexTest` red only on the
-log number this session then fixed. `nvs check apps/registry` is clean.
+`nvs pkg retract` and `nvs pkg unlist`, and `ReleasesTest` (11 tests).
 
-Found: every app test that sends a request has been red since stage 11, because the folder's
-generated test entry runs `jobs/*.nvs` on each request (standing decision *A test request runs the
-request entry*). Expected red until the runner fix lands: every test that calls
-`BrowserTest::newAccount` or `Core\Test::request`, which is most of `AccountsTest`, `TokensTest`,
-`VendorsTest`, `PublishTest`, `IndexTest`, `DownloadsTest`, `BackupTest` and `ReleasesTest`'s
-three route tests. The sweep's `env-secret-proofs` red was stale (rerun exit 0), and nightly run
-40662443492 was cancelled by a newer push.
+The runner fix landed: `Checked::request` holds the id of a folder's `public/index.nvs`, and
+`UnderTest` runs its frame through `Unit::file_script` (`crates/nvs-cli/src/runner.rs:1307`), with
+`test_dir.rs`'s `a_test_request_runs_the_served_file_and_not_the_jobs`. The `server: true`
+listener (`TestServer::bind`, `runner.rs:3704`) still runs the generated entry, as both rules say.
+`nvs test apps/registry --config apps/registry/nvs.toml`: 51 passed, 0 failed.
+
+Found on the way and fixed: a pooled SQLite `:memory:` connection kept its tables for the next
+request on the core (`ReleasesTest`'s in-memory databases collided under parallel runs).
+`SqliteConn::is_private` and the pool's gate (`crates/nvs-stdlib/src/db/pool.rs:warm_connection`)
+close it now; `db-a-closed-name-is-free-for-the-next-connect.nvst` pins it. `BackupTest` reads the
+log numbers its releases saved and publishes `0.0.x`. One run in three had
+`IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s `catchUp` return `false`, in a run where
+`BackupTest` also failed; the run after both fixes was green. Watch it in stage 12. The sweep's
+`env-secret-proofs` red was stale again (the log and a rerun both exit 0), and nightly run
+40662443492 was cancelled by a newer push. No test is expected red.
 
 ### Next
 
-The runner fix first, because no app test can pass without it; then stage 4's last items.
-- [ ] The runner fix of *A test request runs the request entry*: `Program::Directory` keeps the path of `public/index.nvs` when the folder has one, and `runner::UnderTest` runs that file's script frame (find how a `require` site calls a file's frame in the unit) where it now takes `unit.script()` (`crates/nvs-cli/src/runner.rs:1384`, `:3970`). Add a Rust test of a folder whose `jobs/x.nvs` throws at top level and whose `#[Test]` sends a request; amend the two rules. Then `nvs test apps/registry --config apps/registry/nvs.toml` once. `crates/nvs-cli/src/main.rs:3185`, `crates/nvs-cli/src/runner.rs:1307`
+Stage 4's last two items.
 - [ ] The `repository` entry and the passkey route that rebinds a package's repository. First give each release its own repository: `Index::write` lists every version with the package row's. `apps/registry/src/Index.nvs:@write`, `apps/registry/src/Publish.nvs:130`
 - [ ] The three rules `shipped`, each with its guards. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`
 
@@ -664,5 +666,9 @@ The runner fix first, because no app test can pass without it; then stage 4's la
   states and stable confirmations after the newest copy are lost until it replays those log entries
   (`apps/registry/src/Restore.nvs:181`).
 - `nvs pkg retract` does not check the 500-character reason limit; only the registry does.
+- A `#[Test(server: true)]` request over a folder still runs the generated entry, `jobs/` included.
+  `TestServer::bind` takes the unit and routes from `run_the_test` (`crates/nvs-cli/src/runner.rs:3358`);
+  passing `Checked::request` there too makes both mechanisms run `public/index.nvs`. No registry
+  test uses `server: true`.
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).
