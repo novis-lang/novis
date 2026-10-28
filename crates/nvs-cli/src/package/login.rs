@@ -63,8 +63,9 @@ const INPUT_LIMIT: u64 = 1024;
 /// The most bytes the registry's reply may have.
 const REPLY_LIMIT: u64 = 64 * 1024;
 
-/// How long the request to the registry may take.
-const WITHIN: Duration = Duration::from_secs(30);
+/// How long a request to the registry may take, for every request but a publish, which waits
+/// for the registry's build.
+pub(crate) const WITHIN: Duration = Duration::from_secs(30);
 
 /// What the registry said about a token.
 struct Holder {
@@ -285,7 +286,7 @@ fn well_formed(text: &str) -> bool {
 /// A failed request, another status, and a reply that is not the expected JSON.
 fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
     let url = format!("{origin}/api/whoami");
-    let (status, body) = send(origin, token, "/api/whoami", None)?;
+    let (status, body) = send(origin, token, "/api/whoami", None, WITHIN)?;
     match status {
         200 => {}
         401 => return Ok(None),
@@ -318,8 +319,8 @@ fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
 }
 
 /// One request to the registry at `origin`'s `path` with `token` as its bearer token: a `GET`, or
-/// a `POST` of the JSON `body`. The reply's status and its body, of at most [`REPLY_LIMIT`]
-/// bytes.
+/// a `POST` of the JSON `body`, answered `within` that long. The reply's status and its body, of
+/// at most [`REPLY_LIMIT`] bytes.
 ///
 /// # Errors
 ///
@@ -329,6 +330,7 @@ pub(crate) fn send(
     token: &str,
     path: &str,
     body: Option<Vec<u8>>,
+    within: Duration,
 ) -> Result<(i64, Vec<u8>), Fault> {
     let url = format!("{origin}{path}");
     let headers = vec![
@@ -340,7 +342,7 @@ pub(crate) fn send(
         ("Accept".to_owned(), "application/json".to_owned()),
     ];
     let bounds = nvs_stdlib::ToolBounds {
-        within: WITHIN,
+        within,
         bytes: REPLY_LIMIT,
     };
     let plain = url.starts_with("http://");

@@ -33,6 +33,7 @@
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 use serde_json::{Map, Value};
 
@@ -42,6 +43,10 @@ use super::git::{self, Outbound};
 use super::index::{Fault, fault};
 use super::manifest::{self, Version};
 use super::{build, login};
+
+/// How long the publish waits for the registry's answer: the registry's clone may take
+/// [`git::LIMITS`]' time, and a minute more covers the pack, the log and the stores after it.
+const WITHIN: Duration = Duration::from_secs(git::LIMITS.time.as_secs() + 60);
 
 /// `nvs pkg publish`: the release packed and checked locally, then sent unless `dry_run`.
 pub(crate) fn run(registry: Option<&str>, repository: Option<&str>, dry_run: bool) -> ExitCode {
@@ -245,7 +250,7 @@ fn send(origin: &str, token: &str, release: &Release, version: Version) -> Resul
     body.insert("version".into(), Value::from(version.to_string()));
     body.insert("directory".into(), Value::from(release.dir.as_str()));
     let body = serde_json::to_vec(&Value::Object(body)).expect("a tree of strings serialises");
-    let (status, reply) = login::send(origin, token, "/api/publish", Some(body))?;
+    let (status, reply) = login::send(origin, token, "/api/publish", Some(body), WITHIN)?;
     let json: Option<Value> = serde_json::from_slice(&reply).ok();
     let text = |key: &str| {
         json.as_ref()

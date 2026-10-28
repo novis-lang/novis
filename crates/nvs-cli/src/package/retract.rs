@@ -137,7 +137,7 @@ pub(super) fn post(
 ) -> Result<(i64, Value), Fault> {
     let body = serde_json::to_vec(&body).expect("a tree of strings serialises");
     let path = format!("/api/packages/{slug}/{action}");
-    let (status, reply) = login::send(origin, token, &path, Some(body))?;
+    let (status, reply) = login::send(origin, token, &path, Some(body), login::WITHIN)?;
     Ok((
         status,
         serde_json::from_slice(&reply).unwrap_or(Value::Null),
