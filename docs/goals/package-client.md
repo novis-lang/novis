@@ -63,7 +63,7 @@ stages:
     context: [docs/reference/tools/35-packages.md]
   - id: 10
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: client-proofs
@@ -511,47 +511,37 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 
 ### State
 
-Stages 1, 2, 3, 7, 4, 5, 9, 6 and 8 are done, and stage 10, the gate, is next. Stage 8's last two
-items landed. Every `Core\Http\Client` member now has a `net.connect` row in
-`crates/nvs-stdlib/src/registry.rs` (beside `allowUrl`'s), so the update attack is refused with
-`E0658`, and `bun nv proofs --run --no-cache --id 'tools:packages/nvs-pkg-update-and-nvs-pkg-outdated'`
-is green. A namespace with no grant line keeps the application's authority, and no example,
-attack or conformance tree but that attack calls the client under a `[grants]` table.
-`an_https_registry_gives_an_archive_over_one_mebibyte` in `crates/nvs-cli/tests/package_download.rs`
-fetches a 1.5 MiB archive from a loopback `https:` registry and passes. `cargo fmt --all` formatted
-four files earlier slices left unformatted. `client-proofs` and `owners-closes` pass.
+Every stage is done, and the goal is reached. The gate found two causes, both in the impact
+check on `nvs-cli bin nvs`. `git.rs`'s own-process case started its binary with `Command::new`, and
+`pack.rs`'s `"../a.txt"` had no data line. Both are fixed in `27da4340a`. `bun nv affected --run`
+is green, and so are `bun nv verify --doc`, `bun nv owners --closes package-client`,
+`bun nv ci --check`, `client-proofs` and `owners-closes`. `ci --check` named 67 perf proofs that
+`http.rs` and `io.rs` had made stale. All of them are recorded in `c39065df3`, and
+`core/IO-Metadata/isDir` runs 1024 iterations again. Every decision that only this file's prose
+held is in a module doc of `crates/nvs-cli/src/package/` or `nvs_config::capability::own_file_word`
+(`58b4def64`), so this file may be deleted.
 
-This machine's C: drive is full (0 MB free), so the MSVC linker fails (`LNK1104`/`LNK1108`) unless
-`TMP` and `TEMP` point at `E:\mwl\.agent-tmp\tmp`; create that folder first, because a scratch
-cleanup removes it. Claude Code's own temporary folder on C: is full too.
+The sweep's reds at the start of this session were stale: `env-secret-proofs` exits 0, and Miri
+run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
-The sweep's reds at the start of this session were stale again: `env-secret-proofs` exits 0, and
-Miri run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
-
-Tests that may go red at the gate: `nvs-cli`'s `tests/meta.rs` if it pins the capabilities roster's
-size or `Core\Http\Client`'s absence, and any `nvs-types` or `nvs-lsp` test that compiles a
-`Core\Http\Client` call under an in-memory grant table with no `net.connect`.
+This machine's C: drive is full, so the MSVC linker fails unless `TMP` and `TEMP` point at
+`E:\mwl\.agent-tmp\tmp`. Create that folder first.
 
 ### Next
 
-**Stage 10, the gate.**
-
-- [ ] Start `bun nv affected --run` with `run_in_background` and end the turn; group its failures by cause. `docs/goals/package-client.md:514`
-- [ ] Fix every failure in one pass, then run it once more. `docs/goals/package-client.md:515`
-- [ ] Before `DONE`: `bun nv verify --doc`, `bun nv owners --closes package-client` and `bun nv ci --check`, each red fixed; move each decision only this goal's prose holds into a rule or a module doc before the file is deleted. `AGENTS.md:1`
+Nothing: the goal is reached, and the chain goes on with `registry-log`.
 
 ### Backlog
 
-- `bun nv proofs --run --only` with several ids crashes at `tools/nv/proofs/run.ts:1090` (`r.verdict` of undefined); one `--id` per call works.
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the

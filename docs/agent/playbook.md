@@ -102,6 +102,18 @@ session the bullets it ranks highest for the live goal, and names how many more 
   the last goal, so a red names a bug already fixed and a green proves nothing about the change.
   Pass `--nvs target/debug/nvs.exe` to `site`, and run a single hostile case with
   `target/debug/nvs run <file>`. `until: gone tools/nv/cmd/site.ts:target/release/${exe}`
+- **`bun nv proofs --run --only` with several ids crashes in `suiteLines` (`r.verdict` of
+  undefined), because the pass has no result for one of the files.** Run one `--id` per call
+  until it is fixed. `until: gone tools/nv/proofs/run.ts:pass.results.get(\`${what}:${f}\`)!`
+- **A `--group` for `--record-perf` is one class, not a namespace.** `--group 'Core\Http'` measures
+  only `Core\Http`'s own members, and `Core\Http\Client`'s stay stale. Take the classes from
+  `bun nv proofs --gate --limit 0`'s list and give each its own `--group`
+  (`tools/nv/cmd/proofs.ts`).
+  `until: gone tools/nv/cmd/proofs.ts:--group`
+- **A bench's closing `Bench::run` passes the same literal as its `// bench: iterations` line.**
+  An edit to one alone makes the ramp skip the bench, and `--record-perf` counts against the
+  wrong N, so a bench with no allocation fails `allocations 0` (`tools/nv/cmd/scaling.ts`).
+  `until: gone tools/nv/cmd/scaling.ts:does not pass \`iterations\` as one literal`
 - **`bun nv proofs --record-perf --group lang:concurrency` run in the background is killed as a
   `HANG:` at `no-colouring-i-o-just-waits`, and it appends nothing for the features it had already
   measured.** That bench's callgrind leg runs in WSL and prints nothing for over 90 s, and the hang
