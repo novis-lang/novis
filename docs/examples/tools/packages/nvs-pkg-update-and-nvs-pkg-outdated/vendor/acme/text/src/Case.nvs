@@ -1,0 +1,12 @@
+<?nvs
+namespace Acme\Text;
+
+final class Case
+{
+    public const string VERSION = '2.0.0';
+
+    public static function lower(string $text): string
+    {
+        return Core\Str::lower(Core\Str::trim($text));
+    }
+}

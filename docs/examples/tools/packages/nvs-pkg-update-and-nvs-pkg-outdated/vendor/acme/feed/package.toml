@@ -1,0 +1,10 @@
+[package]
+name = 'Acme\Feed'
+version = "2.1.0"
+
+[dependencies]
+'Acme\Text' = "1.1.0"
+
+[capabilities]
+required = ["fs.read"]
+optional = ["fs.write"]

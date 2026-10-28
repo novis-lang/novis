@@ -1,0 +1,13 @@
+<?nvs
+// Shows which version of `Acme\Text` is used when two packages need different major versions.
+// `Acme\Slug` 1.3.0 needs `Acme\Text` 2.0.0, and `Acme\Feed` 2.1.0 needs `Acme\Text` 1.1.0.
+
+require './vendor/packages.nvs';
+
+// The higher version is used. The update report named `Acme\Feed` as the package that needs 1.1.0.
+// This prints `2.0.0`.
+echo Acme\Text\Case::VERSION, "\n";
+
+// The program compiled, so the code of both packages works with version 2.0.0.
+// This prints `winter-boots`.
+echo Acme\Slug\Slug::make('Winter Boots'), "\n";

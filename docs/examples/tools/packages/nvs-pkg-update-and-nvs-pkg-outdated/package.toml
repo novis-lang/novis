@@ -1,0 +1,13 @@
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+# `nvs pkg update` raised both minimums. The comment on each line stays.
+[dependencies]
+'Acme\Feed' = "2.1.0"  # reads the news titles
+'Acme\Slug' = "1.3.0"  # makes the URLs of product pages
+
+# `Acme\Feed` 2.1.0 now requests `fs.write`. You added it to the line after the update.
+[grants]
+'Acme\Feed\*' = ["fs.read", "fs.write"]  # required: fs.read
+'Acme\Slug\*' = []
+'Acme\Text\*' = []

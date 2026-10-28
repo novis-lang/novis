@@ -1,0 +1,11 @@
+<?nvs
+// Shows the hosts that `package.lock` lists for a package with downloaded files.
+
+// No line in `[grants]` matches this file, so it may read files.
+// The `hosts` line has the host of every URL in the package's `[[download]]` entries.
+foreach (Core\Str::lines(Core\IO::read('./package.lock')) as string $line) {
+    if (Core\Str::startsWith($line, 'hosts = ')) {
+        // This prints `hosts = ["files.example.com", "mirror.example.com"]`.
+        echo $line, "\n";
+    }
+}

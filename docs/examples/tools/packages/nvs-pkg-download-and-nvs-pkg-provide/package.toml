@@ -1,0 +1,8 @@
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+[dependencies]
+'Acme\Geo' = "1.0.0"
+
+[grants]
+'Acme\Geo\*' = []

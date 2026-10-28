@@ -1,0 +1,13 @@
+<?nvs
+// Shows a package reading a data file that its archive contains.
+// `[package] files` in the package's `package.toml` lists `data/stop-words.txt`, so `nvs pkg pack` added it.
+
+require './vendor/packages.nvs';
+
+// The grant line of `Acme\Slug` is empty, so the package may not read files in general.
+// This prints `false`.
+echo Acme\Slug\Slug::mayReadFiles() ? 'true' : 'false', "\n";
+
+// The package still reads its list of short words, such as `the` and `of`.
+// This prints `price-bread`.
+echo Acme\Slug\Slug::make('The Price of Bread'), "\n";

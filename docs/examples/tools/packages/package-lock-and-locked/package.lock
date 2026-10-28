@@ -1,0 +1,41 @@
+# Written by `nvs pkg`. Commit this file, and do not edit it.
+schema = 1
+
+[[package]]
+name = 'Acme\Feed'
+version = "2.0.0"
+source = "https://packages.example.com"
+digest = "3c9e1f0a7b5d2e8c4a6f9b1d3e5c7a9f0b2d4e6a8c1f3b5d7e9a0c2e4f6b8d1a"
+repository = "https://git.example.com/acme/feed"
+commit = "8b1e4d7a0c3f6b9e2d5a8c1f4b7e0d3a6c9f2b5e"
+owners = ["acme"]
+
+[package.capabilities]
+required = ["fs.read"]
+optional = ["fs.write"]
+
+[[package]]
+name = 'Acme\Slug'
+version = "1.2.0"
+source = "https://packages.example.com"
+digest = "ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75"
+repository = "https://git.example.com/acme/slug"
+commit = "4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e"
+owners = ["acme"]
+
+[package.capabilities]
+required = []
+optional = []
+
+[[package]]
+name = 'Acme\Text'
+version = "1.1.0"
+source = "https://packages.example.com"
+digest = "58f93a91cc0a7e8690c2ec28cb50dd6f6a64486dc56eca2a548aa946c2082f38"
+repository = "https://git.example.com/acme/text"
+commit = "e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1"
+owners = ["acme"]
+
+[package.capabilities]
+required = []
+optional = []

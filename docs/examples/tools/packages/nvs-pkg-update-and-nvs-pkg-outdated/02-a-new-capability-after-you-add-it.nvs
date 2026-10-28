@@ -1,0 +1,20 @@
+<?nvs
+// Shows a capability that a new version requests. It works after you add it to the grant line.
+// The update report printed that `Acme\Feed` 2.1.0 now requests `fs.write`.
+// You then changed its line in `[grants]` to `["fs.read", "fs.write"]`.
+
+require './vendor/packages.nvs';
+
+// No line in `[grants]` matches this file, so it may write files.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'headlines.txt');
+Core\IO::write($path, "Spring Sale\nNew Opening Hours\n");
+
+// `Acme\Feed` reads the file and writes the titles in lower case to a second file.
+string $copy = Core\Path::join(Core\IO::temporaryDir(), 'headlines-lower.txt');
+Acme\Feed\Feed::save($copy, Acme\Feed\Feed::titles($path));
+
+// This prints the second file: `spring sale` and `new opening hours`.
+echo Core\IO::read($copy);
+
+// This prints `true`, because the grant line now lists `fs.write`.
+echo Acme\Feed\Feed::may('fs.write') ? 'true' : 'false', "\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows a program reading `package.lock` to print the version of one package.
+
+// No line in `[grants]` matches this file, so it may read files.
+array<string> $lines = Core\Str::lines(Core\IO::read('./package.lock'));
+
+// Each package starts with its `name` line. Its `version` line comes after it.
+bool $found = false;
+foreach ($lines as string $line) {
+    if ($line == "name = 'Acme\\Slug'") {
+        $found = true;
+    } elseif ($found && Core\Str::startsWith($line, 'version = ')) {
+        // The version is between the two quotes. This prints `Acme\Slug 1.2.0`.
+        string $quoted = Core\Str::after($line, '"') ?? '';
+        echo 'Acme\\Slug ', Core\Str::before($quoted, '"') ?? '', "\n";
+        break;
+    }
+}

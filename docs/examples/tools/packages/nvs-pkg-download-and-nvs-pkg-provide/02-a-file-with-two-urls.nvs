@@ -1,0 +1,11 @@
+<?nvs
+// Shows a downloaded file whose `[[download]]` entry has two URLs and a `license`.
+// `nvs pkg fetch` tries the next URL when a file does not match its size and its hash.
+
+require './vendor/packages.nvs';
+
+// The file is `data/cities.csv`, and the code reads it the same way from either URL.
+// This prints `Vienna` and then `Graz`.
+foreach (Acme\Geo\Geo::cities('AT') as string $city) {
+    echo $city, "\n";
+}

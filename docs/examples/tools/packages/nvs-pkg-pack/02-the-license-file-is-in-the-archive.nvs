@@ -1,0 +1,8 @@
+<?nvs
+// Shows that the archive of a package contains its license file.
+// `nvs pkg pack` adds `LICENSE` without a line in `files`. A package without a license file is not packed.
+
+require './vendor/packages.nvs';
+
+// The package reads its own license file with no grant. This prints `MIT License`.
+echo Acme\Slug\Slug::license(), "\n";

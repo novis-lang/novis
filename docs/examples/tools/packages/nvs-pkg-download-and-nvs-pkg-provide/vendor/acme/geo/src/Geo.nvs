@@ -1,0 +1,35 @@
+<?nvs
+namespace Acme\Geo;
+
+final class Geo
+{
+    // Returns the name of the country with the code, or an empty string.
+    public static function country(string $code): string
+    {
+        // `nvs pkg fetch` downloaded this file, so the package may read it with no grant.
+        foreach (Core\Str::lines(Core\IO::read('../data/countries.csv')) as string $line) {
+            if (Core\Str::startsWith($line, $code . ',')) {
+                return Core\Str::after($line, ',') ?? '';
+            }
+        }
+        return '';
+    }
+
+    // Returns the cities of the country with the code.
+    public static function cities(string $code): array<string>
+    {
+        array<string> $cities = [];
+        foreach (Core\Str::lines(Core\IO::read('../data/cities.csv')) as string $line) {
+            if (Core\Str::endsWith($line, ',' . $code)) {
+                $cities[] = Core\Str::before($line, ',') ?? '';
+            }
+        }
+        return $cities;
+    }
+
+    // Returns whether this package may read any file.
+    public static function mayReadFiles(): bool
+    {
+        return Core\Cap::has('fs.read');
+    }
+}

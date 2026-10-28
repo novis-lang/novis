@@ -1,0 +1,19 @@
+<?nvs
+// Shows a package whose capabilities are in `package.lock` and whose grant line gives one of them.
+// The lock says that `Acme\Feed` requires `fs.read` and can also use `fs.write`.
+
+require './vendor/packages.nvs';
+
+// No line in `[grants]` matches this file, so it may write files.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'notices.txt');
+Core\IO::write($path, "Store Closed Monday\n");
+
+// The grant line of `Acme\Feed` lists `fs.read`, so the package reads the file.
+// This prints `store closed monday`.
+foreach (Acme\Feed\Feed::titles($path) as string $title) {
+    echo $title, "\n";
+}
+
+// The grant line does not list `fs.write`. This prints `true` and then `false`.
+echo Acme\Feed\Feed::may('fs.read') ? 'true' : 'false', "\n";
+echo Acme\Feed\Feed::may('fs.write') ? 'true' : 'false', "\n";

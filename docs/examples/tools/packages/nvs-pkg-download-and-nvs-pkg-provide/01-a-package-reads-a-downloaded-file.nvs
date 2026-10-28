@@ -1,0 +1,12 @@
+<?nvs
+// Shows a package reading a file that `nvs pkg fetch` downloaded for it.
+// A `[[download]]` entry in the package's `package.toml` names `data/countries.csv`.
+
+require './vendor/packages.nvs';
+
+// The grant line of `Acme\Geo` is empty, so the package may not read files in general.
+// This prints `false`.
+echo Acme\Geo\Geo::mayReadFiles() ? 'true' : 'false', "\n";
+
+// The package still reads the downloaded file. This prints `Austria`.
+echo Acme\Geo\Geo::country('AT'), "\n";

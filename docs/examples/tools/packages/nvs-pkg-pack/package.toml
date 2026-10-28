@@ -1,0 +1,8 @@
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+[dependencies]
+'Acme\Slug' = "1.2.0"
+
+[grants]
+'Acme\Slug\*' = []

@@ -1,0 +1,19 @@
+[package]
+name = 'Acme\Geo'
+version = "1.0.0"
+
+[capabilities]
+required = []
+
+[[download]]
+path = "data/countries.csv"
+urls = ["https://files.example.com/geo/countries.csv"]
+sha256 = "e5113373ec61f7ac5d1108b0a0f0b0efe162dbcc6e25a1b18560e1598ea0a0ea"
+size = 32
+
+[[download]]
+path = "data/cities.csv"
+urls = ["https://files.example.com/geo/cities.csv", "https://mirror.example.com/geo/cities.csv"]
+sha256 = "b4e9887aeff8f10355c437f301367d82112f0453a23249db4ab89b0c54ce94af"
+size = 36
+license = "CC-BY-4.0"

@@ -1,0 +1,16 @@
+# Written by `nvs pkg`. Commit this file, and do not edit it.
+schema = 1
+
+[[package]]
+name = 'Acme\Geo'
+version = "1.0.0"
+source = "https://packages.example.com"
+digest = "864398990dc13dec6430246249d3fef346b8705ac35d3e89ccb4e483a4d44ce2"
+repository = "https://git.example.com/acme/geo"
+commit = "485ad2289245bcc5ff4f4e33908a3caf79569b9d"
+owners = ["acme"]
+hosts = ["files.example.com", "mirror.example.com"]
+
+[package.capabilities]
+required = []
+optional = []

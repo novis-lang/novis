@@ -1,0 +1,10 @@
+<?nvs
+// Shows the readme file and the code under `src` of a package, which its archive always contains.
+
+require './vendor/packages.nvs';
+
+// `nvs pkg pack` adds `README.txt` without a line in `files`. This prints `Acme Slug`.
+echo Acme\Slug\Slug::readme(), "\n";
+
+// The class comes from `src/Slug.nvs` in the archive. This prints `summer-menu`.
+echo Acme\Slug\Slug::make('A Summer Menu'), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows a program using exactly the version of a package that `package.lock` lists.
+
+// `package.lock` lists `Acme\Slug` at version 1.2.0, and `vendor/` has that version.
+require './vendor/packages.nvs';
+
+// This prints `1.2.0`.
+echo Acme\Slug\Slug::VERSION, "\n";
+
+// This prints `kitchen-table`.
+echo Acme\Slug\Slug::make('The Kitchen Table'), "\n";

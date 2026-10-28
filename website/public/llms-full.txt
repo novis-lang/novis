@@ -58928,7 +58928,8 @@ archive contains only these files:
 
 - every `.nvs` file under `src`;
 - `package.toml`;
-- the license and readme files next to `package.toml`, such as `LICENSE` and `README.md`;
+- the license, readme and notice files next to `package.toml`, such as `LICENSE`, `README.md` and
+  `NOTICE`;
 - each file that `[package] files` lists.
 
 The command prints each file with its size, the total and the digest of the package:
