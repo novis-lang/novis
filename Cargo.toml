@@ -864,7 +864,8 @@ pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 # `tools/nv/cmd/gen-attribution.ts`'s `C_DEPENDENCIES` is where that answer is written
 # down for the gate that enforces it. Every AEAD, KDF and key agreement stays
 # with the RustCrypto block above; this crate signs and verifies and does
-# nothing else here.
+# nothing else here. `nvs-cli` reaches it for the same Ed25519: the registry
+# log's checkpoints are signed notes (`crates/nvs-cli/src/package/note.rs`).
 ring = "0.17"
 
 # --- base64 (`Core\Encoding`'s base64 pair and its URL-safe variant) ---

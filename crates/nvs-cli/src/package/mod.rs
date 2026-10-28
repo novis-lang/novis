@@ -18,7 +18,8 @@
 //! [`download`] fetches, checks and places a package's `[[download]]` files
 //! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). [`log`] is the
 //! registry's transparency log in C2SP tlog-tiles, with its inclusion and consistency proofs
-//! (`rule:packaging/the-registry-keeps-an-append-only-log`).
+//! (`rule:packaging/the-registry-keeps-an-append-only-log`), and [`note`] signs and opens the C2SP
+//! signed notes its checkpoints are.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -35,6 +36,7 @@ mod lock;
 mod log;
 mod manifest;
 mod minimum;
+mod note;
 mod pack;
 mod report;
 mod resolve;

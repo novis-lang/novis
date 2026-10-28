@@ -4308,6 +4308,7 @@ dependencies = [
  "rand 0.10.3",
  "rcgen",
  "region",
+ "ring",
  "rusqlite",
  "rustc-hash",
  "rustls",

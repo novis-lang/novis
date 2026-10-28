@@ -1,0 +1,30 @@
+{
+  "source": "Two sources, each pinned to a commit. `go` is https://github.com/golang/mod at fe2ec04f7c3c3aa6fad97631aafcff6e49e2d1db: sumdb/note/note_test.go (TestNewSigner, TestSign, TestOpen and TestNewVerifier's two bad keys). `c2sp` is https://github.com/C2SP/C2SP at b2dd9892338af7009733a4575a6da05811ffae6c: signed-note.md § Verifier keys, Example. Keys, texts and signatures are copied unchanged; each `note` is the text, the blank line and the signature lines exactly as the source writes them.",
+  "notes": [
+    {
+      "from": "go",
+      "vkey": "PeterNeumann+c74f20a3+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW",
+      "skey": "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz",
+      "text": "If you think cryptography is the answer to your problem,\nthen you don't know what your problem is.\n",
+      "note": "If you think cryptography is the answer to your problem,\nthen you don't know what your problem is.\n\n— PeterNeumann x08go/ZJkuBS9UG/SffcvIAQxVBtiFupLLr8pAcElZInNIuGUgYN1FFYC2pZSNXgKvqfqdngotpRZb6KE6RyyBwJnAM=\n"
+    },
+    {
+      "from": "go",
+      "vkey": "EnochRoot+af0cfe78+ATtqJ7zOtqQtYqOo0CpvDXNlMhV3HeJDpjrASKGLWdop",
+      "skey": null,
+      "text": "If you think cryptography is the answer to your problem,\nthen you don't know what your problem is.\n",
+      "note": "If you think cryptography is the answer to your problem,\nthen you don't know what your problem is.\n\n— EnochRoot rwz+eBzmZa0SO3NbfRGzPCpDckykFXSdeX+MNtCOXm2/5n2tiOHp+vAF1aGrQ5ovTG01oOTGwnWLox33WWd1RvMc+QQ=\n"
+    },
+    {
+      "from": "c2sp",
+      "vkey": "example.com/foo+530d903a+AekyeRrm56hApGFkyQR4ZCbV54Id2LKaANYcrnKv3U2k",
+      "skey": null,
+      "text": "This is an example message.\n",
+      "note": "This is an example message.\n\n— example.com/foo Uw2QOkn8srV1yJGh2VYRlL1Tnagv1YEq6TfXppzi2ONncAlTgK7Ztg1ERYNZXsYjOBH3mFXmRKuwHjG1Yu72IneyaQM=\n"
+    }
+  ],
+  "bad_vkeys": [
+    "PeterNeumann+cc469956+ARpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TWBADKEY==",
+    "PeterNeumann+173116ae+ZRpc2QcUPDhMQegwxbzhKqiBfsVkmqq/LDE4izWy10TW"
+  ]
+}

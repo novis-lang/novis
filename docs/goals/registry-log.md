@@ -13,7 +13,7 @@ stages:
         rules: [packaging/the-registry-keeps-an-append-only-log, packaging/somebody-elses-specification-is-a-crate, packaging/a-c-dependency-answers-two-questions]
   - id: 5
     title: a checkpoint is a signed note under an Ed25519 key
-    status: open
+    status: done
     context: [Cargo.toml, crates/nvs-cli/Cargo.toml, crates/nvs-cli/src/package/log.rs]
     extra:
       context:
@@ -181,10 +181,10 @@ test vectors with their URLs and commits.
 **Does:** a checkpoint (origin, size, root hash) is signed as a C2SP signed note and verified, and a
 key file is read and written in the note key format.
 
-- [ ] `ring` added to `nvs-cli`. `crates/nvs-cli/Cargo.toml:1`
-- [ ] The vendored signed-note vectors, each naming its source and commit. `crates/nvs-cli/tests/fixtures/tlog/note.json:1`
-- [ ] The checkpoint body, the signed note, its key id and the verify step (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/note.rs:1`
-- [ ] Tests: each vector verifies, and a note with a changed byte, an unknown key id or a second signature line from an unknown key is handled as the C2SP text says. `crates/nvs-cli/src/package/note.rs:1`
+- [x] `ring` added to `nvs-cli`. `crates/nvs-cli/Cargo.toml:1`
+- [x] The vendored signed-note vectors, each naming its source and commit. `crates/nvs-cli/tests/fixtures/tlog/note.json:1`
+- [x] The checkpoint body, the signed note, its key id and the verify step (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/note.rs:1`
+- [x] Tests: each vector verifies, and a note with a changed byte, an unknown key id or a second signature line from an unknown key is handled as the C2SP text says. `crates/nvs-cli/src/package/note.rs:1`
 
 ### 2. one entry kind per recorded event, and the commands the service calls
 
@@ -248,31 +248,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `crates/nvs-cli/src/package/log.rs` has RFC 6962 hashing, the stored hash index,
-C2SP tile paths (`Tile::path`, `Tile::parse`), `Log` (a `HashReader` over a log directory at a known
-size), `append` (writes every changed tile and entry bundle, and refuses to change a written file),
-and `prove_record`/`check_record` and `prove_tree`/`check_tree`. Its 10 tests pass, run once by name.
-No crate was added: the rule argues why the formats are written here. The module carries
-`#![cfg_attr(not(test), expect(dead_code, ...))]` until stage 2's command calls it. Remove the line
-then: `expect` fails the build once nothing in the module is dead.
+Stages 1 and 5 are done. `crates/nvs-cli/src/package/log.rs` has the tiles, `append` and the
+inclusion and consistency proofs (10 tests). `crates/nvs-cli/src/package/note.rs` has the C2SP signed
+note: `Verifier::parse` and its `Display` (the vkey form), `Signer::parse`, `Signer::generate` (which
+returns the `PRIVATE+KEY+...` key file text, Go's format) and `Signer::verifier`, `sign`, `open`
+(unknown keys ignored, a pinned key that fails rejects the note, at most 100 lines, ambiguous pinned
+keys an error), and `Checkpoint` (`new`, `empty`, `body`, `parse`, `sign`, and `open` with the
+expected origin). Its 11 tests pass, run once by name, and every vector in
+`crates/nvs-cli/tests/fixtures/tlog/note.json` verifies; Go's Peter vector re-signs byte for byte.
+Both modules carry `#![cfg_attr(not(test), expect(dead_code, ...))]` until stage 2's command calls
+them. Remove each line then: `expect` fails the build once nothing in the module is dead.
 
-The sweep's reds were stale. `env-secret-proofs` is no check of any goal now, and its log from Oct 22
-shows exit 0. Nightly run 40474302703's three Miri reds tested `55b03e97`, and `cea10a7cd` fixed them.
+The sweep's reds were stale again: the `env-secret-proofs` log is still Oct 22's with exit 0, and the
+Miri reds are the same run 40474302703 that `cea10a7cd` fixed.
 
 No test is expected to go red.
 
 ### Next
 
-Stage 5, the signed note, on `crates/nvs-cli/Cargo.toml`, `crates/nvs-cli/src/package/note.rs` and
-`crates/nvs-cli/tests/fixtures/tlog/note.json`. Gate: `crates/nvs-cli/src/package/mod.rs` exists.
-- [ ] `ring.workspace = true` in `nvs-cli` (`ring` 0.17 is `Cargo.toml:868`). `crates/nvs-cli/Cargo.toml:121`
-- [ ] The vendored signed-note vectors: C2SP `signed-note.md` and Go's `golang.org/x/mod/sumdb/note/note_test.go` (fixed keys, key ids and signatures), each pinned to a commit as `rfc6962.json`'s `source` field is. `crates/nvs-cli/tests/fixtures/tlog/note.json:1`
-- [ ] The checkpoint body (origin, size, base64 root), the note, its key id and verify. `log::Hash` and `log::empty_root` are the root's type and the empty tree's root. `crates/nvs-cli/src/package/note.rs:1`
-- [ ] Its tests, including a changed byte, an unknown key id and a second signature from an unknown key. `crates/nvs-cli/src/package/note.rs:1`
+Stage 2, the entry kinds and `nvs registry log append`/`verify`, on `crates/nvs-cli/src/package/log.rs`,
+`crates/nvs-cli/src/main.rs`, a new `crates/nvs-cli/src/registry.rs` and
+`crates/nvs-cli/tests/registry_log.rs`. Gate: `crates/nvs-cli/src/package/mod.rs` exists.
+- [ ] The closed list of entry kinds as a serde enum with a schema version, written as canonical JSON. `crates/nvs-cli/src/package/log.rs:1`
+- [ ] A hidden `Registry` arm in `Command` (`Pkg` is `crates/nvs-cli/src/main.rs:469`) with `log append <dir> --key <file> --origin <o>` and `log verify <dir> --vkey <key>`. `append` opens the newest checkpoint (`checkpoint` in the log directory, C2SP's name) with `note::Checkpoint::open`, or starts from `Checkpoint::empty`, calls `log::append` with its size and signs the new one. `crates/nvs-cli/src/main.rs:461`
+- [ ] The key file read under the ownership check: `trust::check` on the file's directory as `crates/nvs-config/src/data.rs:553` does. `crates/nvs-config/src/data.rs:553`
+- [ ] `verify` re-reads every bundle against `Log`'s level-0 hashes and checks the root against the checkpoint. `crates/nvs-cli/src/package/log.rs:600`
+- [ ] Binary tests: append then verify, a tampered tile refused, an entry outside the list refused, a key file another account can write refused. `crates/nvs-cli/tests/registry_log.rs:1`
 
 ### Backlog
 
-- Stage 2 calls `log::append` with the size the last checkpoint names, and its `verify` re-reads every
-  bundle against `Log`'s level-0 hashes (`crates/nvs-cli/src/package/log.rs:1`).
+- Stage 3 opens the stored checkpoint with `note::Checkpoint::open` and the registry's pinned
+  `note::Verifier`, and checks consistency with `log::check_tree`.
 - Stage 6, the signed index files, follows stage 3 (`crates/nvs-cli/src/package/index.rs`).
 - The second published copy of the checkpoint is compared by `nvs pkg audit` in goal `package-audit` (`docs/goals/package-audit.md`).

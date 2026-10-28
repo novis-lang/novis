@@ -119,6 +119,9 @@ gix-transport.workspace = true
 # An external download is pinned by its SHA-256 hash, and its cache is keyed by it
 # (`src/package/download.rs`).
 sha2.workspace = true
+# A log checkpoint is a signed note under an Ed25519 key, signed and verified with
+# the `ring` the workspace already links (`src/package/note.rs`).
+ring.workspace = true
 # The read path maps the artifact rather than reading it, so BLAKE3 runs over
 # the page cache's own copy and no page is ever executable before it has.
 memmap2.workspace = true
