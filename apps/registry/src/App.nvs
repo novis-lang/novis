@@ -297,6 +297,118 @@ final class App
         Response::setStatus(204);
     }
 
+    // Returns the public key that the page passes to `pushManager.subscribe()`.
+    // The answer is `503` when the registry has no key for Web Push.
+    #[Route(path: '/api/push/key', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function pushKey(): void
+    {
+        ?Push $push = Push::ofSite(Schema::open(), Site::load());
+        if ($push == null) {
+            App::fail(503, 'This registry has no key for Web Push.');
+            return;
+        }
+        Response::json({ applicationServerKey: $push->publicKey() });
+    }
+
+    // Adds a push device and sends it a test message with a one-time code. The device counts once
+    // the code comes back. Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/push/devices', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function addDevice(): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        ?Push $push = Push::ofSite(Schema::open(), Site::load());
+        if ($push == null) {
+            App::fail(503, 'This registry has no key for Web Push.');
+            return;
+        }
+        try {
+            var $asked = Request::jsonAs<DeviceRequest>();
+            ?string $id = $push->register(Session::account() ?? '', $asked->subscription);
+            if ($id == null) {
+                App::fail(410, 'The push service does not know this device. Allow notifications in the browser again.');
+                return;
+            }
+            Response::setStatus(201);
+            Response::json({ id: $id });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a subscription.');
+        } catch (RuntimeError $invalid) {
+            App::fail(400, 'The subscription is not valid. Send the text that `PushSubscription.toJSON()` returns.');
+        }
+    }
+
+    // Returns the push devices and webhooks of the account, with the time each one last took a message.
+    #[Route(path: '/api/channels', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function channels(): void
+    {
+        Response::json({ channels: new Channels(Schema::open())->of(Session::account() ?? '') });
+    }
+
+    // Verifies a channel with the one-time code of its test message.
+    #[Route(path: '/api/channels/{id}/verify', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function verifyChannel(tainted string $id): void
+    {
+        try {
+            var $answer = Request::jsonAs<CodeAnswer>();
+            if (!new Channels(Schema::open())->verify(Session::account() ?? '', $id, $answer->code)) {
+                App::fail(404, 'The code is wrong or expired, or this account has no such channel.');
+                return;
+            }
+            Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a code.');
+        }
+    }
+
+    // Sends a new test message with a new one-time code to a push device of the account.
+    #[Route(path: '/api/channels/{id}/test', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function testChannel(tainted string $id): void
+    {
+        var $db = Schema::open();
+        string $account = Session::account() ?? '';
+        ?array<string> $found = new Channels($db)->find($account, $id);
+        if ($found == null) {
+            App::fail(404, 'This account has no such channel.');
+            return;
+        }
+        if ($found['kind'] != Channels::PUSH) {
+            App::fail(409, 'Only a push device gets a test message here.');
+            return;
+        }
+        ?Push $push = Push::ofSite($db, Site::load());
+        if ($push == null) {
+            App::fail(503, 'This registry has no key for Web Push.');
+            return;
+        }
+        if (!$push->sendCode($account, $id)) {
+            App::fail(502, 'The push service did not take the message.');
+            return;
+        }
+        Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
+    }
+
+    // Deletes a push device or a webhook of the account. The other devices get a message about it.
+    #[Route(path: '/api/channels/{id}', method: Method::Delete)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function removeChannel(tainted string $id): void
+    {
+        var $db = Schema::open();
+        string $account = Session::account() ?? '';
+        if (!new Channels($db)->remove($account, $id)) {
+            App::fail(404, 'This account has no such channel.');
+            return;
+        }
+        Push::ofSite($db, Site::load())?->notify($account, 'A device or a webhook was removed from your account.');
+        Response::setStatus(204);
+    }
+
     // Returns the account and the scope of the token in the `authorization` header.
     // `nvs pkg whoami` calls this. The session is not used.
     #[Route(path: '/api/whoami', method: Method::Get)]

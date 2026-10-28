@@ -1,0 +1,132 @@
+<?nvs
+namespace Registry;
+
+use Core\Charset;
+use Core\Crypto\KeyKind;
+use Core\Crypto\KeyPair;
+use Core\Db\Connection;
+use Core\Encoding;
+use Core\IO;
+use Core\Json;
+use Core\WebPush;
+use Core\WebPush\Sent;
+use RuntimeError;
+
+// Sends Web Push messages to the devices of an owner. Each message is encrypted for one device
+// and signed with the key from `pushKey` in `hosting.json`.
+// A device that the push service no longer knows is deleted.
+final class Push
+{
+    // The title of every message.
+    public const string TITLE = 'Novis registry';
+
+    private Connection $db;
+    private KeyPair $vapid;
+    private string $subject;
+
+    public function constructor(Connection $db, KeyPair $vapid, string $subject)
+    {
+        $this->db = $db;
+        $this->vapid = $vapid;
+        $this->subject = $subject;
+    }
+
+    // Reads the key from the file that `pushKey` names. With `"pushKey": ""`, the result is `null`.
+    public static function ofSite(Connection $db, Site $site): ?Push
+    {
+        if ($site->pushKey == '') {
+            return null;
+        }
+        return new Push($db, KeyPair::read(IO::read($site->pushKey) as bytes, KeyKind::P256), $site->pushSubject);
+    }
+
+    // The public key, as base64url text. The page passes it to `pushManager.subscribe()`.
+    public function publicKey(): string
+    {
+        return WebPush::applicationServerKey($this->vapid);
+    }
+
+    // Adds a device of the account and sends it a test message with a one-time code.
+    // `$subscription` is the JSON of the browser's `PushSubscription`. A subscription that is not
+    // valid throws a `RuntimeError`. The other devices of the account get a message about the new one.
+    // It returns the id of the new channel. If the push service does not know the device,
+    // the device is deleted and the result is `null`.
+    public function register(string $account, tainted string $subscription): ?string
+    {
+        WebPush::subscription($subscription);
+        string $json = Core\Taint::assertTrusted($subscription, 'Core\WebPush::subscription checked this JSON');
+        var $channels = new Channels($this->db);
+        array<string> $added = $channels->add($account, Channels::PUSH, $json);
+        string $id = $added['id'];
+        ?Sent $sent = $this->send($id, $json, 'Confirm this device for your account.', $added['code']);
+        if ($sent != null && $sent->gone()) {
+            $channels->drop($id);
+            return null;
+        }
+        $this->notify($account, 'A new device gets the messages of your account.', $id);
+        return $id;
+    }
+
+    // Sends a new one-time code to a push device of the account.
+    // It returns `false` when the account has no such device, or the message was not sent.
+    public function sendCode(string $account, tainted string $id): bool
+    {
+        var $channels = new Channels($this->db);
+        ?array<string> $found = $channels->find($account, $id);
+        if ($found == null || $found['kind'] != Channels::PUSH) {
+            return false;
+        }
+        ?string $code = $channels->newCode($account, $id);
+        if ($code == null) {
+            return false;
+        }
+        string $channel = Core\Taint::assertTrusted($id, 'the id matched a channel');
+        ?Sent $sent = $this->send($channel, $found['target'], 'Confirm this device for your account.', $code);
+        if ($sent == null) {
+            return false;
+        }
+        if ($sent->gone()) {
+            $channels->drop($channel);
+            return false;
+        }
+        return $sent->status() >= 200 && $sent->status() < 300;
+    }
+
+    // Sends a message to every verified device of the account that works. `$except` is a device
+    // to leave out, or an empty string. A device that the push service no longer knows is deleted.
+    // A device that fails for another reason is kept. It returns the number of devices that took the message.
+    public function notify(string $account, string $text, string $except = ''): int
+    {
+        var $channels = new Channels($this->db);
+        int $took = 0;
+        foreach ($channels->working($account, Channels::PUSH, $except) as string $id => string $target) {
+            ?Sent $sent = $this->send($id, $target, $text, '');
+            if ($sent == null) {
+                continue;
+            }
+            if ($sent->gone()) {
+                $channels->drop($id);
+            } else if ($sent->status() >= 200 && $sent->status() < 300) {
+                $channels->answered($id);
+                $took++;
+            }
+        }
+        return $took;
+    }
+
+    // Sends one message to one device. The payload is JSON with `title`, `body`, `channel` and `code`.
+    // `code` is the one-time code of a test message, or an empty string.
+    // A message that could not be sent returns `null`.
+    private function send(string $id, string $subscription, string $text, string $code): ?Sent
+    {
+        bytes $payload = Encoding::encodeText(
+            Json::encode({ title: Push::TITLE, body: $text, channel: $id, code: $code }),
+            Charset::Utf8,
+        );
+        try {
+            return WebPush::send(WebPush::subscription($subscription), $payload, $this->vapid, $this->subject);
+        } catch (RuntimeError $error) {
+            return null;
+        }
+    }
+}

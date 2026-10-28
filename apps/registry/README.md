@@ -40,3 +40,8 @@ zone 12345. The daily job reads the lines of the day before from `MM-DD-YY/12345
 downloads by `nvs`, and keeps no line. `logKey` is the key
 file that signs the log and the index files, and `nvs registry key` makes one. `logName` is the
 name of that key.
+
+`pushKey` is the file with the private key that signs each Web Push message. This command makes
+one: `openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt`. With
+`"pushKey": ""`, no push device can be added. `pushSubject` is your contact address, a `mailto:`
+or `https:` URL. Each push service sees it.

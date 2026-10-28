@@ -446,6 +446,8 @@ final class ReleasesTest
             '',
             '',
             $loaded->logName,
+            '',
+            '',
         );
     }
 

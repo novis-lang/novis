@@ -12,5 +12,7 @@
   "backupMinutes": 5,
   "downloadLog": null,
   "logKey": "",
-  "logName": "localhost"
+  "logName": "localhost",
+  "pushKey": "",
+  "pushSubject": "mailto:registry@example.com"
 }

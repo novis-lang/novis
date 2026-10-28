@@ -50,6 +50,11 @@ final class Site
         public readonly string $logKey,
         // The name of the log, the first line of every checkpoint. It is the name of the key.
         public readonly string $logName,
+        // The file with the private P-256 key that signs each Web Push message, or an empty string
+        // for no Web Push. With no key, no push device can be added.
+        public readonly string $pushKey,
+        // The contact of the operator that each push service sees, a `mailto:` or `https:` URL.
+        public readonly string $pushSubject,
     )
     {}
 
@@ -104,6 +109,8 @@ final class Site
             $downloadFile,
             Site::optionalPath(Site::text($settings, 'logKey', ''), $base, 'logKey'),
             Site::text($settings, 'logName', ''),
+            Site::optionalPath(Site::text($settings, 'pushKey', ''), $base, 'pushKey'),
+            Site::text($settings, 'pushSubject', ''),
         );
     }
 

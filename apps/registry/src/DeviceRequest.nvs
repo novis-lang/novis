@@ -1,0 +1,15 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to add a push device. `subscription` is the text that the browser's
+// `PushSubscription.toJSON()` returns, written as a JSON string.
+#[Core\Json\Derive]
+final class DeviceRequest
+{
+    public tainted string $subscription;
+
+    public function constructor(tainted string $subscription)
+    {
+        $this->subscription = $subscription;
+    }
+}
