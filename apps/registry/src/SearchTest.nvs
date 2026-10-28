@@ -1,0 +1,288 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Encoding;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+
+// Tests for the text search and its orders, under a fixed clock.
+// Each test has its own database in memory, with its own random vendor and search word.
+// The rows are written directly, and `Search::index` writes the text of each package.
+final class SearchTest
+{
+    // One day in seconds.
+    private const int DAY = 86400;
+
+    // The account that published every release in these tests.
+    private const string OWNER = '0123456789abcdef0123456789abcdef';
+
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function eachSortPutsThePackagesInItsOwnOrder(): void
+    {
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $word = SearchTest::word();
+        // Alpha: one release 10 days ago and many downloads.
+        string $alpha = SearchTest::package($db, $vendor . '\\Alpha', 'Sends ' . $word . ' mail.', '', $now - 10 * SearchTest::DAY);
+        SearchTest::release($db, $alpha, '1.0.0', $now - 10 * SearchTest::DAY);
+        SearchTest::download($db, $alpha, '1.0.0', $now, 1000);
+        // Beta: three months with a release, the oldest newest release, and a large documented API.
+        string $beta = SearchTest::package($db, $vendor . '\\Beta', 'Reads ' . $word . ' files.', '', $now - 180 * SearchTest::DAY);
+        SearchTest::release($db, $beta, '1.0.0', $now - 180 * SearchTest::DAY);
+        SearchTest::release($db, $beta, '1.1.0', $now - 140 * SearchTest::DAY);
+        SearchTest::release($db, $beta, '1.2.0', $now - 100 * SearchTest::DAY, null, 200, 200);
+        SearchTest::download($db, $beta, '1.2.0', $now, 10);
+        // Gamma: two months with a release, the newest release, and some downloads.
+        string $gamma = SearchTest::package($db, $vendor . '\\Gamma', 'Writes ' . $word . ' logs.', '', $now - 45 * SearchTest::DAY);
+        SearchTest::release($db, $gamma, '1.0.0', $now - 45 * SearchTest::DAY);
+        SearchTest::release($db, $gamma, '1.1.0', $now - SearchTest::DAY);
+        SearchTest::download($db, $gamma, '1.1.0', $now, 100);
+
+        string $a = $vendor . '\\Alpha';
+        string $b = $vendor . '\\Beta';
+        string $g = $vendor . '\\Gamma';
+        Test::assertSame(SearchTest::names($db, $word, Sort::Name, $now), [$a, $b, $g]);
+        Test::assertSame(SearchTest::names($db, $word, Sort::Date, $now), [$g, $a, $b]);
+        Test::assertSame(SearchTest::names($db, $word, Sort::Activity, $now), [$b, $g, $a]);
+        Test::assertSame(SearchTest::names($db, $word, Sort::Downloads, $now), [$a, $g, $b]);
+        // Beta has the most work, so it is first by score, although Alpha has more downloads.
+        Test::assertSame(SearchTest::names($db, $word, Sort::Default, $now), [$b, $a, $g]);
+        // The default order is the order of `Ranking::score`, the highest first.
+        array<Facts> $found = new Search($db)->find($word, Sort::Default, $now);
+        Test::assertTrue(Ranking::score($found[0]) > Ranking::score($found[1]));
+        Test::assertTrue(Ranking::score($found[1]) > Ranking::score($found[2]));
+    }
+
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function operatorCharactersInAQueryAreOnlySeparators(): void
+    {
+        // Each word becomes a quoted prefix. `OR` is a word like any other, and the other
+        // characters only separate the words.
+        Test::assertSame(Search::matchOf('"Http" OR -mail* (x:y)'), '"http"* "or"* "mail"* "x"* "y"*');
+        Test::assertSame(Search::matchOf('a"b'), '"a"* "b"*');
+        Test::assertSame(Search::matchOf('NEAR(a b, 2) ^c {d}'), '"near"* "a"* "b"* "2"* "c"* "d"*');
+        // A query with no letters and no digits gives `null`.
+        Test::assertSame(Search::matchOf(''), null);
+        Test::assertSame(Search::matchOf('   '), null);
+        Test::assertSame(Search::matchOf('"*-():^{}+'), null);
+
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $word = SearchTest::word();
+        string $name = $vendor . '\\Http';
+        SearchTest::release($db, SearchTest::package($db, $name, 'Sends ' . $word . ' mail.', '', $now), '1.0.0', $now);
+        // The word with operator characters around it still finds the package.
+        array<string> $around = ['"' . $word, $word . '"', $word . '*', '-' . $word, '(' . $word, $word . ')', '^' . $word, '{' . $word . '}', ':' . $word, $word . ':'];
+        foreach ($around as string $query) {
+            Test::assertSame(SearchTest::names($db, $query, Sort::Name, $now), [$name]);
+        }
+        // Operators of the index are words that the text does not have, so these find nothing.
+        // None of them is an error of the index.
+        array<string> $operators = [$word . ' OR zz', 'NOT ' . $word, $word . ' AND', 'name:' . $word, 'NEAR(' . $word . ' zz)', '"' . $word . ' zz"', '"' . $word . '" OR'];
+        foreach ($operators as string $query) {
+            Test::assertSame(SearchTest::names($db, $query, Sort::Name, $now), []);
+        }
+        // A query with no words finds every package.
+        Test::assertSame(SearchTest::names($db, '"*-()', Sort::Name, $now), [$name]);
+    }
+
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function aQueryMatchesTheSummaryTheDocCommentsAndTheNameParts(): void
+    {
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $inSummary = SearchTest::word();
+        string $inDocs = SearchTest::word();
+        string $http = $vendor . '\\Http';
+        string $mail = $vendor . '\\Mail';
+        SearchTest::release($db, SearchTest::package($db, $http, 'Sends ' . $inSummary . ' requests.', 'Returns the ' . $inDocs . ' of a response.', $now), '1.0.0', $now);
+        SearchTest::release($db, SearchTest::package($db, $mail, 'Sends mail.', 'Returns a message.', $now), '1.0.0', $now);
+        Test::assertSame(SearchTest::names($db, $inSummary, Sort::Name, $now), [$http]);
+        Test::assertSame(SearchTest::names($db, $inDocs, Sort::Name, $now), [$http]);
+        // Each part of the name is a word, in any case, and a word matches as a prefix.
+        Test::assertSame(SearchTest::names($db, 'http', Sort::Name, $now), [$http]);
+        Test::assertSame(SearchTest::names($db, 'HTTP', Sort::Name, $now), [$http]);
+        Test::assertSame(SearchTest::names($db, 'htt', Sort::Name, $now), [$http]);
+        Test::assertSame(SearchTest::names($db, $http, Sort::Name, $now), [$http]);
+        Test::assertSame(SearchTest::names($db, Str::lower($vendor), Sort::Name, $now), [$http, $mail]);
+        // Every word of a query must match.
+        Test::assertSame(SearchTest::names($db, 'mail ' . $inSummary, Sort::Name, $now), []);
+        Test::assertSame(SearchTest::names($db, 'sends ' . $inSummary, Sort::Name, $now), [$http]);
+    }
+
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function gitHistoryNeverChangesTheOrderOrAFact(): void
+    {
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $word = SearchTest::word();
+        string $old = 'https://git.example.com/old/project.git';
+        string $new = 'https://git.example.com/new/project.git';
+        // The same packages twice, with the commits and the repositories of the two swapped.
+        var $first = SearchTest::twins($vendor, $word, [Str::repeat('a', 40), Str::repeat('b', 40)], $old, [Str::repeat('c', 40), Str::repeat('d', 40)], $new);
+        var $second = SearchTest::twins($vendor, $word, [Str::repeat('c', 40), Str::repeat('d', 40)], $new, [Str::repeat('a', 40), Str::repeat('b', 40)], $old);
+        array<Sort> $sorts = [Sort::Default, Sort::Date, Sort::Activity, Sort::Downloads, Sort::Name];
+        foreach ($sorts as Sort $sort) {
+            array<Facts> $before = new Search($first)->find($word, $sort, $now);
+            array<Facts> $after = new Search($second)->find($word, $sort, $now);
+            Test::assertSame(Arr::count($before), 2);
+            Test::assertSame(Arr::map($before, fn(Facts $f): array<mixed> => SearchTest::all($f)), Arr::map($after, fn(Facts $f): array<mixed> => SearchTest::all($f)));
+            // The two packages are equal in every order, so the name decides.
+            Test::assertSame(Arr::map($before, fn(Facts $f): string => $f->name), [$vendor . '\\Left', $vendor . '\\Right']);
+        }
+        // The two packages have the same facts and the same score.
+        array<Facts> $found = new Search($first)->find($word, Sort::Default, $now);
+        Test::assertSame(Arr::slice(SearchTest::all($found[0]), 2), Arr::slice(SearchTest::all($found[1]), 2));
+        Test::assertSame(Ranking::score($found[0]), Ranking::score($found[1]));
+    }
+
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function aWithheldOrPendingReleaseIsNotCounted(): void
+    {
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $word = SearchTest::word();
+        string $name = $vendor . '\\Http';
+        string $key = SearchTest::package($db, $name, 'Sends ' . $word . ' requests.', '', $now - 100 * SearchTest::DAY);
+        SearchTest::release($db, $key, '1.0.0', $now - 100 * SearchTest::DAY, null, 10, 5);
+        // 1.1.0 is withheld, and 1.2.0 waits for six more days.
+        SearchTest::release($db, $key, '1.1.0', $now - 40 * SearchTest::DAY, null, 20, 10);
+        $db->execute('insert into release_states (package, version, withheld) values (?, ?, ?)', [$key, '1.1.0', 'Malware.']);
+        SearchTest::release($db, $key, '1.2.0', $now - SearchTest::DAY, $now + 6 * SearchTest::DAY, 30, 15);
+        // A package whose only release is withheld, and one whose only release waits, are not returned.
+        string $withheld = SearchTest::package($db, $vendor . '\\Mail', 'Sends ' . $word . ' mail.', '', $now);
+        SearchTest::release($db, $withheld, '1.0.0', $now - SearchTest::DAY);
+        $db->execute('insert into release_states (package, version, withheld) values (?, ?, ?)', [$withheld, '1.0.0', 'Malware.']);
+        string $waits = SearchTest::package($db, $vendor . '\\Log', 'Writes ' . $word . ' logs.', '', $now);
+        SearchTest::release($db, $waits, '1.0.0', $now - SearchTest::DAY, $now + 6 * SearchTest::DAY);
+
+        array<Facts> $found = new Search($db)->find($word, Sort::Name, $now);
+        Test::assertSame(Arr::map($found, fn(Facts $f): string => $f->name), [$name]);
+        // Only 1.0.0 counts: one month, its time, and its declarations.
+        Test::assertSame($found[0]->activeMonths, 1);
+        Test::assertSame($found[0]->releasedAt, $now - 100 * SearchTest::DAY);
+        Test::assertSame($found[0]->daysSinceRelease, 100);
+        Test::assertSame($found[0]->declarations, 10);
+        Test::assertSame($found[0]->documented, 5);
+
+        // Seven days later 1.2.0 is out and counts. 1.1.0 is still withheld.
+        int $later = $now + 7 * SearchTest::DAY;
+        array<Facts> $then = new Search($db)->find($word, Sort::Name, $later);
+        Test::assertSame(Arr::map($then, fn(Facts $f): string => $f->name), [$name, $vendor . '\\Log']);
+        Facts $http = $then[0];
+        Test::assertSame($http->activeMonths, 2);
+        Test::assertSame($http->releasedAt, $now - SearchTest::DAY);
+        Test::assertSame($http->declarations, 30);
+        Test::assertSame($http->documented, 15);
+    }
+
+    // A new database in memory with every table and the account `OWNER`.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [SearchTest::OWNER]);
+        return $db;
+    }
+
+    // A new database with two packages, `Left` and `Right`, that have the same facts. Only their
+    // commits and their repositories differ.
+    private static function twins(string $vendor, string $word, array<string> $leftCommits, string $leftRepository, array<string> $rightCommits, string $rightRepository): Connection
+    {
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        SearchTest::twin($db, $vendor . '\\Left', $word, $leftCommits, $leftRepository, $now);
+        SearchTest::twin($db, $vendor . '\\Right', $word, $rightCommits, $rightRepository, $now);
+        return $db;
+    }
+
+    // Adds one package of `twins`: two releases from `$commits` in `$repository`, and 50 downloads.
+    private static function twin(Connection $db, string $name, string $word, array<string> $commits, string $repository, int $now): void
+    {
+        string $key = SearchTest::package($db, $name, 'Reads ' . $word . ' files.', '', $now - 200 * SearchTest::DAY, $repository);
+        SearchTest::release($db, $key, '1.0.0', $now - 200 * SearchTest::DAY, null, 40, 20, $commits[0], $repository);
+        SearchTest::release($db, $key, '1.1.0', $now - 20 * SearchTest::DAY, null, 40, 20, $commits[1], $repository);
+        SearchTest::download($db, $key, '1.1.0', $now, 50);
+    }
+
+    // Adds the package `$name` and its vendor, and writes its text to the index. Returns its key.
+    private static function package(Connection $db, string $name, string $summary, string $docs, int $createdAt, string $repository = 'https://git.example.com/project.git'): string
+    {
+        string $key = Str::lower($name);
+        string $vendor = Str::before($name, '\\') ?? $name;
+        $db->execute('insert into vendors (key, name, created_at) values (?, ?, 0) on conflict (key) do nothing', [Str::lower($vendor), $vendor]);
+        $db->execute(
+            "insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, '', ?)",
+            [$key, $name, Str::lower($vendor), $repository, $createdAt],
+        );
+        Search::index($db, $key, $name, $summary, $docs);
+        return $key;
+    }
+
+    // Adds a release of `$key`, published at `$publishedAt`. `$pendingUntil` is the time it is out, or `null`.
+    private static function release(
+        Connection $db,
+        string $key,
+        string $version,
+        int $publishedAt,
+        ?int $pendingUntil = null,
+        int $declarations = 0,
+        int $documented = 0,
+        string $commit = '1111111111111111111111111111111111111111',
+        string $repository = 'https://git.example.com/project.git',
+    ): void
+    {
+        array<string> $parts = Str::split($version, '.');
+        $db->execute(
+            'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+                . 'published_at, pending_until, dependencies, capabilities, log, declarations, documented) '
+                . "values (?, ?, ?, ?, ?, ?, 10, ?, '', ?, ?, 'token', '', '', ?, ?, '{}', '{\"required\":[],\"optional\":[]}', 0, ?, ?)",
+            [$key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, 'blake3:' . Encoding::toHex(Random::bytes(32)), $repository, $commit, SearchTest::OWNER, $publishedAt, $pendingUntil, $declarations, $documented],
+        );
+    }
+
+    // Adds `$count` downloads of a version, on the day before `$now`.
+    private static function download(Connection $db, string $key, string $version, int $now, int $count): void
+    {
+        $db->execute('insert into downloads (package, version, day, count) values (?, ?, ?, ?)', [$key, $version, Downloads::dayOf($now) - 1, $count]);
+    }
+
+    // The names of the packages that `$query` finds, in the order `$sort`.
+    private static function names(Connection $db, string $query, Sort $sort, int $now): array<string>
+    {
+        return Arr::map(new Search($db)->find($query, $sort, $now), fn(Facts $f): string => $f->name);
+    }
+
+    // Every fact of a package, the key and the name first.
+    private static function all(Facts $f): array<mixed>
+    {
+        return [$f->key, $f->name, $f->summary, $f->ageDays, $f->activeMonths, $f->releasedAt, $f->daysSinceRelease, $f->declarations, $f->documented, $f->fixedRetractions, $f->downloads];
+    }
+
+    // A new vendor name, such as `Va1b2c3d4`.
+    private static function vendor(): string
+    {
+        return 'V' . Encoding::toHex(Random::bytes(4));
+    }
+
+    // A new word of letters and digits, such as `wa1b2c3d4`.
+    private static function word(): string
+    {
+        return 'w' . Encoding::toHex(Random::bytes(4));
+    }
+
+    private static function now(): int
+    {
+        return Time::now()->toEpochSeconds();
+    }
+}

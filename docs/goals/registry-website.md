@@ -6,7 +6,7 @@ context: [apps/registry/README.md, apps/registry/src/App.nvs, docs/rules/packagi
 stages:
   - id: 1
     title: search matches text, and the reader chooses the sort
-    status: open
+    status: done
     context: [apps/registry/src/Index.nvs, apps/registry/src/Releases.nvs, crates/nvs-cli/src/package/build.rs]
     extra:
       context:
@@ -114,6 +114,22 @@ with its full-text index; a separate search service is not needed. Readers gain 
 understand and change. The `doc_coverage` count costs the build one pass over declarations it already
 holds.
 
+**A package's summary is the first paragraph of its readme**, which `nvs registry build` prints as
+`summary` (at most 280 bytes), beside `docs`, the text of the public doc comments (at most 32 KiB,
+`api::MAX_DOCS_TEXT`). Why: `package.toml` has no summary key, and adding one grows the manifest
+for a fact the archive already carries. The build's JSON is `schema` 2 with both keys and
+`doc_coverage` as `{documented, public}`. The full-text index `search` holds the highest version's
+text, one row per package.
+
+**The release row keeps `declarations` and `documented`.** `declarations` is also the public API
+size the ranking reads, so one count serves both facts. `Schema::setUp` adds the two columns to a
+database made before them; a release restored from the log has both null, read as 0.
+
+**Search is `GET /api/search?q=&sort=`**, which returns each package with every fact `Ranking.nvs`
+reads. A query keeps its first eight runs of letters and digits, each a prefix match, so no FTS
+operator reaches the index. The facts are computed per request in one query, which is
+O(packages matched); a cached score table waits until a few thousand packages make it measurable.
+
 ## Stages
 
 ### 1. search matches text, and the reader chooses the sort
@@ -125,10 +141,20 @@ follows the published formula.
 one line each with its anchor. After the session lands `Ranking.nvs`, a writing subagent writes
 `SearchTest.nvs`.
 
-- [ ] `nvs registry build` reports `doc_coverage`, and the service stores it on the release row. `crates/nvs-cli/src/package/build.rs:1`, `apps/registry/src/Publish.nvs:1`
-- [ ] Full-text search over names, summaries and doc comments. `apps/registry/src/Search.nvs:1`
-- [ ] The ranking file and its facts, each computed from the registry's own records (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Ranking.nvs:1`
-- [ ] The five sorts, and a test that git history never changes an order. `apps/registry/src/SearchTest.nvs:1`
+- [x] `nvs registry build` reports `doc_coverage`, and the service stores it on the release row. `crates/nvs-cli/src/package/build.rs:1`, `apps/registry/src/Publish.nvs:1`
+  - [x] `api::extract_counted` counts the documented public declarations in the API walk.
+  - [x] The build prints `doc_coverage`, and `registry_build.rs` checks it.
+  - [x] `Publish` stores it, and `Schema::setUp` adds the columns to an older database.
+- [x] Full-text search over names, summaries and doc comments. `apps/registry/src/Search.nvs:1`
+  - [x] The build prints `summary` and `docs`.
+  - [x] The FTS5 table `search`, written by a publish of the highest version.
+  - [x] `Search::matchOf` and the `/api/search` route.
+- [x] The ranking file and its facts, each computed from the registry's own records (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Ranking.nvs:1`
+  - [x] `Ranking::facts`, one query over the records.
+  - [x] `Ranking::score`, with the formula in its doc comment.
+- [x] The five sorts, and a test that git history never changes an order. `apps/registry/src/SearchTest.nvs:1`
+  - [x] Each sort's order, operator characters, matched fields, and withheld and pending releases.
+  - [x] `gitHistoryNeverChangesTheOrderOrAFact`.
 
 ### 2. a package page shows every fact the registry holds about it
 
@@ -185,17 +211,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. No stage is started. Every stage waits for goal `registry-service`, which has not
-started; `apps/registry/` does not exist.
+Stage 1 is done. `nvs registry build` prints `doc_coverage`, `docs` and `summary` (schema 2), and
+the release row keeps `declarations` and `documented`. A publish of a package's highest version
+writes the FTS5 table `search`. `GET /api/search?q=&sort=` returns the facts `Ranking.nvs` reads,
+in the order the reader picked. `SearchTest.nvs` has five passing tests. The CI failure in
+`ext_world.rs` is fixed: the two `Core\WebPush` classes are in `REFUSED`.
+
+Tests that may go red in stage 5: none expected. `registry_build.rs` and `PublishTest.nvs` were
+updated for schema 2, and only their changed tests ran.
 
 ### Next
 
-Stage 1, search and ranking, on `apps/registry/src/Search.nvs`, `Ranking.nvs` and
-`crates/nvs-cli/src/package/build.rs`. Gate: `docs/goals/registry-service.md` is gone.
-- [ ] `doc_coverage` in the build's JSON, stored on the release row. `crates/nvs-cli/src/package/build.rs:1`
-- [ ] Full-text search (`rule:packaging/search-sorts-by-the-readers-choice`). `apps/registry/src/Search.nvs:1`
-- [ ] The ranking file and its facts. `apps/registry/src/Ranking.nvs:1`
-- [ ] The five sorts and the git-history test. `apps/registry/src/SearchTest.nvs:1`
+Stage 2, the package page, on `apps/registry/src/PackagePage.nvs` and a route in `App.nvs`.
+- [ ] Versions and their states, the commit, and `supersedes`. `apps/registry/src/Releases.nvs:1`
+- [ ] Capabilities per version and their change, and the API diff from the stored API files. `apps/registry/src/Publish.nvs:106`, `crates/nvs-cli/src/package/diff.rs:1`
+- [ ] Owners and their history (`notices`), and the ranking facts from `Ranking::facts`. `apps/registry/src/Ranking.nvs:1`
+- [ ] The readme, file list and external downloads. The build prints `files` but the row does not keep them yet. `crates/nvs-cli/src/package/build.rs:216`
+- [ ] The page's test. `apps/registry/src/PackagePageTest.nvs:1`
 
 ### Backlog
 
