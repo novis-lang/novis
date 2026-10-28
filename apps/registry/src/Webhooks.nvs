@@ -1,0 +1,234 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Hash;
+use Core\Http;
+use Core\Http\Client;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+use Core\Time\Duration;
+use RuntimeError;
+
+// Sends the messages of an account to its webhooks. A webhook is an `https` URL that gets a `POST`
+// with a JSON body for each message. The body is signed as the Standard Webhooks specification says,
+// with the secret the owner got when the webhook was added.
+// A message that fails waits in the table `webhook_sends`, and `retry` sends it again later.
+// A webhook that still fails after the last try stops counting until the owner verifies it again.
+final class Webhooks
+{
+    // The tries of one message, the first one included.
+    public const int TRIES = 5;
+
+    // The seconds one try may take.
+    public const int TRY_SECONDS = 10;
+
+    private Connection $db;
+    private string $origin;
+
+    // `$origin` is the address of the site, such as `https://registry.example.com`.
+    // The link in a message with a one-time code starts with it.
+    public function constructor(Connection $db, string $origin)
+    {
+        $this->db = $db;
+        $this->origin = $origin;
+    }
+
+    // Adds a webhook of the account and sends it a message with a one-time code.
+    // The webhook counts once the owner sends the code back, or opens the link in the message.
+    // A URL that does not start with `https://`, or whose host is an internal address, throws a `RuntimeError`.
+    // It returns the id of the new channel and the secret that signs its messages, such as `whsec_...`.
+    // The secret is shown to the owner once.
+    public function add(string $account, tainted string $url): array<string>
+    {
+        if (!Str::startsWith(Str::lower($url), 'https://')) {
+            throw new RuntimeError('A webhook URL must start with `https://`.');
+        }
+        Http::allowUrl($url);
+        string $checked = Core\Taint::assertTrusted($url, 'Core\Http::allowUrl checked this URL');
+        array<string> $added = new Channels($this->db)->add($account, Channels::WEBHOOK, $checked);
+        string $id = $added['id'];
+        string $secret = 'whsec_' . Encoding::toBase64(Random::bytes(24));
+        $this->db->execute('insert into webhooks (channel, secret) values (?, ?)', [$id, $secret]);
+        $this->deliver($id, $checked, $secret, $this->codeBody($id, $added['code']));
+        return ['id' => $id, 'secret' => $secret];
+    }
+
+    // Sends a new one-time code to a webhook of the account.
+    // It returns `false` when the account has no such webhook, or the first try failed.
+    // A failed message is sent again later.
+    public function sendCode(string $account, tainted string $id): bool
+    {
+        var $channels = new Channels($this->db);
+        ?array<string> $found = $channels->find($account, $id);
+        if ($found == null || $found['kind'] != Channels::WEBHOOK) {
+            return false;
+        }
+        ?string $code = $channels->newCode($account, $id);
+        string $channel = Core\Taint::assertTrusted($id, 'the id matched a channel');
+        ?string $secret = $this->secretOf($channel);
+        if ($code == null || $secret == null) {
+            return false;
+        }
+        return $this->deliver($channel, $found['target'], $secret, $this->codeBody($channel, $code));
+    }
+
+    // Sends a message to every verified webhook of the account that works. `$except` is a channel
+    // to leave out, or an empty string. It returns the number of webhooks that took the message
+    // at the first try. The others get it again later.
+    public function notify(string $account, string $text, string $except = ''): int
+    {
+        int $took = 0;
+        foreach (new Channels($this->db)->working($account, Channels::WEBHOOK, $except) as string $id => string $url) {
+            ?string $secret = $this->secretOf($id);
+            if ($secret != null && $this->deliver($id, $url, $secret, Webhooks::json({ type: 'notice', channel: $id, text: $text }))) {
+                $took++;
+            }
+        }
+        return $took;
+    }
+
+    // Sends every waiting message whose time has come. A message that fails again waits longer.
+    // After the last try, the webhook stops counting and its waiting messages are deleted.
+    // The `[[schedule]]` block in `nvs.toml` runs this every minute. It returns the number of messages sent.
+    public function retry(): int
+    {
+        int $now = Time::now()->toEpochSeconds();
+        array<array<string>> $due = [];
+        array<int> $triesOf = [];
+        foreach ($this->db->query(
+            'select s.id, s.channel, s.body, s.tries, c.target, w.secret from webhook_sends s '
+                . 'join channels c on c.id = s.channel join webhooks w on w.channel = s.channel '
+                . 'where s.next_at <= ? order by s.next_at, s.id',
+            [$now],
+        ) as Row $row) {
+            string $id = Webhooks::trusted($row->string('id'));
+            $triesOf[$id] = $row->int('tries') ?? 0;
+            $due[] = [
+                'id' => $id,
+                'channel' => Webhooks::trusted($row->string('channel')),
+                'body' => Webhooks::trusted($row->string('body')),
+                'target' => Webhooks::trusted($row->string('target')),
+                'secret' => Webhooks::trusted($row->string('secret')),
+            ];
+        }
+        int $sent = 0;
+        foreach ($due as array<string> $send) {
+            if ($this->attempt($send['target'], $send['secret'], $send['id'], $send['body'])) {
+                $this->db->execute('delete from webhook_sends where id = ?', [$send['id']]);
+                new Channels($this->db)->answered($send['channel']);
+                $sent++;
+                continue;
+            }
+            int $tries = ($triesOf[$send['id']] ?? 0) + 1;
+            if ($tries >= Webhooks::TRIES) {
+                new Channels($this->db)->failed($send['channel']);
+                $this->db->execute('delete from webhook_sends where channel = ?', [$send['channel']]);
+                continue;
+            }
+            $this->db->execute(
+                'update webhook_sends set tries = ?, next_at = ? where id = ?',
+                [$tries, $now + Webhooks::wait($tries), $send['id']],
+            );
+        }
+        return $sent;
+    }
+
+    // Returns the headers of one signed message, as the Standard Webhooks specification names them.
+    // `webhook-signature` is `v1,` and the base64 HMAC-SHA256 of `<id>.<timestamp>.<body>`.
+    // The key of the HMAC is the secret without `whsec_`, decoded from base64.
+    public static function headers(string $secret, string $message, int $at, string $body): array<string>
+    {
+        bytes $key = Encoding::fromBase64(Str::slice($secret, 6));
+        bytes $mac = Hash::hmac($message . '.' . $at . '.' . $body, $key, Hash::Digest::Sha256);
+        return [
+            'webhook-id' => $message,
+            'webhook-timestamp' => '' . $at,
+            'webhook-signature' => 'v1,' . Encoding::toBase64($mac),
+        ];
+    }
+
+    // The seconds a message waits after its try number `$tries` failed: 1 minute, 10 minutes, 1 hour, 6 hours.
+    private static function wait(int $tries): int
+    {
+        if ($tries <= 1) {
+            return 60;
+        }
+        if ($tries == 2) {
+            return 600;
+        }
+        if ($tries == 3) {
+            return 3600;
+        }
+        return 21600;
+    }
+
+    // Tries once. A failed message waits in `webhook_sends` for `retry`, with the same message id.
+    // It returns `true` when the webhook took the message.
+    private function deliver(string $channel, string $url, string $secret, string $body): bool
+    {
+        string $message = 'msg_' . Random::token(12);
+        if ($this->attempt($url, $secret, $message, $body)) {
+            new Channels($this->db)->answered($channel);
+            return true;
+        }
+        $this->db->execute(
+            'insert into webhook_sends (id, channel, body, tries, next_at) values (?, ?, ?, 1, ?)',
+            [$message, $channel, $body, Time::now()->toEpochSeconds() + Webhooks::wait(1)],
+        );
+        return false;
+    }
+
+    // Sends one signed `POST`. The URL is checked again, because its host may now have an internal address.
+    // It returns `true` for an answer from 200 to 299.
+    private function attempt(string $url, string $secret, string $message, string $body): bool
+    {
+        try {
+            var $target = Http::allowUrl($url);
+            var $response = Client::post($target, {
+                body: $body,
+                contentType: 'application/json',
+                headers: Webhooks::headers($secret, $message, Time::now()->toEpochSeconds(), $body),
+                deadline: Duration::seconds(Webhooks::TRY_SECONDS),
+            });
+            return $response->status() >= 200 && $response->status() < 300;
+        } catch (RuntimeError $error) {
+            return false;
+        }
+    }
+
+    // The body of a message with a one-time code. `link` verifies the webhook when somebody opens it.
+    private function codeBody(string $channel, string $code): string
+    {
+        return Webhooks::json({
+            type: 'verify',
+            channel: $channel,
+            text: 'Confirm this webhook for your account.',
+            code: $code,
+            link: $this->origin . '/api/channels/' . $channel . '/confirm/' . $code,
+        });
+    }
+
+    // The JSON text of a message body. Every value in it comes from the registry.
+    private static function json(mixed $body): string
+    {
+        return Core\Taint::assertTrusted(Json::encode($body), 'the registry wrote every value of this message');
+    }
+
+    private function secretOf(string $channel): ?string
+    {
+        foreach ($this->db->query('select secret from webhooks where channel = ?', [$channel]) as Row $row) {
+            return Webhooks::trusted($row->string('secret'));
+        }
+        return null;
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

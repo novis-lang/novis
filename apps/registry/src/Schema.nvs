@@ -119,6 +119,15 @@ final class Schema
                 . 'verified_at integer, answered_at integer, failed_at integer)',
             [],
         );
+        // The secret that signs the messages of each webhook. `channel` is the id of its row in `channels`.
+        $db->execute('create table if not exists webhooks (channel text primary key, secret text not null)', []);
+        // The webhook messages that failed and wait for the next try. `id` is the message id, the same
+        // in every try. `tries` is the number of tries so far, and `next_at` the time of the next one.
+        $db->execute(
+            'create table if not exists webhook_sends (id text primary key, channel text not null, body text not null, '
+                . 'tries integer not null, next_at integer not null)',
+            [],
+        );
         // The entries of the log that wait to be added, one line of JSON each, in the order of `id`.
         // `package` is the package whose index file changes, or null. `Index` deletes a row once the log has it.
         $db->execute('create table if not exists events (id integer primary key, entry text not null, package text)', []);

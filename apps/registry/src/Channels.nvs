@@ -70,6 +70,20 @@ final class Channels
         return $write->affected() == 1;
     }
 
+    // Checks the code from the link in a webhook message. It works like `verify`, but needs no
+    // signed-in account, because only the webhook got the code.
+    // It returns `false` for a wrong or expired code.
+    public function confirm(tainted string $id, tainted string $code): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        var $write = $this->db->execute(
+            'update channels set verified_at = ?, answered_at = ?, failed_at = null, code_hash = null, code_until = null '
+                . 'where id = ? and kind = ? and code_hash = ? and code_until > ?',
+            [$now, $now, $id, Channels::WEBHOOK, Tokens::hashOf($code), $now],
+        );
+        return $write->affected() == 1;
+    }
+
     // Saves that the channel took a message now.
     public function answered(string $id): void
     {
@@ -87,12 +101,24 @@ final class Channels
     public function drop(string $id): void
     {
         $this->db->execute('delete from channels where id = ?', [$id]);
+        $this->forget($id);
     }
 
     // Deletes a channel of the account. It returns `false` when the account has no such channel.
     public function remove(string $account, tainted string $id): bool
     {
-        return $this->db->execute('delete from channels where id = ? and account = ?', [$id, $account])->affected() == 1;
+        if ($this->db->execute('delete from channels where id = ? and account = ?', [$id, $account])->affected() != 1) {
+            return false;
+        }
+        $this->forget($id);
+        return true;
+    }
+
+    // Deletes the secret and the waiting messages of a webhook that was deleted.
+    private function forget(tainted string $id): void
+    {
+        $this->db->execute('delete from webhooks where channel = ?', [$id]);
+        $this->db->execute('delete from webhook_sends where channel = ?', [$id]);
     }
 
     // Returns `true` when the account has a verified channel that works.

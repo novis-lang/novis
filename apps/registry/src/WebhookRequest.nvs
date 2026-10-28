@@ -1,0 +1,14 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to add a webhook. `url` is the `https` address that gets the messages.
+#[Core\Json\Derive]
+final class WebhookRequest
+{
+    public tainted string $url;
+
+    public function constructor(tainted string $url)
+    {
+        $this->url = $url;
+    }
+}

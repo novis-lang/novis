@@ -320,18 +320,21 @@ final class App
         if (!App::needsPasskey()) {
             return;
         }
-        ?Push $push = Push::ofSite(Schema::open(), Site::load());
+        var $db = Schema::open();
+        ?Push $push = Push::ofSite($db, Site::load());
         if ($push == null) {
             App::fail(503, 'This registry has no key for Web Push.');
             return;
         }
         try {
             var $asked = Request::jsonAs<DeviceRequest>();
-            ?string $id = $push->register(Session::account() ?? '', $asked->subscription);
+            string $account = Session::account() ?? '';
+            ?string $id = $push->register($account, $asked->subscription);
             if ($id == null) {
                 App::fail(410, 'The push service does not know this device. Allow notifications in the browser again.');
                 return;
             }
+            new Webhooks($db, Site::load()->origin)->notify($account, 'A new device gets the messages of your account.');
             Response::setStatus(201);
             Response::json({ id: $id });
         } catch (ParseError $error) {
@@ -339,6 +342,45 @@ final class App
         } catch (RuntimeError $invalid) {
             App::fail(400, 'The subscription is not valid. Send the text that `PushSubscription.toJSON()` returns.');
         }
+    }
+
+    // Adds a webhook and sends it a message with a one-time code. The webhook counts once the code
+    // comes back. The answer has the secret that signs its messages, and it is shown only this once.
+    // Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/webhooks', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function addWebhook(): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        var $db = Schema::open();
+        string $account = Session::account() ?? '';
+        try {
+            var $asked = Request::jsonAs<WebhookRequest>();
+            array<string> $added = new Webhooks($db, Site::load()->origin)->add($account, $asked->url);
+            Push::ofSite($db, Site::load())?->notify($account, 'A new webhook gets the messages of your account.');
+            new Webhooks($db, Site::load()->origin)->notify($account, 'A new webhook gets the messages of your account.', $added['id']);
+            Response::setStatus(201);
+            Response::json({ id: $added['id'], secret: $added['secret'] });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a url.');
+        } catch (RuntimeError $refused) {
+            App::fail(400, $refused->message);
+        }
+    }
+
+    // Verifies a webhook with the link in its message. The code in the link is the proof,
+    // so nobody needs to be signed in.
+    #[Route(path: '/api/channels/{id}/confirm/{code}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function confirmWebhook(tainted string $id, tainted string $code): void
+    {
+        if (!new Channels(Schema::open())->confirm($id, $code)) {
+            App::fail(404, 'The link is wrong or expired. Send a new test message from your account page.');
+            return;
+        }
+        Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
     }
 
     // Returns the push devices and webhooks of the account, with the time each one last took a message.
@@ -366,7 +408,7 @@ final class App
         }
     }
 
-    // Sends a new test message with a new one-time code to a push device of the account.
+    // Sends a new test message with a new one-time code to a push device or a webhook of the account.
     #[Route(path: '/api/channels/{id}/test', method: Method::Post)]
     #[Access(allow: Visitor::SignedIn)]
     public static function testChannel(tainted string $id): void
@@ -378,8 +420,12 @@ final class App
             App::fail(404, 'This account has no such channel.');
             return;
         }
-        if ($found['kind'] != Channels::PUSH) {
-            App::fail(409, 'Only a push device gets a test message here.');
+        if ($found['kind'] == Channels::WEBHOOK) {
+            if (!new Webhooks($db, Site::load()->origin)->sendCode($account, $id)) {
+                App::fail(502, 'The webhook did not take the message. It is sent again in one minute.');
+                return;
+            }
+            Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
             return;
         }
         ?Push $push = Push::ofSite($db, Site::load());
@@ -406,6 +452,7 @@ final class App
             return;
         }
         Push::ofSite($db, Site::load())?->notify($account, 'A device or a webhook was removed from your account.');
+        new Webhooks($db, Site::load()->origin)->notify($account, 'A device or a webhook was removed from your account.');
         Response::setStatus(204);
     }
 

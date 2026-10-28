@@ -34,6 +34,14 @@ cron = "* * * * *"
 script = "jobs/backup.nvs"
 scope = "host"
 
+# Every minute, the registry sends the webhook messages that failed again.
+# A message gets five tries over about seven hours.
+[[schedule]]
+name = "webhooks"
+cron = "* * * * *"
+script = "jobs/webhooks.nvs"
+scope = "host"
+
 # The program may open this database and no other.
 [capabilities.db]
 connect = ["registry"]
