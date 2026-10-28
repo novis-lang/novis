@@ -162,6 +162,10 @@ final class Schema
         // The files in the work folder that some store does not have yet, such as `log/checkpoint`.
         // `rank` is the order they are sent in: the archives, the log, the index files, the checkpoint.
         $db->execute('create table if not exists unsent (path text primary key, rank integer not null)', []);
+        // The text that `Search` matches, one row per package: its name, and the summary and the
+        // doc comments of its highest version. `key` is the package in lower case. Cost: at most
+        // the summary and 32 KiB of doc comments per package.
+        $db->execute('create virtual table if not exists search using fts5 (key unindexed, name, summary, docs)', []);
         // One row, with `id` 1, about the copies of the database. `digest` is the SHA-256 hash of the
         // last copy before it was sealed. `checked_at` is the time `Backup` last looked for a change.
         // A copy does not contain this table.

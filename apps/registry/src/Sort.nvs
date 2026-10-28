@@ -1,0 +1,18 @@
+<?nvs
+namespace Registry;
+
+// The order of a search result. The reader chooses it, and `Default` is the order of `Ranking`.
+// `Search::sortOf` reads one from its name in a query, and `Search::nameOf` writes the name.
+enum Sort
+{
+    // The highest score of `Ranking` first.
+    Default,
+    // The newest release first.
+    Date,
+    // The most months with a release first.
+    Activity,
+    // The most downloads in the last 90 days first.
+    Downloads,
+    // By name, from A to Z.
+    Name,
+}

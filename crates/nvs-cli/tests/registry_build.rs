@@ -538,6 +538,8 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
         serde_json::json!({"documented": 0, "public": 2}),
         "{json}"
     );
+    assert_eq!(json["docs"], "", "{json}");
+    assert_eq!(json["summary"], "Acme HTTP kit.", "{json}");
     assert_eq!(json["dependencies"], serde_json::json!({}), "{json}");
     assert_eq!(
         json["capabilities"],
@@ -913,6 +915,10 @@ fn a_build_counts_the_public_declarations_with_a_doc_comment() {
     assert_eq!(
         json["doc_coverage"],
         serde_json::json!({"documented": 3, "public": 6}),
+        "{json}"
+    );
+    assert_eq!(
+        json["docs"], "The name of the client.\nWhat a request does.\nReads a resource.\n",
         "{json}"
     );
 }

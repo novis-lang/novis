@@ -26,6 +26,37 @@ final class App
     public const string WEBHOOK_ADDED = 'A new webhook gets the messages of your account.';
     public const string CHANNEL_REMOVED = 'A device or a webhook was removed from your account.';
 
+    // Returns the packages that match the text `q`, in the order `sort`, with the facts of each one.
+    // `sort` is `default`, `date`, `activity`, `downloads` or `name`, and `default` is the order of `Ranking`.
+    #[Route(path: '/api/search', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function search(): void
+    {
+        ?Sort $sort = Search::sortOf(Request::query('sort') ?? 'default');
+        if ($sort == null) {
+            App::fail(400, 'The sort must be default, date, activity, downloads or name.');
+            return;
+        }
+        array<Facts> $found = new Search(Schema::open())->find(Request::query('q') ?? '', $sort, Core\Time::now()->toEpochSeconds());
+        Response::json({
+            sort: Search::nameOf($sort),
+            ranking: 'apps/registry/src/Ranking.nvs',
+            packages: Arr::map($found, fn(Facts $f): mixed => ({
+                name: $f->name,
+                summary: $f->summary,
+                score: Ranking::score($f),
+                ageDays: $f->ageDays,
+                activeMonths: $f->activeMonths,
+                releasedAt: $f->releasedAt,
+                daysSinceRelease: $f->daysSinceRelease,
+                declarations: $f->declarations,
+                documented: $f->documented,
+                fixedRetractions: $f->fixedRetractions,
+                downloads: $f->downloads,
+            })),
+        });
+    }
+
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
     #[Route(path: '/api/signup/work', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]

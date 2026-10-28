@@ -32,11 +32,12 @@
 //! over one package are byte-identical anywhere. `schema` is [`SCHEMA`], and goes up when a reader
 //! of an older document could misread a newer one.
 //!
-//! ## Doc-comment coverage
+//! ## Doc comments
 //!
-//! [`extract_counted`] also returns a [`Coverage`], counted over the declarations the document
-//! lists, for `nvs registry build` (`rule:packaging/search-sorts-by-the-readers-choice`). It is
-//! kept out of the document, because a doc comment is not the API's shape.
+//! [`extract_counted`] also returns the [`Docs`] of the declarations the document lists, for
+//! `nvs registry build` (`rule:packaging/search-sorts-by-the-readers-choice`): how many have a doc
+//! comment, of how many, and their text for the registry's search. They are kept out of the
+//! document, because a doc comment is not the API's shape.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -77,22 +78,44 @@ pub(crate) fn run(dir: &Path) -> ExitCode {
     }
 }
 
-/// How many of a package's public declarations carry a `///` doc comment. A declaration is a
-/// class, interface, enum or `type` alias, an enum case, and each constant, property and method
-/// the document lists. A promoted constructor parameter has no doc comment of its own, so it is
-/// not counted.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Coverage {
+/// The most bytes of doc-comment text [`Docs::text`] keeps. The registry indexes it for search,
+/// once per package, so this bounds what one package adds to the index.
+pub(crate) const MAX_DOCS_TEXT: usize = 32 * 1024;
+
+/// The `///` doc comments of a package's public declarations. A declaration is a class,
+/// interface, enum or `type` alias, an enum case, and each constant, property and method the
+/// document lists. A promoted constructor parameter has no doc comment of its own, so it is not
+/// counted.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Docs {
     /// The declarations with a doc comment.
     pub(crate) documented: usize,
     /// Every declaration counted.
     pub(crate) public: usize,
+    /// The comments' lines without their `///`, one per line, in declaration order. A line that
+    /// would pass [`MAX_DOCS_TEXT`] is left out, and so is every line after it.
+    pub(crate) text: String,
+    /// Whether a line was left out, so no later line is added.
+    full: bool,
 }
 
-impl Coverage {
-    fn add(&mut self, doc: Option<&DocComment>) {
+impl Docs {
+    fn add(&mut self, doc: Option<&DocComment>, src: &SourceFile) {
         self.public += 1;
-        self.documented += usize::from(doc.is_some());
+        let Some(doc) = doc else { return };
+        self.documented += 1;
+        for &line in &doc.lines {
+            let line = text(src, line).trim_start_matches('/').trim();
+            if self.full || line.is_empty() {
+                continue;
+            }
+            if self.text.len() + line.len() + 1 > MAX_DOCS_TEXT {
+                self.full = true;
+                continue;
+            }
+            self.text.push_str(line);
+            self.text.push('\n');
+        }
     }
 }
 
@@ -102,8 +125,8 @@ pub(crate) fn extract(dir: &Path) -> Result<Value, ExitCode> {
     extract_counted(dir).map(|(document, _)| document)
 }
 
-/// [`extract`]'s document, and its declarations' doc-comment [`Coverage`].
-pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Coverage), ExitCode> {
+/// [`extract`]'s document, and its declarations' [`Docs`].
+pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Docs), ExitCode> {
     let src = dir.join("src");
     let mut files = Vec::new();
     let mut cases = false;
@@ -133,7 +156,7 @@ pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Coverage), ExitCode>
 }
 
 /// The document over a checked program: every declaration but the entry's, which has none.
-fn document(checked: &crate::Checked) -> (Value, Coverage) {
+fn document(checked: &crate::Checked) -> (Value, Docs) {
     let mut decls = Vec::new();
     for file in checked.files.iter().filter(|file| file.id != checked.id) {
         collect(&file.stmts, checked.map.file(file.id), "", &mut decls);
@@ -154,21 +177,22 @@ fn document(checked: &crate::Checked) -> (Value, Coverage) {
         "declarations".into(),
         Value::Array(decls.iter().map(|decl| api.decl_json(decl)).collect()),
     );
-    (Value::Object(out), coverage(&decls))
+    (Value::Object(out), docs(&decls))
 }
 
-/// The doc-comment [`Coverage`] of `decls` and of the members the document lists for them. An
-/// enum or alias a body owns is one of `decls`, so the member walk skips it.
-fn coverage(decls: &[Decl<'_>]) -> Coverage {
-    let mut count = Coverage::default();
+/// The [`Docs`] of `decls` and of the members the document lists for them. An enum or alias a
+/// body owns is one of `decls`, so the member walk skips it.
+fn docs(decls: &[Decl<'_>]) -> Docs {
+    let mut count = Docs::default();
     for decl in decls {
-        count.add(decl.doc);
+        let src = decl.site.src;
+        count.add(decl.doc, src);
         let members = match decl.item {
             Item::Class(class) => class.members.as_slice(),
             Item::Interface(interface) => interface.members.as_slice(),
             Item::Enum(decl) => {
                 for case in &decl.cases {
-                    count.add(case.doc.as_ref());
+                    count.add(case.doc.as_ref(), src);
                 }
                 decl.members.as_slice()
             }
@@ -182,7 +206,7 @@ fn coverage(decls: &[Decl<'_>]) -> Coverage {
                 _ => false,
             };
             if listed {
-                count.add(member.doc.as_ref());
+                count.add(member.doc.as_ref(), src);
             }
         }
     }
@@ -195,7 +219,7 @@ struct Decl<'a> {
     name: String,
     item: Item<'a>,
     site: Site<'a>,
-    /// The `///` run above it, for [`coverage`].
+    /// The `///` run above it, for [`docs`].
     doc: Option<&'a DocComment>,
 }
 

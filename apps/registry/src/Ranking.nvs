@@ -1,0 +1,131 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Math;
+use Core\Taint;
+
+// The default order of a search. This file is the whole formula, and every package page links to it.
+//
+// A package gets a score from 0 to 1. Half of it is the work the registry saw, and half is how much
+// the package is used. A higher score comes first.
+//
+// The work is the sum of six parts, each from 0 to 1, times its weight:
+//
+// - 25%: the months with at least one release. 24 months or more give the full part.
+// - 20%: how recent the newest release is. Up to 180 days old gives the full part. After that the
+//   part gets smaller each day, and at 3 years (1095 days) it is 0.
+// - 15%: the time since the first publish. Two years (730 days) or more give the full part.
+// - 15%: the size of the public API of the highest version. The part grows with the logarithm of
+//   the number of declarations, and 200 declarations or more give the full part.
+// - 15%: the share of those declarations that have a doc comment.
+// - 10%: the retracted versions whose retraction names the version that fixes them. Two or more
+//   give the full part.
+//
+// The use is the downloads of the last 90 days, on a logarithmic scale: 1 download gives a small
+// part, and 1,000,000 or more give the full part.
+//
+// Every fact is one the registry saw itself: the time of each publish by its own clock, the
+// declarations in the code it built, the retractions in its own log, and its own download counts.
+// The history of a git repository is not a fact here, because anybody can write it.
+final class Ranking
+{
+    // The weights of the six parts of the work. Their sum is 1.
+    public const float MONTHS = 0.25;
+    public const float RECENT = 0.20;
+    public const float AGE = 0.15;
+    public const float API = 0.15;
+    public const float DOCS = 0.15;
+    public const float FIXES = 0.10;
+
+    // The share of the score that is work. The rest is use.
+    public const float WORK = 0.5;
+
+    // The facts of every package that has a release that is out, with the text search `$match`, or
+    // of every package when it is `null`. `$match` is a query of the full-text index `search`.
+    // Cost: one query. It reads every release and the downloads of the last 90 days of each package it returns.
+    public static function facts(Connection $db, int $now, ?string $match): array<Facts>
+    {
+        string $sql = 'with shown as ('
+            . '  select r.* from releases r left join release_states s on s.package = r.package and s.version = r.version'
+            . '  where s.withheld is null and (r.pending_until is null or r.pending_until <= ?)'
+            . '), newest as ('
+            . '  select package, declarations, documented,'
+            . '    row_number() over (partition by package order by major desc, minor desc, patch desc) as n from shown'
+            . ') '
+            . 'select p.key, p.name, p.created_at, coalesce(t.summary, \'\') as summary,'
+            . " count(distinct strftime('%Y-%m', shown.published_at, 'unixepoch')) as months,"
+            . ' max(shown.published_at) as released_at,'
+            . ' coalesce(n.declarations, 0) as declarations, coalesce(n.documented, 0) as documented,'
+            . ' (select count(*) from release_states f where f.package = p.key and f.retracted_at is not null and f.fixed_in is not null) as fixes,'
+            . ' (select coalesce(sum(d.count), 0) from downloads d where d.package = p.key and d.day >= ?) as downloads '
+            . 'from packages p join shown on shown.package = p.key join newest n on n.package = p.key and n.n = 1 '
+            . 'left join search t on t.key = p.key ';
+        array<mixed> $values = [$now, Downloads::dayOf($now) - 90];
+        if ($match != null) {
+            $sql = $sql . 'where p.key in (select key from search where search match ?) ';
+            $values[] = $match;
+        }
+        $sql = $sql . 'group by p.key';
+        array<Facts> $all = [];
+        foreach ($db->query($sql, $values) as Row $row) {
+            int $releasedAt = $row->int('released_at') ?? 0;
+            $all[] = new Facts(
+                Ranking::trusted($row->string('key')),
+                Ranking::trusted($row->string('name')),
+                Ranking::trusted($row->string('summary')),
+                Math::intDiv($now - ($row->int('created_at') ?? $now), 86400),
+                $row->int('months') ?? 0,
+                $releasedAt,
+                Math::intDiv($now - $releasedAt, 86400),
+                $row->int('declarations') ?? 0,
+                $row->int('documented') ?? 0,
+                $row->int('fixes') ?? 0,
+                $row->int('downloads') ?? 0,
+            );
+        }
+        return $all;
+    }
+
+    // The score of a package, from 0 to 1, as the comment at the top of this file says.
+    public static function score(Facts $facts): float
+    {
+        return Ranking::WORK * Ranking::work($facts) + (1.0 - Ranking::WORK) * Ranking::use($facts);
+    }
+
+    // The work part of the score, from 0 to 1.
+    public static function work(Facts $facts): float
+    {
+        float $months = Ranking::share($facts->activeMonths, 24);
+        float $recent = 1.0 - Ranking::share($facts->daysSinceRelease - 180, 1095 - 180);
+        float $age = Ranking::share($facts->ageDays, 730);
+        float $api = Math::min(Math::log(1.0 + $facts->declarations, { base: 2.0 }) / Math::log(201.0, { base: 2.0 }), 1.0);
+        float $docs = $facts->declarations == 0 ? 0.0 : Math::fdiv($facts->documented, $facts->declarations);
+        float $fixes = Ranking::share($facts->fixedRetractions, 2);
+        return Ranking::MONTHS * $months
+            + Ranking::RECENT * $recent
+            + Ranking::AGE * $age
+            + Ranking::API * $api
+            + Ranking::DOCS * $docs
+            + Ranking::FIXES * $fixes;
+    }
+
+    // The use part of the score, from 0 to 1.
+    public static function use(Facts $facts): float
+    {
+        return Math::min(Math::log(1.0 + $facts->downloads, { base: 10.0 }) / 6.0, 1.0);
+    }
+
+    // `$value` over `$full`, kept between 0 and 1.
+    private static function share(int $value, int $full): float
+    {
+        return Math::clamp(Math::fdiv($value, $full), 0.0, 1.0);
+    }
+
+    // A text from a row the registry wrote.
+    private static function trusted(mixed $value): string
+    {
+        return Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

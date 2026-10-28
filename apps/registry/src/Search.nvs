@@ -1,0 +1,105 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Db\Connection;
+use Core\Db\Transaction;
+use Core\Regex;
+use Core\Str;
+use Core\Taint;
+
+// The text search of the registry (`rule:packaging/search-sorts-by-the-readers-choice`).
+// A query matches the name, the summary and the doc comments of the highest version of each
+// package. The reader then chooses the order, and the default order is the one of `Ranking`.
+// The full-text index `search` has one row per package, so it grows with the packages and not
+// with the searches.
+final class Search
+{
+    // The most words of a query that are searched. The other words are left out.
+    public const int WORDS = 8;
+    // The most packages one search returns.
+    public const int LIMIT = 50;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Writes the text of a package to the index: its name, its summary and its doc comments.
+    // `Publish` calls this for the highest version only, so an older version does not replace it.
+    public static function index(Connection|Transaction $db, string $key, string $name, string $summary, string $docs): void
+    {
+        $db->execute('delete from search where key = ?', [$key]);
+        $db->execute('insert into search (key, name, summary, docs) values (?, ?, ?, ?)', [$key, $name, $summary, $docs]);
+    }
+
+    // Returns the packages that match `$query`, in the order `$sort`, at most `LIMIT`.
+    // A query with no letters and no digits matches every package.
+    // A package with no release that is out, such as one whose releases are all withheld, is not returned.
+    public function find(tainted string $query, Sort $sort, int $now): array<Facts>
+    {
+        array<Facts> $found = Ranking::facts($this->db, $now, Search::matchOf($query));
+        return Arr::slice(Search::sorted($found, $sort), 0, Search::LIMIT);
+    }
+
+    // Returns `$found` in the order `$sort`. Packages that are equal in that order are sorted by name.
+    public static function sorted(array<Facts> $found, Sort $sort): array<Facts>
+    {
+        array<Facts> $byName = Arr::sort($found, { by: fn(Facts $f): string => $f->key });
+        return match ($sort) {
+            Sort::Name => $byName,
+            Sort::Date => Search::descending($byName, fn(Facts $f): float => $f->releasedAt as float),
+            Sort::Activity => Search::descending($byName, fn(Facts $f): float => $f->activeMonths as float),
+            Sort::Downloads => Search::descending($byName, fn(Facts $f): float => $f->downloads as float),
+            Sort::Default => Search::descending($byName, fn(Facts $f): float => Ranking::score($f)),
+        };
+    }
+
+    // Returns the order whose name is `$name`, such as `downloads`. Otherwise the result is `null`.
+    public static function sortOf(tainted string $name): ?Sort
+    {
+        return match ($name) {
+            'default' => Sort::Default,
+            'date' => Sort::Date,
+            'activity' => Sort::Activity,
+            'downloads' => Sort::Downloads,
+            'name' => Sort::Name,
+            default => null,
+        };
+    }
+
+    // Returns the name of the order `$sort`, as `sortOf` reads it.
+    public static function nameOf(Sort $sort): string
+    {
+        return match ($sort) {
+            Sort::Default => 'default',
+            Sort::Date => 'date',
+            Sort::Activity => 'activity',
+            Sort::Downloads => 'downloads',
+            Sort::Name => 'name',
+        };
+    }
+
+    // The query of the full-text index for the words of `$query`, or `null` when it has no words.
+    // Each word is a run of letters and digits, and it matches every word in the text that starts
+    // with it. Every other character only separates two words, so the query cannot use the
+    // operators of the index.
+    public static function matchOf(tainted string $query): ?string
+    {
+        array<string> $terms = [];
+        foreach (Regex::split(Str::lower($query), '[^\p{L}\p{N}]+') as tainted string $word) {
+            if ($word != '' && Arr::count($terms) < Search::WORDS) {
+                $terms[] = '"' . Taint::assertTrusted($word, 'it has only letters and digits') . '"*';
+            }
+        }
+        return Arr::count($terms) == 0 ? null : Str::join($terms, ' ');
+    }
+
+    // `$list` with the highest value of `$key` first. The sort keeps the order of equal values.
+    private static function descending(array<Facts> $list, callable(Facts): float $key): array<Facts>
+    {
+        return Arr::sort($list, { by: $key, order: Arr::Order::Desc });
+    }
+}

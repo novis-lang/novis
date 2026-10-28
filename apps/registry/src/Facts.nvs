@@ -1,0 +1,32 @@
+<?nvs
+namespace Registry;
+
+// What the registry saw itself about one package: with its own clock, in the code it built, and in
+// its download counts. `Ranking` reads only these, and a package page shows every one of them.
+// A release counts once it is out: it is not withheld and does not wait any more.
+final class Facts
+{
+    public function constructor(
+        // The package in lower case, such as `acme\http`, and its name as it was first published.
+        public readonly string $key,
+        public readonly string $name,
+        // The first paragraph of the readme of the newest version, or ''.
+        public readonly string $summary,
+        // The days since the first publish.
+        public readonly int $ageDays,
+        // The number of calendar months with at least one release.
+        public readonly int $activeMonths,
+        // The time of the newest release, in seconds since 1970, and the days since then.
+        public readonly int $releasedAt,
+        public readonly int $daysSinceRelease,
+        // The public declarations of the highest version, and how many have a doc comment.
+        // Both are 0 when the registry did not count them, such as after a restore from the log.
+        public readonly int $declarations,
+        public readonly int $documented,
+        // The retracted versions whose retraction names the version that fixes them.
+        public readonly int $fixedRetractions,
+        // The downloads of every version in the last 90 days.
+        public readonly int $downloads,
+    )
+    {}
+}
