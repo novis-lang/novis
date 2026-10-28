@@ -104,16 +104,14 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `97fcf96ce`, package-client's goal end. Website 40645307476 is green. CI
-40645307490 is green except `test / windows-x86_64 (tests)`. There,
-`crates/nvs-stdlib/src/server.rs:the_member_answers_true_once_the_process_drain_begins` raced
-`crate::signal`'s tests, which begin the one-way process drain on another thread. `815690482`
-fixes it: the first reading must lie between two readings of the bit. That fix is committed and
-not pushed.
+`origin/main` is at `56d4a7e18`, registry-log's goal end. CI 40664047203 and Website
+40664047249 are green on it, all 37 CI jobs. The push carried `815690482`, the fix for the
+`isDraining` race on `test / windows-x86_64 (tests)`. No fix waits for a push.
 
-The next watch runs with `--next`, because the newest CI run is red until that push.
+The next watch runs with no `--next`: the newest runs are green, so a plain watch waits for the
+next push.
 
-Before this watch, `bun nv proofs --gate --limit 0` named 67 stale perf figures, from `io.rs` and
+Before the 97fcf96ce watch, `bun nv proofs --gate --limit 0` named 67 stale perf figures, from `io.rs` and
 `http.rs`. The main loop recorded all 67 in the root at `58b4def64` while this session measured
 them too. This session's copy was taken back out, so the ledger holds only the main loop's lines.
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root.
@@ -133,7 +131,7 @@ target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper 
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
+- [ ] Watch with `bun nv ci --watch`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
   Run 40484733037 on `1467fa8f6` is green. If `tsan`'s allocation test fails
   again with a different batch off by one, the first-use allocation is elsewhere on the core:
   compare `crates/nvs-host/src/scheduler.rs:Scheduler::new`'s empty collections with the parked path.
