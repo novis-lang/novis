@@ -234,6 +234,21 @@ describe("a proof program judged and not recorded", () => {
       s.close();
     }
   }, 120_000);
+
+  test("has no result and keeps no verdict when a stop comes before its run", async () => {
+    const s = new SelectStore(":memory:", "test-os");
+    try {
+      s.runAt("t", () => ({ commit: "c", overlay: {}, items: [], markers: {} }));
+      const other = "docs/examples/core/Math/sqrt/02-negative-and-special-values.nvs";
+      // Each worker asks before it takes a program, so only the first ask lets one start.
+      let asked = 0;
+      const pass = await judgeKept(s, { path: process.execPath, key: "k", runs: "k", recorded: true }, [{ what: "examples", path: SQRT }, { what: "examples", path: other }], { ...opts, stop: () => asked++ > 0 });
+      expect([...pass.results.keys()]).toEqual([`examples:${SQRT}`]);
+      expect(s.judged<Result>(proofId(other), s.judgedKey("proof native lenient")!)).toBeNull();
+    } finally {
+      s.close();
+    }
+  }, 120_000);
 });
 
 describe("a store made before stamps", () => {

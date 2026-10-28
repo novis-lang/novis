@@ -16,7 +16,8 @@
 //   with `NV_READS_LOG` set, for its reads and the modules it loaded.
 //
 // Each atom's raw profiles and log are extracted and deleted as soon as its run ends, so the disk holds
-// one batch's profiles at a time. The base tree becomes the tree as it stands.
+// one batch of cases' profiles, or those of the runs in flight, at a time. The base tree becomes the
+// tree as it stands.
 
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { cpus } from "node:os";
@@ -34,7 +35,7 @@ import { caseFiles, caseId, nvDef, nvId, proofId, proofPrograms, testId } from "
 import type { Extracted } from "./extract.ts";
 import { allowedWide } from "../keys/escape.ts";
 import { readsKeys, testsKey, WILD } from "./keys.ts";
-import { advance, chunks, fullChange, pool, Recorder, recordCases } from "./record.ts";
+import { advance, fullChange, pool, Recorder, recordCases } from "./record.ts";
 import { treeSig } from "./change.ts";
 import { runTree } from "./select.ts";
 import { type AtomKind, type Keyed, type SelectStore, type Verdict } from "./store.ts";
@@ -164,30 +165,36 @@ export async function seed(store: SelectStore, opts: SeedOptions = {}): Promise<
   return report;
 }
 
-/** Judges every program of `programs` on the proof binary, then records each one through
- * `recordProgram`, the way `bun nv proofs` records one, `o.batch` programs at a time. `bun nv select
- * --full` runs it too. `o.stop` is asked before each batch starts, and once it says yes no other batch
- * starts. */
-export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[], o: { batch?: number; stop?: () => boolean } = {}): Promise<void> {
-  if (programs.length === 0) return;
+/** Judges every program of `programs` on the proof binary in one pool, then records each judged one
+ * through `recordProgram`, the way `bun nv proofs` records one, in a second pool of `ctx.jobs`. `bun nv
+ * select --full` runs it too. `o.stop` is asked before each program's judged run and before each
+ * recording run starts; a program it stops before its judged run is not recorded.
+ *
+ * Neither phase is cut into batches: a batch waits for its slowest program, and a recording run takes
+ * from 0.1 s to 50 s, so batches of eight left most of the pool idle and took 46 minutes for work one
+ * pool does in 17. Each program's raw profiles are deleted once they are read (`extract`), so the
+ * record directory holds only the runs in flight. What it spends: the judged result of every program,
+ * its output included, is held until the program is recorded.
+ */
+export async function seedProofs(ctx: Ctx, programs: { what: "examples" | "hostile"; path: string }[], o: { stop?: () => boolean } = {}): Promise<void> {
+  if (programs.length === 0 || o.stop?.()) return;
   const bin = await proofBinary();
   if (typeof bin === "string") throw new Error(`select: no proof binary to judge the proof programs on: ${bin}`);
   const dir = join(ctx.r.dir, "proofs");
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  // Every program is judged before any is recorded, so a judged run never shares the machine with the
+  // slower recording runs.
+  const pass = await judgeKept(ctx.r.store, bin, programs, { valgrind: false, strict: false, ...(o.stop && { stop: o.stop }) });
   let done = 0;
-  for (const batch of chunks(programs, o.batch ?? 96)) {
-    if (o.stop?.()) return;
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir, { recursive: true });
-    // Every program of the batch is judged before any is recorded, so a judged run never shares the
-    // machine with the slower recording runs.
-    const pass = await judgeKept(ctx.r.store, bin, batch, { valgrind: false, strict: false });
-    await pool(batch, ctx.jobs, async ({ what, path }) => {
-      const recorded = await recordProgram(ctx.r, ctx.nvs, dir, what, path, pass.results.get(`${what}:${path}`), ctx.root);
-      if (recorded) ctx.tally("proof", recorded.verdict, recorded.ext);
-    });
-    done += batch.length;
-    ctx.say(`select: proof programs ${done}/${programs.length}`);
-  }
+  await pool(programs, ctx.jobs, async ({ what, path }) => {
+    const result = pass.results.get(`${what}:${path}`);
+    if (result === undefined || o.stop?.()) return;
+    const recorded = await recordProgram(ctx.r, ctx.nvs, dir, what, path, result, ctx.root);
+    if (recorded) ctx.tally("proof", recorded.verdict, recorded.ext);
+    done++;
+    if (done % ctx.jobs === 0 || done === programs.length) ctx.say(`select: proof programs ${done}/${programs.length}`);
+  });
 }
 
 /** Runs every test executable of `exes` whole, in its package directory, and records each one. `bun nv

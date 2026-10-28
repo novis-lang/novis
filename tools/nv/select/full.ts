@@ -23,8 +23,8 @@
 //
 // The same run pays debt for `bun nv debt` (`cmd/debt.ts`): `only` names the atoms that run, in their
 // order, and `deadline` is when no further one starts. Each kind's turn comes when its first atom's turn
-// comes in `only`. The deadline is asked before each batch of cases or proof programs, which is one pool's
-// width, and before each test executable, tools test file and plan check. An atom that started runs to
+// comes in `only`. The deadline is asked before each batch of cases, which is one pool's width, before
+// each proof program, and before each test executable, tools test file and plan check. An atom that started runs to
 // its end, and every selected atom that did not run is owed when the tree moves, as after any run.
 //
 // A selection miss is an atom red in this run that the selection did not pick. The selection picks every
@@ -201,14 +201,14 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
 
   const r = await Recorder.open(store, sweep.change.view, sweep.graph, "full", { root, say });
   const ctx: Ctx = { r, nvs: r.pin(build.nvs), built: build.nvs, jobs, say, tally: () => {}, root, ...(opts.onStart && { starting: opts.onStart }) };
-  // A run of `only` takes one pool's width of cases or proof programs at a time, so the deadline is asked
-  // before each of them starts.
+  // A run of `only` takes one pool's width of cases at a time, so the deadline is asked before each of
+  // them starts. Proof programs need no batch: `seedProofs` asks it before each program.
   const batch = only === null ? undefined : jobs;
   const turns: Record<FullKind, () => Promise<void>> = {
     case: async () => {
       await recordCases(r, ctx.nvs, inOnly(caseFiles(root), caseId, only), { jobs, ...(batch !== undefined && { batch }), stop: spent, onBatch: (done, total) => say(`select: cases ${done}/${total}`), root });
     },
-    proof: async () => seedProofs(ctx, inOnly(await proofPrograms(ctx.nvs), (p) => proofId(p.path), only), { ...(batch !== undefined && { batch }), stop: spent }),
+    proof: async () => seedProofs(ctx, inOnly(await proofPrograms(ctx.nvs), (p) => proofId(p.path), only), { stop: spent }),
     test: () => seedTests(ctx, inOnly([...build.tests].flatMap(([pkg, ts]) => ts.map((t) => ({ pkg, t }))), (x) => testId(x.pkg, x.t), only), spent),
     nvtest: async () => {
       if (only === null) {

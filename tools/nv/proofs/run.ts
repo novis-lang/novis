@@ -916,6 +916,9 @@ export interface RunOptions {
   /** Called with each program's result the moment it is final: at once, or for one that ran out of
    * time beside others, once its run alone ends. */
   onResult?: (program: Program, result: Result) => void;
+  /** Asked before each program starts; once it says yes, no other program starts, and a program that
+   * ran out of time beside others is not run again and has no result. */
+  stop?: () => boolean;
 }
 
 export interface Result {
@@ -972,7 +975,7 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
     results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
   };
   const worker = async () => {
-    while (next < todo.length) {
+    while (next < todo.length && opts.stop?.() !== true) {
       const t = todo[next++]!;
       await runOne(t);
       ran++;
@@ -985,6 +988,10 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   await Promise.all(Array.from({ length: width }, worker));
   const again = new Set(timedOut(results));
   for (const t of todo.filter((p) => again.has(`${p.what}:${p.path}`))) {
+    if (opts.stop?.() === true) {
+      results.delete(`${t.what}:${t.path}`);
+      continue;
+    }
     progress(`proofs: ${t.path} ran out of time beside others, so it runs once more alone`);
     await runOne(t);
     opts.onResult?.(t, results.get(`${t.what}:${t.path}`)!);

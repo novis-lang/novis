@@ -31,7 +31,7 @@
 // (`lib/events.ts`), and outside it writes none. It declares the debt's item, `DEBT_ITEM`, and under it
 // one item per debt atom in the order the turns pay them, with the atom's id and the debt kind, then
 // `planned`. The runner tells it of each atom it starts on its own: a test executable, a tools test file
-// or a plan check. A case or a proof program, which runs in a batch, only ends. An atom's item ends when
+// or a plan check. A case, which runs in a batch, or a proof program only ends. An atom's item ends when
 // its run is recorded (`store.ts` `onRecorded`), red when it ran red. One paid with no recorded run ends
 // with its verdict once the rounds are over. The run ends with `done`. What it spends: one appended line
 // per item event.
