@@ -31,7 +31,7 @@ stages:
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 5
     title: "the sign-in members have their feature proofs, and the rule is shipped"
-    status: open
+    status: done
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 6
     title: the goal is verified once, and every failure is fixed
@@ -197,12 +197,12 @@ bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the
 
 **Split:** as stage 4, one writing subagent per member, then the attack.
 
-- [ ] `signInOptions`. `docs/examples/core/Passkey/signInOptions/about.md:1`, `benches/members/core/Passkey/signInOptions.nvs:1`
-- [ ] `verifySignIn`. `docs/examples/core/Passkey/verifySignIn/about.md:1`, `benches/members/core/Passkey/verifySignIn.nvs:1`
-- [ ] The attack: a replayed assertion. `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
-- [ ] The perf record of all five members, after the last change to `passkey.rs`: `bun nv proofs --record-perf --id <member>` for each, and `bun nv scaling --budget --write` for the new benches' shares. `data/perf/members.ndjson:1`, `data/perf/bench-budget.json:1`
-- [ ] `bun nv proofs --group 'Core\Passkey'` owes nothing. `docs/examples/core/Passkey/verifySignIn/about.md:1`
-- [ ] `rule:core-classes/passkey-verifies-a-webauthn-ceremony` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-passkey` passes. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
+- [x] `signInOptions`. `docs/examples/core/Passkey/signInOptions/about.md:1`, `benches/members/core/Passkey/signInOptions.nvs:1`
+- [x] `verifySignIn`. `docs/examples/core/Passkey/verifySignIn/about.md:1`, `benches/members/core/Passkey/verifySignIn.nvs:1`
+- [x] The attack: a replayed assertion. `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
+- [x] The perf record of all five members, after the last change to `passkey.rs`: `bun nv proofs --record-perf --id <member>` for each, and `bun nv scaling --budget --write` for the new benches' shares. The budget write is refused by 45 benches of other classes over their shares; no gate runs it, and the Backlog holds it. `data/perf/members.ndjson:1`, `data/perf/bench-budget.json:1`
+- [x] `bun nv proofs --group 'Core\Passkey'` owes nothing. `docs/examples/core/Passkey/verifySignIn/about.md:1`
+- [x] `rule:core-classes/passkey-verifies-a-webauthn-ceremony` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-passkey` passes. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -221,37 +221,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 4 are done. The class, its twelve Rust tests and four conformance cases are in;
-the protocol roster lists it as built, and the rule stays `designed` until stage 5.
-`registerOptions`, `verifyRegistration` and `credentialId` each have an about page, three examples,
-a bench and an attack, which pass under
-`bun nv proofs --run --nvs target/debug/nvs.exe --no-perf --id '<member>'`. Plain `--run` failed
-to build its coverage binary, so pass `--nvs`. Each owes only its perf record.
+Stages 1 to 5 are done. All five members have an about page, three examples, a bench and an
+attack, and `bun nv proofs --gate --group 'Core\Passkey'` owes nothing (`passkey-proofs` is green).
+The rule is `shipped`, guarded by `passkey.rs` and its four cases, and
+`bun nv owners --closes core-passkey` passes (`owners-closes` is green). The rendered
+`docs/rules/security.md` now lists `Core\Passkey` as built, as its fragment already did.
 
-A session example needs Redis: `// requires: redis`, an `nvs.toml` beside it, and a `.nvsr` per
-file (`docs/examples/core/Passkey/registerOptions/`). The `verifyRegistration` examples carry a
-short `Device` class that plays the browser. `Core\Json::decode` gives tainted text, so a challenge
-read from the options goes through `Core\Taint::assertTrusted`.
+The perf tool subtracted a floor taken without `--config`, while `spawnProof` runs a bench beside an
+`nvs.toml` under that file and so skips the repository's root `nvs.toml`. Such a bench read about
+11 ms over N too low, and `credentialId` read 0. `floorFor` (`tools/nv/proofs/perf.ts`) now times
+the empty program under each bench's own config. The five Passkey figures are taken with it, and
+`credentialId`'s bench runs 16384 rounds.
 
-The options now check the memory limit before they are built (`credential_ids`).
-
-**Expected red until stage 5:** the proofs gate's `Core\Passkey` rows (`passkey-proofs`): the
-perf of all five members, and the proofs of `signInOptions` and `verifySignIn`.
+**Expected red:** none from this goal. The proofs of other classes whose benches sit beside an
+`nvs.toml` (Session, Cache, Db and the like) still carry figures taken against the old floor. Their
+`impl_hash` has not changed, so no gate goes red for it.
 
 ### Next
 
-**Stage 5: the sign-in members' feature proofs, the perf records and the shipped rule.** Files:
-`docs/examples/core/Passkey/signInOptions/`, `docs/examples/core/Passkey/verifySignIn/`,
-`benches/members/core/Passkey/`, `tests/hostile/core/Passkey/{signInOptions,verifySignIn}/`. Give
-each writing subagent the finished `registerOptions` tree as its model (it shows the Redis setup)
-and `verifyRegistration`'s `Device` class for a ceremony. `signInOptions` and `verifySignIn` can run
-side by side, since their files are disjoint. Each member owes one attack, so `signInOptions` needs
-one too.
+**Stage 6: verify the goal once.** Start `bun nv affected --run` with `run_in_background`, end the
+turn, group its failures by cause, fix them in one pass, and run it again. Then the goal-end gates:
+`bun nv verify --doc`, `bun nv owners --closes core-passkey`, `bun nv ci --check`. The run also
+shows whether plain `bun nv proofs --run` (without `--nvs`) still fails to build its coverage
+binary. `tools/nv/cmd/verify.ts:1`
 
-- [ ] `signInOptions`: about page, three examples, bench, attack. `docs/examples/core/Passkey/signInOptions/about.md:1`, `benches/members/core/Passkey/signInOptions.nvs:1`
-- [ ] `verifySignIn`, with the attack of a replayed assertion. `docs/examples/core/Passkey/verifySignIn/about.md:1`, `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
-- [ ] The perf record of all five, once `passkey.rs` no longer changes. `data/perf/members.ndjson:1`
-- [ ] `bun nv proofs --group 'Core\Passkey'` owes nothing, and the rule is `shipped`. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
+- [ ] `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, then a green second run. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates, each red fixed. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
@@ -260,3 +256,12 @@ one too.
 - `bun nv proofs --run` without `--nvs` failed to build its coverage binary under `target/covws` in
   stage 4. The cause is not known. Stage 6 runs it, and that run shows whether it is still broken.
   `tools/nv/proofs/run.ts:1`
+- `bun nv scaling --budget --write` is refused by 45 benches over their shares: the Spreadsheet
+  package's (by 1 or 32 statements), `Core\Metrics`, `Core\Cap::has` and the pipeline operator. No
+  gate runs the budget, so the Passkey benches have no share yet. Whoever owns the budget lowers
+  those N or writes their reasons, then `--write` adds the Passkey shares. `tools/nv/cmd/scaling.ts:1300`
+- Every bench beside an `nvs.toml` outside `Core\Passkey` has a figure taken against the old floor,
+  so it reads low. A `--record-perf --force` over those groups corrects them. `tools/nv/proofs/perf.ts:floorFor`
+- A `foreach` over an inline array literal, `foreach (['a', 'b'] as string $email)`, fails with
+  E0401 "expected `string`, found `mixed`". The same array in an `array<string>` variable works.
+  This is a checker question for whichever goal owns array literal inference.
