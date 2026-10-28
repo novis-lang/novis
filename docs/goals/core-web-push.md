@@ -31,7 +31,7 @@ stages:
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 5
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: web-push-proofs
@@ -176,45 +176,42 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` with
-`subscription`, `applicationServerKey` and `send`, and each member has a Rust test that carries its
-`covers:` marker (`a_vapid_token_names_the_endpoints_origin_and_verifies_under_the_public_key` now
-reads its key through `applicationServerKey`). Each member has its about page, three examples, a
-bench with a perf row in `data/perf/members.ndjson`, and an attack, under
-`docs/examples/core/WebPush/`, `benches/members/core/WebPush/` and `tests/hostile/core/WebPush/`.
-`bun nv proofs --gate --group 'Core\WebPush'` owes nothing, and `bun nv owners --closes
-core-web-push` passes. `rule:core-classes/web-push-sends-an-encrypted-message` is `shipped`, with
-the three `web-push-*.nvst` cases in `guardedBy` and its `goal` field removed.
+Every stage is done, and the goal is reached. `looper verify` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes core-web-push`, `bun nv ci --check`, and both
+acceptance checks, `web-push-proofs` and `owners-closes`.
 
-The `send` attack has its own `nvs.toml` block (`root = "tests/hostile/core/WebPush/send"`,
-`connect = true`), so the address table alone refuses each internal endpoint, and a
-`needs the capability` error stops it with a `LogicError`. The examples and the `send` bench never
-connect: each sends to `10.0.0.x`, which a CLI run refuses before a socket opens. The four subagents
-ran side by side, because their directories were disjoint.
+The gate stage fixed five causes:
+- **`push_send` skipped the test's answer table.** `rule:testing/an-outbound-call-is-answered-from-a-table`
+  says every outbound call is answered once a row is registered, and `Core\WebPush::send` reached the
+  network instead. `crates/nvs-stdlib/src/http.rs` `push_send` now judges the endpoint and headers,
+  records the message for `Core\Test::sentHttp`, and returns the row's status. `faked` and it share
+  `unanswered`. `a_test_s_answer_table_answers_send_and_records_the_message` proves it.
+- **`Core\WebPush\Subscription` and `Core\WebPush\Sent` owed every proof** (the inner-group playbook
+  trap). Their members have about pages, examples, benches, attacks and perf rows under
+  `WebPush-Subscription/` and `WebPush-Sent/`, built on the answer table.
+- **The conformance floor of three** (`crates/nvs-stdlib/tests/conformance_coverage.rs`): three new
+  `web-push-*.nvst` cases ask each member a new question.
+- **rustfmt, the rendered rule pages, three unformatted `.nvs` files and the website data**
+  (`core.json`, `llms-full.txt`, and nine `questions.json` entries).
+- **`Core\Http`'s perf figures** went stale with `http.rs`, and each group was recorded again.
+
+The `env-secret-proofs` sweep red was stale: the command exits 0 and no check by that name exists.
+The cancelled nightly run 40662443492 was a dispatch that the next push's run cancelled. That run
+and the one after it are green.
 
 ### Next
 
-**Stage 5: the goal is verified once.** Start `bun nv affected --run` (in the loop, `looper verify`)
-with `run_in_background`, group the failures by cause, fix them in one pass, and run it again.
-Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes core-web-push` and
-`bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
-
-Possible reds: the decimal and hex loopback hosts in step 2 of
-`tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:62` fail to resolve on
-Windows but resolve to `127.0.0.1` on Linux, and both throw a `RuntimeError`. Check the Linux run.
-A check over the website's `Core` index may want rows for the new members.
-
-The perf rows: `applicationServerKey` costs about 530 µs a call (`vapid_of` reads the pair and
-derives the public point each time), `send` about 1.2 ms and `subscription` about 2 µs.
+Nothing in this goal. The chain goes on with `registry-service`. No test is expected to go red.
 
 ### Backlog
 
 - The registry's owner notifications and its "I am here" reminder send through this class in goal `registry-service` (`docs/goals/registry-service.md`).
+- `extension_send` (`crates/nvs-stdlib/src/http.rs`) also skips the test's answer table, as `push_send` did. Whether an extension's call in a test should be answered from it is open and has no owner yet.
