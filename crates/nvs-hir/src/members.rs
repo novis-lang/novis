@@ -1134,7 +1134,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
 
     match &expr.kind {
-        ExprKind::Interpolated(parts) => {
+        ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts) => {
             for part in parts {
                 if let StringPart::Expr(x) = part {
                     e!(x);

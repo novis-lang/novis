@@ -6,7 +6,7 @@ context: [crates/nvs-hir/src/members.rs, crates/nvs-hir/src/lenders.rs, crates/n
 stages:
   - id: 1
     title: "a call in an html template's hole reports what it reports outside one"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/members.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/literals.rs]
   - id: 2
     title: "a diagnostic names a file without the Windows verbatim prefix"
@@ -122,14 +122,14 @@ and stage 5 `crates/nvs-cli/src/serve.rs`, so they run in one tree one after the
 **Does:** every expression in a `<?= ?>` or `{$ }` hole is walked by `nvs-hir`'s member walk, so
 `nvs check` reports in a hole what it reports outside one, and `nvs run` never panics on it.
 
-- [ ] A `.nvst` case under `tests/conformance/` with a class method returning
+- [x] A `.nvst` case under `tests/conformance/` with a class method returning
   `` html`<p><?= Nope::show() ?></p>` `` expects `E0303`, and one with `self::nope()` expects the
   missing-member error. Both fail first. `tests/conformance/reject/a-secret-value-in-an-html-template-hole-is-refused.nvst:1`
-- [ ] `walk_expr` matches `ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts)`, as
+- [x] `walk_expr` matches `ExprKind::Interpolated(parts) | ExprKind::HtmlTemplate(parts)`, as
   `crates/nvs-hir/src/requires.rs:1486` does. `crates/nvs-hir/src/members.rs:1137`
-- [ ] `Core\Str::nope()` and `Core\Str::length(5)` in a hole report what they report outside one.
+- [x] `Core\Str::nope()` and `Core\Str::length(5)` in a hole report what they report outside one.
   If either still checks clean, find where `nvs-types` loses it. `crates/nvs-types/src/expr/calls.rs:505`
-- [ ] A case pins an unknown free function and `new Nope()` in a hole too.
+- [x] A case pins an unknown free function and `new Nope()` in a hole too.
 
 ### 2. a diagnostic names a file without the Windows verbatim prefix
 
@@ -208,16 +208,25 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### State
 
-The goal is new. Nothing is built. Every cause above was found by reading the code on `ff3575557`,
-and the html hole, the working-directory case, the verbatim prefix and the start-up exit were
-reproduced with the release binary of `56d4a7e18`.
+Stage 1 is done. `walk_expr` walks an `HtmlTemplate`'s holes as it walks an interpolated string's,
+`crates/nvs-hir/src/members.rs:1137`. One case pins all six calls in a hole:
+`tests/conformance/reject/a-call-in-an-html-template-hole-is-checked-as-it-is-outside-one.nvst`. It
+fails on the release binary from before the fix and passes on the debug build. The `Core\Str` cases
+and `new Nope()` already reported in a hole, because `nvs-types` walks holes in
+`infer_html_template`. Only the `nvs-hir` walk had missed them. A test goes red only if its hole holds
+a call that `nvs-hir` now reports. The corpus was not searched for one, so stage 7 finds it if it exists.
+
+The sweep's `env-secret-proofs` is green when rerun: `bun nv proofs --gate --only 'Core\Env::secret'`
+exits 0. The nightly run `40662443492` was a manual dispatch that was cancelled. The push run after it,
+`40664047249`, is green, so nothing there needs a fix.
 
 ### Next
 
-Stage 1, the html hole, on `crates/nvs-hir/src/members.rs`. No gate.
-- [ ] The two failing `.nvst` cases, beside `tests/conformance/reject/a-secret-value-in-an-html-template-hole-is-refused.nvst:1`
-- [ ] The `HtmlTemplate` arm. `crates/nvs-hir/src/members.rs:1137`
-- [ ] The `Core\Str` cases in a hole. `crates/nvs-types/src/expr/calls.rs:505`
+Stage 2, the verbatim prefix, on `crates/nvs-diagnostics/src/source.rs`. No gate.
+- [ ] The helper in `nvs-diagnostics`, with unit cases. `crates/nvs-config/src/trust.rs:674`
+- [ ] `SourceMap::load` and the overlay branch use it. `crates/nvs-diagnostics/src/source.rs:386`, `:419`
+- [ ] The three other copies call it. `crates/nvs-lsp/src/grants.rs:169`, `crates/nvs-footprint/src/lib.rs:176`
+- [ ] The Windows-only CLI test, beside the autoload cases. `crates/nvs-cli/tests/check_borrow.rs:1`
 
 ### Backlog
 

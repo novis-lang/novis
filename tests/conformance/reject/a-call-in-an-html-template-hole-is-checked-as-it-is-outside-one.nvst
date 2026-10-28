@@ -1,0 +1,46 @@
+--TEST--
+A call in an html template's hole reports what the same call reports outside one: an undeclared class, a missing method, a `Core` member that does not exist, a wrong argument, a free function and `new` of an undeclared class
+--FILE--
+<?nvs
+class Page {
+    public static function undeclaredClass(): Core\Html\Markup {
+        return html`<p><?= Nope::show() ?></p>`;
+    }
+
+    public static function missingMethod(): Core\Html\Markup {
+        return html`<p><?= self::nope() ?></p>`;
+    }
+
+    public static function coreMembers(): Core\Html\Markup {
+        return html`<p><?= Core\Str::nope() ?></p>`;
+    }
+
+    public static function coreArgument(): Core\Html\Markup {
+        return html`<p><?= Core\Str::length(5) ?></p>`;
+    }
+
+    public static function freeFunction(): Core\Html\Markup {
+        return html`<p><?= strlen("a") ?></p>`;
+    }
+
+    public static function newUndeclared(): Core\Html\Markup {
+        return html`<p><?= new Nope() ?></p>`;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Nope` is not declared
+%A
+error[E0309]: `Page` has no method named `nope`
+%A
+error[E0405]: `Core\Str` has no member named `nope`
+%A
+error[E0401]: expected `string`, found `int`
+%A
+error[E0320]: `strlen` is not a function that exists
+%A
+error[E0303]: `Nope` is not declared
+%A
+error: aborting due to %d errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
