@@ -176,17 +176,20 @@ mod tests {
     /// The member agrees with the process's bit before a drain, and answers
     /// `true` from the moment the process drain begins.
     ///
-    /// Beginning the process drain cannot be undone, and this test binary
-    /// already begins it in `crate::signal`'s tests, so the first reading is
-    /// asserted as agreement rather than as `false`.
+    /// Beginning the process drain cannot be undone, and `crate::signal`'s
+    /// tests begin it on another thread of this test binary at any moment. So
+    /// the first reading is taken between two readings of the process's bit,
+    /// and it lies between them: the bit only ever goes from `false` to `true`.
     // covers: Core\Server::isDraining
     #[test]
     fn the_member_answers_true_once_the_process_drain_begins() {
         let mut ctx = Ctx::buffered();
-        assert_eq!(
-            is_draining(&mut ctx),
-            nvs_runtime::drain::is_draining(),
-            "the member and the process's bit disagreed before a drain"
+        let before = nvs_runtime::drain::is_draining();
+        let member = is_draining(&mut ctx);
+        let after = nvs_runtime::drain::is_draining();
+        assert!(
+            before <= member && member <= after,
+            "the member read {member} between the process's bit reading {before} and then {after}"
         );
         Drain::process().begin();
         assert!(
