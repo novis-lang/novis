@@ -1,8 +1,8 @@
 ---
 id: packages
-title: "Packages: grants, package.toml, adding, fetching, updating and packing packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
-keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+title: "Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions"
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry
+keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -491,6 +491,8 @@ entry per line and signs a new checkpoint. If one entry is wrong, it adds nothin
 `nvs registry log verify` checks every file of a log from the start. `nvs registry index sign` signs
 `registry.json` and every index file again. Run it at least once a day.
 
+<!-- src: `rule:packaging/only-a-major-may-break-the-api` -->
+
 # nvs pkg api and nvs pkg diff
 
     nvs pkg api <dir>
@@ -541,4 +543,156 @@ you publish. `--json` prints the changes as JSON. The JSON also has `from`, `to`
 
 The check is about the shape of the API only. The behaviour of a method may change in any release.
 
-<!-- src: `rule:packaging/only-a-major-may-break-the-api` -->
+<!-- src: `rule:packaging/a-publish-token-is-scoped-and-expires`, `rule:packaging/an-owner-is-notified-without-email` -->
+
+# nvs pkg login and nvs pkg whoami
+
+    nvs pkg login [--registry <url>]
+    nvs pkg whoami [--registry <url>]
+
+To publish, you need a publish token. You make the token on the registry's website. A token can
+publish one vendor, such as `Acme`, or one package, such as `Acme\Http`. This is its scope. A
+token expires after one year at most. Every token starts with `nvsreg_`.
+
+`nvs pkg login` reads the token from standard input. Paste it when the command asks, or pipe it
+in:
+
+    nvs pkg login < token.txt
+
+The command never takes the token as an argument, because other programs and your shell history
+can see an argument. It sends the token to the registry first. If the registry does not accept it,
+nothing is stored. Otherwise the command stores the token in the Novis data folder, where only your
+account can read it:
+
+```text
+Logged in to `https://registry.novis-lang.org`.
+Account: 3f2a9c0b7d4e4a1c9b8e2f6d0a5c7e13
+Scope: Acme
+Expires: 2027-10-28 (UTC)
+The token is stored in `/home/ana/.nvsdata/tokens/5e0c8d4b2a7f19e3c6b1d0a4f8e2c7b9`.
+```
+
+`nvs pkg whoami` sends the stored token to the registry and prints the same account, scope and
+date. It also prints each release of your vendors that is not available yet, and that you did not
+confirm:
+
+```text
+Registry: https://registry.novis-lang.org
+Account: 3f2a9c0b7d4e4a1c9b8e2f6d0a5c7e13
+Scope: Acme
+Expires: 2027-10-28 (UTC)
+Releases that are not available yet:
+  Acme\Http 1.4.0 will be available at 2026-11-04T09:12:00Z.
+```
+
+If you did not publish a release in this list, somebody else has a token for your vendor. Revoke
+the token on the website, and retract the version. Each token works only with the registry it was
+made for. `--registry` names another registry. The default is `https://registry.novis-lang.org`.
+
+A token that a file or a log shows is easy to find, because of `nvsreg_`. Secret scanners look for
+it. If a token leaks, revoke it on the website at once.
+
+<!-- src: `rule:packaging/the-registry-builds-the-archive-from-git`, `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-account-stays-active-by-proof-not-by-token` -->
+
+# nvs pkg publish
+
+    nvs pkg publish [--repository <url>] [--dry-run] [--registry <url>]
+
+`nvs pkg publish` publishes the package at the last commit of its git repository. Run it in the
+folder of the package. It sends no file. It sends the repository's URL, the commit, the version
+from `package.toml` and the package's folder in the repository. The registry downloads that commit
+and builds the archive itself, so push the commit first. Changes that are not committed are not
+published.
+
+The repository must be public, and its URL must start with `https://`. The default is the URL of
+the remote `origin`. `--repository` names another one.
+
+Before it sends anything, the command builds the archive from the same commit on your computer. It
+uses the same code as the registry, so both get the same digest. `--dry-run` stops there and
+prints every file:
+
+```text
+acme/http 1.4.0
+Repository: https://git.example.com/acme/http.git
+Commit: 5b1e0c4f9a7d2e8b3c6a1f0d4e9b8a7c6d5e4f3a
+       241  LICENSE
+       132  package.toml
+      2106  src/Client.nvs
+      2479  total, 3 files
+Digest: blake3:9d2c41e07a5b3f68c1d0e4a2b7f9c3d58e6a1b0c4d7e2f9a3b5c8d1e0f4a7b6c
+This was a dry run. Nothing was sent to `https://registry.novis-lang.org`.
+```
+
+Without `--dry-run`, the registry checks the package and prints what happens next:
+
+```text
+Digest: blake3:9d2c41e07a5b3f68c1d0e4a2b7f9c3d58e6a1b0c4d7e2f9a3b5c8d1e0f4a7b6c
+`Acme\Http` 1.4.0 is published. It is pending until 2026-11-04T09:12:00Z. An owner can release it now with a passkey on the website.
+```
+
+A release that is sent with a token is pending for seven days. You can download a pending version
+by its exact version, but `nvs pkg add` and `nvs pkg update` do not choose it. An owner who signs
+in with a passkey on the website can release it at once. In the seven days, every owner of the
+vendor gets a message, so a release from a stolen token can be stopped. The first version at
+`0.1.0` or higher waits until an owner confirms its API with a passkey.
+
+The registry does not publish the package when:
+
+- the token's scope does not include the package;
+- the version was published before;
+- a file declares a namespace outside the package's name;
+- the package has an `nvs.toml` file or a git dependency;
+- a minor or a patch version breaks the API of the version before;
+- the archive breaks a rule of `nvs pkg pack`;
+- your account has no verified notification channel on the website;
+- your account had no activity in the last 60 days.
+
+Activity is a sign-in with a passkey, or the answer to a reminder that the registry sends to your
+devices. Using a token is not activity. After 60 days with no activity, sign in with a passkey on
+the website to publish again. The first publish of a package like `Acme\Http` makes your account the
+owner of the vendor `Acme`. Then only its owners can publish packages under `Acme`.
+
+If no owner of the vendor has a working notification channel, the command prints a warning. If a
+publish fails while the registry writes its files, publish the same commit again.
+
+<!-- src: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`, `rule:packaging/an-owner-may-unlist` -->
+
+# nvs pkg retract and nvs pkg unlist
+
+    nvs pkg retract <version> --reason <text> [--fixed-in <version>] [--registry <url>]
+    nvs pkg unlist [<version>] [--undo] [--registry <url>]
+
+Run these commands in the folder of your package. A version is never deleted. A retracted or
+unlisted version can still be downloaded, so a `package.lock` that names it still works.
+
+`nvs pkg retract` marks a version as broken or unsafe. `nvs pkg add` and `nvs pkg update` do not
+choose a retracted version. The package index shows the reason, which has at most 500 characters.
+`--fixed-in` names the version that fixes the problem:
+
+    nvs pkg retract 1.4.0 --reason "Client::send drops the last header." --fixed-in 1.4.1
+
+With a token, the retraction starts seven days later. Every owner gets a message, and an owner can
+make it start at once with a passkey on the website:
+
+```text
+Version 1.4.0 is retracted from 2026-11-04T09:12:00Z. An owner can retract it now with a passkey on the website.
+```
+
+`nvs pkg unlist` hides a package, or one version of it, from search and listings. Without a
+version, every version is hidden. `--undo` shows it again. Only an owner who signs in with a passkey
+can unlist. With a token, the command prints the page where an owner confirms it:
+
+```text
+To unlist it, sign in with a passkey and confirm on https://registry.novis-lang.org/packages/acme/http.
+```
+
+When the registry saved the change but could not update the package index yet, the command also
+prints this line. The registry updates the index on its next run.
+
+```text
+The registry saved the change. It updates the package index on its next run.
+```
+
+The people who run the registry cannot delete or change a version. They can only withhold a version
+that contains malware, or that a court orders them to remove. A withheld version cannot be
+downloaded, and the package index shows the reason.

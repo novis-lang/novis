@@ -443,6 +443,18 @@ and keeps no line. The service counts through the same function when it serves a
 does locally. The salt is deleted when the day ends. Copies from mirrors and from `vendor/` are not
 counted. Bunny's line format is the first parser.
 
+**Bunny's access lines are read from Permanent Log Storage with that storage zone's password.**
+`downloadLog` is an `http` store at the pull zone's folder in a storage zone of its own, and
+`Downloads::countLog` lists `<YYYY>/<MM>/` (`Store::list`, Bunny Storage's JSON listing), takes
+each `<DD>_*.gzip` part, and decompresses it from the response (`Store::bytes`, at most
+`Downloads::PART_BYTES` uncompressed). The line format is the logging API's v1 pipe format, which
+Bunny's documentation gives (checked 2026-10-28). Why: the logging API needs the account-wide API
+key, which `rule:packaging/registry-hosting-is-configuration` keeps off the server; a storage
+zone's password reaches that zone alone. Cost: a `dir` store cannot be the source, because Core
+reads no local file as bytes, so the test fakes Bunny Storage with `Core\Test::answerHttp`.
+Memory: one part at a time, compressed, uncompressed and as lines, and one hash per archive and
+address of the day.
+
 **Lanes.** The Rust lane (`crates/nvs-cli/src/package/login.rs`, `build.rs`, `publish.rs`,
 `retract.rs`, `unlist.rs`) is disjoint from `apps/registry/`, so stage 3 can run beside stage 2's app
 items, and stage 4's and stage 9's Rust items can go to their own sessions. Its one shared file is
@@ -661,7 +673,10 @@ another, writes its `about.md` and the examples `bun nv proofs --id` lists, then
 attacks. All follow AGENTS.md § *Text an end user reads*.
 
 - [ ] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. It gives a `hosting.json` for one VPS with Bunny Storage in two regions as the public store and a second provider as the backup store, the two cache lifetimes, the registry and the telemetry collector as two accounts in two service units, the log key kept offline and encrypted, and the old host stopped before a new one restores (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/README.md:1`
-- [ ] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
+  - [x] Bunny's line format and log path checked against its documentation, and the reader moved to Permanent Log Storage.
+  - [x] The guide: settings, keys, two accounts, Bunny zones, cache times, `hosting.json`, `nvs.toml` grants, service units, moving hosts.
+  - [ ] The client's tests run against the service: a Rust test serves a copy of `apps/registry` and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it.
+- [x] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
 - [ ] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
 - [ ] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
 - [ ] `about.md` and examples for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
@@ -685,50 +700,53 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 9 and 11 are done. This session closed stage 6 (standing decision *A reminder is
-answered by a `POST` to `/here/<code>`*): `Activity` (`apps/registry/src/Activity.nvs`) took
-`isActive` from `Accounts`, sends reminders from `jobs/daily.nvs` through `Notices::tell`'s new
-`$here` argument (`Push::notify` and `Webhooks::notify` take it too), and `App` has
-`POST /api/account/reminders`, `GET` and `POST /here/{code}`. The table `reminders` is new and
-`create table if not exists` adds it to an existing `registry.sqlite`.
-`rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`, and `bun nv rules
---render` also rendered fragments other goals had left unrendered in `security.md` and `testing.md`.
-`ActivityTest`'s three cases ran once by name and are green. No other test was run.
+Stages 1 to 9 and 11 are done, and stage 10 is under way. This session:
+- Checked Bunny's documentation (`bunny.net/docs/llms.txt` with `curl`). The v1 line format and
+  `MM-DD-YY/<zone>.log` were right, but that API needs the account-wide key, so the reader moved
+  to Permanent Log Storage (standing decision *Bunny's access lines are read from Permanent Log
+  Storage*). `Store::list` and `Store::bytes` are new; `Site` lost `downloadFile`, and
+  `downloadLog` must be `http`. `DownloadsTest` ran once by name and is green.
+- Wrote the deploy guide in `apps/registry/README.md`, with every Backlog item that named it.
+- Wrote the three headings at the end of `docs/reference/tools/35-packages.md`, moved the
+  dangling `only-a-major-may-break-the-api` `src` comment above `# nvs pkg api and nvs pkg diff`,
+  rendered `llms-full.txt`, and fixed a broken rustdoc link in `crates/nvs-cli/src/package/publish.rs`.
+  `bun nv verify --doc` is green.
 
 Watch in stage 12: `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads the refusal
-by status only, and its message changed. The sweep's `env-secret-proofs` passes when run by hand
-(`bun nv proofs --gate --only 'Core\Env::secret'`, exit 0); its red log is looper's service state
-from 2026-10-22. Nightly 40662443492 was cancelled by a newer push. Every changing route sends
-notices to `https://hooks.invalid/<account>`, so a slow registry test may be DNS. One run in three
-had `IndexTest`'s `catchUp` return `false`. No test is expected red.
+by status only. The sweep's `env-secret-proofs` passes by hand (exit 0, and its log says exit 0);
+the red is looper's service state. Nightly 40662443492 was cancelled by a newer push. Every
+changing route sends notices to `https://hooks.invalid/<account>`, so a slow registry test may be
+DNS. One run in three had `IndexTest`'s `catchUp` return `false`. No test is expected red.
 
 ### Next
 
-Stage 10, the deploy guide and the proofs. Its `**Split:**` line says how: the session writes the
-three headings, then one writing subagent per heading, one after another.
-- [ ] Check Bunny's access-line format and day path (Backlog) before the guide names them. `apps/registry/src/Downloads.nvs:1`
-- [ ] The deploy guide, with every Backlog item that says "stage 10's guide". `apps/registry/README.md:1`
-- [ ] The three headings. `docs/reference/tools/35-packages.md:1`
+Stage 10's proofs. `bun nv proofs --id` shows each heading owes an `about.md`, one example, one
+case, and one attack of its own, so the three attacks go one per heading: a token outside its
+scope and an internal repository URL under `nvs-pkg-publish`, a token-only retraction under
+`nvs-pkg-retract-and-nvs-pkg-unlist`, and one for login (a token on the command line, or a token
+file another account can write) under `nvs-pkg-login-and-nvs-pkg-whoami`. Update stage 10's
+attack item to say so. Follow the `**Split:**` line: one writing subagent per heading, one after
+another.
+- [ ] `about.md`, examples and a case for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
+- [ ] The same for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
+- [ ] The same for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
+- [ ] The attacks, one per heading. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
+- [ ] The client's tests against the service, stage 10's first item's last checkpoint: a Rust test serves a copy of `apps/registry`, with an account and token from `Registry\BrowserTest`'s passkey ceremony. `crates/nvs-cli/tests/package_login.rs:1`
 
 ### Backlog
 
-- Bunny's access-line field order in `Downloads::parseBunny` (`apps/registry/src/Downloads.nvs`)
-  and the day path `MM-DD-YY/<file>` were written from memory, with no web tool to check them.
-  Check both against Bunny's logging documentation before stage 10's deploy guide names them.
-  Gzipped day files and a missed day's catch-up are not handled.
+- Bunny Permanent Log Storage's line format is taken to be the logging API's v1 pipe format; the
+  storage page does not state it. The guide could tell the operator to compare the first day's
+  count with Bunny's statistics. A part over `Downloads::PART_BYTES` stops that day's count.
 - Restore leaves gaps: an index file's signature is not checked during a restore, a rebuilt
   package has an empty `directory`, and the `builds/` API files are not in the copy, so a rebuilt
-  release's next build has no `--previous`. Stage 10's guide says so, or the copy takes them.
+  release's next build has no `--previous`. The guide says so.
 - `Core` gaps the backup hit: `Db::open` with `Db\Driver::Sqlite` written in full passes `check`
   and panics in `nvs-ir` lowering (`expr.rs:504`), a `readOnly` transaction throws on SQLite, and
-  there is no way to read a local file as bytes (the copy is base64 for that reason).
-- Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
-  an `fs.read` grant for each secret file outside the app folder (`pushKey` among them); the
-  committed `nvs.toml` has neither (standing decision *The build runs only where the operator grants it*).
+  there is no way to read a local file as bytes (the copy is base64, and a `downloadLog` cannot be
+  a `dir` store, for that reason).
 - `nvs pkg publish` prints the registry's new `Warning:` on stderr, and the older digest-mismatch
   `Warning:` in `crates/nvs-cli/src/package/publish.rs` on stdout. Stage 10's proofs make them one stream.
-- The feeds answer `503` with `"logKey": ""`, so the committed `hosting.json` serves none locally.
-  Stage 10's guide says so.
 - `Webhooks::retry` catches only `RuntimeError`, so another throwable from one send stops the
   rest of that minute's sends. The next minute tries again.
 - A webhook added with a plain URL answers `400` with the `Core\Http::allowUrl` message, which may

@@ -13,7 +13,7 @@
 //! over a `file:` URL of the same repository, and [`build::checked`]. So `--dry-run`'s digest is
 //! the registry's, and what is not committed is not in it. Both download every `[[download]]`
 //! entry from each of its URLs and refuse one whose size or SHA-256 hash differs
-//! ([`download::Store::check_every_url`]), because the registry never downloads one.
+//! ([`super::download::Store::check_every_url`]), because the registry never downloads one.
 //!
 //! **`--dry-run` prints every file, its size, the total and the digest, and sends nothing.** The
 //! other form sends `POST /api/publish` with the token `nvs pkg login` stored ([`login::stored`])
