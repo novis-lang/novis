@@ -1,0 +1,368 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time\Duration;
+
+// Tests for the publish of a release: each refusal with its status, and a publish that is saved.
+// The build is a test double that returns the JSON `nvs registry build` prints.
+// Each test signs up its own new accounts and vendors, so the tests do not see each other's rows.
+final class PublishTest
+{
+    #[Test]
+    public function aFirstPublishIsSavedAndTakesTheVendor(): void
+    {
+        var $browser = new BrowserTest();
+        string $account = $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        tainted string $token = PublishTest::token($browser, $vendor);
+        string $digest = PublishTest::digest();
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', $digest));
+        var $done = PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'));
+        Test::assertSame($done->status, 201);
+        Test::assertSame($done->digest, $digest);
+        Test::assertTrue(Str::contains($done->text, 'pending'));
+        // The account owns the vendor now.
+        Test::assertTrue(new Vendors(Schema::open())->isOwner($vendor, $account));
+        Test::assertCalled($builder, Builder::build, { times: 1 });
+    }
+
+    #[Test]
+    public function anInvalidTokenIsRefusedBeforeTheBuild(): void
+    {
+        var $builder = PublishTest::builder(PublishTest::built('Acme\\Http', PublishTest::digest()));
+        array<?tainted string> $tokens = [null, '', 'nvsreg_' . Random::token(32), 'Bearer x'];
+        foreach ($tokens as ?tainted string $token) {
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, PublishTest::request('Acme', '1.0.0')), 401);
+        }
+        Test::assertNeverCalled($builder, Builder::build);
+    }
+
+    #[Test(at: '2026-01-01T00:00:00Z')]
+    public function anInactiveAccountIsRefusedUntilAPasskeySignIn(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        var $made = $browser->post('/api/tokens', { scope: $vendor, days: 90 });
+        Test::assertSame($made->status(), 201);
+        tainted string $token = ($made->json() as array<mixed>)['token'] as tainted string;
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        // 61 days without a passkey sign-in make the account inactive.
+        Test::advance(Duration::days(61));
+        PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0')), 403);
+        Test::assertNeverCalled($builder, Builder::build);
+        // A sign-in with the passkey makes it active again.
+        Test::assertSame($browser->signIn()->status(), 200);
+        Test::assertSame(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+    }
+
+    #[Test]
+    public function aRepositoryThatIsNotHttpsIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        array<string> $repositories = ['http://git.example.com/a.git', 'git@example.com:a.git', 'https://', '', 'https://git.example.com/a b.git', 'file:///tmp/a'];
+        foreach ($repositories as string $repository) {
+            var $sent = new PublishRequest($repository, PublishTest::commit(), '1.0.0', '');
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $sent), 400);
+        }
+        Test::assertNeverCalled($builder, Builder::build);
+    }
+
+    #[Test]
+    public function aCommitThatIsNotAFullHashIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        string $good = PublishTest::commit();
+        array<string> $commits = ['', 'main', Str::slice($good, 0, 39), $good . 'a', Str::upper($good), Str::slice($good, 0, 39) . 'g'];
+        foreach ($commits as string $commit) {
+            var $sent = new PublishRequest(PublishTest::repository($vendor), $commit, '1.0.0', '');
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $sent), 400);
+        }
+        Test::assertNeverCalled($builder, Builder::build);
+    }
+
+    #[Test]
+    public function aVersionThatIsNotThreeNumbersIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        array<string> $versions = ['', '1', '1.0', '1.0.0.0', '1.0.0-beta', 'v1.0.0', '01.0.0', '1.00.0', '1..0', '-1.0.0', '1234567890.0.0'];
+        foreach ($versions as string $version) {
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, $version)), 400);
+        }
+        Test::assertNeverCalled($builder, Builder::build);
+    }
+
+    #[Test]
+    public function aDirectoryOutsideTheRepositoryIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        array<string> $directories = ['..', '../other', 'packages/../..', '/etc', '/packages/http', 'packages/', 'packages//http', './http', 'packages\\http'];
+        foreach ($directories as string $directory) {
+            var $sent = new PublishRequest(PublishTest::repository($vendor), PublishTest::commit(), '1.0.0', $directory);
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $sent), 400);
+        }
+        Test::assertNeverCalled($builder, Builder::build);
+    }
+
+    #[Test]
+    public function aRefusedBuildIsRefusedWithItsSentence(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        array<string> $refusals = [
+            'The namespace `Other\\Http` is outside the package `' . $vendor . '\\Http`.',
+            'The archive has an `nvs.toml`. A package archive has no configuration of its own.',
+            'The dependency `Acme\\Mail` comes from git. A published package depends only on published packages.',
+            'The clone is over its size limit of 100 MB.',
+            'The archive is over its limit of 10000 files.',
+            'The `[[download]]` entry 1 has no `sha256`.',
+            'The API of 1.0.0 removes `Acme\\Http\\Client::send`, so this version must be 2.0.0.',
+        ];
+        foreach ($refusals as string $refusal) {
+            var $builder = PublishTest::builder(PublishTest::json({ schema: 1, ok: false, refusal: $refusal, api: null }));
+            var $done = PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'));
+            PublishTest::assertRefused($done, 422);
+            Test::assertTrue(Str::contains($done->text, $refusal));
+        }
+        // Nothing was saved, so the vendor still has no package.
+        int $found = 0;
+        foreach (Schema::open()->query('select 1 as found from packages where vendor = ?', [Str::lower($vendor)]) as Row $row) {
+            $found++;
+        }
+        Test::assertSame($found, 0);
+    }
+
+    #[Test]
+    public function aBuildThatDoesNotFinishIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        PublishTest::assertRefused(PublishTest::publisher(PublishTest::builder(''))->publish($token, PublishTest::request($vendor, '1.0.0')), 500);
+    }
+
+    #[Test]
+    public function aNameOutsideTheTokenScopeIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        var $made = $browser->post('/api/tokens', { scope: $vendor . '\\Http', days: 30 });
+        Test::assertSame($made->status(), 201);
+        tainted string $token = ($made->json() as array<mixed>)['token'] as tainted string;
+        // The token publishes `Http` only, and the build names `Mail`.
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Mail', PublishTest::digest()));
+        PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0')), 403);
+        // A build of another vendor is refused as well.
+        string $other = 'V' . Random::token(4);
+        var $foreign = PublishTest::builder(PublishTest::built($other . '\\Http', PublishTest::digest()));
+        PublishTest::assertRefused(PublishTest::publisher($foreign)->publish($token, PublishTest::request($vendor, '1.0.0')), 403);
+        Test::assertTrue(new Vendors(Schema::open())->find($other) == null);
+    }
+
+    #[Test]
+    public function onlyTheProjectAccountPublishesCoreAndNovis(): void
+    {
+        var $browser = new BrowserTest();
+        string $account = $browser->newAccount();
+        array<string> $names = ['Core\\Http', 'core\\Http', 'Novis\\Std', 'NOVIS\\Std'];
+        foreach ($names as string $name) {
+            string $scope = Str::before($name, '\\') ?? '';
+            tainted string $token = new Tokens(Schema::open())->create($account, $scope, 30)['token'];
+            var $builder = PublishTest::builder(PublishTest::built($name, PublishTest::digest()));
+            var $sent = new PublishRequest('https://git.example.com/' . Random::token(8) . '.git', PublishTest::commit(), '1.0.0', '');
+            PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $sent), 403);
+        }
+    }
+
+    #[Test]
+    public function aVendorOfAnotherAccountIsRefused(): void
+    {
+        var $owner = new BrowserTest();
+        string $vendor = $owner->newVendor();
+        var $stranger = new BrowserTest();
+        string $account = $stranger->newAccount();
+        // The registry never makes this token, so the test writes it directly.
+        tainted string $token = new Tokens(Schema::open())->create($account, $vendor, 30)['token'];
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0')), 403);
+        Test::assertTrue(!new Vendors(Schema::open())->isOwner($vendor, $account));
+    }
+
+    #[Test]
+    public function aNameThatDiffersOnlyInCaseIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $first = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(PublishTest::publisher($first)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        // Another repository builds the same name in other case.
+        var $second = PublishTest::builder(PublishTest::built($vendor . '\\HTTP', PublishTest::digest()));
+        var $sent = new PublishRequest(PublishTest::repository($vendor . 'Fork'), PublishTest::commit(), '1.0.1', '');
+        PublishTest::assertRefused(PublishTest::publisher($second)->publish($token, $sent), 409);
+    }
+
+    #[Test]
+    public function aBoundFolderKeepsItsPackageName(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $first = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(PublishTest::publisher($first)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        // The same folder builds a package with another name.
+        var $renamed = PublishTest::builder(PublishTest::built($vendor . '\\Mail', PublishTest::digest()));
+        PublishTest::assertRefused(PublishTest::publisher($renamed)->publish($token, PublishTest::request($vendor, '1.1.0')), 409);
+    }
+
+    #[Test]
+    public function aVersionIsNeverPublishedTwice(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $first = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(PublishTest::publisher($first)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        // The same folder sends the same version again. The build does not run.
+        var $again = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        PublishTest::assertRefused(PublishTest::publisher($again)->publish($token, PublishTest::request($vendor, '1.0.0')), 409);
+        Test::assertNeverCalled($again, Builder::build);
+    }
+
+    #[Test]
+    public function aChangedRepositoryIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        // Another repository, and then another folder of the same repository, build the same package.
+        var $moved = new PublishRequest(PublishTest::repository($vendor . 'Moved'), PublishTest::commit(), '1.1.0', '');
+        PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $moved), 403);
+        var $folder = new PublishRequest(PublishTest::repository($vendor), PublishTest::commit(), '1.1.0', 'packages/http');
+        PublishTest::assertRefused(PublishTest::publisher($builder)->publish($token, $folder), 403);
+    }
+
+    #[Test]
+    public function aSecondReleaseComparesWithThePreviousApi(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $first = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(PublishTest::publisher($first)->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        // The API file the registry saved for 1.0.0.
+        string $api = '';
+        foreach (Schema::open()->query('select api from releases where package = ? and version = ?', [Str::lower($vendor) . '\\http', '1.0.0']) as Row $row) {
+            $api = Core\Taint::assertTrusted($row->string('api') ?? '', 'the registry wrote this path');
+        }
+        Test::assertTrue($api != '');
+        // The second build succeeds only when its arguments name the API of 1.0.0.
+        string $expected = '--previous ' . $api . ' --previous-version 1.0.0';
+        string $success = PublishTest::built($vendor . '\\Http', PublishTest::digest());
+        string $refusal = PublishTest::json({ schema: 1, ok: false, refusal: 'no previous API', api: null });
+        var $second = Test::double<Builder>({
+            build: fn(array<string> $arguments): string => Str::contains(Str::join($arguments, ' '), $expected) ? $success : $refusal,
+        });
+        var $done = PublishTest::publisher($second)->publish($token, PublishTest::request($vendor, '1.1.0'));
+        Test::assertSame($done->status, 201);
+        Test::assertCalled($second, Builder::build, { times: 1 });
+        // No release is older than 0.9.0, so its build has no `--previous`.
+        var $none = Test::double<Builder>({
+            build: fn(array<string> $arguments): string => Str::contains(Str::join($arguments, ' '), '--previous') ? $refusal : $success,
+        });
+        var $older = PublishTest::publisher($none)->publish($token, PublishTest::request($vendor, '0.9.0'));
+        Test::assertSame($older->status, 201);
+    }
+
+    // Asserts that a publish was refused with this status and saved nothing.
+    private static function assertRefused(Published $done, uint $status): void
+    {
+        Test::assertSame($done->status, $status);
+        Test::assertSame($done->digest, '');
+    }
+
+    private static function publisher(Builder $builder): Publish
+    {
+        return new Publish(Schema::open(), $builder, Site::load());
+    }
+
+    // A build double that returns this JSON for every build.
+    private static function builder(string $json): Builder
+    {
+        return Test::double<Builder>({ build: fn(array<string> $arguments): string => $json });
+    }
+
+    // The JSON a successful build of this package prints.
+    private static function built(string $name, string $digest): string
+    {
+        return PublishTest::json({
+            schema: 1,
+            ok: true,
+            name: $name,
+            version: '1.0.0',
+            repository: 'https://git.example.com/a.git',
+            commit: PublishTest::commit(),
+            directory: '',
+            digest: $digest,
+            size: 1024,
+            files: [{ path: 'src/A.nvs', size: 10 }],
+            api: null,
+        });
+    }
+
+    // Writes a value the test made as JSON.
+    private static function json(mixed $value): string
+    {
+        return Core\Taint::assertTrusted(Json::encode($value), 'the test wrote this value');
+    }
+
+    // Makes a token for this scope in the browser's account and returns it.
+    private static function token(BrowserTest $browser, string $scope): tainted string
+    {
+        var $made = $browser->post('/api/tokens', { scope: $scope, days: 30 });
+        Test::assertSame($made->status(), 201);
+        return ($made->json() as array<mixed>)['token'] as tainted string;
+    }
+
+    // A publish of the root folder of the vendor's repository.
+    private static function request(string $vendor, string $version): PublishRequest
+    {
+        return new PublishRequest(PublishTest::repository($vendor), PublishTest::commit(), $version, '');
+    }
+
+    private static function repository(string $vendor): string
+    {
+        return 'https://git.example.com/' . $vendor . '/http.git';
+    }
+
+    // A random full commit hash: 40 characters from 0 to 9 and a to f.
+    private static function commit(): string
+    {
+        return Encoding::toHex(Random::bytes(20));
+    }
+
+    private static function digest(): string
+    {
+        return 'blake3:' . Encoding::toHex(Random::bytes(32));
+    }
+}
