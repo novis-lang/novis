@@ -1,0 +1,436 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Http\Method;
+use Core\IO;
+use Core\Json;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+use Core\Time\Duration;
+
+// Tests for the state of a release after it is published, under a fixed clock.
+// Most tests have their own database in memory and their own folder under `work`. The log is a
+// test double that writes each line it adds to a file in that folder.
+// The tests that send requests use the database of the app, with their own new accounts.
+final class ReleasesTest
+{
+    // The package of the tests with their own database.
+    private const string KEY = 'acme\\http';
+
+    // Seven days in seconds.
+    private const int WEEK = 604800;
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aReleaseByTokenIsSelectableAfterSevenDaysAndNotBefore(): void
+    {
+        var $db = ReleasesTest::database();
+        int $until = ReleasesTest::now() + ReleasesTest::WEEK;
+        ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', $until);
+        var $releases = new Releases($db);
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9'), $until);
+
+        Test::advance(Duration::seconds(ReleasesTest::WEEK - 1));
+        Test::assertTrue(($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9') ?? 0) > ReleasesTest::now());
+
+        Test::advance(Duration::seconds(1));
+        Test::assertTrue(($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9') ?? 0) <= ReleasesTest::now());
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anOwnersPasskeyReleasesAtOnce(): void
+    {
+        var $db = ReleasesTest::database();
+        ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', ReleasesTest::now() + ReleasesTest::WEEK);
+        var $releases = new Releases($db);
+        Test::assertTrue($releases->confirm(ReleasesTest::KEY, '0.0.9', false));
+        Test::assertTrue(($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9') ?? 1) <= ReleasesTest::now());
+        // A second confirmation changes nothing.
+        Test::assertTrue(!$releases->confirm(ReleasesTest::KEY, '0.0.9', false));
+        Test::assertSame(ReleasesTest::kinds($db), ['release-confirmed']);
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function theFirstStableReleaseWaitsForItsApiToBeConfirmed(): void
+    {
+        var $db = ReleasesTest::database();
+        ReleasesTest::release($db, ReleasesTest::KEY, '1.0.0', ReleasesTest::now() + ReleasesTest::WEEK);
+        var $releases = new Releases($db);
+        Test::assertTrue($releases->needsStable(ReleasesTest::KEY, '1.0.0'));
+        // Seven days do not release it.
+        Test::advance(Duration::days(8));
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '1.0.0'), null);
+
+        Test::assertTrue($releases->confirm(ReleasesTest::KEY, '1.0.0', true));
+        Test::assertTrue(!$releases->needsStable(ReleasesTest::KEY, '1.0.0'));
+        Test::assertTrue(($releases->selectableAt($db, ReleasesTest::KEY, '1.0.0') ?? 1) <= ReleasesTest::now());
+        // The seven days had passed, so only the API is confirmed.
+        Test::assertSame(ReleasesTest::kinds($db), ['stable-api-confirmed']);
+
+        // A later version waits only its own seven days.
+        int $until = ReleasesTest::now() + ReleasesTest::WEEK;
+        ReleasesTest::release($db, ReleasesTest::KEY, '1.1.0', $until);
+        Test::assertTrue(!$releases->needsStable(ReleasesTest::KEY, '1.1.0'));
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '1.1.0'), $until);
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aReleaseWaitsForItsPendingDependency(): void
+    {
+        var $db = ReleasesTest::database();
+        int $now = ReleasesTest::now();
+        ReleasesTest::package($db, 'acme\\log', 'Acme\\Log');
+        ReleasesTest::release($db, 'acme\\log', '0.0.5', $now + 10 * 86400);
+        ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', $now + ReleasesTest::WEEK, '{"Acme\\\\Log":"0.0.5"}');
+        var $releases = new Releases($db);
+        // The dependency is released later, so this release waits for it.
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9'), $now + 10 * 86400);
+
+        // Once an owner releases the dependency, the release waits only its own seven days.
+        Test::assertTrue($releases->confirm('acme\\log', '0.0.5', false));
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '0.0.9'), $now + ReleasesTest::WEEK);
+
+        // A dependency that waits for an owner makes the release wait for an owner too.
+        ReleasesTest::release($db, 'acme\\log', '1.0.0', $now);
+        ReleasesTest::release($db, ReleasesTest::KEY, '0.0.20', $now, '{"Acme\\\\Log":"1.0.0"}');
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '0.0.20'), null);
+
+        // A package from another registry does not wait.
+        ReleasesTest::release($db, ReleasesTest::KEY, '0.0.21', $now, '{"Other\\\\Thing":"2.0.0"}');
+        Test::assertSame($releases->selectableAt($db, ReleasesTest::KEY, '0.0.21'), $now);
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function anUnlistIsReversed(): void
+    {
+        string $folder = ReleasesTest::folder();
+        try {
+            var $db = ReleasesTest::database();
+            ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', null);
+            var $releases = new Releases($db);
+            Test::assertTrue($releases->unlist(ReleasesTest::KEY, '0.0.9', false));
+            Test::assertTrue(!$releases->unlist(ReleasesTest::KEY, '0.0.9', false));
+            Test::assertSame(ReleasesTest::state($db, $folder), '"unlisted"');
+
+            Test::assertTrue($releases->unlist(ReleasesTest::KEY, '0.0.9', true));
+            Test::assertTrue(!$releases->unlist(ReleasesTest::KEY, '0.0.9', true));
+            Test::assertSame(ReleasesTest::state($db, $folder), '"released"');
+            Test::assertSame(ReleasesTest::logged($folder), ['unlist', 'relist']);
+        } finally {
+            ReleasesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRetractionByTokenShowsSevenDaysLaterAndByPasskeyAtOnce(): void
+    {
+        string $folder = ReleasesTest::folder();
+        try {
+            var $db = ReleasesTest::database();
+            ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', null);
+            ReleasesTest::release($db, ReleasesTest::KEY, '0.0.10', null);
+            var $releases = new Releases($db);
+            int $later = ReleasesTest::now() + ReleasesTest::WEEK;
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'It deletes files.', '0.0.10', $later));
+            Test::assertSame(ReleasesTest::state($db, $folder), '"released"');
+
+            Test::advance(Duration::seconds(ReleasesTest::WEEK));
+            Test::assertSame(ReleasesTest::state($db, $folder), '{"retracted":{"reason":"It deletes files.","fixed_in":"0.0.10"}}');
+
+            // A passkey retraction shows at once. One that shows later than the first changes nothing.
+            int $now = ReleasesTest::now();
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now + ReleasesTest::WEEK));
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now));
+            Test::assertTrue(!$releases->retract(ReleasesTest::KEY, '0.0.10', 'It is slow.', null, $now + 60));
+            Test::assertSame(ReleasesTest::state($db, $folder, 1), '{"retracted":{"reason":"It is slow."}}');
+            Test::assertSame(ReleasesTest::logged($folder), ['retract', 'retract', 'retract']);
+        } finally {
+            ReleasesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aWithheldVersionKeepsItsDigestAndShowsTheReason(): void
+    {
+        string $folder = ReleasesTest::folder();
+        try {
+            var $db = ReleasesTest::database();
+            string $digest = ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', null);
+            var $releases = new Releases($db);
+            Test::assertTrue(!$releases->isWithheld($digest));
+            Test::assertTrue($releases->withhold(ReleasesTest::KEY, '0.0.9', 'A court order.'));
+            Test::assertTrue(!$releases->withhold(ReleasesTest::KEY, '0.0.9', 'A court order.'));
+            Test::assertTrue($releases->isWithheld($digest));
+            Test::assertSame(ReleasesTest::state($db, $folder), '{"withheld":{"reason":"A court order."}}');
+            Test::assertSame(ReleasesTest::digestIn($folder), Str::slice($digest, 7));
+            Test::assertSame(ReleasesTest::logged($folder), ['withhold']);
+            Test::assertTrue(Str::contains(IO::read($folder . '/log.txt'), '"reason":"A court order."'));
+        } finally {
+            ReleasesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function eachChangeIsOneEntryOfTheLogBeforeTheIndexFileChanges(): void
+    {
+        string $folder = ReleasesTest::folder();
+        try {
+            var $db = ReleasesTest::database();
+            ReleasesTest::release($db, ReleasesTest::KEY, '0.0.9', ReleasesTest::now() + ReleasesTest::WEEK);
+            string $second = ReleasesTest::account($db);
+            var $vendors = new Vendors($db);
+            Test::assertTrue($vendors->addOwner('Acme', $second));
+            Test::assertTrue($vendors->removeOwner('Acme', $second));
+            var $tokens = new Tokens($db);
+            string $id = $tokens->create(ReleasesTest::OWNER, 'Acme', 30)['id'];
+            Test::assertTrue($tokens->revoke(ReleasesTest::OWNER, $id));
+            var $releases = new Releases($db);
+            Test::assertTrue($releases->confirm(ReleasesTest::KEY, '0.0.9', false));
+            Test::assertTrue($releases->unlist(ReleasesTest::KEY, '0.0.9', false));
+            Test::assertTrue($releases->unlist(ReleasesTest::KEY, '0.0.9', true));
+            Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'Broken.', null, ReleasesTest::now()));
+            Test::assertTrue($releases->withhold(ReleasesTest::KEY, '0.0.9', 'Malware.'));
+            // Every change waits for the log, and no index file shows it yet.
+            Test::assertSame($db->query('select count(*) from events', [])->value() as int, 9);
+            Test::assertTrue(!IO::exists($folder . '/work/index/acme/http.json'));
+
+            // One run adds the nine entries at once, in order, and then writes the index file.
+            var $log = ReleasesTest::log($folder);
+            Test::assertTrue(new Index($db, $log, ReleasesTest::site($folder))->flush());
+            Test::assertCalled($log, Log::append, { times: 1 });
+            Test::assertSame(ReleasesTest::logged($folder), [
+                'ownership', 'ownership', 'token', 'token', 'release-confirmed', 'unlist', 'relist', 'retract', 'withhold',
+            ]);
+            Test::assertSame($db->query('select count(*) from events', [])->value() as int, 0);
+            Test::assertTrue(IO::isFile($folder . '/files/index/acme/http.json'));
+            // An entry names the token by its id, never by the token itself.
+            Test::assertTrue(!Str::contains(IO::read($folder . '/log.txt'), 'nvsreg_'));
+        } finally {
+            ReleasesTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function anOwnerReleasesAVersionWithAPasskeyAtOnce(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        IndexTest::publish($browser, $vendor, '0.0.9');
+        var $done = $browser->post('/api/packages/' . $vendor . '/http/0.0.9/release', {});
+        Test::assertSame($done->status(), 200);
+        Test::assertSame(($done->json() as array<mixed>)['version'] as tainted string, '0.0.9');
+        string $key = Str::lower($vendor) . '\\http';
+        var $db = Schema::open();
+        Test::assertTrue((new Releases($db)->selectableAt($db, $key, '0.0.9') ?? 1) <= ReleasesTest::now());
+        // A second release has nothing to do.
+        Test::assertSame($browser->post('/api/packages/' . $vendor . '/http/0.0.9/release', {})->status(), 409);
+    }
+
+    #[Test]
+    public function aTokenCannotUnlistAndGetsThePageOfThePasskeyStep(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        tainted string $token = IndexTest::token($browser, $vendor);
+        IndexTest::publishWith($token, $vendor, '0.0.9');
+        // A new browser has no session, so only the token is sent.
+        var $done = new BrowserTest()->send(Method::Post, '/api/packages/' . $vendor . '/http/unlist', '{"version":"0.0.9"}', $token);
+        Test::assertSame($done->status(), 202);
+        string $slug = Index::slug(Str::lower($vendor) . '\\http');
+        Test::assertTrue(Str::contains(($done->json() as array<mixed>)['message'] as tainted string, '/packages/' . $slug));
+        foreach (Schema::open()->query('select unlisted_at from release_states where package = ?', [Str::lower($vendor) . '\\http']) as Row $row) {
+            Test::assertSame($row->int('unlisted_at'), null);
+        }
+
+        // The owner, signed in with a passkey, unlists it.
+        Test::assertSame($browser->send(Method::Post, '/api/packages/' . $vendor . '/http/unlist', '{"version":"0.0.9"}')->status(), 200);
+        Test::assertSame($browser->send(Method::Post, '/api/packages/' . $vendor . '/http/unlist', '{"version":"0.0.9"}')->status(), 409);
+        Test::assertSame($browser->send(Method::Post, '/api/packages/' . $vendor . '/http/relist', '{"version":"0.0.9"}')->status(), 200);
+    }
+
+    #[Test]
+    public function theArchiveOfAWithheldVersionIsNotSent(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        string $digest = IndexTest::publish($browser, $vendor, '0.0.9');
+        Test::assertTrue(new Releases(Schema::open())->withhold(Str::lower($vendor) . '\\http', '0.0.9', 'Malware.'));
+        var $sent = $browser->send(Method::Get, '/archive/' . Str::slice($digest, 7) . '.tar');
+        Test::assertSame($sent->status(), 451);
+    }
+
+    // The account that owns the vendor `Acme` in the tests with their own database.
+    private const string OWNER = '0123456789abcdef0123456789abcdef';
+
+    // A new database in memory with every table, the account `OWNER`, the vendor `Acme` and the
+    // package `Acme\Http`. Other tests do not see its rows.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [ReleasesTest::OWNER]);
+        $db->execute("insert into vendors (key, name, created_at) values ('acme', 'Acme', 0)", []);
+        $db->execute('insert into owners (vendor, account, added_at) values (?, ?, 0)', ['acme', ReleasesTest::OWNER]);
+        ReleasesTest::package($db, ReleasesTest::KEY, 'Acme\\Http');
+        return $db;
+    }
+
+    // Adds a package of the vendor `Acme`, such as `acme\log` with the name `Acme\Log`.
+    private static function package(Connection $db, string $key, string $name): void
+    {
+        $db->execute(
+            "insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, 'acme', ?, '', 0)",
+            [$key, $name, 'https://git.example.com/acme/' . Str::slice($key, 5) . '.git'],
+        );
+    }
+
+    // Adds a new account and returns its id.
+    private static function account(Connection $db): string
+    {
+        string $id = Encoding::toHex(Random::bytes(16));
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [$id]);
+        return $id;
+    }
+
+    // Adds a release that is in the log, as entry 0. `$until` is the end of its seven days, or `null`.
+    // It returns its digest, such as `blake3:` and 64 hex characters.
+    private static function release(Connection $db, string $key, string $version, ?int $until, string $dependencies = '{}'): string
+    {
+        array<string> $parts = Str::split($version, '.');
+        string $digest = 'blake3:' . Encoding::toHex(Random::bytes(32));
+        $db->execute(
+            'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, '
+                . 'published_at, pending_until, dependencies, capabilities, log) '
+                . "values (?, ?, ?, ?, ?, ?, 10, ?, ?, 'token', '', '', 0, ?, ?, '{\"required\":[],\"optional\":[]}', 0)",
+            [$key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, $digest, Str::repeat('1', 40), ReleasesTest::OWNER, $until, $dependencies],
+        );
+        return $digest;
+    }
+
+    // The kinds of the entries that wait for the log, in order.
+    private static function kinds(Connection $db): array<string>
+    {
+        array<string> $kinds = [];
+        foreach ($db->query('select entry from events order by id', []) as Row $row) {
+            $kinds[] = ReleasesTest::trusted((Json::decode($row->string('entry') ?? '{}') as array<mixed>)['kind']);
+        }
+        return $kinds;
+    }
+
+    // Writes the index file of `Acme\Http` with a log double, and returns the state of the version
+    // at `$position` as JSON text, such as `"released"`.
+    private static function state(Connection $db, string $folder, int $position = 0): string
+    {
+        Test::assertTrue(new Index($db, ReleasesTest::log($folder), ReleasesTest::site($folder))->catchUp(ReleasesTest::KEY));
+        return ReleasesTest::trusted(Json::encode((ReleasesTest::versions($folder)[$position] as array<mixed>)['state']));
+    }
+
+    // The digest of the first version in the index file of `Acme\Http`.
+    private static function digestIn(string $folder): string
+    {
+        return ReleasesTest::trusted((ReleasesTest::versions($folder)[0] as array<mixed>)['digest']);
+    }
+
+    private static function versions(string $folder): array<mixed>
+    {
+        var $file = Json::decode(IO::read($folder . '/work/index/acme/http.json')) as array<mixed>;
+        return $file['versions'] as array<mixed>;
+    }
+
+    // The kinds of the entries the log double added, in order.
+    private static function logged(string $folder): array<string>
+    {
+        array<string> $kinds = [];
+        if (!IO::exists($folder . '/log.txt')) {
+            return $kinds;
+        }
+        foreach (Str::split(Str::trim(IO::read($folder . '/log.txt')), "\n") as tainted string $line) {
+            $kinds[] = ReleasesTest::trusted((Json::decode($line) as array<mixed>)['kind']);
+        }
+        return $kinds;
+    }
+
+    // A log double that adds every line to `log.txt` in `$folder`.
+    private static function log(string $folder): Log
+    {
+        return Test::double<Log>({
+            size: fn(): int => 0,
+            append: fn(string $lines): ?array<string> => ReleasesTest::append($folder, $lines),
+            sign: fn(int $at): bool => true,
+        });
+    }
+
+    private static function append(string $folder, string $lines): array<string>
+    {
+        string $file = $folder . '/log.txt';
+        IO::write($file, (IO::exists($file) ? IO::read($file) : '') . $lines);
+        return [];
+    }
+
+    // The settings of `hosting.json`, with the work folder and one `dir` store in `$folder`.
+    private static function site(string $folder): Site
+    {
+        var $loaded = Site::load();
+        return new Site(
+            $loaded->origin,
+            $loaded->signUpWork,
+            $loaded->nvs,
+            $loaded->gitCaFile,
+            $loaded->projectAccount,
+            $folder . '/work',
+            [new Store('dir', $folder . '/files')],
+            [],
+            new Store('dir', $folder . '/backup'),
+            '',
+            5,
+            null,
+            '',
+            '',
+            '',
+            $loaded->logName,
+        );
+    }
+
+    // A new folder for one test, under `work`.
+    private static function folder(): string
+    {
+        string $folder = Path::join(Index::work(Site::load()), 'test-releases-' . Random::token(8));
+        IO::makeDir($folder);
+        return $folder;
+    }
+
+    // Deletes `$path` and everything in it.
+    private static function remove(string $path): void
+    {
+        if (!IO::isDir($path)) {
+            if (IO::exists($path)) {
+                IO::remove($path);
+            }
+            return;
+        }
+        foreach (IO::list($path) as string $name) {
+            ReleasesTest::remove(Path::join($path, $name));
+        }
+        IO::removeDir($path);
+    }
+
+    private static function now(): int
+    {
+        return Time::now()->toEpochSeconds();
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the test wrote this text');
+    }
+}

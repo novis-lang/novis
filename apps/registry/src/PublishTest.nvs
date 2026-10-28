@@ -26,7 +26,8 @@ final class PublishTest
         var $done = PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'));
         Test::assertSame($done->status, 201);
         Test::assertSame($done->digest, $digest);
-        Test::assertTrue(Str::contains($done->text, 'pending'));
+        // It is the first version at 0.1.0 or higher, so it waits until an owner confirms its API.
+        Test::assertTrue(Str::contains($done->text, 'confirms its API'));
         // The account owns the vendor now.
         Test::assertTrue(new Vendors(Schema::open())->isOwner($vendor, $account));
         Test::assertCalled($builder, Builder::build, { times: 1 });
