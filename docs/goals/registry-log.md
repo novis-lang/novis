@@ -20,7 +20,7 @@ stages:
         rules: [packaging/the-registry-keeps-an-append-only-log, packaging/somebody-elses-specification-is-a-crate]
   - id: 2
     title: one entry kind per recorded event, and the commands the service calls
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-config/src/data.rs, crates/nvs-cli/src/package/log.rs, crates/nvs-cli/src/package/note.rs]
     extra:
       context:
@@ -127,6 +127,16 @@ refuse a file signed more than seven days ago. A build from the lock and `nvs pk
 no state they select from and are unaffected. Why: the index decides which version is released, so
 whoever serves it must not be able to change it, and an old copy may hide a fix for seven days at most.
 
+**The entries are their own module, and arrive on standard input.** The closed list is
+`crates/nvs-cli/src/package/entry.rs`, beside `log.rs`, because `log.rs` is C2SP's format and the
+entry kinds are the registry's own. `nvs registry log append` reads one JSON entry per line on
+standard input and adds nothing when one line fails. Each field is a non-empty string, a `version`
+is a package version and a `digest` is the package's BLAKE3 hex digest, and the log carries no time:
+its order is the only order it claims. The ownership change and the token change are one kind each,
+with `change` naming the direction. Unlist and its reversal are `unlist` and `relist`. Appends to
+one directory are serialized by the service. Why: simplicity, one file per format, and a batch that
+lands whole or not at all.
+
 **Lanes.** Stage 1 (`log.rs`, `Cargo.toml`) and stage 5 (`note.rs`) touch disjoint files and can run in
 either order or as side goals; both add to `crates/nvs-cli/Cargo.toml`, so the second to land rebases
 it. Stage 2 needs both: it writes `log.rs` and `crates/nvs-cli/src/main.rs`'s `Command` enum
@@ -191,10 +201,10 @@ key file is read and written in the note key format.
 **Does:** the closed list of entry kinds has its canonical form, and `nvs registry log append` and
 `verify` work on a directory.
 
-- [ ] The entry kinds and their canonical JSON with a schema version (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/log.rs:1`
-- [ ] `nvs registry log append` and `nvs registry log verify`, hidden from the user's command list. `crates/nvs-cli/src/main.rs:373`
-- [ ] The key file read under the ownership check (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-config/src/data.rs:446`
-- [ ] Tests that drive the binary: append then verify, a tampered tile refused by verify, an entry outside the closed list refused, and a key file writable by another account refused. `crates/nvs-cli/tests/registry_log.rs:1`
+- [x] The entry kinds and their canonical JSON with a schema version (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/entry.rs:1`
+- [x] `nvs registry log append` and `nvs registry log verify`, hidden from the user's command list. `crates/nvs-cli/src/registry.rs:1`
+- [x] The key file read under the ownership check (`rule:config/ownership-is-the-trust-boundary`). `crates/nvs-cli/src/registry.rs:1`
+- [x] Tests that drive the binary: append then verify, a tampered tile refused by verify, an entry outside the closed list refused, and a key file writable by another account refused. `crates/nvs-cli/tests/registry_log.rs:1`
 
 ### 3. the client checks inclusion, keeps the newest checkpoint and refuses a fork
 
@@ -248,36 +258,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. `crates/nvs-cli/src/package/log.rs` has the tiles, `append` and the
-inclusion and consistency proofs (10 tests). `crates/nvs-cli/src/package/note.rs` has the C2SP signed
-note: `Verifier::parse` and its `Display` (the vkey form), `Signer::parse`, `Signer::generate` (which
-returns the `PRIVATE+KEY+...` key file text, Go's format) and `Signer::verifier`, `sign`, `open`
-(unknown keys ignored, a pinned key that fails rejects the note, at most 100 lines, ambiguous pinned
-keys an error), and `Checkpoint` (`new`, `empty`, `body`, `parse`, `sign`, and `open` with the
-expected origin). Its 11 tests pass, run once by name, and every vector in
-`crates/nvs-cli/tests/fixtures/tlog/note.json` verifies; Go's Peter vector re-signs byte for byte.
-Both modules carry `#![cfg_attr(not(test), expect(dead_code, ...))]` until stage 2's command calls
-them. Remove each line then: `expect` fails the build once nothing in the module is dead.
+Stages 1, 5 and 2 are done. `crates/nvs-cli/src/package/log.rs` has the tiles, `append`, the
+inclusion and consistency proofs and `verify` (every bundle against its level-0 tile, every higher
+tile against the full tiles below, then the root; two tiles in memory). `note.rs` has the signed
+note and `Checkpoint`. `entry.rs` is the closed list of entry kinds, `Entry::parse` and
+`Entry::canonical`. `crates/nvs-cli/src/registry.rs` is the hidden `nvs registry log append <dir>
+--key <file> --origin <o>` (entries as JSON lines on stdin) and `log verify <dir> --vkey <k> --origin
+<o>`; the checkpoint is `<dir>/checkpoint`. The 4 tests in `crates/nvs-cli/tests/registry_log.rs`
+and the 3 new unit tests (`package::entry::`, `log::tests::verify_reads_every_tile...`) passed, run
+once by name. `log.rs` and `note.rs` keep their `expect(dead_code)` lines: the proofs,
+`Tile::parse`, `Verifier::name`/`id` and `Signer::generate` are still uncalled. Stage 3 removes them
+once nothing is dead.
 
 The sweep's reds were stale again: the `env-secret-proofs` log is still Oct 22's with exit 0, and the
-Miri reds are the same run 40474302703 that `cea10a7cd` fixed.
+Miri reds are run 40474302703, which `c33a8b8f7` and `e461612ce` fixed.
 
-No test is expected to go red.
+No test is expected to go red. `COMMAND_NAMES` in `crates/nvs-cli/src/main.rs` gained `registry`,
+and its table test should still hold.
 
 ### Next
 
-Stage 2, the entry kinds and `nvs registry log append`/`verify`, on `crates/nvs-cli/src/package/log.rs`,
-`crates/nvs-cli/src/main.rs`, a new `crates/nvs-cli/src/registry.rs` and
-`crates/nvs-cli/tests/registry_log.rs`. Gate: `crates/nvs-cli/src/package/mod.rs` exists.
-- [ ] The closed list of entry kinds as a serde enum with a schema version, written as canonical JSON. `crates/nvs-cli/src/package/log.rs:1`
-- [ ] A hidden `Registry` arm in `Command` (`Pkg` is `crates/nvs-cli/src/main.rs:469`) with `log append <dir> --key <file> --origin <o>` and `log verify <dir> --vkey <key>`. `append` opens the newest checkpoint (`checkpoint` in the log directory, C2SP's name) with `note::Checkpoint::open`, or starts from `Checkpoint::empty`, calls `log::append` with its size and signs the new one. `crates/nvs-cli/src/main.rs:461`
-- [ ] The key file read under the ownership check: `trust::check` on the file's directory as `crates/nvs-config/src/data.rs:553` does. `crates/nvs-config/src/data.rs:553`
-- [ ] `verify` re-reads every bundle against `Log`'s level-0 hashes and checks the root against the checkpoint. `crates/nvs-cli/src/package/log.rs:600`
-- [ ] Binary tests: append then verify, a tampered tile refused, an entry outside the list refused, a key file another account can write refused. `crates/nvs-cli/tests/registry_log.rs:1`
+Stage 3, the client's inclusion and fork checks, on `crates/nvs-cli/src/package/index.rs`,
+`crates/nvs-cli/src/package/fetch.rs`, `crates/nvs-config/src/data.rs` and
+`crates/nvs-cli/tests/package_client.rs`. Gate: `crates/nvs-cli/src/package/fetch.rs` and
+`crates/nvs-cli/tests/fixtures/registry/` exist (both do).
+- [ ] A `HashReader` over tiles fetched from a file host (the paths are `log::Tile::path`), beside `IndexReader::archive`. Decide where an index line names its publish entry's record number, so the client can ask for its inclusion proof, and record it. `crates/nvs-cli/src/package/index.rs:385`
+- [ ] The inclusion check of the publish entry, whose `digest` must equal the archive's, before `land` writes under `vendor/`. `crates/nvs-cli/src/package/fetch.rs:230`
+- [ ] The stored checkpoint per registry under `Folder::registry` (`crates/nvs-config/src/data.rs:190`), read under the ownership check `crates/nvs-cli/src/cache.rs:1288` applies, opened with the registry's pinned `note::Verifier`; a newer one needs `log::check_tree` from it, and a failure is the fork error naming the registry. `crates/nvs-config/src/data.rs:190`
+- [ ] The test fixture's registry (`crates/nvs-cli/src/package/fixture.rs`) gains a log built with `entry`/`log::append`, and binary tests cover an archive absent from the log and a forked log. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### Backlog
 
-- Stage 3 opens the stored checkpoint with `note::Checkpoint::open` and the registry's pinned
-  `note::Verifier`, and checks consistency with `log::check_tree`.
 - Stage 6, the signed index files, follows stage 3 (`crates/nvs-cli/src/package/index.rs`).
+- A command that makes a key file (`note::Signer::generate`) is not built yet. The registry service
+  needs one before its first deploy, as a hidden `nvs registry key` in `crates/nvs-cli/src/registry.rs`.
 - The second published copy of the checkpoint is compared by `nvs pkg audit` in goal `package-audit` (`docs/goals/package-audit.md`).
