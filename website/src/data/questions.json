@@ -1382,7 +1382,6 @@
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
-      "Open a speedscope profile or a profile link from the debug viewer in VS Code",
       "Why are passwords blurred in my editor?",
       "Class names and methods have the same colour in VS Code",
       "Start the Novis debugger from launch.json in VS Code"
@@ -10603,7 +10602,8 @@
     "questions": [
       "Which signature algorithm does this passkey use?",
       "Is a passkey ES256 or Ed25519?",
-      "Save the passkey algorithm in a database column"
+      "Save the passkey algorithm in a database column",
+      "Read the key type of a registered passkey"
     ]
   },
   "/reference/core/passkey-credential/id/": {
@@ -10612,7 +10612,8 @@
     "questions": [
       "How do I get the credential id of a passkey?",
       "Find the saved passkey that matches a sign-in",
-      "Save a passkey id as text in a database"
+      "Save a passkey id as text in a database",
+      "Which value identifies a WebAuthn credential?"
     ]
   },
   "/reference/core/passkey-credential/of/": {
@@ -10631,7 +10632,8 @@
     "questions": [
       "How do I get the public key of a passkey?",
       "Save a COSE public key from WebAuthn",
-      "Store a passkey key as text in a database"
+      "Store a passkey key as text in a database",
+      "Is it safe to store a passkey public key?"
     ]
   },
   "/reference/core/passkey-credential/signcount/": {
@@ -16921,7 +16923,8 @@
     "questions": [
       "Which passkey algorithms does Novis support?",
       "ES256 or Ed25519 for WebAuthn passkeys",
-      "Save a passkey algorithm and read it back"
+      "Save a passkey algorithm and read it back",
+      "Can I use RSA keys for passkeys in Novis?"
     ]
   },
   "/reference/types/propertyguard/": {
