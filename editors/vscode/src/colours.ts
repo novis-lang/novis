@@ -14,8 +14,8 @@ export type Shade = "dark" | "light";
 
 /** The two colours a type and a method get, one pair per shade. */
 export const PALETTE: Record<Shade, { type: string; method: string }> = {
-  dark: { type: "#4EC9B0", method: "#FFC66D" },
-  light: { type: "#267F99", method: "#795E26" },
+  dark: { type: "#BCBEC4", method: "#FFC66D" },
+  light: { type: "#1F1F1F", method: "#795E26" },
 };
 
 /** The label of the bundled theme for each shade, which is also its id in `workbench.colorTheme`. */

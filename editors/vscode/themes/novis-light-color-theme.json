@@ -70,6 +70,10 @@
       "settings": { "foreground": "#1F1F1F" }
     },
     {
+      "scope": ["variable", "variable.parameter"],
+      "settings": { "foreground": "#36598A" }
+    },
+    {
       "scope": ["punctuation.section.embedded.begin", "punctuation.section.embedded.end"],
       "settings": { "foreground": "#0033B3" }
     },
@@ -96,11 +100,11 @@
         "support.class",
         "support.type"
       ],
-      "settings": { "foreground": "#267F99" }
+      "settings": { "foreground": "#1F1F1F" }
     },
     {
       "scope": ["entity.name.type.interface"],
-      "settings": { "foreground": "#267F99", "fontStyle": "italic" }
+      "settings": { "foreground": "#1F1F1F", "fontStyle": "italic" }
     },
     {
       "scope": ["entity.name.function", "support.function", "meta.function-call.generic"],
@@ -149,20 +153,20 @@
     }
   ],
   "semanticTokenColors": {
-    "namespace": "#267F99",
-    "class": "#267F99",
-    "interface": { "foreground": "#267F99", "italic": true },
-    "enum": "#267F99",
-    "type": "#267F99",
-    "typeParameter": "#267F99",
-    "struct": "#267F99",
+    "namespace": "#1F1F1F",
+    "class": "#1F1F1F",
+    "interface": { "foreground": "#1F1F1F", "italic": true },
+    "enum": "#1F1F1F",
+    "type": "#1F1F1F",
+    "typeParameter": "#1F1F1F",
+    "struct": "#1F1F1F",
     "method": "#795E26",
     "function": "#795E26",
     "property": "#871094",
     "enumMember": { "foreground": "#871094", "italic": true },
     "decorator": "#9E880D",
-    "parameter": "#1F1F1F",
-    "variable": "#1F1F1F",
+    "parameter": "#36598A",
+    "variable": "#36598A",
     "*.tainted": { "underline": true },
     "*.secret": { "italic": true }
   }

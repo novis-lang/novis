@@ -70,6 +70,10 @@
       "settings": { "foreground": "#BCBEC4" }
     },
     {
+      "scope": ["variable", "variable.parameter"],
+      "settings": { "foreground": "#8BA7CF" }
+    },
+    {
       "scope": ["punctuation.section.embedded.begin", "punctuation.section.embedded.end"],
       "settings": { "foreground": "#CF8E6D" }
     },
@@ -96,11 +100,11 @@
         "support.class",
         "support.type"
       ],
-      "settings": { "foreground": "#4EC9B0" }
+      "settings": { "foreground": "#BCBEC4" }
     },
     {
       "scope": ["entity.name.type.interface"],
-      "settings": { "foreground": "#4EC9B0", "fontStyle": "italic" }
+      "settings": { "foreground": "#BCBEC4", "fontStyle": "italic" }
     },
     {
       "scope": ["entity.name.function", "support.function", "meta.function-call.generic"],
@@ -149,20 +153,20 @@
     }
   ],
   "semanticTokenColors": {
-    "namespace": "#4EC9B0",
-    "class": "#4EC9B0",
-    "interface": { "foreground": "#4EC9B0", "italic": true },
-    "enum": "#4EC9B0",
-    "type": "#4EC9B0",
-    "typeParameter": "#4EC9B0",
-    "struct": "#4EC9B0",
+    "namespace": "#BCBEC4",
+    "class": "#BCBEC4",
+    "interface": { "foreground": "#BCBEC4", "italic": true },
+    "enum": "#BCBEC4",
+    "type": "#BCBEC4",
+    "typeParameter": "#BCBEC4",
+    "struct": "#BCBEC4",
     "method": "#FFC66D",
     "function": "#FFC66D",
     "property": "#C77DBB",
     "enumMember": { "foreground": "#C77DBB", "italic": true },
     "decorator": "#B3AE60",
-    "parameter": "#BCBEC4",
-    "variable": "#BCBEC4",
+    "parameter": "#8BA7CF",
+    "variable": "#8BA7CF",
     "*.tainted": { "underline": true },
     "*.secret": { "italic": true }
   }
