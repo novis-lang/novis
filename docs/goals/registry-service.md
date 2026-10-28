@@ -179,6 +179,21 @@ publish calls. The tests call it directly, because no route takes a vendor witho
 Why: a stolen session cookie that is older than 15 minutes, or a leaked recovery code, cannot mint a
 publishing key or take over a vendor.
 
+**A token may name a vendor nobody owns yet, and the first publish takes it.** `Vendors::mayPublish`
+is true for an owner or an unowned vendor, and both `createToken` and `Tokens::allows` use it;
+`Publish` calls `Vendors::claim` only after every other check passed, so a refused publish claims
+nothing. Two accounts may hold tokens for one unowned vendor, and the first publish wins. Why: an
+account can do nothing before its first publish, so a token that needs an owned vendor could never
+be made. Nothing is reserved in advance, as *A vendor is owned* says.
+
+**The build runs only where the operator grants it.** `hosting.json`'s `nvs` names the program, and
+the committed `nvs.toml` grants no `[capabilities.process]`: a bare `nvs` that is not on `PATH` is a
+configuration error, which would stop every test on a runner without it. The tests double the
+`Builder`, and the deploy guide (stage 10) gives the grant with the full path. A package bound to a
+repository and folder passes its newest lower release's `api` file as `--previous`; a folder that
+builds another name than the one it published is refused. Why: the tests stay independent of the
+runner's `PATH`, and the operator states every program the service starts.
+
 **The registry builds the archive from git.** `nvs pkg publish` sends a repository URL, a commit, a
 version and the package's directory within the repository. `nvs pkg publish` may name a subdirectory, and
 the default is the repository root. It uploads no file. The service runs `nvs registry build`, which
@@ -369,8 +384,8 @@ the index the client reads.
 **Split:** after the session lands `Publish.nvs`, one writing subagent writes the refusal tests, then
 a second writes `Index.nvs`'s download count and its test.
 
-- [ ] The service's publish endpoint, the build class the tests double, the repository binding, and every refusal in the standing decision (`rule:packaging/publishing-never-overwrites`). `apps/registry/src/Publish.nvs:1`
-- [ ] Tests: one per refusal in the standing decision, a republished version refused, and a changed repository URL refused without a passkey. `apps/registry/src/PublishTest.nvs:1`
+- [x] The service's publish endpoint, the build class the tests double, the repository binding, and every refusal in the standing decision (`rule:packaging/publishing-never-overwrites`). `apps/registry/src/Publish.nvs:1`
+- [x] Tests: one per refusal in the standing decision, a republished version refused, and a changed repository URL refused without a passkey. `apps/registry/src/PublishTest.nvs:1`
 - [ ] The static index in the client's schema, signed with `nvs registry index sign`, the root file with the file hosts, and the salted daily count as the service serves a file itself. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`
 - [ ] Tests: the client's index reader parses and verifies what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
 - [ ] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
@@ -486,40 +501,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3: `nvs registry build` is `crates/nvs-cli/src/package/build.rs`,
-dispatched from `crates/nvs-cli/src/registry.rs` (no `main.rs` edit was needed), and `nvs pkg publish`
-is `crates/nvs-cli/src/package/publish.rs`. The JSON contracts of both are the standing decision
-*The build and the publish speak JSON*. `git::clone_within` clones a package in a folder of its
-repository. `diff::report` returns the `--json` document of `nvs pkg diff`.
-`config::package_network(ca_file)` adds `--ca-file` to the tree's anchors (with the bundled set when
-the tree names none). `login::send`, `login::origin` and `login::stored` are shared with publish, and
-`download::Store::check_every_url` checks each URL of a `[[download]]` entry. The 9 tests in
-`crates/nvs-cli/tests/registry_build.rs` (`git http-backend` behind rustls) pass on Windows only.
-Watch on CI: the 513 MiB zero-blob case may make gix hold the object while it indexes the pack.
-`rule:packaging/the-registry-builds-the-archive-from-git` stays `designed` until stage 7.
+Stages 1, 2 and 3 are done, and stage 7's first two items. `POST /api/publish` is `App::publish`,
+which calls `Publish::publish` (`apps/registry/src/Publish.nvs`) with a `Builder`
+(`Builder.nvs`); `NvsBuilder` runs `nvs registry build` through `Core\Process` with `cwd` the app
+folder, and the build writes `builds/<random>.tar` and `.json` (gitignored, made on first use,
+removed when a publish is refused after the build). The schema has `packages` (bound repository and
+folder) and `releases` (`pending_until` = published + 7 days, `archive` and `api` paths).
+`Accounts::isActive` is the 60-day passkey rule's floor; stage 6 adds the reminders. `hosting.json`
+gained `nvs`, `gitCaFile` and `projectAccount`. The 17 tests in `PublishTest.nvs` pass (run once by
+name), and the app's type check is clean.
 
-The app has `Vendors.nvs`, `Tokens.nvs` and the owner, token and whoami routes in `App.nvs`; its 13
-tests pass. The sweep's reds are stale: `env-secret-proofs` names no defined check, and nightly run
-40662443492 was cancelled by a newer push.
+The sweep's reds were stale: `env-secret-proofs`'s log now reads exit 0, and nightly run 40662443492
+was cancelled by a newer push.
 
-Expected red: none known. No generated reference lists the `nvs pkg` subcommands (searched), so
-`login`, `whoami` and `publish` need no render. `registry_build.rs` needs `git http-backend` and git
-2.32 or later on each runner; a runner without them goes red there.
+Expected red: none known. The earlier tests of `TokensTest.nvs` were not rerun after `createToken`
+began to allow an unowned vendor; its 403 case uses an owned vendor, so it should hold.
+`registry_build.rs` needs `git http-backend` and git 2.32 or later on each runner.
 
 ### Next
 
-Stage 7, the app lane: the service's publish. Follow its **Split:** line. `apps/registry/src/Publish.nvs`
-handles `POST /api/publish` with the body and reply in the standing decision, runs
-`nvs registry build` through one class the tests replace with `Core\Test::double` fed the JSON
-`build.rs` prints, binds the repository URL at the first publish, calls `Vendors::claim`, and checks
-the token with `Tokens::allows`.
-- [ ] The publish endpoint, the build class and every refusal. `apps/registry/src/Publish.nvs:1`, `apps/registry/src/App.nvs:1`, `crates/nvs-cli/src/package/build.rs:1`
-- [ ] The refusal tests. `apps/registry/src/PublishTest.nvs:1`
+Stage 7's index lane: the static index the client reads. Follow the **Split:** line's second half.
+`Index.nvs` writes `index/<vendor>/<name>.json` and copies the archive to `archive/<digest>.tar` in
+the client's schema (`crates/nvs-cli/src/package/index.rs` doc and `rule:packaging/a-package-is-its-digest`),
+signs each through `nvs registry index sign` (goal `registry-log` is reached), writes the root file,
+and counts a download as the service serves a file, one per address per day through a daily salt.
+- [ ] The index files, the root file and the signing. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/registry.rs:1`
+- [ ] The salted daily count and its test, and the client's reader over what the service writes. `apps/registry/src/IndexTest.nvs:1`
+- [ ] Both rules `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
 
 ### Backlog
 
-- Stage 7 calls `Vendors::claim` at a first publish, refuses `Core` and `Novis` for every account but
-  the project's, and checks the token with `Tokens::allows` (`apps/registry/src/Tokens.nvs`).
+- Stage 5 adds the verified-channel refusal to `Publish::record` and `App::addOwner`
+  (`apps/registry/src/Publish.nvs`); there is no channel to verify before it.
+- Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program; the
+  committed `nvs.toml` has none (standing decision *The build runs only where the operator grants it*).
+- Changing a package's bound repository with a passkey is a route stage 4 or `registry-website` adds;
+  `Publish` refuses the change with a 403 until then.
 - Stage 4 writes the log entries for owner changes and for making and revoking a token; stage 5 notifies
   the owners and adds the verified-channel check to `addOwner` (`apps/registry/src/App.nvs`).
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
