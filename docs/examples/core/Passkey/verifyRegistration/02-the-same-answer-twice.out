@@ -1,0 +1,2 @@
+first check: the passkey is new
+second check: Core\Passkey::verifyRegistration(): no challenge is waiting in this session. Each challenge can be checked only once, so call the options method again.

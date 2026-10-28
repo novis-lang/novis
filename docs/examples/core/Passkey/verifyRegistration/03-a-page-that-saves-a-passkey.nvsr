@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/account/passkey
+--HEADERS--
+host: example.com

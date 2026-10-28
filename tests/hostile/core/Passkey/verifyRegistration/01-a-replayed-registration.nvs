@@ -1,0 +1,160 @@
+<?nvs
+// Attack: a request tries to add a passkey with an answer that is wrong. It replays an answer,
+// and sends answers for another site, with a bad key, and broken or huge answers.
+// Each check should throw an error, and no passkey should be added.
+// requires: redis
+// hostile: timeout-ms 60000
+
+// This class plays the browser and the device. Each argument changes one part of the answer.
+final class Device
+{
+    public static function answer(string $options, string $type, string $rpId, string $origin, int $flags, bytes $key): tainted string
+    {
+        tainted string $client = Device::client($options, $type, $origin);
+        bytes $id = Core\Random::bytes(16);
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of($rpId, Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', $flags),
+            Core\Bytes::fill(20, 0),
+            Core\Bytes::pack('n', 16),
+            $id,
+            $key,
+        ]);
+        bytes $object = Core\Bytes::join([
+            Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746158'),
+            Core\Bytes::pack('C', Core\Bytes::length($data)),
+            $data,
+        ]);
+        return Device::wrap($client, $object, $id);
+    }
+
+    // The client data, with the challenge from the options.
+    public static function client(string $options, string $type, string $origin): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        return '{"type":"' . $type . '","challenge":"' . ($read['challenge'] as string) . '","origin":"' . $origin . '"}';
+    }
+
+    // The JSON the browser sends, around the client data and the attestation object.
+    public static function wrap(tainted string $client, bytes $object, bytes $id): tainted string
+    {
+        string $raw = Core\Encoding::toBase64Url($id);
+        return '{"type":"public-key","id":"' . $raw . '","rawId":"' . $raw . '","response":{"clientDataJSON":"'
+            . Core\Encoding::toBase64Url(Core\Encoding::encodeText($client, Core\Charset::Utf8))
+            . '","attestationObject":"' . Core\Encoding::toBase64Url($object) . '"}}';
+    }
+
+    // New options. The challenge in them waits in the session for the next check.
+    public static function options(): string
+    {
+        return Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada');
+    }
+
+    // Checks one answer. It returns `1` when a passkey was registered, and `0` when the check throws.
+    public static function check(tainted string $answer): int
+    {
+        try {
+            Core\Passkey::verifyRegistration($answer, 'example.com', 'https://example.com');
+            return 1;
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
+}
+
+string $origin = 'https://example.com';
+bytes $x = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $ed25519 = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $x]);
+Core\Session::start();
+
+// 1. Checks an answer before the server made any options. Every error below is caught, so each step runs.
+echo 'no options: ', Device::check('{"type":"public-key"}'), " registered\n";
+
+// 2. Records a correct answer, and replays it 1000 times and once more after new options.
+string $options = Device::options();
+tainted string $recorded = Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x45, $ed25519);
+echo 'the recorded answer: ', Device::check($recorded), " registered\n";
+int $registered = 0;
+int $n = 0;
+while ($n < 1000) {
+    $registered = $registered + Device::check($recorded);
+    $n = $n + 1;
+}
+Device::options();
+$registered = $registered + Device::check($recorded);
+echo 'replays: ', $registered, " registered\n";
+
+// 3. Answers made on other origins: another site, plain `http`, another port, a longer domain and none.
+array<string> $origins = ['https://evil.example', 'http://example.com', 'https://example.com:8443', 'https://example.com.evil.example', ''];
+$registered = 0;
+foreach ($origins as string $other) {
+    $options = Device::options();
+    $registered = $registered + Device::check(Device::answer($options, 'webauthn.create', 'example.com', $other, 0x45, $ed25519));
+}
+echo 'other origins: ', $registered, " registered\n";
+
+// 4. A passkey for another domain, a sign-in answer, and an answer to the options for a sign-in.
+$options = Device::options();
+$registered = Device::check(Device::answer($options, 'webauthn.create', 'evil.example', $origin, 0x45, $ed25519));
+$options = Device::options();
+$registered = $registered + Device::check(Device::answer($options, 'webauthn.get', 'example.com', $origin, 0x45, $ed25519));
+$options = Core\Passkey::signInOptions('example.com');
+$registered = $registered + Device::check(Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x45, $ed25519));
+echo 'other domain and sign-in: ', $registered, " registered\n";
+
+// 5. The device did not check the user with a fingerprint, a face or a PIN.
+$options = Device::options();
+echo 'no user check: ', Device::check(Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x41, $ed25519)), " registered\n";
+
+// 6. Keys that are not allowed: an RSA algorithm, a point that is not on the curve, an empty map and nothing.
+array<bytes> $keys = [
+    Core\Bytes::join([Core\Encoding::fromHex('a40101033901002006215820'), $x]),
+    Core\Encoding::fromHex('a501020326200121582001010101010101010101010101010101010101010101010101010101010101012258200101010101010101010101010101010101010101010101010101010101010101'),
+    Core\Encoding::fromHex('a0'),
+    Core\Bytes::fill(0, 0),
+];
+$registered = 0;
+foreach ($keys as bytes $key) {
+    $options = Device::options();
+    $registered = $registered + Device::check(Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x45, $key));
+}
+echo 'keys that are not allowed: ', $registered, " registered\n";
+
+// 7. Broken answers: empty, not JSON, and cut in half.
+$options = Device::options();
+tainted string $good = Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x45, $ed25519);
+array<tainted string> $broken = ['', 'not json', '{}', 'null', '{"type":"public-key","response":[]}', Core\Str::slice($good, 0, 150)];
+$registered = 0;
+foreach ($broken as tainted string $answer) {
+    Device::options();
+    $registered = $registered + Device::check($answer);
+}
+echo 'broken answers: ', $registered, " registered\n";
+
+// 8. Broken attestation objects: cut short, one that claims 4 GB of data, 5000 nested arrays, and no data.
+array<bytes> $objects = [
+    Core\Encoding::fromHex('a363666d74646e6f6e65'),
+    Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a06861757468446174615affffffff00'),
+    Core\Bytes::fill(5000, 0x81),
+    Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746140'),
+];
+$registered = 0;
+foreach ($objects as bytes $object) {
+    $options = Device::options();
+    $registered = $registered + Device::check(Device::wrap(Device::client($options, 'webauthn.create', $origin), $object, Core\Random::bytes(16)));
+}
+echo 'broken attestation objects: ', $registered, " registered\n";
+
+// 9. Huge answers: JSON nested 20000 deep, one byte over 64 KB, and 16 MB.
+array<tainted string> $huge = [Core\Str::repeat('[', 20000), Core\Str::repeat(' ', 65537), Core\Str::repeat('a', 16777216)];
+$registered = 0;
+foreach ($huge as tainted string $answer) {
+    Device::options();
+    $registered = $registered + Device::check($answer);
+}
+$huge = [];
+echo 'huge answers: ', $registered, " registered\n";
+
+// 10. After all of this, a correct answer still registers one passkey.
+$options = Device::options();
+echo 'a correct answer: ', Device::check(Device::answer($options, 'webauthn.create', 'example.com', $origin, 0x45, $ed25519)), " registered\n";

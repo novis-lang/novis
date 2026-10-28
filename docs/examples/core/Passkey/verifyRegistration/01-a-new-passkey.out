@@ -1,0 +1,4 @@
+id: 16 bytes
+public key: 42 bytes
+algorithm: Ed25519
+sign counter: 0

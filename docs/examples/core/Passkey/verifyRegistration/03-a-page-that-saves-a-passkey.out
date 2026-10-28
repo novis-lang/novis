@@ -1,0 +1,6 @@
+const response = await fetch('/account/passkey/options', { method: 'POST' });
+const options = PublicKeyCredential.parseCreationOptionsFromJSON(await response.json());
+const passkey = await navigator.credentials.create({ publicKey: options });
+await fetch('/account/passkey', { method: 'POST', body: JSON.stringify(passkey.toJSON()) });
+
+passkeys of ada@example.com: 1

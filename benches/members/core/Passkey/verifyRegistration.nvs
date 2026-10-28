@@ -1,0 +1,57 @@
+<?nvs
+// Checks the browser's answer for a new passkey, as the page that saves a passkey with an account does.
+// The answer is never longer than 64 KB, so one check costs the same at any size.
+// bench: iterations 128
+// bench: complexity constant
+// requires: redis
+
+class Bench
+{
+    // Builds the answer a browser sends for these options. One key is used for every answer.
+    public static function answer(string $options, bytes $key, uint $round): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        tainted string $client = '{"type":"webauthn.create","challenge":"' . ($read['challenge'] as string)
+            . '","origin":"https://example.com"}';
+        bytes $id = Core\Bytes::join([Core\Bytes::pack('J', $round), Core\Bytes::fill(8, 7)]);
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Encoding::fromHex('450000000000000000000000000000000000000000'),
+            Core\Bytes::pack('n', 16),
+            $id,
+            $key,
+        ]);
+        bytes $object = Core\Bytes::join([
+            Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746158'),
+            Core\Bytes::pack('C', Core\Bytes::length($data)),
+            $data,
+        ]);
+        string $raw = Core\Encoding::toBase64Url($id);
+        return '{"type":"public-key","id":"' . $raw . '","rawId":"' . $raw . '","response":{"clientDataJSON":"'
+            . Core\Encoding::toBase64Url(Core\Encoding::encodeText($client, Core\Charset::Utf8))
+            . '","attestationObject":"' . Core\Encoding::toBase64Url($object) . '"}}';
+    }
+
+    public static function run(uint $rounds): uint
+    {
+        var $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        bytes $raw = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        bytes $key = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+        bytes $accountId = Core\Random::bytes(16);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each check needs new options, because a challenge can be checked only once.
+            string $options = Core\Passkey::registerOptions('example.com', 'Example Shop', $accountId, 'ada@example.com');
+            Core\Passkey\Credential $passkey = Core\Passkey::verifyRegistration(Bench::answer($options, $key, $i), 'example.com', 'https://example.com');
+            if ($passkey->signCount() == 0) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+echo Bench::run(128), "\n";

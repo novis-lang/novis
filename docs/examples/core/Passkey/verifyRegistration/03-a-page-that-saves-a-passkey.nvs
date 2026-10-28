@@ -1,0 +1,86 @@
+<?nvs
+// Shows the browser half and the server half of a page that saves a new passkey with an account.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function answer(string $options, string $origin): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        tainted string $client = '{"type":"webauthn.create","challenge":"' . ($read['challenge'] as string)
+            . '","origin":"' . $origin . '"}';
+        bytes $id = Core\Random::bytes(16);
+        var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Encoding::fromHex('450000000000000000000000000000000000000000'),
+            Core\Bytes::pack('n', 16),
+            $id,
+            Core\Encoding::fromHex('a4010103272006215820'),
+            $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+        ]);
+        bytes $object = Core\Bytes::join([
+            Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746158'),
+            Core\Bytes::pack('C', Core\Bytes::length($data)),
+            $data,
+        ]);
+        string $raw = Core\Encoding::toBase64Url($id);
+        return '{"type":"public-key","id":"' . $raw . '","rawId":"' . $raw . '","response":{"clientDataJSON":"'
+            . Core\Encoding::toBase64Url(Core\Encoding::encodeText($client, Core\Charset::Utf8))
+            . '","attestationObject":"' . Core\Encoding::toBase64Url($object) . '"}}';
+    }
+}
+
+class Account
+{
+    // A real application saves the passkeys in its database.
+    public array<Core\Passkey\Credential> $passkeys = [];
+
+    public function constructor(public bytes $id, public string $email)
+    {}
+}
+
+class PasskeyPage
+{
+    // The browser half. This JavaScript creates the passkey and sends the answer to the server.
+    public static function script(): string
+    {
+        return "const response = await fetch('/account/passkey/options', { method: 'POST' });\n"
+            . "const options = PublicKeyCredential.parseCreationOptionsFromJSON(await response.json());\n"
+            . "const passkey = await navigator.credentials.create({ publicKey: options });\n"
+            . "await fetch('/account/passkey', { method: 'POST', body: JSON.stringify(passkey.toJSON()) });\n";
+    }
+
+    // The server half for the first `fetch`. It returns the options.
+    public static function options(Account $account): string
+    {
+        Core\Session::start();
+        return Core\Passkey::registerOptions('example.com', 'Example Shop', $account->id, $account->email, $account->passkeys);
+    }
+
+    // The server half for the second `fetch`. It checks the answer and saves the four values.
+    public static function save(Account $account, tainted string $body): void
+    {
+        Core\Passkey\Credential $passkey = Core\Passkey::verifyRegistration($body, 'example.com', 'https://example.com');
+        $account->passkeys[] = Core\Passkey\Credential::of(
+            $passkey->id(),
+            $passkey->publicKey(),
+            $passkey->algorithm(),
+            $passkey->signCount(),
+        );
+    }
+}
+
+// The page contains this script.
+echo PasskeyPage::script(), "\n";
+
+// The script asks for the options, and the device answers them.
+Account $ada = new Account(Core\Random::bytes(16), 'ada@example.com');
+string $options = PasskeyPage::options($ada);
+tainted string $body = Device::answer($options, 'https://example.com');
+
+// The script sends the answer, and the server saves the passkey. This prints `1`.
+PasskeyPage::save($ada, $body);
+echo 'passkeys of ', $ada->email, ': ', Core\Arr::count($ada->passkeys), "\n";

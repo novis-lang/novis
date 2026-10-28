@@ -1,0 +1,51 @@
+<?nvs
+// Shows that an answer can be checked only once. A second check of the same answer throws an error.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function answer(string $options, string $origin): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        tainted string $client = '{"type":"webauthn.create","challenge":"' . ($read['challenge'] as string)
+            . '","origin":"' . $origin . '"}';
+        bytes $id = Core\Random::bytes(16);
+        var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Encoding::fromHex('450000000000000000000000000000000000000000'),
+            Core\Bytes::pack('n', 16),
+            $id,
+            Core\Encoding::fromHex('a4010103272006215820'),
+            $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+        ]);
+        bytes $object = Core\Bytes::join([
+            Core\Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746158'),
+            Core\Bytes::pack('C', Core\Bytes::length($data)),
+            $data,
+        ]);
+        string $raw = Core\Encoding::toBase64Url($id);
+        return '{"type":"public-key","id":"' . $raw . '","rawId":"' . $raw . '","response":{"clientDataJSON":"'
+            . Core\Encoding::toBase64Url(Core\Encoding::encodeText($client, Core\Charset::Utf8))
+            . '","attestationObject":"' . Core\Encoding::toBase64Url($object) . '"}}';
+    }
+}
+
+Core\Session::start();
+string $options = Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada@example.com');
+tainted string $answer = Device::answer($options, 'https://example.com');
+
+// The first check succeeds. It also deletes the challenge from the session.
+Core\Passkey::verifyRegistration($answer, 'example.com', 'https://example.com');
+echo "first check: the passkey is new\n";
+
+// The second check of the same answer throws a `RuntimeError`.
+// Somebody who copied the answer cannot use it to add a passkey.
+try {
+    Core\Passkey::verifyRegistration($answer, 'example.com', 'https://example.com');
+    echo "second check: the passkey is new\n";
+} catch (RuntimeError $e) {
+    echo "second check: ", $e->message, "\n";
+}
