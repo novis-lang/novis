@@ -42,6 +42,9 @@
 //!   checked program and never by running it
 //!   (`rule:packaging/only-a-major-may-break-the-api`), and `nvs pkg diff <old> <new>`, every
 //!   change between two versions as breaking or additive, non-zero on a break; see [`package`].
+//! * `nvs registry log append|verify` — a registry service's transparency log
+//!   (`rule:packaging/the-registry-keeps-an-append-only-log`), hidden from the command list; see
+//!   [`registry`].
 //! * `nvs config check` — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`
@@ -179,6 +182,7 @@ mod package;
 mod peer;
 mod profile;
 mod queue;
+mod registry;
 mod reload;
 mod run;
 mod runner;
@@ -434,6 +438,7 @@ fn carries_upload(command: &Command) -> bool {
         | Command::Build(_)
         | Command::Api(_)
         | Command::Pkg(_)
+        | Command::Registry(_)
         | Command::Ext(_)
         | Command::Init(_)
         | Command::Config(_)
@@ -467,6 +472,9 @@ enum Command {
     Build(build::Args),
     Api(api_diff::Args),
     Pkg(package::Args),
+    // Hidden: only a registry's server runs it.
+    #[command(hide = true)]
+    Registry(registry::Args),
     Ext(ext::Args),
     Init(init::Args),
     Config(config::Args),
@@ -499,7 +507,7 @@ enum Command {
 /// Every subcommand's name as clap writes it: the closed set a telemetry counter names
 /// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
 /// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
-const COMMAND_NAMES: [&str; 30] = [
+const COMMAND_NAMES: [&str; 31] = [
     "ast",
     "check",
     "run",
@@ -508,6 +516,7 @@ const COMMAND_NAMES: [&str; 30] = [
     "build",
     "api",
     "pkg",
+    "registry",
     "ext",
     "init",
     "config",
@@ -783,6 +792,7 @@ fn main() -> ExitCode {
         Command::Build(args) => args.run(&cli.config),
         Command::Api(args) => args.run(),
         Command::Pkg(args) => args.run(),
+        Command::Registry(args) => args.run(),
         Command::Ext(args) => args.run(&cli.config),
         Command::Init(args) => args.run(&cli.config),
         Command::Config(args) => args.run(&cli.config),

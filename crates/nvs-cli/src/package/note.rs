@@ -20,11 +20,8 @@
 //! **Memory:** a note is read whole, and opening one holds its text and the verifiers that
 //! signed it. Nothing is kept once the call returns.
 
-// `nvs registry log` is this module's first caller outside its tests.
-#![cfg_attr(
-    not(test),
-    expect(dead_code, reason = "no command signs or opens a note yet")
-)]
+// The client's checkpoint and index checks are the rest of this module's callers.
+#![cfg_attr(not(test), expect(dead_code, reason = "no client opens a note yet"))]
 
 use std::fmt;
 

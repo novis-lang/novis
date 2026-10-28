@@ -14,13 +14,14 @@
 //! The tree's size is not stored here. A checkpoint carries it, and [`append`] takes the size the
 //! last checkpoint named. [`append`] never changes a file it already wrote: a tile or bundle
 //! that is on disk with other bytes is an error, so an append from a stale size cannot rewrite
-//! history.
+//! history. [`verify`] checks a whole log directory from scratch, as `nvs registry log verify`
+//! does.
 //!
 //! **Memory:** an append holds the new records' hashes and the tiles it writes, a few kilobytes
 //! per 256 records, and nothing that grows with the log. A proof is at most 64 hashes.
 
-// `nvs registry log` is this module's first caller outside its tests.
-#![cfg_attr(not(test), expect(dead_code, reason = "no command calls the log yet"))]
+// The client's inclusion and consistency checks are the proofs' first callers outside the tests.
+#![cfg_attr(not(test), expect(dead_code, reason = "no client checks a proof yet"))]
 
 use std::collections::HashMap;
 use std::fmt;
@@ -785,6 +786,84 @@ pub(crate) fn append(dir: &Path, size: u64, entries: &[Vec<u8>]) -> Result<(u64,
     Ok((new_size, root))
 }
 
+/// Checks the log in `dir` from scratch against a checkpoint of `size` records with root hash
+/// `root`: every record of every entry bundle against the level-0 tile beside it, every hash of
+/// a higher tile against the full tile below it, and the root against the tree. `each` is given
+/// every record in order, and its error names what is wrong with one.
+///
+/// **Memory:** two tiles at a time, whatever the log's size.
+pub(crate) fn verify(
+    dir: &Path,
+    size: u64,
+    root: &Hash,
+    mut each: impl FnMut(u64, &[u8]) -> Result<(), String>,
+) -> Result<(), Error> {
+    let read_tile = |tile: Tile| read_hash_tile(dir, tile);
+    let mut level_zero = Vec::new();
+    for tile in new_tiles(0, size) {
+        match tile.level {
+            Level::Hashes(0) => level_zero = read_tile(tile)?.1,
+            Level::Entries => {
+                let path = dir.join(tile.path());
+                let entries = read_bundle(&path, tile.width)?;
+                for ((n, entry), hash) in (tile.index * TILE_WIDTH..)
+                    .zip(&entries)
+                    .zip(level_zero.as_chunks::<HASH_SIZE>().0)
+                {
+                    let reason = if record_hash(entry) != *hash {
+                        Some(format!("record {n} does not match its hash"))
+                    } else {
+                        each(n, entry).err().map(|why| format!("record {n}: {why}"))
+                    };
+                    if let Some(reason) = reason {
+                        return Err(Error::Malformed { path, reason });
+                    }
+                }
+            }
+            Level::Hashes(level) => {
+                let (path, data) = read_tile(tile)?;
+                for (j, hash) in (0..tile.width).zip(data.as_chunks::<HASH_SIZE>().0) {
+                    let below = Tile {
+                        level: Level::Hashes(level - 1),
+                        index: tile.index * TILE_WIDTH + j,
+                        width: TILE_WIDTH,
+                    };
+                    if tile_hash(&read_tile(below)?.1) != *hash {
+                        return Err(Error::Malformed {
+                            path,
+                            reason: format!("hash {j} does not match the tile below it"),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    if tree_hash(size, &mut Log::open(dir, size))? != *root {
+        return Err(Error::Malformed {
+            path: dir.to_path_buf(),
+            reason: "the tree's root hash is not the checkpoint's".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+/// The path and bytes of hash tile `tile` in the log in `dir`, which must hold its width of
+/// hashes.
+fn read_hash_tile(dir: &Path, tile: Tile) -> Result<(PathBuf, Vec<u8>), Error> {
+    let path = dir.join(tile.path());
+    let data = fs::read(&path).map_err(|error| Error::Io {
+        path: path.clone(),
+        error,
+    })?;
+    if u64::try_from(data.len()).ok() != Some(tile.width * HASH_SIZE as u64) {
+        return Err(Error::Malformed {
+            reason: format!("a tile of {} hashes is {} bytes", tile.width, data.len()),
+            path,
+        });
+    }
+    Ok((path, data))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1099,5 +1178,43 @@ mod tests {
             append(dir, 5, &[vec![9]]),
             Err(Error::Malformed { .. })
         ));
+    }
+
+    #[test]
+    fn verify_reads_every_tile_and_finds_one_changed_byte_at_any_level() {
+        let scratch = nvs_repo::scratch("tlog-verify");
+        let dir: &Path = &scratch;
+        let records: Vec<Vec<u8>> = (0..600u32).map(|n| n.to_be_bytes().to_vec()).collect();
+        let (size, root) = append(dir, 0, &records).unwrap();
+        let mut seen = 0;
+        verify(dir, size, &root, |n, entry: &[u8]| {
+            assert_eq!(entry, records[usize::try_from(n).unwrap()]);
+            seen += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(seen, 600);
+
+        let refuse_300 = |n, _: &[u8]| match n {
+            300 => Err("not allowed".to_owned()),
+            _ => Ok(()),
+        };
+        assert!(verify(dir, size, &root, refuse_300).is_err());
+        assert!(verify(dir, size, &empty_root(), |_, _: &[u8]| Ok(())).is_err());
+        for path in ["tile/0/001", "tile/1/000.p/2"] {
+            let tile = dir.join(path);
+            let data = fs::read(&tile).unwrap();
+            let mut changed = data.clone();
+            changed[40] ^= 1;
+            fs::write(&tile, changed).unwrap();
+            assert!(
+                matches!(
+                    verify(dir, size, &root, |_, _: &[u8]| Ok(())),
+                    Err(Error::Malformed { .. })
+                ),
+                "{path}"
+            );
+            fs::write(&tile, data).unwrap();
+        }
     }
 }

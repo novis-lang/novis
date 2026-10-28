@@ -18,8 +18,9 @@
 //! [`download`] fetches, checks and places a package's `[[download]]` files
 //! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). [`log`] is the
 //! registry's transparency log in C2SP tlog-tiles, with its inclusion and consistency proofs
-//! (`rule:packaging/the-registry-keeps-an-append-only-log`), and [`note`] signs and opens the C2SP
-//! signed notes its checkpoints are.
+//! (`rule:packaging/the-registry-keeps-an-append-only-log`), [`entry`] is the closed list of
+//! events it records, and [`note`] signs and opens the C2SP signed notes its checkpoints are.
+//! The registry's own commands over the log are `crate::registry`'s, outside `nvs pkg`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -27,16 +28,17 @@ use std::process::ExitCode;
 mod api;
 mod diff;
 mod download;
+pub(crate) mod entry;
 mod fetch;
 #[cfg(test)]
 mod fixture;
 mod git;
 mod index;
 mod lock;
-mod log;
+pub(crate) mod log;
 mod manifest;
 mod minimum;
-mod note;
+pub(crate) mod note;
 mod pack;
 mod report;
 mod resolve;
