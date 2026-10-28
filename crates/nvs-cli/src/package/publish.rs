@@ -19,7 +19,12 @@
 //! other form sends `POST /api/publish` with the token `nvs pkg login` stored ([`login::stored`])
 //! and prints the registry's answer: the release's digest and whether it is pending or released.
 //! A digest that differs from the local one is reported, since the same commit must pack to the
-//! same bytes.
+//! same bytes. After the answer it prints the account's pending releases, as `nvs pkg whoami`
+//! does ([`login::print_pending`]), and the registry's `warning` on standard error when no owner
+//! device or webhook took the message about the release
+//! (`rule:packaging/an-owner-is-notified-without-email`). The warning leaves the exit status
+//! alone, because the release is published. A reply without either field, from an older
+//! registry, prints neither.
 //!
 //! Cost: one archive in memory, at most [`super::pack::MAX_ARCHIVE_BYTES`], its files in a scratch
 //! folder while it packs, each download once in the download cache, and one request. Nothing here
@@ -207,6 +212,11 @@ fn publishing(
     }
     let _ = writeln!(out, "Digest: {}", sent.digest);
     let _ = writeln!(out, "{}", sent.state);
+    login::print_pending(&mut out, &sent.pending);
+    let _ = out.flush();
+    if let Some(warning) = &sent.warning {
+        eprintln!("Warning: {}", login::printable(warning));
+    }
     Ok(())
 }
 
@@ -216,6 +226,10 @@ struct Sent {
     digest: String,
     /// What happens to the release next, as the registry says it.
     state: String,
+    /// The account's releases that are not selectable yet.
+    pending: Vec<login::Pending>,
+    /// The registry's sentence when no owner device or webhook took the message.
+    warning: Option<String>,
 }
 
 /// `release` at `version` sent to the registry at `origin` with `token`.
@@ -262,5 +276,7 @@ fn send(origin: &str, token: &str, release: &Release, version: Version) -> Resul
     Ok(Sent {
         digest: text("digest").ok_or_else(bad)?,
         state: text("message").ok_or_else(bad)?,
+        pending: json.as_ref().and_then(login::pending_of).ok_or_else(bad)?,
+        warning: text("warning").filter(|warning| !warning.trim().is_empty()),
     })
 }

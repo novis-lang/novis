@@ -39,7 +39,15 @@ struct Host {
 }
 
 impl Host {
+    /// A host whose `/api/whoami` reply has no `pending` list, as an older registry's.
     fn start() -> Self {
+        Self::start_with(format!(
+            r#"{{"account":"{ACCOUNT}","scope":"Acme","expiresAt":1830297600}}"#
+        ))
+    }
+
+    /// A host whose `/api/whoami` reply for [`GOOD`] is `whoami`.
+    fn start_with(whoami: String) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("the test listens");
         let port = listener.local_addr().expect("it has an address").port();
         let served = Arc::new(AtomicUsize::new(0));
@@ -51,7 +59,7 @@ impl Host {
                     break;
                 }
                 // A request that fails here fails the command, which the case asserts.
-                let _ = serve(stream, &count);
+                let _ = serve(stream, &count, &whoami);
             }
         });
         Self {
@@ -84,9 +92,9 @@ impl Drop for Host {
     }
 }
 
-/// One request on `stream`: `200` with the account and scope for `GET /api/whoami` with
-/// [`GOOD`] as its bearer token, and `401` for anything else.
-fn serve(mut stream: TcpStream, served: &AtomicUsize) -> std::io::Result<()> {
+/// One request on `stream`: `200` with `whoami` for `GET /api/whoami` with [`GOOD`] as its
+/// bearer token, and `401` for anything else.
+fn serve(mut stream: TcpStream, served: &AtomicUsize, whoami: &str) -> std::io::Result<()> {
     stream.set_read_timeout(Some(BOUND))?;
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut request = String::new();
@@ -105,10 +113,7 @@ fn serve(mut stream: TcpStream, served: &AtomicUsize) -> std::io::Result<()> {
     }
     let path = request.split_whitespace().nth(1).unwrap_or_default();
     let (status, body) = if path == "/api/whoami" && bearer.as_deref() == Some(GOOD) {
-        (
-            "200 OK",
-            format!(r#"{{"account":"{ACCOUNT}","scope":"Acme","expiresAt":1830297600}}"#),
-        )
+        ("200 OK", whoami.to_owned())
     } else {
         (
             "401 Unauthorized",
@@ -197,7 +202,38 @@ fn login_stores_a_token_and_whoami_prints_its_account_and_scope() {
     assert!(said.contains("Scope: Acme"), "{said}");
     assert!(said.contains("Expires: 2028-01-01"), "{said}");
     assert!(!said.contains(GOOD), "the token was printed: {said}");
+    assert!(
+        !said.contains("not available yet"),
+        "a reply without `pending` lists nothing: {said}"
+    );
     assert_eq!(host.served(), 2);
+}
+
+/// `nvs pkg whoami` prints each pending release the registry lists, with the time it is
+/// released or the passkey it waits for (`rule:packaging/an-owner-is-notified-without-email`).
+#[test]
+fn whoami_prints_the_pending_releases() {
+    let data = nvs_repo::scratch_private("pkg-whoami-pending");
+    let host = Host::start_with(format!(
+        r#"{{"account":"{ACCOUNT}","scope":"Acme","expiresAt":1830297600,"pending":[
+            {{"package":"Acme\\Http","version":"1.2.0","until":"2026-11-04T12:00:00Z"}},
+            {{"package":"Acme\\Http","version":"1.0.0","until":null}}]}}"#
+    ));
+    let url = host.url();
+    let out = nvs(&data, &["login", "--registry", &url], GOOD);
+    assert!(out.status.success(), "{}", shown(&out));
+
+    let out = nvs(&data, &["whoami", "--registry", &url], "");
+    assert!(out.status.success(), "{}", shown(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains(
+            "Releases that are not available yet:\n  Acme\\Http 1.2.0 will be available at \
+             2026-11-04T12:00:00Z.\n  Acme\\Http 1.0.0 waits until an owner confirms it with a \
+             passkey on the website.\n"
+        ),
+        "{said}"
+    );
 }
 
 #[test]

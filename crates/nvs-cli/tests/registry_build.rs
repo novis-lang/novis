@@ -590,6 +590,178 @@ fn a_dry_run_publish_prints_the_digest_the_build_gives() {
     assert!(said.contains(&format!("Digest: {digest}")), "{said}");
 }
 
+/// The publish token [`Service`] accepts.
+const TOKEN: &str = "nvsreg_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// A plain-HTTP stand-in for the registry service on loopback: `/api/whoami` answers an account
+/// for every token, and `/api/publish` answers `publish`. One connection after another on a
+/// thread of its own. Dropping it stops the thread.
+struct Service {
+    port: u16,
+    stopped: Arc<AtomicBool>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Service {
+    fn start(publish: String) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the test listens");
+        let port = listener.local_addr().expect("it has an address").port();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let stop = Arc::clone(&stopped);
+        let thread = thread::spawn(move || {
+            for stream in listener.incoming().map_while(Result::ok) {
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                // A request that fails here fails the command, which the case asserts.
+                let _ = answer(stream, &publish);
+            }
+        });
+        Self {
+            port,
+            stopped,
+            thread: Some(thread),
+        }
+    }
+
+    fn url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.port)
+    }
+}
+
+impl Drop for Service {
+    /// Ends the thread: the flag is set, and one connection wakes its `accept`.
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::SeqCst);
+        let _ = TcpStream::connect(("127.0.0.1", self.port));
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+/// One request on `stream`, its body read to the end: `publish` for `/api/publish`, and an
+/// account that may publish `Acme` for anything else.
+fn answer(mut stream: TcpStream, publish: &str) -> io::Result<()> {
+    stream.set_read_timeout(Some(BOUND))?;
+    let mut reader = BufReader::new(stream.try_clone()?);
+    let mut request = String::new();
+    reader.read_line(&mut request)?;
+    let mut length = 0usize;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 || line.trim().is_empty() {
+            break;
+        }
+        if let Some((name, value)) = line.split_once(':')
+            && name.trim().eq_ignore_ascii_case("content-length")
+        {
+            length = value.trim().parse().unwrap_or(0);
+        }
+    }
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body)?;
+    let path = request.split_whitespace().nth(1).unwrap_or_default();
+    let reply = if path == "/api/publish" {
+        publish.to_owned()
+    } else {
+        r#"{"account":"00112233445566778899aabbccddeeff","scope":"Acme","expiresAt":1830297600}"#
+            .to_owned()
+    };
+    write!(
+        stream,
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\
+         Connection: close\r\n\r\n{reply}",
+        reply.len()
+    )?;
+    stream.flush()
+}
+
+/// `nvs pkg publish` of a committed package to a [`Service`] that answers `publish`, after
+/// `nvs pkg login` stored [`TOKEN`]. The publish's output.
+fn publish_to(name: &str, publish: &str) -> Output {
+    let case = Case::new(name);
+    case.package("", "1.0.0", false);
+    case.commit("one");
+    let service = Service::start(publish.to_owned());
+    let url = service.url();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(case.data())
+        .args(["--no-init", "pkg", "login", "--registry", &url])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    let mut stdin = child.stdin.take().expect("standard input is piped");
+    stdin
+        .write_all(format!("{TOKEN}\n").as_bytes())
+        .expect("`nvs pkg login` reads its token");
+    drop(stdin);
+    let out = child
+        .wait_with_output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(out.status.success(), "{}", shown(&out));
+    case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "publish",
+            "--registry",
+            &url,
+            "--repository",
+            "https://git.example.com/acme/http",
+        ],
+    )
+}
+
+/// `nvs pkg publish` prints the account's pending releases after the registry's answer, and the
+/// registry's warning on standard error with a successful exit
+/// (`rule:packaging/an-owner-is-notified-without-email`).
+#[test]
+fn a_publish_prints_the_pending_releases_and_the_warning() {
+    let out = publish_to(
+        "registry-publish-pending",
+        r#"{"digest":"blake3:00","message":"Acme\\Http 1.0.0 is pending.","pending":[
+            {"package":"Acme\\Http","version":"1.0.0","until":"2026-11-04T12:00:00Z"},
+            {"package":"Acme\\Http","version":"0.9.0","until":null}],
+            "warning":"No owner of `Acme` has a working device or webhook."}"#,
+    );
+    assert!(out.status.success(), "{}", shown(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains(
+            "Acme\\Http 1.0.0 is pending.\nReleases that are not available yet:\n  Acme\\Http \
+             1.0.0 will be available at 2026-11-04T12:00:00Z.\n  Acme\\Http 0.9.0 waits until \
+             an owner confirms it with a passkey on the website.\n"
+        ),
+        "{said}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("Warning: No owner of `Acme` has a working device or webhook."),
+        "{}",
+        shown(&out)
+    );
+}
+
+/// A publish reply without `pending` and `warning`, as an older registry sends, prints the
+/// answer alone.
+#[test]
+fn a_publish_reply_without_pending_or_warning_prints_the_answer_alone() {
+    let out = publish_to(
+        "registry-publish-older",
+        r#"{"digest":"blake3:00","message":"Acme\\Http 1.0.0 is released."}"#,
+    );
+    assert!(out.status.success(), "{}", shown(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains("Acme\\Http 1.0.0 is released."), "{said}");
+    assert!(!said.contains("not available yet"), "{said}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("Warning"), "{}", shown(&out));
+}
+
 /// A repository URL that starts with `http://` is refused, and the build connects nowhere.
 #[test]
 fn an_http_url_is_refused() {

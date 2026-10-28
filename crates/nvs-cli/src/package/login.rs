@@ -16,6 +16,14 @@
 //! registry running on their own machine. The transport drops the `authorization` header on a
 //! redirect to another origin and refuses a redirect from `https:` to `http:`.
 //!
+//! **`nvs pkg whoami` prints the account's pending releases** after the account, the scope and
+//! the expiry: one line per release of a vendor the account owns that is not selectable yet,
+//! with the time it is released, or that it waits for an owner's passkey on the website
+//! (`rule:packaging/an-owner-is-notified-without-email`). The reply's `pending` list is read by
+//! [`pending_of`] and printed by [`print_pending`], which `nvs pkg publish` uses too. A reply
+//! without the list, from an older registry, reads as an empty one, and an empty list prints
+//! nothing. Control characters in the registry's text are left out of what is printed.
+//!
 //! **The token is stored under the data folder's `tokens/`**, one file per registry, named by a
 //! hash of the registry's URL ([`file_of`]). The folder is created privately with
 //! [`nvs_config::data::create_private_root`], an existing data folder is checked before anything is
@@ -66,6 +74,71 @@ struct Holder {
     scope: String,
     /// When the token expires, as a Unix time.
     expires_at: i64,
+    /// The account's releases that are not selectable yet.
+    pending: Vec<Pending>,
+}
+
+/// A release that is not selectable yet, as the registry lists it.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Pending {
+    /// The package's name, such as `Acme\Http`.
+    package: String,
+    /// The release's version.
+    version: String,
+    /// When it is released, as the registry writes the time, or `None` while it waits for an
+    /// owner to confirm it with a passkey.
+    until: Option<String>,
+}
+
+/// The `pending` list of a registry's reply `json`. A missing or `null` list reads as empty, as
+/// an older registry sends none. `None` for a list that is not what a registry writes.
+pub(crate) fn pending_of(json: &serde_json::Value) -> Option<Vec<Pending>> {
+    let list = match json.get("pending") {
+        None | Some(serde_json::Value::Null) => return Some(Vec::new()),
+        Some(list) => list.as_array()?,
+    };
+    list.iter()
+        .map(|entry| {
+            let text = |key: &str| entry.get(key)?.as_str().map(str::to_owned);
+            let until = match entry.get("until") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(at) => Some(at.as_str()?.to_owned()),
+            };
+            Some(Pending {
+                package: text("package")?,
+                version: text("version")?,
+                until,
+            })
+        })
+        .collect()
+}
+
+/// A heading and one line per release in `pending`, or nothing for an empty list.
+pub(crate) fn print_pending(out: &mut impl io::Write, pending: &[Pending]) {
+    if pending.is_empty() {
+        return;
+    }
+    let _ = writeln!(out, "Releases that are not available yet:");
+    for release in pending {
+        let name = format!(
+            "{} {}",
+            printable(&release.package),
+            printable(&release.version)
+        );
+        let _ = match &release.until {
+            Some(at) => writeln!(out, "  {name} will be available at {}.", printable(at)),
+            None => writeln!(
+                out,
+                "  {name} waits until an owner confirms it with a passkey on the website."
+            ),
+        };
+    }
+}
+
+/// `text` without its control characters, so a registry's text cannot move the cursor or change
+/// the terminal's colours.
+pub(crate) fn printable(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control()).collect()
 }
 
 /// `nvs pkg login`: the token on standard input, checked with `registry` and stored.
@@ -112,6 +185,7 @@ fn asking(registry: Option<&str>) -> Result<(), Fault> {
     let mut out = io::stdout().lock();
     let _ = writeln!(out, "Registry: {origin}");
     print_holder(&mut out, &holder);
+    print_pending(&mut out, &holder.pending);
     Ok(())
 }
 
@@ -239,6 +313,7 @@ fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
             .get("expiresAt")
             .and_then(serde_json::Value::as_i64)
             .ok_or_else(bad)?,
+        pending: pending_of(&json).ok_or_else(bad)?,
     }))
 }
 
@@ -386,7 +461,46 @@ pub(crate) fn stored(origin: &str) -> Result<String, Fault> {
 
 #[cfg(test)]
 mod tests {
-    use super::{host_of, origin, well_formed};
+    use super::{Pending, host_of, origin, pending_of, print_pending, well_formed};
+
+    #[test]
+    fn a_pending_list_prints_one_line_per_release_and_a_missing_one_is_empty() {
+        let json = serde_json::json!({"pending": [
+            {"package": "Acme\\Http", "version": "1.2.0", "until": "2026-11-04T12:00:00Z"},
+            {"package": "Acme\\Http", "version": "1.0.0\u{1b}[2J", "until": null},
+        ]});
+        let pending = pending_of(&json).expect("the list reads");
+        assert_eq!(
+            pending[1],
+            Pending {
+                package: "Acme\\Http".into(),
+                version: "1.0.0\u{1b}[2J".into(),
+                until: None,
+            }
+        );
+        let mut out = Vec::new();
+        print_pending(&mut out, &pending);
+        assert_eq!(
+            String::from_utf8_lossy(&out),
+            "Releases that are not available yet:\n  Acme\\Http 1.2.0 will be available at \
+             2026-11-04T12:00:00Z.\n  Acme\\Http 1.0.0[2J waits until an owner confirms it with \
+             a passkey on the website.\n"
+        );
+
+        assert_eq!(pending_of(&serde_json::json!({})), Some(Vec::new()));
+        assert_eq!(
+            pending_of(&serde_json::json!({"pending": null})),
+            Some(Vec::new())
+        );
+        assert_eq!(pending_of(&serde_json::json!({"pending": "no"})), None);
+        assert_eq!(
+            pending_of(&serde_json::json!({"pending": [{"package": "A"}]})),
+            None
+        );
+        let mut out = Vec::new();
+        print_pending(&mut out, &[]);
+        assert!(out.is_empty());
+    }
 
     #[test]
     fn only_a_prefixed_64_digit_hex_token_is_well_formed() {
