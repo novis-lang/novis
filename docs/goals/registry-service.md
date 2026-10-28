@@ -48,7 +48,7 @@ stages:
         rules: [packaging/a-release-waits-seven-days-unless-an-owner-confirms, packaging/a-known-bad-version-is-retracted-not-deleted, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
   - id: 5
     title: an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/webpush.rs, apps/registry/src/Vendors.nvs, docs/rules/packaging/an-owner-is-notified-without-email.md, docs/rules/core-classes/web-push-sends-an-encrypted-message.md]
     extra:
       context:
@@ -344,6 +344,17 @@ each device with the date it last answered. Every push message is sent through `
 `core-web-push`, `rule:core-classes/web-push-sends-an-encrypted-message`), which encrypts the payload,
 signs it with the registry's VAPID key and sends it under the ordinary `net.connect` grant.
 
+**The VAPID key is a file the operator names, and a test makes its own.** `hosting.json`'s
+`pushKey` names a PEM file with the P-256 key (`""` turns Web Push off, and the push routes answer
+`503`), and `pushSubject` is the `mailto:` or `https:` contact the push services read. `Push` takes
+the key in its constructor, so `PushTest` passes a key from `Crypto::generateKeyPair` and fakes the
+push service with `Core\Test::answerHttp`, which `push_send` honours. No private key is committed.
+A channel is a `channels` row with the hash of its one-time code; it counts while `verified_at` is
+set and `failed_at` is null, and a gone push device is deleted. `BrowserTest::newAccount` gives each
+test account a verified webhook through `Channels`, and `newAccountWithoutChannel` is for the
+refusals. A test cannot decrypt a push, so it reads a code from `Channels::newCode`. Why: the key is
+a secret like `logKey`, and a key in the repository would be scanned and reused.
+
 **An account must show activity within 60 days, or it can no longer publish**
 (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). The 60 days are fixed. Its packages
 stay available and its releases are untouched. Activity is a passkey sign-in, or the "Yes, I am here"
@@ -551,10 +562,16 @@ no verified channel cannot publish or become an owner.
 **Split:** after the session lands `Channels.nvs`'s verified state, one writing subagent writes
 `Push.nvs`, then a second writes the tests.
 
-- [ ] Web Push: device registration while signed in with a passkey, each message sent through `Core\WebPush`, a gone subscription dropped, and each device's last answer shown (`rule:packaging/an-owner-is-notified-without-email`, `rule:core-classes/web-push-sends-an-encrypted-message`). `apps/registry/src/Push.nvs:1`, `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Verification: a test push answered with its one-time code, and a channel that stops working no longer counting. `apps/registry/src/Channels.nvs:1`
-- [ ] A publish, and adding an owner, refused for an account with no verified channel. `apps/registry/src/Publish.nvs:1`, `apps/registry/src/Vendors.nvs:1`
-- [ ] Tests against the loopback push service: a device verified by its code, a gone device dropped, and both refusals. `apps/registry/src/PushTest.nvs:1`
+- [x] Web Push: device registration while signed in with a passkey, each message sent through `Core\WebPush`, a gone subscription dropped, and each device's last answer shown (`rule:packaging/an-owner-is-notified-without-email`, `rule:core-classes/web-push-sends-an-encrypted-message`). `apps/registry/src/Push.nvs:1`, `crates/nvs-stdlib/src/webpush.rs:1`
+  - [x] `Push::register`, `sendCode`, `notify`, with a gone device dropped
+  - [x] `/api/push/key`, `/api/push/devices` and the `/api/channels` routes, with `answeredAt` in the list
+- [x] Verification: a test push answered with its one-time code, and a channel that stops working no longer counting. `apps/registry/src/Channels.nvs:1`
+  - [x] the `channels` table and `Channels::verify`, `failed`, `hasVerified`
+- [x] A publish, and adding an owner, refused for an account with no verified channel. `apps/registry/src/Publish.nvs:1`, `apps/registry/src/Vendors.nvs:1`
+  - [x] `Publish::publish` refuses before the build, and the `addOwner` route refuses with `403`
+  - [x] `BrowserTest::newAccount` gives each test account a verified webhook
+- [x] Tests against the loopback push service: a device verified by its code, a gone device dropped, and both refusals. `apps/registry/src/PushTest.nvs:1`
+  - [x] six `PushTest` cases, each run once by name and green
 
 ### 8. an owner is notified by a signed webhook with retries, verified by a one-time code
 
@@ -623,18 +640,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 7 and 11 are done. This session closed stage 4: `releases` has each version's
-`repository` and `directory`, read by `Index::write` and the `publish` entry; `App::rebind`
-(`POST /api/packages/<vendor>/<name>/repository`) moves a package for an owner with a passkey and
-saves a `repository` entry that `Restore` replays; `jobs/withhold.nvs` deletes the archive from
-every store through `Stores::remove` and `Store::delete`; the three stage 4 rules are `shipped`.
-New tests, each run once by name and green: `ReleasesTest::anOwnerMovesAPackageAndEachReleaseKeepsItsRepository`,
-`StoresTest::anHttpStoreGetsADeleteWithItsKey`, and more assertions in
-`eachChangeIsOneEntryOfTheLogBeforeTheIndexFileChanges` and `aWithheldVersionKeepsItsDigestAndShowsTheReason`.
+Stages 1, 2, 3, 4, 5, 7 and 11 are done. This session closed stage 5: `Channels`
+(`apps/registry/src/Channels.nvs`) keeps each push device and webhook with the hash of its one-time
+code, and `hasVerified` is true while one is verified and not failed. `Publish::publish` refuses an
+account with none before the build, and the `addOwner` route answers `403` for one. `Push`
+(`apps/registry/src/Push.nvs`) registers a device (passkey in the last 15 minutes), sends its test
+code, tells the other devices, and deletes a gone one. `App.nvs` has `/api/push/key`,
+`/api/push/devices` and `/api/channels` (list, `{id}/verify`, `{id}/test`, delete). `hosting.json`
+has `pushKey` and `pushSubject` (standing decision *The VAPID key is a file the operator names*).
+New tests, each run once by name and green: the six cases in `apps/registry/src/PushTest.nvs`.
 
-The local `registry.sqlite`, `work/` and `files/` (all gitignored, made by the tests) were deleted,
-because `create table if not exists` does not add the new `releases` columns. A clone with an old
-`registry.sqlite` sees "no such column: repository" until it deletes that file.
+`BrowserTest::newAccount` now gives every account a verified webhook, so the existing publish and
+owner tests keep passing; none was run. The new `channels` table is added by `create table if not
+exists`, so an old local `registry.sqlite` needs no deletion.
 
 Watch in stage 12: one run in three had `IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s
 `catchUp` return `false`. The sweep's `env-secret-proofs` red was stale again (a rerun exits 0), and
@@ -642,12 +660,12 @@ nightly run 40662443492 was cancelled by a newer push. No test is expected red.
 
 ### Next
 
-Stage 5; its gate holds (`core-classes/web-push-sends-an-encrypted-message` is `shipped`). Follow
-its `**Split:**` line: land `Channels.nvs`'s verified state first.
-- [ ] `Channels.nvs`: a `channels` table (push device or webhook, verified time, last answer) and `Channels::hasVerified($account)`. `apps/registry/src/Schema.nvs:354`
-- [ ] `Push.nvs`: register a device with a passkey, send through `Core\WebPush`, drop a gone one. `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] The verified-channel refusal in `Publish::record` and `App::addOwner`. `apps/registry/src/Publish.nvs:103`, `apps/registry/src/App.nvs:183`
-- [ ] `PushTest.nvs` against a fake push service, as `StoresTest` fakes a store with `Core\Test::answerHttp`. `apps/registry/src/StoresTest.nvs:22`
+Stage 8, the webhooks; it needs only stage 2. Follow its `**Split:**` line: land the signed POST,
+then a writing subagent writes `WebhooksTest.nvs`.
+- [ ] `Webhooks.nvs`: add a webhook (passkey) as a `Channels::WEBHOOK` row, send its code, a signed POST with retries through the outbound address table. `apps/registry/src/Channels.nvs:33`, `crates/nvs-config/src/capability.rs:262`
+- [ ] A webhook that still fails after its retries calls `Channels::failed`; the code link route verifies it. `apps/registry/src/Channels.nvs:80`
+- [ ] `POST /api/channels/{id}/test` answers `409` for a webhook today; send its code there. `apps/registry/src/App.nvs:370`
+- [ ] `Push::register` and the channel delete route tell only push devices; tell the webhooks too. `apps/registry/src/Push.nvs:66`
 
 ### Backlog
 
@@ -661,16 +679,15 @@ its `**Split:**` line: land `Channels.nvs`'s verified state first.
 - `Core` gaps the backup hit: `Db::open` with `Db\Driver::Sqlite` written in full passes `check`
   and panics in `nvs-ir` lowering (`expr.rs:504`), a `readOnly` transaction throws on SQLite, and
   there is no way to read a local file as bytes (the copy is base64 for that reason).
-- Stage 5 adds the verified-channel refusal to `Publish::record` and `App::addOwner`
-  (`apps/registry/src/Publish.nvs`); there is no channel to verify before it.
 - Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
-  an `fs.read` grant for each secret file outside the app folder; the committed `nvs.toml` has
-  neither (standing decision *The build runs only where the operator grants it*).
-
-- Stage 5 notifies the owners of each event in `events` and adds the verified-channel check to
-  `addOwner` (`apps/registry/src/App.nvs`).
-- Stage 5 adds a `Push` and stage 8 a `Webhooks` notice to each `events` row; every adding of a
-  row is in `Events.nvs`, including the new `Events::repository`.
+  an `fs.read` grant for each secret file outside the app folder (`pushKey` among them); the
+  committed `nvs.toml` has neither (standing decision *The build runs only where the operator grants it*).
+- The owners are not yet notified of each event in `events`. Stage 8 or 9 sends a `Push::notify`
+  and a webhook message for each publish, token, owner change, unlist and retraction; every adding
+  of a row is in `Events.nvs`. `rule:packaging/an-owner-is-notified-without-email` stays `designed`
+  until then.
+- The `POST /api/push/devices` route reads every `RuntimeError` from `Push::register` as a bad
+  subscription (`400`), a database error included.
 - `Restore` brings back only the pending time from an index file. Unlisted, retracted and withheld
   states and stable confirmations after the newest copy are lost until it replays those log entries.
   It replays `publish` and `repository` only (`apps/registry/src/Restore.nvs:84`).
