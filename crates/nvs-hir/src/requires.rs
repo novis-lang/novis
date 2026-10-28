@@ -2838,6 +2838,26 @@ class Unreached {}
         );
     }
 
+    /// Two entry files of one application that autoload a prefix from the same
+    /// directory are one home, written twice, and say nothing.
+    #[test]
+    fn two_declarations_of_one_prefix_with_the_same_roots_are_one_home() {
+        let dir = TempDir::new("autoload-same");
+        dir.write("src/Thing.nvs", "<?nvs\nnamespace Acme;\nclass Thing {}\n");
+        dir.write("jobs/daily.nvs", "<?nvs\n");
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let _ = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix("Acme", &["./src"])),
+                site(&dir, id, prefix("Acme", &["./jobs/../src"])),
+            ],
+            &mut diags,
+        );
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
     /// A borrowed declaration sits behind the program's own and never reports:
     /// a prefix both declare is the program's, a borrowed glob with nothing to
     /// scan says nothing, and only the program's own roots say which files it

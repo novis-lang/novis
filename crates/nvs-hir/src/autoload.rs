@@ -20,7 +20,9 @@
 //! These rules of § 1 live here rather than in the resolver:
 //!
 //! - **An explicit prefix beats a `discover` glob** producing the same
-//!   prefix; the glob skips that name. Every *other* duplicate is
+//!   prefix; the glob skips that name. A second explicit prefix whose
+//!   roots resolve to the same directories is the same home and adds
+//!   nothing. Every *other* duplicate is
 //!   [`code::E_DUPLICATE_AUTOLOAD_PREFIX`]. So [`AutoloadMap::build`] takes
 //!   every site at once rather than accepting them one at a time: the
 //!   explicit set has to be complete before a glob can know what to skip,
@@ -405,18 +407,22 @@ impl AutoloadMap {
                     continue;
                 }
             };
+            let resolved: Vec<PathBuf> = roots
+                .iter()
+                .map(|(root, _)| canonical(&site.base_dir, root))
+                .collect();
             if let Some(previous) = map.entry(&segments) {
-                if !is_borrowed {
+                // Two entry files of one application, such as a request entry and a
+                // scheduled script, may both write the line: the same roots are one place.
+                let same = previous.explicit && previous.roots == resolved;
+                if !is_borrowed && !same {
                     report_duplicate(prefix, previous.span, site.span, diags);
                 }
                 continue;
             }
             map.entries.push(Entry {
                 segments,
-                roots: roots
-                    .iter()
-                    .map(|(root, _)| canonical(&site.base_dir, root))
-                    .collect(),
+                roots: resolved,
                 span: site.span,
                 explicit: true,
                 borrowed: is_borrowed,
