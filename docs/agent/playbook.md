@@ -25,6 +25,11 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`bun nv site --questions --stamp` stamps an entry whatever its shape, and only `bun nv site
+  --check questions` judges it.** An entry needs four to six questions of at most 15 words, so a
+  page stamped with three passes `--status` and turns `bun nv ci --check`'s website stale guard red.
+  Write four or more, and run `bun nv site --check questions` once after stamping. See
+  `tools/nv/cmd/site.ts`. `until: gone tools/nv/cmd/site.ts:four to six`
 - **`bun nv proofs --gate --group 'Core\X'` does not reach a value class inside it, `Core\X\Y`.**
   Each class is its own group, so a goal that gated only the outer class learns at `bun nv ci
   --check` that every member of the inner one owes all its proofs. Gate both groups from the start,

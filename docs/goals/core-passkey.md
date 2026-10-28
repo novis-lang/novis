@@ -39,7 +39,7 @@ stages:
     context: [docs/examples/core/Passkey/verifySignIn/about.md, tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs, website/src/data/questions.json]
   - id: 7
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: credential-proofs
@@ -245,7 +245,7 @@ subagent. Such subagents run side by side, and none of them builds.
 - [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
 - [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
 - [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
-- [ ] After stage 6, one more `bun nv affected --run`, then `bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check`, each green. `tools/nv/cmd/ci.ts:1`
+- [x] After stage 6, one more `bun nv affected --run`, then `bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check`, each green. `tools/nv/cmd/ci.ts:1`
 
 ## Handoff
 
@@ -257,9 +257,12 @@ owe nothing (`passkey-proofs`, `credential-proofs` and `owners-closes` are green
 --status` owes none. The four readers' Rust-side proof is `the_members_sign_in_once_per_challenge`
 in `passkey.rs`, which now calls each reader.
 
-Stage 7's first gate run, its fixes and `bun nv ci --check`'s licence and perf reds landed in the
-sessions before. What remains is its last item: one more gate run over stage 6's work, then the
-goal-end gates. This session started that `bun nv affected --run`.
+Stage 7 is done. The last `bun nv affected --run` is green: 23 of 23 steps and 3151 cases. Its
+fixes, as one pass: four of stage 6's examples were not in `nvs fmt`'s layout, and the first run
+stopped on a locked `target/covws` `nvs.exe` that no process held when it ran again.
+`bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check` are green.
+`ci --check`'s question shape check wanted four to six questions on four credential pages, and
+the VS Code extension page had seven.
 
 **Expected red:** nothing. The `env-secret-proofs` red the sweep named was a log from Oct 22 that
 ends `exit 0`, and no check of that name is defined now. The nightly CI run 40662443492 was
@@ -267,11 +270,10 @@ cancelled whole, with no job failed.
 
 ### Next
 
-**Stage 7's last item.** If the gate run is red, fix every failure in one pass and run it again.
-Then `bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check`, each
-green, then `DONE`.
+**The goal is reached.** The loop retires it: its file is deleted, and the release binary and the
+`.vsix` are rebuilt by the `after_retire` hooks.
 
-- [ ] Stage 7's last gate run, and the goal-end gates, each green. `tools/nv/cmd/ci.ts:1`
+- [x] Stage 7's last gate run, and the goal-end gates, each green. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
