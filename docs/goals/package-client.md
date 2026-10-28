@@ -460,70 +460,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ## Handoff
 
+
 ### State
 
-Stages 1, 2, 3, 7 and 4 are done. `nvs pkg fetch` and `nvs pkg vendor` (`crates/nvs-cli/src/package/fetch.rs:93`) resolve,
-check and write `package.lock`, unpack each package under `vendor/<vendor>/<name>/`
-(`fetch::unpack`), write `vendor/packages.nvs` (`fetch::autoloads`), and add one grant line per new
-package (`fetch::add_grants`, `fetch::with_grants`). `--locked` refuses a missing lock, a missing
-entry and an edited digest. The tree's `[capabilities]` reach the clone through
-`config::written_capabilities` (`crates/nvs-cli/src/config.rs:865`). The `dead_code` allowances on the client modules
-are gone; three fields keep one each, for serde or for stage 9's `[[download]]`.
+Stages 1, 2, 3, 7, 4 and 5 are done, and stage 9's first two items with half of the next two.
+`crates/nvs-cli/src/package/download.rs` checks each `[[download]]` entry's form
+(`download::check_form`, called from `pack::file_set`, which adds the carried-file check), and
+fetches each file through `download::request` (`crates/nvs-cli/src/package/download.rs:349`) over
+`nvs_stdlib::tool_stream`, judged by `Outbound::refused`, into `download::Store`
+(`crates/nvs-cli/src/package/download.rs:197`) under `<data>/downloads/`, behind
+`nvs_config::trust::check`. `fetch::place_downloads` (`crates/nvs-cli/src/package/fetch.rs:277`)
+runs last in `fetch::land`. `nvs pkg download` (`download::run_download`, `:501`) and
+`nvs pkg provide` (`download::run_provide`, `:564`) are in the `Command` enum
+(`crates/nvs-cli/src/package/mod.rs:172`). `config::package_network`
+(`crates/nvs-cli/src/config.rs:870`) builds the tree's TLS client, so a binary test trusts a
+loopback listener through `[http.client.tls] roots`. The standing decision *A download is bounded
+by its declared size and by time* records the choices.
 
-Tests: 3 unit cases in `fetch.rs`, 3 binary cases in `tests/package_fetch.rs`, and 1 in
-`tests/package_git.rs`, all passing. The rule fragments' **Not on disk** lines say what `fetch`
-and `vendor` ship. No test should go red.
-
-The sweep's reds were stale: the `env-secret-proofs` log exits 0, and Miri run 40474302703 ran on
-`55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
-
-### Next
-
-**Stage 5: `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`**, in `resolve.rs`, a new
-`crates/nvs-cli/src/package/report.rs`, the `Command` enum (`crates/nvs-cli/src/package/mod.rs:41`) and
-`tests/package_fetch.rs`. Write the stage's checkpoints into the goal file first.
-
-- [ ] `add <slug>[@<version>]` writes the `[dependencies]` line into the file's text as `with_grants` does (`crates/nvs-cli/src/package/fetch.rs:373`), then runs the fetch pipeline; a pending version is selected only by its exact version (`crates/nvs-cli/src/package/resolve.rs:436`).
-- [ ] `update` resolves without the lock's retracted allowance and writes the lock; `outdated` lists each package's newest released version and changes nothing. `crates/nvs-cli/src/package/resolve.rs:218`
-- [ ] `report.rs`: the capabilities the package and its subgraph request, the changes since the old lock (capabilities, owners, repository), the transitive count, and each crossing (`crates/nvs-cli/src/package/resolve.rs:76`).
-- [ ] Tests: one fixture registry entry per version state, and an update that adds a capability, in `tests/package_fetch.rs` with its `Tree` helper (`crates/nvs-cli/tests/package_fetch.rs:16`).
-
-### Backlog
-
-- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 9 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
-- Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
-- `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
-- The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the
-  editor shows `E0658`, `E0660` and `E0661` as `nvs check` does. Handed over from goal
-  `namespace-grants`. `data/gaps/nvs-lsp/the-grants-hover-reads-the-entrys-tree-and-every-grant.json`,
-  `crates/nvs-lsp/src/document.rs:771`### State
-
-Stages 1, 2, 3, 7, 4 and 5 are done. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` are
-`crates/nvs-cli/src/package/minimum.rs`: `minimum::newest` chooses only a released version, or a
-pending one past its time, and `minimum::with_minimum` writes the minimum into the file's text.
-`add` and `update` resolve, print `report::report` (`crates/nvs-cli/src/package/report.rs:27`),
-then write `package.toml` and run the same pipeline as `fetch`: `fetch::App::open` and
-`fetch::land` (`crates/nvs-cli/src/package/fetch.rs:205`). A graph that does not resolve writes
-nothing. The standing decision *A command chooses only the newest released version* records the
-choices, among them that `update` keeps the lock's retracted allowance.
-
-Tests: 5 binary cases in `tests/package_fetch.rs` (`Tree::release` publishes a version in any
-state) and 2 unit cases in `minimum.rs`, all passing; clippy and rustfmt clean. The rule fragments'
-**Not on disk** lines name what ships. No test should go red.
+Tests: 3 unit cases in `download.rs`, passing; clippy and rustfmt clean. No test should go red.
 
 The sweep's reds were stale again: the `env-secret-proofs` log exits 0, and Miri run 40474302703
 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
 ### Next
 
-**Stage 9: an external download**, in a new `crates/nvs-cli/src/package/download.rs`, `manifest.rs`,
-`fetch.rs`, `report.rs` and `lock.rs`. Follow the stage's **Split:** line, and write its
-checkpoints into the goal file first.
+**Stage 9's rest**, in `lock.rs`, `report.rs`, `crates/nvs-config/src/grants.rs` and the tests.
+Its checkpoints are in the stage already. Follow its **Split:** line: hand the loopback tests to one
+writing subagent first, since `download.rs` has landed, and do the lock and report items meanwhile.
 
-- [ ] The `[[download]]` form checks on `Manifest::downloads`, whose `dead_code` allowance goes (`crates/nvs-cli/src/package/manifest.rs:228`).
-- [ ] `download.rs` over `crates/nvs-stdlib/src/http/transport.rs`, each hop checked by `git::Outbound`'s table, into the SHA-256 cache (`crates/nvs-cli/src/cache.rs:1258`); read archives through it too, which retires the 1 MiB backlog bullet (`crates/nvs-cli/src/package/index.rs:137`).
-- [ ] `fetch::land` places each file; `report::report` prints each file's host, size and license, and a host new since the lock, which `Lock` records (`crates/nvs-cli/src/package/lock.rs:275`).
-- [ ] `nvs pkg download` and `nvs pkg provide` in the `Command` enum (`crates/nvs-cli/src/package/mod.rs:41`), and the read check beside the grant lookup (`crates/nvs-config/src/grants.rs`).
+- [ ] Tests against loopback TLS listeners in a new `crates/nvs-cli/tests/package_download.rs`, through the binary with `[http.client.tls] roots` and `[capabilities.net] internal` written and a fixture package with a `[[download]]` entry; the listener is `git.rs`'s `Host` shape (`crates/nvs-cli/src/package/git.rs:986`), the tree `tests/package_fetch.rs`'s `Tree` (`crates/nvs-cli/tests/package_fetch.rs:16`).
+- [ ] `Locked` records each download's host (`crates/nvs-cli/src/package/lock.rs:55`); `Lock::of` reads them from each package folder's manifest, so `fetch::land` builds it after `write_packages`.
+- [ ] `report::report` (`crates/nvs-cli/src/package/report.rs:27`) prints each file's host (`download::host`), size and license, the total, and a host the old lock did not have.
+- [ ] The read check beside the grant lookup (`crates/nvs-config/src/grants.rs:116`): `fetch` records each package's file set, and a read-only `Core` door from a package's namespace passes for a file in it; then the `tests/package_client.rs` cases.
 
 ### Backlog
 
