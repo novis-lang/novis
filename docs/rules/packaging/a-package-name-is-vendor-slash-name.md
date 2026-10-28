@@ -36,4 +36,8 @@ exists.
 - **Reserving a name before its first publish.** A reservation is a name with no code behind it, which
   is what squatting is.
 
-**Not on disk.** The tree has no package system.
+The client derives the slug from the namespace and refuses `Core` and every built-in component's
+namespace (`crates/nvs-cli/src/package/manifest.rs`).
+
+**Not on disk.** The registry, which owns each vendor, refuses a name that differs from a taken one
+only by case and checks the `Novis\` account at publish, is not written yet.

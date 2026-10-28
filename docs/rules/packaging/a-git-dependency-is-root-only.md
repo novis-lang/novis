@@ -27,4 +27,9 @@ above changes.
   but too rigid for private code and monorepos, and not needed: the root-only rule already confines a
   git source to the project that chose it.
 
-**Not on disk**, with the rest of the package system.
+The client clones and packs a root git dependency (`crates/nvs-cli/src/package/git.rs`), and
+resolution refuses one found below the root, naming the package that declared it
+(`crates/nvs-cli/src/package/resolve.rs`).
+
+**Not on disk.** The registry, which refuses a publish whose manifest names a git dependency, is not
+written yet.

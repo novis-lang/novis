@@ -1,12 +1,14 @@
 {
   "title": "Nothing in a package runs before your program does",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "security/no-eval",
     "security/closed-doors",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_fetch.rs",
+    "tests/hostile/tools/packages/nvs-pkg-add/01-a-package-runs-code-when-it-loads.nvs"
+  ]
 }

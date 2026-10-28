@@ -2,5 +2,5 @@
   "module": "crates/nvs-lsp/src/grants.rs",
   "title": "The grants hover reads the `nvs.toml` of the hovered file's directory and lists the `[capabilities]` roster only.",
   "text": "A handler in a file the program autoloads from another directory shows that directory's grants, not the entry's (`of_program`). The exceptions of `net.internal` and an extension's own `grants` are not listed (`list`). Grants keyed on a namespace change what a route's program may do, so the hover follows them.",
-  "goal": "package-client"
+  "goal": "first-packages"
 }

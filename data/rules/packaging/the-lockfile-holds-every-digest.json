@@ -1,12 +1,14 @@
 {
   "title": "`package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-registry-keeps-an-append-only-log",
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/src/package/lock.rs",
+    "crates/nvs-cli/tests/package_fetch.rs"
+  ]
 }

@@ -26,6 +26,7 @@ registries in order would make the first one that answers the owner of every nam
 - **The first registry that has the name.** That order is exactly how dependency confusion works: the
   public registry answers for a private name it should never have been asked about.
 
-**Not on disk.** The client resolves each vendor from its one registry
-(`crates/nvs-cli/src/package/resolve.rs`), and `nvs pkg add` and `nvs pkg update` print the report
-(`crates/nvs-cli/src/package/report.rs`). The verifier key is read and not checked yet.
+The client resolves each vendor from its one registry (`crates/nvs-cli/src/package/resolve.rs`), and
+`nvs pkg add` and `nvs pkg update` print the report (`crates/nvs-cli/src/package/report.rs`).
+
+**Not on disk.** The verifier key is read and not checked yet.

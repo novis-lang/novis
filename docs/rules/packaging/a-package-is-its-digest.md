@@ -57,5 +57,7 @@ registry's URL. Under each file host:
 {"schema": 1, "hosts": ["https://files.example.com"]}
 ```
 
-**Not on disk.** No command fetches a package yet: the index, the lock and the archive's digest
-check exist (`crates/nvs-cli/src/package/`), and `nvs pkg fetch` does not.
+`nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
+(`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
+
+**Not on disk.** An extension package is not packed or fetched as one yet.

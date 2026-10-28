@@ -1,6 +1,6 @@
 {
   "title": "`package.toml` is read by the `nvs pkg` commands, and the compiler reads its `[grants]` table and nothing else of the application's file",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-fetched-package-is-an-autoload-line",
     "config/nvs-toml-is-not-a-project-manifest",
@@ -11,6 +11,8 @@
     "security/grants-are-keyed-on-a-namespace",
     "security/optional-capability-degrades"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_client.rs",
+    "crates/nvs-cli/tests/package_grants.rs"
+  ]
 }

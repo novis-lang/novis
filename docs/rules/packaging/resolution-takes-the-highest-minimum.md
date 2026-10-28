@@ -39,7 +39,7 @@ itself, which is also why a security patch does not arrive on its own, and why r
 - **A root-only rule for `0.0.x` dependencies.** A `0.0.x` package promises nothing, and the compile
   error already names a break that matters.
 
-**Not on disk.** Resolution, its crossings and the version states are
+Resolution, its crossings and the version states are
 `crates/nvs-cli/src/package/resolve.rs`. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`
 choose only a released version (`crates/nvs-cli/src/package/minimum.rs`), and `add` and `update`
 print the crossings in their report (`crates/nvs-cli/src/package/report.rs`).

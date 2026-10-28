@@ -31,9 +31,9 @@ capability declarations it is intersected with, the way it carries the extension
 miss. A changed version, dependency or comment changes no key, because none of them changes what
 compiles.
 
-`nvs check`, the editor and every `nvs pkg` command find the file by walking up from the working
-directory, the way `git` finds `.git`: a tool locating its own project is a different question from a
-language locating a declaration. The file is TOML with unknown fields refused
+Every `nvs pkg` command finds the file by walking up from the working directory, the way `git` finds
+`.git`, and the compiler finds it by walking up from the entry file's directory: a tool locating its
+own project is a different question from a language locating a declaration. The file is TOML with unknown fields refused
 (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
 
 **Memory:** the grant table is compile-time input, and nothing of it is held per request.
@@ -50,5 +50,6 @@ language locating a declaration. The file is TOML with unknown fields refused
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** `nvs pkg` has `api`, `diff`, `pack`, `fetch` and `vendor`, and the other
-subcommands are not written yet.
+**Not on disk.** `nvs pkg` has `add`, `fetch`, `update`, `outdated`, `vendor`, `api`, `diff`, `pack`,
+`download` and `provide` (`crates/nvs-cli/src/package/mod.rs`). `audit`, `publish`, `retract`,
+`unlist`, `login` and `whoami` are not written yet, and the editor does not read `[grants]` yet.

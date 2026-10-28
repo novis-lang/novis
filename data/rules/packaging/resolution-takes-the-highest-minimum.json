@@ -1,12 +1,14 @@
 {
   "title": "Resolution selects the highest minimum any package asked for, across majors, never a pending version, and nothing upgrades itself",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/only-a-major-may-break-the-api",
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
     "packaging/a-known-bad-version-is-retracted-not-deleted",
     "packaging/the-lockfile-holds-every-digest"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/src/package/resolve.rs",
+    "crates/nvs-cli/tests/package_fetch.rs"
+  ]
 }

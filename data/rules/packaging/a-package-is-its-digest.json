@@ -1,6 +1,6 @@
 {
   "title": "A package is an immutable source archive whose identity is its BLAKE3 digest",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-name-is-vendor-slash-name",
     "packaging/a-package-cannot-reach-its-host",
@@ -12,6 +12,8 @@
     "packaging/an-extension-package-carries-two-payloads",
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_client.rs",
+    "crates/nvs-cli/src/package/index.rs"
+  ]
 }

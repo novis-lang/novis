@@ -1,6 +1,6 @@
 {
   "title": "A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",
@@ -8,6 +8,7 @@
     "packaging/package-toml-is-a-tool-input",
     "packaging/autoload-probes-fold-into-the-cache-key"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_fetch.rs"
+  ]
 }

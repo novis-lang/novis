@@ -1,6 +1,6 @@
 {
   "title": "A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform, and the package reads them without a grant",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-registry-builds-the-archive-from-git",
@@ -10,6 +10,8 @@
     "security/package-authority-is-granted-one-line-at-a-time",
     "security/path-scope-canonicalise-then-prefix"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_client.rs",
+    "crates/nvs-cli/tests/package_fetch.rs"
+  ]
 }

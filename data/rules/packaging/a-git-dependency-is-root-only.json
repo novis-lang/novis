@@ -1,12 +1,14 @@
 {
   "title": "A git dependency pins an exact commit, and only the root application may declare one",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-lockfile-holds-every-digest",
     "packaging/a-vendor-resolves-from-one-registry",
     "packaging/publishing-never-overwrites"
   ],
-  "guardedBy": [],
-  "goal": "package-client"
+  "guardedBy": [
+    "crates/nvs-cli/tests/package_git.rs",
+    "crates/nvs-cli/src/package/git.rs"
+  ]
 }

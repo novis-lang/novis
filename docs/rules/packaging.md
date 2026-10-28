@@ -3,7 +3,7 @@
 
 # Packaging
 
-*25 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*14 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -896,7 +896,7 @@ flag-gated for reasons this command does not share.
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
-## A package's name is its two-segment root namespace `Vendor\Package`, `acme/http` is that name lowercased, and the first publish under a vendor owns the vendor  *(designed — owned by goal package-client)*
+## A package's name is its two-segment root namespace `Vendor\Package`, `acme/http` is that name lowercased, and the first publish under a vendor owns the vendor
 
 `rule:packaging/a-package-name-is-vendor-slash-name`
 
@@ -938,13 +938,17 @@ exists.
 - **Reserving a name before its first publish.** A reservation is a name with no code behind it, which
   is what squatting is.
 
-**Not on disk.** The tree has no package system.
+The client derives the slug from the namespace and refuses `Core` and every built-in component's
+namespace (`crates/nvs-cli/src/package/manifest.rs`).
+
+**Not on disk.** The registry, which owns each vendor, refuses a name that differs from a taken one
+only by case and checks the `Novis\` account at publish, is not written yet.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
-## A package is an immutable source archive whose identity is its BLAKE3 digest  *(designed — owned by goal package-client)*
+## A package is an immutable source archive whose identity is its BLAKE3 digest
 
 `rule:packaging/a-package-is-its-digest`
 
@@ -1007,14 +1011,16 @@ registry's URL. Under each file host:
 {"schema": 1, "hosts": ["https://files.example.com"]}
 ```
 
-**Not on disk.** No command fetches a package yet: the index, the lock and the archive's digest
-check exist (`crates/nvs-cli/src/package/`), and `nvs pkg fetch` does not.
+`nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
+(`crates/nvs-cli/src/package/index.rs`, `lock.rs`).
+
+**Not on disk.** An extension package is not packed or fetched as one yet.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
-## `package.toml` is read by the `nvs pkg` commands, and the compiler reads its `[grants]` table and nothing else of the application's file  *(designed — owned by goal package-client)*
+## `package.toml` is read by the `nvs pkg` commands, and the compiler reads its `[grants]` table and nothing else of the application's file
 
 `rule:packaging/package-toml-is-a-tool-input`
 
@@ -1051,9 +1057,9 @@ capability declarations it is intersected with, the way it carries the extension
 miss. A changed version, dependency or comment changes no key, because none of them changes what
 compiles.
 
-`nvs check`, the editor and every `nvs pkg` command find the file by walking up from the working
-directory, the way `git` finds `.git`: a tool locating its own project is a different question from a
-language locating a declaration. The file is TOML with unknown fields refused
+Every `nvs pkg` command finds the file by walking up from the working directory, the way `git` finds
+`.git`, and the compiler finds it by walking up from the entry file's directory: a tool locating its
+own project is a different question from a language locating a declaration. The file is TOML with unknown fields refused
 ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)).
 
 **Memory:** the grant table is compile-time input, and nothing of it is held per request.
@@ -1070,8 +1076,9 @@ language locating a declaration. The file is TOML with unknown fields refused
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** `nvs pkg` has `api`, `diff`, `pack`, `fetch` and `vendor`, and the other
-subcommands are not written yet.
+**Not on disk.** `nvs pkg` has `add`, `fetch`, `update`, `outdated`, `vendor`, `api`, `diff`, `pack`,
+`download` and `provide` (`crates/nvs-cli/src/package/mod.rs`). `audit`, `publish`, `retract`,
+`unlist`, `login` and `whoami` are not written yet, and the editor does not read `[grants]` yet.
 
 <sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
@@ -1115,7 +1122,7 @@ a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.
 
 <a id="packaging-a-fetched-package-is-an-autoload-line"></a>
 
-## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`  *(designed — owned by goal package-client)*
+## A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`
 
 `rule:packaging/a-fetched-package-is-an-autoload-line`
 
@@ -1147,7 +1154,7 @@ person already edited ([`packaging/package-toml-is-a-tool-input`](packaging.md#p
 `'Acme\Http\*' = []`, because a package's code is its namespace and every namespace below it, and a
 package that already has a key naming its namespace, in either form, gets no line.
 
-**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write the folders, the generated file and the
+`nvs pkg fetch` and `nvs pkg vendor` write the folders, the generated file and the
 grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` and `nvs pkg update` write them through the same code
 (`crates/nvs-cli/src/package/minimum.rs`).
 
@@ -1155,7 +1162,7 @@ grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` and `nvs pkg 
 
 <a id="packaging-nothing-runs-before-the-program"></a>
 
-## Nothing in a package runs before your program does  *(designed — owned by goal package-client)*
+## Nothing in a package runs before your program does
 
 `rule:packaging/nothing-runs-before-the-program`
 
@@ -1179,7 +1186,7 @@ language with no FFI and no native compilation step available to userland, an al
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
 
-**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` read archives and write files, and compile
+`nvs pkg fetch` and `nvs pkg vendor` read archives and write files, and compile
 nothing (`crates/nvs-cli/tests/package_fetch.rs`). `nvs build` compiles a vendored package as it
 compiles any other source, and runs none of it.
 
@@ -1281,7 +1288,7 @@ nothing extracts or compares a package's API.
 
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 
-## Resolution selects the highest minimum any package asked for, across majors, never a pending version, and nothing upgrades itself  *(designed — owned by goal package-client)*
+## Resolution selects the highest minimum any package asked for, across majors, never a pending version, and nothing upgrades itself
 
 `rule:packaging/resolution-takes-the-highest-minimum`
 
@@ -1326,7 +1333,7 @@ itself, which is also why a security patch does not arrive on its own, and why r
 - **A root-only rule for `0.0.x` dependencies.** A `0.0.x` package promises nothing, and the compile
   error already names a break that matters.
 
-**Not on disk.** Resolution, its crossings and the version states are
+Resolution, its crossings and the version states are
 `crates/nvs-cli/src/package/resolve.rs`. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`
 choose only a released version (`crates/nvs-cli/src/package/minimum.rs`), and `add` and `update`
 print the crossings in their report (`crates/nvs-cli/src/package/report.rs`).
@@ -1335,37 +1342,44 @@ print the crossings in their report (`crates/nvs-cli/src/package/report.rs`).
 
 <a id="packaging-the-lockfile-holds-every-digest"></a>
 
-## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — owned by goal package-client)*
+## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name
 
 `rule:packaging/the-lockfile-holds-every-digest`
 
 **`package.lock` records every package in the graph** — direct and transitive — with its name,
 selected version, source and digest, and with the requested capabilities, repository, commit and
 owners that `nvs pkg update` compares against
-([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)). `nvs build --locked`, and every CI invocation,
-fetches nothing that is not in the lock and fails rather than updating it.
+([`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry)). `nvs pkg fetch --locked` and
+`nvs pkg vendor --locked`, which CI runs, fetch nothing that is not in the lock and fail rather than
+update it.
 
 **A digest mismatch is a hard error** — never a warning and never a re-fetch — and the failure names
 the package. The digest is the same BLAKE3 the artifact cache keys on, so a package's identity
 ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)) and its integrity check are one hash.
 
 **`nvs pkg vendor`** writes the whole resolved graph into the application tree, so a build needs no
-network at all. Vendored bytes are digest-checked against the lock on every build, which makes
-vendoring a convenience rather than a second trust root.
+network at all. Every `nvs pkg fetch` packs each vendored folder again and compares it with the lock's
+digest, and writes a folder that differs again from its archive, which makes vendoring a convenience
+rather than a second trust root. A build checks nothing against the lock: `vendor/` is committed
+source, read as the application's own is.
 
 The lock is for integrity, not for determinism: [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)
-is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
-byte-identical compiled units to the machine that wrote the lock, on all three platforms.
+is deterministic on its own, and `nvs pkg fetch --locked` on a clean machine writes the same
+`vendor/` tree as the machine that wrote the lock.
 
-**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write and check `package.lock` and take
-`--locked` (`crates/nvs-cli/src/package/fetch.rs`). `nvs build --locked` does not exist yet, and a
-build does not check vendored bytes against the lock.
+`nvs pkg fetch` and `nvs pkg vendor` write and check `package.lock` and take `--locked`
+(`crates/nvs-cli/src/package/fetch.rs`).
+
+**Declined:**
+- **A digest check of `vendor/` on every build.** It reads every vendored file on every compile, and
+  it guards nothing that a person who can edit `vendor/` cannot also change in the application's own
+  code.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="packaging-a-vendor-resolves-from-one-registry"></a>
 
-## Each vendor resolves from exactly one registry set in `package.toml`, by default `https://registry.novis-lang.org`, and never from the first registry that has the name  *(designed — owned by goal package-client)*
+## Each vendor resolves from exactly one registry set in `package.toml`, by default `https://registry.novis-lang.org`, and never from the first registry that has the name
 
 `rule:packaging/a-vendor-resolves-from-one-registry`
 
@@ -1397,15 +1411,16 @@ registries in order would make the first one that answers the owner of every nam
 - **The first registry that has the name.** That order is exactly how dependency confusion works: the
   public registry answers for a private name it should never have been asked about.
 
-**Not on disk.** The client resolves each vendor from its one registry
-(`crates/nvs-cli/src/package/resolve.rs`), and `nvs pkg add` and `nvs pkg update` print the report
-(`crates/nvs-cli/src/package/report.rs`). The verifier key is read and not checked yet.
+The client resolves each vendor from its one registry (`crates/nvs-cli/src/package/resolve.rs`), and
+`nvs pkg add` and `nvs pkg update` print the report (`crates/nvs-cli/src/package/report.rs`).
+
+**Not on disk.** The verifier key is read and not checked yet.
 
 <sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
-## A git dependency pins an exact commit, and only the root application may declare one  *(designed — owned by goal package-client)*
+## A git dependency pins an exact commit, and only the root application may declare one
 
 `rule:packaging/a-git-dependency-is-root-only`
 
@@ -1438,7 +1453,12 @@ above changes.
   but too rigid for private code and monorepos, and not needed: the root-only rule already confines a
   git source to the project that chose it.
 
-**Not on disk**, with the rest of the package system.
+The client clones and packs a root git dependency (`crates/nvs-cli/src/package/git.rs`), and
+resolution refuses one found below the root, naming the package that declared it
+(`crates/nvs-cli/src/package/resolve.rs`).
+
+**Not on disk.** The registry, which refuses a publish whose manifest names a git dependency, is not
+written yet.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites).</sub>
 
@@ -1792,7 +1812,7 @@ held after the digest is recorded.
 
 <a id="packaging-a-package-carries-only-its-source-and-what-it-lists"></a>
 
-## A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform, and the package reads them without a grant  *(designed — owned by goal package-client)*
+## A package archive carries its `src/` source, `package.toml`, its license and readme, and the files `files` names, within 16 MiB and 5,000 files whose paths work on every platform, and the package reads them without a grant
 
 `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`
 
@@ -1878,14 +1898,25 @@ nothing per request.
 It refuses a symbolic link anywhere it reads, since a link would make the set depend on what lies
 outside the package.
 
-**Not on disk.** The fetch does not yet stop at the limits while it reads, and there is no read
-check for a package's own files.
+`nvs pkg fetch` writes each package's set to `vendor/package-files.toml`
+(`crates/nvs-cli/src/package/fetch.rs`), `nvs_config::package` reads it onto each vendored package,
+and the grant check passes a read whose path is a string literal in the set
+(`crates/nvs-types/src/capability.rs`'s `own_file_word`, over `nvs_stdlib::registry::OWN_FILE_READS`).
+The call carries the word of the file's resolved path (`nvs_config::capability::own_file_word`), and
+the read door passes `fs.read` for that one file even where the operator's scope leaves `vendor/` out:
+it resolves the path again and compares the words (`crates/nvs-runtime/src/capability.rs`'s
+`own_file`). A path built at run time still needs a grant and the scope.
+
+The fetch reads each archive through `crates/nvs-cli/src/package/index.rs`, which stops one byte past
+`pack::MAX_ARCHIVE_BYTES` from a `file:` and from an `https:` file host.
+
+**Not on disk.** `nvs pkg publish` and its `--dry-run` are not written yet.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="packaging-an-external-file-is-pinned-by-url-sha256-and-size"></a>
 
-## A file too large for a package is a `[[download]]` entry pinned by HTTPS URLs, SHA-256 and size, which the fetch downloads, checks and places without running or unpacking anything  *(designed — owned by goal package-client)*
+## A file too large for a package is a `[[download]]` entry pinned by HTTPS URLs, SHA-256 and size, which the fetch downloads, checks and places without running or unpacking anything
 
 `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`
 
@@ -1913,7 +1944,7 @@ license = "OFL-1.1"
   does not end in `.nvs`, is not under `src/` and is not a file the archive carries
   ([`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists)).
 - **Files are fetched with the package, never at run time.** `nvs pkg add`, `fetch`, `update` and
-  `vendor` download them, and a `--locked` build with a full cache reaches no network.
+  `vendor` download them, and a build reaches no network.
 - **Every download is HTTPS, and every redirect hop is checked against the outbound address table,**
   at most five hops, so a package cannot make an installer reach a private address or the cloud
   metadata service.
@@ -1955,7 +1986,10 @@ request.
   downloads and can replace it, so a fetch reads up to the full size before it learns the bytes are
   wrong.
 
-**Not on disk.** There is no `nvs pkg fetch`, `download` or `provide`, and no reader for `[[download]]`.
+`nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
+`crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`.
+
+**Not on disk.** `nvs pkg publish` and the package page are not written yet.
 
 <sub>See also [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/nothing-runs-before-the-program`](packaging.md#packaging-nothing-runs-before-the-program), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 

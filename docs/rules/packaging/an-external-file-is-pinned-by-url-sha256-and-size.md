@@ -22,7 +22,7 @@ license = "OFL-1.1"
   does not end in `.nvs`, is not under `src/` and is not a file the archive carries
   (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
 - **Files are fetched with the package, never at run time.** `nvs pkg add`, `fetch`, `update` and
-  `vendor` download them, and a `--locked` build with a full cache reaches no network.
+  `vendor` download them, and a build reaches no network.
 - **Every download is HTTPS, and every redirect hop is checked against the outbound address table,**
   at most five hops, so a package cannot make an installer reach a private address or the cloud
   metadata service.
@@ -64,6 +64,7 @@ request.
   downloads and can replace it, so a fetch reads up to the full size before it learns the bytes are
   wrong.
 
-**Not on disk.** `nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
-`crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`. A package
-does not read its own files without a grant line yet, and there is no `nvs pkg publish`.
+`nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
+`crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`.
+
+**Not on disk.** `nvs pkg publish` and the package page are not written yet.

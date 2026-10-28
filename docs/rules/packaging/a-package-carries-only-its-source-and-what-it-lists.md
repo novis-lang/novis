@@ -89,4 +89,7 @@ the read door passes `fs.read` for that one file even where the operator's scope
 it resolves the path again and compares the words (`crates/nvs-runtime/src/capability.rs`'s
 `own_file`). A path built at run time still needs a grant and the scope.
 
-**Not on disk.** The fetch does not yet stop at the limits while it reads.
+The fetch reads each archive through `crates/nvs-cli/src/package/index.rs`, which stops one byte past
+`pack::MAX_ARCHIVE_BYTES` from a `file:` and from an `https:` file host.
+
+**Not on disk.** `nvs pkg publish` and its `--dry-run` are not written yet.
