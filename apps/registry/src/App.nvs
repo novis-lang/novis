@@ -65,7 +65,7 @@ final class App
         try {
             var $passkey = Passkey::verifyRegistration(Request::body(), $site->domain(), $site->origin);
             array<string> $codes = new Accounts(Schema::open())->create($account, $passkey);
-            Session::signIn($account);
+            Session::signIn($account, true);
             Response::setStatus(201);
             Response::json({ account: $account, recoveryCodes: $codes });
         } catch (RuntimeError $error) {
@@ -96,7 +96,7 @@ final class App
             }
             var $passkey = Passkey::verifySignIn(Request::body(), $owned->passkey, $site->domain(), $site->origin);
             $accounts->signedIn($owned->account, $passkey);
-            Session::signIn($owned->account);
+            Session::signIn($owned->account, true);
             Response::json({ account: $owned->account });
         } catch (RuntimeError $error) {
             App::fail(403, 'The passkey could not be checked.');
@@ -115,24 +115,26 @@ final class App
                 App::fail(403, 'This recovery code is not valid, or it was used before.');
                 return;
             }
-            Session::signIn($account);
+            Session::signIn($account, false);
             Response::json({ account: $account, recoveryCodesLeft: $accounts->recoveryCodesLeft($account) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a code.');
         }
     }
 
-    // Returns the account of the visitor, its number of passkeys and of unused recovery codes.
+    // Returns the account of the visitor, its number of passkeys and of unused recovery codes, and the vendors it owns.
     #[Route(path: '/api/account', method: Method::Get)]
     #[Access(allow: Visitor::SignedIn)]
     public static function account(): void
     {
         string $account = Session::account() ?? '';
-        var $accounts = new Accounts(Schema::open());
+        var $db = Schema::open();
+        var $accounts = new Accounts($db);
         Response::json({
             account: $account,
             passkeys: Arr::count($accounts->passkeys($account)),
             recoveryCodesLeft: $accounts->recoveryCodesLeft($account),
+            vendors: new Vendors($db)->ownedBy($account),
         });
     }
 
@@ -163,6 +165,143 @@ final class App
         }
     }
 
+    // Returns the owners of a vendor. Only an owner of the vendor sees them.
+    #[Route(path: '/api/vendors/{vendor}/owners', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function owners(tainted string $vendor): void
+    {
+        var $vendors = new Vendors(Schema::open());
+        ?string $name = App::ownedVendor($vendors, $vendor);
+        if ($name != null) {
+            Response::json({ vendor: $name, owners: $vendors->owners($name) });
+        }
+    }
+
+    // Adds an owner to a vendor. Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/vendors/{vendor}/owners', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function addOwner(tainted string $vendor): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        var $db = Schema::open();
+        var $vendors = new Vendors($db);
+        ?string $name = App::ownedVendor($vendors, $vendor);
+        if ($name == null) {
+            return;
+        }
+        try {
+            ?string $account = Accounts::idOf(Request::jsonAs<OwnerAnswer>()->account);
+            if ($account == null || !new Accounts($db)->exists($account)) {
+                App::fail(404, 'There is no account with this id.');
+                return;
+            }
+            if (!$vendors->addOwner($name, $account)) {
+                App::fail(409, 'This account is an owner already.');
+                return;
+            }
+            Response::setStatus(201);
+            Response::json({ vendor: $name, owners: $vendors->owners($name) });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with an account.');
+        }
+    }
+
+    // Removes an owner from a vendor. The last owner cannot be removed.
+    // Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/vendors/{vendor}/owners/{account}', method: Method::Delete)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function removeOwner(tainted string $vendor, tainted string $account): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        var $vendors = new Vendors(Schema::open());
+        ?string $name = App::ownedVendor($vendors, $vendor);
+        if ($name == null) {
+            return;
+        }
+        ?string $owner = Accounts::idOf($account);
+        if ($owner == null || !$vendors->isOwner($name, $owner)) {
+            App::fail(404, 'This account is not an owner of the vendor.');
+            return;
+        }
+        if (!$vendors->removeOwner($name, $owner)) {
+            App::fail(409, 'The last owner of a vendor cannot be removed.');
+            return;
+        }
+        Response::json({ vendor: $name, owners: $vendors->owners($name) });
+    }
+
+    // Makes a publish token for a vendor or one of its packages. The answer shows the token this one time only.
+    // Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/tokens', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function createToken(): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        string $account = Session::account() ?? '';
+        var $db = Schema::open();
+        try {
+            var $asked = Request::jsonAs<TokenRequest>();
+            ?string $scope = Tokens::scopeOf($asked->scope);
+            if ($scope == null) {
+                App::fail(400, 'The scope must be a vendor, such as `Acme`, or a package, such as `Acme\\Http`.');
+                return;
+            }
+            if ($asked->days < 1 || $asked->days > Tokens::MAX_DAYS) {
+                App::fail(400, 'A token works for 1 to 365 days.');
+                return;
+            }
+            if (!new Vendors($db)->isOwner(Str::before($scope, '\\') ?? $scope, $account)) {
+                App::fail(403, 'You can make a token only for a vendor you own.');
+                return;
+            }
+            array<string> $made = new Tokens($db)->create($account, $scope, $asked->days);
+            Response::setStatus(201);
+            Response::json({ id: $made['id'], token: $made['token'], scope: $scope, days: $asked->days });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a scope and a number of days.');
+        }
+    }
+
+    // Returns the tokens of the account, the newest first. The answer has no token itself, only its id.
+    #[Route(path: '/api/tokens', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function tokens(): void
+    {
+        Response::json({ tokens: new Tokens(Schema::open())->of(Session::account() ?? '') });
+    }
+
+    // Revokes a token of the account. A recovery code is enough for this.
+    #[Route(path: '/api/tokens/{id}', method: Method::Delete)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function revokeToken(tainted string $id): void
+    {
+        if (!new Tokens(Schema::open())->revoke(Session::account() ?? '', $id)) {
+            App::fail(404, 'This account has no such token, or it was revoked before.');
+            return;
+        }
+        Response::setStatus(204);
+    }
+
+    // Returns the account and the scope of the token in the `authorization` header.
+    // `nvs pkg whoami` calls this. The session is not used.
+    #[Route(path: '/api/whoami', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function whoami(): void
+    {
+        ?Token $token = new Tokens(Schema::open())->find(Tokens::bearer());
+        if ($token == null) {
+            App::fail(401, 'The token is not valid. It may be expired or revoked.');
+            return;
+        }
+        Response::json({ account: $token->account, scope: $token->scope, expiresAt: $token->expiresAt });
+    }
+
     // Signs the visitor out.
     #[Route(path: '/api/signout', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
@@ -182,6 +321,30 @@ final class App
     private static function options(string $json): void
     {
         Response::json(Json::decode($json));
+    }
+
+    // Returns the name of the vendor when the visitor owns it.
+    // Otherwise it writes the error, and the result is `null`.
+    private static function ownedVendor(Vendors $vendors, tainted string $vendor): ?string
+    {
+        ?string $name = Vendors::nameOf($vendor);
+        ?string $found = $name == null ? null : $vendors->find($name);
+        if ($found == null || !$vendors->isOwner($found, Session::account() ?? '')) {
+            App::fail(404, 'You own no vendor with this name.');
+            return null;
+        }
+        return $found;
+    }
+
+    // Returns `true` when the visitor signed in with a passkey in the last 15 minutes.
+    // Otherwise it writes the error, and the result is `false`.
+    private static function needsPasskey(): bool
+    {
+        if (Session::hasRecentPasskey()) {
+            return true;
+        }
+        App::fail(403, 'Sign in with a passkey first. A recovery code is not enough for this.');
+        return false;
     }
 
     private static function fail(uint $status, string $text): void

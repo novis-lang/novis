@@ -59,6 +59,15 @@ final class Accounts
         return $codes;
     }
 
+    // Returns `true` when an account with this id exists.
+    public function exists(string $account): bool
+    {
+        foreach ($this->db->query('select 1 as found from accounts where id = ?', [$account]) as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
     // Saves one more passkey for an account.
     public function addPasskey(string $account, Credential $passkey): void
     {

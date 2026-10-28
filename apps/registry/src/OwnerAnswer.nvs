@@ -1,0 +1,14 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to add an owner to a vendor: the id of the account to add.
+#[Core\Json\Derive]
+final class OwnerAnswer
+{
+    public tainted string $account;
+
+    public function constructor(tainted string $account)
+    {
+        $this->account = $account;
+    }
+}

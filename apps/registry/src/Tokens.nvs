@@ -1,0 +1,162 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Hash;
+use Core\Random;
+use Core\Request;
+use Core\Str;
+use Core\Time;
+
+// Makes, checks and revokes publish tokens. A token publishes one vendor or one package,
+// and it expires after one year at most. It starts with `nvsreg_`, so a secret scanner finds a leaked one.
+// The token is shown once when it is made. The registry saves only its SHA-256 hash.
+final class Tokens
+{
+    // Every token starts with this text.
+    public const string PREFIX = 'nvsreg_';
+
+    // The longest time a token works, in days.
+    public const int MAX_DAYS = 365;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Checks that a sent text is a scope: a vendor, such as `Acme`, or a package, such as `Acme\Http`.
+    // It returns the scope as a plain `string`. Any other text returns `null`.
+    public static function scopeOf(tainted string $text): ?string
+    {
+        array<tainted string> $parts = Str::split($text, '\\');
+        if (Core\Arr::count($parts) > 2) {
+            return null;
+        }
+        array<string> $names = [];
+        foreach ($parts as tainted string $part) {
+            ?string $name = Vendors::nameOf($part);
+            if ($name == null) {
+                return null;
+            }
+            $names[] = $name;
+        }
+        return Str::join($names, '\\');
+    }
+
+    // Returns the token of the `authorization` header, such as `Bearer nvsreg_...`.
+    // A request without one returns `null`. A session cookie is never a token.
+    public static function bearer(): ?tainted string
+    {
+        ?tainted string $header = Request::header('authorization');
+        if ($header == null || !Str::startsWith(Str::lower(Str::slice($header, 0, 7)), 'bearer ')) {
+            return null;
+        }
+        return Str::trim(Str::slice($header, 7));
+    }
+
+    // Makes a token for an account. It returns the id of the token and the token itself.
+    // The caller shows the token once. Only its hash is saved.
+    public function create(string $account, string $scope, int $days): array<string>
+    {
+        int $now = Time::now()->toEpochSeconds();
+        string $id = Random::token(8);
+        string $token = Tokens::PREFIX . Random::token(32);
+        $this->db->execute(
+            'insert into tokens (id, hash, account, scope, created_at, expires_at) values (?, ?, ?, ?, ?, ?)',
+            [$id, Tokens::hashOf($token), $account, $scope, $now, $now + $days * 86400],
+        );
+        return ['id' => $id, 'token' => $token];
+    }
+
+    // Returns the token that was sent, when it is known, not revoked and not expired.
+    // Any other token returns `null`. Using a token does not count as activity of the account.
+    public function find(?tainted string $presented): ?Token
+    {
+        if ($presented == null || !Str::startsWith($presented, Tokens::PREFIX)) {
+            return null;
+        }
+        var $rows = $this->db->query(
+            'select id, account, scope, created_at, expires_at, revoked_at, used_at from tokens '
+                . 'where hash = ? and revoked_at is null and expires_at > ?',
+            [Tokens::hashOf($presented), Time::now()->toEpochSeconds()],
+        );
+        foreach ($rows as Row $row) {
+            return Tokens::toToken($row);
+        }
+        return null;
+    }
+
+    // Returns the token when it may publish this package, such as `Acme\Http`, and saves the time of its use.
+    // The token must be valid, its scope must be the package or its vendor,
+    // and its account must still own the vendor. Otherwise the result is `null`.
+    public function allows(?tainted string $presented, string $package): ?Token
+    {
+        ?Token $token = $this->find($presented);
+        if ($token == null || !Tokens::covers($token->scope, $package)) {
+            return null;
+        }
+        string $vendor = Str::before($package, '\\') ?? $package;
+        if (!new Vendors($this->db)->isOwner($vendor, $token->account)) {
+            return null;
+        }
+        $this->db->execute('update tokens set used_at = ? where id = ?', [Time::now()->toEpochSeconds(), $token->id]);
+        return $token;
+    }
+
+    // Returns `true` when a scope covers a package. `Acme` covers `Acme\Http`,
+    // and `Acme\Http` covers only itself. Upper and lower case do not matter.
+    public static function covers(string $scope, string $package): bool
+    {
+        string $wanted = Str::lower($package);
+        string $have = Str::lower($scope);
+        return $have == $wanted || Str::startsWith($wanted, $have . '\\');
+    }
+
+    // Returns the tokens of an account, the newest first. Revoked and expired ones are included.
+    public function of(string $account): array<Token>
+    {
+        array<Token> $found = [];
+        var $rows = $this->db->query(
+            'select id, account, scope, created_at, expires_at, revoked_at, used_at from tokens where account = ? order by created_at desc, id',
+            [$account],
+        );
+        foreach ($rows as Row $row) {
+            $found[] = Tokens::toToken($row);
+        }
+        return $found;
+    }
+
+    // Revokes a token of an account. From now on, the token does not work.
+    // It returns `false` when the account has no such token, or it was revoked before.
+    public function revoke(string $account, tainted string $id): bool
+    {
+        var $write = $this->db->execute(
+            'update tokens set revoked_at = ? where id = ? and account = ? and revoked_at is null',
+            [Time::now()->toEpochSeconds(), $id, $account],
+        );
+        return $write->affected() == 1;
+    }
+
+    // The hash that is saved for a token: SHA-256, as 64 hex characters.
+    public static function hashOf(tainted string $token): string
+    {
+        return Encoding::toHex(Hash::of($token, Hash::Digest::Sha256));
+    }
+
+    private static function toToken(Row $row): Token
+    {
+        return new Token(
+            Core\Taint::assertTrusted($row->string('id') ?? '', 'the registry wrote the token id'),
+            Accounts::idOf($row->string('account')) ?? '',
+            Tokens::scopeOf($row->string('scope') ?? '') ?? '',
+            $row->int('created_at') ?? 0,
+            $row->int('expires_at') ?? 0,
+            $row->int('revoked_at'),
+            $row->int('used_at'),
+        );
+    }
+}

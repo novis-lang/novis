@@ -26,11 +26,15 @@ final class BrowserTest
     }
 
     // Sends a request with the session cookie, and keeps the cookie the answer sets.
-    public function send(Method $method, string $path, tainted string $body = ''): Core\Test\Response
+    // A `$token` is sent in the `authorization` header, as `nvs pkg` sends it.
+    public function send(Method $method, string $path, tainted string $body = '', tainted string $token = ''): Core\Test\Response
     {
         array<string> $headers = ['content-type' => 'application/json'];
         if ($this->cookie != '') {
             $headers['cookie'] = $this->cookie;
+        }
+        if ($token != '') {
+            $headers['authorization'] = 'Bearer ' . Core\Taint::assertTrusted($token, 'the app under test made this token');
         }
         var $response = Test::request($method, $path, { headers: $headers, body: Core\Taint::assertTrusted($body, 'the test wrote this body') });
         foreach ($response->cookies() as string $name => string $value) {
@@ -64,6 +68,24 @@ final class BrowserTest
         var $options = $this->post('/api/signup/options', $this->solveWork());
         Test::assertSame($options->status(), 200);
         return $this->send(Method::Post, '/api/signup', $this->register($options->body()));
+    }
+
+    // Signs up, and returns the id of the new account.
+    public function newAccount(): string
+    {
+        var $signUp = $this->signUp();
+        Test::assertSame($signUp->status(), 201);
+        return Accounts::idOf(($signUp->json() as array<mixed>)['account'] as tainted string) ?? '';
+    }
+
+    // Signs up, and makes the new account the owner of a new vendor with a random name, such as `V3f2a9c1e`.
+    // It returns the name of the vendor.
+    public function newVendor(): string
+    {
+        string $account = $this->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        Test::assertTrue(new Vendors(Schema::open())->claim($vendor, $account));
+        return $vendor;
     }
 
     // Signs in with the passkey of this device.

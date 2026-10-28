@@ -1,0 +1,17 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to make a token: the vendor or package it may publish, and the number
+// of days until it expires, such as `{"scope": "Acme\\Http", "days": 90}`.
+#[Core\Json\Derive]
+final class TokenRequest
+{
+    public tainted string $scope;
+    public int $days;
+
+    public function constructor(tainted string $scope, int $days)
+    {
+        $this->scope = $scope;
+        $this->days = $days;
+    }
+}

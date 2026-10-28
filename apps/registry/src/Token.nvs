@@ -1,0 +1,19 @@
+<?nvs
+namespace Registry;
+
+// One publish token as the registry saves it. The token itself is not here: only its hash is saved.
+// Every time is in seconds since 1970. `revokedAt` and `usedAt` are `null` until that happens.
+#[Core\Json\Derive]
+final class Token
+{
+    public function constructor(
+        public readonly string $id,
+        public readonly string $account,
+        public readonly string $scope,
+        public readonly int $createdAt,
+        public readonly int $expiresAt,
+        public readonly ?int $revokedAt,
+        public readonly ?int $usedAt,
+    )
+    {}
+}

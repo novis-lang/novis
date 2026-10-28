@@ -1,12 +1,18 @@
 <?nvs
 namespace Registry;
 
+use Core\Time;
+
 // The account a visitor signed in to, and the account a sign-up is creating.
 // Both are kept in the session. `Gate::allows` starts the session before every route.
 final class Session
 {
     private const string ACCOUNT = 'registry.account';
     private const string SIGN_UP = 'registry.signUp';
+    private const string PASSKEY_AT = 'registry.passkeyAt';
+
+    // How long a sign-in with a passkey allows the steps that need a passkey, in seconds.
+    public const int PASSKEY_WINDOW = 900;
 
     // The account of this visitor, or `null` when nobody signed in.
     public static function account(): ?string
@@ -16,10 +22,22 @@ final class Session
 
     // Signs the visitor in to an account. The session gets a new id first,
     // so an id that somebody else knew before the sign-in is useless.
-    public static function signIn(string $account): void
+    // `$byPasskey` is `true` for a sign-in with a passkey and `false` for a recovery code.
+    public static function signIn(string $account, bool $byPasskey): void
     {
         Core\Session::regenerate();
         Core\Session::set(Session::ACCOUNT, $account);
+        if ($byPasskey) {
+            Core\Session::set(Session::PASSKEY_AT, Time::now()->toEpochSeconds());
+        }
+    }
+
+    // Returns `true` when this session signed in with a passkey in the last 15 minutes.
+    // Adding an owner and making a token need this. A recovery code does not count.
+    public static function hasRecentPasskey(): bool
+    {
+        ?int $at = Core\Session::get(Session::PASSKEY_AT) as ?int;
+        return $at != null && Time::now()->toEpochSeconds() - $at <= Session::PASSKEY_WINDOW;
     }
 
     // Ends the session.

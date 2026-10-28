@@ -1,0 +1,130 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Str;
+use Core\Time;
+
+// Reads and saves vendors and their owners. A vendor is the first part of a package name,
+// such as `Acme` in `Acme\Http`. Only the owners of a vendor publish its packages.
+final class Vendors
+{
+    private const string LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Checks that a sent text is a vendor name: a letter, then up to 63 letters, digits or `_`.
+    // It returns the name as a plain `string`. Any other text returns `null`.
+    public static function nameOf(?tainted string $text): ?string
+    {
+        if ($text == null || Str::length($text) > 64 || Str::trim(Str::slice($text, 0, 1), { characters: Vendors::LETTERS }) != '') {
+            return null;
+        }
+        if (Str::trim($text, { characters: Vendors::LETTERS . '0123456789_' }) != '') {
+            return null;
+        }
+        return Core\Taint::assertTrusted($text, 'a vendor name is letters, digits and _');
+    }
+
+    // Takes a vendor for an account. The first publish under a new vendor calls this.
+    // It returns `true` when the account owns the vendor afterwards.
+    // A vendor that exists keeps its owners, so the result is `false` for anybody else.
+    public function claim(string $vendor, string $account): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        string $key = Str::lower($vendor);
+        $this->db->transaction(fn(Transaction $tx): void => {
+            var $write = $tx->execute(
+                'insert into vendors (key, name, created_at) values (?, ?, ?) on conflict (key) do nothing',
+                [$key, $vendor, $now],
+            );
+            if ($write->affected() == 1) {
+                $tx->execute('insert into owners (vendor, account, added_at) values (?, ?, ?)', [$key, $account, $now]);
+            }
+        });
+        return $this->isOwner($vendor, $account);
+    }
+
+    // Returns the name of a vendor as it was first published, such as `Acme` for `acme`.
+    // If there is no such vendor, the result is `null`.
+    public function find(string $vendor): ?string
+    {
+        foreach ($this->db->query('select name from vendors where key = ?', [Str::lower($vendor)]) as Row $row) {
+            return Vendors::nameOf($row->string('name'));
+        }
+        return null;
+    }
+
+    // Returns `true` when the account is an owner of the vendor.
+    public function isOwner(string $vendor, string $account): bool
+    {
+        var $rows = $this->db->query('select 1 as found from owners where vendor = ? and account = ?', [Str::lower($vendor), $account]);
+        foreach ($rows as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the account ids of the owners of a vendor, the first owner first.
+    public function owners(string $vendor): array<string>
+    {
+        array<string> $found = [];
+        var $rows = $this->db->query('select account from owners where vendor = ? order by added_at, account', [Str::lower($vendor)]);
+        foreach ($rows as Row $row) {
+            ?string $account = Accounts::idOf($row->string('account'));
+            if ($account != null) {
+                $found[] = $account;
+            }
+        }
+        return $found;
+    }
+
+    // Returns the names of the vendors an account owns.
+    public function ownedBy(string $account): array<string>
+    {
+        array<string> $found = [];
+        var $rows = $this->db->query(
+            'select vendors.name as name from owners join vendors on vendors.key = owners.vendor where owners.account = ? order by vendors.key',
+            [$account],
+        );
+        foreach ($rows as Row $row) {
+            ?string $name = Vendors::nameOf($row->string('name'));
+            if ($name != null) {
+                $found[] = $name;
+            }
+        }
+        return $found;
+    }
+
+    // Adds an owner to a vendor. It returns `false` when the account is already an owner.
+    public function addOwner(string $vendor, string $account): bool
+    {
+        var $write = $this->db->execute(
+            'insert into owners (vendor, account, added_at) values (?, ?, ?) on conflict (vendor, account) do nothing',
+            [Str::lower($vendor), $account, Time::now()->toEpochSeconds()],
+        );
+        return $write->affected() == 1;
+    }
+
+    // Removes an owner from a vendor. The last owner cannot be removed, so a vendor always has one.
+    // It returns `false` when the account is not an owner, or is the last one.
+    public function removeOwner(string $vendor, string $account): bool
+    {
+        string $key = Str::lower($vendor);
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            foreach ($tx->query('select count(*) as owners from owners where vendor = ?', [$key]) as Row $row) {
+                if (($row->int('owners') ?? 0) < 2) {
+                    return false;
+                }
+            }
+            return $tx->execute('delete from owners where vendor = ? and account = ?', [$key, $account])->affected() == 1;
+        });
+    }
+}

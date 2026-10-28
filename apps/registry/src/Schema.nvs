@@ -40,7 +40,30 @@ final class Schema
                 . 'hash text primary key, account text not null references accounts (id), used_at integer)',
             [],
         );
+        // `key` is the name of the vendor in lower case, such as `acme`. Two names that differ
+        // only in case are one vendor. `name` is the name as it was first published, such as `Acme`.
+        $db->execute(
+            'create table if not exists vendors (key text primary key, name text not null, created_at integer not null)',
+            [],
+        );
+        $db->execute(
+            'create table if not exists owners ('
+                . 'vendor text not null references vendors (key), account text not null references accounts (id), '
+                . 'added_at integer not null, primary key (vendor, account))',
+            [],
+        );
+        // Only the SHA-256 hash of each token is kept. `scope` is a vendor, such as `Acme`,
+        // or a package, such as `Acme\Http`. `revoked_at` and `used_at` are null until that happens.
+        $db->execute(
+            'create table if not exists tokens ('
+                . 'id text primary key, hash text not null unique, account text not null references accounts (id), '
+                . 'scope text not null, created_at integer not null, expires_at integer not null, '
+                . 'revoked_at integer, used_at integer)',
+            [],
+        );
         $db->execute('create index if not exists passkeys_of_account on passkeys (account)', []);
         $db->execute('create index if not exists codes_of_account on recovery_codes (account)', []);
+        $db->execute('create index if not exists owners_of_account on owners (account)', []);
+        $db->execute('create index if not exists tokens_of_account on tokens (account)', []);
     }
 }

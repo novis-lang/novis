@@ -1,0 +1,128 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Row;
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+use Core\Time\Duration;
+
+// Tests for publish tokens: their scope, their expiry, revoking them, and the hash the registry saves.
+// Each test signs up its own new accounts and vendors, so the tests do not see each other's rows.
+final class TokensTest
+{
+    #[Test]
+    public function aTokenPublishesOnlyInsideItsScope(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = TokensTest::make($browser, $vendor . '\\Http', 30);
+        Test::assertTrue(Str::startsWith($token, 'nvsreg_'));
+        var $tokens = new Tokens(Schema::open());
+        // The token publishes its own package, in any case, and no other package.
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Http') != null);
+        Test::assertTrue($tokens->allows($token, Str::lower($vendor) . '\\http') != null);
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Mail') == null);
+        Test::assertTrue($tokens->allows($token, $vendor . '\\HttpClient') == null);
+        // A token for the vendor publishes every package of the vendor, and nothing of another vendor.
+        tainted string $wide = TokensTest::make($browser, $vendor, 30);
+        Test::assertTrue($tokens->allows($wide, $vendor . '\\Mail') != null);
+        Test::assertTrue($tokens->allows($wide, 'Other\\Mail') == null);
+        // `nvs pkg whoami` gets the account and the scope.
+        var $whoami = new BrowserTest()->send(Method::Get, '/api/whoami', '', $token);
+        Test::assertSame($whoami->status(), 200);
+        Test::assertSame(($whoami->json() as array<mixed>)['scope'] as tainted string, $vendor . '\\Http');
+        // A token for a vendor that the account does not own is not made.
+        var $other = new BrowserTest();
+        string $theirs = $other->newVendor();
+        Test::assertSame($browser->post('/api/tokens', { scope: $theirs, days: 30 })->status(), 403);
+        Test::assertSame($browser->post('/api/tokens', { scope: 'A\\B\\C', days: 30 })->status(), 400);
+        Test::assertSame($browser->post('/api/tokens', { scope: $vendor, days: 366 })->status(), 400);
+    }
+
+    #[Test(at: '2026-01-01T00:00:00Z')]
+    public function anExpiredTokenIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = TokensTest::make($browser, $vendor, 1);
+        Test::assertSame(new BrowserTest()->send(Method::Get, '/api/whoami', '', $token)->status(), 200);
+        Test::advance(Duration::hours(25));
+        Test::assertSame(new BrowserTest()->send(Method::Get, '/api/whoami', '', $token)->status(), 401);
+        Test::assertTrue(new Tokens(Schema::open())->allows($token, $vendor . '\\Http') == null);
+        // The sign-in with the passkey was more than 15 minutes ago, so no new token is made.
+        Test::assertSame($browser->post('/api/tokens', { scope: $vendor, days: 30 })->status(), 403);
+        Test::assertSame($browser->signIn()->status(), 200);
+        Test::assertSame($browser->post('/api/tokens', { scope: $vendor, days: 30 })->status(), 201);
+    }
+
+    #[Test]
+    public function aRevokedTokenIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        var $made = $browser->post('/api/tokens', { scope: $vendor, days: 30 })->json() as array<mixed>;
+        tainted string $token = $made['token'] as tainted string;
+        string $id = Core\Taint::assertTrusted($made['id'] as tainted string, 'the app under test made this id');
+        // Another account cannot revoke the token.
+        var $stranger = new BrowserTest();
+        $stranger->newAccount();
+        Test::assertSame($stranger->send(Method::Delete, '/api/tokens/' . $id)->status(), 404);
+        Test::assertSame(new BrowserTest()->send(Method::Get, '/api/whoami', '', $token)->status(), 200);
+        // The owner revokes it. Then it does not work, and a second revoke finds nothing.
+        Test::assertSame($browser->send(Method::Delete, '/api/tokens/' . $id)->status(), 204);
+        Test::assertSame(new BrowserTest()->send(Method::Get, '/api/whoami', '', $token)->status(), 401);
+        Test::assertTrue(new Tokens(Schema::open())->allows($token, $vendor . '\\Http') == null);
+        Test::assertSame($browser->send(Method::Delete, '/api/tokens/' . $id)->status(), 404);
+        // The list of tokens still shows it, with the time it was revoked.
+        var $list = ($browser->send(Method::Get, '/api/tokens')->json() as array<mixed>)['tokens'] as array<mixed>;
+        Test::assertCount($list, 1);
+        Test::assertTrue(($list[0] as array<mixed>)['revokedAt'] != null);
+    }
+
+    #[Test]
+    public function onlyTheHashOfATokenIsSaved(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        var $made = $browser->post('/api/tokens', { scope: $vendor, days: 30 })->json() as array<mixed>;
+        tainted string $token = $made['token'] as tainted string;
+        // The list of tokens never shows a token again.
+        Test::assertTrue(!Str::contains($browser->send(Method::Get, '/api/tokens')->body(), $token));
+        // The saved row has the SHA-256 hash of the token, and no column has the token.
+        var $rows = Schema::open()->query('select * from tokens where id = ?', [$made['id'] as tainted string]);
+        int $found = 0;
+        foreach ($rows as Row $row) {
+            $found++;
+            Test::assertSame($row->string('hash') ?? '', Tokens::hashOf($token));
+            array<string> $columns = ['id', 'hash', 'account', 'scope'];
+            foreach ($columns as string $column) {
+                Test::assertTrue(!Str::contains($row->string($column) ?? '', Str::slice($token, 7)));
+            }
+        }
+        Test::assertSame($found, 1);
+    }
+
+    #[Test]
+    public function aTokenStopsWhenItsAccountIsNoLongerAnOwner(): void
+    {
+        var $first = new BrowserTest();
+        string $vendor = $first->newVendor();
+        var $second = new BrowserTest();
+        string $account = $second->newAccount();
+        Test::assertSame($first->post('/api/vendors/' . $vendor . '/owners', { account: $account })->status(), 201);
+        tainted string $token = TokensTest::make($second, $vendor, 30);
+        var $tokens = new Tokens(Schema::open());
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Http') != null);
+        Test::assertSame($first->send(Method::Delete, '/api/vendors/' . $vendor . '/owners/' . $account)->status(), 200);
+        Test::assertTrue($tokens->allows($token, $vendor . '\\Http') == null);
+    }
+
+    // Makes a token in the browser's account and returns it.
+    private static function make(BrowserTest $browser, string $scope, int $days): tainted string
+    {
+        var $made = $browser->post('/api/tokens', { scope: $scope, days: $days });
+        Test::assertSame($made->status(), 201);
+        return ($made->json() as array<mixed>)['token'] as tainted string;
+    }
+}

@@ -1,0 +1,69 @@
+<?nvs
+namespace Registry;
+
+use Core\Http\Method;
+use Core\Test;
+
+// Tests for the owners of a vendor. Each test signs up its own new accounts and vendors.
+final class VendorsTest
+{
+    #[Test]
+    public function anOwnerAddsAndRemovesOwners(): void
+    {
+        var $first = new BrowserTest();
+        string $vendor = $first->newVendor();
+        var $second = new BrowserTest();
+        string $account = $second->newAccount();
+        var $added = $first->post('/api/vendors/' . $vendor . '/owners', { account: $account });
+        Test::assertSame($added->status(), 201);
+        Test::assertCount(($added->json() as array<mixed>)['owners'] as array<mixed>, 2);
+        Test::assertSame($first->post('/api/vendors/' . $vendor . '/owners', { account: $account })->status(), 409);
+        // The new owner sees the vendor on the account page, and sees its owners.
+        var $page = $second->send(Method::Get, '/api/account')->json() as array<mixed>;
+        Test::assertSame(($page['vendors'] as array<mixed>)[0] as tainted string, $vendor);
+        Test::assertSame($second->send(Method::Get, '/api/vendors/' . $vendor . '/owners')->status(), 200);
+        // An account that does not exist is not added.
+        Test::assertSame($first->post('/api/vendors/' . $vendor . '/owners', { account: Accounts::newId() })->status(), 404);
+        // The second owner removes the first. Then the last owner cannot be removed.
+        string $firstAccount = Accounts::idOf(($first->send(Method::Get, '/api/account')->json() as array<mixed>)['account'] as tainted string) ?? '';
+        Test::assertSame($second->send(Method::Delete, '/api/vendors/' . $vendor . '/owners/' . $firstAccount)->status(), 200);
+        Test::assertSame($first->send(Method::Get, '/api/vendors/' . $vendor . '/owners')->status(), 404);
+        Test::assertSame($second->send(Method::Delete, '/api/vendors/' . $vendor . '/owners/' . $account)->status(), 409);
+    }
+
+    #[Test]
+    public function anOwnerIsAddedOnlyAfterAPasskeySignIn(): void
+    {
+        var $browser = new BrowserTest();
+        var $codes = ($browser->signUp()->json() as array<mixed>)['recoveryCodes'] as array<mixed>;
+        string $account = Accounts::idOf(($browser->send(Method::Get, '/api/account')->json() as array<mixed>)['account'] as tainted string) ?? '';
+        string $vendor = 'V' . Core\Random::token(4);
+        Test::assertTrue(new Vendors(Schema::open())->claim($vendor, $account));
+        string $other = new BrowserTest()->newAccount();
+        // After a sign-in with a recovery code, the owner cannot add an owner or make a token.
+        $browser->send(Method::Post, '/api/signout');
+        Test::assertSame($browser->post('/api/signin/recovery', { code: $codes[0] })->status(), 200);
+        Test::assertSame($browser->post('/api/vendors/' . $vendor . '/owners', { account: $other })->status(), 403);
+        Test::assertSame($browser->post('/api/tokens', { scope: $vendor, days: 30 })->status(), 403);
+        // After a sign-in with the passkey, both work.
+        Test::assertSame($browser->signIn()->status(), 200);
+        Test::assertSame($browser->post('/api/vendors/' . $vendor . '/owners', { account: $other })->status(), 201);
+        Test::assertSame($browser->post('/api/tokens', { scope: $vendor, days: 30 })->status(), 201);
+    }
+
+    #[Test]
+    public function onlyAnOwnerChangesTheOwners(): void
+    {
+        var $owner = new BrowserTest();
+        string $vendor = $owner->newVendor();
+        var $stranger = new BrowserTest();
+        string $account = $stranger->newAccount();
+        Test::assertSame($stranger->send(Method::Get, '/api/vendors/' . $vendor . '/owners')->status(), 404);
+        Test::assertSame($stranger->post('/api/vendors/' . $vendor . '/owners', { account: $account })->status(), 404);
+        // A vendor that exists keeps its owners when somebody else claims it.
+        Test::assertTrue(!new Vendors(Schema::open())->claim($vendor, $account));
+        Test::assertTrue(!new Vendors(Schema::open())->claim(Core\Str::lower($vendor), $account));
+        // A visitor who did not sign in is refused before anything is read.
+        Test::assertSame(new BrowserTest()->send(Method::Get, '/api/vendors/' . $vendor . '/owners')->status(), 403);
+    }
+}

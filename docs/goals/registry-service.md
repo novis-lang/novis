@@ -170,6 +170,15 @@ version is never reassigned. `Core\` and `Novis\` are the project account's alon
 `nvs pkg login` stores it in the data folder under the ownership check the artifact cache uses
 (`crates/nvs-cli/src/cache.rs:1258`).
 
+**Adding or removing an owner, and making a token, need a passkey sign-in in the last 15 minutes**
+(`Session::PASSKEY_WINDOW`, `apps/registry/src/Session.nvs`). A recovery-code sign-in can revoke a
+token and add a passkey, and nothing else that needs a passkey. A token is read only from the
+`authorization` header, and `Tokens::allows` also checks that its account still owns the vendor, so
+removing an owner stops that owner's tokens at once. `Vendors::claim` is what stage 7's first
+publish calls. The tests call it directly, because no route takes a vendor without a publish.
+Why: a stolen session cookie that is older than 15 minutes, or a leaked recovery code, cannot mint a
+publishing key or take over a vendor.
+
 **The registry builds the archive from git.** `nvs pkg publish` sends a repository URL, a commit, a
 version and the package's directory within the repository. `nvs pkg publish` may name a subdirectory, and
 the default is the repository root. It uploads no file. The service runs `nvs registry build`, which
@@ -314,9 +323,9 @@ reference card, one line each, and the list of `apps/notes/` files with what eac
 **Split:** after the session lands the schema for vendors and tokens, one writing subagent writes
 `Tokens.nvs` and its test, then a second writes `login.rs` (the Rust lane).
 
-- [ ] Vendors and owners, an owner added only with a passkey. The check that the new owner has a verified channel lands with stage 5. `apps/registry/src/Vendors.nvs:1`
-- [ ] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
-- [ ] Tests: a token outside its scope refused, an expired one refused, a revoked one refused, and only its hash stored. `apps/registry/src/TokensTest.nvs:1`
+- [x] Vendors and owners, an owner added only with a passkey. The check that the new owner has a verified channel lands with stage 5. `apps/registry/src/Vendors.nvs:1`
+- [x] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
+- [x] Tests: a token outside its scope refused, an expired one refused, a revoked one refused, and only its hash stored. `apps/registry/src/TokensTest.nvs:1`
 - [ ] `nvs pkg login` stores a token in the data folder under the ownership check, and `nvs pkg whoami` prints the account and its scope, with a test of a token file writable by another account. `crates/nvs-cli/src/package/login.rs:1`, `crates/nvs-config/src/data.rs:446`
 - [ ] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
 
