@@ -10,7 +10,9 @@ the grammar allows one, including the inline shape `{x: int}` (`rule:types/objec
 `autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; durations
 (`rule:types/duration`); `#[...]` attributes distinguished from a `#` comment, with the attribute's
 class as a type and each named argument as a property; every name after `extends` or `implements`
-and the path of an import, which the word before each says is a type; and nothing Novis
+and the path of an import, which the word before each says is a type; the class before `::`, which
+is a type too; a member that is called, and every lowercase name after `::`, which the parser reads
+as a method (`rule:expressions/method-reference`); and nothing Novis
 rejects (`rule:ide/rejected-syntax-gets-no-colour`). The grammar also colours every name a theme
 needs before the server answers: layer two adds what it resolves, and a theme that discards semantic
 tokens would otherwise show those names as body text (`rule:ide/novis-ships-names-not-colours`). Its test needs no editor: `vscode-textmate` plus

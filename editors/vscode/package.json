@@ -199,6 +199,12 @@
           "default": false,
           "description": "Show the Novis AST panel in the Explorer, and the Novis: Show AST command. The panel shows the syntax tree of the open file."
         },
+        "nvs.highlighting.distinctNames": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "markdownDescription": "Gives class names and methods two different colours in `.nvs` files. Your colour theme stays the same.\n\nWhen you turn this on, Novis adds colour rules for your current colour theme to `#editor.semanticTokenColorCustomizations#` in your user settings. When you change the colour theme, Novis adds rules for the new theme too. When you turn this off, Novis removes these rules. If you changed a rule yourself, Novis keeps it.\n\nThe Novis Dark and Novis Light colour themes already give class names and methods their own colours. To switch to one of them, click [Use the Novis colour theme](command:nvs.useNovisTheme)."
+        },
         "nvs.stubs.dir": {
           "type": "string",
           "default": "",
@@ -262,6 +268,23 @@
         "command": "nvs.openReleases",
         "title": "Open Releases",
         "category": "Novis"
+      },
+      {
+        "command": "nvs.useNovisTheme",
+        "title": "Use Novis Colour Theme",
+        "category": "Novis"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Novis Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/novis-dark-color-theme.json"
+      },
+      {
+        "label": "Novis Light",
+        "uiTheme": "vs",
+        "path": "./themes/novis-light-color-theme.json"
       }
     ],
     "menus": {

@@ -71,6 +71,7 @@ import { coverageDirectory, stubsDirectory, withCoverage, withStubs } from "./st
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
+import * as theme from "./theme";
 import { refusal } from "./version";
 
 // The subcommand that is the server, and the whole of the command line. `nvs lsp` speaks the
@@ -247,6 +248,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
   // The provider is what makes a hand-written `"type": "nvs"` entry in a `tasks.json` resolve;
   // `contributes.taskDefinitions` alone only describes the shape of one.
   tasks.install(context);
+  // The bundled-theme command and the setting that colours a type and a method under the user's own
+  // theme, neither of which needs a server.
+  theme.install(context);
   // The factory that starts `nvs dap`, registered from activation because a debug session can be
   // started before any `.nvs` file is open.
   debugAdapter.install(context);

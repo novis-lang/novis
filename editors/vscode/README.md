@@ -9,6 +9,19 @@ The extension is a thin client. It holds no parser, no formatter and no type tab
 `rule:ide/one-server-two-thin-clients` is why: language smarts have one implementation, and a second one
 arriving here as an npm dependency is what the contributions suite's allowlist refuses.
 
+## Colours for class names and methods
+
+Your colour theme decides every colour in a `.nvs` file. Some themes give class names and methods
+almost the same colour. You can change this in two ways:
+
+- Pick the **Novis Dark** or **Novis Light** colour theme. Run **Novis: Use Novis Colour Theme**, or
+  choose the theme with **Preferences: Color Theme**.
+- Keep your theme and turn on `nvs.highlighting.distinctNames`. Novis then adds colour rules for your
+  theme to `editor.semanticTokenColorCustomizations` in your user settings. When you turn it off, Novis
+  removes these rules.
+
+Open the Settings editor and search for `nvs.highlighting` to see both options.
+
 ## Where hidden secrets are still visible
 
 The editor hides the value of a `secret` string while you read the code. The setting is

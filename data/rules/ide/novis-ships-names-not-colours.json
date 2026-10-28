@@ -1,5 +1,5 @@
 {
-  "title": "Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension sets no colour",
+  "title": "Both layers ship standard names: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension sets a colour only where the user picks one",
   "status": "shipped",
   "seeAlso": [
     "ide/highlighting-is-two-layers",
@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "editors/vscode/test/grammar/allowlist.test.ts",
-    "editors/vscode/test/contributions/contributions.test.ts"
+    "editors/vscode/test/contributions/contributions.test.ts",
+    "editors/vscode/test/client/colours.test.ts"
   ]
 }

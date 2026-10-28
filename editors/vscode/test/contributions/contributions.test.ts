@@ -16,13 +16,14 @@
 // tests: the extension claims `.nvs` and never `.php`
 // (`rule:ide/the-extension-claims-nvs-only`), its runtime dependencies are on an allowlist so a
 // second implementation of the language cannot arrive as one
-// (`rule:ide/dependencies-are-allowlisted`), and it contributes no colour
+// (`rule:ide/dependencies-are-allowlisted`), and it contributes no colour the user did not pick
 // (`rule:ide/novis-ships-names-not-colours`).
 
 import * as assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { customData, type Subset } from "../../scripts/customData";
+import { NOVIS_THEMES, PALETTE, rules } from "../../src/colours";
 
 const ROOT = resolve(__dirname, "..", "..", "..");
 
@@ -108,6 +109,7 @@ const SETTINGS = [
   "nvs.taint.mark",
   "nvs.ast.enable",
   "nvs.stubs.dir",
+  "nvs.highlighting.distinctNames",
 ];
 
 const COMMANDS = [
@@ -122,6 +124,7 @@ const COMMANDS = [
   "nvs.checkWorkspace",
   "nvs.downloadBinary",
   "nvs.openReleases",
+  "nvs.useNovisTheme",
 ];
 
 // `rule:ide/dependencies-are-allowlisted` is over runtime dependencies: a test library ships to
@@ -434,6 +437,7 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.taint.mark"].default, "off");
     assert.deepEqual(properties["nvs.taint.mark"].enum, ["off", "declaration", "sink"]);
     assert.equal(properties["nvs.stubs.dir"].default, "");
+    assert.equal(properties["nvs.highlighting.distinctNames"].default, false);
   });
 });
 
@@ -508,8 +512,8 @@ describe("what the extension may depend on", () => {
   });
 });
 
-describe("the colour the extension does not contribute", () => {
-  it("ships no colour-customization default and no theme", () => {
+describe("the colour the extension contributes only when the user picks it", () => {
+  it("ships no colour-customization default", () => {
     // Two defaults are contributed for Novis documents, and neither names a colour. The paste
     // preference makes a paste apply its `use` lines rather than offer them in a widget
     // (`rule:ide/a-pasted-type-carries-its-use-line`). Semantic highlighting on means the server's
@@ -521,10 +525,44 @@ describe("the colour the extension does not contribute", () => {
         "editor.semanticHighlighting.enabled": true,
       },
     });
-    assert.equal(manifest.contributes.themes, undefined);
+    const defaults = JSON.stringify(manifest.contributes.configurationDefaults);
     for (const key of ["tokenColorCustomizations", "semanticTokenColorCustomizations", "colors"]) {
-      assert.equal(manifestText.includes(key), false, `the manifest contributes ${key}`);
+      assert.equal(defaults.includes(key), false, `the manifest contributes a default for ${key}`);
     }
+  });
+
+  it("ships the two Novis themes, which colour a type and a method with the setting's palette", () => {
+    // A bundled theme is one the user selects, so it is not a default. Both ways to tell a type from
+    // a method — the theme, and `nvs.highlighting.distinctNames` under the user's own theme — use
+    // the one palette `src/colours.ts` holds, so the two never drift apart.
+    assert.deepEqual(manifest.contributes.themes, [
+      { label: NOVIS_THEMES.dark, uiTheme: "vs-dark", path: "./themes/novis-dark-color-theme.json" },
+      { label: NOVIS_THEMES.light, uiTheme: "vs", path: "./themes/novis-light-color-theme.json" },
+    ]);
+    for (const [shade, file] of [["dark", "novis-dark"], ["light", "novis-light"]] as const) {
+      const theme = JSON.parse(readFileSync(join(ROOT, "themes", `${file}-color-theme.json`), "utf8")) as {
+        name: string;
+        semanticHighlighting: boolean;
+        semanticTokenColors: Record<string, unknown>;
+      };
+      assert.equal(theme.name, NOVIS_THEMES[shade]);
+      assert.equal(theme.semanticHighlighting, true, `${file} turns semantic tokens off`);
+      for (const [token, rule] of Object.entries(rules(shade))) {
+        assert.deepEqual(theme.semanticTokenColors[token.replace(":nvs", "")], rule,
+                         `${file} colours ${token} unlike the setting`);
+      }
+      assert.notEqual(PALETTE[shade].type, PALETTE[shade].method);
+    }
+  });
+
+  it("explains both ways in the setting, with a link that runs the theme command", () => {
+    const setting = manifest.contributes.configuration.properties["nvs.highlighting.distinctNames"] as
+      ConfigProperty & { markdownDescription?: string; scope?: string };
+    assert.equal(setting.scope, "application", "the rules go to user settings, so the setting does too");
+    assert.ok(setting.markdownDescription?.includes("(command:nvs.useNovisTheme)"),
+              "the setting has no link to the theme command");
+    assert.ok(setting.markdownDescription?.includes("#editor.semanticTokenColorCustomizations#"),
+              "the setting does not say where it writes");
   });
 
   it("maps the two Novis modifiers to scopes a theme already styles", () => {
