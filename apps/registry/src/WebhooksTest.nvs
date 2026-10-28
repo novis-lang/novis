@@ -1,0 +1,185 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Encoding;
+use Core\Hash;
+use Core\Http\Method;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+use Core\Time;
+use Core\Time\Duration;
+use RuntimeError;
+
+// Tests for the webhooks of an account. Each webhook is a fake web service from `Test::answerHttp`.
+// Each test has its own database in memory, because `retry` sends every waiting message in the table.
+final class WebhooksTest
+{
+    // The start of each webhook URL. The address is reserved for examples, so it is not internal.
+    private const string HOOKS = 'https://203.0.113.9/hooks/';
+
+    // The address of the site. The link in a message with a code starts with it.
+    private const string ORIGIN = 'https://registry.example.com';
+
+    #[Test]
+    public function aMessageIsSignedWithTheSecret(): void
+    {
+        var $db = WebhooksTest::database();
+        string $account = WebhooksTest::account($db);
+        string $url = WebhooksTest::HOOKS . Random::token(8);
+        Test::answerHttp($url . '*', 200);
+        var $hooks = new Webhooks($db, WebhooksTest::ORIGIN);
+        array<string> $added = $hooks->add($account, $url);
+        Test::assertTrue(Str::startsWith($added['secret'], 'whsec_'));
+
+        // The webhook got one `POST` with the three headers of the Standard Webhooks specification.
+        array<SentRequest> $sent = Test::sentHttp();
+        Test::assertSame(Core\Arr::count($sent), 1);
+        Test::assertTrue($sent[0]->method() == Method::Post);
+        Test::assertSame($sent[0]->url(), $url);
+        string $message = $sent[0]->header('webhook-id') ?? '';
+        string $timestamp = $sent[0]->header('webhook-timestamp') ?? '';
+        string $body = $sent[0]->body() as string;
+        Test::assertTrue(Str::startsWith($message, 'msg_'));
+        Test::assertSame($timestamp, '' . Time::now()->toEpochSeconds());
+
+        // The test signs the body itself, with the secret the owner got, and gets the same signature.
+        bytes $key = Encoding::fromBase64(Str::slice($added['secret'], 6));
+        bytes $mac = Hash::hmac($message . '.' . $timestamp . '.' . $body, $key, Hash::Digest::Sha256);
+        Test::assertSame($sent[0]->header('webhook-signature'), 'v1,' . Encoding::toBase64($mac));
+
+        // The body has the one-time code and a link with the same code.
+        var $json = Json::decode($body) as array<mixed>;
+        tainted string $code = $json['code'] as tainted string;
+        Test::assertSame($json['type'] as string, 'verify');
+        Test::assertSame($json['link'] as string, WebhooksTest::ORIGIN . '/api/channels/' . $added['id'] . '/confirm/' . $code);
+
+        // The owner sends the code back, and the webhook counts.
+        var $channels = new Channels($db);
+        Test::assertTrue(!$channels->hasVerified($account));
+        Test::assertTrue($channels->verify($account, $added['id'], $code));
+        Test::assertTrue($channels->hasVerified($account));
+
+        // Opening the link of a second webhook verifies it too. A wrong code does not.
+        array<string> $second = $hooks->add($account, $url);
+        tainted string $secondCode =WebhooksTest::codeIn(Test::sentHttp()[1]);
+        Test::assertTrue(!$channels->confirm($second['id'], 'wrong'));
+        Test::assertTrue($channels->confirm($second['id'], $secondCode));
+        Test::assertSame(Core\Arr::count($channels->working($account, Channels::WEBHOOK)), 2);
+    }
+
+    #[Test(at: '2026-04-01T12:00:00Z')]
+    public function aFailedMessageIsSentAgainWithTheSameId(): void
+    {
+        var $db = WebhooksTest::database();
+        string $account = WebhooksTest::account($db);
+        string $url = WebhooksTest::HOOKS . Random::token(8);
+        Test::answerHttp($url . '*', 500);
+        var $hooks = new Webhooks($db, WebhooksTest::ORIGIN);
+        array<string> $added = $hooks->add($account, $url);
+
+        // The first try failed, so the message waits.
+        Test::assertSame(WebhooksTest::waiting($db, $added['id']), 1);
+        string $message = Test::sentHttp()[0]->header('webhook-id') ?? '';
+
+        // A second answer for the same URL replaces the first one, so the webhook now works.
+        // `retry` waits one minute after the first try.
+        Test::answerHttp($url . '*', 200);
+        Test::assertSame($hooks->retry(), 0);
+        Test::advance(Duration::seconds(61));
+        Test::assertSame($hooks->retry(), 1);
+        array<SentRequest> $sent = Test::sentHttp();
+        Test::assertSame(Core\Arr::count($sent), 2);
+        Test::assertSame($sent[1]->header('webhook-id'), $message);
+        Test::assertSame(WebhooksTest::waiting($db, $added['id']), 0);
+    }
+
+    #[Test]
+    public function aWebhookAtAnInternalAddressIsNotAllowed(): void
+    {
+        var $db = WebhooksTest::database();
+        string $account = WebhooksTest::account($db);
+        var $hooks = new Webhooks($db, WebhooksTest::ORIGIN);
+        // This computer, a private address and the address of a cloud server's metadata service.
+        Test::assertThrows(fn(): void => { $hooks->add($account, 'https://127.0.0.1/hook'); }, RuntimeError::class);
+        Test::assertThrows(fn(): void => { $hooks->add($account, 'https://10.0.0.5/hook'); }, RuntimeError::class);
+        Test::assertThrows(fn(): void => { $hooks->add($account, 'https://192.168.1.1/hook'); }, RuntimeError::class);
+        Test::assertThrows(fn(): void => { $hooks->add($account, 'https://169.254.169.254/hook'); }, RuntimeError::class);
+        // A webhook URL must use `https`.
+        Test::assertThrows(fn(): void => { $hooks->add($account, 'http://203.0.113.9/hook'); }, RuntimeError::class);
+        Test::assertSame(Core\Arr::count(new Channels($db)->of($account)), 0);
+    }
+
+    #[Test(at: '2026-04-01T12:00:00Z')]
+    public function aWebhookThatKeepsFailingStopsCounting(): void
+    {
+        var $db = WebhooksTest::database();
+        string $account = WebhooksTest::account($db);
+        string $url = WebhooksTest::HOOKS . Random::token(8);
+        Test::answerHttp($url . '*', 200);
+        var $hooks = new Webhooks($db, WebhooksTest::ORIGIN);
+        var $channels = new Channels($db);
+        array<string> $added = $hooks->add($account, $url);
+        Test::assertTrue($channels->verify($account, $added['id'], WebhooksTest::codeIn(Test::sentHttp()[0])));
+        Test::assertTrue($channels->hasVerified($account));
+
+        // The webhook now fails. The first try of a message is the first of five.
+        Test::answerHttp($url . '*', 500);
+        Test::assertSame($hooks->notify($account, 'A new version is published.'), 0);
+        Test::assertSame(WebhooksTest::waiting($db, $added['id']), 1);
+
+        // Each try waits longer: 1 minute, 10 minutes, 1 hour and 6 hours.
+        array<int> $waits = [60, 600, 3600, 21600];
+        foreach ($waits as int $seconds) {
+            Test::assertTrue($channels->hasVerified($account));
+            Test::advance(Duration::seconds($seconds));
+            Test::assertSame($hooks->retry(), 0);
+        }
+        // After the fifth try, the webhook stops counting and its message is deleted.
+        Test::assertSame(Core\Arr::count(Test::sentHttp()), 6);
+        Test::assertTrue(!$channels->hasVerified($account));
+        Test::assertSame(WebhooksTest::waiting($db, $added['id']), 0);
+
+        // The owner sends a new code to the webhook, which works again, and verifies it.
+        Test::answerHttp($url . '*', 200);
+        Test::assertTrue($hooks->sendCode($account, $added['id']));
+        array<SentRequest> $sent = Test::sentHttp();
+        tainted string $code = WebhooksTest::codeIn($sent[Core\Arr::count($sent) - 1]);
+        Test::assertTrue($channels->verify($account, $added['id'], $code));
+        Test::assertTrue($channels->hasVerified($account));
+    }
+
+    // A new database in memory with every table of the registry.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        return $db;
+    }
+
+    // Adds a new account to the database and returns its id.
+    private static function account(Connection $db): string
+    {
+        string $account = Random::token(16);
+        int $now = Time::now()->toEpochSeconds();
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?)', [$account, $now, $now]);
+        return $account;
+    }
+
+    // The one-time code in the body of a message that a webhook got.
+    private static function codeIn(SentRequest $request): tainted string
+    {
+        return (Json::decode($request->body() as string) as array<mixed>)['code'] as tainted string;
+    }
+
+    // The number of messages that wait for another try to this webhook.
+    private static function waiting(Connection $db, string $channel): int
+    {
+        return $db->query('select count(*) from webhook_sends where channel = ?', [$channel])->value() as int;
+    }
+}

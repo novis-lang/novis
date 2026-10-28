@@ -42,6 +42,11 @@ cron = "* * * * *"
 script = "jobs/webhooks.nvs"
 scope = "host"
 
+# A webhook URL comes from an owner, so the registry never connects to an address on this
+# computer or in its own network. This is also true in development and in the tests.
+[capabilities.net]
+internal = []
+
 # The program may open this database and no other.
 [capabilities.db]
 connect = ["registry"]
