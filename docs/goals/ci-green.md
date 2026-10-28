@@ -104,12 +104,21 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `1dc247056`, and both its runs are green: CI 40605695473 (35 jobs) and
-Website 40605695678. That push carried `b8ced0fcc`, which fixed `55b2d517c`'s two reds: the
-unrendered rulebook and the telemetry `pkg` test. Before the watch, `bun nv site --check stale
-questions` and `bun nv proofs --gate --limit 0` were clean at `f824fbd15`.
+`origin/main` is at `97fcf96ce`, package-client's goal end. Website 40645307476 is green. CI
+40645307490 is green except `test / windows-x86_64 (tests)`. There,
+`crates/nvs-stdlib/src/server.rs:the_member_answers_true_once_the_process_drain_begins` raced
+`crate::signal`'s tests, which begin the one-way process drain on another thread. `815690482`
+fixes it: the first reading must lie between two readings of the bit. That fix is committed and
+not pushed.
 
-The next watch may run without `--next`: the newest runs are green.
+The next watch runs with `--next`, because the newest CI run is red until that push.
+
+Before this watch, `bun nv proofs --gate --limit 0` named 67 stale perf figures, from `io.rs` and
+`http.rs`. The main loop recorded all 67 in the root at `58b4def64` while this session measured
+them too. This session's copy was taken back out, so the ledger holds only the main loop's lines.
+Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root.
+`--record-perf` needs the binary under the worktree's own `target/`, so a `CARGO_TARGET_DIR` there
+builds a binary the recorder cannot find.
 
 `proofs / windows-x86_64` once hung in `Post Run actions/checkout` until the 1h30 job limit, and
 a rerun went green. Earlier runs spend 3 s in that step. A second such hang is not noise: look for
@@ -118,7 +127,7 @@ a process the proofs leave running that holds the checkout.
 A new test that renders megabytes or uses the spare stack needs the Miri skip.
 
 `.agent-tmp/wt-*` are stray folders Windows keeps while looper runs. `wt-csv/target` is a warm
-target dir with a release `nvs.exe` at `7d7e7dd37`. Delete them all once looper is stopped.
+target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper is stopped.
 
 ### Next
 
