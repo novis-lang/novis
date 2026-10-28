@@ -28,6 +28,11 @@
 //! either form, gets no line, so a line a person edited is never rewritten. The lines are added
 //! to the file's text, so every comment and every other line stays as it was written.
 //!
+//! **Each `[[download]]` file is placed at its path in its package's folder** ([`download::place`]),
+//! from the SHA-256 cache, downloaded first when the cache does not have it
+//! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). A folder `vendor` writes
+//! again gets its files again from the cache.
+//!
 //! **No code of a package runs** (`rule:packaging/nothing-runs-before-the-program`): the command
 //! reads archives and writes files, and compiles nothing.
 //!
@@ -41,6 +46,7 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{Renderer, SourceMap};
 
+use super::download;
 use super::git::{self, Outbound};
 use super::index::{Capabilities, Fault, fault};
 use super::lock::{self, Lock};
@@ -103,8 +109,8 @@ pub(crate) struct App {
     pub(crate) manifest: Manifest,
     /// `package.lock`, if the folder has one.
     pub(crate) old: Option<Lock>,
-    /// The addresses an `https:` git dependency may be cloned from.
-    outbound: Outbound,
+    /// The addresses an `https:` git dependency or a download may be fetched from.
+    pub(crate) outbound: Outbound,
 }
 
 impl App {
@@ -129,8 +135,7 @@ impl App {
         let mut sources = SourceMap::new();
         let manifest = manifest::read(&path, &mut sources).map_err(|d| reported(&d, &sources))?;
         let dir = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
-        let outbound =
-            Outbound::new(crate::config::written_capabilities().map_err(Failed::Reported)?);
+        let outbound = Outbound::new(crate::config::package_network().map_err(Failed::Reported)?);
         let old = Lock::read(&dir.join(lock::FILE))?;
         Ok(Self {
             path,
@@ -224,6 +229,9 @@ pub(crate) fn land(
     for line in &added {
         println!("added to [grants]: {line}");
     }
+    // Last, so a file whose URLs all fail leaves the lock written, and `nvs pkg provide` finds
+    // its entry there.
+    place_downloads(graph, &vendor, &app.outbound)?;
     println!(
         "{} package(s), {written} written to {VENDOR}/",
         graph.packages.len()
@@ -262,6 +270,32 @@ fn write_packages(
         written += 1;
     }
     Ok(written)
+}
+
+/// Each `[[download]]` file of every package in `graph` placed at its path in the package's folder
+/// under `vendor` ([`download::place`]). The cache is opened only when a package has a file.
+fn place_downloads(graph: &Graph, vendor: &Path, outbound: &Outbound) -> Result<(), Fault> {
+    let mut store = None;
+    for selected in &graph.packages {
+        let dir = vendor.join(selected.name.slug());
+        let path = dir.join(nvs_config::grants::FILE);
+        let mut sources = SourceMap::new();
+        let manifest = manifest::read(&path, &mut sources)
+            .map_err(|diagnostic| fault(format!("`{}`: {}", path.display(), diagnostic.message)))?;
+        if manifest.downloads.is_empty() {
+            continue;
+        }
+        download::check_form(&manifest.downloads)
+            .map_err(|why| fault(format!("`{}`: {why}", selected.name)))?;
+        if store.is_none() {
+            store = Some(download::Store::current()?);
+        }
+        let store = store.as_ref().expect("the store was opened above");
+        for entry in &manifest.downloads {
+            download::place(store, &selected.name, entry, &dir, outbound)?;
+        }
+    }
+    Ok(())
 }
 
 /// Whether the package folder `dir` packs to `digest`, so its files are the locked ones.

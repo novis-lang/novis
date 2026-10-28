@@ -1256,7 +1256,7 @@ impl Default for Eviction {
 /// takes its answer whole: the check falls on the directory that would hold the thing, and walks up
 /// while that one does not exist either, because the promise is only as strong as the shallowest
 /// directory an attacker would have to write in order to keep it.
-fn existing_root(dir: &Path) -> &Path {
+pub(crate) fn existing_root(dir: &Path) -> &Path {
     let mut candidate = dir;
     while !candidate.exists() {
         match candidate.parent() {

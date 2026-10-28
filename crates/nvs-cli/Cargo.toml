@@ -116,6 +116,9 @@ unicode-normalization.workspace = true
 gix.workspace = true
 # The `Http` trait an `https:` clone runs over (`src/package/git.rs`).
 gix-transport.workspace = true
+# An external download is pinned by its SHA-256 hash, and its cache is keyed by it
+# (`src/package/download.rs`).
+sha2.workspace = true
 # The read path maps the artifact rather than reading it, so BLAKE3 runs over
 # the page cache's own copy and no page is ever executable before it has.
 memmap2.workspace = true

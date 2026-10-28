@@ -55,8 +55,8 @@
 //! [`DEFAULT_REGISTRY`]. A URL is `https:` or `file:`. The verifier `key` is read here and checked
 //! by the transparency log's reader.
 //!
-//! The form of a `files` path and of a `[[download]]` entry is checked where each is used: by the
-//! pack and by the download.
+//! The form of a `files` path and of a `[[download]]` entry is checked by the pack, which every
+//! archive goes through, and the download checks its entries again before it fetches.
 //!
 //! Cost: one read of one file per command, and memory for its lists while the command runs.
 //! Nothing here runs on the request path.
@@ -225,10 +225,6 @@ pub(crate) struct Manifest {
     /// `[registries]`, in vendor order.
     pub(crate) registries: Vec<Registry>,
     /// `[[download]]`, in file order.
-    #[allow(
-        dead_code,
-        reason = "`nvs pkg download` reads it, and it is not written yet"
-    )]
     pub(crate) downloads: Vec<Download>,
     /// `[grants]`.
     pub(crate) grants: Grants,

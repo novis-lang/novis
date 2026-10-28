@@ -191,6 +191,13 @@ impl Folder {
         self.root.join("registry")
     }
 
+    /// `downloads/`: every file a package's `[[download]]` names, once, under its SHA-256 hash
+    /// (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). `nvs pkg` creates it.
+    #[must_use]
+    pub fn downloads(&self) -> PathBuf {
+        self.root.join("downloads")
+    }
+
     /// `failed-tests/`: one file per tested program, with the tests its last `nvs test` run
     /// failed, which `nvs test --rerun-failed` reads
     /// (`rule:testing/a-run-can-stop-early-rerun-failures-and-shuffle`). The run creates it.

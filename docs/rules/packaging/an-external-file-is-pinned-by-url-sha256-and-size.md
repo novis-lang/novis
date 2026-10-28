@@ -64,4 +64,7 @@ request.
   downloads and can replace it, so a fetch reads up to the full size before it learns the bytes are
   wrong.
 
-**Not on disk.** There is no `nvs pkg fetch`, `download` or `provide`, and no reader for `[[download]]`.
+**Not on disk.** `nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
+`crates/nvs-cli/src/package/download.rs`. `nvs pkg add` and `update` do not print the files yet,
+the lock does not record their hosts, a package does not read its own files without a grant line,
+and there is no `nvs pkg publish`.

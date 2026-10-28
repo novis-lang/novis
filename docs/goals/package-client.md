@@ -284,6 +284,19 @@ written into the file's text by replacing its version string, so the line's comm
 Why: simplicity, one pipeline (`fetch::land`) for `fetch`, `add` and `update`; security, the
 report prints before anything is written and grants nothing.
 
+**A download is bounded by its declared size and by time, and a package command builds the
+tree's TLS client** (stage 9). The time limit is 60 seconds plus one second per 256 KiB declared,
+so a slow link still finishes a large file. `nvs_stdlib::tool_stream` follows at most three
+redirects, inside the rule's five, and refuses a hop into plaintext. `nvs pkg download` reads at
+most 4 GiB before an entry declares a size (`download::MAX_NEW`). A placed file is copied from the
+cache and hashed again while it is copied, so a changed cache file is removed and downloaded
+again. Placement is the last step of `fetch::land`, so a file whose URLs all fail leaves the lock
+written and `nvs pkg provide` finds its entry. `config::package_network` builds the process's TLS
+client from the tree's `[http.client.tls]`, so a mirror behind a private certificate authority
+works and a binary test trusts its loopback listener through `roots`. Why: security first, every
+byte is checked twice and every address is judged; simplicity, one stream for the clone, the
+archive and the download. Memory: one 64 KiB buffer and one hash state per file while it moves.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -385,10 +398,20 @@ placed at its path, and the two commands write an entry and fill the cache.
 
 **Split:** after the session lands `download.rs`, one writing subagent writes the loopback tests.
 
-- [ ] The `[[download]]` reader and its form checks, shared with the registry's build (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] The download: HTTPS only, each redirect hop checked and at most five, the read stopped one byte past the size, the hash checked before the rename, the next URL on a mismatch, and the SHA-256 cache under the ownership check. `crates/nvs-cli/src/package/download.rs:1`, `crates/nvs-cli/src/cache.rs:1258`
+- [x] The `[[download]]` reader and its form checks, shared with the registry's build (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). `crates/nvs-cli/src/package/manifest.rs:1`
+  - [x] `download::check_form`, called from `pack::file_set`, with the carried-file check there
+  - [x] the manifest's `dead_code` allowance on `downloads` is gone
+- [x] The download: HTTPS only, each redirect hop checked and at most five, the read stopped one byte past the size, the hash checked before the rename, the next URL on a mismatch, and the SHA-256 cache under the ownership check. `crates/nvs-cli/src/package/download.rs:1`, `crates/nvs-cli/src/cache.rs:1258`
+  - [x] `download::Store` under `<data>/downloads/`, opened behind `nvs_config::trust::check`
+  - [x] `download::request` over `nvs_stdlib::tool_stream`, judged by `Outbound::refused`
+  - [x] unit cases: the form, the cache's size and hash, a changed cache file
 - [ ] `nvs pkg fetch` and `nvs pkg vendor` place each file at its path, and `nvs pkg add` and `nvs pkg update` print each file's host, size and license, the total, and a host new since the lock, which records the hosts. `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/report.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
+  - [x] `fetch::place_downloads`, last in `fetch::land`
+  - [ ] `Locked` records each download's host, and the lock file writes them
+  - [ ] `report::report` prints each file's host, size and license, the total, and a new host
 - [ ] `nvs pkg download <url> --to <path>` writes an entry, `nvs pkg provide <file>` fills the cache only for a matching entry, and a package reads its downloaded file through a relative path. `crates/nvs-cli/src/package/download.rs:1`
+  - [x] `nvs pkg download` (`download::add_entry`) and `nvs pkg provide` (`download::provide`) in the `Command` enum
+  - [ ] a package reads its downloaded file through a relative path, which needs the read check below
 - [ ] The read check: `nvs pkg fetch` records each package's file set, and a read-only `Core` door called from a package's namespace passes for a file in that set with no grant line (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-cli/src/package/fetch.rs:1`
 - [ ] Tests: a package reads its own listed file and its downloaded file with an empty grant line, and is refused a write to it, a read through `..` or a symlink out of the set, an unlisted file placed in its folder, and another package's file. `crates/nvs-cli/tests/package_client.rs:1`
 - [ ] Tests against loopback TLS listeners: a wrong hash, a body past its size, a redirect to an internal address, an `http:` URL, a dead first URL served by the second, a provided file, and an archive that stays unpacked. `crates/nvs-cli/tests/package_download.rs:1`

@@ -15,12 +15,15 @@
 //! line per package (`rule:packaging/a-fetched-package-is-an-autoload-line`). [`minimum`] is
 //! `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`, which choose a minimum among the
 //! released versions, and [`report`] is what an `add` or an `update` prints before it writes.
+//! [`download`] fetches, checks and places a package's `[[download]]` files
+//! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
+mod download;
 mod fetch;
 #[cfg(test)]
 mod fixture;
@@ -156,6 +159,33 @@ enum Command {
     ///
     /// The command changes no file. Use `nvs pkg update` to raise a minimum.
     Outdated,
+    /// Download a file and add it to the `[[download]]` list of your package.
+    ///
+    /// Use this for a file that is too large for the package, such as a font
+    /// or a data set. The command downloads the file from URL, saves it at
+    /// PATH in the package, and writes its URL, size and SHA-256 hash to
+    /// `package.toml`. Run it in the folder of your package.
+    ///
+    /// When somebody fetches your package, `nvs pkg fetch` downloads the file
+    /// and checks its size and hash. A file that does not match is not used.
+    /// The URL must start with `https://`.
+    Download {
+        /// The file's URL, such as `https://example.com/fonts/Big.otf`.
+        url: String,
+        /// Where the file goes in the package, such as `fonts/Big.otf`.
+        #[arg(long, value_name = "PATH")]
+        to: String,
+    },
+    /// Add a file you downloaded yourself to the download cache.
+    ///
+    /// Use this when a package lists a file and none of its URLs work. Get
+    /// the file in another way, then run this command. The file is only
+    /// added when its size and SHA-256 hash match a file that a package in
+    /// `package.lock` lists. Then run `nvs pkg fetch`.
+    Provide {
+        /// The file to add.
+        file: PathBuf,
+    },
     /// Write every package into the `vendor` folder again.
     ///
     /// This command does what `nvs pkg fetch` does, with one difference.
@@ -188,6 +218,8 @@ impl Args {
             Command::Fetch { locked } => fetch::run(fetch::Mode::Fetch, locked),
             Command::Vendor { locked } => fetch::run(fetch::Mode::Vendor, locked),
             Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),
+            Command::Download { url, to } => download::run_download(&url, &to),
+            Command::Provide { file } => download::run_provide(&file),
         }
     }
 }

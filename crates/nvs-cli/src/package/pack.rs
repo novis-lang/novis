@@ -238,6 +238,18 @@ pub(crate) fn file_set(dir: &Path, manifest: &Manifest) -> Result<Vec<Entry>, Re
         }
         entries.push(regular(dir, listed)?);
     }
+    super::download::check_form(&manifest.downloads).map_err(refuse)?;
+    if let Some(carried) = manifest.downloads.iter().find(|download| {
+        let folded = download.path.to_lowercase();
+        entries
+            .iter()
+            .any(|entry| entry.path.to_lowercase() == folded)
+    }) {
+        return Err(refuse(format!(
+            "the download path `{}` is a file the archive already contains.",
+            carried.path
+        )));
+    }
     check_set(&mut entries)?;
     Ok(entries)
 }

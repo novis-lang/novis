@@ -84,7 +84,7 @@ impl Outbound {
     }
 
     /// Why the clone may not connect to `address`, or `None` where it may.
-    fn refused(&self, address: IpAddr) -> Option<String> {
+    pub(crate) fn refused(&self, address: IpAddr) -> Option<String> {
         let range = match &self.written {
             Some(caps) => caps.address_refused(address),
             None => nvs_config::capability::denied_by_default(address),

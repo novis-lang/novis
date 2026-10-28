@@ -858,11 +858,16 @@ pub(crate) fn grants(
 /// `None` where no tree is found, so only the shipped refusals apply. Nothing is
 /// written into the data folder.
 ///
+/// The tree's `[http.client.tls]` builds the process's one outbound TLS client
+/// here too, as [`install_tls_client`] builds it for a run, so a registry, a
+/// clone or a download behind a private certificate authority is reached with
+/// the anchors the operator wrote.
+///
 /// # Errors
 ///
-/// The exit code to return when the tree does not resolve. The diagnostic is
-/// rendered before it comes back.
-pub(crate) fn written_capabilities() -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
+/// The exit code to return when the tree does not resolve or its TLS client
+/// does not build. The diagnostic is rendered before it comes back.
+pub(crate) fn package_network() -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
     let mut sources = SourceMap::new();
     let found_a_tree = matches!(
         working_directory().map(|cwd| roots_in(&[], &cwd)),
@@ -875,6 +880,14 @@ pub(crate) fn written_capabilities() -> Result<Option<nvs_config::tree::Capabili
             render_diagnostics(&mut diags, &sources);
             ExitCode::FAILURE
         })?;
+    if found_a_tree {
+        install_tls_client(&snapshot).map_err(|diagnostic| {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &sources);
+            ExitCode::FAILURE
+        })?;
+    }
     Ok(found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()))
 }
 
