@@ -87,7 +87,15 @@ fn entries_appended_in_two_runs_verify_against_the_signed_checkpoint() {
     ];
     let appended = setup.append(&second);
     assert!(appended.status.success(), "{}", stderr(&appended));
-    assert!(String::from_utf8_lossy(&appended.stdout).contains("The log has 5 entries."));
+    let printed = String::from_utf8_lossy(&appended.stdout);
+    assert!(printed.contains("The log has 5 entries."), "{printed}");
+    // After the summary, each file the append wrote, and the checkpoint last.
+    let written: Vec<&str> = printed.lines().skip(1).collect();
+    assert_eq!(
+        written,
+        ["tile/0/000.p/5", "tile/entries/000.p/5", "checkpoint"],
+        "{printed}"
+    );
 
     let checkpoint = std::fs::read_to_string(setup.log().join("checkpoint")).unwrap();
     assert!(

@@ -1605,7 +1605,12 @@ sent. The daily count holds one day's salted hashes, as the counting rule says.
 - **Hosting settings in `nvs.toml`.** It holds the runtime's directives and refuses a name it does not
   know, and hosting is the application's own.
 
-**Not on disk.** There is no `apps/registry/` and no `hosting.json`.
+**Not on disk.** `apps/registry/hosting.json` and `Site::load` read the stores, the file hosts, the
+backup store and key, and the download-log source, and stop on a file a setting names that does not
+exist. `Stores` sends each publish's files from the work folder to every store, one rank at a time
+across the stores and the checkpoint last, and a publish of the same commit sends what a failed
+one left. The daily run that signs and sends every index file, the backup, the restore and the
+count from access lines are not built.
 
 <sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry).</sub>
 

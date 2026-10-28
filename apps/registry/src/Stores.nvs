@@ -1,0 +1,66 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Path;
+use RuntimeError;
+
+// Sends the public files from the work folder to every store that `hosting.json` names.
+// A file waits in the table `unsent` until every store has it. The files go in this order:
+// the archives, the files of the log, the index files, and the checkpoint last.
+// So a client that reads the new checkpoint finds every file it names.
+final class Stores
+{
+    // The order of the files. A lower rank is sent first.
+    public const int ARCHIVE = 0;
+    public const int LOG = 1;
+    public const int INDEX = 2;
+    public const int CHECKPOINT = 3;
+
+    private Connection $db;
+    private Site $site;
+
+    public function constructor(Connection $db, Site $site)
+    {
+        $this->db = $db;
+        $this->site = $site;
+    }
+
+    // Adds the file `$path` of the work folder to the files to send, such as `index/acme/http.json`.
+    public function queue(string $path, int $rank): void
+    {
+        $this->db->execute('insert into unsent (path, rank) values (?, ?) on conflict (path) do update set rank = excluded.rank', [$path, $rank]);
+    }
+
+    // Sends every waiting file to every store. Every store gets all files of one rank before any
+    // store gets a file of the next rank, so no store has the checkpoint while another store fails.
+    // It returns `true` when every store has every file. When one store fails, it stops and returns
+    // `false`, and the files stay waiting for the next send.
+    // The caller has the write lock of the database, so two sends never run at the same time.
+    public function send(): bool
+    {
+        array<string> $paths = [];
+        array<array<string>> $ranks = [[], [], [], []];
+        foreach ($this->db->query('select path, rank from unsent order by rank, path', []) as Row $row) {
+            string $path = Core\Taint::assertTrusted($row->string('path') as tainted string, 'the registry wrote this path');
+            $paths[] = $path;
+            $ranks[$row->int('rank') ?? Stores::CHECKPOINT][] = $path;
+        }
+        try {
+            foreach ($ranks as array<string> $rank) {
+                foreach ($this->site->stores as Store $store) {
+                    foreach ($rank as string $path) {
+                        $store->put($path, Path::join($this->site->work, $path));
+                    }
+                }
+            }
+        } catch (RuntimeError $error) {
+            return false;
+        }
+        foreach ($paths as string $path) {
+            $this->db->execute('delete from unsent where path = ?', [$path]);
+        }
+        return true;
+    }
+}

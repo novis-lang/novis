@@ -11,6 +11,8 @@
 //! stops part way leaves the old checkpoint, and the next append from it writes the same tiles
 //! again. Appends to one directory run one at a time: the service serializes them, and an append
 //! that races another from the same size fails on the first tile the other wrote differently.
+//! After its summary line it prints the path of each file it wrote, relative to the directory and
+//! `checkpoint` last, which is the order the service copies them to its stores in.
 //!
 //! The key file is read under `rule:config/ownership-is-the-trust-boundary`'s check: it and its
 //! directory must be writable by no account but this one, an administrator and the system.
@@ -117,7 +119,9 @@ enum LogCommand {
     ///
     /// The command reads one JSON entry per line from standard input. Each
     /// entry must have `"v": 1` and a `kind` the log knows. If one entry is
-    /// wrong, the command adds nothing.
+    /// wrong, the command adds nothing. The first line it prints says how
+    /// many entries the log has. Each next line is a file it wrote, as a
+    /// path in the log's directory. The last one is `checkpoint`.
     Append {
         /// The log's directory.
         dir: PathBuf,
@@ -206,6 +210,7 @@ fn append(dir: &Path, key: &Path, origin: &str) -> Result<String, String> {
         None => Checkpoint::empty(origin).map_err(|err| format!("--origin: {err}"))?,
     };
     let (size, root) = log::append(dir, old.size(), &entries).map_err(|err| err.to_string())?;
+    let written = log::written_paths(old.size(), size);
     let note = Checkpoint::new(origin, size, root)
         .and_then(|checkpoint| checkpoint.sign(&signer))
         .map_err(|err| err.to_string())?;
@@ -214,10 +219,15 @@ fn append(dir: &Path, key: &Path, origin: &str) -> Result<String, String> {
     fs::write(&partial, note)
         .and_then(|()| fs::rename(&partial, &path))
         .map_err(|err| format!("{}: {err}", path.display()))?;
-    Ok(format!(
+    let mut message = format!(
         "Added {} entries. The log has {size} entries.",
         entries.len()
-    ))
+    );
+    for path in written.iter().map(String::as_str).chain([CHECKPOINT]) {
+        message.push('\n');
+        message.push_str(path);
+    }
+    Ok(message)
 }
 
 /// `nvs registry log verify`.

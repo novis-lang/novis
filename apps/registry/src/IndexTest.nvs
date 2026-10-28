@@ -29,9 +29,13 @@ final class IndexTest
         var $index = new Index(Schema::open(), $log, Site::load());
         Test::assertTrue($index->catchUp($key));
 
-        string $folder = Index::folder(Site::load());
+        string $folder = Index::work(Site::load());
         string $hex = Str::slice($digest, 7);
         Test::assertSame(IO::read($folder . '/archive/' . $hex . '.tar'), IndexTest::ARCHIVE);
+        // The store has the archive and the index file too.
+        var $store = Site::load()->folder() as Store;
+        Test::assertSame(IO::read($store->fileOf('archive/' . $hex . '.tar') ?? ''), IndexTest::ARCHIVE);
+        Test::assertSame(IO::read($store->fileOf('index/' . Index::slug($key) . '.json') ?? ''), IO::read($folder . '/index/' . Index::slug($key) . '.json'));
         var $file = Json::decode(IO::read($folder . '/index/' . Index::slug($key) . '.json')) as array<mixed>;
         Test::assertSame($file['name'] as tainted string, $vendor . '\\Http');
         Test::assertSame(($file['owners'] as array<mixed>)[0] as tainted string, $account);
@@ -62,11 +66,11 @@ final class IndexTest
         string $key = Str::lower($vendor) . '\\http';
         var $failing = Test::double<Log>({
             size: fn(): int => 0,
-            append: fn(string $lines): bool => false,
+            append: fn(string $lines): ?array<string> => null,
             sign: fn(int $at): bool => true,
         });
         Test::assertTrue(!new Index(Schema::open(), $failing, Site::load())->catchUp($key));
-        string $path = Index::folder(Site::load()) . '/index/' . Index::slug($key) . '.json';
+        string $path = Index::work(Site::load()) . '/index/' . Index::slug($key) . '.json';
         Test::assertTrue(!IO::exists($path));
         Test::assertNeverCalled($failing, Log::sign);
 
@@ -162,7 +166,7 @@ final class IndexTest
         string $package = '"package":"' . Index::slug($key) . '"';
         return Test::double<Log>({
             size: fn(): int => $size,
-            append: fn(string $lines): bool => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package),
+            append: fn(string $lines): ?array<string> => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package) ? [] : null,
             sign: fn(int $at): bool => true,
         });
     }

@@ -4,8 +4,13 @@
   "nvs": "nvs",
   "gitCaFile": "",
   "projectAccount": "",
-  "files": "files",
+  "work": "work",
+  "stores": [{ "kind": "dir", "path": "files" }],
   "hosts": [],
+  "backup": { "kind": "dir", "path": "backup" },
+  "backupKey": "",
+  "backupMinutes": 5,
+  "downloadLog": null,
   "logKey": "",
   "logName": "localhost"
 }

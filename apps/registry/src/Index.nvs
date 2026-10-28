@@ -7,7 +7,6 @@ use Core\Db\Row;
 use Core\Db\Transaction;
 use Core\IO;
 use Core\Json;
-use Core\Path;
 use Core\Str;
 use Core\Time;
 use RuntimeError;
@@ -27,27 +26,30 @@ final class Index
         $this->site = $site;
     }
 
-    // Returns the folder with the public files. It is made when it does not exist.
-    public static function folder(Site $site): string
+    // Returns the work folder, where the public files are made and signed. It is made when it does not exist.
+    public static function work(Site $site): string
     {
-        string $path = Path::join(Path::thisDir('..'), $site->files);
-        if (!IO::isDir($path)) {
-            IO::makeDir($path);
+        if (!IO::isDir($site->work)) {
+            IO::makeDir($site->work);
         }
-        return IO::canonicalize($path);
+        return IO::canonicalize($site->work);
     }
 
     // Adds every release of the package `$key` that is not in the log yet, such as `acme\http`.
-    // Each archive is copied first. Then the releases are added to the log, and then the index file
-    // and `registry.json` are written and signed. It returns `false` when a step fails.
-    // A release that is not in the log yet is added the next time this runs for its package.
+    // Each archive is copied first. Then the releases are added to the log, the index file and
+    // `registry.json` are written and signed, and every new file is sent to the stores.
+    // It returns `false` when a step fails. A release that is not in the log yet is added the next
+    // time this runs for its package, and a file that a store does not have is sent again then.
+    // Memory: one archive at a time while it is sent to a store.
     public function catchUp(string $key): bool
     {
-        string $folder = Index::folder($this->site);
+        string $folder = Index::work($this->site);
+        var $stores = new Stores($this->db, $this->site);
         try {
-            $this->db->transaction(fn(Transaction $tx): void => {
+            return $this->db->transaction(fn(Transaction $tx): bool => {
                 // This statement writes, so the transaction has the write lock of the database
-                // from here on. Two publishes add to the log one after the other.
+                // from here on. Two publishes add to the log and send to the stores one after the other.
+                // Other requests that write wait until the stores have the files.
                 $tx->execute('update releases set log = log where package = ? and log is null', [$key]);
                 var $rows = $tx->query(
                     'select version, digest, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
@@ -61,6 +63,7 @@ final class Index
                     string $digest = Index::hexOf(Index::trusted($row->string('digest')));
                     IO::makeDir($folder . '/archive');
                     IO::copy(Index::trusted($row->string('archive')), $folder . '/archive/' . $digest . '.tar');
+                    $stores->queue('archive/' . $digest . '.tar', Stores::ARCHIVE);
                     $lines .= Index::trusted(Json::encode({
                         v: 1,
                         kind: 'publish',
@@ -73,18 +76,28 @@ final class Index
                     $tx->execute('update releases set log = ? where package = ? and version = ?', [$next, $key, $version]);
                     $next++;
                 }
-                if ($lines != '' && !$this->log->append($lines)) {
-                    throw new RuntimeError('the log did not add the releases');
+                if ($lines != '') {
+                    ?array<string> $written = $this->log->append($lines);
+                    if ($written == null) {
+                        // Nothing was added, so the numbers above are undone with the transaction.
+                        throw new RuntimeError('the log did not add the releases');
+                    }
+                    foreach ($written as string $path) {
+                        $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
+                    }
                 }
+                // The log has the releases now, so the transaction must keep their numbers.
+                // Nothing below throws: a failure returns `false`, and the next run sends again.
+                return $this->write($key, $folder, $stores) && $stores->send();
             });
         } catch (RuntimeError $error) {
             return false;
         }
-        return $this->write($key, $folder);
     }
 
-    // Writes the index file of the package `$key` and `registry.json`, and signs them.
-    private function write(string $key, string $folder): bool
+    // Writes the index file of the package `$key` and `registry.json`, signs them, and adds them
+    // to the files to send. It returns `false` when a step fails.
+    private function write(string $key, string $folder, Stores $stores): bool
     {
         string $name = '';
         foreach ($this->db->query('select name, vendor from packages where key = ?', [$key]) as Row $row) {
@@ -115,14 +128,21 @@ final class Index
             );
         }
         try {
-            string $path = $folder . '/index/' . Index::slug($key) . '.json';
+            string $path = 'index/' . Index::slug($key) . '.json';
             IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
-            IO::write($path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
+            IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
             IO::write($folder . '/registry.json', Json::encode({ schema: 1, hosts: $this->site->hosts }));
+            if (!$this->log->sign(Time::now()->toEpochSeconds())) {
+                return false;
+            }
+            // `sign` signs every index file, and only the files of this package changed.
+            // The daily run sends every index file.
+            $stores->queue($path, Stores::INDEX);
+            $stores->queue('registry.json', Stores::INDEX);
         } catch (RuntimeError $error) {
             return false;
         }
-        return $this->log->sign(Time::now()->toEpochSeconds());
+        return true;
     }
 
     // Returns the text of one index file before it is signed. `$now` is the time in seconds since 1970.

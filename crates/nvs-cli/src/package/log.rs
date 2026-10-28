@@ -550,6 +550,13 @@ fn tile_hash(data: &[u8]) -> Hash {
     node_hash(&tile_hash(left), &tile_hash(right))
 }
 
+/// The path of every file [`append`] writes when it grows the tree from `old` records to `new`,
+/// relative to the log directory and in the order it writes them. The checkpoint is not among
+/// them. A service copies these files to its stores before the checkpoint that names them.
+pub(crate) fn written_paths(old: u64, new: u64) -> Vec<String> {
+    new_tiles(old, new).iter().map(Tile::path).collect()
+}
+
 /// The tiles and entry bundles that growing the tree from `old` records to `new` writes, lowest
 /// level first. An entry bundle follows the level-0 tile it belongs to.
 fn new_tiles(old: u64, new: u64) -> Vec<Tile> {

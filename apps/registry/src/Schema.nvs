@@ -86,6 +86,9 @@ final class Schema
                 . 'primary key (package, version))',
             [],
         );
+        // The files in the work folder that some store does not have yet, such as `log/checkpoint`.
+        // `rank` is the order they are sent in: the archives, the log, the index files, the checkpoint.
+        $db->execute('create table if not exists unsent (path text primary key, rank integer not null)', []);
         // The downloads of each version per day. A day is the number of days since 1970.
         $db->execute(
             'create table if not exists downloads ('

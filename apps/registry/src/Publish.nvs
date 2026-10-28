@@ -70,7 +70,9 @@ final class Publish
         array<string> $arguments = [$repository, $commit, '--dir', $directory, '--version', $version, '--archive', $file . '.tar', '--api', $file . '.json'];
         if ($bound != null) {
             if ($this->hasVersion($bound, $version)) {
-                return Publish::taken($bound, $version);
+                // The same commit again is a retry of a publish whose stores failed.
+                // The caller sends the files again.
+                return $this->again($bound, $version, $commit) ?? Publish::taken($bound, $version);
             }
             ?array<string> $previous = $this->previous($bound, $parts);
             if ($previous != null) {
@@ -196,6 +198,27 @@ final class Publish
         );
         foreach ($rows as Row $row) {
             return ['version' => Publish::trusted($row->string('version')), 'api' => Publish::trusted($row->string('api'))];
+        }
+        return null;
+    }
+
+    // Returns the release `$version` of the package `$key` when it was built from `$commit`.
+    // Otherwise the result is `null`.
+    private function again(string $key, string $version, string $commit): ?Published
+    {
+        var $rows = $this->db->query(
+            'select r.digest, r.pending_until, p.name from releases r join packages p on p.key = r.package '
+                . 'where r.package = ? and r.version = ? and r.git_commit = ?',
+            [$key, $version, $commit],
+        );
+        foreach ($rows as Row $row) {
+            string $name = Publish::trusted($row->string('name'));
+            ?int $until = $row->int('pending_until');
+            string $text = '`' . $name . '` ' . $version . ' is published.';
+            if ($until != null && $until > Time::now()->toEpochSeconds()) {
+                $text .= ' It is pending until ' . Time::fromEpoch($until)->toIso() . '. An owner can release it now with a passkey on the website.';
+            }
+            return new Published(200, $text, Publish::trusted($row->string('digest')), $key);
         }
         return null;
     }

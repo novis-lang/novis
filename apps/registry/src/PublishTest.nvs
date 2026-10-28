@@ -248,6 +248,24 @@ final class PublishTest
     }
 
     #[Test]
+    public function theSameCommitAgainIsARetry(): void
+    {
+        var $browser = new BrowserTest();
+        string $vendor = $browser->newVendor();
+        tainted string $token = PublishTest::token($browser, $vendor);
+        string $digest = PublishTest::digest();
+        var $first = PublishTest::builder(PublishTest::built($vendor . '\\Http', $digest));
+        var $sent = PublishTest::request($vendor, '1.0.0');
+        Test::assertSame(PublishTest::publisher($first)->publish($token, $sent)->status, 201);
+        // A publish whose stores failed is sent again. The build does not run, and the digest is the same.
+        var $again = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        var $retry = PublishTest::publisher($again)->publish($token, $sent);
+        Test::assertSame($retry->status, 200);
+        Test::assertSame($retry->digest, $digest);
+        Test::assertNeverCalled($again, Builder::build);
+    }
+
+    #[Test]
     public function aChangedRepositoryIsRefused(): void
     {
         var $browser = new BrowserTest();

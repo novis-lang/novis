@@ -33,7 +33,8 @@ final class NvsLog implements Log
         return Core\Taint::assertTrusted($lines[1], 'the log command wrote the checkpoint') as int;
     }
 
-    public function append(string $lines): bool
+    // The command prints one line about the size of the log, then one line per file it wrote.
+    public function append(string $lines): ?array<string>
     {
         try {
             var $child = Process::spawn(
@@ -42,9 +43,17 @@ final class NvsLog implements Log
                 { cwd: '..' },
             );
             $child->writeStdin(Encoding::encodeText($lines, Charset::Utf8));
-            return $child->wait()->exitCode() == 0;
+            var $done = $child->wait();
+            if ($done->exitCode() != 0) {
+                return null;
+            }
+            array<string> $written = [];
+            foreach (Str::split(Str::trim($done->stdout() as string), "\n") as string $line) {
+                $written[] = Str::trim($line);
+            }
+            return Core\Arr::slice($written, 1);
         } catch (RuntimeError $error) {
-            return false;
+            return null;
         }
     }
 

@@ -1,0 +1,81 @@
+<?nvs
+namespace Registry;
+
+use Core\Http\Client;
+use Core\Http\Part;
+use Core\IO;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use RuntimeError;
+
+// One place the registry writes files to, from `hosting.json`.
+// A `dir` store is a folder. An `http` store gets each file as a `PUT` request to its URL
+// with one header that has the credential, as Bunny Storage and a WebDAV server take it.
+final class Store
+{
+    public function constructor(
+        // `dir` or `http`.
+        public readonly string $kind,
+        // The folder of a `dir` store, as a full path. The base URL of an `http` store, ending in `/`.
+        public readonly string $location,
+        // The name of the header with the credential, such as `AccessKey`. Empty for a `dir` store.
+        public readonly string $header = '',
+        // The file with the credential. Empty for a `dir` store.
+        public readonly string $secret = '',
+    )
+    {}
+
+    // Reads one store from `hosting.json`. `$where` names it in an error, such as `stores[0]`.
+    // A relative folder is relative to `$base`, the folder of `hosting.json`.
+    // It throws a `RuntimeError` when a setting is missing or the credential file does not exist.
+    public static function of(array<mixed> $settings, string $base, string $where): Store
+    {
+        string $kind = Site::text($settings, 'kind', $where);
+        if ($kind == 'dir') {
+            return new Store('dir', Path::join($base, Site::text($settings, 'path', $where)));
+        }
+        if ($kind == 'http') {
+            string $url = Site::text($settings, 'url', $where);
+            if (!Str::startsWith($url, 'https://') && !Str::startsWith($url, 'http://')) {
+                throw new RuntimeError('hosting.json: `' . $where . '.url` must start with `https://`.');
+            }
+            return new Store(
+                'http',
+                Str::endsWith($url, '/') ? $url : $url . '/',
+                Site::text($settings, 'header', $where),
+                Site::secretPath(Site::text($settings, 'secret', $where), $base, $where . '.secret'),
+            );
+        }
+        throw new RuntimeError('hosting.json: `' . $where . '.kind` must be `dir` or `http`.');
+    }
+
+    // Writes the file `$file` to `$path` in this store, such as `index/acme/http.json`.
+    // A `dir` store gets the whole file at once, so a reader never sees half of it.
+    // It throws a `RuntimeError` when the store does not take the file.
+    public function put(string $path, string $file): void
+    {
+        if ($this->kind == 'dir') {
+            string $target = Path::join($this->location, $path);
+            IO::makeDir(Path::dirname($target));
+            string $partial = $target . '.' . Random::token(8) . '.partial';
+            IO::copy($file, $partial);
+            IO::move($partial, $target);
+            return;
+        }
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::put($this->location . $path, {
+            body: Part::file($file),
+            headers: [$this->header => $credential],
+        });
+        if ($response->status() < 200 || $response->status() > 299) {
+            throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $path . '.');
+        }
+    }
+
+    // Returns the full path of `$path` in a `dir` store, or `null` for an `http` store.
+    public function fileOf(string $path): ?string
+    {
+        return $this->kind == 'dir' ? Path::join($this->location, $path) : null;
+    }
+}

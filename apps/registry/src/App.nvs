@@ -319,12 +319,12 @@ final class App
                 return;
             }
             // The version is saved. It is answered only once it is in the log and in the index.
-            if (!new Index($db, new NvsLog($site, Index::folder($site)), $site)->catchUp($done->package)) {
-                App::fail(500, 'The version is saved, and the registry could not add it to the index. '
-                    . 'The registry adds it the next time this package is published.');
+            if (!new Index($db, new NvsLog($site, Index::work($site)), $site)->catchUp($done->package)) {
+                App::fail(500, 'The version is saved, and the registry could not send it to every file host. '
+                    . 'Publish the same commit again to finish.');
                 return;
             }
-            Response::setStatus(201);
+            Response::setStatus($done->status);
             Response::json({ digest: $done->digest, message: $done->text });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a repository, a commit, a version and a directory.');

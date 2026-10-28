@@ -14,16 +14,17 @@ final class Files
     private const string HEX = '0123456789abcdef';
     private const string NAME_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._';
 
-    // Sends the file at `$path` in the folder of the public files, such as `index/acme/http.json`.
+    // Sends the file at `$path` in the first `dir` store, such as `index/acme/http.json`.
     // A path with `..`, an empty part or another character gets a 404.
     public static function send(tainted string $path): void
     {
         ?string $checked = Files::pathOf($path);
-        if ($checked == null) {
+        ?Store $store = Site::load()->folder();
+        if ($checked == null || $store == null) {
             Files::missing();
             return;
         }
-        string $file = Index::folder(Site::load()) . '/' . $checked;
+        string $file = $store->fileOf($checked) ?? '';
         if (!IO::isFile($file)) {
             Files::missing();
             return;

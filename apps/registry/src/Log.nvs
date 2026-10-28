@@ -9,8 +9,9 @@ interface Log
     public function size(): int;
 
     // Adds the entries, one JSON object per line, and signs a new checkpoint.
-    // It returns `true` when every entry was added. If one entry is not valid, nothing is added.
-    public function append(string $lines): bool;
+    // It returns the files it wrote, as paths in the folder of the log, with `checkpoint` last.
+    // If one entry is not valid, nothing is added and the result is `null`.
+    public function append(string $lines): ?array<string>;
 
     // Signs `registry.json` and every index file again, with the time `$at` in seconds since 1970.
     // It returns `true` when every file was signed.
