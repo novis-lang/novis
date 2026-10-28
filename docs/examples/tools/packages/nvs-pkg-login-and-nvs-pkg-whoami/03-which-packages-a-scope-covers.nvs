@@ -1,0 +1,26 @@
+<?nvs
+// Shows which packages a token can publish, for a token of one vendor and a token of one package.
+
+class Scope
+{
+    // A vendor scope, such as `Acme`, covers every package whose name starts with `Acme\`.
+    // A package scope, such as `Acme\Http`, covers only that one package. Case does not matter.
+    public static function covers(string $scope, string $package): bool
+    {
+        string $wanted = Core\Str::lower($package);
+        string $have = Core\Str::lower($scope);
+        return $have == $wanted || Core\Str::startsWith($wanted, $have . '\\');
+    }
+}
+
+array<string> $scopes = ['Acme', 'Acme\\Http'];
+array<string> $packages = ['Acme\\Http', 'acme\\log', 'AcmeLabs\\Http'];
+
+// `Acme` covers the first two packages. `AcmeLabs` is another vendor, so `AcmeLabs\Http` is not covered.
+// `Acme\Http` covers only the first package.
+foreach ($scopes as string $scope) {
+    foreach ($packages as string $package) {
+        string $answer = Scope::covers($scope, $package) ? 'yes' : 'no';
+        echo $scope, ' can publish ', $package, ': ', $answer, "\n";
+    }
+}

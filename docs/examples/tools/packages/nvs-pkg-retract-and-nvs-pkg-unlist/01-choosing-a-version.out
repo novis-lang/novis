@@ -1,0 +1,3 @@
+nvs pkg add chooses 1.4.1
+1.4.0 is retracted: Client::send drops the last header. Use 1.4.1, which fixes it.
+1.5.0 is retracted: The timeout is ignored. No fixed version is named yet.

@@ -563,6 +563,7 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
 
 /// `nvs pkg publish --dry-run` in a package's folder inside a working copy prints the digest
 /// the build gives for the same commit and the same folder.
+// covers: tools:packages/nvs-pkg-publish
 #[test]
 fn a_dry_run_publish_prints_the_digest_the_build_gives() {
     let case = Case::new("registry-build-dry-run");
@@ -719,6 +720,7 @@ fn publish_to(name: &str, publish: &str) -> Output {
 /// `nvs pkg publish` prints the account's pending releases after the registry's answer, and the
 /// registry's warning on standard error with a successful exit
 /// (`rule:packaging/an-owner-is-notified-without-email`).
+// covers: tools:packages/nvs-pkg-publish
 #[test]
 fn a_publish_prints_the_pending_releases_and_the_warning() {
     let out = publish_to(

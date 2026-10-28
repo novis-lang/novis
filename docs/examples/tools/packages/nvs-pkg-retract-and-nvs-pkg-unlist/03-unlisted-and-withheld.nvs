@@ -1,0 +1,45 @@
+<?nvs
+// Shows which versions `nvs pkg add` chooses, and which versions can be downloaded.
+
+// An owner unlisted `2.0.0`, so search does not show it.
+// The registry withheld `2.1.0` because it contains malware.
+string $index = '{"name":"Acme\\\\Http","versions":['
+    . '{"version":"1.4.0","state":{"retracted":{"reason":"Client::send drops the last header.","fixed_in":"1.4.1"}}},'
+    . '{"version":"1.4.1","state":"released"},'
+    . '{"version":"2.0.0","state":"unlisted"},'
+    . '{"version":"2.1.0","state":{"withheld":{"reason":"The archive contains malware."}}}'
+    . ']}';
+
+final class State
+{
+    // Returns the name of a state, such as `released` or `withheld`.
+    public static function name(mixed $state): tainted string
+    {
+        if ($state is tainted string) {
+            return $state;
+        }
+        array<mixed> $fields = $state as array<mixed>;
+        return Core\Arr::keys($fields)[0] as tainted string;
+    }
+
+    // `nvs pkg add` and `nvs pkg update` choose only a released version on their own.
+    public static function isChosen(tainted string $name): bool
+    {
+        return $name == 'released';
+    }
+
+    // Every version can be downloaded by its exact number, except a withheld one.
+    public static function canDownload(tainted string $name): bool
+    {
+        return $name != 'withheld';
+    }
+}
+
+array<mixed> $file = Core\Json::decode($index) as array<mixed>;
+foreach (($file['versions'] as array<mixed>) as mixed $item) {
+    array<mixed> $version = $item as array<mixed>;
+    tainted string $name = State::name($version['state']);
+    echo $version['version'] as tainted string, ' ', Core\Str::padEnd($name, 10),
+        ' chosen: ', State::isChosen($name) ? 'yes' : 'no ',
+        '  download: ', State::canDownload($name) ? 'yes' : 'no', "\n";
+}

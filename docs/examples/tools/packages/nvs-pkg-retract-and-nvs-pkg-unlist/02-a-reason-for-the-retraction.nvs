@@ -1,0 +1,32 @@
+<?nvs
+// Shows which reasons `nvs pkg retract --reason` accepts.
+
+final class Reason
+{
+    // Returns the problem with a reason, or `null` when the reason is accepted.
+    // The spaces at the start and the end do not count.
+    public static function problem(string $reason): ?string
+    {
+        string $text = Core\Str::trim($reason);
+        if ($text == '') {
+            return 'The reason is empty. Say why the version is retracted.';
+        }
+        if (Core\Str::length($text) > 500) {
+            return 'The reason has more than 500 characters.';
+        }
+        return null;
+    }
+}
+
+// The first reason is accepted. The second one has only spaces, and the third one is too long.
+array<string> $reasons = [
+    'Client::send drops the last header.',
+    '   ',
+    Core\Str::repeat('The timeout is ignored. ', 30),
+];
+
+foreach ($reasons as string $reason) {
+    ?string $problem = Reason::problem($reason);
+    uint $length = Core\Str::length(Core\Str::trim($reason));
+    echo $length, ' characters: ', $problem ?? 'accepted', "\n";
+}

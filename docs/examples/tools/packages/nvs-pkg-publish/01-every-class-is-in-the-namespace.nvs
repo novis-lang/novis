@@ -1,0 +1,30 @@
+<?nvs
+// Shows which class names a publish accepts in the package `Acme\Http`.
+
+class NamespaceCheck
+{
+    // The registry compares each name without case. A name must start with the package's name and a backslash.
+    public static function isInside(string $declared, string $package): bool
+    {
+        string $prefix = Core\Str::lower($package) . '\\';
+        return Core\Str::startsWith(Core\Str::lower($declared), $prefix);
+    }
+}
+
+// These are the classes, interfaces and functions that the package's files declare.
+array<string> $declared = [
+    'Acme\Http\Client',
+    'Acme\Http\Cookie\Jar',
+    'acme\http\Retry',
+    'Acme\HttpTools\Timer',
+    'Acme\Log\Writer',
+];
+
+// The last two names are outside `Acme\Http`. One of them is enough to stop the publish.
+foreach ($declared as string $name) {
+    if (NamespaceCheck::isInside($name, 'Acme\Http')) {
+        echo 'accepted: ', $name, "\n";
+    } else {
+        echo 'not allowed: ', $name, "\n";
+    }
+}

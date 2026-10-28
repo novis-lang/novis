@@ -1,0 +1,38 @@
+<?nvs
+// Shows the JSON that `nvs pkg publish` sends to the registry, and how it prints the answer.
+
+// The request has four fields and no file. The registry downloads the commit itself.
+array<string> $request = [
+    'repository' => 'https://git.example.com/acme/http.git',
+    'commit' => '5b1e0c4f9a7d2e8b3c6a1f0d4e9b8a7c6d5e4f3a',
+    'version' => '1.4.0',
+    'directory' => 'packages/http',
+];
+echo Core\Json::encode($request, { pretty: true }), "\n";
+
+// An answer from the registry. `until` is `null` when the release waits for an owner.
+string $answer = '{"digest":"blake3:9d2c41e07a5b3f68c1d0e4a2b7f9c3d58e6a1b0c4d7e2f9a3b5c8d1e0f4a7b6c",'
+    . '"message":"Acme\\\\Http 1.4.0 is pending.",'
+    . '"pending":[{"package":"Acme\\\\Http","version":"1.4.0","until":"2026-11-04T09:12:00Z"},'
+    . '{"package":"Acme\\\\Http","version":"1.0.0","until":null}],'
+    . '"warning":"No owner of `Acme` has a working device or webhook."}';
+
+var $reply = Core\Json::decode($answer) as array<mixed>;
+echo 'Digest: ', $reply['digest'] as string, "\n";
+echo $reply['message'] as string, "\n";
+
+// The command lists every release of your account that is not available yet.
+var $pending = $reply['pending'] as array<mixed>;
+echo "Releases that are not available yet:\n";
+foreach ($pending as mixed $entry) {
+    var $release = $entry as array<mixed>;
+    var $name = ($release['package'] as string) . ' ' . ($release['version'] as string);
+    if ($release['until'] == null) {
+        echo '  ', $name, " waits until an owner confirms it with a passkey on the website.\n";
+    } else {
+        echo '  ', $name, ' will be available at ', $release['until'] as string, ".\n";
+    }
+}
+
+// The command prints a warning, and the publish still succeeds.
+echo 'Warning: ', $reply['warning'] as string, "\n";

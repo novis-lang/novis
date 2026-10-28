@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a program reads the registry's reply about a token and prints what `nvs pkg whoami` prints.
+
+// The reply of `GET /api/whoami`. `expiresAt` is in seconds since 1970.
+// A release with `until` set to `null` waits until an owner confirms it.
+string $reply = '{"account":"3f2a9c0b7d4e4a1c9b8e2f6d0a5c7e13","scope":"Acme","expiresAt":1824714000,'
+    . '"pending":[{"package":"Acme\\\\Http","version":"1.4.0","until":"2026-11-04T09:12:00Z"},'
+    . '{"package":"Acme\\\\Log","version":"2.0.1","until":null}]}';
+
+var $holder = Core\Json::decode($reply) as array<mixed>;
+string $expires = Core\Time::fromEpoch($holder['expiresAt'] as int)
+    ->in(Core\Time\Zone::of('UTC'))
+    ->format('yyyy-MM-dd');
+
+echo 'Account: ', $holder['account'] as string, "\n";
+echo 'Scope: ', $holder['scope'] as string, "\n";
+echo 'Expires: ', $expires, " (UTC)\n";
+
+// An empty list prints nothing. Here the list has two releases.
+var $pending = $holder['pending'] as array<array<mixed>>;
+if (Core\Arr::count($pending) > 0) {
+    echo "Releases that are not available yet:\n";
+}
+foreach ($pending as array<mixed> $release) {
+    var $name = ($release['package'] as string) . ' ' . ($release['version'] as string);
+    if ($release['until'] == null) {
+        echo '  ', $name, " waits until an owner confirms it with a passkey on the website.\n";
+    } else {
+        echo '  ', $name, ' will be available at ', $release['until'] as string, ".\n";
+    }
+}

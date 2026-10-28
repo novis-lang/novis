@@ -1,0 +1,6 @@
+Acme can publish Acme\Http: yes
+Acme can publish acme\log: yes
+Acme can publish AcmeLabs\Http: no
+Acme\Http can publish Acme\Http: yes
+Acme\Http can publish acme\log: no
+Acme\Http can publish AcmeLabs\Http: no

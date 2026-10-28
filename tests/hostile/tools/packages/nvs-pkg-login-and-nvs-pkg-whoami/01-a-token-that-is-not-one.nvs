@@ -1,0 +1,161 @@
+<?nvs
+// Attack: `nvs pkg login` gets text that is not a publish token, and a token whose scope or expiry the attacker changed.
+// Every step below should be stopped.
+
+// The time of the check, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+// A real token. It may publish only packages of the vendor `Acme`, for 30 more days.
+string $token = 'nvsreg_' . Core\Str::repeat('3f', 32);
+
+// A second real token. It expired one day before the check.
+string $expired = 'nvsreg_' . Core\Str::repeat('5c', 32);
+
+// The checks of `nvs pkg login` and of the registry.
+class Login
+{
+    // The scope of each token. The key is the SHA-256 hash of the token, because the registry never saves a token.
+    private array<string> $scopes = [];
+
+    // The time each token expires, by the same hash.
+    private array<int> $expires = [];
+
+    public function constructor()
+    {
+    }
+
+    // Returns the SHA-256 hash of a token as 64 hex characters.
+    public static function hashOf(string $token): string
+    {
+        return Core\Encoding::toHex(Core\Hash::of($token, Core\Hash::Digest::Sha256));
+    }
+
+    // `nvs pkg login` checks this before it connects: `nvsreg_`, then 64 characters from 0 to 9 and a to f.
+    public static function checkForm(string $text): void
+    {
+        if (!Core\Str::startsWith($text, 'nvsreg_')) {
+            throw new RuntimeError('a token starts with `nvsreg_`');
+        }
+        string $hex = Core\Str::slice($text, 7);
+        if (Core\Str::length($hex) != 64) {
+            throw new RuntimeError('a token has 64 characters after `nvsreg_`, this one has ' . Core\Str::length($hex));
+        }
+        if (Core\Str::trim($hex, { characters: '0123456789abcdef' }) != '') {
+            throw new RuntimeError('a token has only the characters 0 to 9 and a to f');
+        }
+    }
+
+    // The registry makes a token. A scope is a vendor or a package, and a token works for 1 to 365 days.
+    public function create(string $token, string $scope, int $days, int $now): void
+    {
+        array<string> $parts = Core\Str::split($scope, '\\');
+        if (Core\Arr::count($parts) > 2) {
+            throw new RuntimeError('400, the scope must be a vendor or a package');
+        }
+        foreach ($parts as string $part) {
+            string $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            bool $first = $part != '' && Core\Str::trim(Core\Str::slice($part, 0, 1), { characters: $letters }) == '';
+            if (!$first || Core\Str::trim($part, { characters: $letters . '0123456789_' }) != '') {
+                throw new RuntimeError('400, the scope must be a vendor or a package');
+            }
+        }
+        if ($days < 1 || $days > 365) {
+            throw new RuntimeError('400, a token works for 1 to 365 days');
+        }
+        string $hash = Login::hashOf($token);
+        $this->scopes[$hash] = $scope;
+        $this->expires[$hash] = $now + $days * 86400;
+    }
+
+    // `nvs pkg whoami` sends the token, and the registry returns the scope it saved for it.
+    // The registry reads its own clock and its own saved scope. It reads nothing else from the request.
+    public function whoami(string $token, int $registryNow): string
+    {
+        string $hash = Login::hashOf($token);
+        if (!Core\Arr::hasKey($this->scopes, $hash)) {
+            throw new RuntimeError('401, the registry knows no token with this hash');
+        }
+        if ($this->expires[$hash] <= $registryNow) {
+            throw new RuntimeError('401, the token has expired');
+        }
+        return $this->scopes[$hash];
+    }
+}
+
+Login $registry = new Login();
+$registry->create($token, 'Acme', 30, $now);
+$registry->create($expired, 'Acme', 1, $now - 2 * 86400);
+
+// 1. Login gets text with the wrong start: another prefix, upper case, or no prefix.
+// Each step below catches its error, so the next step still runs.
+string $hex = Core\Str::repeat('3f', 32);
+array<string> $starts = ['nvsapi_' . $hex, 'NVSREG_' . $hex, $hex, 'Bearer ' . $token];
+foreach ($starts as string $text) {
+    try {
+        Login::checkForm($text);
+        echo "1. the text was accepted as a token\n";
+    } catch (Throwable $e) {
+        echo '1. stopped: ', $e->message, "\n";
+    }
+}
+
+// 2. Login gets a token that is too short, too long or empty.
+array<string> $lengths = ['nvsreg_' . Core\Str::slice($hex, 1), $token . '0', 'nvsreg_'];
+foreach ($lengths as string $text) {
+    try {
+        Login::checkForm($text);
+        echo "2. the text was accepted as a token\n";
+    } catch (Throwable $e) {
+        echo '2. stopped: ', $e->message, "\n";
+    }
+}
+
+// 3. Login gets a token with characters outside 0 to 9 and a to f.
+array<string> $odd = [
+    'nvsreg_' . Core\Str::upper($hex),
+    'nvsreg_' . Core\Str::slice($hex, 1) . 'g',
+    'nvsreg_' . Core\Str::slice($hex, 1) . ' ',
+    'nvsreg_' . Core\Str::slice($hex, 1) . "\0",
+    'nvsreg_' . Core\Str::slice($hex, 1) . "\u{FF10}",
+];
+foreach ($odd as string $text) {
+    try {
+        Login::checkForm($text);
+        echo "3. the text was accepted as a token\n";
+    } catch (Throwable $e) {
+        echo '3. stopped: ', $e->message, "\n";
+    }
+}
+
+// 4. The attacker changes one character of a real token, to find a token with another scope.
+string $edited = 'nvsreg_' . Core\Str::slice($hex, 1) . '0';
+try {
+    Login::checkForm($edited);
+    string $scope = $registry->whoami($edited, $now);
+    echo '4. the changed token has the scope ', $scope, "\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The attacker asks the registry for a token with a wider scope or a longer time.
+array<string> $scopes = ['*', 'Acme\\Http\\Extra', '', 'Acme/Http', 'Acme', 'Acme'];
+array<int> $days = [30, 30, 30, 30, 3650, 0];
+for (int $i = 0; $i < 6; $i++) {
+    try {
+        $registry->create('nvsreg_' . Core\Str::repeat('9e', 32), $scopes[$i], $days[$i], $now);
+        echo "5. the token was made\n";
+    } catch (Throwable $e) {
+        echo '5. stopped: ', $e->message, "\n";
+    }
+}
+
+// 6. The attacker sets the clock of their own computer back 3 days and uses the expired token.
+int $attackerClock = $now - 3 * 86400;
+try {
+    Login::checkForm($expired);
+    // The registry uses its own clock. The clock of the attacker is not sent.
+    string $oldScope = $registry->whoami($expired, $now);
+    echo '6. the expired token was accepted on a clock set to ', $attackerClock, ' with the scope ', $oldScope, "\n";
+} catch (Throwable $e) {
+    echo '6. stopped: ', $e->message, "\n";
+}

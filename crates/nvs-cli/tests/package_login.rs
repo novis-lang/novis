@@ -176,6 +176,7 @@ fn token_files(data: &Path) -> Vec<PathBuf> {
     )
 }
 
+// covers: tools:packages/nvs-pkg-login-and-nvs-pkg-whoami
 #[test]
 fn login_stores_a_token_and_whoami_prints_its_account_and_scope() {
     let data = nvs_repo::scratch_private("pkg-login-stores");
@@ -286,6 +287,7 @@ fn whoami_without_a_stored_token_says_how_to_log_in() {
     assert_eq!(host.served(), 0);
 }
 
+// covers: tools:packages/nvs-pkg-login-and-nvs-pkg-whoami
 #[test]
 fn whoami_refuses_a_token_file_another_account_can_write() {
     let data = nvs_repo::scratch_private("pkg-whoami-foreign");

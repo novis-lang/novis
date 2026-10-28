@@ -1,0 +1,5 @@
+accepted: Acme\Http\Client
+accepted: Acme\Http\Cookie\Jar
+accepted: acme\http\Retry
+not allowed: Acme\HttpTools\Timer
+not allowed: Acme\Log\Writer

@@ -1,0 +1,54 @@
+<?nvs
+// Shows how `nvs pkg add` chooses a version when the newest one is retracted.
+
+// The package index lists each version of a package and its state.
+// Version `1.4.0` is retracted, and the retraction names `1.4.1` as the fix.
+string $index = '{"name":"Acme\\\\Http","versions":['
+    . '{"version":"1.3.0","state":"released"},'
+    . '{"version":"1.4.0","state":{"retracted":{"reason":"Client::send drops the last header.","fixed_in":"1.4.1"}}},'
+    . '{"version":"1.4.1","state":"released"},'
+    . '{"version":"1.5.0","state":{"retracted":{"reason":"The timeout is ignored."}}}'
+    . ']}';
+
+final class Index
+{
+    // Returns the name of a state, such as `released` or `retracted`.
+    public static function stateName(mixed $state): tainted string
+    {
+        if ($state is tainted string) {
+            return $state;
+        }
+        array<mixed> $fields = $state as array<mixed>;
+        return Core\Arr::keys($fields)[0] as tainted string;
+    }
+}
+
+array<mixed> $file = Core\Json::decode($index) as array<mixed>;
+array<mixed> $versions = $file['versions'] as array<mixed>;
+
+// `nvs pkg add` takes the newest version that is `released`.
+// The newest version, `1.5.0`, is retracted, so this prints `1.4.1`.
+tainted string $chosen = '';
+foreach ($versions as mixed $entry) {
+    array<mixed> $release = $entry as array<mixed>;
+    if (Index::stateName($release['state']) == 'released') {
+        $chosen = $release['version'] as tainted string;
+    }
+}
+echo 'nvs pkg add chooses ', $chosen, "\n";
+
+// A retracted version is never deleted. A `package.lock` that names `1.4.0` still installs it.
+// Without a lock, the command stops with the reason and the version that fixes it.
+foreach ($versions as mixed $item) {
+    array<mixed> $version = $item as array<mixed>;
+    if (Index::stateName($version['state']) != 'retracted') {
+        continue;
+    }
+    array<mixed> $state = $version['state'] as array<mixed>;
+    array<mixed> $retracted = $state['retracted'] as array<mixed>;
+    tainted string $fix = 'No fixed version is named yet.';
+    if (Core\Arr::hasKey($retracted, 'fixed_in')) {
+        $fix = 'Use ' . ($retracted['fixed_in'] as tainted string) . ', which fixes it.';
+    }
+    echo $version['version'] as tainted string, ' is retracted: ', $retracted['reason'] as tainted string, ' ', $fix, "\n";
+}

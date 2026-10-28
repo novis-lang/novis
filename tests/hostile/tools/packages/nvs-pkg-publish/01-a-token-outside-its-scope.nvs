@@ -1,0 +1,203 @@
+<?nvs
+// Attack: a stolen publish token tries to publish packages that the token does not cover.
+// Other publishes name a repository that is not a public `https://` address. Every step below should be stopped.
+
+// The time of the check, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+// The stolen token. It may publish only packages of the vendor `Acme`.
+string $vendorToken = 'nvsreg_' . Core\Str::repeat('3f', 32);
+
+// A second stolen token. It may publish only the package `Acme\Http`.
+string $packageToken = 'nvsreg_' . Core\Str::repeat('a7', 32);
+
+// A third token. It expired one day before the check.
+string $oldToken = 'nvsreg_' . Core\Str::repeat('5c', 32);
+
+// The checks the registry runs before it publishes a package.
+class Registry
+{
+    // The scope of each token. The key is the SHA-256 hash of the token, because the registry never saves a token.
+    private array<string> $scopes = [];
+
+    // The time each token expires, by the same hash.
+    private array<int> $expires = [];
+
+    public function constructor()
+    {
+    }
+
+    // Saves the hash of a token with its scope and the time it expires.
+    public function add(string $token, string $scope, int $expiresAt): void
+    {
+        string $hash = Registry::hashOf($token);
+        $this->scopes[$hash] = $scope;
+        $this->expires[$hash] = $expiresAt;
+    }
+
+    // Returns the SHA-256 hash of a token as 64 hex characters.
+    public static function hashOf(string $token): string
+    {
+        return Core\Encoding::toHex(Core\Hash::of($token, Core\Hash::Digest::Sha256));
+    }
+
+    // Checks a name such as `Acme`: a letter first, then letters, digits and `_`.
+    public static function isName(string $text): bool
+    {
+        string $letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        if ($text == '' || Core\Str::length($text) > 64) {
+            return false;
+        }
+        if (Core\Str::trim(Core\Str::slice($text, 0, 1), { characters: $letters }) != '') {
+            return false;
+        }
+        return Core\Str::trim($text, { characters: $letters . '0123456789_' }) == '';
+    }
+
+    // Returns `true` when a scope covers a package. `Acme` covers `Acme\Http`, and `Acme\Http` covers only itself.
+    public static function covers(string $scope, string $package): bool
+    {
+        string $wanted = Core\Str::lower($package);
+        string $have = Core\Str::lower($scope);
+        return $have == $wanted || Core\Str::startsWith($wanted, $have . '\\');
+    }
+
+    // Throws an error unless the token may publish the package at the time `$now`.
+    public function checkToken(string $token, string $package, int $now): void
+    {
+        if (!Core\Str::startsWith($token, 'nvsreg_')) {
+            throw new RuntimeError('401, this is not a publish token');
+        }
+        string $hash = Registry::hashOf($token);
+        if (!Core\Arr::hasKey($this->scopes, $hash)) {
+            throw new RuntimeError('401, the registry knows no token with this hash');
+        }
+        if ($this->expires[$hash] <= $now) {
+            throw new RuntimeError('401, the token has expired');
+        }
+        array<string> $parts = Core\Str::split($package, '\\');
+        if (Core\Arr::count($parts) != 2 || !Registry::isName($parts[0]) || !Registry::isName($parts[1])) {
+            throw new RuntimeError('422, `' . $package . '` is not a package name');
+        }
+        string $scope = $this->scopes[$hash];
+        if (!Registry::covers($scope, $package)) {
+            throw new RuntimeError('403, this token publishes only `' . $scope . '`');
+        }
+    }
+
+    // Throws an error unless the repository is an `https://` URL of a public host.
+    public static function checkRepository(string $url): void
+    {
+        string $characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&'()*+,;=%";
+        if (!Core\Str::startsWith($url, 'https://') || Core\Str::length($url) < 9) {
+            throw new RuntimeError('400, the repository must be an `https://` URL');
+        }
+        if (Core\Str::trim($url, { characters: $characters }) != '') {
+            throw new RuntimeError('400, the URL has a character that a URL cannot have');
+        }
+        string $authority = Core\Str::split(Core\Str::slice($url, 8), '/')[0];
+        $authority = Core\Str::after($authority, '@', { last: true }) ?? $authority;
+        string $host = Core\Str::lower(Core\Str::split($authority, ':')[0]);
+        if (Core\Str::startsWith($authority, '[')) {
+            $host = Core\Str::lower(Core\Str::before(Core\Str::slice($authority, 1), ']') ?? '');
+        }
+        if ($host == '' || $host == 'localhost' || Core\Str::endsWith($host, '.localhost')) {
+            throw new RuntimeError('the host `' . $host . '` is this computer');
+        }
+        bool $local6 = $host == '::1' || Core\Str::startsWith($host, 'fc') || Core\Str::startsWith($host, 'fd') || Core\Str::startsWith($host, 'fe80');
+        if (Core\Validate::isIp($host, { version: 6 }) && $local6) {
+            throw new RuntimeError('the host `' . $host . '` is not a public address');
+        }
+        if (Core\Validate::isIp($host, { version: 4 })) {
+            array<int> $n = [];
+            foreach (Core\Str::split($host, '.') as string $part) {
+                $n[] = $part as int;
+            }
+            bool $private = $n[0] == 0 || $n[0] == 10 || $n[0] == 127
+                || ($n[0] == 169 && $n[1] == 254)
+                || ($n[0] == 172 && $n[1] >= 16 && $n[1] <= 31)
+                || ($n[0] == 192 && $n[1] == 168)
+                || ($n[0] == 100 && $n[1] >= 64 && $n[1] <= 127);
+            if ($private) {
+                throw new RuntimeError('the host `' . $host . '` is not a public address');
+            }
+        }
+    }
+}
+
+Registry $registry = new Registry();
+$registry->add($vendorToken, 'Acme', $now + 30 * 86400);
+$registry->add($packageToken, 'Acme\\Http', $now + 30 * 86400);
+$registry->add($oldToken, 'Acme', $now - 86400);
+
+// 1. The token for `Acme` publishes a package of another vendor.
+// Each step below catches its error, so the next step still runs.
+try {
+    $registry->checkToken($vendorToken, 'Other\\Http', $now);
+    echo "1. the package of another vendor was published\n";
+} catch (Throwable $e) {
+    echo '1. stopped: ', $e->message, "\n";
+}
+
+// 2. The token for `Acme` publishes under `AcmeTools`, a vendor whose name starts with `Acme`.
+try {
+    $registry->checkToken($vendorToken, 'AcmeTools\\Http', $now);
+    echo "2. the package of a longer vendor name was published\n";
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. The token for `Acme\Http` publishes `Acme\Mail`, another package of the same vendor.
+try {
+    $registry->checkToken($packageToken, 'Acme\\Mail', $now);
+    echo "3. another package of the vendor was published\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. The token for `Acme\Http` publishes `Acme\Http\Extra`, a name with three parts.
+try {
+    $registry->checkToken($packageToken, 'Acme\\Http\\Extra', $now);
+    echo "4. the name with three parts was published\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The attacker changes the last character of the token, so it looks like another token.
+string $changed = Core\Str::slice($vendorToken, 0, 70) . '0';
+try {
+    $registry->checkToken($changed, 'Acme\\Http', $now);
+    echo "5. the changed token was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+// 6. The attacker sends a token that expired one day ago.
+try {
+    $registry->checkToken($oldToken, 'Acme\\Http', $now);
+    echo "6. the expired token was accepted\n";
+} catch (Throwable $e) {
+    echo '6. stopped: ', $e->message, "\n";
+}
+
+// 7. A publish names a repository that is not a public `https://` address.
+array<string> $repositories = [
+    'http://git.example.com/acme/http',
+    'file:///home/acme/http',
+    'https://127.0.0.1/acme/http',
+    'https://10.0.0.5/acme/http',
+    'https://192.168.1.20/acme/http',
+    'https://169.254.169.254/latest',
+    'https://[::1]/acme/http',
+    'https://localhost/acme/http',
+    'https://git.example.com@10.0.0.5/acme/http',
+    'https://git.example.com/acme/http space',
+];
+foreach ($repositories as string $url) {
+    try {
+        Registry::checkRepository($url);
+        echo '7. the repository ', $url, " was accepted\n";
+    } catch (Throwable $e) {
+        echo '7. stopped: ', $url, ': ', $e->message, "\n";
+    }
+}

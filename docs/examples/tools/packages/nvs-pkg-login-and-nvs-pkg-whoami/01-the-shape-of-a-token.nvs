@@ -1,0 +1,38 @@
+<?nvs
+// Shows how a program checks that a text has the shape of a publish token.
+// `nvs pkg login` runs the same check before it sends a token to the registry.
+
+class Token
+{
+    // A publish token is `nvsreg_` and then 64 digits from `0` to `9` and `a` to `f`.
+    public static function looksValid(string $text): bool
+    {
+        if (!Core\Str::startsWith($text, 'nvsreg_')) {
+            return false;
+        }
+        string $digits = Core\Str::slice($text, 7);
+        if (Core\Str::length($digits) != 64) {
+            return false;
+        }
+        foreach (Core\Str::graphemes($digits) as string $digit) {
+            if (!Core\Str::contains('0123456789abcdef', $digit)) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+string $hex = Core\Str::repeat('3f2a9c0b', 8);
+
+// The first text is a token. The others are not, so this prints `yes` once and then `no` four times.
+array<string> $texts = [
+    'nvsreg_' . $hex,
+    'nvsreg_' . Core\Str::upper($hex),
+    'nvsreg_' . $hex . '0',
+    'nvsreg_' . Core\Str::slice($hex, 1),
+    $hex,
+];
+foreach ($texts as string $text) {
+    echo Token::looksValid($text) ? 'yes' : 'no', "\n";
+}

@@ -1,0 +1,6 @@
+Account: 3f2a9c0b7d4e4a1c9b8e2f6d0a5c7e13
+Scope: Acme
+Expires: 2027-10-28 (UTC)
+Releases that are not available yet:
+  Acme\Http 1.4.0 will be available at 2026-11-04T09:12:00Z.
+  Acme\Log 2.0.1 waits until an owner confirms it with a passkey on the website.

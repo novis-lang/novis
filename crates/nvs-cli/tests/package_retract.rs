@@ -221,6 +221,7 @@ fn logged_in(data: &Path, host: &Host, name: &str) -> nvs_repo::Scratch {
     package
 }
 
+// covers: tools:packages/nvs-pkg-retract-and-nvs-pkg-unlist
 #[test]
 fn retract_sends_the_version_reason_and_fix_and_prints_the_registry_message() {
     let data = nvs_repo::scratch_private("pkg-retract-sends");
@@ -282,6 +283,7 @@ fn retract_refuses_a_malformed_version_or_an_empty_reason_without_sending() {
     assert!(host.seen().is_empty(), "nothing is sent: {:?}", host.seen());
 }
 
+// covers: tools:packages/nvs-pkg-retract-and-nvs-pkg-unlist
 #[test]
 fn unlist_with_a_token_prints_where_to_confirm_and_a_refused_undo_fails() {
     let data = nvs_repo::scratch_private("pkg-unlist-token");

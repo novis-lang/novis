@@ -1,0 +1,12 @@
+{
+  "repository": "https://git.example.com/acme/http.git",
+  "commit": "5b1e0c4f9a7d2e8b3c6a1f0d4e9b8a7c6d5e4f3a",
+  "version": "1.4.0",
+  "directory": "packages/http"
+}
+Digest: blake3:9d2c41e07a5b3f68c1d0e4a2b7f9c3d58e6a1b0c4d7e2f9a3b5c8d1e0f4a7b6c
+Acme\Http 1.4.0 is pending.
+Releases that are not available yet:
+  Acme\Http 1.4.0 will be available at 2026-11-04T09:12:00Z.
+  Acme\Http 1.0.0 waits until an owner confirms it with a passkey on the website.
+Warning: No owner of `Acme` has a working device or webhook.
