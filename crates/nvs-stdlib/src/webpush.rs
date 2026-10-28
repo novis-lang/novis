@@ -853,6 +853,7 @@ mod tests {
         );
     }
 
+    // covers: Core\WebPush::subscription
     #[test]
     fn a_subscription_reads_a_browsers_json_and_checks_each_value() {
         let read = read_subscription(&subscription_json(
@@ -1086,6 +1087,7 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
+    // covers: Core\WebPush::send
     #[test]
     fn a_push_service_decrypts_what_send_posts_and_checks_its_vapid_token() {
         let (sent, pushed, port, mut ctx) = sent_to(201, b"New message from Shop");
@@ -1144,13 +1146,20 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
+    // covers: Core\WebPush::applicationServerKey
     #[test]
     fn a_vapid_token_names_the_endpoints_origin_and_verifies_under_the_public_key() {
         use ring::signature::{ECDSA_P256_SHA256_FIXED, UnparsedPublicKey};
         let args = [vapid_pair()];
         let pair = vapid_of(&args, 0, "send").unwrap();
-        let key = LENIENT.decode(public_of(&pair)).unwrap();
-        let ctx = nvs_runtime::Ctx::buffered();
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        // The token verifies under the key a browser is given, so the two halves agree.
+        let published =
+            nvs_runtime::call(nvs_core_webpush_application_server_key, &mut ctx, &args)
+                .expect("the public key");
+        let key = LENIENT.decode(published.as_text().expect("text")).unwrap();
+        assert_eq!(key.len(), POINT_LEN);
+        assert_eq!(key[0], 0x04, "an uncompressed point");
         let token = vapid_token(
             &ctx,
             pair,
