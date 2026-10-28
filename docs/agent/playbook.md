@@ -84,6 +84,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `until: gone crates/nvs-fmt/src/indent.rs:breaks`
 
 ## Running things
+- **Never end a shell call inside a scratch git repository under `.agent-tmp/`.** The guard hook
+  finds `tools/looper/main.ts` from the working directory's git root, so once the shell's directory
+  stays in a nested `git init` folder, every later Bash call fails with *Module not found*, and
+  removing that folder is refused while it holds the working directory. Run git in it with
+  `git -C <dir>` or `cd <dir> && ... && cd /e/mwl` in one call. `until: gone tools/looper/main.ts:run(process.argv`
 - **`a_served_while_true_does_not_stall_a_second_connection_on_its_core` can fail under a loaded
   full verify and pass alone.** The runaway's socket read EOF with no response head. One untested
   theory: hyper's EOF probe during the run arms `Phase::Body`'s `body_idle` wait
