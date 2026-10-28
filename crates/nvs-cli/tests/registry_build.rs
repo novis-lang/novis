@@ -11,6 +11,12 @@
 //!
 //! Every git command runs with no system or global configuration, and the repository writes
 //! `core.autocrlf = false`, so a file has the same bytes on every runner.
+//!
+//! The last test serves a copy of `apps/registry` with `nvs serve` and runs `nvs pkg login`,
+//! `whoami`, `publish`, `retract` and `unlist` against it
+//! (`rule:packaging/a-publish-token-is-scoped-and-expires`). The test signs up over HTTP with an
+//! Ed25519 passkey it answers the WebAuthn options with, and the service builds the release from
+//! the same git host.
 
 use std::fs;
 use std::io::{self, BufRead, BufReader, Read as _, Write as _};
@@ -929,4 +935,487 @@ fn a_minor_version_that_removes_a_method_is_refused() {
         .as_array()
         .expect("the report lists the changes");
     assert!(!changes.is_empty(), "{json}");
+}
+
+/// The longest `nvs serve` takes to print its `listening on` line. A bound on a stuck start,
+/// never a wait the test relies on.
+const BOOT: Duration = Duration::from_secs(120);
+
+/// The address the copy's `hosting.json` names. Its host is the passkey's domain.
+const ORIGIN: &str = "http://localhost:8000";
+
+/// What the copy runs to give an account a verified webhook, as
+/// `Registry\BrowserTest::verifiedChannel` does in the application's own tests. A webhook under
+/// `.invalid` never has an address, so each message to it fails at once with no network.
+const CHANNEL_SCRIPT: &str = "<?nvs\nautoload 'Registry' from '../src';\n\n\
+array<tainted string> $words = Core\\Cli::arguments();\n\
+string $account = Registry\\Accounts::idOf($words[0]) ?? '';\n\
+var $channels = new Registry\\Channels(Registry\\Schema::open());\n\
+array<string> $added = $channels->add($account, Registry\\Channels::WEBHOOK, 'https://hooks.invalid/' . $account);\n\
+if (!$channels->verify($account, $added['id'], $added['code'])) {\n\
+    throw new RuntimeError('The webhook is not verified.');\n\
+}\n";
+
+/// A copy of `apps/registry` in the case's folder, served by `nvs serve` on loopback. Its
+/// `hosting.json` names the `nvs` this test was built beside, a log key `nvs registry key` made,
+/// and the certificate of the case's git host, and its `nvs.toml` grants that program and lets
+/// the build reach loopback. The copy has its own database, so the vendor `Acme` is free.
+/// Dropping it stops the server.
+struct Registry {
+    child: std::process::Child,
+    addr: String,
+    dir: PathBuf,
+    /// Both streams of the server, for a failure message.
+    said: Arc<Mutex<String>>,
+}
+
+impl Registry {
+    /// Copies the application, writes its settings, and starts serving it.
+    fn start(case: &Case) -> Self {
+        let app = nvs_repo::path("apps/registry");
+        let dir = case.root.join("registry");
+        for folder in ["src", "public", "jobs", "fixtures"] {
+            copy_tree(&app.join(folder), &dir.join(folder));
+        }
+        let keys = dir.join("keys");
+        fs::create_dir_all(&keys).expect("the test makes the key folder");
+        fs::copy(case.ca(), keys.join("ca.pem")).expect("the test copies the certificate");
+        let key = keys.join("log.key");
+        let key = key.to_str().expect("the scratch path is UTF-8");
+        let out = case.nvs(&case.root, &["registry", "key", key, "--name", "localhost"]);
+        assert!(out.status.success(), "{}", shown(&out));
+        fs::write(dir.join("jobs/channel.nvs"), CHANNEL_SCRIPT)
+            .expect("the test writes the script");
+
+        let nvs = env!("CARGO_BIN_EXE_nvs");
+        let hosting = serde_json::json!({
+            "origin": ORIGIN,
+            "signUpWork": 8,
+            "nvs": nvs,
+            "gitCaFile": "keys/ca.pem",
+            "projectAccount": "",
+            "work": "work",
+            "stores": [{ "kind": "dir", "path": "files" }],
+            "hosts": [],
+            "backup": { "kind": "dir", "path": "backup" },
+            "backupKey": "",
+            "backupMinutes": 5,
+            "downloadLog": null,
+            "logKey": "keys/log.key",
+            "logName": "localhost",
+            "pushKey": "",
+            "pushSubject": "mailto:registry@example.com",
+        });
+        fs::write(dir.join("hosting.json"), hosting.to_string())
+            .expect("the test writes the settings");
+        let config = fs::read_to_string(app.join("nvs.toml"))
+            .expect("the application has its configuration")
+            .replace("\r\n", "\n");
+        let config = config
+            .replacen(
+                "read = [\"hosting.json\",",
+                "read = [\"keys\", \"hosting.json\",",
+                1,
+            )
+            .replacen(
+                "[capabilities.net]\ninternal = []\n",
+                "[capabilities.net]\ninternal = [\"127.0.0.1\"]\n",
+                1,
+            );
+        assert!(
+            config.contains("\"keys\"") && config.contains("internal = [\"127.0.0.1\"]"),
+            "the application's `nvs.toml` changed its `read` or `internal` line: {config}"
+        );
+        fs::write(
+            dir.join("nvs.toml"),
+            format!("{config}\n[capabilities.process]\nexec = ['{nvs}']\n"),
+        )
+        .expect("the test writes the configuration");
+
+        let serve_data = case.root.join("serve-data");
+        fs::create_dir_all(&serve_data).expect("the test makes the server's data folder");
+        let mut child = Command::new(nvs)
+            .arg("--data")
+            .arg(&serve_data)
+            .arg("--no-init")
+            .args(["serve", "public/index.nvs", "--config", "nvs.toml"])
+            .args(["--listen", "127.0.0.1:0"])
+            .current_dir(&dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("the `nvs` binary this test was built beside starts");
+        // Both pipes are read to their end on a thread of their own, so a server that writes a
+        // lot never blocks on a full pipe.
+        let said = Arc::new(Mutex::new(String::new()));
+        let err_pipe = child.stderr.take().expect("standard error is piped");
+        let collected = Arc::clone(&said);
+        thread::spawn(move || {
+            for line in BufReader::new(err_pipe).lines().map_while(Result::ok) {
+                note_line(&collected, &line);
+            }
+        });
+        let out_pipe = child.stdout.take().expect("standard output is piped");
+        let (sent, bound) = std::sync::mpsc::channel();
+        let collected = Arc::clone(&said);
+        thread::spawn(move || {
+            for line in BufReader::new(out_pipe).lines().map_while(Result::ok) {
+                note_line(&collected, &line);
+                if let Some(rest) = line.strip_prefix("listening on http://") {
+                    let _ = sent.send(
+                        rest.split_whitespace()
+                            .next()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    );
+                }
+            }
+        });
+        let Ok(addr) = bound.recv_timeout(BOOT) else {
+            let _ = child.kill();
+            let _ = child.wait();
+            let said = said
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            panic!("`nvs serve` did not start listening within {BOOT:?}: {said}");
+        };
+        Self {
+            child,
+            addr,
+            dir,
+            said,
+        }
+    }
+
+    /// The registry URL `nvs pkg` is given.
+    fn url(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+
+    /// What the server wrote so far.
+    fn said(&self) -> String {
+        self.said
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Gives `account` a verified webhook with the operator's `nvs run`, since the code of a
+    /// webhook reaches only the webhook.
+    fn verify_channel(&self, case: &Case, account: &str) {
+        let out = case.nvs(
+            &self.dir,
+            &["run", "jobs/channel.nvs", "--config", "nvs.toml", account],
+        );
+        assert!(out.status.success(), "{}", shown(&out));
+    }
+}
+
+impl Drop for Registry {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// `line` added to `said`.
+fn note_line(said: &Mutex<String>, line: &str) {
+    let mut all = said
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    all.push_str(line);
+    all.push('\n');
+}
+
+/// Every file under `from` copied to the same path under `to`.
+fn copy_tree(from: &Path, to: &Path) {
+    fs::create_dir_all(to).expect("the test makes the folder");
+    for entry in fs::read_dir(from).expect("the folder lists") {
+        let entry = entry.expect("the entry reads");
+        let target = to.join(entry.file_name());
+        if entry.file_type().expect("the entry has a type").is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).expect("the test copies the file");
+        }
+    }
+}
+
+/// A browser with one passkey device, as `Registry\BrowserTest` plays one in the application's
+/// own tests: it keeps the session cookies and answers the WebAuthn options with an Ed25519 key.
+struct Browser {
+    addr: String,
+    cookies: Vec<(String, String)>,
+    key: ring::signature::Ed25519KeyPair,
+    passkey: [u8; 16],
+}
+
+impl Browser {
+    fn new(registry: &Registry) -> Self {
+        let pkcs8 =
+            ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
+                .expect("the key is made");
+        Self {
+            addr: registry.addr.clone(),
+            cookies: Vec::new(),
+            key: ring::signature::Ed25519KeyPair::from_pkcs8(pkcs8.as_ref())
+                .expect("the key reads back"),
+            passkey: *b"passkey-of-test!",
+        }
+    }
+
+    /// `method path` with `body` as JSON and the session cookies. The status and the JSON reply.
+    fn send(&mut self, method: &str, path: &str, body: &str) -> (u16, Value) {
+        let mut stream = TcpStream::connect(&self.addr).expect("the registry accepts");
+        stream
+            .set_read_timeout(Some(BOUND))
+            .expect("the socket takes a timeout");
+        let cookie = if self.cookies.is_empty() {
+            String::new()
+        } else {
+            let pairs: Vec<String> = self
+                .cookies
+                .iter()
+                .map(|(name, value)| format!("{name}={value}"))
+                .collect();
+            format!("Cookie: {}\r\n", pairs.join("; "))
+        };
+        write!(
+            stream,
+            "{method} {path} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\n\
+             Content-Length: {}\r\n{cookie}Connection: close\r\n\r\n{body}",
+            self.addr,
+            body.len()
+        )
+        .expect("the request is sent");
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        reader.read_line(&mut line).expect("the reply has a status");
+        let status = line
+            .split_whitespace()
+            .nth(1)
+            .and_then(|code| code.parse().ok())
+            .unwrap_or_else(|| panic!("`{line}` is not a status line"));
+        let (mut length, mut chunks) = (None, false);
+        loop {
+            let mut header = String::new();
+            if reader.read_line(&mut header).expect("the header reads") == 0
+                || header.trim().is_empty()
+            {
+                break;
+            }
+            let Some((name, value)) = header.split_once(':') else {
+                continue;
+            };
+            let (name, value) = (name.trim().to_ascii_lowercase(), value.trim());
+            if name == "content-length" {
+                length = value.parse().ok();
+            } else if name == "transfer-encoding" && value.eq_ignore_ascii_case("chunked") {
+                chunks = true;
+            } else if name == "set-cookie"
+                && let Some((key, rest)) = value.split_once('=')
+            {
+                let kept = rest.split(';').next().unwrap_or_default().to_owned();
+                self.cookies.retain(|(had, _)| had != key);
+                self.cookies.push((key.to_owned(), kept));
+            }
+        }
+        let body = if chunks {
+            chunked(&mut reader).expect("the chunked body reads")
+        } else if let Some(length) = length {
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).expect("the body reads");
+            body
+        } else {
+            let mut body = Vec::new();
+            reader.read_to_end(&mut body).expect("the body reads");
+            body
+        };
+        (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
+    }
+
+    /// A sign-up: the proof-of-work solved, a new passkey for the options, and the account the
+    /// registry made, which is signed in with that passkey.
+    fn sign_up(&mut self) -> String {
+        let (status, work) = self.send("POST", "/api/signup/work", "");
+        assert_eq!(status, 200, "{work}");
+        let challenge = work["challenge"].as_str().expect("a challenge").to_owned();
+        let bits =
+            u32::try_from(work["bits"].as_u64().expect("a number of bits")).expect("the bits fit");
+        let nonce = (0u64..)
+            .find(|nonce| {
+                zero_bits(&<sha2::Sha256 as sha2::Digest>::digest(
+                    format!("{challenge}:{nonce}").as_bytes(),
+                )) >= bits
+            })
+            .expect("a nonce solves it");
+        let answer = serde_json::json!({ "challenge": challenge, "nonce": nonce.to_string() });
+        let (status, options) = self.send("POST", "/api/signup/options", &answer.to_string());
+        assert_eq!(status, 200, "{options}");
+        let registration = self.register(&options);
+        let (status, account) = self.send("POST", "/api/signup", &registration);
+        assert_eq!(status, 201, "{account}");
+        account["account"].as_str().expect("an account").to_owned()
+    }
+
+    /// The answer of the device to the registration options: client data with their challenge,
+    /// and an attestation object of format `none` with the device's Ed25519 key as a COSE key.
+    fn register(&self, options: &Value) -> String {
+        use base64::Engine as _;
+        use ring::signature::KeyPair as _;
+        let challenge = options["challenge"].as_str().expect("a challenge");
+        let client = serde_json::json!({ "type": "webauthn.create", "challenge": challenge, "origin": ORIGIN })
+            .to_string();
+        let mut data = <sha2::Sha256 as sha2::Digest>::digest(b"localhost").to_vec();
+        // The flags (user present, user verified, credential data), the counter and the AAGUID.
+        data.push(0x45);
+        data.extend_from_slice(&[0; 20]);
+        data.extend_from_slice(&16u16.to_be_bytes());
+        data.extend_from_slice(&self.passkey);
+        // A COSE key: OKP, EdDSA, Ed25519, and the 32 bytes of the public key.
+        data.extend_from_slice(&[0xa4, 0x01, 0x01, 0x03, 0x27, 0x20, 0x06, 0x21, 0x58, 0x20]);
+        data.extend_from_slice(self.key.public_key().as_ref());
+        let mut object = b"\xa3\x63fmt\x64none\x67attStmt\xa0\x68authData\x58".to_vec();
+        object.push(u8::try_from(data.len()).expect("the data fits one byte of length"));
+        object.extend_from_slice(&data);
+        let encode = |bytes: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+        let id = encode(&self.passkey);
+        serde_json::json!({
+            "type": "public-key",
+            "id": id,
+            "rawId": id,
+            "response": {
+                "clientDataJSON": encode(client.as_bytes()),
+                "attestationObject": encode(&object),
+            },
+        })
+        .to_string()
+    }
+}
+
+/// The zero bits at the start of `hash`, as `Registry\Work::zeroBits` counts them.
+fn zero_bits(hash: &[u8]) -> u32 {
+    let mut bits = 0;
+    for byte in hash {
+        if *byte != 0 {
+            return bits + byte.leading_zeros();
+        }
+        bits += 8;
+    }
+    bits
+}
+
+/// `nvs pkg login` stores `token` for `url`. Its output.
+fn login(case: &Case, url: &str, token: &str) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(case.data())
+        .args(["--no-init", "pkg", "login", "--registry", url])
+        .current_dir(case.repo())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the `nvs` binary this test was built beside runs");
+    let mut stdin = child.stdin.take().expect("standard input is piped");
+    stdin
+        .write_all(format!("{token}\n").as_bytes())
+        .expect("`nvs pkg login` reads its token");
+    drop(stdin);
+    child
+        .wait_with_output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// The publishing commands against a served copy of `apps/registry`: an account signs up with a
+/// passkey and makes a token for `Acme`, then `nvs pkg login`, `whoami`, `publish`, `retract` and
+/// `unlist` each get the service's real answer. The service builds the release from the case's
+/// git host, and the client's own digest of the commit agrees with it.
+// covers: tools:packages/nvs-pkg-login-and-nvs-pkg-whoami, tools:packages/nvs-pkg-publish, tools:packages/nvs-pkg-retract-and-nvs-pkg-unlist
+#[test]
+fn the_publishing_commands_work_against_the_registry_service() {
+    let case = Case::new("registry-service-client");
+    case.package("", "1.0.0", false);
+    case.commit("1.0.0");
+    let host = Host::start(&case);
+    let registry = Registry::start(&case);
+    let url = registry.url();
+    let mut browser = Browser::new(&registry);
+    let account = browser.sign_up();
+    let (status, made) = browser.send(
+        "POST",
+        "/api/tokens",
+        &serde_json::json!({ "scope": "Acme", "days": 30 }).to_string(),
+    );
+    assert_eq!(status, 201, "{made}: {}", registry.said());
+    let token = made["token"].as_str().expect("a token").to_owned();
+    registry.verify_channel(&case, &account);
+    let shown_all = |out: &Output| format!("{}\nthe server: {}", shown(out), registry.said());
+
+    let out = login(&case, &url, &token);
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let out = case.nvs(&case.repo(), &["pkg", "whoami", "--registry", &url]);
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains(&format!("Account: {account}")), "{said}");
+    assert!(said.contains("Scope: Acme"), "{said}");
+
+    let repository = host.url();
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "publish",
+            "--registry",
+            &url,
+            "--repository",
+            &repository,
+        ],
+    );
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(said.contains("`Acme\\Http` 1.0.0 is published."), "{said}");
+    assert!(
+        !String::from_utf8_lossy(&out.stderr).contains("this computer packs"),
+        "the digests differ: {}",
+        shown_all(&out)
+    );
+    assert!(
+        registry.dir.join("files/registry.json").is_file(),
+        "the store has no `registry.json`: {}",
+        registry.said()
+    );
+
+    let out = case.nvs(&case.repo(), &["pkg", "whoami", "--registry", &url]);
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains("Acme\\Http 1.0.0 waits until an owner confirms it with a passkey"),
+        "{said}"
+    );
+
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "retract",
+            "1.0.0",
+            "--reason",
+            "It deletes the cache.",
+            "--registry",
+            &url,
+        ],
+    );
+    assert!(out.status.success(), "{}", shown_all(&out));
+
+    let out = case.nvs(&case.repo(), &["pkg", "unlist", "--registry", &url]);
+    assert!(out.status.success(), "{}", shown_all(&out));
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains(&format!(
+            "sign in with a passkey and confirm on {ORIGIN}/packages/"
+        )),
+        "{said}"
+    );
 }

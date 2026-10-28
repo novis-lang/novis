@@ -76,7 +76,7 @@ stages:
         rules: [packaging/an-account-stays-active-by-proof-not-by-token, packaging/an-owner-is-notified-without-email, packaging/a-registry-account-is-a-passkey]
   - id: 10
     title: the service has its deploy guide and its proofs, and its rules are shipped
-    status: open
+    status: done
     context: [apps/registry/README.md, docs/reference/tools/35-packages.md]
     extra:
       context:
@@ -460,6 +460,17 @@ service and the website are `apps/registry/`, and the website's pages are goal `
 so its record names that goal, whose stage 4 ships it. Why: a shipped rule is always currently
 true, and the half about the website is not true until those pages exist.
 
+**The client's test against the service plays the browser in Rust.**
+`the_publishing_commands_work_against_the_registry_service` (`crates/nvs-cli/tests/registry_build.rs`)
+copies `src/`, `public/`, `jobs/` and `fixtures/` of `apps/registry` into its scratch folder, writes
+a `hosting.json` naming the test's `nvs`, a fresh log key and the git host's certificate, grants
+that `nvs` and `internal = ["127.0.0.1"]` in the copy's `nvs.toml`, and runs `nvs serve`. It signs
+up over HTTP with an Ed25519 passkey it answers the WebAuthn options with (the bytes
+`Registry\BrowserTest` sends), makes the token through `POST /api/tokens`, and verifies a webhook
+with `nvs run` of a script in the copy, as `BrowserTest::verifiedChannel` does, because a webhook's
+code reaches only the webhook. Why: sign-up, the token route, publish, the build, the log and the
+stores are the served path, with no test switch in the app and no second language for the ceremony.
+
 **Lanes.** The Rust lane (`crates/nvs-cli/src/package/login.rs`, `build.rs`, `publish.rs`,
 `retract.rs`, `unlist.rs`) is disjoint from `apps/registry/`, so stage 3 can run beside stage 2's app
 items, and stage 4's and stage 9's Rust items can go to their own sessions. Its one shared file is
@@ -677,10 +688,10 @@ every rule this goal owns is `shipped`.
 another, writes its `about.md` and the examples `bun nv proofs --id` lists, then one writes the three
 attacks. All follow AGENTS.md § *Text an end user reads*.
 
-- [ ] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. It gives a `hosting.json` for one VPS with Bunny Storage in two regions as the public store and a second provider as the backup store, the two cache lifetimes, the registry and the telemetry collector as two accounts in two service units, the log key kept offline and encrypted, and the old host stopped before a new one restores (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/README.md:1`
+- [x] The deploy guide in `apps/registry/README.md`, and the client's tests run against the service. It gives a `hosting.json` for one VPS with Bunny Storage in two regions as the public store and a second provider as the backup store, the two cache lifetimes, the registry and the telemetry collector as two accounts in two service units, the log key kept offline and encrypted, and the old host stopped before a new one restores (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/README.md:1`
   - [x] Bunny's line format and log path checked against its documentation, and the reader moved to Permanent Log Storage.
   - [x] The guide: settings, keys, two accounts, Bunny zones, cache times, `hosting.json`, `nvs.toml` grants, service units, moving hosts.
-  - [ ] The client's tests run against the service: a Rust test serves a copy of `apps/registry` and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it.
+  - [x] The client's tests run against the service: a Rust test serves a copy of `apps/registry` and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it.
 - [x] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
 - [x] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
 - [x] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
@@ -705,28 +716,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 9 and 11 are done. Stage 10 has one open checkpoint: the client's tests against the
-service. This session:
-- Wrote `about.md`, three examples and one attack for each of `nvs pkg login and nvs pkg whoami`,
-  `nvs pkg publish` and `nvs pkg retract and nvs pkg unlist`. Four subagents ran side by side,
-  since their folders are disjoint. Tagged the Rust tests in `package_login.rs`,
-  `package_retract.rs` and `registry_build.rs` with `// covers:`. `service-proofs` passes.
-- Handed `rule:packaging/the-registry-is-a-novis-program` to goal `registry-website` (standing
-  decision *ships with the website*). `owners-closes` passes.
-- The sweep's `env-secret-proofs` is defined in no file in the tree, and its log reads exit 0, so
-  the red is looper's service state. Nightly 40662443492 was cancelled by a newer push.
+Stages 1 to 11 are done; stage 12, the gate, is next. This session:
+- Wrote `the_publishing_commands_work_against_the_registry_service` in
+  `crates/nvs-cli/tests/registry_build.rs`: a served copy of `apps/registry`, a sign-up and a token
+  over HTTP with a Rust passkey, then `nvs pkg login`, `whoami`, `publish` (built by the service
+  from the test's HTTPS git host, and the client's digest agrees), `whoami` with the pending
+  release, `retract` and `unlist` (standing decision *plays the browser in Rust*). It passed once
+  by name in 4 s, and clippy is clean.
+- `registry-tests`, `service-proofs` and `owners-closes` pass, so stage 10 is done.
+- The sweep's `env-secret-proofs` log reads exit 0 again (looper's service state), and nightly
+  40662443492 was cancelled by a newer push. Neither needs a change in the tree.
 
-Watch in stage 12: `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads the refusal
-by status only. Every changing route sends notices to `https://hooks.invalid/<account>`, so a slow
-registry test may be DNS. One run in three had `IndexTest`'s `catchUp` return `false`. The three
-new attacks under `tests/hostile/tools/packages/nvs-pkg-*` first run in the hostile suite there.
-No test is expected red.
+Watch in stage 12: the new test's `nvs registry build`, `log append` and `index sign` children run
+with no `--data`, so they use `.nvsdata` beside the test's `nvs`. On a runner where that folder
+fails the ownership check, the publish answers `500`. The test needs `git` with `http-backend`,
+as the rest of the file does. `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads
+the refusal by status only. Every changing route sends notices to `https://hooks.invalid/<account>`,
+so a slow registry test may be DNS. One run in three had `IndexTest`'s `catchUp` return `false`.
+The three attacks under `tests/hostile/tools/packages/nvs-pkg-*` first run in the hostile suite
+there. No test is expected red.
 
 ### Next
 
-Stage 10's last checkpoint, then stage 12.
-- [ ] The client's tests against the service: a Rust test serves a copy of `apps/registry` with `nvs serve`, makes an account and a token, and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it. The passkey ceremony is Novis in `Registry\BrowserTest::register` (`apps/registry/src/BrowserTest.nvs:117`), which works through `Core\Test::request` only, so the Rust test needs a Novis script run with `nvs run` against the served origin, or the ceremony in Rust over HTTP; pick the one that keeps the tested path the real one. `crates/nvs-cli/tests/package_login.rs:1`
-- [ ] Stage 12: `bun nv affected --run` with `run_in_background`. `tools/nv/cmd/verify.ts:1`
+Stage 12.
+- [ ] `bun nv affected --run` with `run_in_background`, then every failure fixed in one pass and a second green run. `tools/nv/cmd/verify.ts:1`
+- [ ] Before `DONE`: `bun nv verify --doc`, `bun nv owners --closes registry-service`, `bun nv ci --check`. `crates/nvs-cli/tests/registry_build.rs:1337`
 
 ### Backlog
 
