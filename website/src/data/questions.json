@@ -986,7 +986,7 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "4e6a4c43658d5396",
+    "hash": "f19d487e94a1fb5f",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",

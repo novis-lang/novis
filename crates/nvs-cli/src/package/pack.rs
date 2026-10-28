@@ -12,7 +12,7 @@
 //! against case-only twins and the two limits, [`MAX_FILES`] and [`MAX_BYTES`]. Those are
 //! constants of the format, which the registry's build and the fetch read from here.
 //!
-//! **The bytes depend on the files' paths and contents alone** ([`write`]). The archive is an
+//! **The bytes depend on the files' paths and contents alone** ([`write()`]). The archive is an
 //! uncompressed `ustar` tar, entries sorted by path bytes, and every header field this code does
 //! not derive from the file is fixed: mode `0644`, owner and group `0` with no names, time `0`.
 //! The `tar` crate writes the format (`rule:packaging/somebody-elses-specification-is-a-crate`),
