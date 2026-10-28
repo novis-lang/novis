@@ -104,19 +104,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `55b2d517c`. The goal end's push of `b25ee8fe0` was refused: a cores chart
-edit staled `/in-depth/compare/`'s questions. `55b2d517c` rewrote one question, and this session
-pushed with `bun nv ci --push`. Its Website run 40598154468 is green. Its CI run 40598154485 is red
-in two causes, both fixed by the main loop's unpushed `b8ced0fcc`:
+`origin/main` is at `1dc247056`, and both its runs are green: CI 40605695473 (35 jobs) and
+Website 40605695678. That push carried `b8ced0fcc`, which fixed `55b2d517c`'s two reds: the
+unrendered rulebook and the telemetry `pkg` test. Before the watch, `bun nv site --check stale
+questions` and `bun nv proofs --gate --limit 0` were clean at `f824fbd15`.
 
-- `docs`: `docs/rules/packaging.md` and `docs/ground-rules.md` were not rendered.
-- All four `test` jobs: `telemetry::tests::the_collectors_known_lists_name_everything_this_client_sends`,
-  `known.toml lacks command \`pkg\``. Each job has that one failed test.
-
-The run before, on `1ffcfe21a`, failed `nvs-fmt`'s identity test on `examples/cli.nvs` and
-`examples/reflect.nvs`. `bb77e40b2` fixed it, and `55b2d517c`'s run passed it.
-
-The next watch runs with `--next`, so the red run on `55b2d517c` does not end it at once.
+The next watch may run without `--next`: the newest runs are green.
 
 `proofs / windows-x86_64` once hung in `Post Run actions/checkout` until the 1h30 job limit, and
 a rerun went green. Earlier runs spend 3 s in that step. A second such hang is not noise: look for
