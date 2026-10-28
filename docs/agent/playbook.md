@@ -185,7 +185,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   pool.** A `UNIQUE` failure on a row a test wrote into its own `:memory:` database was another
   test's database, handed back by the per-core connection pool. Run the failures alone with
   `--rerun-failed` first; a pass there means two tests meet in a pool, a file or a shared table.
-  `until: gone crates/nvs-stdlib/src/db/pool.rs:is_private`
+  See `crates/nvs-stdlib/src/db/pool.rs`. `until: gone crates/nvs-stdlib/src/db/pool.rs:is_private`
 
 ## Splitting a file
 

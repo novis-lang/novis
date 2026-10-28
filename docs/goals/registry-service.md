@@ -41,7 +41,7 @@ stages:
         rules: [packaging/registry-hosting-is-configuration, packaging/search-sorts-by-the-readers-choice, packaging/the-registry-keeps-an-append-only-log]
   - id: 4
     title: a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/log.rs, docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md, docs/rules/packaging/an-owner-may-unlist.md, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
@@ -309,6 +309,20 @@ is no operator account on the website, so no web credential can withhold. A with
 route answers `451`. Why: the operator's one power stays off the network, and a stolen token can
 only start a public seven-day retraction.
 
+**A package moves with a passkey, and each release keeps its repository.** `releases` stores the
+repository and folder each version was built from, and the index and the `publish` entry read them
+there. `POST /api/packages/<vendor>/<name>/repository` needs an owner's passkey in the last 15
+minutes, refuses a folder another package publishes from (`409`), and saves a `repository` entry
+that `Restore` replays (the folder is not in the log). A token cannot move a package. The local
+`registry.sqlite` was deleted for the new columns rather than migrated, since no deployment exists.
+Why: a moved package must not rewrite where its old releases came from, and a stolen token must not
+point the next build at another repository.
+
+**A withheld archive is deleted from every store.** `jobs/withhold.nvs` calls `Stores::remove` after
+the flush, so the log and the index have the reason before the bytes go; a failed store is finished
+by running the job again. Why: `rule:packaging/the-operator-only-withholds` says the bytes stop being
+served, and a file host serves whatever its store has.
+
 **Owners are notified without email** (`rule:packaging/an-owner-is-notified-without-email`). Each
 publish, new token, owner change, unlist and retraction reaches every owner through the channels that
 owner set up: Web Push, and webhooks. A webhook is a signed POST to a URL the owner gives, sent through
@@ -518,16 +532,16 @@ the first stable API at once, and unlisting and withholding work as their rules 
   - [x] the `unlist` and `relist` routes, `202` with the confirm page for a token
   - [x] `jobs/withhold.nvs`, and `451` from the archive route
   - [x] `crates/nvs-cli/src/package/unlist.rs` and its test
-- [ ] A log entry through `nvs registry log append` for every event in the standing decision. `apps/registry/src/Events.nvs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [x] A log entry through `nvs registry log append` for every event in the standing decision. `apps/registry/src/Events.nvs:1`, `crates/nvs-cli/src/package/log.rs:1`
   - [x] `Events` and the `events` table, appended by `Index::flush` and `catchUp` before an index file changes
   - [x] owner changes, tokens made and revoked, unlist, relist, retract, withhold, release and stable confirmations
-  - [ ] the `repository` entry, with the passkey route that rebinds a package's repository; each release first keeps its own repository, because `Index::write` takes every version's from the package row
+  - [x] the `repository` entry, with the passkey route that rebinds a package's repository; each release first keeps its own repository, because `Index::write` takes every version's from the package row
 - [x] Tests under a fixed clock: a token release selectable after seven days and not before, a passkey release at once, a release behind a pending dependency, an unlist reversed, a withhold carrying its reason, and one log entry per event. `apps/registry/src/ReleasesTest.nvs:1`
   - [x] the eight tests over a database of their own: the wait, the passkey release, the stable wait, the dependency, unlist, retract, withhold, one entry per change
   - [x] the three route tests: a passkey release, a token unlist answered `202`, `451` from a withheld archive
   - [x] `IndexTest` and `PublishTest` read the stable wait and the shifted log numbers
 - [x] `nvs test` over a folder answers `Core\Test::request` with `public/index.nvs` alone, so the scripts under `jobs/` do not run per request (standing decision *A test request runs the request entry*). `crates/nvs-cli/src/runner.rs:1307`, `crates/nvs-cli/src/main.rs:3185`, `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1`
-- [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
+- [x] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
 
 ### 5. an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
 
@@ -609,34 +623,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7 and 11 are done. Stage 4's service side, Rust lane and tests landed: `Releases`
-(states, the stable wait, the dependency walk), `Events` (the `events` table that
-`Index::flush` and `catchUp` append before any index file changes), the `release`, `stable`,
-`api`, `unlist`, `relist` and `retract` routes in `apps/registry/src/App.nvs`, the owner and
-token entries in `Vendors` and `Tokens`, `jobs/withhold.nvs` with `451` from the archive route,
-`nvs pkg retract` and `nvs pkg unlist`, and `ReleasesTest` (11 tests).
+Stages 1, 2, 3, 4, 7 and 11 are done. This session closed stage 4: `releases` has each version's
+`repository` and `directory`, read by `Index::write` and the `publish` entry; `App::rebind`
+(`POST /api/packages/<vendor>/<name>/repository`) moves a package for an owner with a passkey and
+saves a `repository` entry that `Restore` replays; `jobs/withhold.nvs` deletes the archive from
+every store through `Stores::remove` and `Store::delete`; the three stage 4 rules are `shipped`.
+New tests, each run once by name and green: `ReleasesTest::anOwnerMovesAPackageAndEachReleaseKeepsItsRepository`,
+`StoresTest::anHttpStoreGetsADeleteWithItsKey`, and more assertions in
+`eachChangeIsOneEntryOfTheLogBeforeTheIndexFileChanges` and `aWithheldVersionKeepsItsDigestAndShowsTheReason`.
 
-The runner fix landed: `Checked::request` holds the id of a folder's `public/index.nvs`, and
-`UnderTest` runs its frame through `Unit::file_script` (`crates/nvs-cli/src/runner.rs:1307`), with
-`test_dir.rs`'s `a_test_request_runs_the_served_file_and_not_the_jobs`. The `server: true`
-listener (`TestServer::bind`, `runner.rs:3704`) still runs the generated entry, as both rules say.
-`nvs test apps/registry --config apps/registry/nvs.toml`: 51 passed, 0 failed.
+The local `registry.sqlite`, `work/` and `files/` (all gitignored, made by the tests) were deleted,
+because `create table if not exists` does not add the new `releases` columns. A clone with an old
+`registry.sqlite` sees "no such column: repository" until it deletes that file.
 
-Found on the way and fixed: a pooled SQLite `:memory:` connection kept its tables for the next
-request on the core (`ReleasesTest`'s in-memory databases collided under parallel runs).
-`SqliteConn::is_private` and the pool's gate (`crates/nvs-stdlib/src/db/pool.rs:warm_connection`)
-close it now; `db-a-closed-name-is-free-for-the-next-connect.nvst` pins it. `BackupTest` reads the
-log numbers its releases saved and publishes `0.0.x`. One run in three had
-`IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s `catchUp` return `false`, in a run where
-`BackupTest` also failed; the run after both fixes was green. Watch it in stage 12. The sweep's
-`env-secret-proofs` red was stale again (the log and a rerun both exit 0), and nightly run
-40662443492 was cancelled by a newer push. No test is expected red.
+Watch in stage 12: one run in three had `IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s
+`catchUp` return `false`. The sweep's `env-secret-proofs` red was stale again (a rerun exits 0), and
+nightly run 40662443492 was cancelled by a newer push. No test is expected red.
 
 ### Next
 
-Stage 4's last two items.
-- [ ] The `repository` entry and the passkey route that rebinds a package's repository. First give each release its own repository: `Index::write` lists every version with the package row's. `apps/registry/src/Index.nvs:@write`, `apps/registry/src/Publish.nvs:130`
-- [ ] The three rules `shipped`, each with its guards. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`
+Stage 5; its gate holds (`core-classes/web-push-sends-an-encrypted-message` is `shipped`). Follow
+its `**Split:**` line: land `Channels.nvs`'s verified state first.
+- [ ] `Channels.nvs`: a `channels` table (push device or webhook, verified time, last answer) and `Channels::hasVerified($account)`. `apps/registry/src/Schema.nvs:354`
+- [ ] `Push.nvs`: register a device with a passkey, send through `Core\WebPush`, drop a gone one. `crates/nvs-stdlib/src/webpush.rs:1`
+- [ ] The verified-channel refusal in `Publish::record` and `App::addOwner`. `apps/registry/src/Publish.nvs:103`, `apps/registry/src/App.nvs:183`
+- [ ] `PushTest.nvs` against a fake push service, as `StoresTest` fakes a store with `Core\Test::answerHttp`. `apps/registry/src/StoresTest.nvs:22`
 
 ### Backlog
 
@@ -655,16 +666,14 @@ Stage 4's last two items.
 - Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
   an `fs.read` grant for each secret file outside the app folder; the committed `nvs.toml` has
   neither (standing decision *The build runs only where the operator grants it*).
-- Changing a package's bound repository with a passkey is a route stage 4 or `registry-website` adds;
-  `Publish` refuses the change with a 403 until then.
+
 - Stage 5 notifies the owners of each event in `events` and adds the verified-channel check to
   `addOwner` (`apps/registry/src/App.nvs`).
-- Withholding stops only the registry's own `/archive/…` route. The copies in the stores and the work
-  folder are not deleted, so a file host still serves them. `Store` needs a delete for
-  `jobs/withhold.nvs` (`apps/registry/src/Store.nvs`).
+- Stage 5 adds a `Push` and stage 8 a `Webhooks` notice to each `events` row; every adding of a
+  row is in `Events.nvs`, including the new `Events::repository`.
 - `Restore` brings back only the pending time from an index file. Unlisted, retracted and withheld
-  states and stable confirmations after the newest copy are lost until it replays those log entries
-  (`apps/registry/src/Restore.nvs:181`).
+  states and stable confirmations after the newest copy are lost until it replays those log entries.
+  It replays `publish` and `repository` only (`apps/registry/src/Restore.nvs:84`).
 - `nvs pkg retract` does not check the 500-character reason limit; only the registry does.
 - A `#[Test(server: true)]` request over a folder still runs the generated entry, `jobs/` included.
   `TestServer::bind` takes the unit and routes from `run_the_test` (`crates/nvs-cli/src/runner.rs:3358`);
