@@ -104,23 +104,25 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `980f820f5`, the end of `check-and-serve-fixes`. CI 40712247908 and Website
-40712248085 are green on it, all 37 CI jobs. No fix waits for a push. The stale figures and pages
-the last State named went out fixed in that push.
+`origin/main` is at `aba3e3642`, the end of `core-web-push`. Website 40732744718 is green on it.
+CI 40732744737 is red on six jobs, and one commit fixes five of them:
 
-The next watch runs with no `--next`: the newest runs are green, so a plain watch waits for the
-next push. One `gh` 502 during the watch was retried and passed.
+- `asan` and `test` on all four platforms failed one test,
+  `crates/nvs-stdlib/tests/ext_world.rs:every_core_value_class_crosses_as_a_types_record_or_is_named_as_refused`.
+  `Core\WebPush\Subscription` and `Core\WebPush\Sent` had no entry in `REFUSED`. `73960ebbf` adds
+  both, and the test passes locally. It waits for the next goal end's push. `cargo test` stops at the
+  first failing binary, so every binary after `ext_world` did not run on those jobs. Expect a new red
+  there on the next run.
+- `cost guards / macos-aarch64` never got a runner. Its annotation says "not acquired by Runner of
+  type hosted", during GitHub's macOS arm64 capacity limits. It was not rerun, because `--rerun`
+  reruns the five known reds as well. The next push's run covers it.
+
+The next watch runs with `--next`, because the newest CI run is red and its fix is not pushed yet.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
-the main loop may be recording the same figures.
-`--record-perf` needs the binary under the worktree's own `target/`, so a `CARGO_TARGET_DIR` there
-builds a binary the recorder cannot find.
-
-`proofs / windows-x86_64` once hung in `Post Run actions/checkout` until the 1h30 job limit, and
-a rerun went green. Earlier runs spend 3 s in that step. A second such hang is not noise: look for
-a process the proofs leave running that holds the checkout.
-
-A new test that renders megabytes or uses the spare stack needs the Miri skip.
+the main loop may be recording the same figures. `--record-perf` needs the binary under the
+worktree's own `target/`. A `proofs / windows-x86_64` hang in `Post Run actions/checkout` a second
+time is not noise: look for a process the proofs leave running.
 
 `.agent-tmp/wt-*` are stray folders Windows keeps while looper runs. `wt-csv/target` is a warm
 target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper is stopped.
