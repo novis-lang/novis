@@ -4706,7 +4706,8 @@ pub(crate) fn stop(name: &str) -> ExitCode {
 }
 
 /// `nvs service status <name>` — the manager's own answer, the last run's
-/// warnings and errors when the service is not running, then
+/// warnings and errors when the service is not running, the mounts that did
+/// not compile at start when it is, then
 /// `rule:config/ownership-is-the-trust-boundary`'s check of the stored
 /// configuration for the account the service runs as. A refusal is the boot's
 /// `E0607` and exits `1`. A file this account cannot read is a warning, and
@@ -4738,6 +4739,12 @@ pub(crate) fn status(name: &str) -> ExitCode {
 /// verdict on every `--config` file the stored argv names, judged for the
 /// stored account.
 ///
+/// For a running service it lists the start's line for each mount that did not
+/// compile (`crate::serve::NOT_COMPILED_AT_START`), read from the same record of
+/// the run. That record keeps the run's last
+/// [`LAST_RUN_LINES`](crate::dispatch::LAST_RUN_LINES) lines, so a run that has
+/// written more since its start lists none.
+///
 /// A last run that cannot be read is one line saying so, because the state is
 /// still the answer.
 ///
@@ -4754,10 +4761,25 @@ fn status_of(
     site: &registration::Site<'_>,
 ) -> Result<(Vec<String>, Result<(), Diagnostic>), registration::Refused> {
     let mut answers = registration::control(registration::Control::Status, name, site)?;
-    if answers
+    let running = answers
         .last()
-        .is_some_and(|state| registration::ended(state))
-    {
+        .is_some_and(|state| !registration::ended(state));
+    if running {
+        // A run that cannot be read lists nothing: the state is the answer.
+        let failed: Vec<String> = site
+            .manager
+            .last_run(name)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|line| line.contains(crate::serve::NOT_COMPILED_AT_START))
+            .collect();
+        if !failed.is_empty() {
+            answers.push("Mounts that did not compile at start:".to_owned());
+            answers.extend(failed.into_iter().map(|line| {
+                format!("  {}", line.strip_prefix("error: ").unwrap_or(&line))
+            }));
+        }
+    } else if !answers.is_empty() {
         match site.manager.last_run(name) {
             Ok(lines) if lines.is_empty() => {}
             Ok(lines) => {
@@ -7104,6 +7126,38 @@ mod tests {
         for running in ["running", "active"] {
             assert_eq!(status(running), [running]);
         }
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    }
+
+    /// `status` on a running service lists each mount that did not compile at
+    /// start, from the start's own line, and no other line of the run.
+    #[test]
+    fn status_of_a_running_service_lists_the_mounts_that_did_not_compile_at_start() {
+        let root = unit_root("failed-mounts");
+        let failed = format!(
+            "error: the mount at `/shop` serves `www/shop/index.nvs`, {}, and its requests \
+             answer 500 until it compiles",
+            crate::serve::NOT_COMPILED_AT_START
+        );
+        let manager = registration::Recording::after_a_run(
+            "running",
+            &["error[E0101]: expected `;`", &failed, "warning: a slow request"],
+        );
+        let site = registration::Site {
+            platform: registration::Platform::host(),
+            unit_root: &root,
+            manager: &manager,
+        };
+        let (answers, verdict) = status_of("shop", &site).expect("the manager answers");
+        assert!(verdict.is_ok(), "{verdict:?}");
+        assert_eq!(
+            answers,
+            [
+                "running".to_owned(),
+                "Mounts that did not compile at start:".to_owned(),
+                format!("  {}", failed.strip_prefix("error: ").unwrap_or_default()),
+            ]
+        );
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 

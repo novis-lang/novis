@@ -12,8 +12,12 @@ keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes aw
 `nvs serve` runs an application until the process is stopped. It answers HTTP requests on every
 core, runs the `[[schedule]]` entries on the core that ticks, and drains the `[queue]` workers
 beside them; a configuration that writes neither starts neither. Every file it serves is compiled
-before the socket is bound, so a program with a diagnostic never answers a request, and every
-request runs in an isolate that shares nothing with any other request.
+before the socket is bound, and every request runs in an isolate that shares nothing with any other
+request.
+
+A mount whose file does not compile does not stop the start. The server writes its errors to the
+log, and its requests answer `500` until the file is fixed. The other mounts are served as usual.
+The start fails only when no mount compiles.
 
 The development server and the production origin are the same command. In production it sits
 behind a proxy on loopback or a Unix socket; nothing a proxy does earlier — TLS, compression,
@@ -115,6 +119,9 @@ entry  = "Shop/public/index.nvs"
 - `root` is required whenever a mount is written, and every resolved path must lie inside it.
   A relative `root` resolves against the file it is written in.
 - Two explicit mounts at one key are an error. A scan that matched no file refuses the start.
+- A mount whose entry file does not compile at start is still served. Its requests answer `500`
+  until an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it
+  first compiles.
 - A mount routes and nothing else: it has no `mode`, no limits and no capabilities. Those are the
   `[[app]]` block's, keyed on the entry file's path (the configuration chapter), and the two
   usually name the same directory.
@@ -502,7 +509,18 @@ $ nvs service status shop
 active
 ```
 
-On Windows the state is a word such as `running` or `stopped`. **`run`** runs the stored command in your
+On Windows the state is a word such as `running` or `stopped`. While the service runs, `status`
+also lists each mount that did not compile when the server started:
+
+```text
+$ nvs service status shop
+active
+Mounts that did not compile at start:
+  the mount at `/blog` serves `/srv/www/Blog/public/index.nvs`, which did not compile at start, ...
+```
+
+The list comes from the last lines that the server wrote to its log. A server that has written many
+lines since it started may list none. **`run`** runs the stored command in your
 terminal, so you can read what the server prints when it does not start as a service.
 **`uninstall`** removes the service and everything that `install` added.
 

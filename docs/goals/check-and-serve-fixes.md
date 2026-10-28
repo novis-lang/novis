@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/ctor_init.rs, crates/nvs-diagnostics/src/code/types.rs]
   - id: 5
     title: "nvs serve starts with the mounts that compile and names the ones that do not"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs, crates/nvs-cli/src/service.rs, docs/reference/tools/25-server.md]
   - id: 6
     title: "the reference states config check --as and that the origin check comes before route matching"
@@ -187,12 +187,12 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 **Does:** a mount that does not compile at start fails only its own requests, the log and
 `nvs service status` name it, and the start fails only when no mount compiles.
 
-- [ ] A CLI test starts a server over a `scan` table with one good and one broken module, and the
+- [x] A CLI test starts a server over a `scan` table with one good and one broken module, and the
   good one answers while the broken one answers `500`. It fails first. `crates/nvs-cli/tests/live_edit.rs:1200`
-- [ ] The start-up loop keeps a failing mount and fails only when none compiles. `crates/nvs-cli/src/serve.rs:542-547`
-- [ ] A kept failing row runs `unreached_origin` when it first compiles. `crates/nvs-cli/src/serve/mounts.rs:386-402`
-- [ ] `nvs service status` lists each mount that failed to compile at start. `crates/nvs-cli/src/service.rs:4714`
-- [ ] The rules and reference say it: `docs/rules/http-server/the-accept-fan-out-is-one-worker-per-core.md:5`,
+- [x] The start-up loop keeps a failing mount and fails only when none compiles. `crates/nvs-cli/src/serve.rs:542-547`
+- [x] A kept failing row runs `unreached_origin` when it first compiles. `crates/nvs-cli/src/serve/mounts.rs:386-402`
+- [x] `nvs service status` lists each mount that failed to compile at start. `crates/nvs-cli/src/service.rs:4714`
+- [x] The rules and reference say it: `docs/rules/http-server/the-accept-fan-out-is-one-worker-per-core.md:5`,
   `docs/rules/http-server/a-mount-table-expands-at-boot.md`, `docs/rules/http-server/health-path-is-off-and-checks-nothing.md:3`,
   `docs/reference/tools/25-server.md:14-16` and its mounts section at `:87`.
 
@@ -217,34 +217,27 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1, 2, 3, 4 and 6 are done, each new test run once by name and green. Stage 4's removed
-options are `REMOVED_OPTIONS` in `crates/nvs-types/src/attributes.rs`, pinned by
-`tests/conformance/reject/a-removed-route-option-names-its-replacement.nvst`, and its rule is
-`core-api/no-deprecation-window-before-a-release`. Stage 6's origin-first text matches dispatch,
-which answers the door's refusal before it looks for a match (`crates/nvs-stdlib/src/router.rs`).
+Stages 1 to 6 are done, each new test run once by name and green. Stage 5's boot keeps a mount
+that does not compile (`Unserved` in `crates/nvs-cli/src/serve.rs`), and `Rescan`'s `failing` runs
+its origin check once it compiles. `nvs service status` lists the run's `NOT_COMPILED_AT_START`
+lines, from `Manager::last_run`'s last 20 lines.
 
 Tests that may go red in stage 7, none searched for:
 - a whole-stderr comparison of an `E0303`/`E0306` that found no lender: one more note line (stage 3);
 - on Windows, a diagnostic's file name compared with `fs::canonicalize` output (stage 2);
 - a case whose html template hole holds a call `nvs-hir` now reports (stage 1);
 - a pin of E0409's no-constructor or `$this`-escape help, or of E0428's help (stage 4);
-- a snapshot of the `Refusal` card, `nvs meta --json` or the rendered reference (stage 6).
+- a snapshot of the `Refusal` card, `nvs meta --json` or the rendered reference (stage 6);
+- a case pinning `nvs serve`'s stderr over one broken entry: it now ends `no mount compiled` (stage 5).
 
-The sweep's `env-secret-proofs` exits 0 when run this session, and the nightly run `40662443492`
-was a cancelled manual dispatch with a green push run after it. Neither needs a fix.
+The sweep's `env-secret-proofs` exits 0 again, and nightly `40662443492` is the cancelled dispatch.
 
 ### Next
 
-Stage 5, `nvs serve` starts with the mounts that compile. Stage 5's items list the anchors. Write the
-CLI test first, so it fails first.
-- [ ] The CLI test: a `scan` table with one good module and one broken one. `crates/nvs-cli/tests/live_edit.rs:1200`
-- [ ] The start-up loop keeps a failing mount and logs it. `crates/nvs-cli/src/serve.rs:542-547`
-  The start fails only when no mount compiles.
-- [ ] A kept failing row runs `unreached_origin` when it first compiles. `crates/nvs-cli/src/serve/mounts.rs:386-402`
-- [ ] `nvs service status` lists the mounts that failed at start. `crates/nvs-cli/src/service.rs:4714`
-- [ ] The rules and the reference say it, as stage 5's last item lists. `docs/reference/tools/25-server.md:14-16`,
-  and the module doc's "Every mounted entry is compiled" paragraph. `crates/nvs-cli/src/serve.rs:49`
+Stage 7, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in
+one pass, run it again, then the goal-end gates AGENTS.md § *In the loop* lists: `bun nv verify
+--doc`, `bun nv owners --closes check-and-serve-fixes`, `bun nv ci --check`.
 
 ### Backlog
 
-- Stage 7, the gate, after stage 5.
+- None past stage 7.

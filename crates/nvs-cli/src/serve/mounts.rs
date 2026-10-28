@@ -24,6 +24,9 @@
 //!   of it. A row that fails the check is logged and left out.
 //! - A row whose entry does not compile is kept, so its own requests fail and
 //!   no other row's do (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`).
+//!   Boot keeps such a row the same way. Every pass compiles it again, and the
+//!   pass it first compiles in asks it the origin check, so a row that never
+//!   compiled is never served unchecked.
 //! - A row the disk no longer has is gone from the table, and its requests
 //!   answer `404`.
 //!
@@ -57,7 +60,8 @@
 //! builds a new one too.
 //!
 //! **What it spends:** one `stat` per directory the expansion looked in, per
-//! `revalidate_freq`, off the request path. Two sets of rows live during a
+//! `revalidate_freq`, off the request path, and one cached compile lookup per
+//! row kept while it does not compile, on the same pass. Two sets of rows live during a
 //! swap, and each core rebuilds its table once per swap.
 
 use std::cell::RefCell;
@@ -317,6 +321,9 @@ pub(super) struct Rescan {
     refused: BTreeSet<String>,
     /// The origin sentences the last fold logged, kept for the same reason.
     unreached: BTreeSet<String>,
+    /// The entries of the rows kept while they did not compile. Each pass
+    /// compiles them again, and asks the origin check of one once it compiles.
+    failing: BTreeSet<PathBuf>,
 }
 
 /// What an expansion reads from a tree: `[server] root`, the file that wrote
@@ -336,7 +343,12 @@ fn mounting(snapshot: &nvs_config::Snapshot) -> (Option<&str>, Option<&Path>, &[
 impl Rescan {
     /// The expansion that follows boot's, which expanded `snapshot` into
     /// `written` and took `stamps`. Boot folded each row's own `[[app]]
-    /// origin` out of the set `current` serves.
+    /// origin` out of the set `current` serves, and kept the rows whose
+    /// entries are in `failing` while they did not compile.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is one piece of boot's state, handed over once"
+    )]
     pub(super) fn new(
         snapshot: Arc<nvs_config::Snapshot>,
         sources: SourceMap,
@@ -345,6 +357,7 @@ impl Rescan {
         mounts: Arc<Mounts>,
         written: Vec<Mounted>,
         stamps: BTreeMap<PathBuf, Stamp>,
+        failing: BTreeSet<PathBuf>,
     ) -> Self {
         let folded = current.published();
         Self {
@@ -358,6 +371,7 @@ impl Rescan {
             stamps,
             refused: BTreeSet::new(),
             unreached: BTreeSet::new(),
+            failing,
         }
     }
 
@@ -375,7 +389,7 @@ impl Rescan {
         } else {
             (self.rewritten(serving), None)
         };
-        if !expanded && Arc::ptr_eq(&published, &self.folded) {
+        if !expanded && Arc::ptr_eq(&published, &self.folded) && self.failing.is_empty() {
             return wait;
         }
         self.folded = published;
@@ -383,23 +397,31 @@ impl Rescan {
         super::fold_origins(&mut rows, &self.folded);
         let (_, standing) = self.mounts.rows();
         let mut unreached = Vec::new();
+        let failing = &mut self.failing;
         rows.retain(|row| {
-            if standing.contains(row) {
+            if standing.contains(row) && !failing.contains(&row.entry) {
                 return true;
             }
             match compiler.compiled(&row.entry.to_string_lossy()) {
-                Ok((_program, routes)) => match super::unreached_origin(row, &routes) {
-                    Some(sentence) => {
-                        unreached.push(sentence);
-                        false
+                Ok((_program, routes)) => {
+                    failing.remove(&row.entry);
+                    match super::unreached_origin(row, &routes) {
+                        Some(sentence) => {
+                            unreached.push(sentence);
+                            false
+                        }
+                        None => true,
                     }
-                    None => true,
-                },
+                }
                 // The front end has printed why. The row stays, and a request
                 // that selects it gets that failure.
-                Err(_) => true,
+                Err(_) => {
+                    failing.insert(row.entry.clone());
+                    true
+                }
             }
         });
+        failing.retain(|entry| rows.iter().any(|row| row.entry == *entry));
         let mut said = BTreeSet::new();
         for sentence in unreached {
             if !self.unreached.contains(&sentence) {

@@ -1221,6 +1221,61 @@ fn a_new_scanned_module_that_does_not_compile_fails_only_its_own_requests() {
     server.awaits_body("/shop", "fixed");
 }
 
+/// A module under the scan that does not compile at start does not stop the
+/// start: the other module is served, the broken one's requests fail, and the
+/// log names it. Its fix is served without a restart.
+#[test]
+fn a_scanned_module_that_does_not_compile_at_start_fails_only_its_own_requests() {
+    let server = Server::mounting(
+        "scan-broken-at-start",
+        &[
+            ("nvs.toml", &scanning("")),
+            ("www/blog/index.nvs", &printing("blog")),
+            ("www/shop/index.nvs", "<?nvs\necho \"broken\"\n"),
+        ],
+    );
+    server.awaits_body("/blog", "blog");
+    server.awaits("/shop", "the broken module failing `/shop`", |answer| {
+        answer.status == 500
+    });
+    let said = server.said();
+    assert!(
+        said.contains("the mount at `/shop`") && said.contains("which did not compile at start"),
+        "the log does not name the mount that did not compile: {said}"
+    );
+
+    server.write("www/shop/index.nvs", &printing("fixed"));
+    server.awaits_body("/shop", "fixed");
+    server.awaits_body("/blog", "blog");
+}
+
+/// A start whose every mount fails to compile is refused, so a server with
+/// nothing to serve exits rather than listening.
+#[test]
+fn a_start_where_no_mount_compiles_is_refused() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("live-edit-none-compiles-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    write_file(&dir.join("nvs.toml"), &scanning(""));
+    write_file(&dir.join("www/shop/index.nvs"), "<?nvs\necho \"broken\"\n");
+    let data = nvs_repo::scratch_private("nvsdata");
+    let ran = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .args(["serve", "--listen", "127.0.0.1:0"])
+        .current_dir(&dir)
+        .stdin(Stdio::null())
+        .output()
+        .expect("the `nvs` binary this test was built beside starts");
+    let _ = std::fs::remove_dir_all(&dir);
+    let said = String::from_utf8_lossy(&ran.stderr);
+    assert!(!ran.status.success(), "the start succeeded: {said}");
+    assert!(
+        said.contains("no mount compiled"),
+        "the refusal does not say why: {said}"
+    );
+}
+
 /// A mount that names its entry file answers `404` while that file is gone,
 /// and is served again once the file is back.
 #[test]

@@ -46,9 +46,14 @@
 //! start with a file and a start without one serve the same configuration
 //! (`rule:http-server/the-served-file-is-optional`).
 //!
-//! **Every mounted entry is compiled before the socket is bound**, which is what
-//! § 2 buys — a program that does not compile is a start that fails rather than
-//! a request that does — and every request then goes through
+//! **Every mounted entry is compiled before the socket is bound.** A mount that
+//! does not compile is kept, logged and served as a `500` until an edit
+//! compiles, which is what a running server does after a broken edit
+//! (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`), so one
+//! broken module of many does not stop the others. The start fails only where
+//! no mount compiles, so a supervised server with nothing to serve does not
+//! restart in a loop, and where a compiled unit fails the origin check. Every
+//! request then goes through
 //! [`nvs_server::Table::select`]'s five steps. `[server] static` and `dispatch`
 //! are read off the tree as written, which is
 //! [`nvs_server::Table::from_config`]'s fail-closed reading of them, and a step 3
@@ -507,9 +512,8 @@ pub(crate) fn run(
     let table = Rc::new(Table::from_config(mounts.clone(), &snapshot.config));
 
     // § 2, kept before the socket exists: **every** path this server can execute
-    // is compiled now, so a program that does not compile is a start that fails
-    // rather than a request that does. That is the rule the enumeration exists
-    // for, and it costs one compile per mounted entry at boot rather than one
+    // is compiled now, so its diagnostics are in the log before any request and
+    // the loop below knows which mounts are served. It costs one compile per mounted entry at boot rather than one
     // per entry per request. The front end renders its own diagnostics
     // (`script`'s module doc), so the message here is the summary. An edit
     // after boot is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
@@ -539,11 +543,33 @@ pub(crate) fn run(
     let _published = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
         Arc::clone(&compiler),
     ));
+    // A mount that does not compile is kept, and its requests answer `500`
+    // until an edit compiles, as after an edit to a running server. Its line
+    // is what `nvs service status` lists. A mount whose origin the check
+    // refuses still fails the start, and so does a table where nothing compiled.
+    let mut failing = std::collections::BTreeSet::new();
+    let mut compiled = 0_usize;
     for mounted in table.mounts() {
-        if let Err(message) = compiled_under(&compiler, mounted) {
-            eprintln!("error: {message}");
-            return ExitCode::FAILURE;
+        match compiled_under(&compiler, mounted) {
+            Ok(()) => compiled += 1,
+            Err(Unserved::Uncompiled(message)) => {
+                eprintln!(
+                    "error: the mount at `{}` serves `{}`, {NOT_COMPILED_AT_START}, and its \
+                     requests answer 500 until it compiles: {message}",
+                    mounted.prefix,
+                    mounted.entry.display()
+                );
+                failing.insert(mounted.entry.clone());
+            }
+            Err(Unserved::Unreached(refusal)) => {
+                eprintln!("error: {refusal}");
+                return ExitCode::FAILURE;
+            }
         }
+    }
+    if compiled == 0 {
+        eprintln!("error: no mount compiled, so there is nothing to serve");
+        return ExitCode::FAILURE;
     }
     // The rows every core answers from, on the same thread as the check below
     // (`mounts`'s module doc). A tree that writes `[[server.mount]]` has them
@@ -559,6 +585,7 @@ pub(crate) fn run(
         Arc::clone(&shared),
         written,
         stamping.stamps(),
+        failing,
     );
     let rescan: crate::script::Also = Box::new(move |compiler: &Compiler| rescan.pass(compiler));
     let mounts = shared;
@@ -2422,17 +2449,34 @@ fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
 ///
 /// # Errors
 ///
-/// The front end's own summary for an entry that does not compile — it renders
-/// its diagnostics itself (`crate::script`) — and a sentence naming the mount,
-/// the entry and the two keys that resolve an origin for it.
-fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), String> {
+/// [`Unserved::Uncompiled`] with the front end's own summary for an entry that
+/// does not compile — it renders its diagnostics itself (`crate::script`) —
+/// and [`Unserved::Unreached`] with a sentence naming the mount, the entry and
+/// the two keys that resolve an origin for it.
+fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), Unserved> {
     let entry = mount.entry.to_string_lossy().into_owned();
-    let (_program, routes) = compiler.compiled(&entry)?;
+    let (_program, routes) = compiler
+        .compiled(&entry)
+        .map_err(Unserved::Uncompiled)?;
     match unreached_origin(mount, &routes) {
-        Some(refusal) => Err(refusal),
+        Some(refusal) => Err(Unserved::Unreached(refusal)),
         None => Ok(()),
     }
 }
+
+/// Why [`compiled_under`] did not pass a mount. The start keeps a mount that
+/// does not compile and refuses one whose origin the check refuses.
+#[derive(Debug)]
+enum Unserved {
+    /// The entry does not compile, and its requests answer `500` until it does.
+    Uncompiled(String),
+    /// The unit builds an absolute link and no origin resolves for the mount.
+    Unreached(String),
+}
+
+/// The words of the start's line for a mount that did not compile, which
+/// `nvs service status` finds that line by.
+pub(crate) const NOT_COMPILED_AT_START: &str = "which did not compile at start";
 
 /// [`compiled_under`]'s check of a unit that compiled: the sentence naming the
 /// mount, the entry and the two keys that resolve an origin for it, where the
@@ -3106,7 +3150,8 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 mod tests {
     use super::{
         Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output, OutputSink,
-        Socket, SocketAddr, TaskRoot, Value, addresses, at_mount_origin, bind_all, compiled_under,
+        Socket, SocketAddr, TaskRoot, Unserved, Value, addresses, at_mount_origin, bind_all,
+        compiled_under,
         exporter_not_built, fall_back_to, forgot_its_proxies, handles_for, listening, one_mount,
         scrape_socket, sweep_orphans, table_for, trace_collector, workers_for,
     };
@@ -5368,8 +5413,9 @@ echo Core\Router::{member}(Docs::here);
             one_mount(&absolute).expect("the entry this case wrote is a file in a directory");
         mount.prefix = "/tenant".to_string();
 
-        let refusal = compiled_under(&compiler, &mount)
-            .expect_err("a unit that links absolutely under a mount with no origin starts");
+        let Err(Unserved::Unreached(refusal)) = compiled_under(&compiler, &mount) else {
+            panic!("a unit that links absolutely under a mount with no origin starts");
+        };
         assert!(
             refusal.contains("/tenant") && refusal.contains("origin"),
             "the refusal names neither the mount it applies to nor what resolves an origin for \
