@@ -11,6 +11,10 @@ final class Order extends Base implements \App\Shared\Priced, Feed<Line> by $fee
     public function total(uint $count): decimal {
         $sum = $this->subtotal;
         $rate = self::RATE;
+        $made = App\Shared\Money::of($count)->convert<Line>();
+        $sorter = Ledger::compare;
+        $limit = Ledger::LIMIT;
+        parent::reset();
         return $sum->plus($rate)?->rounded;
     }
 }

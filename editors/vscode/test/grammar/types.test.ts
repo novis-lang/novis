@@ -62,12 +62,12 @@ function uncoloured(...texts: string[]): void {
 
 describe("the name a type slot holds", () => {
   it("colours one in every slot, and nothing that is not in one", () => {
-    // In file order: a class constant's type, a property's, a nullable property's, a type argument,
+    // In file order: a class constant's type and the class its value is read from, a property's, a nullable property's, a type argument,
     // two parameters and a return, a typed local, a `foreach` binding, a union member, a shape field,
     // a generic return and its argument, the name an alias introduces and the type it stands for, and
     // an anonymous function's parameter and return.
     assert.deepEqual(carrying(TYPE_NAME), [
-      "Currency", "Token", "Customer", "Line",
+      "Currency", "Currency", "Token", "Customer", "Line",
       "Money", "Card", "Receipt",
       "Ledger", "Line",
       "Rounding", "Money",
@@ -87,14 +87,15 @@ describe("the name a type slot holds", () => {
     coloured("secret", MODIFIER);
   });
 
-  it("colours the type a class constant declares, not the class it is initialised from", () => {
-    // `public const Currency DEFAULT = Currency::Eur;` writes the same name twice, and only the first
-    // of them is in a type slot: the second is a receiver, and what it names is layer two's to say.
-    // So the name is one span and not two — the receiver stays inside the plain run around it, which
-    // is how every word this grammar leaves alone reaches the theme.
+  it("colours the type a class constant declares, and the class it is initialised from", () => {
+    // `public const Currency DEFAULT = Currency::Eur;` writes the same name twice. The first is in a
+    // type slot, and the second is the class `::` reaches into, so both are types. The constant's own
+    // name is in neither, and stays inside the plain run around it.
     const written = all("Currency");
-    assert.equal(written.length, 1, "the receiver of `::` was coloured as a type");
-    assert.ok(written[0].scopes.includes(TYPE_NAME));
+    assert.equal(written.length, 2, "the receiver of `::` is not coloured as a type");
+    for (const found of written) {
+      assert.ok(found.scopes.includes(TYPE_NAME));
+    }
     uncoloured("DEFAULT", "SCALE");
   });
 

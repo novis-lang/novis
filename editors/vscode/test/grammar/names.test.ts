@@ -1,15 +1,18 @@
 // Every name the grammar colours, and the token beside it that made it one.
 //
 // A name carries no colour of its own: `Order` is a class name because `class` stands in front of it,
-// `subtotal` is a member because `->` does, and `$order` is a variable because `$` does. So every
-// assertion here is about a pair, and the pair is what keeps the grammar inside
+// `subtotal` is a member because `->` does, `plus` is a method because a `(` follows it, `Ledger` is
+// a type because `::` follows it, and `$order` is a variable because `$` does. So every assertion
+// here is about a pair, and the pair is what keeps the grammar inside
 // `rule:ide/highlighting-is-two-layers` — it colours a name for the accessor or the declaration it is
-// written beside, and leaves to layer two everything a regex cannot see: whether a member is a
-// property, a constant or a method, and whether the value in a variable is `tainted` or `secret`.
+// written beside, and leaves to layer two everything a regex cannot see: whether a member nobody
+// calls is a property, a constant or an enum case, and whether the value in a variable is `tainted`
+// or `secret`.
 //
 // `rule:ide/novis-ships-names-not-colours` is why the scopes are the standard ones and the allowlist
-// suite is where that is enforced; the two an accessor emits are the ones the string family already
-// uses for `$a->b`, so an interpolated member and a member in code colour alike.
+// suite is where that is enforced. A member keeps the scope the string family already uses for
+// `$a->b`, so an interpolated member and a member in code colour alike, and a method takes the scope
+// VS Code maps layer two's `method` to, so a theme colours it the same once the server answers.
 
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -21,6 +24,7 @@ const CLASS_NAME = "entity.name.type.class.nvs";
 const INTERFACE_NAME = "entity.name.type.interface.nvs";
 const ENUM_NAME = "entity.name.type.enum.nvs";
 const FUNCTION_NAME = "entity.name.function.nvs";
+const METHOD_NAME = "entity.name.function.member.nvs";
 const NAMESPACE_NAME = "entity.name.namespace.nvs";
 const VARIABLE = "variable.other.nvs";
 const LANGUAGE = "variable.language.nvs";
@@ -120,12 +124,30 @@ describe("the names a declaration builds on, and the path an import names", () =
 
 describe("the name an accessor reaches", () => {
   it("colours a member the same whichever accessor reaches it", () => {
-    for (const member of ["subtotal", "RATE", "plus", "rounded", "label"]) {
+    for (const member of ["subtotal", "RATE", "LIMIT", "rounded", "label"]) {
       coloured(member, PROPERTY);
     }
     for (const accessor of ["->", "::", "?->"]) {
       coloured(accessor, ACCESSOR);
     }
+  });
+
+  it("colours a member that is called as a method, and every lowercase name after :: too", () => {
+    // `->convert<Line>(` is a call with a type argument before the `(`, and `Ledger::compare` is a
+    // method reference: the parser reads a lowercase name after `::` as a method, called or not.
+    assert.deepEqual(carrying(METHOD_NAME), ["of", "convert", "compare", "reset", "plus"]);
+    for (const method of carrying(METHOD_NAME)) {
+      assert.equal(all(method).some((s) => s.scopes.includes(PROPERTY)), false,
+                   `${method} is also coloured as a property`);
+    }
+    coloured("Line", TYPE_NAME);
+  });
+
+  it("colours the name before :: as a type, and leaves self and parent to the reserved table", () => {
+    assert.deepEqual(carrying(TYPE_NAME).filter((name) => name !== "Line" && !name.includes("Base")),
+                     ["App\\Shared\\Money", "Ledger", "Ledger"]);
+    coloured("self", LANGUAGE);
+    coloured("parent", LANGUAGE);
   });
 
   it("reads ::class as the class-name constant rather than a member", () => {

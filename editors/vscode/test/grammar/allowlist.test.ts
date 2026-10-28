@@ -67,6 +67,7 @@ const ALLOWED = [
   "entity.name.type.interface.nvs",
   "entity.name.type.enum.nvs",
   "entity.name.function.nvs",
+  "entity.name.function.member.nvs",
   "entity.name.namespace.nvs",
   "entity.other.inherited-class.nvs",
   "keyword.control.nvs",

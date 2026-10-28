@@ -117,7 +117,7 @@
       "match": "\\(\\s*(?:int|uint|float|string|bool|array|object)\\s*\\)\\s*(?=[$!~@+\\-\\w\"'(\\[])"
     },
     "names": {
-      "comment": "Every name the grammar can be sure of from the token beside it. A declaration's pattern carries the keyword that introduces the name, so the name is coloured only where something declares it and `IF` in `class IF {}` is the class name rather than a mis-cased keyword (rule:classes/reserved-spellings-are-lower-case). A name a declaration builds on, after `extends` or `implements`, and the path an import names are the two places a name is coloured without being declared: the word before each says it is a type. A name reached through an accessor is a member, and the grammar stops there: which kind of member it is — a property, a class constant, a method — is what rule:ide/highlighting-is-two-layers gives layer two, so all three carry the one scope the string family already uses for `$a->b`. `::class` is the one spelling after an accessor that is not a member at all but the class-name constant (tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst), so it is offered first and coloured as the construct it is. `$this` is the receiver rather than a local, and everything else beginning `$` is a variable — that a variable holds a `tainted` or `secret` value is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
+      "comment": "Every name the grammar can be sure of from the token beside it. A declaration's pattern carries the keyword that introduces the name, so the name is coloured only where something declares it and `IF` in `class IF {}` is the class name rather than a mis-cased keyword (rule:classes/reserved-spellings-are-lower-case). A name a declaration builds on, after `extends` or `implements`, and the path an import names are the two places a name is coloured without being declared: the word before each says it is a type. The name before `::` is a type for the same reason. A name reached through an accessor is a member, and the grammar says which kind only where the syntax does: a member that is called, and a lowercase name after `::`, are methods. Whether any other member is a property, a class constant or an enum case is what rule:ide/highlighting-is-two-layers gives layer two, so all three carry the one scope the string family already uses for `$a->b`. `::class` is the one spelling after an accessor that is not a member at all but the class-name constant (tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst), so it is offered first and coloured as the construct it is. `$this` is the receiver rather than a local, and everything else beginning `$` is a variable — that a variable holds a `tainted` or `secret` value is exactly what a regex cannot see, and rule:ide/semantic-tokens-carry-the-qualifiers is where it is shown.",
       "patterns": [
         {
           "match": "(?<![$\\w])(class)\\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -167,7 +167,24 @@
           }
         },
         {
-          "comment": "The nullsafe spelling is offered first because `->` is its own suffix, and matching the shorter one would leave the `?` outside the accessor it belongs to: crates/nvs-syntax/src/parser/expr.rs:1799.",
+          "comment": "A name written before `::` is the class the member is reached on, so it is a type. `self` and `parent` are left to the reserved table's `variable.language`, and `static` to its modifier, because each names the class from the code around it rather than by its name. A path right after `use` is the member import the parser refuses (crates/nvs-syntax/src/parser/decl.rs, parse_use_decl), so it stays uncoloured (rule:ide/rejected-syntax-gets-no-colour).",
+          "match": "(?<![$\\w\\\\])(?<!\\buse\\s)(?!(?:self|parent|static)\\s*::)(\\\\?[A-Za-z_][A-Za-z0-9_]*(?:\\\\[A-Za-z_][A-Za-z0-9_]*)*)(?=\\s*::)",
+          "captures": {
+            "1": { "name": "entity.name.type.nvs" }
+          }
+        },
+        {
+          "comment": "A member that is called is a method: `->name(` and `?->name(` parse as a method call, with or without a type-argument list before the `(` (crates/nvs-syntax/src/ast.rs, ExprKind::MethodCall). After `::` the parser goes further and reads every name that starts with a lowercase letter as a method, called or not, because a constant is `SCREAMING_SNAKE_CASE` and an enum case is `PascalCase` (crates/nvs-syntax/src/parser/expr.rs, names_a_method). The scope is the one VS Code maps layer two's `method` to, so a theme colours a method the same before and after the server answers.",
+          "match": "(\\?->|->)\\s*([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:<(?:[^<>()]|<[^<>()]*>)*>\\s*)?\\()|(::)\\s*([a-z][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "punctuation.accessor.nvs" },
+            "2": { "name": "entity.name.function.member.nvs" },
+            "3": { "name": "punctuation.accessor.nvs" },
+            "4": { "name": "entity.name.function.member.nvs" }
+          }
+        },
+        {
+          "comment": "Every other member: a property, a class constant or an enum case, which is the scope the string family already uses for `$a->b`. The nullsafe spelling is offered first because `->` is its own suffix, and matching the shorter one would leave the `?` outside the accessor it belongs to: crates/nvs-syntax/src/parser/expr.rs:1799.",
           "match": "(\\?->|->|::)\\s*([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "punctuation.accessor.nvs" },
