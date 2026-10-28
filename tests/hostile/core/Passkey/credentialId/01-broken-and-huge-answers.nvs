@@ -1,0 +1,71 @@
+<?nvs
+// Attack: a request sends sign-in answers that are missing, empty, broken, deeply nested or huge, and 200000 of them.
+// Each call should return an id or throw an error, and nothing should crash, hang or leak.
+// hostile: timeout-ms 60000
+
+class Try
+{
+    // Reads the id, and returns its length or `error`. The error is caught, so the next answer still runs.
+    public static function length(string $answer): string
+    {
+        try {
+            return Core\Bytes::length(Core\Passkey::credentialId($answer)) . ' bytes';
+        } catch (RuntimeError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. Answers that are not JSON, not an object, or have no `id` string.
+array<string> $broken = ['', ' ', 'x', '{', 'null', '[]', '"ax8M"', '42', '{}', '{"id":null}', '{"id":5}', '{"id":{}}', '{"id":[]}', '{"rawId":7}'];
+foreach ($broken as string $answer) {
+    echo Try::length($answer), "\n";
+}
+
+// 2. Ids that are not base64url: signs, spaces, padding, a NUL byte, emoji and right-to-left text.
+array<string> $strange = ['!!', 'a b', 'ax8M====', "ax\0M", '👩🏽‍💻', "\u{202E}ax8M", 'ax8M+/', '\\u0041'];
+foreach ($strange as string $id) {
+    echo Try::length("{\"id\":\"{$id}\"}"), "\n";
+}
+
+// 3. Ids of 0, 1, 1023 and 1024 bytes. Only 1 and 1023 bytes are allowed.
+array<uint> $sizes = [0, 1, 1023, 1024];
+foreach ($sizes as uint $size) {
+    string $encoded = Core\Encoding::toBase64Url(Core\Bytes::fill($size, 7));
+    echo $size, ': ', Try::length("{\"id\":\"{$encoded}\"}"), "\n";
+}
+
+// 4. An id of 48000 bytes, which fits in the largest answer, and one of 12 MB, which does not.
+echo Try::length('{"id":"' . Core\Str::repeat('A', 64000) . '"}'), "\n";
+echo Try::length('{"id":"' . Core\Str::repeat('A', 16777216) . '"}'), "\n";
+
+// 5. Answers nested 100000 levels deep, as arrays and as objects with an `id` at the bottom.
+echo Try::length(Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000)), "\n";
+echo Try::length(Core\Str::repeat('{"id":', 100000) . '"ax8M"' . Core\Str::repeat('}', 100000)), "\n";
+
+// 6. A valid answer padded with 16 MB of spaces, and one with 100000 extra fields.
+// Both are larger than the 64 KB limit for an answer, so both throw an error.
+echo Try::length(Core\Str::repeat(' ', 16777216) . '{"id":"ax8M"}'), "\n";
+array<string> $fields = [];
+int $n = 0;
+while ($n < 100000) {
+    $fields[] = "\"f{$n}\":{$n}";
+    $n = $n + 1;
+}
+echo Try::length('{' . Core\Str::join($fields, ',') . ',"id":"ax8M"}'), "\n";
+$fields = [];
+
+// 7. Two `id` fields, and an `id` beside a different `rawId`. The result is one id, or an error.
+echo Try::length('{"id":"ax8M","id":"wuk7XRZrHwyaJNNed4Gk8A"}'), "\n";
+echo Try::length('{"id":"ax8M","rawId":"wuk7XRZrHwyaJNNed4Gk8A"}'), "\n";
+
+// 8. 200000 calls, half of them with an answer that throws an error.
+int $ok = 0;
+int $calls = 0;
+while ($calls < 200000) {
+    if (Try::length($calls % 2 == 0 ? '{"id":"ax8MmiTTXneBpMLw6TtdFg"}' : '{"id":"!"}') != 'error') {
+        $ok = $ok + 1;
+    }
+    $calls = $calls + 1;
+}
+echo $ok, ' of ', $calls, " calls returned an id\n";

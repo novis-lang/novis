@@ -414,7 +414,7 @@ const VERIFY_REGISTRATION_DOC: MethodDoc = MethodDoc {
         desc: "The request has not started a session, no registration is waiting, or the \
                challenge is older than five minutes. It is also thrown when a check fails. The \
                checks are the challenge, the origin, the domain, the user verification and the \
-               key algorithm.",
+               key algorithm. An answer longer than 64 KB also throws.",
     }],
 };
 
@@ -465,7 +465,8 @@ const CREDENTIAL_ID_DOC: MethodDoc = MethodDoc {
     ret: "The passkey id, from 1 to 1023 bytes.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The answer is not JSON, or its `id` is missing, is not base64url or is too long.",
+        desc: "The answer is not JSON or is longer than 64 KB. It is also thrown when the \
+               `id` is missing, is not base64url or is too long.",
     }],
 };
 
@@ -503,7 +504,7 @@ const VERIFY_SIGN_IN_DOC: MethodDoc = MethodDoc {
         desc: "The request has not started a session, no sign-in is waiting, or the challenge \
                is older than five minutes. It is also thrown when a check fails. The checks are \
                the passkey id, the challenge, the origin, the domain, the user verification, the \
-               signature and the sign counter.",
+               signature and the sign counter. An answer longer than 64 KB also throws.",
     }],
 };
 
@@ -1032,12 +1033,13 @@ fn registration(
     })
 }
 
-/// The id of a sign-in response, from `id`, or from `rawId` where a response has no `id`.
+/// The id of a sign-in response, from `id`, or from `rawId` where a response has no `id`. A
+/// response with neither is refused naming `id`, the field every browser sends.
 fn claimed_id(response: &serde_json::Value) -> Result<Vec<u8>, String> {
-    let field = if response.get("id").is_some() {
-        "id"
-    } else {
+    let field = if response.get("id").is_none() && response.get("rawId").is_some() {
         "rawId"
+    } else {
+        "id"
     };
     let id = decoded(response, field)?;
     if id.is_empty() || id.len() > MAX_ID {

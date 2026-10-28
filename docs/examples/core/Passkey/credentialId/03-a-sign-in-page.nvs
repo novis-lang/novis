@@ -1,0 +1,58 @@
+<?nvs
+// Shows the browser half and the server half of a page that signs in with a passkey.
+
+class Account
+{
+    public function constructor(public string $email, public Core\Passkey\Credential $passkey)
+    {}
+}
+
+class SignInPage
+{
+    // The browser half. This JavaScript gets the options from the server,
+    // lets the user sign in with a passkey and sends the answer back to the server.
+    public static function script(): string
+    {
+        return "const response = await fetch('/sign-in/options', { method: 'POST' });\n"
+            . "const options = PublicKeyCredential.parseRequestOptionsFromJSON(await response.json());\n"
+            . "const credential = await navigator.credentials.get({ publicKey: options });\n"
+            . "await fetch('/sign-in', { method: 'POST', body: JSON.stringify(credential.toJSON()) });\n";
+    }
+
+    // The server half. It answers the second `fetch` in the script.
+    // It returns the account with the passkey id in the answer, or `null`.
+    public static function find(tainted string $answer, array<Account> $accounts): ?Account
+    {
+        var $id = Core\Passkey::credentialId($answer);
+        foreach ($accounts as Account $account) {
+            if ($account->passkey->id() == $id) {
+                return $account;
+            }
+        }
+        return null;
+    }
+}
+
+// The page contains this script.
+echo SignInPage::script(), "\n";
+
+// The application saved a passkey for each account. Here the keys are made up with `Core\Crypto`.
+var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $raw = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $publicKey = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+array<Account> $accounts = [];
+array<string> $saved = [
+    'ada@example.com' => 'c2e93b5d166b1f0c9a24d35e7781a4f0',
+    'grace@example.com' => '6b1f0c9a24d35e7781a4c2f0e93b5d16',
+];
+foreach ($saved as string $email => string $hex) {
+    var $passkey = Core\Passkey\Credential::of(Core\Encoding::fromHex($hex), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+    $accounts[] = new Account($email, $passkey);
+}
+
+// This request is the script's second `fetch`. Its body is the browser's answer.
+?Account $account = SignInPage::find(Core\Request::body(), $accounts);
+
+// The account is found, but the user is not signed in yet.
+// Pass the answer and `$account->passkey` to `Core\Passkey::verifySignIn` to check the signature.
+echo $account == null ? 'unknown passkey' : 'passkey of ' . $account->email, "\n";

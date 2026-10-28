@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to find the account that a passkey id in a request belongs to.
+
+class Account
+{
+    public function constructor(public string $email, public bytes $passkeyId)
+    {}
+}
+
+// The application saved one passkey id for each account.
+array<Account> $accounts = [
+    new Account('ada@example.com', Core\Encoding::fromHex('c2e93b5d166b1f0c9a24d35e7781a4f0')),
+    new Account('grace@example.com', Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16')),
+];
+
+// The id comes from the request body, so it is `tainted`.
+// It is what the browser sent, and nothing has checked it yet.
+tainted bytes $id = Core\Passkey::credentialId(Core\Request::body());
+
+// Compare the id with each saved id. The result of `==` is a plain `bool`.
+?Account $found = null;
+foreach ($accounts as Account $account) {
+    if ($account->passkeyId == $id) {
+        $found = $account;
+    }
+}
+
+// This prints `grace@example.com`. The next step checks the answer with `Core\Passkey::verifySignIn`.
+echo $found == null ? 'no account' : $found->email, "\n";

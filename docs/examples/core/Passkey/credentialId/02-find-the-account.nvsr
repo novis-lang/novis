@@ -1,0 +1,9 @@
+--METHOD--
+POST
+--PATH--
+/sign-in
+--HEADERS--
+host: example.com
+content-type: application/json
+--BODY--
+{"id":"ax8MmiTTXneBpMLw6TtdFg","rawId":"ax8MmiTTXneBpMLw6TtdFg","type":"public-key","response":{"clientDataJSON":"eyJ0","authenticatorData":"SZYN","signature":"MEUC"}}

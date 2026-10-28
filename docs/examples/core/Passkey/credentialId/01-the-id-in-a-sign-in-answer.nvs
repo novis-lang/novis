@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to read the passkey id from the browser's answer to a sign-in.
+
+// This is the answer a browser sends. The values in `response` are shortened here.
+string $answer = '{"id":"ax8MmiTTXneBpMLw6TtdFg","rawId":"ax8MmiTTXneBpMLw6TtdFg","type":"public-key",'
+    . '"response":{"clientDataJSON":"eyJ0","authenticatorData":"SZYN","signature":"MEUC"}}';
+
+// `credentialId` reads the `id` field and decodes it from base64url.
+bytes $id = Core\Passkey::credentialId($answer);
+
+// This prints `16 bytes`, and the id as hexadecimal digits.
+echo Core\Bytes::length($id), " bytes\n";
+echo Core\Encoding::toHex($id), "\n";
