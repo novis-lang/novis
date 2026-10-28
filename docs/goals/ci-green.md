@@ -104,12 +104,18 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `56d4a7e18`, registry-log's goal end. CI 40664047203 and Website
-40664047249 are green on it, all 37 CI jobs. The push carried `815690482`, the fix for the
-`isDraining` race on `test / windows-x86_64 (tests)`. No fix waits for a push.
+`origin/main` is at `1db03d990`. CI 40695285274 and Website 40695285520 are green on it, all
+37 CI jobs. No fix waits for a push.
 
 The next watch runs with no `--next`: the newest runs are green, so a plain watch waits for the
 next push.
+
+Before the 1db03d990 watch, `bun nv proofs --gate --limit 0` named 6 stale perf figures of
+`docs/reference/lang/90-attributes.md`, and `bun nv site --check stale questions` named 3 stale
+stamps and 6 stale question pages (routes, `nvs check`, `nvs serve`, `nvs service`,
+`Core\Router\Refusal`, the test runner). All come from the main loop's unpushed `058d3fcdb` and
+`7a7f63b04`, and it was recording the ledger in the root, so they are its open work. If the next
+goal end's push is refused on them, they are this goal's to fix.
 
 Before the 97fcf96ce watch, `bun nv proofs --gate --limit 0` named 67 stale perf figures, from `io.rs` and
 `http.rs`. The main loop recorded all 67 in the root at `58b4def64` while this session measured
