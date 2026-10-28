@@ -72,11 +72,11 @@ let measuring = "";
 
 /** (the fastest, the median) of `reps` runs, in nanoseconds. The fastest is the figure, and the median
  * rides beside it so a later delta can be read against the spread it was taken in. */
-async function timeProgram(nvs: string, path: string, reps: number): Promise<[number, number]> {
+async function timeProgram(nvs: string, path: string, reps: number, config?: string): Promise<[number, number]> {
   const spent: number[] = [];
   for (let i = 0; i < reps; i++) {
     progress(`proofs perf: ${measuring}, ${path}, run ${i + 1}/${reps}`);
-    const out = await spawnProof([nvs, "run", path], path, TIMEOUT_MS);
+    const out = await spawnProof(config ? [nvs, "run", "--config", config, path] : [nvs, "run", path], path, TIMEOUT_MS);
     spent.push(out.ms * 1e6);
     if (out.timedOut) throw new PerfError(`${path} timed out after ${TIMEOUT_MS / 1000}s`);
     if (out.code !== 0) throw new PerfError(`${path} exited ${out.code}: ${firstLine(out.stderr)}`);
@@ -129,6 +129,21 @@ async function calibrate(nvs: string, reps: number): Promise<[number, number]> {
     );
   }
   return [floor, unitNs];
+}
+
+/** The floor a bench's own figure is taken against. `spawnProof` runs a bench beside an `nvs.toml`
+ * under that file, which skips the repository's root `nvs.toml` the empty program reads at start-up,
+ * so such a bench starts faster than `floor` and a small one reads 0. The empty program is timed
+ * once per such file, under it, and `floors` keeps each for the sweep. */
+async function floorFor(nvs: string, bench: string, reps: number, floor: number, floors: Map<string, number>): Promise<number> {
+  const config = `${dirname(bench)}/nvs.toml`;
+  if (!existsSync(abs(config))) return floor;
+  let own = floors.get(config);
+  if (own === undefined) {
+    [own] = await timeProgram(nvs, `${CALIBRATION}/baseline.nvs`, reps, config);
+    floors.set(config, own);
+  }
+  return own;
 }
 
 /** One feature's figures, and every way they fall short of what its bench declared. `ramp` is how its
@@ -260,6 +275,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
   print(`  ${ljust("feature", 44)} ${rjust("ns/op", 10)} ${rjust("units", 9)}  ${rjust("stmts", 7)} ${rjust("calls", 7)} ${rjust("allocs", 7)} ${rjust("bytes", 9)}`);
   const lines: string[] = [];
   let failed = 0;
+  const floors = new Map<string, number>();
   const { DEFAULT_WSL_NVS } = await import("../cmd/scaling.ts");
   const ramp: RampOptions = { nvs, reps: RAMP_REPS, wslNvs: DEFAULT_WSL_NVS, callgrind: opts.callgrind, scratch: abs(`.agent-tmp/proofs-growth-${process.pid}`) };
   for (const [i, e] of [...todo].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).entries()) {
@@ -268,7 +284,7 @@ export async function recordPerf(out: string[], nvs: string, entries: Entry[], p
     let fig: Rec;
     let findings: string[];
     try {
-      [fig, findings] = await measureOne(nvs, bench, opts.reps, floor, base, ramp);
+      [fig, findings] = await measureOne(nvs, bench, opts.reps, await floorFor(nvs, bench, opts.reps, floor, floors), base, ramp);
     } catch (err) {
       if (!(err instanceof PerfError)) throw err;
       failed++;
