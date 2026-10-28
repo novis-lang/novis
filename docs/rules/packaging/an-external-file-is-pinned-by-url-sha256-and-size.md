@@ -65,6 +65,5 @@ request.
   wrong.
 
 **Not on disk.** `nvs pkg fetch`, `vendor`, `download` and `provide` and the cache are
-`crates/nvs-cli/src/package/download.rs`. `nvs pkg add` and `update` do not print the files yet,
-the lock does not record their hosts, a package does not read its own files without a grant line,
-and there is no `nvs pkg publish`.
+`crates/nvs-cli/src/package/download.rs`, the report `report.rs` and the hosts `lock.rs`. A package
+does not read its own files without a grant line yet, and there is no `nvs pkg publish`.

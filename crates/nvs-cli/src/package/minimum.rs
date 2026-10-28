@@ -234,7 +234,11 @@ fn change(app: &App, manifest: &Manifest, text: &str, targets: &[Name]) -> Resul
     if let Some(old) = &app.old {
         old.check(&graph, false)?;
     }
-    print!("{}", report::report(&graph, app.old.as_ref(), targets));
+    let files = fetch::files_before(&graph, &mut registries, &app.dir.join(fetch::VENDOR))?;
+    print!(
+        "{}",
+        report::report(&graph, app.old.as_ref(), targets, &files)
+    );
     fetch::replace_file(&app.path, text)?;
     fetch::land(app, manifest, Mode::Fetch, false, &graph, &mut registries)
 }

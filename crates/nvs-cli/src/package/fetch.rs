@@ -37,7 +37,10 @@
 //! reads archives and writes files, and compiles nothing.
 //!
 //! Cost: one archive in memory at a time, at most [`pack::MAX_ARCHIVE_BYTES`], beside what
-//! resolution holds. Nothing here runs on the request path.
+//! resolution holds. `nvs pkg add` and `update` read each package's `[[download]]` entries for
+//! their report before anything is written ([`files_before`]), so they keep the archive of every
+//! package whose folder does not already hold it until it is written, and no archive is read
+//! twice. Nothing here runs on the request path.
 
 use std::fs;
 use std::io::{self, Read as _};
@@ -46,11 +49,11 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{Renderer, SourceMap};
 
-use super::download;
+use super::download::{self, Files};
 use super::git::{self, Outbound};
 use super::index::{Capabilities, Fault, fault};
 use super::lock::{self, Lock};
-use super::manifest::{self, Manifest};
+use super::manifest::{self, Download, Manifest, Name};
 use super::pack;
 use super::resolve::{self, Graph, Registries};
 
@@ -220,7 +223,8 @@ pub(crate) fn land(
     if let Some(old) = &app.old {
         remove_unneeded(old, graph, &vendor)?;
     }
-    let new = Lock::of(graph);
+    let files = files_in(graph, &vendor)?;
+    let new = Lock::of(graph).with_hosts(&files);
     write_if_changed(&vendor.join(AUTOLOADS), &autoloads(&new))?;
     if !locked && app.old.as_ref() != Some(&new) {
         new.write(&app.dir.join(lock::FILE))?;
@@ -231,7 +235,7 @@ pub(crate) fn land(
     }
     // Last, so a file whose URLs all fail leaves the lock written, and `nvs pkg provide` finds
     // its entry there.
-    place_downloads(graph, &vendor, &app.outbound)?;
+    place_downloads(graph, &files, &vendor, &app.outbound)?;
     println!(
         "{} package(s), {written} written to {VENDOR}/",
         graph.packages.len()
@@ -253,13 +257,8 @@ fn write_packages(
         if mode == Mode::Fetch && holds(&dir, &release.digest) {
             continue;
         }
-        let archive = match registries.cloned(name) {
-            Some(archive) => archive.to_vec(),
-            None => registries
-                .registry(name)?
-                .archive(name, release.version, &release.digest)?,
-        };
-        unpack(&archive, &dir).map_err(|err| {
+        let archive = registries.archive(selected)?;
+        unpack(archive, &dir).map_err(|err| {
             fault(format!(
                 "cannot write `{name}` {} to `{}`: {}",
                 release.version,
@@ -267,32 +266,113 @@ fn write_packages(
                 err.0
             ))
         })?;
+        registries.release(name);
         written += 1;
     }
     Ok(written)
 }
 
-/// Each `[[download]]` file of every package in `graph` placed at its path in the package's folder
-/// under `vendor` ([`download::place`]). The cache is opened only when a package has a file.
-fn place_downloads(graph: &Graph, vendor: &Path, outbound: &Outbound) -> Result<(), Fault> {
-    let mut store = None;
+/// The `[[download]]` entries of every package in `graph`, read from its folder under `vendor`,
+/// each package's entries checked by [`download::check_form`].
+///
+/// # Errors
+///
+/// A folder's `package.toml` that cannot be read, and an entry the form check refuses.
+fn files_in(graph: &Graph, vendor: &Path) -> Result<Files, Fault> {
+    let mut files = Files::new();
     for selected in &graph.packages {
-        let dir = vendor.join(selected.name.slug());
+        let path = vendor
+            .join(selected.name.slug())
+            .join(nvs_config::grants::FILE);
+        let manifest = manifest::read(&path, &mut SourceMap::new())
+            .map_err(|diagnostic| fault(format!("`{}`: {}", path.display(), diagnostic.message)))?;
+        add_files(&mut files, &selected.name, manifest.downloads)?;
+    }
+    Ok(files)
+}
+
+/// The `[[download]]` entries of every package in `graph` before anything is written, for the
+/// report: read from a folder under `vendor` that packs to the package's digest, and from the
+/// package's archive otherwise. [`Registries`] keeps each archive it reads, so [`land`] does not
+/// read it again.
+///
+/// # Errors
+///
+/// An archive that cannot be read, one with no `package.toml` this client reads, and an entry
+/// the form check refuses.
+pub(crate) fn files_before(
+    graph: &Graph,
+    registries: &mut Registries<'_>,
+    vendor: &Path,
+) -> Result<Files, Fault> {
+    let mut files = Files::new();
+    for selected in &graph.packages {
+        let name = &selected.name;
+        let dir = vendor.join(name.slug());
         let path = dir.join(nvs_config::grants::FILE);
         let mut sources = SourceMap::new();
-        let manifest = manifest::read(&path, &mut sources)
+        let read = if holds(&dir, &selected.release.digest) {
+            manifest::read(&path, &mut sources)
+        } else {
+            let text = manifest_text(registries.archive(selected)?)
+                .map_err(|why| fault(format!("the archive of `{name}`: {why}")))?;
+            manifest::parse(&mut sources, &path, &text)
+        };
+        let manifest = read
             .map_err(|diagnostic| fault(format!("`{}`: {}", path.display(), diagnostic.message)))?;
-        if manifest.downloads.is_empty() {
+        add_files(&mut files, name, manifest.downloads)?;
+    }
+    Ok(files)
+}
+
+/// `downloads`, checked by [`download::check_form`], kept in `files` under `name` when there are
+/// any.
+fn add_files(files: &mut Files, name: &Name, downloads: Vec<Download>) -> Result<(), Fault> {
+    if downloads.is_empty() {
+        return Ok(());
+    }
+    download::check_form(&downloads).map_err(|why| fault(format!("`{name}`: {why}")))?;
+    files.insert(name.slug(), downloads);
+    Ok(())
+}
+
+/// The text of the `package.toml` in `archive`.
+fn manifest_text(archive: &[u8]) -> Result<String, String> {
+    let mut tar = tar::Archive::new(archive);
+    for entry in tar.entries().map_err(|err| err.to_string())? {
+        let mut entry = entry.map_err(|err| err.to_string())?;
+        if entry.path_bytes().as_ref() != nvs_config::grants::FILE.as_bytes() {
             continue;
         }
-        download::check_form(&manifest.downloads)
-            .map_err(|why| fault(format!("`{}`: {why}", selected.name)))?;
-        if store.is_none() {
-            store = Some(download::Store::current()?);
-        }
-        let store = store.as_ref().expect("the store was opened above");
-        for entry in &manifest.downloads {
-            download::place(store, &selected.name, entry, &dir, outbound)?;
+        let mut text = String::new();
+        entry
+            .read_to_string(&mut text)
+            .map_err(|err| format!("its `{}`: {err}", nvs_config::grants::FILE))?;
+        return Ok(text);
+    }
+    Err(format!("it has no `{}`", nvs_config::grants::FILE))
+}
+
+/// Each file of `files` placed at its path in its package's folder under `vendor`
+/// ([`download::place`]). The cache is opened only when a package has a file.
+fn place_downloads(
+    graph: &Graph,
+    files: &Files,
+    vendor: &Path,
+    outbound: &Outbound,
+) -> Result<(), Fault> {
+    if files.is_empty() {
+        return Ok(());
+    }
+    let store = download::Store::current()?;
+    for selected in &graph.packages {
+        let slug = selected.name.slug();
+        let Some(entries) = files.get(&slug) else {
+            continue;
+        };
+        let dir = vendor.join(&slug);
+        for entry in entries {
+            download::place(&store, &selected.name, entry, &dir, outbound)?;
         }
     }
     Ok(())

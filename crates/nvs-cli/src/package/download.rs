@@ -27,6 +27,7 @@
 //! each file once in the cache and once per package folder. Nothing here runs on the request
 //! path.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Read, Write as _};
 use std::path::{Path, PathBuf};
@@ -173,6 +174,18 @@ pub(crate) fn host(url: &str) -> String {
     let rest = url.get(8..).unwrap_or_default();
     let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
     rest[..end].to_ascii_lowercase()
+}
+
+/// Every package's `[[download]]` entries, by slug, for the packages that have any.
+pub(crate) type Files = BTreeMap<String, Vec<Download>>;
+
+/// The host of every URL of `entries`, sorted, each once.
+pub(crate) fn hosts(entries: &[Download]) -> Vec<String> {
+    let hosts: BTreeSet<String> = entries
+        .iter()
+        .flat_map(|entry| entry.urls.iter().map(|url| host(url)))
+        .collect();
+    hosts.into_iter().collect()
 }
 
 /// The lowercase hex of `hash`.
@@ -350,13 +363,12 @@ fn request(url: &str, size: u64, outbound: &Outbound) -> Result<nvs_stdlib::Tool
     if !is_https(url) {
         return Err("the URL does not start with `https://`".to_owned());
     }
-    let headers = vec![
-        (
-            "User-Agent".to_owned(),
-            format!("nvs/{}", env!("CARGO_PKG_VERSION")),
-        ),
-        ("Accept-Encoding".to_owned(), "identity".to_owned()),
-    ];
+    // The stream sets `Accept-Encoding` itself and decodes the reply, so the size and the hash
+    // are counted on the file's own bytes.
+    let headers = vec![(
+        "User-Agent".to_owned(),
+        format!("nvs/{}", env!("CARGO_PKG_VERSION")),
+    )];
     let bounds = nvs_stdlib::ToolBounds {
         within: time_for(size),
         bytes: size.saturating_add(1),

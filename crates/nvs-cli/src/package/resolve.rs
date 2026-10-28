@@ -123,6 +123,8 @@ pub(crate) struct Registries<'a> {
     outbound: Outbound,
     /// Each git dependency's archive, by slug.
     cloned: BTreeMap<String, Vec<u8>>,
+    /// Each registry archive read and not yet released, by slug.
+    fetched: BTreeMap<String, Vec<u8>>,
 }
 
 impl<'a> Registries<'a> {
@@ -141,6 +143,7 @@ impl<'a> Registries<'a> {
             limits: git::LIMITS,
             outbound: Outbound::default(),
             cloned: BTreeMap::new(),
+            fetched: BTreeMap::new(),
         }
     }
 
@@ -161,6 +164,35 @@ impl<'a> Registries<'a> {
     /// The archive of the git dependency `name`, once [`resolve`] has cloned it.
     pub(crate) fn cloned(&self, name: &Name) -> Option<&[u8]> {
         self.cloned.get(&name.slug()).map(Vec::as_slice)
+    }
+
+    /// The archive of `selected`: its git dependency's clone, or the archive its registry serves,
+    /// read on the first call and kept until [`Self::release`], so a report and the write read it
+    /// once.
+    ///
+    /// # Errors
+    ///
+    /// [`Registry::archive`]'s.
+    pub(crate) fn archive(&mut self, selected: &Selected) -> Result<&[u8], Fault> {
+        let slug = selected.name.slug();
+        if self.cloned.contains_key(&slug) {
+            return Ok(&self.cloned[&slug]);
+        }
+        if !self.fetched.contains_key(&slug) {
+            let release = &selected.release;
+            let archive = self.registry(&selected.name)?.archive(
+                &selected.name,
+                release.version,
+                &release.digest,
+            )?;
+            self.fetched.insert(slug.clone(), archive);
+        }
+        Ok(&self.fetched[&slug])
+    }
+
+    /// The registry archive of `name` no longer kept.
+    pub(crate) fn release(&mut self, name: &Name) {
+        self.fetched.remove(&name.slug());
     }
 
     /// The registry `name`'s vendor resolves from, opened on the first call.

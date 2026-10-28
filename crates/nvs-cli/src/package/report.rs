@@ -9,6 +9,9 @@
 //! needed. The lock records those keys so there is something to compare
 //! (`rule:packaging/the-lockfile-holds-every-digest`). **Every major crossed**, with the packages
 //! that asked for the older version (`rule:packaging/resolution-takes-the-highest-minimum`).
+//! **Every downloaded file** of the graph, with its host, size and license, the total, and each
+//! host no package of the old lock downloads from, since that host sees the installer's address
+//! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
 //!
 //! The report grants nothing: a new package's grant line is written empty, and an existing line
 //! is never changed, so a capability a package newly requests stays refused until a person adds
@@ -18,13 +21,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::download::{self, Files};
 use super::index::Capabilities;
 use super::lock::{self, Lock, Locked};
 use super::manifest::Name;
 use super::resolve::{Graph, Selected};
 
-/// The report of `graph` against the `old` lock, for the packages `targets` names.
-pub(crate) fn report(graph: &Graph, old: Option<&Lock>, targets: &[Name]) -> String {
+/// The report of `graph` against the `old` lock, for the packages `targets` names, with the
+/// `[[download]]` entries of every package in `files`.
+pub(crate) fn report(graph: &Graph, old: Option<&Lock>, targets: &[Name], files: &Files) -> String {
     let by_slug: BTreeMap<String, &Selected> = graph
         .packages
         .iter()
@@ -52,6 +57,7 @@ pub(crate) fn report(graph: &Graph, old: Option<&Lock>, targets: &[Name]) -> Str
         }
     }
     changes(&mut out, graph, old);
+    downloads(&mut out, graph, old, files);
     if !graph.crossings.is_empty() {
         out.push_str("Majors crossed:\n");
         for crossing in &graph.crossings {
@@ -179,6 +185,54 @@ fn differences(locked: &Locked, selected: &Selected) -> Vec<String> {
         ));
     }
     lines
+}
+
+/// Every downloaded file of `graph`'s packages in `files`, added to `out`: its host, size and
+/// license, then the total, then each host no package of the `old` lock downloads from.
+fn downloads(out: &mut String, graph: &Graph, old: Option<&Lock>, files: &Files) {
+    if files.is_empty() {
+        return;
+    }
+    out.push_str("Files downloaded from other hosts:\n");
+    let (mut count, mut total) = (0usize, 0u64);
+    let mut hosts = BTreeSet::new();
+    for selected in &graph.packages {
+        let Some(entries) = files.get(&selected.name.slug()) else {
+            continue;
+        };
+        for entry in entries {
+            let from = download::hosts(std::slice::from_ref(entry));
+            out.push_str(&format!(
+                "  `{}` {}: {} from {}, license {}\n",
+                selected.name,
+                entry.path,
+                size(entry.size),
+                from.join(" or "),
+                entry.license.as_deref().unwrap_or("not given")
+            ));
+            hosts.extend(from);
+            count += 1;
+            total = total.saturating_add(entry.size);
+        }
+    }
+    out.push_str(&format!("  Total: {count} file(s), {}.\n", size(total)));
+    let known = old.map(Lock::hosts).unwrap_or_default();
+    for host in hosts.iter().filter(|host| !known.contains(host.as_str())) {
+        out.push_str(&format!(
+            "  {host} is a new host. It sees the address of this computer when a file is \
+             downloaded.\n"
+        ));
+    }
+}
+
+/// `bytes` as a person reads it: the exact count, and the size in MiB from 1 MiB up.
+fn size(bytes: u64) -> String {
+    const MIB: u64 = 1 << 20;
+    if bytes < MIB {
+        return format!("{bytes} bytes");
+    }
+    let tenths = bytes.saturating_mul(10) / MIB;
+    format!("{bytes} bytes ({}.{} MiB)", tenths / 10, tenths % 10)
 }
 
 /// `names` joined with commas, or `nobody`.
