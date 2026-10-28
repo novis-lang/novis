@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-hir/src/members.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-types/src/expr/literals.rs]
   - id: 2
     title: "a diagnostic names a file without the Windows verbatim prefix"
-    status: open
+    status: done
     context: [crates/nvs-diagnostics/src/source.rs, crates/nvs-config/src/trust.rs, crates/nvs-lsp/src/grants.rs, crates/nvs-footprint/src/lib.rs]
   - id: 3
     title: "a class file and a test file are lent their program's map from wherever the check runs"
@@ -91,8 +91,11 @@ reproducer below is a neutral rewrite of what they reported.
   `autoload` statement is in it. The lexer's tokens decide it, so a comment or a string never
   counts. A test file that really `require`s stays a program of its own, as the rule says.
 - **The display name drops the verbatim prefix and keeps `\\?\UNC\` as a UNC path.** The stored
-  path and `canonical_key` stay verbatim, so file identity is unchanged. The helper moves from
-  `crates/nvs-config/src/trust.rs:674` into `nvs-diagnostics`, and its four copies call it.
+  path and `canonical_key` stay verbatim, so file identity is unchanged. The helper is
+  `nvs_diagnostics::plain_path`, and `trust.rs` and `grants.rs` call it. `nvs-footprint` keeps its
+  own `shown`: `nvs-diagnostics` depends on `nvs-footprint`, so the call would be a cycle, and
+  `shown` also turns `\` into `/`, which no diagnostic wants. `trust.rs`'s canonical UNC path is now
+  `\\host\share` too, where it stayed verbatim before: both name the same file.
 - **A mount kept failing at start is checked for its origin when it first compiles.** Today
   `unreached_origin` runs only for rows not already standing (`crates/nvs-cli/src/serve/mounts.rs:386-402`),
   so a row kept failing would skip it. That gap fails closed (`urlAbsolute` throws), but stage 5
@@ -136,11 +139,12 @@ and stage 5 `crates/nvs-cli/src/serve.rs`, so they run in one tree one after the
 **Does:** a diagnostic in a file reached through `autoload` or `require` names it as `E:\...`, never
 `\\?\E:\...`.
 
-- [ ] The prefix-stripping helper lives in `nvs-diagnostics`, keeping `\\?\UNC\` as `\\`, with unit
+- [x] The prefix-stripping helper lives in `nvs-diagnostics`, keeping `\\?\UNC\` as `\\`, with unit
   cases for a drive path, a UNC path and a non-Windows no-op. `crates/nvs-config/src/trust.rs:674`
-- [ ] `SourceMap::load` and the overlay branch name the file with it. `crates/nvs-diagnostics/src/source.rs:386`, `:419`
-- [ ] `trust.rs`, `crates/nvs-lsp/src/grants.rs:169` and `crates/nvs-footprint/src/lib.rs:176` call it.
-- [ ] A Windows-only CLI test checks a class file through autoload and finds no `\\?\` in the output.
+- [x] `SourceMap::load` and the overlay branch name the file with it. `crates/nvs-diagnostics/src/source.rs:386`, `:419`
+- [x] `trust.rs` and `crates/nvs-lsp/src/grants.rs:169` call it; `crates/nvs-footprint/src/lib.rs:176`
+  cannot (see the standing decision).
+- [x] A Windows-only CLI test checks a class file through autoload and finds no `\\?\` in the output.
 
 ### 3. a class file and a test file are lent their program's map from wherever the check runs
 
@@ -208,6 +212,15 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### State
 
+Stage 2 is done. `nvs_diagnostics::plain_path` drops `\\?\` from the name a diagnostic prints and
+turns `\\?\UNC\host\share` into `\\host\share`, `crates/nvs-diagnostics/src/source.rs:316`.
+`SourceMap::load` names the file with it on disk and overlay reads. `trust.rs` and `grants.rs` call
+it, and `nvs-footprint` keeps its own copy for the reason under Standing decisions. The Windows case
+`a_diagnostic_in_an_autoloaded_file_names_it_without_the_verbatim_prefix` in
+`crates/nvs-cli/tests/check_borrow.rs` passes. The release binary from before the fix printed
+`\\?\E:\...` for the autoloaded file. A test may go red in stage 7 if, on Windows, it compares a
+diagnostic's file name with `fs::canonicalize` output. None was searched for.
+
 Stage 1 is done. `walk_expr` walks an `HtmlTemplate`'s holes as it walks an interpolated string's,
 `crates/nvs-hir/src/members.rs:1137`. One case pins all six calls in a hole:
 `tests/conformance/reject/a-call-in-an-html-template-hole-is-checked-as-it-is-outside-one.nvst`. It
@@ -216,18 +229,18 @@ and `new Nope()` already reported in a hole, because `nvs-types` walks holes in
 `infer_html_template`. Only the `nvs-hir` walk had missed them. A test goes red only if its hole holds
 a call that `nvs-hir` now reports. The corpus was not searched for one, so stage 7 finds it if it exists.
 
-The sweep's `env-secret-proofs` is green when rerun: `bun nv proofs --gate --only 'Core\Env::secret'`
-exits 0. The nightly run `40662443492` was a manual dispatch that was cancelled. The push run after it,
-`40664047249`, is green, so nothing there needs a fix.
+The sweep's `env-secret-proofs` log shows exit 0 on its last run. The nightly run `40662443492` was
+a cancelled manual dispatch, and the push run after it, `40664047249`, is green. Neither needs a fix.
 
 ### Next
 
-Stage 2, the verbatim prefix, on `crates/nvs-diagnostics/src/source.rs`. No gate.
-- [ ] The helper in `nvs-diagnostics`, with unit cases. `crates/nvs-config/src/trust.rs:674`
-- [ ] `SourceMap::load` and the overlay branch use it. `crates/nvs-diagnostics/src/source.rs:386`, `:419`
-- [ ] The three other copies call it. `crates/nvs-lsp/src/grants.rs:169`, `crates/nvs-footprint/src/lib.rs:176`
-- [ ] The Windows-only CLI test, beside the autoload cases. `crates/nvs-cli/tests/check_borrow.rs:1`
+Stage 3, the lender search, on `crates/nvs-hir/src/lenders.rs` and `crates/nvs-cli/src/main.rs`. No gate.
+- [ ] `is_plain` from tokens, with comment, string and statement cases. `crates/nvs-hir/src/lenders.rs:200`
+- [ ] `nvs check --root` and the note on the first `E0303`/`E0306`. `crates/nvs-cli/src/main.rs:1521`
+- [ ] The hook's root: `CLAUDE_PROJECT_DIR`, then `workspace_roots[0]`, then `cwd`. `crates/nvs-cli/src/agent.rs:2648`, `:2666`
+- [ ] The rule fragment, the test-runner page and the CLI reference. `docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md:1`,
+  `website/src/content/docs/tools/test-runner/index.mdx:40`
 
 ### Backlog
 
-- Stages 2, 4 and 6 touch no file another stage touches and can run as lanes.
+- Stages 4 and 6 touch no file another stage touches and can run as lanes.

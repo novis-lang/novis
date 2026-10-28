@@ -669,16 +669,10 @@ mod platform {
     ];
 
     /// `fs::canonicalize` returns a verbatim `\\?\` path, and the rest of the tree — a diagnostic,
-    /// the boot log, `rule:config/every-matching-app-block-applies-least-specific-first`'s prefix match — wants the ordinary one. A UNC path keeps its
-    /// prefix, where dropping it would name a different thing.
+    /// the boot log, `rule:config/every-matching-app-block-applies-least-specific-first`'s prefix
+    /// match — wants the ordinary one, which [`nvs_diagnostics::plain_path`] gives.
     pub(super) fn simplified(path: PathBuf) -> PathBuf {
-        let Some(rest) = path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) else {
-            return path;
-        };
-        if rest.starts_with("UNC\\") {
-            return path;
-        }
-        PathBuf::from(rest)
+        nvs_diagnostics::plain_path(&path).into_owned()
     }
 
     /// [`check`] alone: Windows has no read-only mount, so a directory that holds a link has no

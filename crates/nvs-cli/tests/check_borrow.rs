@@ -147,6 +147,33 @@ fn a_mistake_in_a_lent_class_file_is_still_reported() {
     );
 }
 
+/// A mistake in a class file the program autoloads names that file as a drive
+/// path, without the `\\?\` a canonical Windows path carries. The class file
+/// checked through its lender names it the same way.
+#[cfg(windows)]
+#[test]
+fn a_diagnostic_in_an_autoloaded_file_names_it_without_the_verbatim_prefix() {
+    let project = Project::new("verbatim");
+    project.write(
+        "site/main.nvs",
+        "<?nvs\nautoload 'App' from './app';\n\nuse App\\Broken;\n\nnew Broken();\n",
+    );
+    project.write(
+        "site/app/Broken.nvs",
+        "<?nvs\nnamespace App;\n\nclass Broken {\n    \
+         public function send(): int {\n        string $n = 1;\n        \
+         return 0;\n    }\n}\n",
+    );
+
+    for entry in ["site/main.nvs", "site/app/Broken.nvs"] {
+        let output = project.check(&[entry]);
+        let stderr = stderr(&output);
+        assert_eq!(output.status.code(), Some(1), "{stderr}");
+        assert!(stderr.contains("Broken.nvs"), "{stderr}");
+        assert!(!stderr.contains(r"\\?\"), "{stderr}");
+    }
+}
+
 /// A file no program lends to reports its undeclared names as before.
 #[test]
 fn a_file_no_program_lends_to_is_checked_as_before() {

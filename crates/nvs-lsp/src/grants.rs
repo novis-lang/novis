@@ -25,6 +25,7 @@ use nvs_config::Cap;
 use nvs_config::capability::Grant;
 use nvs_config::defaults::Granted;
 use nvs_config::tree::Capabilities;
+use nvs_diagnostics::plain_path;
 
 use crate::document::{Tree, program_tree};
 
@@ -32,7 +33,7 @@ use crate::document::{Tree, program_tree};
 /// folder's `nvs.toml`: the file `nvs check` reads when the directory has none.
 #[must_use]
 pub fn of_program(path: &Path, data: Option<&Path>) -> String {
-    let dir = plain(&canonical(path.parent().unwrap_or(path)));
+    let dir = plain_path(&canonical(path.parent().unwrap_or(path))).into_owned();
     match program_tree(path, data) {
         Tree::None => {
             let mut text = String::from(
@@ -51,7 +52,7 @@ pub fn of_program(path: &Path, data: Option<&Path>) -> String {
         } => {
             let folder = snapshot
                 .folder()
-                .map_or_else(|| dir.clone(), |at| plain(&at));
+                .map_or_else(|| dir.clone(), |at| plain_path(&at).into_owned());
             let mut text = format!(
                 "These are the grants of the whole program, from {}. \
                  Every route of the program has the same grants.\n\n",
@@ -124,7 +125,7 @@ fn everything(cap: Cap) -> &'static str {
 /// written.
 fn entry_of(cap: Cap, entry: &str, dir: &Path) -> String {
     if cap.is_path_scoped() {
-        shown(&plain(Path::new(entry)), dir)
+        shown(&plain_path(Path::new(entry)), dir)
     } else {
         entry.to_owned()
     }
@@ -134,7 +135,7 @@ fn entry_of(cap: Cap, entry: &str, dir: &Path) -> String {
 fn names(files: &[PathBuf], dir: &Path) -> String {
     files
         .iter()
-        .map(|file| format!("`{}`", shown(&plain(&canonical(file)), dir)))
+        .map(|file| format!("`{}`", shown(&plain_path(&canonical(file)), dir)))
         .collect::<Vec<_>>()
         .join(" and ")
 }
@@ -164,11 +165,4 @@ fn shown(path: &Path, dir: &Path) -> String {
 /// `path` canonical where it exists, so it compares with the snapshot's own paths.
 fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
-}
-
-/// `path` without Windows' verbatim `\\?\` prefix, which no reader has ever been shown.
-fn plain(path: &Path) -> PathBuf {
-    path.to_str()
-        .and_then(|text| text.strip_prefix(r"\\?\"))
-        .map_or_else(|| path.to_path_buf(), PathBuf::from)
 }

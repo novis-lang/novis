@@ -36,7 +36,9 @@ mod span;
 
 pub use diagnostic::{Code, Diagnostic, Diagnostics, Label, LabelStyle, Severity, Suggestion};
 pub use render::{AGENT_SHOW_LINE, Renderer};
-pub use source::{MASK, MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key};
+pub use source::{
+    MASK, MAX_SOURCE_LEN, PositionEncoding, SourceFile, SourceMap, canonical_key, plain_path,
+};
 pub use span::{BytePos, SourceId, Span, Spanned};
 
 /// Declares one area of the [`code`] module: the range its codes take, and

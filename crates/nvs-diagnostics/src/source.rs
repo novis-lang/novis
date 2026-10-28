@@ -308,6 +308,31 @@ pub fn canonical_key(path: &Path) -> PathBuf {
     path.canonicalize().unwrap_or_else(|_| path.to_path_buf())
 }
 
+/// `path` without the verbatim `\\?\` prefix a canonical Windows path carries,
+/// which no reader is ever shown. A verbatim UNC path, `\\?\UNC\host\share`,
+/// is the ordinary `\\host\share`. Every other platform has no such prefix, so
+/// there the path is returned as it is. It is the name a person reads and never
+/// a key: [`canonical_key`] stays verbatim, so file identity does not move.
+#[must_use]
+pub fn plain_path(path: &Path) -> std::borrow::Cow<'_, Path> {
+    unverbatim(path, cfg!(windows))
+}
+
+/// [`plain_path`] with the platform as an argument, so its cases run everywhere.
+fn unverbatim(path: &Path, windows: bool) -> std::borrow::Cow<'_, Path> {
+    use std::borrow::Cow;
+    let Some(rest) = windows
+        .then(|| path.to_str().and_then(|text| text.strip_prefix(r"\\?\")))
+        .flatten()
+    else {
+        return Cow::Borrowed(path);
+    };
+    match rest.strip_prefix(r"UNC\") {
+        Some(share) => Cow::Owned(PathBuf::from(format!(r"\\{share}"))),
+        None => Cow::Borrowed(Path::new(rest)),
+    }
+}
+
 /// Largest source file Novis will load.
 ///
 /// Spans use `u32` offsets; refusing oversized input at the boundary is what
@@ -382,7 +407,7 @@ impl SourceMap {
             let id = self.next_id();
             self.files.push(SourceFile::new(
                 id,
-                path.display().to_string(),
+                plain_path(path).display().to_string(),
                 Some(path.to_path_buf()),
                 text,
             ));
@@ -416,7 +441,7 @@ impl SourceMap {
             ));
         }
         let id = self.next_id();
-        let name = path.display().to_string();
+        let name = plain_path(path).display().to_string();
         self.files
             .push(SourceFile::new(id, name, Some(path.to_path_buf()), text));
         Ok(id)
@@ -552,6 +577,37 @@ impl SourceMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A verbatim drive path is shown as the drive path, and a verbatim UNC
+    /// path as the share it names.
+    #[test]
+    fn a_verbatim_windows_path_is_shown_without_its_prefix() {
+        assert_eq!(
+            unverbatim(Path::new(r"\\?\E:\app\Blog.nvs"), true),
+            Path::new(r"E:\app\Blog.nvs")
+        );
+        assert_eq!(
+            unverbatim(Path::new(r"\\?\UNC\host\share\Blog.nvs"), true),
+            Path::new(r"\\host\share\Blog.nvs")
+        );
+        assert_eq!(
+            unverbatim(Path::new(r"E:\app\Blog.nvs"), true),
+            Path::new(r"E:\app\Blog.nvs")
+        );
+    }
+
+    /// Outside Windows `\\?\` is ordinary file name text, so nothing is stripped.
+    #[test]
+    fn a_path_off_windows_is_shown_as_it_is() {
+        assert_eq!(
+            unverbatim(Path::new(r"\\?\E:\app\Blog.nvs"), false),
+            Path::new(r"\\?\E:\app\Blog.nvs")
+        );
+        assert_eq!(
+            unverbatim(Path::new("/srv/app/Blog.nvs"), false),
+            Path::new("/srv/app/Blog.nvs")
+        );
+    }
 
     /// A concealed literal is one mask per character between its quotes, so a
     /// column past it still names the same character; a line it does not touch
