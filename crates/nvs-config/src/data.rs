@@ -10,6 +10,7 @@
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
 //! [`Folder::registry`] has no key either: it is a copy of what each registry last said.
+//! [`Folder::tokens`] has none: a publish token belongs to the user who runs `nvs`.
 //! [`Folder::spool`] and [`Folder::debug_index`] are under `debug/`, which only a run with
 //! `[debug] store` on creates ([`Folder::prepare_spool`]).
 //!
@@ -199,6 +200,14 @@ impl Folder {
     #[must_use]
     pub fn downloads(&self) -> PathBuf {
         self.root.join("downloads")
+    }
+
+    /// `tokens/`: the publish token `nvs pkg login` stored for each registry, one file per
+    /// registry (`rule:packaging/a-publish-token-is-scoped-and-expires`). `nvs pkg login` creates
+    /// it privately, and `nvs pkg` reads a token only once it passes the ownership check.
+    #[must_use]
+    pub fn tokens(&self) -> PathBuf {
+        self.root.join("tokens")
     }
 
     /// `failed-tests/`: one file per tested program, with the tests its last `nvs test` run

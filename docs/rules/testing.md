@@ -824,6 +824,12 @@ response is `tainted`: it is the program's own output.
 The synthetic request's parameters arrive **`tainted`**, exactly as a real request's would, so a
 handler that forgets to launder fails its test rather than production.
 
+**The request runs on the test's clock.** A test that fixed its clock with `at:`
+([`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test)) hands the request a copy of that reading, with
+every `Core\Test::advance` made before the call, so an expiry the handler checks moves with the test.
+Nothing the request does moves the test's clock. A `seed:` does not cross: a copy of the generator's
+state would draw the same values in every request one test makes.
+
 `#[Test(server: true)]` binds a real listener for the cases that genuinely need the wire. The port
 is the operating system's and the address is loopback, so two suites on one machine never collide
 and no suite serves the program under test to a network. The listener is a **sibling** of the test's

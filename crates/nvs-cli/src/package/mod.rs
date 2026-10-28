@@ -22,6 +22,8 @@
 //! events it records, and [`note`] signs and opens the C2SP signed notes its checkpoints are.
 //! [`proof`] is the client's side of the log: the checkpoint it keeps per registry, the fork
 //! check, and the inclusion proof of every archive it fetches. The registry's own commands over the log are `crate::registry`'s, outside `nvs pkg`.
+//! [`login`] is `nvs pkg login` and `nvs pkg whoami`: the publish token stored in the data folder
+//! and checked with the registry (`rule:packaging/a-publish-token-is-scoped-and-expires`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -37,6 +39,7 @@ mod git;
 pub(crate) mod index;
 mod lock;
 pub(crate) mod log;
+mod login;
 mod manifest;
 mod minimum;
 pub(crate) mod note;
@@ -207,6 +210,34 @@ enum Command {
         #[arg(long)]
         locked: bool,
     },
+    /// Store your publish token for a registry.
+    ///
+    /// Create the token on the registry's website. Then run this command
+    /// and paste the token. You can also pipe it in, such as
+    /// `nvs pkg login < token.txt`.
+    ///
+    /// The command reads the token from standard input. A token on the
+    /// command line is visible to other programs and in your shell history.
+    ///
+    /// The registry checks the token first. Then the command stores it in
+    /// the data folder, where only your account can read it. It prints the
+    /// account and the scope, which is the vendor or the package the token
+    /// can publish.
+    Login {
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+    },
+    /// Show the account and the scope of your stored publish token.
+    ///
+    /// The command sends the stored token to the registry. It prints the
+    /// account, the scope and the date the token expires. Run
+    /// `nvs pkg login` first to store a token.
+    Whoami {
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+    },
 }
 
 impl Args {
@@ -229,6 +260,8 @@ impl Args {
             Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),
             Command::Download { url, to } => download::run_download(&url, &to),
             Command::Provide { file } => download::run_provide(&file),
+            Command::Login { registry } => login::login(registry.as_deref()),
+            Command::Whoami { registry } => login::whoami(registry.as_deref()),
         }
     }
 }

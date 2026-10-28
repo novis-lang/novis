@@ -13,7 +13,7 @@ stages:
         rules: [packaging/the-registry-is-a-novis-program, packaging/a-registry-account-is-a-passkey, core-classes/passkey-verifies-a-webauthn-ceremony]
   - id: 2
     title: a vendor has owners, and a token is scoped, hashed and expires
-    status: open
+    status: done
     context: [crates/nvs-config/src/data.rs, crates/nvs-cli/src/cache.rs, docs/rules/packaging/a-publish-token-is-scoped-and-expires.md, docs/rules/packaging/a-package-name-is-vendor-slash-name.md]
     extra:
       context:
@@ -326,8 +326,8 @@ reference card, one line each, and the list of `apps/notes/` files with what eac
 - [x] Vendors and owners, an owner added only with a passkey. The check that the new owner has a verified channel lands with stage 5. `apps/registry/src/Vendors.nvs:1`
 - [x] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
 - [x] Tests: a token outside its scope refused, an expired one refused, a revoked one refused, and only its hash stored. `apps/registry/src/TokensTest.nvs:1`
-- [ ] `nvs pkg login` stores a token in the data folder under the ownership check, and `nvs pkg whoami` prints the account and its scope, with a test of a token file writable by another account. `crates/nvs-cli/src/package/login.rs:1`, `crates/nvs-config/src/data.rs:446`
-- [ ] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
+- [x] `nvs pkg login` stores a token in the data folder under the ownership check, and `nvs pkg whoami` prints the account and its scope, with a test of a token file writable by another account. `crates/nvs-cli/src/package/login.rs:1`, `crates/nvs-config/src/data.rs:446`
+- [x] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
 
 ### 3. `nvs registry build` builds the archive from a git commit, and `nvs pkg publish` sends one
 
@@ -467,32 +467,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `apps/registry/` is a JSON API: `App.nvs` routes sign-up (work, options, finish),
-sign-in by passkey and by recovery code, the account, adding a passkey and sign-out; `Work.nvs` is
-the proof-of-work, `Accounts.nvs` the store, `Schema.nvs` the tables, `Gate.nvs` starts the session,
-`Site.nvs` reads `hosting.json`. `AccountsTest.nvs` passes its five tests with
-`nvs test . --config nvs.toml` in `apps/registry/`, driving `BrowserTest.nvs`, which plays the browser
-and an Ed25519 passkey device. `rule:packaging/a-registry-account-is-a-passkey` is shipped. No test
-is expected to go red. Every gate in *Gates* now holds: `package-client`, `api-compat` and
-`registry-log` are reached, and `Core\WebPush` is shipped.
+Stages 1 and 2 are done. `apps/registry/` now keeps vendors, owners and tokens: `Vendors.nvs`
+(`claim`, `addOwner`, `removeOwner`, never the last owner), `Tokens.nvs` (`create`, `find`,
+`allows`, `revoke`, `bearer`), `Token.nvs`, and the routes in `App.nvs` under `/api/vendors/{vendor}/owners`,
+`/api/tokens` and `/api/whoami`. `Session::hasRecentPasskey` gates owner changes and token creation
+(15 minutes). `nvs test . --config nvs.toml` in `apps/registry/` passes 13 tests (`AccountsTest`,
+`TokensTest`, `VendorsTest`). `nvs pkg login` and `nvs pkg whoami` are
+`crates/nvs-cli/src/package/login.rs`, storing one token file per registry under the data folder's
+`tokens/` (`Folder::tokens`), with `--registry <URL>` (`http:` only on loopback); its 6 tests in
+`crates/nvs-cli/tests/package_login.rs` pass on Windows and in WSL. The token rule is `shipped`, with a
+*Not on disk* line for the log entry and the owner notification of a new or revoked token.
+
+`Core\Test::request` now runs the request on the test's fixed clock (`crates/nvs-cli/src/runner.rs`,
+`rule:testing/in-process-request`), pinned by `itAnswersOnTheTestsFixedClock` in
+`crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs`.
+
+The sweep's reds were stale: `env-secret-proofs` names a check no file defines any more, and its log
+from Oct 22 says exit 0. The nightly run 40662443492 was a `workflow_dispatch` on `97fcf96ce`,
+cancelled by a newer push, and every push run since is green.
+
+Expected red: none known. `bun nv ci --check` has not run, so a generated CLI reference that lists
+`nvs pkg` subcommands may want a render for `login` and `whoami`.
 
 ### Next
 
-Stage 2, vendors, owners and tokens, on `apps/registry/` (app items), then the Rust lane's
-`login.rs`. Add the `vendors`, `owners` and `tokens` tables to `Schema::setUp`
-(`apps/registry/src/Schema.nvs:21`); a token is checked from the `authorization` header, never the
-session. An owner is added only after a passkey sign-in in the same session: keep the sign-in time in
-`Registry\Session` (`apps/registry/src/Session.nvs:20`).
-- [ ] Vendors and owners, an owner added only with a passkey. `apps/registry/src/Vendors.nvs:1`
-- [ ] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
-- [ ] Their tests, in the shape of `apps/registry/src/AccountsTest.nvs:1`. `apps/registry/src/TokensTest.nvs:1`
-- [ ] `nvs pkg login` and `nvs pkg whoami`. `crates/nvs-cli/src/package/login.rs:1`
-- [ ] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
+Stage 3, the Rust lane: `nvs registry build` and `nvs pkg publish`. Follow its **Split:** line: an
+`Explore` subagent lists what `pack.rs`, `git.rs` and `diff.rs` export, the session writes `build.rs`,
+and a writing subagent writes the HTTPS loopback git server and the tests.
+- [ ] `nvs registry build` as JSON for the service, with `--ca-file`. `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
+- [ ] `nvs pkg publish` and `--dry-run`, sending with the token `login.rs` stores (`login.rs`'s reader of the token file). `crates/nvs-cli/src/package/publish.rs:1`
+- [ ] Tests against the HTTPS loopback git server. `crates/nvs-cli/tests/registry_build.rs:1`
 
 ### Backlog
 
-- Stage 3, `nvs registry build` and `nvs pkg publish`, is the Rust lane, disjoint from `apps/registry/`, and its gate holds (`crates/nvs-cli/src/package/mod.rs`).
-
+- Stage 7 calls `Vendors::claim` at a first publish, refuses `Core` and `Novis` for every account but
+  the project's, and checks the token with `Tokens::allows` (`apps/registry/src/Tokens.nvs`).
+- Stage 4 writes the log entries for owner changes and for making and revoking a token; stage 5 notifies
+  the owners and adds the verified-channel check to `addOwner` (`apps/registry/src/App.nvs`).
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - Stage 11, the hosting settings, the durable publish, the backup and the restore, follows stage 7 (`apps/registry/src/Stores.nvs`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).

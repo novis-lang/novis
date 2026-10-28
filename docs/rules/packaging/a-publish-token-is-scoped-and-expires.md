@@ -19,4 +19,12 @@ ownership, the repository binding or a listing needs a passkey.
 - **A token that never expires.** A token copied into a forgotten CI system stays a publishing key for
   as long as the package exists.
 
-**Not on disk.** There is no registry and no `nvs pkg login`.
+`nvs pkg login` reads the token from standard input, never from an argument, checks it with the
+registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, one file per registry.
+`nvs pkg whoami` reads it back only after the ownership check passes, and refuses a file another account
+can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
+host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
+making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
+longer owns the vendor.
+
+**Not on disk.** Creating or revoking a token writes no log entry yet and notifies no owner yet.

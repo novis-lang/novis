@@ -1,11 +1,14 @@
 {
   "title": "A publish token is scoped to one vendor or package, expires within a year, starts with `nvsreg_`, and is stored only as a hash",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
     "packaging/an-account-stays-active-by-proof-not-by-token",
     "config/ownership-is-the-trust-boundary"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/TokensTest.nvs",
+    "apps/registry/src/VendorsTest.nvs",
+    "crates/nvs-cli/tests/package_login.rs"
+  ]
 }

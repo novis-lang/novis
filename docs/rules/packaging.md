@@ -3,7 +3,7 @@
 
 # Packaging
 
-*13 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*11 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1611,7 +1611,7 @@ sent. The daily count holds one day's salted hashes, as the counting rule says.
 
 <a id="packaging-a-registry-account-is-a-passkey"></a>
 
-## A registry account is passkeys and one-time recovery codes, with no email, no SMS, no password, no forge binding and no human recovery  *(designed — owned by goal registry-service)*
+## A registry account is passkeys and one-time recovery codes, with no email, no SMS, no password, no forge binding and no human recovery
 
 `rule:packaging/a-registry-account-is-a-passkey`
 
@@ -1644,7 +1644,12 @@ than by a support desk.
 - **Account recovery by the operator.** A process a person can be talked through is the weakest
   credential on the account.
 
-**Not on disk.** There is no registry.
+**On disk.** `apps/registry/src/App.nvs` is the sign-up, the sign-in and the passkey routes;
+`Work.nvs` is the proof-of-work, a SHA-256 of a session-bound challenge with as many leading zero bits
+as `hosting.json`'s `signUpWork` names, checked once and within ten minutes; `Accounts.nvs` keeps ten
+recovery codes per account as SHA-256 hashes, each used once. The schema has no column for a name, an
+address or a password. **Memory:** one challenge per visitor in the session, and no state between
+requests outside SQLite.
 
 <sub>See also [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -1740,7 +1745,7 @@ webhooks are rows on disk.
 
 <a id="packaging-a-publish-token-is-scoped-and-expires"></a>
 
-## A publish token is scoped to one vendor or package, expires within a year, starts with `nvsreg_`, and is stored only as a hash  *(designed — owned by goal registry-service)*
+## A publish token is scoped to one vendor or package, expires within a year, starts with `nvsreg_`, and is stored only as a hash
 
 `rule:packaging/a-publish-token-is-scoped-and-expires`
 
@@ -1765,7 +1770,15 @@ ownership, the repository binding or a listing needs a passkey.
 - **A token that never expires.** A token copied into a forgotten CI system stays a publishing key for
   as long as the package exists.
 
-**Not on disk.** There is no registry and no `nvs pkg login`.
+`nvs pkg login` reads the token from standard input, never from an argument, checks it with the
+registry's `GET /api/whoami`, and stores it under the data folder's `tokens/`, one file per registry.
+`nvs pkg whoami` reads it back only after the ownership check passes, and refuses a file another account
+can write. Both take `--registry`, the URL a `[registries]` line names, and `http:` only for a loopback
+host (`crates/nvs-cli/src/package/login.rs`). The service side is `apps/registry/src/Tokens.nvs`:
+making a token needs a passkey sign-in in the last 15 minutes, and a token stops when its account no
+longer owns the vendor.
+
+**Not on disk.** Creating or revoking a token writes no log entry yet and notifies no owner yet.
 
 <sub>See also [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
