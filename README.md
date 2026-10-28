@@ -120,7 +120,6 @@ dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 1. **Packages and the registry.** *Working on it now.* `nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.
-2. **Passkeys and Web Push.** `Core\Passkey` lets a user sign in with a passkey. `Core\WebPush` sends a notification to a browser.
 <!-- roadmap:end -->
 
 ## Contributing

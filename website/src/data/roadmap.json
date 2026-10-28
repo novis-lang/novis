@@ -11,13 +11,6 @@
         "package-audit",
         "first-packages"
       ]
-    },
-    {
-      "title": "Passkeys and Web Push",
-      "text": "`Core\\Passkey` lets a user sign in with a passkey. `Core\\WebPush` sends a notification to a browser.",
-      "goals": [
-        "core-web-push"
-      ]
     }
   ]
 }
