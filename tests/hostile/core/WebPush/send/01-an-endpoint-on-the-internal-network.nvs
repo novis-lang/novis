@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a browser sends a subscription whose endpoint is an address inside this server's
+// network. The server then tries to push a message to it. Every send must throw an error.
+
+final class Browser
+{
+    // Returns the JSON a browser sends for a subscription, with the given endpoint.
+    public static function subscription(string $endpoint): string
+    {
+        return "{\"endpoint\":\"" . $endpoint . "\",\"keys\":{\"p256dh\":"
+            . "\"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4\","
+            . "\"auth\":\"BTBZMqHH6r4Tts7J_aSIgg\"}}";
+    }
+
+    // Sends one message to each endpoint and returns how many sends threw a `RuntimeError`.
+    // A result, or an error about a missing permission, stops the program with a `LogicError`.
+    public static function sendToEach(array<string> $endpoints, Core\Crypto\KeyPair $vapid): uint
+    {
+        bytes $payload = Core\Encoding::encodeText('{"title":"New order"}', Core\Charset::Utf8);
+        uint $refused = 0;
+        foreach ($endpoints as string $endpoint) {
+            try {
+                Core\WebPush\Subscription $to = Core\WebPush::subscription(Browser::subscription($endpoint));
+                Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
+                throw new LogicError(Core\Str::format('a message reached %s: %d', $endpoint, $sent->status()));
+            } catch (RuntimeError $error) {
+                if (Core\Str::contains($error->message, 'needs the capability')) {
+                    throw new LogicError('the permission check stopped the send: ' . $error->message);
+                }
+                $refused = $refused + 1;
+            }
+        }
+        return $refused;
+    }
+}
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// 1. Endpoints with a loopback, private, link-local or cloud metadata address, as IPv4 and IPv6.
+//    Each send must throw a `RuntimeError`.
+array<string> $literal = [
+    'https://127.0.0.1/send/1',
+    'https://127.1.2.3:8443/send/1',
+    'https://10.0.0.1/send/1',
+    'https://172.16.0.1/send/1',
+    'https://192.168.1.1/send/1',
+    'https://169.254.169.254/latest/meta-data/',
+    'https://100.100.100.200/latest/meta-data/',
+    'https://0.0.0.0/send/1',
+    'https://[::1]/send/1',
+    'https://[::]/send/1',
+    'https://[::ffff:127.0.0.1]/send/1',
+    'https://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'https://[fe80::1]/send/1',
+    'https://[fd00::1]/send/1',
+    'https://[fd00:ec2::254]/latest/meta-data/',
+];
+echo 'step 1: ', Browser::sendToEach($literal, $vapid), "\n";
+
+// 2. Endpoints that write a loopback address as a name, a decimal number, a hex number
+//    or with octal parts. Each send must throw a `RuntimeError`.
+array<string> $named = [
+    'https://localhost/send/2',
+    'https://LOCALHOST./send/2',
+    'https://2130706433/send/2',
+    'https://0x7f000001/send/2',
+    'https://0177.0.0.1/send/2',
+    'https://127.1/send/2',
+];
+echo 'step 2: ', Browser::sendToEach($named, $vapid), "\n";
+
+// 3. The metadata address is tried five hundred times. Each send must throw a `RuntimeError`.
+array<string> $again = [];
+uint $i = 0;
+while ($i < 500) {
+    $again[] = Core\Str::format('https://169.254.169.254/latest/%d', $i);
+    $i = $i + 1;
+}
+echo 'step 3: ', Browser::sendToEach($again, $vapid), "\n";

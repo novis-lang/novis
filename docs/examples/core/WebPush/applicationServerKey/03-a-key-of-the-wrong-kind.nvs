@@ -1,0 +1,16 @@
+<?nvs
+// Shows what happens when the key pair is not of kind `P256`.
+
+// An `Ed25519` key pair can sign, but push services accept only `P256` keys.
+Core\Crypto\KeyPair $wrong = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// So `applicationServerKey` throws a `LogicError`. This prints its message.
+try {
+    echo Core\WebPush::applicationServerKey($wrong), "\n";
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}
+
+// A new `P256` key pair works.
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+echo 'length: ', Core\Str::length(Core\WebPush::applicationServerKey($vapid)), "\n";

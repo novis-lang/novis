@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\WebPush::subscription` for endpoints of growing length.
+// bench: start 64
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $text = '{"endpoint":"https://push.example.com/send/' . Core\Str::repeat('a', $size) . '",'
+            . '"keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            Core\WebPush\Subscription $read = Core\WebPush::subscription($text);
+            if ($read->endpoint() == '') {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(64), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the subscription that a browser sends, and print its endpoint.
+
+// This is the JSON that `PushSubscription.toJSON()` returns in the browser.
+string $json = '{"endpoint":"https://push.example.com/send/abc123",'
+    . '"expirationTime":null,'
+    . '"keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+
+// `Core\WebPush::subscription` checks the endpoint and both keys.
+// The `expirationTime` field is ignored.
+Core\WebPush\Subscription $subscription = Core\WebPush::subscription($json);
+
+// This prints "https://push.example.com/send/abc123".
+echo $subscription->endpoint(), "\n";

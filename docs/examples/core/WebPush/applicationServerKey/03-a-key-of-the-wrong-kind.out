@@ -1,0 +1,2 @@
+Core\WebPush::applicationServerKey(): $vapid is not a key pair of kind `P256`.
+length: 87

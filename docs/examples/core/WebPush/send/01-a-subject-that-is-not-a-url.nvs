@@ -1,0 +1,20 @@
+<?nvs
+// Shows the error you get when the subject is not a `mailto:` or `https:` URL.
+
+// This is the JSON that the browser sent when the user allowed notifications.
+string $json = '{"endpoint":"https://push.example.com/send/abc","keys":{'
+    . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+bytes $payload = Core\Encoding::encodeText('Your order has shipped.', Core\Charset::Utf8);
+
+// A real program loads its VAPID key from a file. This example makes a new one.
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// `admin@example.com` has no `mailto:` in front of it. The call throws a `LogicError`
+// before it connects to the push service.
+try {
+    Core\WebPush::send($to, $payload, $vapid, 'admin@example.com');
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

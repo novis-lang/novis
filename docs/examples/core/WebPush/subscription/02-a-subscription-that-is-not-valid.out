@@ -1,0 +1,3 @@
+Core\WebPush::subscription(): the endpoint is not an `https:` URL.
+Core\WebPush::subscription(): `auth` is not 16 bytes.
+Core\WebPush::subscription(): the subscription is not JSON.

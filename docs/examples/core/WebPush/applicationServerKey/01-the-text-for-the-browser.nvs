@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to get the public key that the browser needs for push messages.
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+string $public = Core\WebPush::applicationServerKey($vapid);
+
+// The key is random, so the text is different on every run. Its length is always 87.
+echo 'length: ', Core\Str::length($public), "\n";
+
+// The same key pair always gives the same text. This prints `yes`.
+echo 'the same text again: ', ($public == Core\WebPush::applicationServerKey($vapid) ? 'yes' : 'no'), "\n";

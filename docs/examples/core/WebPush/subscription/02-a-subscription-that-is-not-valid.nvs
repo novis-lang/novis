@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to catch the error for a subscription that a browser did not write.
+
+string $point = 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4';
+
+// The first text uses `http:`. The second has an `auth` that is too short.
+// The third is not JSON.
+array<string> $texts = [
+    '{"endpoint":"http://push.example.com/send/abc123","keys":{"p256dh":"' . $point . '","auth":"BTBZMqHH6r4Tts7J_aSIgg"}}',
+    '{"endpoint":"https://push.example.com/send/abc123","keys":{"p256dh":"' . $point . '","auth":"BTBZ"}}',
+    'not json',
+];
+
+// Each text throws a `RuntimeError`. Its message says which check failed.
+foreach ($texts as string $text) {
+    try {
+        Core\WebPush::subscription($text);
+        echo "accepted\n";
+    } catch (RuntimeError $e) {
+        echo $e->message, "\n";
+    }
+}

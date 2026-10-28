@@ -116,6 +116,15 @@ root = "tests/hostile/core/Http-Client"
 [app.capabilities.net]
 connect = true
 
+# `Core\WebPush::send`'s attack sends to endpoints on internal addresses. It is granted every host,
+# so the address table is the only thing that can refuse each send. It keeps `internal = []` from
+# the `tests/hostile` block, which takes loopback back from a CLI run's default.
+[[app]]
+root = "tests/hostile/core/WebPush/send"
+
+[app.capabilities.net]
+connect = true
+
 # `Core\Http\Part`'s examples and attacks send parts under the same `net` settings, and none of
 # them opens a connection either. `Part::file` reads files from its own `data/` directory and
 # nowhere else, so one example can show a file outside the grant being refused. The `file` bench

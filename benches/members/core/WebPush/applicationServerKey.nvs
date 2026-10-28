@@ -1,0 +1,25 @@
+<?nvs
+// Gets the public key for the browser, as a route does when a page asks for it.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Crypto\KeyPair> $keys = [
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256),
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: last round's total picks the key
+            $total = $total + Core\Str::length(Core\WebPush::applicationServerKey($keys[($total % 2) as int])) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

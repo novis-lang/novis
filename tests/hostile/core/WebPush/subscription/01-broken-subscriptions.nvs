@@ -1,0 +1,141 @@
+<?nvs
+// Attack: a client sends broken, huge, deeply nested and strange subscriptions.
+// Each broken one should throw a `RuntimeError` that the program catches. Nothing should crash or hang.
+
+final class Attack
+{
+    public static string $point = 'BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4';
+    public static string $auth = 'BTBZMqHH6r4Tts7J_aSIgg';
+
+    // Writes the JSON text that a browser writes, with the three values given.
+    public static function json(string $endpoint, string $p256dh, string $auth): string
+    {
+        return '{"endpoint":"' . $endpoint . '","keys":{"p256dh":"' . $p256dh . '","auth":"' . $auth . '"}}';
+    }
+
+    // Reads each text, and prints how many were read and how many threw an error.
+    public static function read(string $step, array<string> $texts): void
+    {
+        int $read = 0;
+        int $thrown = 0;
+        foreach ($texts as string $text) {
+            try {
+                Core\WebPush::subscription($text);
+                $read = $read + 1;
+            } catch (RuntimeError $e) {
+                $thrown = $thrown + 1;
+            }
+        }
+        echo $step, ': ', $read, ' read, ', $thrown, " thrown\n";
+    }
+}
+
+string $endpoint = 'https://push.example.com/send/abc';
+string $point = Attack::$point;
+string $auth = Attack::$auth;
+
+// 0. A real subscription is read, so the steps below test the checks.
+Attack::read('step 0', [Attack::json($endpoint, $point, $auth)]);
+
+// 1. Texts that are empty, one byte over the limit of 8192 bytes, and 16 MiB long.
+string $padding = Core\Str::repeat(' ', 8193 - Core\Str::length(Attack::json($endpoint, $point, $auth)));
+Attack::read('step 1', [
+    '',
+    ' ',
+    Attack::json($endpoint, $point, $auth) . $padding,
+    Core\Str::repeat('{', 16777216),
+    Attack::json($endpoint . Core\Str::repeat('a', 16777216), $point, $auth),
+]);
+
+// 2. Arrays and objects nested thousands of levels deep, inside the limit.
+Attack::read('step 2', [
+    Core\Str::repeat('[', 8000),
+    Core\Str::repeat('{"a":', 1600) . '1' . Core\Str::repeat('}', 1600),
+    '{"endpoint":"' . $endpoint . '","keys":' . Core\Str::repeat('[', 4000) . Core\Str::repeat(']', 4000) . '}',
+]);
+
+// 3. Values of the wrong type: numbers, `null`, arrays and objects.
+Attack::read('step 3', [
+    'null', '0', '"text"', '[]', '{}', 'true',
+    '{"endpoint":42,"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
+    '{"endpoint":null,"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
+    '{"endpoint":["' . $endpoint . '"],"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
+    '{"endpoint":"' . $endpoint . '","keys":"' . $point . '"}',
+    '{"endpoint":"' . $endpoint . '","keys":null}',
+    '{"endpoint":"' . $endpoint . '","keys":[]}',
+    '{"endpoint":"' . $endpoint . '","keys":{"p256dh":65,"auth":"' . $auth . '"}}',
+    '{"endpoint":"' . $endpoint . '","keys":{"p256dh":"' . $point . '","auth":{}}}',
+    '{"endpoint":"' . $endpoint . '","keys":{"p256dh":"' . $point . '"}}',
+]);
+
+// 4. Text that is almost JSON: cut off, with extra text, with bad escapes and with a NUL.
+string $whole = Attack::json($endpoint, $point, $auth);
+Attack::read('step 4', [
+    Core\Str::slice($whole, 0, Core\Str::length($whole) as int - 1),
+    $whole . 'x',
+    $whole . $whole,
+    "{'endpoint':'" . $endpoint . "'}",
+    '{"endpoint":"https://push.example.com/\ud800","keys":{}}',
+    '{"endpoint":"https://push.example.com/\x","keys":{}}',
+    "{\"endpoint\":\"https://push.example.com/\0\",\"keys\":{}}",
+    "\0" . $whole,
+]);
+
+// 5. Keys that are not a point on the P-256 curve.
+bytes $raw = Core\Encoding::fromBase64Url($point);
+bytes $coordinates = Core\Bytes::slice($raw, 1, 64);
+array<bytes> $points = [
+    Core\Bytes::join([Core\Bytes::slice($raw, 0, 64), Core\Bytes::fill(1, 15)]),
+    Core\Bytes::join([Core\Encoding::fromHex('05'), $coordinates]),
+    Core\Bytes::join([Core\Encoding::fromHex('02'), Core\Bytes::slice($raw, 1, 32)]),
+    Core\Bytes::join([Core\Encoding::fromHex('04'), Core\Bytes::fill(64, 0)]),
+    Core\Bytes::join([Core\Encoding::fromHex('04'), Core\Bytes::fill(64, 255)]),
+    Core\Bytes::fill(1, 0),
+    $coordinates,
+    Core\Bytes::join([$raw, Core\Bytes::fill(1, 0)]),
+];
+array<string> $offCurve = ['', '====', 'not base64url!', $point . 'A'];
+foreach ($points as bytes $notAPoint) {
+    $offCurve[] = Core\Encoding::toBase64Url($notAPoint);
+}
+array<string> $step5 = [];
+foreach ($offCurve as string $p256dh) {
+    $step5[] = Attack::json($endpoint, $p256dh, $auth);
+}
+Attack::read('step 5', $step5);
+
+// 6. An `auth` of 0, 15, 17 and 1000 bytes, and one that is not base64url.
+array<string> $step6 = [];
+array<uint> $lengths = [0, 15, 17, 1000];
+foreach ($lengths as uint $length) {
+    $step6[] = Attack::json($endpoint, $point, Core\Encoding::toBase64Url(Core\Bytes::fill($length, 7)));
+}
+$step6[] = Attack::json($endpoint, $point, 'BTBZ+qHH/r4Tts7J_aSIgg');
+$step6[] = Attack::json($endpoint, $point, 'BTBZMqHH6r4Tts7J_aSI');
+Attack::read('step 6', $step6);
+
+// 7. Endpoints that are not `https:` URLs, or have no host.
+array<string> $step7 = [];
+array<string> $notHttps = [
+    '', 'http://push.example.com/send/abc', 'ftp://push.example.com/', 'javascript:alert(1)',
+    'https://', 'https:', 'https:/push.example.com', '//push.example.com/send', 'push.example.com',
+    'https:// push.example.com/', 'https://push.example.com/a b', 'https://push.example.com:99999/',
+    'file:///etc/passwd', 'data:text/plain,abc', 'httpsx://push.example.com/',
+];
+foreach ($notHttps as string $bad) {
+    $step7[] = Attack::json($bad, $point, $auth);
+}
+Attack::read('step 7', $step7);
+
+// 8. Odd `https:` endpoints: a user and password, IP addresses, and a 7000-byte path.
+// These are `https:` URLs, so they are read. `Core\WebPush::send` checks the host before it connects.
+array<string> $step8 = [];
+array<string> $odd = [
+    'https://user:password@push.example.com/send/abc', 'https://127.0.0.1/send', 'https://[::1]/send',
+    'https://169.254.169.254/latest', 'https://0x7f000001/', 'HTTPS://PUSH.EXAMPLE.COM/send',
+    'https://push.example.com/' . Core\Str::repeat('a', 7000),
+];
+foreach ($odd as string $url) {
+    $step8[] = Attack::json($url, $point, $auth);
+}
+Attack::read('step 8', $step8);

@@ -1,0 +1,43 @@
+<?nvs
+// Shows a function that sends a message to every browser of a user, and deletes each
+// subscription that the push service no longer knows.
+
+class Notifier
+{
+    // Sends the message to each stored subscription. A subscription is kept when its send
+    // succeeds or fails, and deleted when `gone()` is `true`. Returns the subscriptions to keep.
+    public static function notify(array<string> $stored, string $text, Core\Crypto\KeyPair $vapid): array<string>
+    {
+        bytes $payload = Core\Encoding::encodeText($text, Core\Charset::Utf8);
+        array<string> $keep = [];
+        foreach ($stored as string $json) {
+            Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+            try {
+                Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
+                if (!$sent->gone()) {
+                    $keep[] = $json;
+                }
+            } catch (RuntimeError $error) {
+                echo 'not sent: ', Core\Str::before($error->message, "\n"), "\n";
+                $keep[] = $json;
+            }
+        }
+        return $keep;
+    }
+
+    // Returns the JSON of one subscription with the given endpoint.
+    public static function subscription(string $endpoint): string
+    {
+        return '{"endpoint":"' . $endpoint . '","keys":{'
+            . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+    }
+}
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// A real endpoint is a URL of the browser's push service. These two are private addresses,
+// so each send throws a `RuntimeError` and connects to nothing. Both subscriptions are kept.
+array<string> $stored = [Notifier::subscription('https://10.0.0.12/send/phone'), Notifier::subscription('https://10.0.0.13/send/laptop')];
+array<string> $kept = Notifier::notify($stored, 'Your order has shipped.', $vapid);
+echo Core\Arr::count($kept), " subscriptions kept\n";

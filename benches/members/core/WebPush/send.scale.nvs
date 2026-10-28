@@ -1,0 +1,32 @@
+<?nvs
+// Measures encrypting and signing one push message, at growing message sizes.
+// bench: start 256
+// bench: max 2048
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        // The endpoint is a private address, so each send throws a `RuntimeError` before it connects.
+        string $json = '{"endpoint":"https://10.0.0.12/send/abc","keys":{'
+            . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+        Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+        Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+        bytes $payload = Core\Encoding::encodeText(Core\Str::repeat('a', $size), Core\Charset::Utf8);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            try {
+                Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
+                $total = $total + ($sent->status() as uint);
+            } catch (RuntimeError $error) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

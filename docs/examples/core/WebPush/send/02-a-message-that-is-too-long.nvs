@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when a message is longer than 3993 bytes.
+
+string $json = '{"endpoint":"https://push.example.com/send/abc","keys":{'
+    . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// This payload is 4000 bytes. The call throws a `RuntimeError` before it connects.
+bytes $payload = Core\Encoding::encodeText(Core\Str::repeat('a', 4000), Core\Charset::Utf8);
+try {
+    Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// Send a short text, such as a title and an ID. The service worker can load the rest.
+echo Core\Bytes::length(Core\Encoding::encodeText('{"title":"New order","id":4711}', Core\Charset::Utf8)), " bytes\n";

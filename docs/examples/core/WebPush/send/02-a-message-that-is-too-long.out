@@ -1,0 +1,2 @@
+Core\WebPush::send(): the payload is 4000 bytes, and one message holds at most 3993.
+31 bytes

@@ -1,0 +1,39 @@
+<?nvs
+// Shows a route that saves a browser's subscription with the user and reads it again later.
+
+class User
+{
+    // The JSON text from the browser. It is saved as text, as a database column would save it.
+    public ?tainted string $pushSubscription = null;
+
+    public function constructor(public string $email)
+    {}
+}
+
+class PushRoute
+{
+    // Answers `POST /push/subscribe`. The subscription is checked before it is saved.
+    public static function subscribe(User $user, tainted string $body): string
+    {
+        try {
+            Core\WebPush::subscription($body);
+        } catch (RuntimeError $e) {
+            return 'This is not a push subscription.';
+        }
+        $user->pushSubscription = $body;
+        return 'Saved.';
+    }
+}
+
+User $user = new User('ada@example.com');
+
+// The request body is the JSON that the browser sent.
+echo PushRoute::subscribe($user, Core\Request::body()), "\n";
+
+// Later, the program reads the saved text again before it sends a message.
+// A real program then passes `$subscription` to `Core\WebPush::send`.
+?tainted string $saved = $user->pushSubscription;
+if ($saved != null) {
+    Core\WebPush\Subscription $subscription = Core\WebPush::subscription($saved);
+    echo 'send to ', $subscription->endpoint(), "\n";
+}

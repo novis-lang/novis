@@ -1,0 +1,6 @@
+--METHOD--
+GET
+--PATH--
+/push/key
+--HEADERS--
+host: example.com

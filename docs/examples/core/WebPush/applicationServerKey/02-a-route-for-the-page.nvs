@@ -1,0 +1,15 @@
+<?nvs
+// Shows a route that sends the public key to the page as JSON.
+
+// The server stores its key pair once and reads it at every start.
+// A real server reads this text from a file, not from the program.
+string $pem = "-----BEGIN PRIVATE KEY-----\n"
+    . "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg5r670zQwShttDPdB\n"
+    . "D/RglrBxryiWxCoC4NICQrtumOChRANCAAS3WhLrnL6ASulayXljHGKKpTO5KsAc\n"
+    . "GA5ETpt3P1JHea8QXI+Jf1N8+WFZRFPD+2/47qMfZolauZJrU9ZO4SdU\n"
+    . "-----END PRIVATE KEY-----\n";
+Core\Crypto\KeyPair $vapid = Core\Crypto\KeyPair::read($pem as bytes, Core\Crypto\KeyKind::P256);
+
+// The page fetches this route. Then it passes the key to `pushManager.subscribe()`
+// as `applicationServerKey`. The response contains only the public key.
+Core\Response::json({ applicationServerKey: Core\WebPush::applicationServerKey($vapid) });

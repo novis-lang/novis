@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a program passes key pairs of every other kind, and tries to find the private key in the result.
+// Each wrong key should throw a `LogicError`, and no output or error message should contain a private key.
+
+// Returns `yes` when the text contains the private key as hex or as base64.
+class Leak
+{
+    public static function check(string $text, Core\Crypto\KeyPair $pair): string
+    {
+        bytes $private = Core\Secret::revealBytes($pair->write(), 'the attack checks that no text contains the key');
+        array<string> $forms = [
+            Core\Encoding::toHex($private),
+            Core\Str::upper(Core\Encoding::toHex($private)),
+            Core\Encoding::toBase64($private),
+        ];
+        foreach ($forms as string $form) {
+            if (Core\Str::contains($text, $form)) {
+                return 'yes';
+            }
+        }
+        return 'no';
+    }
+}
+
+// 1. An `Ed25519` and an `X25519` key pair. Each error is caught, so the next step still runs.
+array<Core\Crypto\KeyPair> $wrong = [
+    Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519),
+    Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519),
+];
+foreach ($wrong as Core\Crypto\KeyPair $pair) {
+    try {
+        echo Core\WebPush::applicationServerKey($pair), "\n";
+        echo "a wrong kind was accepted\n";
+    } catch (LogicError $e) {
+        echo "the message contains the key: ", Leak::check($e->message, $pair), "\n";
+    }
+}
+
+// 2. A `P256` key pair. The public key must not contain the private key.
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+string $public = Core\WebPush::applicationServerKey($vapid);
+echo "the public key contains the private key: ", Leak::check($public, $vapid), "\n";
+
+// 3. The bytes of a `P256` key are read as an `Ed25519` key. The error is caught.
+try {
+    Core\Crypto\KeyPair $mixed = Core\Crypto\KeyPair::read($vapid->write(), Core\Crypto\KeyKind::Ed25519);
+    echo Core\WebPush::applicationServerKey($mixed), "\n";
+} catch (LogicError $readError) {
+    echo "the message contains the key: ", Leak::check($readError->message, $vapid), "\n";
+} catch (RuntimeError $readFailed) {
+    echo "the message contains the key: ", Leak::check($readFailed->message, $vapid), "\n";
+}
+
+// 4. 20000 calls with a wrong key and with the right key, one after the other.
+int $errors = 0;
+int $i = 0;
+while ($i < 20000) {
+    try {
+        Core\WebPush::applicationServerKey($i % 2 == 0 ? $wrong[0] : $vapid);
+    } catch (LogicError $e) {
+        $errors = $errors + 1;
+    }
+    $i = $i + 1;
+}
+echo $errors, " errors\n";
