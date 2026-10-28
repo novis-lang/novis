@@ -1,0 +1,2 @@
+first check: signed in, counter 1
+second check: Core\Passkey::verifySignIn(): no challenge is waiting in this session. Each challenge can be checked only once, so call the options method again.

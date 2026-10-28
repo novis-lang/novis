@@ -1,0 +1,95 @@
+<?nvs
+// Shows the browser half and the server half of a page that signs in with a passkey.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+}
+
+class Account
+{
+    // A real application saves the passkey in its database.
+    public function constructor(public string $email, public Core\Passkey\Credential $passkey)
+    {}
+}
+
+class SignInPage
+{
+    // The browser half. This JavaScript gets the options, signs in with a passkey and sends the answer.
+    public static function script(): string
+    {
+        return "const response = await fetch('/sign-in/options', { method: 'POST' });\n"
+            . "const options = PublicKeyCredential.parseRequestOptionsFromJSON(await response.json());\n"
+            . "const credential = await navigator.credentials.get({ publicKey: options });\n"
+            . "await fetch('/sign-in', { method: 'POST', body: JSON.stringify(credential.toJSON()) });\n";
+    }
+
+    // The server half for the first `fetch`. It returns the options.
+    public static function options(): string
+    {
+        Core\Session::start();
+        return Core\Passkey::signInOptions('example.com');
+    }
+
+    // The server half for the second `fetch`. It finds the account by the passkey id and checks the answer.
+    // Then it saves the passkey with its new counter. It returns the account, or `null`.
+    public static function signIn(tainted string $body, array<Account> $accounts): ?Account
+    {
+        var $id = Core\Passkey::credentialId($body);
+        foreach ($accounts as Account $account) {
+            if ($account->passkey->id() == $id) {
+                $account->passkey = Core\Passkey::verifySignIn($body, $account->passkey, 'example.com', 'https://example.com');
+                return $account;
+            }
+        }
+        return null;
+    }
+}
+
+// The page contains this script.
+echo SignInPage::script(), "\n";
+
+// The application saved a passkey for each account. Here the keys are made with `Core\Crypto`.
+array<Account> $accounts = [];
+array<Core\Crypto\KeyPair> $keys = [];
+array<string> $emails = ['ada@example.com', 'grace@example.com'];
+foreach ($emails as string $email) {
+    Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+    bytes $publicKey = Core\Bytes::join([
+        Core\Encoding::fromHex('a4010103272006215820'),
+        $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+    ]);
+    var $passkey = Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 7);
+    $accounts[] = new Account($email, $passkey);
+    $keys[] = $key;
+}
+
+// The script asks for the options, and Grace's device signs them with its counter at 8.
+string $options = SignInPage::options();
+tainted string $body = Device::signIn($options, $keys[1], $accounts[1]->passkey->id(), 8);
+
+// The script sends the answer. The server signs Grace in and saves the counter `8`.
+?Account $account = SignInPage::signIn($body, $accounts);
+echo $account == null ? 'unknown passkey' : 'signed in: ' . $account->email, "\n";
+echo 'saved counter: ', $accounts[1]->passkey->signCount(), "\n";

@@ -1,0 +1,54 @@
+<?nvs
+// Shows how a server checks a sign-in with a saved passkey and reads the new sign counter.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+}
+
+// The application saved this passkey when the user registered it. Its sign counter is 4.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+Core\Passkey\Credential $saved = Core\Passkey\Credential::of(
+    Core\Random::bytes(16),
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    4,
+);
+
+// The server makes the options. The challenge in them is saved in the session.
+Core\Session::start();
+string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+
+// The device signs the challenge. Its counter is now 5.
+tainted string $answer = Device::signIn($options, $key, $saved->id(), 5);
+
+// The server checks the signature with the saved passkey. The result has the new counter.
+Core\Passkey\Credential $now = Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+echo 'signed in: ', $now->id() == $saved->id() ? 'yes' : 'no', "\n";
+echo 'saved counter: ', $saved->signCount(), "\n";
+echo 'new counter: ', $now->signCount(), "\n";

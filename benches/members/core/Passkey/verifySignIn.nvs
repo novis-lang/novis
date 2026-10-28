@@ -1,0 +1,57 @@
+<?nvs
+// Checks a sign-in with a saved passkey, as the page that signs a user in does.
+// The answer is never longer than 64 KB, so one check costs the same at any size.
+// bench: iterations 128
+// bench: complexity constant
+// requires: redis
+
+class Bench
+{
+    // Builds the answer a device sends for these options. One key signs every answer.
+    public static function answer(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+
+    public static function run(int $rounds): int
+    {
+        Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        bytes $publicKey = Core\Bytes::join([
+            Core\Encoding::fromHex('a4010103272006215820'),
+            $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+        ]);
+        Core\Passkey\Credential $saved = Core\Passkey\Credential::of(
+            Core\Random::bytes(16),
+            $publicKey,
+            Core\Passkey\Credential::Algorithm::Ed25519,
+            0,
+        );
+        int $i = 0;
+        while ($i < $rounds) {
+            // Each check needs new options, because a challenge can be checked only once.
+            string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+            tainted string $answer = Bench::answer($options, $key, $saved->id(), $i + 1);
+            $saved = Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+            $i = $i + 1;
+        }
+        return $saved->signCount();
+    }
+}
+
+Core\Session::start();
+echo Bench::run(128), "\n";

@@ -1,0 +1,6 @@
+--METHOD--
+POST
+--PATH--
+/sign-in
+--HEADERS--
+host: example.com

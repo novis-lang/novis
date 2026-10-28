@@ -1,0 +1,58 @@
+<?nvs
+// Shows that a sign-in answer can be checked only once. A second check of the same answer throws an error.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+}
+
+// The application saved this passkey when the user registered it.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+Core\Passkey\Credential $saved = Core\Passkey\Credential::of(
+    Core\Random::bytes(16),
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+
+Core\Session::start();
+string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+tainted string $answer = Device::signIn($options, $key, $saved->id(), 1);
+
+// The first check succeeds. It also deletes the challenge from the session.
+$saved = Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+echo 'first check: signed in, counter ', $saved->signCount(), "\n";
+
+// The second check of the same answer throws a `RuntimeError`.
+// Somebody who copied the answer cannot use it to sign in.
+try {
+    Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+    echo "second check: signed in\n";
+} catch (RuntimeError $e) {
+    echo 'second check: ', $e->message, "\n";
+}

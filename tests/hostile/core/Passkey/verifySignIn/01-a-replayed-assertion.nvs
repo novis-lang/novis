@@ -1,0 +1,145 @@
+<?nvs
+// Attack: a request tries to sign in with an answer that is wrong. It replays a recorded answer,
+// and sends answers for another site, with a lower counter, a changed signature and broken text.
+// Each check should throw an error, and nobody should be signed in.
+// requires: redis
+// hostile: timeout-ms 60000
+
+// This class plays the browser and the device. Each argument changes one part of the answer.
+final class Device
+{
+    public static function answer(string $options, Core\Crypto\KeyPair $key, bytes $id, string $type, string $rpId, string $origin, int $flags, int $count, bool $flip): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"' . $type . '","challenge":"' . $challenge . '","origin":"' . $origin . '"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of($rpId, Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', $flags),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        if ($flip) {
+            // Changes one byte in the middle of the signature.
+            $signature = Core\Bytes::join([
+                Core\Bytes::slice($signature, 0, 20),
+                Core\Bytes::pack('C', 255 - Core\Bytes::at($signature, 20)),
+                Core\Bytes::slice($signature, 21),
+            ]);
+        }
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+
+    // New options. The challenge in them waits in the session for the next check.
+    public static function options(Core\Passkey\Credential $saved): string
+    {
+        return Core\Passkey::signInOptions('example.com', [$saved]);
+    }
+
+    // Checks one answer. It returns `1` when the user is signed in, and `0` when the check throws.
+    public static function check(tainted string $answer, Core\Passkey\Credential $saved): int
+    {
+        try {
+            Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+            return 1;
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
+}
+
+string $origin = 'https://example.com';
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $other = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+bytes $id = Core\Random::bytes(16);
+// The saved passkey has the sign counter 10.
+Core\Passkey\Credential $saved = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 10);
+Core\Session::start();
+
+// 1. Checks an answer before the server made any options. Every error below is caught, so each step runs.
+echo 'no options: ', Device::check('{"type":"public-key"}', $saved), " signed in\n";
+
+// 2. Records a correct answer, and replays it 1000 times and once more after new options.
+string $options = Device::options($saved);
+tainted string $recorded = Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x05, 11, false);
+echo 'the recorded answer: ', Device::check($recorded, $saved), " signed in\n";
+int $signedIn = 0;
+int $n = 0;
+while ($n < 1000) {
+    $signedIn = $signedIn + Device::check($recorded, $saved);
+    $n = $n + 1;
+}
+Device::options($saved);
+$signedIn = $signedIn + Device::check($recorded, $saved);
+echo 'replays: ', $signedIn, " signed in\n";
+
+// 3. Answers made on other origins: another site, plain `http`, another port, a longer domain and none.
+array<string> $origins = ['https://evil.example', 'http://example.com', 'https://example.com:8443', 'https://example.com.evil.example', ''];
+$signedIn = 0;
+foreach ($origins as string $wrong) {
+    $options = Device::options($saved);
+    $signedIn = $signedIn + Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $wrong, 0x05, 11, false), $saved);
+}
+echo 'other origins: ', $signedIn, " signed in\n";
+
+// 4. A signature for another domain, a registration answer, and a device that did not check the user.
+$options = Device::options($saved);
+$signedIn = Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'evil.example', $origin, 0x05, 11, false), $saved);
+$options = Device::options($saved);
+$signedIn = $signedIn + Device::check(Device::answer($options, $key, $id, 'webauthn.create', 'example.com', $origin, 0x05, 11, false), $saved);
+$options = Device::options($saved);
+$signedIn = $signedIn + Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x01, 11, false), $saved);
+echo 'other domain, registration and no user check: ', $signedIn, " signed in\n";
+
+// 5. A copied passkey: its counter is lower than the saved one, the same, or zero.
+array<int> $counts = [9, 10, 0];
+$signedIn = 0;
+foreach ($counts as int $count) {
+    $options = Device::options($saved);
+    $signedIn = $signedIn + Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x05, $count, false), $saved);
+}
+echo 'counters that do not rise: ', $signedIn, " signed in\n";
+
+// 6. A changed signature, a signature by another key, and an answer for another passkey.
+$options = Device::options($saved);
+$signedIn = Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x05, 11, true), $saved);
+$options = Device::options($saved);
+$signedIn = $signedIn + Device::check(Device::answer($options, $other, $id, 'webauthn.get', 'example.com', $origin, 0x05, 11, false), $saved);
+$options = Device::options($saved);
+$signedIn = $signedIn + Device::check(Device::answer($options, $key, Core\Random::bytes(16), 'webauthn.get', 'example.com', $origin, 0x05, 11, false), $saved);
+echo 'bad signatures and another passkey: ', $signedIn, " signed in\n";
+
+// 7. Broken answers: empty, not JSON, no response, and cut in half.
+$options = Device::options($saved);
+tainted string $good = Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x05, 11, false);
+array<tainted string> $broken = ['', 'not json', '{}', 'null', '{"type":"public-key","response":[]}', Core\Str::slice($good, 0, 150)];
+$signedIn = 0;
+foreach ($broken as tainted string $answer) {
+    Device::options($saved);
+    $signedIn = $signedIn + Device::check($answer, $saved);
+}
+echo 'broken answers: ', $signedIn, " signed in\n";
+
+// 8. Huge answers: JSON nested 20000 deep, one byte over 64 KB, and 16 MB.
+array<tainted string> $huge = [Core\Str::repeat('[', 20000), Core\Str::repeat(' ', 65537), Core\Str::repeat('a', 16777216)];
+$signedIn = 0;
+foreach ($huge as tainted string $answer) {
+    Device::options($saved);
+    $signedIn = $signedIn + Device::check($answer, $saved);
+}
+$huge = [];
+echo 'huge answers: ', $signedIn, " signed in\n";
+
+// 9. After all of this, a correct answer still signs in.
+$options = Device::options($saved);
+echo 'a correct answer: ', Device::check(Device::answer($options, $key, $id, 'webauthn.get', 'example.com', $origin, 0x05, 11, false), $saved), " signed in\n";
