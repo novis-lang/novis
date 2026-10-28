@@ -1465,6 +1465,11 @@ pub enum PreparedFact {
     /// `crate::capability::prepare_cap_has` owns why the member needs to be
     /// told.
     CapGrants(u32),
+    /// The `nvs_config::capability::own_file_word` of the package file a
+    /// `Core\IO` read's literal path names.
+    /// `crate::capability::own_file_word` owns why the member needs to be
+    /// told.
+    OwnFile(i64),
 }
 
 /// The throw a call compiles to where its package declared a capability
@@ -2697,7 +2702,8 @@ impl ExprTypeTable {
                 PreparedFact::CldrPattern
                 | PreparedFact::SecretDirective
                 | PreparedFact::ApplicationSet
-                | PreparedFact::CapGrants(_) => None,
+                | PreparedFact::CapGrants(_)
+                | PreparedFact::OwnFile(_) => None,
             })
     }
 
@@ -2713,7 +2719,8 @@ impl ExprTypeTable {
                 PreparedFact::CldrPattern
                 | PreparedFact::SecretDirective
                 | PreparedFact::ApplicationSet
-                | PreparedFact::CapGrants(_) => None,
+                | PreparedFact::CapGrants(_)
+                | PreparedFact::OwnFile(_) => None,
             })
     }
 

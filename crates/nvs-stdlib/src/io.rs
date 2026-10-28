@@ -2052,6 +2052,16 @@ fn text<'a>(value: &'a Value, member: &str, what: &str) -> Result<&'a str, Fault
     })
 }
 
+/// The own-file word a member on [`crate::registry::OWN_FILE_READS`] takes as
+/// its argument 0, through [`crate::registry::PREPARED_MEMBERS`]: the word of
+/// the package file its literal path names, or `0` for a path the compiler did
+/// not approve. The member runs its door inside [`nvs_runtime::Ctx::with_own_file`],
+/// so the door passes `fs.read` for that one file
+/// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
+fn own_word(args: &[Value]) -> i64 {
+    args[0].as_int().unwrap_or(0)
+}
+
 /// `octets` as a `string`, or the error saying they are not text.
 ///
 /// Every reader here answers `string`, and a `string` is well-formed UTF-8 by
@@ -2080,9 +2090,10 @@ nvs_runtime::nvs_helper! {
     /// would be a second number an operator has to keep in step with that one.
     /// [`slurp`] is where it is asked and
     /// [`nvs_runtime::Ctx::intake_limit`] owns the unit it is read in.
-    fn nvs_core_io_read(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "read", "path")?);
-        text_of(&slurp(ctx, path, "Core\\IO::read")?, "Core\\IO::read")
+    fn nvs_core_io_read(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "read", "path")?);
+        let raw = ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::read"))?;
+        text_of(&raw, "Core\\IO::read")
     }
 }
 
@@ -2095,10 +2106,11 @@ nvs_runtime::nvs_helper! {
     /// `Core\Encoding` already owns what an exact conversion is. The decode runs *after* the
     /// capability check for the ordinary reason — a file this program was never
     /// granted must refuse the same way whatever its bytes are.
-    fn nvs_core_io_read_text(ctx, args: [2]) {
-        let path = Path::new(text(&args[0], "readText", "path")?);
-        let raw = slurp(ctx, path, "Core\\IO::readText")?;
-        let text = crate::encoding::decode_argument(args, "Core\\IO::readText", &raw)?;
+    fn nvs_core_io_read_text(ctx, args: [3]) {
+        let path = Path::new(text(&args[1], "readText", "path")?);
+        let raw =
+            ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::readText"))?;
+        let text = crate::encoding::decode_argument(&args[1..], "Core\\IO::readText", &raw)?;
         Ok(Value::text(&text))
     }
 }
@@ -2117,9 +2129,9 @@ nvs_runtime::nvs_helper! {
     /// file is in reads it with `readText` and splits it with
     /// `Core\Str::lines`. The three terminators are ASCII, so the split itself
     /// asks nothing of the bytes around them.
-    fn nvs_core_io_lines(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "lines", "path")?);
-        let raw = slurp(ctx, path, "Core\\IO::lines")?;
+    fn nvs_core_io_lines(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "lines", "path")?);
+        let raw = ctx.with_own_file(own_word(args), |ctx| slurp(ctx, path, "Core\\IO::lines"))?;
         // The whole file is checked before any line is built, so a refusal
         // leaves no half-filled array to release. No case can reach this:
         // a conformance case runs with no `fs.read` grant, so
@@ -3230,9 +3242,11 @@ nvs_runtime::nvs_helper! {
     /// The door refuses before it looks, so a `false` here means *not there*
     /// and never *not allowed* — the two are distinguishable to a program, and
     /// deliberately so: an ungranted path throws.
-    fn nvs_core_io_exists(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "exists", "path")?);
-        let found = nvs_runtime::capability::exists(ctx, path, "Core\\IO::exists")?;
+    fn nvs_core_io_exists(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "exists", "path")?);
+        let found = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::exists(ctx, path, "Core\\IO::exists")
+        })?;
         Ok(Value::bool(found))
     }
 }
@@ -3250,10 +3264,11 @@ nvs_runtime::nvs_helper! {
     /// Absence is `false` here where `size` throws for it, and the difference
     /// is the question: a name that is not there is genuinely not readable,
     /// while it has no size for any answer to be about.
-    fn nvs_core_io_is_readable(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "isReadable", "path")?);
-        let allowed =
-            nvs_runtime::capability::readable(ctx, path, "Core\\IO::isReadable")?;
+    fn nvs_core_io_is_readable(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "isReadable", "path")?);
+        let allowed = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::readable(ctx, path, "Core\\IO::isReadable")
+        })?;
         Ok(Value::bool(allowed))
     }
 }
@@ -3286,9 +3301,11 @@ nvs_runtime::nvs_helper! {
     /// question a caller could otherwise answer by reading the file and
     /// measuring the string, and the two differ the moment anything else is
     /// writing.
-    fn nvs_core_io_size(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "size", "path")?);
-        let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::size")?;
+    fn nvs_core_io_size(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "size", "path")?);
+        let stat = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::metadata(ctx, path, "Core\\IO::size")
+        })?;
         Ok(Value::uint(stat.len()))
     }
 }
@@ -3335,9 +3352,11 @@ nvs_runtime::nvs_helper! {
     /// comparison against one is a chance to remember it wrong. What the type
     /// buys is that the answer can only be compared with another point on the
     /// timeline and can only be rendered through a zone the program names.
-    fn nvs_core_io_modified_at(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "modifiedAt", "path")?);
-        let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::modifiedAt")?;
+    fn nvs_core_io_modified_at(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "modifiedAt", "path")?);
+        let stat = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::metadata(ctx, path, "Core\\IO::modifiedAt")
+        })?;
         modified_at(&stat, path, "Core\\IO::modifiedAt")
     }
 }
@@ -3357,9 +3376,11 @@ nvs_runtime::nvs_helper! {
     /// back a whole `std::fs::Metadata` for exactly this, and its doc comment
     /// is the home of why a second door per field would have been a second
     /// syscall for the same permission.
-    fn nvs_core_io_stat(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "stat", "path")?);
-        let stat = nvs_runtime::capability::metadata(ctx, path, "Core\\IO::stat")?;
+    fn nvs_core_io_stat(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "stat", "path")?);
+        let stat = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::metadata(ctx, path, "Core\\IO::stat")
+        })?;
         let modified = modified_at(&stat, path, "Core\\IO::stat")?;
         Ok(crate::instance::build(
             &METADATA,
@@ -3444,9 +3465,11 @@ nvs_runtime::nvs_helper! {
     /// choice and not this body's: `metadata_if_present` is the door precisely
     /// so that a missing name and an ungranted one stay distinguishable, the
     /// second still throwing.
-    fn nvs_core_io_is_file(ctx, args: [1]) {
-        let path = Path::new(text(&args[0], "isFile", "path")?);
-        let found = nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isFile")?;
+    fn nvs_core_io_is_file(ctx, args: [2]) {
+        let path = Path::new(text(&args[1], "isFile", "path")?);
+        let found = ctx.with_own_file(own_word(args), |ctx| {
+            nvs_runtime::capability::metadata_if_present(ctx, path, "Core\\IO::isFile")
+        })?;
         Ok(Value::bool(found.is_some_and(|stat| stat.is_file())))
     }
 }
@@ -3893,7 +3916,7 @@ mod tests {
         let written = path
             .to_str()
             .expect("a scratch path this suite spelled itself");
-        let args = [Value::text(written)];
+        let args = [Value::int(0), Value::text(written)];
         let answered = nvs_runtime::call(nvs_core_io_read, ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         for argument in args {
@@ -3931,7 +3954,7 @@ mod tests {
         let refused = read_under(&mut ctx, &path).expect_err("`read` of a file that is not text");
         assert!(refused.contains("not valid UTF-8"), "{refused}");
 
-        let args = [Value::text(&path.to_string_lossy())];
+        let args = [Value::int(0), Value::text(&path.to_string_lossy())];
         let answered = nvs_runtime::call(nvs_core_io_lines, &mut ctx, &args);
         assert!(answered.is_err(), "`lines` of a file that is not text");
         let refused = ctx.take_pending().expect("the refusal is a thrown error");
@@ -4022,7 +4045,28 @@ mod tests {
         ctx: &mut nvs_runtime::Ctx,
         texts: &[&str],
     ) -> Result<Value, String> {
-        let args: Vec<Value> = texts.iter().map(|text| Value::text(text)).collect();
+        call_after(member, ctx, &[], texts)
+    }
+
+    /// [`call_with`] for a member on [`crate::registry::OWN_FILE_READS`], whose argument 0 is
+    /// the own-file word. It passes `0`, the word of a path the compiler did not approve.
+    fn call_read(
+        member: nvs_runtime::NvsFn,
+        ctx: &mut nvs_runtime::Ctx,
+        texts: &[&str],
+    ) -> Result<Value, String> {
+        call_after(member, ctx, &[Value::int(0)], texts)
+    }
+
+    /// [`call_with`], with `leading` ahead of the texts.
+    fn call_after(
+        member: nvs_runtime::NvsFn,
+        ctx: &mut nvs_runtime::Ctx,
+        leading: &[Value],
+        texts: &[&str],
+    ) -> Result<Value, String> {
+        let mut args: Vec<Value> = leading.to_vec();
+        args.extend(texts.iter().map(|text| Value::text(text)));
         let answered = nvs_runtime::call(member, ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         for argument in args {
@@ -4230,16 +4274,19 @@ mod tests {
 
     /// A file, a directory and a missing name, each asked of `member` under a context granting
     /// `fs.read`, answering the three `bool`s in that order.
+    /// The member is on [`crate::registry::OWN_FILE_READS`], so it is called through
+    /// [`call_read`].
     fn kinds_of(member: nvs_runtime::NvsFn, name: &str) -> [bool; 3] {
-        kinds_under(member, name, &mut reading("1MiB"))
+        kinds_under(member, name, &mut reading("1MiB"), call_read)
     }
 
-    /// [`kinds_of`] under the context the caller built, for a member whose grant is not
-    /// `fs.read`.
+    /// [`kinds_of`] under the context the caller built and called through `call`, for a member
+    /// whose grant is not `fs.read` or that takes no own-file word.
     fn kinds_under(
         member: nvs_runtime::NvsFn,
         name: &str,
         ctx: &mut nvs_runtime::Ctx,
+        call: fn(nvs_runtime::NvsFn, &mut nvs_runtime::Ctx, &[&str]) -> Result<Value, String>,
     ) -> [bool; 3] {
         let (_dir, file) = scratch(&format!("{name}.txt"));
         std::fs::write(&file, b"x").expect("a file to ask about");
@@ -4247,7 +4294,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("a directory to ask about");
         let missing = file.with_extension("missing");
         let answers = [&file, &dir, &missing].map(|path| {
-            call_with(member, ctx, &[spelled(path)])
+            call(member, ctx, &[spelled(path)])
                 .expect("a granted path answers")
                 .as_bool()
                 .expect("the member answers a `bool`")
@@ -4268,7 +4315,7 @@ mod tests {
     #[test]
     fn core_io_exists_finds_both_kinds_and_a_refusal_is_not_false() {
         assert_eq!(kinds_of(nvs_core_io_exists, "exists"), [true, true, false]);
-        let refused = call_with(
+        let refused = call_read(
             nvs_core_io_exists,
             &mut writing(),
             &[spelled(&scratch("x").1)],
@@ -4291,7 +4338,7 @@ mod tests {
             kinds_of(nvs_core_io_is_file, "is-file"),
             [true, false, false]
         );
-        let refused = call_with(
+        let refused = call_read(
             nvs_core_io_is_file,
             &mut writing(),
             &[spelled(&scratch("x").1)],
@@ -4309,7 +4356,10 @@ mod tests {
     )]
     #[test]
     fn core_io_is_dir_answers_true_for_a_directory_alone_and_a_refusal_throws() {
-        assert_eq!(kinds_of(nvs_core_io_is_dir, "is-dir"), [false, true, false]);
+        assert_eq!(
+            kinds_under(nvs_core_io_is_dir, "is-dir", &mut reading("1MiB"), call_with),
+            [false, true, false]
+        );
         let refused = call_with(
             nvs_core_io_is_dir,
             &mut writing(),
@@ -4330,7 +4380,7 @@ mod tests {
             kinds_of(nvs_core_io_is_readable, "is-readable"),
             [true, true, false]
         );
-        let refused = call_with(
+        let refused = call_read(
             nvs_core_io_is_readable,
             &mut writing(),
             &[spelled(&scratch("x").1)],
@@ -4348,7 +4398,7 @@ mod tests {
     #[test]
     fn core_io_is_writable_needs_fs_write_and_answers_false_for_a_missing_name() {
         assert_eq!(
-            kinds_under(nvs_core_io_is_writable, "is-writable", &mut writing()),
+            kinds_under(nvs_core_io_is_writable, "is-writable", &mut writing(), call_with),
             [true, true, false]
         );
         let refused = call_with(
@@ -4377,7 +4427,7 @@ mod tests {
         std::fs::write(&empty, b"").expect("an empty file to measure");
         let mut ctx = reading("1MiB");
         let size_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
-            call_with(nvs_core_io_size, ctx, &[spelled(path)])
+            call_read(nvs_core_io_size, ctx, &[spelled(path)])
                 .map(|value| value.as_uint().expect("`size` answers a `uint`"))
         };
         assert_eq!(
@@ -4411,7 +4461,7 @@ mod tests {
         let dir = file.parent().expect("a scratch file sits in a directory");
         let mut ctx = reading("1MiB");
         let stat_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
-            call_with(nvs_core_io_stat, ctx, &[spelled(path)]).map(|value| {
+            call_read(nvs_core_io_stat, ctx, &[spelled(path)]).map(|value| {
                 let slot =
                     |index| metadata_slot(&[value], index, "stat").expect("a `Core\\IO\\Metadata`");
                 let answered = (
@@ -4444,7 +4494,7 @@ mod tests {
     /// `Core\IO::stat(path)` under `ctx`, as the `Core\IO\Metadata` a program holds. The caller
     /// owns the one reference returned.
     fn stat_on(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Value {
-        call_with(nvs_core_io_stat, ctx, &[spelled(path)]).expect("a path the case created")
+        call_read(nvs_core_io_stat, ctx, &[spelled(path)]).expect("a path the case created")
     }
 
     /// One `Core\IO\Metadata` member on `metadata`, as a program calls it. The caller owns the
@@ -4633,7 +4683,7 @@ mod tests {
             .expect("a modification time the test chose");
         let mut ctx = reading("1MiB");
         let iso_of = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
-            call_with(nvs_core_io_modified_at, ctx, &[spelled(path)]).map(|value| {
+            call_read(nvs_core_io_modified_at, ctx, &[spelled(path)]).map(|value| {
                 let iso = crate::time::instant_iso(value).expect("`modifiedAt` answers an Instant");
                 #[expect(unsafe_code, reason = "the member handed back a reference of its own")]
                 unsafe {
@@ -5139,7 +5189,7 @@ mod tests {
     /// `Core\IO::lines(path)` under `ctx`, answering the lines of the `Iterable<string>` it
     /// returned, in file order, or the message the refusal left.
     fn lined(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path) -> Result<Vec<String>, String> {
-        let answer = call_with(nvs_core_io_lines, ctx, &[spelled(path)])?;
+        let answer = call_read(nvs_core_io_lines, ctx, &[spelled(path)])?;
         assert!(
             crate::instance::is_instance(answer, &LINES),
             "`lines` returns its own class"
@@ -5211,7 +5261,7 @@ mod tests {
         let (_dir, path) = scratch("read.txt");
         let mut ctx = reading("1MiB");
         let read = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path| {
-            call_with(nvs_core_io_read, ctx, &[spelled(path)]).map(|value| {
+            call_read(nvs_core_io_read, ctx, &[spelled(path)]).map(|value| {
                 let text = value.as_text().expect("`read` returns a string").to_owned();
                 #[expect(
                     unsafe_code,
@@ -5260,7 +5310,7 @@ mod tests {
         const LATIN1: i64 = 4;
         let (_dir, path) = scratch("read-text.txt");
         let read_text = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, charset: i64| {
-            let args = [Value::text(spelled(path)), Value::int(charset)];
+            let args = [Value::int(0), Value::text(spelled(path)), Value::int(charset)];
             let answered = nvs_runtime::call(nvs_core_io_read_text, ctx, &args);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
             #[expect(unsafe_code, reason = "the list holds the one reference it built")]

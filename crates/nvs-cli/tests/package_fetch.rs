@@ -557,6 +557,50 @@ fn a_package_reads_its_own_listed_file_with_no_grant() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), GREETING.1);
 }
 
+/// The operator's `fs.read` scope names `data/` alone, so `vendor/` is outside it. The literal
+/// read of the package's listed file passes, and a path to the same file built at run time is
+/// refused by the scope, though the package's line grants `fs.read`.
+#[test]
+fn a_package_reads_its_own_file_where_the_operator_scope_leaves_vendor_out() {
+    let tree = Tree::new("package-fetch-own-file-scoped", HTTP);
+    let folder = tree.app().join("vendor/acme/http/data");
+    let folder = folder.to_string_lossy().replace('\\', "/");
+    let built = class(
+        "Built",
+        &format!("echo Core\\IO::readText('{folder}' . '/greeting.txt');"),
+    );
+    tree.publish_listing(
+        "Acme\\Http",
+        &[("Main.nvs", &reads_greeting()), ("Built.nvs", &built)],
+        &[GREETING],
+    );
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let manifest = tree.read("package.toml");
+    assert!(manifest.contains("'Acme\\Http\\*' = []"), "{manifest}");
+    fs::write(
+        tree.app().join("package.toml"),
+        manifest.replace("'Acme\\Http\\*' = []", "'Acme\\Http\\*' = [\"fs.read\"]"),
+    )
+    .expect("the test grants the package `fs.read`");
+    fs::write(
+        tree.app().join("nvs.toml"),
+        "[capabilities.fs]\nread = [\"data\"]\n",
+    )
+    .expect("the test scopes `fs.read`");
+
+    tree.entry("Main");
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), GREETING.1);
+
+    tree.entry("Built");
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(!out.status.success(), "a built path read past the scope");
+    assert!(shown(&out).contains("fs.read"), "{}", shown(&out));
+    assert!(!shown(&out).contains(GREETING.1.trim()), "{}", shown(&out));
+}
+
 #[test]
 fn a_package_needs_its_grant_for_anything_outside_its_own_set() {
     let tree = Tree::new(

@@ -1698,6 +1698,27 @@ fn canonical_root(root: &mut String, files: &dyn Files) {
     }
 }
 
+/// The bit an own-file word sets (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
+/// The bits below it, except bit 32, are [`own_file_word`]'s hash. Bit 32 is `Core\Cap::has`'s
+/// tag, so a word meant for one member never reads as another's.
+pub const OWN_FILE_WORD: i64 = 1 << 62;
+
+/// The word that approves a read of the file at `resolved`, a path [`resolved`] gave, with no
+/// `fs.read` scope: [`OWN_FILE_WORD`] and 61 bits of the path's BLAKE3 hash.
+///
+/// The compiler mints it for a package's string literal that names a file of the package's own set,
+/// and a `Core\IO` read door compares it with the word of the path it resolved when it runs. So the
+/// door passes exactly the file the compiler approved, and a link changed since then fails the
+/// comparison and leaves the operator's scope to decide. **Cost:** one hash of the path's bytes.
+#[must_use]
+pub fn own_file_word(resolved: &Path) -> i64 {
+    let hash = blake3::hash(resolved.as_os_str().as_encoded_bytes());
+    let mut low = [0; 8];
+    low.copy_from_slice(&hash.as_bytes()[..8]);
+    let bits = i64::from_le_bytes(low) & (OWN_FILE_WORD - 1) & !(1 << 32);
+    OWN_FILE_WORD | bits
+}
+
 /// § 4's argument side: `path` canonicalized, or its **deepest existing ancestor** canonicalized with
 /// the rest re-appended.
 ///

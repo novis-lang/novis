@@ -83,9 +83,10 @@ outside the package.
 `nvs pkg fetch` writes each package's set to `vendor/package-files.toml`
 (`crates/nvs-cli/src/package/fetch.rs`), `nvs_config::package` reads it onto each vendored package,
 and the grant check passes a read whose path is a string literal in the set
-(`crates/nvs-types/src/capability.rs`'s `reads_own_file`, over `nvs_stdlib::registry::OWN_FILE_READS`).
-A path built at run time still needs a grant.
+(`crates/nvs-types/src/capability.rs`'s `own_file_word`, over `nvs_stdlib::registry::OWN_FILE_READS`).
+The call carries the word of the file's resolved path (`nvs_config::capability::own_file_word`), and
+the read door passes `fs.read` for that one file even where the operator's scope leaves `vendor/` out:
+it resolves the path again and compares the words (`crates/nvs-runtime/src/capability.rs`'s
+`own_file`). A path built at run time still needs a grant and the scope.
 
-**Not on disk.** The fetch does not yet stop at the limits while it reads, and the door still asks the
-operator's `fs.read` scope for a package's own file, which the default scope, the application's folder,
-covers.
+**Not on disk.** The fetch does not yet stop at the limits while it reads.

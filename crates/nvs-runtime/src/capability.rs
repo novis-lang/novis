@@ -282,13 +282,28 @@ pub fn granted(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
 /// by default. [`temp_dir`] passes the list with the directory it is about to create.
 fn granted_with(ctx: &Ctx, cap: Cap, scope: Scope<'_>, temporary: &[PathBuf]) -> bool {
     ctx.grants_allow(cap)
-        && ctx.config().is_some_and(|config| {
+        && (ctx.config().is_some_and(|config| {
             config.authority().with_temporary(temporary).allows(
                 cap,
                 scope,
                 &nvs_config::resolve::Disk,
             )
-        })
+        }) || own_file(ctx, cap, scope))
+}
+
+/// Whether a `Core\IO` read of a package's own file passes `fs.read` with no scope that covers it
+/// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`): `cap` is `fs.read`, and
+/// the own-file word the call site was compiled with is the word of `scope`'s path, resolved again
+/// now. Asked only after the operator's scope said no, so a read the scope covers resolves nothing
+/// twice. **Cost:** one resolution and one hash, for a refused read inside a read that has a word.
+fn own_file(ctx: &Ctx, cap: Cap, scope: Scope<'_>) -> bool {
+    let Scope::Path(path) = scope else {
+        return false;
+    };
+    cap == Cap::FsRead
+        && ctx.has_own_file()
+        && nvs_config::capability::resolved(path, &nvs_config::resolve::Disk)
+            .is_some_and(|at| ctx.owns_file(&at))
 }
 
 /// § 5's message. The capability's name comes first after the member because the reader is usually
@@ -820,7 +835,8 @@ fn allow(
                     .authority()
                     .with_temporary(ctx.temporary_dirs())
                     .allows_resolved(cap, &at)
-            });
+            })
+            || (cap == Cap::FsRead && ctx.grants_allow(cap) && ctx.owns_file(&at));
         if !allowed {
             return Err(Fault::thrown(denial(cap, Scope::Path(path), member)));
         }

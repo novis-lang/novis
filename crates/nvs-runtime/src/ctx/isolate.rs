@@ -846,6 +846,33 @@ impl Ctx {
             .is_none_or(|kept| kept.contains(&cap))
     }
 
+    /// Runs `body` with `word` as the own-file word a read door compares
+    /// (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`),
+    /// and restores the word that was there when it returns, `Err` or `Ok`.
+    ///
+    /// The `Core\IO` read members call this with the word their call site was
+    /// compiled with. A word of `0` approves nothing.
+    pub fn with_own_file<T>(&mut self, word: i64, body: impl FnOnce(&mut Self) -> T) -> T {
+        let before = std::mem::replace(&mut self.own_file, word);
+        let answer = body(self);
+        self.own_file = before;
+        answer
+    }
+
+    /// Whether a read running now carries an own-file word at all.
+    #[must_use]
+    pub(crate) const fn has_own_file(&self) -> bool {
+        self.own_file & nvs_config::capability::OWN_FILE_WORD != 0
+    }
+
+    /// Whether the own-file word of the read running now approves the file at
+    /// `resolved`, a path [`nvs_config::capability::resolved`] gave.
+    #[must_use]
+    pub(crate) fn owns_file(&self, resolved: &std::path::Path) -> bool {
+        self.has_own_file()
+            && self.own_file == nvs_config::capability::own_file_word(resolved)
+    }
+
     /// The same narrowing as a list — what a `grants:` left this context able to
     /// ask for, and `None` for one no spawn narrowed.
     ///

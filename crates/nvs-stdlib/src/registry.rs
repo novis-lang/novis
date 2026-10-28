@@ -2319,6 +2319,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 /// in [`CAPABILITIES`]. `list`, `walk` and `within` are not here, because they
 /// read names the package did not list, and `copy` and `open` are not, because
 /// they can write.
+///
+/// Each is on [`PREPARED_MEMBERS`] too: its argument 0 is the
+/// `nvs_config::capability::own_file_word` of the file the compiler approved,
+/// or `0`, and its door passes `fs.read` for that file alone, outside the
+/// operator's scope. **What it spends:** one integer argument per call.
 pub const OWN_FILE_READS: &[(&str, &str)] = &[
     (crate::io::NAME, "read"),
     (crate::io::NAME, "readText"),
@@ -3212,6 +3217,16 @@ pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
     (crate::config::NAME, "get"),
     (crate::config::NAME, "set"),
     (crate::cap::NAME, "has"),
+    // `OWN_FILE_READS`, each handed the own-file word of its literal path.
+    (crate::io::NAME, "read"),
+    (crate::io::NAME, "readText"),
+    (crate::io::NAME, "lines"),
+    (crate::io::NAME, "exists"),
+    (crate::io::NAME, "isFile"),
+    (crate::io::NAME, "isReadable"),
+    (crate::io::NAME, "size"),
+    (crate::io::NAME, "stat"),
+    (crate::io::NAME, "modifiedAt"),
 ];
 
 /// Whether `class::method` is one of [`PREPARED_MEMBERS`].

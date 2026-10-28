@@ -68,15 +68,24 @@
 //! Code in a package's namespace may read the files its package carries and
 //! downloads with no `fs.read` on its line
 //! (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
-//! [`reads_own_file`] allows exactly one shape: a member on
+//! [`own_file_word`] allows exactly one shape: a member on
 //! [`nvs_stdlib::registry::OWN_FILE_READS`], whose first argument is a string
 //! literal, whose path canonicalizes to a file inside the package's folder
 //! that `vendor/package-files.toml` lists for it
 //! ([`nvs_config::package::Package::files`]). A path built at run time, a
 //! write, a listing, a file the set does not list and another package's file
 //! all still need the grant. `..` and a symlink are resolved before the
-//! comparison, so neither leaves the set. Cost: one `canonicalize` per such
-//! call site in a package while compiling, and nothing at run time.
+//! comparison, so neither leaves the set.
+//!
+//! The approved call also carries [`PreparedFact::OwnFile`], the
+//! [`nvs_config::capability::own_file_word`] of the file, because the
+//! operator's `fs.read` scope may leave `vendor/` out. The door resolves the
+//! path again when it runs and passes `fs.read` only when the words match, so
+//! a run-time path to the same file still meets the scope. The fact is filed
+//! whether or not the line lists `fs.read`, since the scope is asked either
+//! way. Cost: one `canonicalize` and one hash per such call site in a package
+//! while compiling; at run time, one resolution and one hash for a read the
+//! scope refuses.
 
 use std::path::{Path, PathBuf};
 
@@ -217,7 +226,7 @@ pub(crate) fn prepare_cap_has(
 /// A missing capability that the call's package lists as `optional` is not
 /// refused: it records a [`CapabilityGuard`], and the call throws when it runs.
 /// A missing `fs.read` is not refused for a read of the package's own file
-/// ([`reads_own_file`]).
+/// ([`own_file_word`]).
 ///
 /// The hook `crate::expr::calls` reaches once a call or a method reference has
 /// resolved, on the instance and the static path alike. `args` and `slots` are
@@ -238,10 +247,20 @@ pub(crate) fn reject_ungranted_call(
         return;
     };
     let class = owner.to_string();
+    let own = own_file_word(&class, member, span, args, slots, env);
+    if let Some(word) = own {
+        env.exprs.record_prepared(
+            span,
+            Prepared {
+                literal: span,
+                fact: PreparedFact::OwnFile(word),
+            },
+        );
+    }
     let mut missing: Vec<Cap> = nvs_stdlib::cap::needs(&class, member)
         .filter(|cap| !line.grants(*cap))
         .collect();
-    if missing.contains(&Cap::FsRead) && reads_own_file(&class, member, span, args, slots, env) {
+    if own.is_some() {
         missing.retain(|cap| *cap != Cap::FsRead);
     }
     if missing.is_empty() {
@@ -302,40 +321,36 @@ pub(crate) fn reject_ungranted_call(
     );
 }
 
-/// Whether the call `class::member` at `span` reads a file of its own
-/// package's set, so it needs no `fs.read` grant: the member is on
-/// [`nvs_stdlib::registry::OWN_FILE_READS`], the call is in a package, and the
-/// argument that fills the first parameter is a string literal whose canonical
-/// path is inside the package's folder and listed in its set.
-fn reads_own_file(
+/// The own-file word of the call `class::member` at `span` when it reads a
+/// file of its own package's set, so it needs no `fs.read` grant: the member
+/// is on [`nvs_stdlib::registry::OWN_FILE_READS`], the call is in a package,
+/// and the argument that fills the first parameter is a string literal whose
+/// canonical path is inside the package's folder and listed in its set.
+/// `None` for every other call.
+fn own_file_word(
     class: &str,
     member: &str,
     span: Span,
     args: &CallArgs,
     slots: &[ArgSlot],
     env: &Env<'_>,
-) -> bool {
+) -> Option<i64> {
     if !nvs_stdlib::registry::OWN_FILE_READS
         .iter()
         .any(|&(owner, name)| owner == class && name == member)
     {
-        return false;
+        return None;
     }
-    let Some(package) = env.packages.and_then(|packages| packages.of(span.file)) else {
-        return false;
-    };
+    let package = env.packages.and_then(|packages| packages.of(span.file))?;
     let CallArgs::List(list) = args else {
-        return false;
+        return None;
     };
-    let Some(arg) = list
+    let arg = list
         .iter()
         .zip(slots)
-        .find_map(|(arg, slot)| matches!(slot, ArgSlot::Param(0)).then_some(arg))
-    else {
-        return false;
-    };
+        .find_map(|(arg, slot)| matches!(slot, ArgSlot::Param(0)).then_some(arg))?;
     let ExprKind::Str(literal) = arg.value.unparenthesized().kind else {
-        return false;
+        return None;
     };
     // A relative literal was joined to its file's folder by `crate::paths`; an
     // absolute one is its own text.
@@ -343,10 +358,16 @@ fn reads_own_file(
         || PathBuf::from(nvs_syntax::string_lit::cook_string_literal(env.src, literal)),
         PathBuf::from,
     );
-    path.is_absolute()
+    let listed = path.is_absolute()
         && nvs_hir::requires::canonicalize(&path)
             .and_then(|real| relative_in(&real, package.dir()))
-            .is_some_and(|relative| package.lists(&relative))
+            .is_some_and(|relative| package.lists(&relative));
+    // The word is of the path as the door resolves it, so both sides hash
+    // one spelling.
+    listed
+        .then(|| nvs_config::capability::resolved(&path, &nvs_config::resolve::Disk))
+        .flatten()
+        .map(|at| nvs_config::capability::own_file_word(&at))
 }
 
 /// `path` relative to `dir`, its parts joined with `/`, or `None` when it is

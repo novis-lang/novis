@@ -199,6 +199,7 @@ impl Ctx {
             program_id: None,
             config: None,
             grant_filter: None,
+            own_file: 0,
             trace_context,
             fixed_clock: None,
             owned_by_test: false,

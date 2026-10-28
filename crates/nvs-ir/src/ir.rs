@@ -2334,6 +2334,10 @@ pub enum Prepared {
     /// `nvs_stdlib::cap::grants_mask` encodes them. The member answers `false`
     /// for a capability not in the word.
     CapGrants(u32),
+    /// The `nvs_config::capability::own_file_word` of the package file a
+    /// `Core\IO` read's literal path names. The read passes `fs.read` for that
+    /// file alone.
+    OwnFile(i64),
 }
 
 impl Prepared {
@@ -2348,6 +2352,7 @@ impl Prepared {
             Self::SecretDirective => nvs_types::CORE_CONFIG_PREPARED_SECRET,
             Self::ApplicationSet => nvs_types::CORE_CONFIG_PREPARED_APPLICATION,
             Self::CapGrants(mask) => nvs_types::CORE_CAP_PREPARED_GRANTS | mask as i64,
+            Self::OwnFile(word) => word,
         }
     }
 }

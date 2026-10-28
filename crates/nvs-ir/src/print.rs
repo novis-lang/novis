@@ -216,6 +216,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             Some(crate::ir::Prepared::SecretDirective) => "prepared config.secret".to_owned(),
             Some(crate::ir::Prepared::ApplicationSet) => "prepared config.application".to_owned(),
             Some(crate::ir::Prepared::CapGrants(mask)) => format!("prepared cap.grants {mask:#x}"),
+            Some(crate::ir::Prepared::OwnFile(word)) => format!("prepared io.own-file {word:#x}"),
             None => "prepared none".to_owned(),
         },
         InstKind::QuerySiteConst { site } => match site {

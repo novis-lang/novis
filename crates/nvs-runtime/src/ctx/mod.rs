@@ -1003,6 +1003,10 @@ pub struct Ctx {
     /// (`rule:programs/memory-priority`): one allocation per spawn that wrote
     /// `grants:`, shared by every descendant of that child.
     grant_filter: Option<std::sync::Arc<[nvs_config::capability::Cap]>>,
+    /// The own-file word of the `Core\IO` read running now, and `0` outside
+    /// one ([`Ctx::with_own_file`]). A read door passes `fs.read` for the one
+    /// path whose [`nvs_config::capability::own_file_word`] it is.
+    own_file: i64,
     /// This request's place in a distributed trace —
     /// `rule:observability/a-trace-id-exists-for-every-request`, whose id
     /// is Novis's only request identifier.
