@@ -336,13 +336,16 @@ latency, because a check on every compile reads every vendored file; security ga
 because whoever can edit `vendor/` can edit the application's own code. Recorded as a Declined
 bullet in `rule:packaging/the-lockfile-holds-every-digest`.
 
-**A `Core\Http\Client` call with a string URL needs `net.connect` in its namespace's grant line**
-(stage 8). The capability table has no `Core\Http\Client` row, on the reasoning that
-`Core\Http::allowUrl` is the door, but `Client::get('https://…')` needs no `allowUrl`, so a package
-under an empty grant line sends requests. Each member whose URL argument is a string gets a
-`net.connect` row; a call that takes what `allowUrl` returned keeps its row-less path if the type
-makes that visible to the checker, and otherwise every URL-taking member gets the row. Why:
-security first, a grant line must bound what a package reaches. Memory: none.
+**Every `Core\Http\Client` member needs `net.connect` in its namespace's grant line** (stage 8).
+`Client::get('https://…')` needs no `allowUrl`, so a package under an empty grant line sent
+requests. All nine members take a URL, as a string or as a `Core\Http\Target`, and each has a
+`net.connect` row (`crates/nvs-stdlib/src/registry.rs`, beside `allowUrl`'s). A call given a
+`Target` needs the grant too: the checker reads one row per member and never an argument's type,
+and a namespace that may not reach a host should not send to one another namespace approved. A
+namespace with no line keeps the application's authority
+(`rule:security/an-unmatched-namespace-holds-the-application`), so no program without a `[grants]`
+table changes. Why: security first, a grant line must bound what a package reaches; simplicity,
+no per-argument row. Memory: none.
 
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
@@ -496,7 +499,7 @@ in `AGENTS.md`.
 - [x] `rule:packaging/resolution-takes-the-highest-minimum` and `rule:packaging/the-lockfile-holds-every-digest` are `shipped`. `data/rules/packaging/resolution-takes-the-highest-minimum.json:3`, `data/rules/packaging/the-lockfile-holds-every-digest.json:3`
 - [x] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
 - [x] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` and `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.json:3`, `data/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.json:3`
-- [ ] A `Core\Http\Client` call that names its URL as a string needs `net.connect` in the calling namespace's grant line, so the update attack is refused with `E0658`. `crates/nvs-stdlib/src/registry.rs:2132`, `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs:1`
+- [x] A `Core\Http\Client` call that names its URL as a string needs `net.connect` in the calling namespace's grant line, so the update attack is refused with `E0658`. `crates/nvs-stdlib/src/registry.rs:2132`, `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs:1`
 - [ ] An archive over 1 MiB is fetched from a loopback `https:` registry, as `package_download.rs` serves its files. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-cli/tests/package_download.rs:143`
 
 ### 10. the goal is verified once, and every failure is fixed

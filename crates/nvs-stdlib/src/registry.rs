@@ -2044,6 +2044,58 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // A method's name is text the roster already has, and producing it
     // reaches nothing.
     (crate::http::NAME, "methodName", None),
+    // Every `Core\Http\Client` member takes its URL as a string or as the
+    // `Core\Http\Target` `allowUrl` returned, and a string is pinned at the call
+    // with no `allowUrl` before it, so each member is a door of its own. The row
+    // is on the member and not on the string arm alone: the checker reads a row
+    // per member, and a namespace handed a `Target` it could not have approved
+    // itself sends nothing either. That keeps a package's grant line a bound on
+    // every host it reaches (`rule:security/package-authority-is-granted-one-line-at-a-time`).
+    (
+        crate::http::CLIENT_NAME,
+        "get",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "post",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "put",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "patch",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "delete",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "head",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "request",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "stream",
+        Some(nvs_config::Cap::NetConnect),
+    ),
+    (
+        crate::http::CLIENT_NAME,
+        "openSocket",
+        Some(nvs_config::Cap::NetConnect),
+    ),
     // `fs.read` and at the constructor rather than at the send: naming a file as
     // a body is what decides which file leaves the process, and the split above
     // makes measuring one a read of it. The framing asks the same door again
@@ -2129,8 +2181,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, and
     // `shared()` is the door — it dials the store the deployment configured, while
     // `Core\Cache\Store`'s two operations run on what it opened and so declare
-    // nothing, exactly as `Core\Http\Client` declares nothing behind
-    // `Core\Http::allowUrl`. The grant is `cache.shared` and not `net.connect`
+    // nothing. The grant is `cache.shared` and not `net.connect`
     // for `mail.send`'s reason two classes over and by the same authority
     // (`rule:config/cache-shared-is-the-grant-over-the-configured-store`): the
     // endpoint is one an operator wrote into root-owned configuration, so it is

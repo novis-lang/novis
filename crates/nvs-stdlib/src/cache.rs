@@ -50,8 +50,7 @@
 //!
 //! [`nvs_core_cache_shared`] is where the grant is asked for and where the
 //! store is dialled; `put` and `get` on the store it answers ask nothing, and
-//! so [`STORE`] carries no capability row of its own — exactly as
-//! `Core\Http\Client` carries none behind `Core\Http::allowUrl`. A check at the
+//! so [`STORE`] carries no capability row of its own. A check at the
 //! operation instead would ask the same unscoped question once per command and
 //! answer it the same way every time, which is a cost with no boundary in it.
 //!
