@@ -34,6 +34,10 @@ can search for it. `nvs agent show E0401` prints what the error `E0401` means an
 Nothing runs, so you can use `nvs check` in an editor, a commit hook or a build server. You can also
 give it a folder. It then checks all the `.nvs` files in that folder as one program.
 
+You can also check one class file that a program loads with `autoload`. `nvs check` then searches the
+current folder for that program and uses its `autoload` lines. If it finds no such program, the first
+"not declared" error has a note with the folder it searched. `--root <folder>` searches another folder.
+
 ### Diagnostics as JSON
 
 `--json` prints the same errors as one JSON document. Use it when a program reads the result, such as

@@ -26686,6 +26686,11 @@ Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` i
 method whose routes are all `Head` or `Options` is `E0764`. It is allowed on `Get`, because a
 WebSocket upgrade arrives as a `Get`.
 
+The server checks the `Origin` header before it looks for a route. A `POST`, `PUT`, `PATCH` or
+`DELETE` from another origin gets `Core\Router\Refusal::Csrf` and the status `403`. This is also true
+when no route has its path. So `NotFound` is a request from the same origin, a request with no
+`Origin`, or a request with `Get`, `Head` or `Options`.
+
 A fixed segment is tried before a capture, so `/users/new` matches the route `/users/new` and not
 `/users/{id}`. The order of the two routes in the code does not matter.
 
@@ -55351,11 +55356,11 @@ The reason `Core\Router::dispatch` did not call the method of a route. Your `Cor
 
 | Case | Meaning |
 |---|---|
-| `Core\Router\Refusal::NotFound` | No route has this path. The status is `404`. |
+| `Core\Router\Refusal::NotFound` | No route has this path. The status is `404`. A `POST`, `PUT`, `PATCH` or `DELETE` from another origin is `Csrf`, even when no route has its path. |
 | `Core\Router\Refusal::MethodNotAllowed` | A route has this path, but not for this HTTP method. The status is `405`. The `Allow` header lists the methods that the path accepts. |
 | `Core\Router\Refusal::UnknownMethod` | The HTTP method is not a case of `Core\Http\Method`. The status is `501`. |
 | `Core\Router\Refusal::Denied` | `allows()` returned `false` or threw an error. The status is `403`. |
-| `Core\Router\Refusal::Csrf` | The server did not accept the CSRF token or the origin of the request. The status is `403`. |
+| `Core\Router\Refusal::Csrf` | The server did not accept the CSRF token or the origin of the request. The status is `403`. The server checks the origin before it looks for a route. |
 | `Core\Router\Refusal::BodyTooLarge` | The request body is larger than the limit of the server. The status is `413`. |
 | `Core\Router\Refusal::BadCapture` | A value in the path or in the query string cannot be converted to the type of its parameter. For example, the `parse` method of its class threw an error. A required query key that is missing, or a query key that is written twice, gives this case too. The status is `400`. |
 
@@ -56145,7 +56150,7 @@ before
 
 ### nvs check
 
-    nvs check <path> [--autoload-map]
+    nvs check <path> [--autoload-map] [--root <folder>]
 
 Prints `no errors` and exits `0` when the file and everything it reaches through `require` and
 `autoload` type-checks; otherwise prints every diagnostic found and exits `1`. Nothing runs, so it
@@ -56198,9 +56203,14 @@ program loads with `autoload` cannot declare `autoload` itself. So when the file
 file declares, `nvs check` looks for the program that loads this file with `autoload` or `require`. It searches the `.nvs` files in
 the project folder in path order and uses the first program it finds. Then it checks the file with that
 program's `autoload` lines, and the result is the same as for the whole program. The project folder is
-the folder of the `--config` file, or else the folder you run the command in. The search skips
-`vendor`, `target` and folders whose names start with a dot. If no program loads the file, the
-errors are reported as usual.
+the folder that `--root <folder>` names. Without `--root`, it is the folder of the `--config` file,
+or else the folder you run the command in. The search skips `vendor`, `target` and folders whose
+names start with a dot. If no program loads the file, the errors are reported as usual. The first
+error about an unknown class then has a note. The note names the folder that was searched.
+
+A test file in a `tests` folder is checked the same way. It uses the `autoload` lines that
+`tests/bootstrap.nvs` loads. A `require` in a comment or a string does not count. A test file
+with its own `require` is a program of its own.
 
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
 `discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload
@@ -56638,7 +56648,7 @@ additive: paths./users.get.query.q — optional parameter added
 
 ### nvs config check and nvs config dump
 
-    nvs config check [files]...
+    nvs config check [files]... [--as <account>]
     nvs config dump [files]... [--origin] [--toml]
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
@@ -56653,6 +56663,13 @@ Naming files positionally is the same as `--config`. Neither command creates the
   both `password` and `password_file` (`E0608`). It does **not** check whether a value is a valid
   quantity, or whether a default lies under its own `[limits.hard]` ceiling: `memory = "12
   bananas"` passes `config check` in this build.
+- `config check --as <account>` also checks who owns each file and who can write it. It checks the
+  files for `<account>`, the account that will run `nvs serve`. A file that `nvs serve` would not
+  read as that account is `E0607`, with the same help `nvs serve` prints. On Unix, `<account>` is a
+  user name or a uid. On Windows, it is an account name, `LocalSystem` or `NT SERVICE\<service>`.
+  An account that does not exist on this machine is `E0662`. The check reads the files on this
+  machine as they are now. Without `--as`, `config check` does not check ownership. `config dump`
+  does not take `--as`.
 - `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
   blocks numbered (`app.0.root`, `include.1.path`). A value or a table name that holds a new line, a
   control character or a right-to-left mark is written as a TOML escape, such as `\n` for a new
@@ -58063,8 +58080,12 @@ Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes aw
 `nvs serve` runs an application until the process is stopped. It answers HTTP requests on every
 core, runs the `[[schedule]]` entries on the core that ticks, and drains the `[queue]` workers
 beside them; a configuration that writes neither starts neither. Every file it serves is compiled
-before the socket is bound, so a program with a diagnostic never answers a request, and every
-request runs in an isolate that shares nothing with any other request.
+before the socket is bound, and every request runs in an isolate that shares nothing with any other
+request.
+
+A mount whose file does not compile does not stop the start. The server writes its errors to the
+log, and its requests answer `500` until the file is fixed. The other mounts are served as usual.
+The start fails only when no mount compiles.
 
 The development server and the production origin are the same command. In production it sits
 behind a proxy on loopback or a Unix socket; nothing a proxy does earlier — TLS, compression,
@@ -58166,6 +58187,9 @@ entry  = "Shop/public/index.nvs"
 - `root` is required whenever a mount is written, and every resolved path must lie inside it.
   A relative `root` resolves against the file it is written in.
 - Two explicit mounts at one key are an error. A scan that matched no file refuses the start.
+- A mount whose entry file does not compile at start is still served. Its requests answer `500`
+  until an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it
+  first compiles.
 - A mount routes and nothing else: it has no `mode`, no limits and no capabilities. Those are the
   `[[app]]` block's, keyed on the entry file's path (the configuration chapter), and the two
   usually name the same directory.
@@ -58537,7 +58561,18 @@ $ nvs service status shop
 active
 ```
 
-On Windows the state is a word such as `running` or `stopped`. **`run`** runs the stored command in your
+On Windows the state is a word such as `running` or `stopped`. While the service runs, `status`
+also lists each mount that did not compile when the server started:
+
+```text
+$ nvs service status shop
+active
+Mounts that did not compile at start:
+  the mount at `/blog` serves `/srv/www/Blog/public/index.nvs`, which did not compile at start, ...
+```
+
+The list comes from the last lines that the server wrote to its log. A server that has written many
+lines since it started may list none. **`run`** runs the stored command in your
 terminal, so you can read what the server prints when it does not start as a service.
 **`uninstall`** removes the service and everything that `install` added.
 

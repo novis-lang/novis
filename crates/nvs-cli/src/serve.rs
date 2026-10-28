@@ -2455,9 +2455,7 @@ fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
 /// the two keys that resolve an origin for it.
 fn compiled_under(compiler: &Compiler, mount: &Mounted) -> Result<(), Unserved> {
     let entry = mount.entry.to_string_lossy().into_owned();
-    let (_program, routes) = compiler
-        .compiled(&entry)
-        .map_err(Unserved::Uncompiled)?;
+    let (_program, routes) = compiler.compiled(&entry).map_err(Unserved::Uncompiled)?;
     match unreached_origin(mount, &routes) {
         Some(refusal) => Err(Unserved::Unreached(refusal)),
         None => Ok(()),
@@ -3151,9 +3149,9 @@ mod tests {
     use super::{
         Compiler, Ctx, Inbound, Isolate, Listen, Mounted, NoTable, Notify, Output, OutputSink,
         Socket, SocketAddr, TaskRoot, Unserved, Value, addresses, at_mount_origin, bind_all,
-        compiled_under,
-        exporter_not_built, fall_back_to, forgot_its_proxies, handles_for, listening, one_mount,
-        scrape_socket, sweep_orphans, table_for, trace_collector, workers_for,
+        compiled_under, exporter_not_built, fall_back_to, forgot_its_proxies, handles_for,
+        listening, one_mount, scrape_socket, sweep_orphans, table_for, trace_collector,
+        workers_for,
     };
     use std::cell::Cell;
     use std::collections::BTreeMap;

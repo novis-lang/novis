@@ -41,6 +41,9 @@ class that implements `Core\Router\Gate`.
   does not use the value, and `nvs check` gives a warning for it.
 - A request that the server stopped, for example in the CSRF check, never reaches a route method.
   `dispatch` calls `refused` for it.
+- The server checks the `Origin` header before it looks for a route. A `POST`, `PUT`, `PATCH` or
+  `DELETE` from another site gets `Refusal::Csrf` and the status `403`. This is also true when no
+  route has that path.
 
 The [reference page of `Core\Router::dispatch`](/reference/core/router/dispatch/) has more examples.
 

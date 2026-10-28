@@ -30,7 +30,7 @@ stages:
     context: [docs/reference/tools/10-cli.md, crates/nvs-stdlib/src/router.rs, docs/examples/types/Router-Refusal/about.md, docs/rules/security/csrf-is-on-by-default.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks: []
 ---
@@ -107,6 +107,11 @@ reproducer below is a neutral rewrite of what they reported.
   closes it.
 - **The test-runner page says `nvs check` needs `tests/bootstrap.nvs` too**, beside where it says
   the editor does (`website/src/content/docs/tools/test-runner/index.mdx:40`).
+- **The lender search and its note are for a name a map could declare.** A one-segment name
+  (`Countable`) or a `Core` name starts no search and gets no note, because an `autoload` prefix
+  is at least one segment and a `\`. The reference's single-file `E0303` examples would otherwise
+  print a note about a map and a temp folder. `nvs_hir::lenders::a_map_could_declare` is the test,
+  the same two exclusions `AutoloadMap::note_searched_roots` makes.
 
 **Trade-offs.**
 - *Serving the mounts that compile:* request isolation is unchanged, because a broken mount matches
@@ -209,34 +214,28 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] Run `looper verify` over the whole goal.
-- [ ] Fix every failure it names in one pass, never deleting or loosening a test.
-- [ ] Run `looper verify` once more, and it is green.
+- [x] Run `looper verify` over the whole goal.
+- [x] Fix every failure it names in one pass, never deleting or loosening a test.
+- [x] Run `looper verify` once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, each new test run once by name and green. Stage 5's boot keeps a mount
-that does not compile (`Unserved` in `crates/nvs-cli/src/serve.rs`), and `Rescan`'s `failing` runs
-its origin check once it compiles. `nvs service status` lists the run's `NOT_COMPILED_AT_START`
-lines, from `Manager::last_run`'s last 20 lines.
+Every stage is done. Verify is green, and so are `bun nv verify --doc`, `bun nv owners --closes
+check-and-serve-fixes` and `bun nv ci --check`. The gate found four things:
+- stage 6 had edited the generated `docs/reference/lang/90-attributes.md`, so the paragraph moved to
+  the route table's `details.md`, and seven `lang:attributes` features' perf was re-recorded;
+- `docs/rules/http-server.md` and `website/public/llms-full.txt` were not re-rendered;
+- the stage-3 note fired on the reference's single-file `Countable`, `Exception` and `Fiber`
+  examples, so the search and note now need a name a map could declare (Standing decisions);
+- eight website pages' stamps and questions were stale, now reread, updated and stamped.
 
-Tests that may go red in stage 7, none searched for:
-- a whole-stderr comparison of an `E0303`/`E0306` that found no lender: one more note line (stage 3);
-- on Windows, a diagnostic's file name compared with `fs::canonicalize` output (stage 2);
-- a case whose html template hole holds a call `nvs-hir` now reports (stage 1);
-- a pin of E0409's no-constructor or `$this`-escape help, or of E0428's help (stage 4);
-- a snapshot of the `Refusal` card, `nvs meta --json` or the rendered reference (stage 6);
-- a case pinning `nvs serve`'s stderr over one broken entry: it now ends `no mount compiled` (stage 5).
-
-The sweep's `env-secret-proofs` exits 0 again, and nightly `40662443492` is the cancelled dispatch.
+No test is expected to go red.
 
 ### Next
 
-Stage 7, the gate. Start `looper verify` with `run_in_background`, fix every failure it names in
-one pass, run it again, then the goal-end gates AGENTS.md § *In the loop* lists: `bun nv verify
---doc`, `bun nv owners --closes check-and-serve-fixes`, `bun nv ci --check`.
+None: the goal is reached. The driver retires it, which deletes this file.
 
 ### Backlog
 

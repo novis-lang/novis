@@ -1087,11 +1087,11 @@
   },
   "/reference/cli/nvs-check/": {
     "feature": "tools:cli/nvs-check",
-    "hash": "8cc13d1e84f0c0c6",
+    "hash": "85533fbb31eceea9",
     "questions": [
       "How do I check my code for errors without running it?",
       "Type-check every file in a folder from a pre-commit hook or CI",
-      "Check a single class file that is loaded by autoload",
+      "Check a class file loaded by autoload from another folder",
       "See which folders my autoload rules resolve to",
       "What do error codes like E0401 in compiler output mean?",
       "Measure how much work the compiler does for a file"
@@ -1110,7 +1110,7 @@
   },
   "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
     "feature": "tools:cli/nvs-config-check-and-nvs-config-dump",
-    "hash": "fe4470964726222c",
+    "hash": "b4ab457c7553b19e",
     "questions": [
       "Validate my nvs.toml configuration before deploying",
       "Run a configuration check in my CI pipeline",
@@ -1257,11 +1257,11 @@
   },
   "/reference/cli/nvs-serve/": {
     "feature": "tools:server/nvs-serve",
-    "hash": "5b4846850f0a2bd7",
+    "hash": "9f41691751c39fe4",
     "questions": [
       "Start a local web server for my program",
       "How do I serve my app on a different port?",
-      "Use the same server for development and production",
+      "What happens when one of my apps does not compile at start?",
       "Why is a variable empty again on the next request?",
       "Serve several apps from one config file",
       "Run scheduled jobs and queue workers next to my website"
@@ -1269,14 +1269,14 @@
   },
   "/reference/cli/nvs-service/": {
     "feature": "tools:server/nvs-service",
-    "hash": "e63d98d055bee94c",
+    "hash": "fb87885a52c1d29b",
     "questions": [
       "Start my web server automatically when the machine boots",
       "Install my app as a systemd unit on Linux",
       "Run my server as a Windows service",
       "Restart my server automatically after it crashes",
       "Why did my stopped service end, and what did it print?",
-      "Preview the service file before installing it"
+      "Which of my apps did not compile when the service started?"
     ]
   },
   "/reference/cli/nvs-telemetry/": {
@@ -17027,13 +17027,14 @@
   },
   "/reference/types/router-refusal/": {
     "feature": "Core\\Router\\Refusal",
-    "hash": "6eee90f7920399e5",
+    "hash": "df3cde42516fff22",
     "questions": [
       "Why did the router not call my route method?",
       "Which status is sent when the HTTP method is not allowed?",
       "Return a 413 page when the request body is too large",
       "What happens when a path or query value cannot be converted?",
-      "Respond to a failed CSRF check with my own page"
+      "Respond to a failed CSRF check with my own page",
+      "Why does a POST from another site to a missing page give 403?"
     ]
   },
   "/reference/types/router-responder/": {
@@ -17217,7 +17218,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "e6079c028081cea1",
+    "hash": "54c177b77da93288",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -17916,10 +17917,11 @@
   },
   "/tools/cli/": {
     "feature": "tools/cli/index.mdx",
-    "hash": "2e5c6f38f2334a36",
+    "hash": "a0bb46fe86792c09",
     "questions": [
       "How do I check my code for errors from the command line?",
       "Get compiler errors as JSON for a script or CI",
+      "Check one class file without its program in the current folder",
       "Where does Novis store compiled code, and how do I clear it?",
       "How do I find out if a new Novis version is released?",
       "Does the nvs command send telemetry, and how do I turn it off?"
@@ -17986,7 +17988,7 @@
   },
   "/tools/test-runner/": {
     "feature": "tools/test-runner/index.mdx",
-    "hash": "e33a6f99b9f64f17",
+    "hash": "e3b3c0067cb5c048",
     "questions": [
       "How do I write my first test and run it?",
       "What does the output look like when a test fails?",

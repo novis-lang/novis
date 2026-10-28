@@ -4775,9 +4775,11 @@ fn status_of(
             .collect();
         if !failed.is_empty() {
             answers.push("Mounts that did not compile at start:".to_owned());
-            answers.extend(failed.into_iter().map(|line| {
-                format!("  {}", line.strip_prefix("error: ").unwrap_or(&line))
-            }));
+            answers.extend(
+                failed
+                    .into_iter()
+                    .map(|line| format!("  {}", line.strip_prefix("error: ").unwrap_or(&line))),
+            );
         }
     } else if !answers.is_empty() {
         match site.manager.last_run(name) {
@@ -7141,7 +7143,11 @@ mod tests {
         );
         let manager = registration::Recording::after_a_run(
             "running",
-            &["error[E0101]: expected `;`", &failed, "warning: a slow request"],
+            &[
+                "error[E0101]: expected `;`",
+                &failed,
+                "warning: a slow request",
+            ],
         );
         let site = registration::Site {
             platform: registration::Platform::host(),

@@ -16,10 +16,10 @@
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "030a6f7cc3ac0c09",
     "Core\\Router\\Gate": "c4adb277c541ba28",
-    "Core\\Router\\Refusal": "350ecc941ae0d681",
+    "Core\\Router\\Refusal": "54a1cc05b2b1e7da",
     "Core\\Router\\Responder": "c0dec1200f6ca4ab",
     "lang:attributes/core-api-and-the-openapi-document": "e5633a12dc3237a9",
-    "lang:attributes/core-route-and-core-access-the-route-table": "e44e39f6fcee282c"
+    "lang:attributes/core-route-and-core-access-the-route-table": "d25b5e9578379966"
   },
   "syntax/attributes/writing-and-reading.mdx": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "69f3afc5ebf38911",
@@ -370,7 +370,7 @@
     "tools:cli/nvs-build-openapi": "14f26ed23fbbc008"
   },
   "tools/cli/index.mdx": {
-    "tools:cli/nvs-check": "8cc13d1e84f0c0c6",
+    "tools:cli/nvs-check": "85533fbb31eceea9",
     "tools:cli/nvs-telemetry": "2bd39131b67069de",
     "tools:cli/nvs-update-check": "d3cda83df0ccbeda",
     "tools:cli/one-binary": "990450b05d9aca43",
