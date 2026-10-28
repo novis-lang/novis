@@ -1885,6 +1885,7 @@ mod tests {
             .into_owned()
     }
 
+    // covers: Core\Passkey::registerOptions, Core\Passkey::verifyRegistration
     #[test]
     fn the_members_register_once_per_challenge() {
         let mut ctx = session_ctx();
@@ -1938,6 +1939,7 @@ mod tests {
         }
     }
 
+    // covers: Core\Passkey::signInOptions, Core\Passkey::credentialId, Core\Passkey::verifySignIn
     #[test]
     fn the_members_sign_in_once_per_challenge() {
         let mut ctx = session_ctx();

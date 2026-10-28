@@ -1,0 +1,23 @@
+<?nvs
+// Shows the options a server sends to the browser to create a passkey.
+// requires: redis
+
+// The challenge in the options is saved in the session, so start it first.
+Core\Session::start();
+
+// The account id is random bytes. It is not the email address.
+bytes $accountId = Core\Random::bytes(16);
+string $json = Core\Passkey::registerOptions('example.com', 'Example Shop', $accountId, 'ada@example.com');
+
+// The challenge is random, so this prints only the fields that are the same each time.
+var $options = Core\Json::decode($json) as array<mixed>;
+var $site = $options['rp'] as array<mixed>;
+var $user = $options['user'] as array<mixed>;
+echo 'site: ', $site['id'] as string, ' (', $site['name'] as string, ")\n";
+echo 'user: ', $user['name'] as string, "\n";
+
+// `timeout` is in milliseconds. This prints `300000`, which is five minutes.
+echo 'timeout: ', $options['timeout'] as int, "\n";
+
+// The challenge is 32 random bytes, written as 43 characters.
+echo 'challenge: ', Core\Str::length($options['challenge'] as string), " characters\n";

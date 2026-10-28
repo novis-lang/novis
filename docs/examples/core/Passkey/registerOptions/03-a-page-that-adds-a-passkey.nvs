@@ -1,0 +1,41 @@
+<?nvs
+// Shows the browser half and the server half of a page that adds a passkey to an account.
+// requires: redis
+
+class Account
+{
+    public function constructor(public bytes $id, public string $email)
+    {}
+}
+
+class PasskeyPage
+{
+    // The browser half. This JavaScript gets the options from the server,
+    // creates the passkey and sends the answer back to the server.
+    public static function script(): string
+    {
+        return "const response = await fetch('/account/passkey/options', { method: 'POST' });\n"
+            . "const options = PublicKeyCredential.parseCreationOptionsFromJSON(await response.json());\n"
+            . "const passkey = await navigator.credentials.create({ publicKey: options });\n"
+            . "await fetch('/account/passkey', { method: 'POST', body: JSON.stringify(passkey) });\n";
+    }
+
+    // The server half. It answers the first `fetch` in the script.
+    public static function options(Account $account, array<Core\Passkey\Credential> $passkeys): string
+    {
+        Core\Session::start();
+        return Core\Passkey::registerOptions('example.com', 'Example Shop', $account->id, $account->email, $passkeys);
+    }
+}
+
+// The page contains this script.
+echo PasskeyPage::script(), "\n";
+
+// This request is the script's first `fetch`. The account has no passkey yet.
+Account $ada = new Account(Core\Random::bytes(16), 'ada@example.com');
+string $json = PasskeyPage::options($ada, []);
+
+// The challenge is new for every request, so this prints only the user.
+var $options = Core\Json::decode($json) as array<mixed>;
+var $user = $options['user'] as array<mixed>;
+echo 'options for ', $user['name'] as string, "\n";

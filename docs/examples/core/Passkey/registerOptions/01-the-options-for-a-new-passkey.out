@@ -1,0 +1,4 @@
+site: example.com (Example Shop)
+user: ada@example.com
+timeout: 300000
+challenge: 43 characters

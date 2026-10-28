@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a request sends empty, huge and strange site and user values, thousands of passkeys,
+// and thousands of calls. Each call should return JSON or throw an error, and nothing should crash or leak.
+// requires: redis
+// hostile: timeout-ms 60000
+// hostile: ends-early 7 FATAL
+
+// 1. Asks for options before the session is started. The error is caught, so step 2 still runs.
+try {
+    Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada');
+    echo "options without a session\n";
+} catch (RuntimeError $e) {
+    echo "no session: error\n";
+}
+Core\Session::start();
+
+// 2. An empty site, and account ids of 0, 64 and 65 bytes. Each error is caught.
+array<bytes> $ids = [Core\Bytes::fill(0, 0),Core\Random::bytes(64), Core\Random::bytes(65)];
+foreach ($ids as bytes $id) {
+    try {
+        Core\Passkey::registerOptions('example.com', 'Example Shop', $id, 'ada');
+        echo Core\Bytes::length($id), " bytes: options\n";
+    } catch (LogicError $shortId) {
+        echo Core\Bytes::length($id), " bytes: error\n";
+    }
+}
+try {
+    Core\Passkey::registerOptions('', 'Example Shop', Core\Random::bytes(16), 'ada');
+    echo "empty site: options\n";
+} catch (LogicError $emptySite) {
+    echo "empty site: error\n";
+}
+
+// 3. Names with quotes, a closing script tag, a NUL byte, emoji and right-to-left text.
+// The JSON is decoded again, and each name should come back unchanged.
+array<string> $strange = ["\"},\"rp\":{\"id\":\"evil.example\"}", '</script><script>alert(1)</script>', "a\0b", '👩🏽‍💻🇦🇹', "\u{202E}moc.elpmaxe", '\\u0022'];
+int $same = 0;
+foreach ($strange as string $name) {
+    string $json = Core\Passkey::registerOptions('example.com', $name, Core\Random::bytes(16), $name);
+    var $options = Core\Json::decode($json) as array<mixed>;
+    var $site = $options['rp'] as array<mixed>;
+    var $user = $options['user'] as array<mixed>;
+    if (($site['id'] as string) == 'example.com' && ($site['name'] as string) == $name && ($user['name'] as string) == $name) {
+        $same = $same + 1;
+    }
+}
+echo $same, ' of ', Core\Arr::count($strange), " strange names came back unchanged\n";
+
+// 4. A site and a user name of 4 MB each. The two strings are freed afterwards.
+string $huge = Core\Str::repeat('a', 4194304);
+string $big = Core\Passkey::registerOptions($huge, $huge, Core\Random::bytes(16), $huge);
+echo 'huge options: ', Core\Str::length($big) > 12582912 ? 'complete' : 'too short', "\n";
+$huge = '';
+$big = '';
+
+// 5. An account with 5000 passkeys, each with the longest id there is. All of them are in the options.
+var $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $raw = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $publicKey = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+array<Core\Passkey\Credential> $existing = [];
+int $n = 0;
+while ($n < 5000) {
+    $existing[] = Core\Passkey\Credential::of(Core\Random::bytes(1023), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, $n);
+    $n = $n + 1;
+}
+string $many = Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada', $existing);
+var $decoded = Core\Json::decode($many) as array<mixed>;
+echo 'excluded: ', Core\Arr::count($decoded['excludeCredentials'] as array<mixed>), "\n";
+$many = '';
+$decoded = [];
+
+// 6. 20000 calls in one session. Each call replaces the last challenge, so the session does not grow.
+int $calls = 0;
+while ($calls < 20000) {
+    Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada');
+    $calls = $calls + 1;
+}
+echo $calls, " calls done\n";
+
+// 7. Asks for options for 40000 passkeys with the longest id. They do not fit in memory.
+// The program should stop at the memory limit, with no crash.
+echo "step 7\n";
+while ($n < 40000) {
+    $existing[] = Core\Passkey\Credential::of(Core\Random::bytes(1023), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, $n);
+    $n = $n + 1;
+}
+echo "40000 passkeys\n";
+Core\Passkey::registerOptions('example.com', 'Example Shop', Core\Random::bytes(16), 'ada', $existing);
+echo "options for 40000 passkeys\n";

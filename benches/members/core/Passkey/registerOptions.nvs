@@ -1,0 +1,27 @@
+<?nvs
+// Makes the options for a new passkey, as the page that adds a passkey to an account does.
+// bench: iterations 256
+// bench: complexity linear
+// requires: redis
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['ada@example.com', 'grace@example.com', 'alan@example.com'];
+        bytes $accountId = Core\Random::bytes(16);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $json = Core\Passkey::registerOptions('example.com', 'Example Shop', $accountId, $names[($total % 3) as int]);
+            if (Core\Str::length($json) > 0) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+echo Bench::run(256), "\n";
