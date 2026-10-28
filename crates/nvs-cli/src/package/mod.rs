@@ -5,13 +5,19 @@
 //! `rule:packaging/only-a-major-may-break-the-api`'s extraction: a package's public API, read
 //! from the checked program and never by running any of it, and [`diff`] is its comparison: every
 //! change between two versions, breaking or additive, and whether the version step allows it.
-//! [`manifest`] reads a package's `package.toml`.
+//! [`manifest`] reads `package.toml`, a package's or an application's, and refuses an unknown key.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
+// `nvs pkg diff` reads the version alone. The name, the dependencies, the registries and the
+// downloads are read by `nvs pkg pack`, `fetch` and `add`, which are not written yet.
+#[allow(
+    dead_code,
+    reason = "the commands that read most of a manifest are not written yet"
+)]
 mod manifest;
 
 /// Work with Novis packages.

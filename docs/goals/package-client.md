@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/package/mod.rs]
 stages:
   - id: 1
     title: "`package.toml` is read, and a package's name is its namespace"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/manifest.rs, crates/nvs-config/src/package.rs, docs/rules/packaging/package-toml-is-a-tool-input.md, docs/rules/packaging/a-package-name-is-vendor-slash-name.md, docs/rules/packaging/a-vendor-resolves-from-one-registry.md]
     extra:
       context:
@@ -191,6 +191,23 @@ in `crates/nvs-cli/src/main.rs`; if not, stage 1 creates both as that goal's sta
 it holds, the session takes stages 1, 2, 3 and 7. If only `package.rs` is missing, stage 1 reads the
 name and the capability split itself, and the handoff names the duplicate.
 
+**The manifest's keys are fixed, and every other key is refused** (stage 1). `[package]` holds
+`name`, `version` and `files`; `[dependencies]` maps a package's namespace, as `[grants]` keys it, to
+a minimum version string or to `{ git, rev }` with a full lowercase commit hash; `[registries]` maps a
+vendor to `{ url, key }`; then `[capabilities]`, `[grants]` and `[[download]]`. A file with no
+`[package] name` is an application's and may not hold `version`, `files`, `[capabilities]` or
+`[[download]]`. One spelling per value, so a dependency is never a table with a `version` key. Why:
+simplicity, and a key nobody wrote a reader for is never silently ignored. A dependency key is the
+namespace, not the slug, so the file names a package one way in `[dependencies]` and `[grants]`.
+The verifier `key` is read and not required yet; goal `registry-log` requires it for a registry other
+than the default.
+
+**The client refuses `Core` and the built-in components' namespaces, and reads any other `Novis\`
+name** (stage 1). Only the registry knows the publishing account, and the project's own account
+publishes `Novis\Rest`, so the account check for `Novis\` is goal `registry-service`'s at publish.
+The built-in namespaces are derived from `nvs_ext::builtin`'s `*_CLASS` constants, so a new
+component is refused with no second list.
+
 **Trade-offs.** No program changes at run time: a fetched package is ordinary source behind an
 `autoload` line. Nothing runs on the request path. Memory: none per request; the client holds one
 resolved graph while it runs. Security gains a digest on every byte, one registry per vendor and a
@@ -217,10 +234,10 @@ merge one after another.
 **Does:** the manifest parses with unknown keys refused, and the package's name, version,
 dependencies, registries and requested capabilities are read from it.
 
-- [ ] The reader, found by walking up from the working directory, never by the runtime; the compiler's only part of the file is `[grants]` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`, `crates/nvs-config/src/package.rs:1`
-- [ ] A two-segment root namespace, the derived name, one name per case-folded namespace, and `Core\`, `Novis\` and built-in names refused (`rule:packaging/a-package-name-is-vendor-slash-name`, `rule:core-api/reserved-namespace`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] The vendor to registry table and its default (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] Tests: each refusal and the derived name. `crates/nvs-cli/tests/package_client.rs:1`
+- [x] The reader, found by walking up from the working directory, never by the runtime; the compiler's only part of the file is `[grants]` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`, `crates/nvs-config/src/package.rs:1`
+- [x] A two-segment root namespace, the derived name, one name per case-folded namespace, and `Core\`, `Novis\` and built-in names refused (`rule:packaging/a-package-name-is-vendor-slash-name`, `rule:core-api/reserved-namespace`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [x] The vendor to registry table and its default (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/manifest.rs:1`
+- [x] Tests: each refusal and the derived name. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### 2. `nvs pkg pack` builds a deterministic archive
 
@@ -335,25 +352,47 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. Nothing reads `package.toml` or `package.lock`, and nothing digests an
-archive. Whether goal `api-compat` has created `crates/nvs-cli/src/package/mod.rs` and whether goal
-`namespace-grants` has shipped the grant table decides the gates in the standing decisions; check both
-before the first slice.
+Stage 1 is done. Both gates hold: `api-compat` made `crates/nvs-cli/src/package/mod.rs`, and
+`namespace-grants` shipped `crates/nvs-config/src/grants.rs` and `package.rs`, so stage 4 is not
+blocked by them.
+
+`crates/nvs-cli/src/package/manifest.rs` reads the whole file into `Manifest`, as the standing
+decision *The manifest's keys are fixed* says. `[package] name` and `[capabilities]` go through
+`nvs_config::package::Package::parse`, and `[grants]` through `nvs_config::grants::Grants::parse`.
+`nvs_config::grants::is_segment` is now `pub` for that. `Name::slug` derives `acme/http`, and
+`Manifest::registry` gives a vendor its URL or `DEFAULT_REGISTRY`. Every refusal is `E0659`, and its
+card now says the `nvs pkg` commands check every key. `manifest::version` reads through the full
+reader, so `nvs pkg diff` refuses a bad file. The two `versioned` fixtures under
+`crates/nvs-cli/tests/fixtures/package-api/` moved `version` under `[package]`.
+
+The module carries `#[allow(dead_code)]` in `mod.rs` until `pack`, `fetch` and `add` read the
+name, dependencies and registries; drop it once they do.
+
+The refusals are unit tests in `manifest.rs`, and `crates/nvs-cli/tests/package_client.rs` checks
+through `nvs pkg diff` that one reaches the user. No test is expected to go red.
+
+The sweep's reds were already fixed at `HEAD`. The three nightly Miri jobs of run 40474302703 ran
+on `55b03e97a`. `22f1e4ec4` skips the `secret` span test under Miri, `c33a8b8f7` counts the spool
+wakes against files opened, and `e461612ce` and `c33a8b8f7` skip the two slow spool tests.
+`env-secret-proofs` exits 0 when run, and no goal or floor names that check any more. Its log
+under `.looper/loops/main/checks/` dates from 22 October, so the sweep reads a stale check list.
 
 ### Next
 
-**Stage 1: the manifest reader**, one file set: `crates/nvs-cli/src/package/manifest.rs`,
-`crates/nvs-cli/src/package/mod.rs`, `crates/nvs-cli/tests/package_client.rs`. Gate:
-`crates/nvs-cli/src/package/mod.rs` exists (goal `api-compat`), else stage 1 creates it.
+**Stage 2: `nvs pkg pack`**, one file set: `Cargo.toml` (the `tar` row),
+`crates/nvs-cli/src/package/pack.rs`, `crates/nvs-cli/src/package/mod.rs`,
+`docs/rules/packaging/a-package-is-its-digest.md`, `crates/nvs-cli/tests/package_client.rs`.
+Stage 3 may go first instead; the two share no file but `mod.rs` and the test file.
 
-- [ ] The full reader with unknown keys refused, name and capability split through `nvs_config::package` (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] The derived name and its refusals (`rule:packaging/a-package-name-is-vendor-slash-name`, `rule:core-api/reserved-namespace`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] The vendor to registry table and its default (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] Tests: each refusal and the derived name. `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] The `tar` row, default features off, `cargo deny` green. `Cargo.toml:425`
+- [ ] The file set from `Manifest::files` and the root license and readme files, the limits and the path rules. `crates/nvs-cli/src/package/pack.rs:1`, `crates/nvs-cli/src/package/manifest.rs:222`
+- [ ] The archive and its BLAKE3 digest, and `nvs pkg pack` printing each file, its size, the total and the slug. `crates/nvs-cli/src/package/pack.rs:1`, `crates/nvs-cli/src/package/mod.rs:29`
+- [ ] The rule fragment states the archive format. `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [ ] Tests as stage 2 lists them. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### Backlog
 
-- Stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`, `lock.rs`) can then run in either order. `crates/nvs-cli/src/package/pack.rs`
+- Stage 3 (`index.rs`, `resolve.rs`, `lock.rs`) after or before stage 2. `Manifest::registry` is its vendor lookup. `crates/nvs-cli/src/package/manifest.rs:236`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the

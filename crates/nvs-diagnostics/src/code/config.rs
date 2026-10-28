@@ -864,16 +864,19 @@ codes! {
          this code should have it. The message shows the line.",
     );
 
-    /// A package's own `package.toml` that `nvs_config::package` cannot read:
-    /// the file is not TOML, `[package] name` is not `Vendor\Package` or is
-    /// under `Core`, a name in `[capabilities]` is not a capability, or one is
-    /// both required and optional
-    /// (`rule:packaging/a-package-name-is-vendor-slash-name`).
+    /// A `package.toml` that `nvs_config::package` or an `nvs pkg` command cannot read: the file
+    /// is not TOML, `[package] name` is not `Vendor\Package` or is under `Core`, a name in
+    /// `[capabilities]` is not a capability, or one is both required and optional. The `nvs pkg`
+    /// commands also refuse an unknown key, a built-in component's name, a version that is not
+    /// `MAJOR.MINOR.PATCH`, and a dependency or registry line that is not well formed
+    /// (`rule:packaging/a-package-name-is-vendor-slash-name`,
+    /// `rule:packaging/package-toml-is-a-tool-input`).
     pub const E_BAD_PACKAGE_MANIFEST: Code = Code::new("E0659").card(
-        "The `package.toml` of a package is not valid. `[package] name` is a vendor and a \
-         name, such as `'Acme\\Http'`. `[capabilities]` has two lists, `required` and \
-         `optional`, of capability names such as `\"net.connect\"`. A capability is in one list \
-         or the other. The message shows the line.",
+        "A `package.toml` file is not valid. `[package] name` is a vendor and a name, such as \
+         `'Acme\\Http'`. `[capabilities]` has two lists, `required` and `optional`, of \
+         capability names such as `\"net.connect\"`. A capability is in one list or the other. \
+         The `nvs pkg` commands also check every other key. A key they do not know is an error. \
+         The message shows the line.",
     );
 
     /// A file of a package that declares a namespace outside the package's own
