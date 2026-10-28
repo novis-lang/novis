@@ -1,23 +1,31 @@
 <?nvs
 namespace Registry;
 
+use Core\Charset;
 use Core\Db\Connection;
 use Core\Db\Row;
 use Core\Db\Transaction;
 use Core\Encoding;
 use Core\Hash;
+use Core\IO;
 use Core\Math;
+use Core\Path;
 use Core\Random;
+use Core\Str;
 use Core\Time;
 use RuntimeError;
 
 // Counts the downloads of each version per day. One address counts once per version per day.
-// The address is never saved. Only a hash of it with the salt of the day is saved,
-// and the salt and the hashes are deleted after that day.
+// The address is never saved. A download the registry sends itself saves a hash of the address
+// with the salt of the day, and the salt and the hashes are deleted after that day.
+// The access lines of the file hosts are counted once a day, and their salt and hashes are
+// only in memory while they are counted.
 final class Downloads
 {
     // The seconds in one day.
     public const int DAY = 86400;
+
+    private const string HEX = '0123456789abcdef';
 
     private Connection $db;
 
@@ -36,18 +44,50 @@ final class Downloads
     public function count(string $key, string $version, ?tainted string $address): void
     {
         int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
-        string $salt = $this->saltOf($day);
-        tainted string $seen = Encoding::toHex(Hash::of($salt . "\n" . ($address ?? '') . "\n" . $key . "\n" . $version, Hash::Digest::Sha256));
+        string $seen = Downloads::seen($this->saltOf($day), $address, $key, $version);
         $this->db->transaction(fn(Transaction $tx): void => {
             var $first = $tx->execute('insert into downloads_seen (day, hash) values (?, ?) on conflict (day, hash) do nothing', [$day, $seen]);
             if ($first->affected() == 1) {
-                $tx->execute(
-                    'insert into downloads (package, version, day, count) values (?, ?, ?, 1) '
-                        . 'on conflict (package, version, day) do update set count = count + 1',
-                    [$key, $version, $day],
-                );
+                Downloads::add($tx, $key, $version, $day, 1);
             }
         });
+    }
+
+    // Returns the path of the access lines of the day `$day` in the download-log store.
+    // Bunny writes each day to `<MM>-<DD>-<YY>/<file>`, such as `03-04-26/12345.log`.
+    public static function logOf(int $day, string $file): string
+    {
+        string $iso = Time::fromEpoch($day * Downloads::DAY)->toIso();
+        return Str::slice($iso, 5, 2) . '-' . Str::slice($iso, 8, 2) . '-' . Str::slice($iso, 2, 2) . '/' . $file;
+    }
+
+    // Counts the downloads in Bunny's access lines of the day `$day`, read from `$log` at `logOf`.
+    // `$folder` is a folder that is never served, for the copy of the lines while they are counted.
+    // Only a request for `archive/<digest>.tar` that was answered with a status 200 to 299, by a
+    // user agent that starts with `nvs/`, counts. A line that does not have this form is skipped.
+    // A day is counted once: a second run for the same day counts nothing.
+    // It returns the number of downloads it counted. It throws a `RuntimeError` when the store fails.
+    // Memory: the lines of the day twice, as text and as a list of lines, and one hash for each
+    // address and version. All of it is deleted when the count ends.
+    public function countLog(Store $log, string $file, int $day, string $folder): int
+    {
+        if ($this->db->query('select 1 from downloads_counted where day = ?', [$day])->count() > 0) {
+            return 0;
+        }
+        string $copy = Path::join($folder, 'downloads-' . Random::token(8) . '.log');
+        try {
+            if (!$log->fetch(Downloads::logOf($day, $file), $copy)) {
+                return 0;
+            }
+            // Latin-1 reads every byte, so a line that is not UTF-8 is skipped below and does
+            // not stop the count.
+            array<string> $lines = Str::lines(IO::readText($copy, { charset: Charset::Latin1 }));
+            return $this->countLines($lines, $day);
+        } finally {
+            if (IO::isFile($copy)) {
+                IO::remove($copy);
+            }
+        }
     }
 
     // Returns the number of downloads of a version on the day `$day`.
@@ -68,6 +108,112 @@ final class Downloads
         return false;
     }
 
+    // Counts the lines of the day `$day` with a salt that is only in memory,
+    // and saves the counts and the day in one transaction.
+    private function countLines(array<string> $lines, int $day): int
+    {
+        string $salt = Random::token(32);
+        array<bool> $seen = [];
+        array<int> $counts = [];
+        // The package and version of each digest, such as `acme\http` and `1.0.0` with a line break between.
+        // An empty text is a digest of no release.
+        array<string> $releases = [];
+        int $total = 0;
+        foreach ($lines as string $line) {
+            ?array<string> $download = Downloads::parseBunny($line, $day);
+            if ($download == null) {
+                continue;
+            }
+            string $digest = $download[0];
+            if (!Core\Arr::hasKey($releases, $digest)) {
+                $releases[$digest] = $this->releaseOf($digest);
+            }
+            string $release = $releases[$digest];
+            if ($release == '') {
+                continue;
+            }
+            array<string> $parts = Str::split($release, "\n");
+            string $hash = Downloads::seen($salt, $download[1], $parts[0], $parts[1]);
+            if (Core\Arr::hasKey($seen, $hash)) {
+                continue;
+            }
+            $seen[$hash] = true;
+            $counts[$release] = ($counts[$release] ?? 0) + 1;
+            $total++;
+        }
+        return $this->db->transaction(fn(Transaction $tx): int => {
+            var $first = $tx->execute('insert into downloads_counted (day) values (?) on conflict (day) do nothing', [$day]);
+            if ($first->affected() == 0) {
+                return 0;
+            }
+            foreach ($counts as string $release => int $count) {
+                array<string> $parts = Str::split($release, "\n");
+                Downloads::add($tx, $parts[0], $parts[1], $day, $count);
+            }
+            return $total;
+        });
+    }
+
+    // Reads one of Bunny's access lines. The fields are separated by `|`, in this order:
+    // the cache status, the status, the time in milliseconds since 1970, the bytes sent,
+    // the pull zone, the address, the referrer, the URL, the edge location, the user agent,
+    // the request id and the country. The line has no method, so a `HEAD` request counts as a `GET`.
+    // It returns the digest in hex and the address of a download by `nvs` on the day `$day`,
+    // or `null` for any other line.
+    private static function parseBunny(string $line, int $day): ?array<string>
+    {
+        array<string> $fields = Str::split($line, '|');
+        if (Core\Arr::count($fields) < 10) {
+            return null;
+        }
+        ?int $status = $fields[1] as ?int;
+        ?int $milliseconds = $fields[2] as ?int;
+        if ($status == null || $status < 200 || $status > 299 || $milliseconds == null) {
+            return null;
+        }
+        if (Downloads::dayOf(Math::intDiv($milliseconds, 1000)) != $day || !Str::startsWith($fields[9], 'nvs/') || $fields[5] == '') {
+            return null;
+        }
+        string $path = Str::before($fields[7], '?') ?? $fields[7];
+        int $length = Str::length($path) as int;
+        // `/archive/` and 64 hex characters and `.tar` are 77 characters.
+        if ($length < 77 || !Str::endsWith($path, '.tar') || Str::slice($path, $length - 77, 9) != '/archive/') {
+            return null;
+        }
+        string $digest = Str::slice($path, $length - 68, 64);
+        if (Str::trim($digest, { characters: Downloads::HEX }) != '') {
+            return null;
+        }
+        return [$digest, $fields[5]];
+    }
+
+    // Returns the package and the version of the archive `$digest`, with a line break between,
+    // or an empty text when no release has it.
+    private function releaseOf(string $digest): string
+    {
+        foreach ($this->db->query('select package, version from releases where digest = ?', ['blake3:' . $digest]) as Row $row) {
+            return Downloads::trusted($row->string('package')) . "\n" . Downloads::trusted($row->string('version'));
+        }
+        return '';
+    }
+
+    // Returns the hash that counts one address once per version on the day of `$salt`.
+    private static function seen(string $salt, ?tainted string $address, string $key, string $version): string
+    {
+        tainted string $hash = Encoding::toHex(Hash::of($salt . "\n" . ($address ?? '') . "\n" . $key . "\n" . $version, Hash::Digest::Sha256));
+        return Core\Taint::assertTrusted($hash, 'a SHA-256 hash in hex is 64 hex characters');
+    }
+
+    // Adds `$count` downloads of a version on the day `$day`.
+    private static function add(Transaction $tx, string $key, string $version, int $day, int $count): void
+    {
+        $tx->execute(
+            'insert into downloads (package, version, day, count) values (?, ?, ?, ?) '
+                . 'on conflict (package, version, day) do update set count = count + excluded.count',
+            [$key, $version, $day, $count],
+        );
+    }
+
     // Returns the salt of the day. The salts and hashes of the days before are deleted first.
     private function saltOf(int $day): string
     {
@@ -78,5 +224,10 @@ final class Downloads
             return Core\Taint::assertTrusted($row->string('salt') as tainted string, 'the registry wrote the salt');
         }
         throw new RuntimeError('the salt of the day was not saved');
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
     }
 }

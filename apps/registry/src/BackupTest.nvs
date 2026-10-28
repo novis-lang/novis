@@ -148,6 +148,7 @@ final class BackupTest
             null,
             '',
             '',
+            '',
             $loaded->logName,
         );
     }

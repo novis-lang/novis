@@ -34,6 +34,9 @@ registry writes a copy, `registry.copy`, after each publish. It also writes one 
 `backupMinutes` minutes when something changed. When the registry starts with no database, it
 reads the newest copy and the log from the first store. Then it adds every release in the log
 that the copy does not have. `downloadLog` is the store with the access
-lines of the file hosts, or `null` when the registry sends the files itself. `logKey` is the key
+lines of the file hosts, or `null` when the registry sends the files itself. Its `format` is
+`bunny`, and its `file` is the name of the file of each day, such as `12345.log` for Bunny's pull
+zone 12345. The daily job reads the lines of the day before from `MM-DD-YY/12345.log`, counts the
+downloads by `nvs`, and keeps no line. `logKey` is the key
 file that signs the log and the index files, and `nvs registry key` makes one. `logName` is the
 name of that key.

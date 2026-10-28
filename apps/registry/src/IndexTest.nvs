@@ -8,9 +8,8 @@ use Core\Random;
 use Core\Str;
 use Core\Test;
 use Core\Time;
-use Core\Time\Duration;
 
-// Tests for the index files and the download count. The build and the log are test doubles.
+// Tests for the index files. The build and the log are test doubles.
 // Each test publishes its own new package, so the tests do not see each other's files.
 final class IndexTest
 {
@@ -93,32 +92,9 @@ final class IndexTest
         Test::assertSame($written, Str::trim(IO::read('../fixtures/index.json')));
     }
 
-    #[Test(at: '2026-03-01T23:00:00Z')]
-    public function oneAddressCountsOncePerVersionPerDay(): void
-    {
-        var $downloads = new Downloads(Schema::open());
-        string $key = 'v' . Str::lower(Random::token(4)) . '\\http';
-        int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
-        $downloads->count($key, '1.0.0', '192.0.2.1');
-        $downloads->count($key, '1.0.0', '192.0.2.1');
-        Test::assertSame($downloads->on($key, '1.0.0', $day), 1);
-        $downloads->count($key, '1.0.0', '192.0.2.2');
-        $downloads->count($key, '1.1.0', '192.0.2.1');
-        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
-        Test::assertSame($downloads->on($key, '1.1.0', $day), 1);
-
-        // After midnight the same address counts again, and the salt of the day before is deleted.
-        Test::advance(Duration::hours(2));
-        $downloads->count($key, '1.0.0', '192.0.2.1');
-        Test::assertSame($downloads->on($key, '1.0.0', $day + 1), 1);
-        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
-        Test::assertTrue(!$downloads->hasSalt($day));
-        Test::assertTrue($downloads->hasSalt($day + 1));
-    }
-
     // Publishes version 1.0.0 of `<vendor>\Http` with a build double that writes the archive.
-    // It returns the digest the build double printed.
-    private static function publish(BrowserTest $browser, string $vendor): string
+    // It returns the digest the build double printed. `DownloadsTest` uses it too.
+    public static function publish(BrowserTest $browser, string $vendor): string
     {
         var $made = $browser->post('/api/tokens', { scope: $vendor, days: 30 });
         Test::assertSame($made->status(), 201);

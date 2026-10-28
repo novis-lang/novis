@@ -115,6 +115,8 @@ final class Schema
             'create table if not exists downloads_seen (day integer not null, hash text not null, primary key (day, hash))',
             [],
         );
+        // The days whose access lines `Downloads::countLog` counted. A day is counted once.
+        $db->execute('create table if not exists downloads_counted (day integer primary key)', []);
         $db->execute('create index if not exists packages_of_repository on packages (repository, directory)', []);
         $db->execute('create index if not exists passkeys_of_account on passkeys (account)', []);
         $db->execute('create index if not exists codes_of_account on recovery_codes (account)', []);

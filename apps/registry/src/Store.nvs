@@ -96,8 +96,9 @@ final class Store
         if ($response->status() < 200 || $response->status() > 299) {
             throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $path . '.');
         }
-        // The restore checks what it reads: the copy is sealed, and `nvs registry log verify` checks the log.
-        IO::writeStream($file, [Core\Taint::assertTrustedBytes($response->bytes(), 'the restore checks every file it reads')]);
+        // Every reader checks what it reads: the copy is sealed, `nvs registry log verify` checks the log,
+        // and `Downloads` skips each access line that does not have the form it counts.
+        IO::writeStream($file, [Core\Taint::assertTrustedBytes($response->bytes(), 'every reader checks the file it fetched')]);
         return true;
     }
 

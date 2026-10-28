@@ -62,7 +62,8 @@ and outside every store, because a lost key cannot sign the next checkpoint.
 
 **Memory:** a publish holds one archive while it writes it to each store, and the repository size
 limit bounds it. A database copy is a temporary file the size of the database, deleted once it is
-sent. The daily count holds one day's salted hashes, as the counting rule says.
+sent. The daily count holds one day's access lines, twice, and their salted hashes while it runs,
+and keeps none of them after it.
 
 **Declined:**
 - **The service serving every file in production.** An outage of one host would stop every
@@ -87,4 +88,6 @@ exist. `Stores` sends each publish's files from the work folder to every store, 
 across the stores and the checkpoint last, and a publish of the same commit sends what a failed
 one left. `jobs/daily.nvs` signs and sends every index file, `Backup` copies the database after a
 publish and from `jobs/backup.nvs`, and `Restore` runs from `Schema::open` on a database with no
-tables. The count from access lines is not built.
+tables. `jobs/daily.nvs` also counts the day before from Bunny's access lines through
+`Downloads::countLog`, with a salt and a set of hashes held only in memory, and marks the day in
+`downloads_counted` so a second run counts nothing.

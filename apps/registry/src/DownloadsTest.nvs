@@ -1,0 +1,115 @@
+<?nvs
+namespace Registry;
+
+use Core\Bytes;
+use Core\IO;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+use Core\Time\Duration;
+
+// Tests for the download count. Each test counts its own new package on its own day.
+// The access lines are in a `dir` store in a folder under `work`, which the test deletes at the end.
+final class DownloadsTest
+{
+    #[Test(at: '2026-03-01T23:00:00Z')]
+    public function oneAddressCountsOncePerVersionPerDay(): void
+    {
+        var $downloads = new Downloads(Schema::open());
+        string $key = 'v' . Str::lower(Random::token(4)) . '\\http';
+        int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 1);
+        $downloads->count($key, '1.0.0', '192.0.2.2');
+        $downloads->count($key, '1.1.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
+        Test::assertSame($downloads->on($key, '1.1.0', $day), 1);
+
+        // After midnight the same address counts again, and the salt of the day before is deleted.
+        Test::advance(Duration::hours(2));
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day + 1), 1);
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
+        Test::assertTrue(!$downloads->hasSalt($day));
+        Test::assertTrue($downloads->hasSalt($day + 1));
+    }
+
+    #[Test(at: '2026-03-05T03:00:00Z')]
+    public function accessLinesCountOneAddressOnceAndOnlyFromNvs(): void
+    {
+        var $db = Schema::open();
+        int $day = Downloads::dayOf(Time::now()->toEpochSeconds()) - 1;
+        // A run of this test before may have counted the day already.
+        $db->execute('delete from downloads_counted where day = ?', [$day]);
+        string $folder = Path::join(Index::work(Site::load()), 'test-downloads-' . Random::token(8));
+        try {
+            var $browser = new BrowserTest();
+            $browser->newAccount();
+            string $vendor = 'V' . Random::token(4);
+            string $digest = Str::slice(IndexTest::publish($browser, $vendor), 7);
+            string $key = Str::lower($vendor) . '\\http';
+            string $url = 'https://cdn.example.com/archive/' . $digest . '.tar';
+            string $file = Path::join(Path::join($folder, 'log'), Downloads::logOf($day, '12345.log'));
+            Test::assertSame(Downloads::logOf($day, '12345.log'), '03-04-26/12345.log');
+            IO::makeDir(Path::dirname($file));
+            IO::writeStream($file, [
+                DownloadsTest::line('200', '2026-03-04T10:00:00Z', '192.0.2.1', $url, 'nvs/0.1.0'),
+                // The same address again counts nothing, also with a query after the path.
+                DownloadsTest::line('200', '2026-03-04T11:00:00Z', '192.0.2.1', $url . '?x=1', 'nvs/0.1.0'),
+                DownloadsTest::line('200', '2026-03-04T12:00:00Z', '192.0.2.2', $url, 'nvs/0.1.0'),
+                // A browser, a failed request and a line of another day are skipped.
+                DownloadsTest::line('200', '2026-03-04T12:00:00Z', '192.0.2.3', $url, 'Mozilla/5.0'),
+                DownloadsTest::line('404', '2026-03-04T12:00:00Z', '192.0.2.4', $url, 'nvs/0.1.0'),
+                DownloadsTest::line('200', '2026-03-05T00:30:00Z', '192.0.2.5', $url, 'nvs/0.1.0'),
+                // An index file and an archive of no release are not downloads.
+                DownloadsTest::line('200', '2026-03-04T12:00:00Z', '192.0.2.6', 'https://cdn.example.com/index/a/b.json', 'nvs/0.1.0'),
+                DownloadsTest::line('200', '2026-03-04T12:00:00Z', '192.0.2.7', 'https://cdn.example.com/archive/' . Str::repeat('0', 64) . '.tar', 'nvs/0.1.0'),
+                // Lines that do not have Bunny's form are skipped, also one that is not UTF-8.
+                'not a line of the log' as bytes,
+                "\n" as bytes,
+                Bytes::join(['HIT|200|' as bytes, Bytes::fill(1, 255), "|\n" as bytes]),
+                DownloadsTest::line('200', '2026-03-04T13:00:00Z', '192.0.2.8', $url, 'nvs/0.1.0 é'),
+            ]);
+
+            var $downloads = new Downloads($db);
+            var $log = new Store('dir', Path::join($folder, 'log'));
+            Test::assertSame($downloads->countLog($log, '12345.log', $day, $folder), 3);
+            Test::assertSame($downloads->on($key, '1.0.0', $day), 3);
+            // The copy of the lines is deleted.
+            Test::assertSame(Core\Arr::count(IO::list($folder)), 1);
+            // A second run for the same day counts nothing.
+            Test::assertSame($downloads->countLog($log, '12345.log', $day, $folder), 0);
+            Test::assertSame($downloads->on($key, '1.0.0', $day), 3);
+            // A day with no file counts nothing.
+            Test::assertSame($downloads->countLog($log, '12345.log', $day - 1, $folder), 0);
+        } finally {
+            $db->execute('delete from downloads_counted where day = ?', [$day]);
+            DownloadsTest::remove($folder);
+        }
+    }
+
+    // One of Bunny's access lines, with its line break.
+    private static function line(string $status, string $at, string $address, string $url, string $agent): bytes
+    {
+        int $milliseconds = Time::fromIso($at)->toEpochSeconds() * 1000;
+        return ('MISS|' . $status . '|' . $milliseconds . '|1092|12345|' . $address . '|-|' . $url . '|DE|' . $agent . '|ed0ea5b2a4b1b0b3|DE' . "\n") as bytes;
+    }
+
+    // Deletes the file or the folder `$path` with everything in it.
+    private static function remove(string $path): void
+    {
+        if (!IO::isDir($path)) {
+            if (IO::exists($path)) {
+                IO::remove($path);
+            }
+            return;
+        }
+        foreach (IO::list($path) as string $name) {
+            DownloadsTest::remove(Path::join($path, $name));
+        }
+        IO::removeDir($path);
+    }
+}

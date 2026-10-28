@@ -42,6 +42,9 @@ final class Site
         public readonly ?Store $downloadLog,
         // The format of the access lines. `bunny` is the only one.
         public readonly string $downloadFormat,
+        // The name of the file of each day in `downloadLog`, such as `12345.log` for Bunny's pull zone 12345.
+        // The lines of 4 March 2026 are at `03-04-26/12345.log`.
+        public readonly string $downloadFile,
         // The file with the private key that signs the log and the index files.
         // `nvs registry key` makes one.
         public readonly string $logKey,
@@ -71,12 +74,17 @@ final class Site
         }
         ?Store $downloadLog = null;
         string $downloadFormat = '';
+        string $downloadFile = '';
         if (($settings['downloadLog'] ?? null) != null) {
             var $source = $settings['downloadLog'] as array<mixed>;
             $downloadLog = Store::of($source, $base, 'downloadLog');
             $downloadFormat = Site::text($source, 'format', 'downloadLog');
             if ($downloadFormat != 'bunny') {
                 throw new RuntimeError('hosting.json: `downloadLog.format` must be `bunny`.');
+            }
+            $downloadFile = Site::text($source, 'file', 'downloadLog');
+            if ($downloadFile == '' || Str::contains($downloadFile, '/') || Str::contains($downloadFile, '\\') || Str::contains($downloadFile, '..')) {
+                throw new RuntimeError('hosting.json: `downloadLog.file` must be a file name, such as `12345.log`.');
             }
         }
         return new Site(
@@ -93,6 +101,7 @@ final class Site
             $settings['backupMinutes'] as int,
             $downloadLog,
             $downloadFormat,
+            $downloadFile,
             Site::optionalPath(Site::text($settings, 'logKey', ''), $base, 'logKey'),
             Site::text($settings, 'logName', ''),
         );

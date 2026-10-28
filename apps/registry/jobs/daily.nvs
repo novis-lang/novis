@@ -1,10 +1,26 @@
 <?nvs
 // The daily work of the registry. The `[[schedule]]` block in `nvs.toml` runs it once a day.
 // It signs every index file again and sends the index files to every store.
+// Then it counts the downloads of the day before from the access lines of the file hosts.
 autoload 'Registry' from '../src';
 
 var $site = Registry\Site::load();
-var $index = new Registry\Index(Registry\Schema::open(), new Registry\NvsLog($site, Registry\Index::work($site)), $site);
-if (!$index->daily()) {
+var $db = Registry\Schema::open();
+var $index = new Registry\Index($db, new Registry\NvsLog($site, Registry\Index::work($site)), $site);
+bool $indexed = $index->daily();
+// A count that fails does not stop the index work. That day is not counted.
+string $counted = '';
+if ($site->downloadLog != null) {
+    try {
+        int $yesterday = Registry\Downloads::dayOf(Core\Time::now()->toEpochSeconds()) - 1;
+        new Registry\Downloads($db)->countLog($site->downloadLog, $site->downloadFile, $yesterday, Registry\Index::work($site));
+    } catch (RuntimeError $error) {
+        $counted = $error->message;
+    }
+}
+if (!$indexed) {
     throw new RuntimeError('The daily work did not finish. The next run does it again.');
+}
+if ($counted != '') {
+    throw new RuntimeError('The downloads of the day before were not counted: ' . $counted);
 }
