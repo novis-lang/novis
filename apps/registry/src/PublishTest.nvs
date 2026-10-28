@@ -26,6 +26,11 @@ final class PublishTest
         var $done = PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'));
         Test::assertSame($done->status, 201);
         Test::assertSame($done->digest, $digest);
+        // The release keeps the count of public declarations and of those with a doc comment.
+        foreach (Schema::open()->query('select declarations, documented from releases where package = ?', [Str::lower($vendor) . '\\http']) as Row $row) {
+            Test::assertSame($row->int('declarations'), 6);
+            Test::assertSame($row->int('documented'), 3);
+        }
         // It is the first version at 0.1.0 or higher, so it waits until an owner confirms its API.
         Test::assertTrue(Str::contains($done->text, 'confirms its API'));
         // The account owns the vendor now.
@@ -334,19 +339,21 @@ final class PublishTest
     // The JSON a successful build of this package prints.
     public static function built(string $name, string $digest): string
     {
-        return PublishTest::json({
-            schema: 1,
-            ok: true,
-            name: $name,
-            version: '1.0.0',
-            repository: 'https://git.example.com/a.git',
-            commit: PublishTest::commit(),
-            directory: '',
-            digest: $digest,
-            size: 1024,
-            files: [{ path: 'src/A.nvs', size: 10 }],
-            api: null,
-        });
+        array<mixed> $built = [
+            'schema' => 2,
+            'ok' => true,
+            'name' => $name,
+            'version' => '1.0.0',
+            'repository' => 'https://git.example.com/a.git',
+            'commit' => PublishTest::commit(),
+            'directory' => '',
+            'digest' => $digest,
+            'size' => 1024,
+            'files' => [{ path: 'src/A.nvs', size: 10 }],
+            'api' => null,
+            'doc_coverage' => { documented: 3, public: 6 },
+        ];
+        return PublishTest::json($built);
     }
 
     // Writes a value the test made as JSON.

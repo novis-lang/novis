@@ -86,6 +86,9 @@ final class Schema
         // by token alone is released, unless an owner confirms it earlier. `dependencies` and
         // `capabilities` are JSON from the build. `log` is the number of the release's entry in
         // the log, and it is null until the release is in the log and in the index.
+        // `declarations` is the number of public declarations the build counted in the API, and
+        // `documented` is how many of them have a doc comment. Both are null when the release
+        // came back from the log, because the log does not have them.
         $db->execute(
             'create table if not exists releases ('
                 . 'package text not null references packages (key), version text not null, '
@@ -94,9 +97,16 @@ final class Schema
                 . 'account text not null references accounts (id), token text not null, '
                 . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
                 . 'dependencies text not null, capabilities text not null, log integer, '
+                . 'declarations integer, documented integer, '
                 . 'primary key (package, version))',
             [],
         );
+        // A database made before the two counts of the build has a `releases` table without them.
+        foreach (['declarations', 'documented'] as var $column) {
+            if ($db->query('select 1 from pragma_table_info(?) where name = ?', ['releases', $column])->count() == 0) {
+                $db->execute('alter table releases add column ' . $column . ' integer', []);
+            }
+        }
         // What changed about a release after it was published. Each column is null until it happens.
         // `stable_at` is the time an owner confirmed the first API at `0.1.0` or higher. `unlisted_at`
         // is null again when the unlist is reversed. `retracted_at` is the time the retraction shows

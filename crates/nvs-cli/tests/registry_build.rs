@@ -489,7 +489,7 @@ fn shown(out: &Output) -> String {
 /// Asserts that the build failed with a document whose refusal contains `said`.
 fn refused(out: &Output, json: &Value, said: &str) {
     assert!(!out.status.success(), "it succeeded: {}", shown(out));
-    assert_eq!(json["schema"], 1, "{json}");
+    assert_eq!(json["schema"], 2, "{json}");
     assert_eq!(json["ok"], false, "{json}");
     let refusal = json["refusal"].as_str().unwrap_or_default();
     assert!(refusal.contains(said), "`{said}` is not in: {}", shown(out));
@@ -525,7 +525,7 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
 
     let (out, json) = case.build(&host, &commit, &["--archive", archive_arg]);
     assert!(out.status.success(), "{}", shown(&out));
-    assert_eq!(json["schema"], 1, "{json}");
+    assert_eq!(json["schema"], 2, "{json}");
     assert_eq!(json["ok"], true, "{json}");
     assert_eq!(json["name"], "Acme\\Http", "{json}");
     assert_eq!(json["version"], "1.0.0", "{json}");
@@ -533,6 +533,11 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
     assert_eq!(json["commit"], commit.as_str(), "{json}");
     assert_eq!(json["directory"], "", "{json}");
     assert_eq!(json["api"], Value::Null, "{json}");
+    assert_eq!(
+        json["doc_coverage"],
+        serde_json::json!({"documented": 0, "public": 2}),
+        "{json}"
+    );
     assert_eq!(json["dependencies"], serde_json::json!({}), "{json}");
     assert_eq!(
         json["capabilities"],
@@ -880,6 +885,35 @@ fn the_clone_fetches_the_commit_without_its_history() {
         served < big.len() as u64 / 8,
         "the host sent {served} bytes for a history with a file of {} bytes",
         big.len()
+    );
+}
+
+/// `doc_coverage` counts the public declarations with a `///` doc comment, of all public
+/// declarations: the enum, its cases, the class and its public constant and method. A private
+/// method is not counted.
+#[test]
+fn a_build_counts_the_public_declarations_with_a_doc_comment() {
+    let case = Case::new("registry-build-coverage");
+    case.package("", "1.0.0", false);
+    case.write(
+        "src/Client.nvs",
+        b"<?nvs\nnamespace Acme\\Http;\n\n/// What a request does.\nenum Verb\n{\n    \
+          /// Reads a resource.\n    Get = 1,\n    Post = 2,\n}\n\nfinal class Client\n{\n    \
+          /// The name of the client.\n    public const string NAME = 'client';\n\n    \
+          public static function name(): string\n    {\n        return Client::inner();\n    \
+          }\n\n    /// Not counted, because it is private.\n    \
+          private static function inner(): string\n    {\n        return Client::NAME;\n    \
+          }\n}\n",
+    );
+    let commit = case.commit("documented");
+    let host = Host::start(&case);
+
+    let (out, json) = case.build(&host, &commit, &[]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(
+        json["doc_coverage"],
+        serde_json::json!({"documented": 3, "public": 6}),
+        "{json}"
     );
 }
 

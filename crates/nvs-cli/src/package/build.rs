@@ -22,7 +22,8 @@
 //!
 //! **What it prints is one JSON document** on standard output, for the service: `"ok": true` with
 //! the name, the version, the digest, every file, the dependencies with their minimums, the
-//! requested capabilities in the index file's shape, and the API report, or `"ok": false` with the
+//! requested capabilities in the index file's shape, the API report, and `doc_coverage`: how many
+//! public declarations carry a doc comment, of how many ([`api::Coverage`]), or `"ok": false` with the
 //! refusal as a sentence the service shows the publisher, and exit `1`. A compile error's
 //! diagnostics go to standard error, as `nvs pkg api` prints them. `--archive` and `--api` write
 //! the archive and its API document for the service to store, each through a temporary file.
@@ -45,8 +46,8 @@ use super::index::{Fault, fault};
 use super::manifest::{Manifest, Source, Version};
 use super::{api, diff, fetch};
 
-/// What the JSON document's `schema` is. A change to its keys raises it.
-pub(crate) const SCHEMA: u64 = 1;
+/// What the JSON document's `schema` is. A change to its keys raises it: `2` added `doc_coverage`.
+pub(crate) const SCHEMA: u64 = 2;
 
 /// One build's inputs, as `nvs registry build` takes them.
 #[derive(clap::Args, Debug)]
@@ -159,7 +160,7 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .as_ref()
         .expect("`checked` refuses a manifest with no name");
     let unpacked = Unpacked::new(&scratch, &cloned.archive)?;
-    let document = api::extract(&unpacked.0).map_err(|_| {
+    let (document, coverage) = api::extract_counted(&unpacked.0).map_err(|_| {
         fault(format!(
             "`{name}` does not compile at the commit `{commit}`. The build's standard error has \
              the errors."
@@ -223,6 +224,13 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         capabilities(cloned.manifest.package.as_ref()),
     );
     out.insert("api".into(), report);
+    out.insert(
+        "doc_coverage".into(),
+        serde_json::json!({
+            "documented": coverage.documented,
+            "public": coverage.public,
+        }),
+    );
     Ok(Value::Object(out))
 }
 

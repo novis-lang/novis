@@ -31,6 +31,12 @@
 //! sorted by `serde_json`'s map, and the pretty printer writes `\n` on every platform, so two runs
 //! over one package are byte-identical anywhere. `schema` is [`SCHEMA`], and goes up when a reader
 //! of an older document could misread a newer one.
+//!
+//! ## Doc-comment coverage
+//!
+//! [`extract_counted`] also returns a [`Coverage`], counted over the declarations the document
+//! lists, for `nvs registry build` (`rule:packaging/search-sorts-by-the-readers-choice`). It is
+//! kept out of the document, because a doc comment is not the API's shape.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -39,8 +45,9 @@ use std::process::ExitCode;
 use nvs_diagnostics::{SourceFile, SourceMap, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassDecl, ClassMember, ClassMemberKind, ConstMember, EnumDecl, InterfaceDecl, MethodMember,
-    Modifier, Name, Param, PropertyMember, Stmt, StmtKind, Type, TypeAtom, TypeKind, Visibility,
+    ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, EnumDecl, InterfaceDecl,
+    MethodMember, Modifier, Name, Param, PropertyMember, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+    Visibility,
 };
 use rustc_hash::FxHashMap;
 use serde_json::{Map, Value};
@@ -70,9 +77,33 @@ pub(crate) fn run(dir: &Path) -> ExitCode {
     }
 }
 
+/// How many of a package's public declarations carry a `///` doc comment. A declaration is a
+/// class, interface, enum or `type` alias, an enum case, and each constant, property and method
+/// the document lists. A promoted constructor parameter has no doc comment of its own, so it is
+/// not counted.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Coverage {
+    /// The declarations with a doc comment.
+    pub(crate) documented: usize,
+    /// Every declaration counted.
+    pub(crate) public: usize,
+}
+
+impl Coverage {
+    fn add(&mut self, doc: Option<&DocComment>) {
+        self.public += 1;
+        self.documented += usize::from(doc.is_some());
+    }
+}
+
 /// The API document of the package in `dir`, or the exit code to return. Each way to fail has
 /// already reported on standard error.
 pub(crate) fn extract(dir: &Path) -> Result<Value, ExitCode> {
+    extract_counted(dir).map(|(document, _)| document)
+}
+
+/// [`extract`]'s document, and its declarations' doc-comment [`Coverage`].
+pub(crate) fn extract_counted(dir: &Path) -> Result<(Value, Coverage), ExitCode> {
     let src = dir.join("src");
     let mut files = Vec::new();
     let mut cases = false;
@@ -102,7 +133,7 @@ pub(crate) fn extract(dir: &Path) -> Result<Value, ExitCode> {
 }
 
 /// The document over a checked program: every declaration but the entry's, which has none.
-fn document(checked: &crate::Checked) -> Value {
+fn document(checked: &crate::Checked) -> (Value, Coverage) {
     let mut decls = Vec::new();
     for file in checked.files.iter().filter(|file| file.id != checked.id) {
         collect(&file.stmts, checked.map.file(file.id), "", &mut decls);
@@ -123,7 +154,39 @@ fn document(checked: &crate::Checked) -> Value {
         "declarations".into(),
         Value::Array(decls.iter().map(|decl| api.decl_json(decl)).collect()),
     );
-    Value::Object(out)
+    (Value::Object(out), coverage(&decls))
+}
+
+/// The doc-comment [`Coverage`] of `decls` and of the members the document lists for them. An
+/// enum or alias a body owns is one of `decls`, so the member walk skips it.
+fn coverage(decls: &[Decl<'_>]) -> Coverage {
+    let mut count = Coverage::default();
+    for decl in decls {
+        count.add(decl.doc);
+        let members = match decl.item {
+            Item::Class(class) => class.members.as_slice(),
+            Item::Interface(interface) => interface.members.as_slice(),
+            Item::Enum(decl) => {
+                for case in &decl.cases {
+                    count.add(case.doc.as_ref());
+                }
+                decl.members.as_slice()
+            }
+            Item::Alias(_) => &[],
+        };
+        for member in members {
+            let listed = match &member.kind {
+                ClassMemberKind::Const(constant) => visible(&constant.modifiers),
+                ClassMemberKind::Property(property) => visible(&property.modifiers),
+                ClassMemberKind::Method(method) => visible(&method.modifiers),
+                _ => false,
+            };
+            if listed {
+                count.add(member.doc.as_ref());
+            }
+        }
+    }
+    count
 }
 
 /// One declaration, and where its names are resolved.
@@ -132,6 +195,8 @@ struct Decl<'a> {
     name: String,
     item: Item<'a>,
     site: Site<'a>,
+    /// The `///` run above it, for [`coverage`].
+    doc: Option<&'a DocComment>,
 }
 
 enum Item<'a> {
@@ -207,6 +272,7 @@ fn collect<'a>(stmts: &'a [Stmt], src: &'a SourceFile, enclosing: &str, out: &mu
                     name,
                     item: Item::Class(decl),
                     site: inner,
+                    doc: decl.doc.as_ref(),
                 });
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -220,6 +286,7 @@ fn collect<'a>(stmts: &'a [Stmt], src: &'a SourceFile, enclosing: &str, out: &mu
                     name,
                     item: Item::Interface(decl),
                     site: inner,
+                    doc: decl.doc.as_ref(),
                 });
             }
             StmtKind::EnumDecl(decl) => {
@@ -232,12 +299,14 @@ fn collect<'a>(stmts: &'a [Stmt], src: &'a SourceFile, enclosing: &str, out: &mu
                     name,
                     item: Item::Enum(decl),
                     site: inner,
+                    doc: decl.doc.as_ref(),
                 });
             }
             StmtKind::TypeAliasDecl(decl) => out.push(Decl {
                 name: qualify(&namespace, text(src, decl.name.span)),
                 item: Item::Alias(&decl.ty),
                 site: site.clone(),
+                doc: decl.doc.as_ref(),
             }),
             _ => {}
         }
@@ -260,12 +329,14 @@ fn owned<'a>(members: &'a [ClassMember], owner: &str, site: &Site<'a>, out: &mut
                         ..site.clone()
                     },
                     name,
+                    doc: member.doc.as_ref().or(decl.doc.as_ref()),
                 });
             }
             ClassMemberKind::TypeAlias(decl) => out.push(Decl {
                 name: format!("{owner}::{}", text(site.src, decl.name.span)),
                 item: Item::Alias(&decl.ty),
                 site: site.clone(),
+                doc: member.doc.as_ref().or(decl.doc.as_ref()),
             }),
             _ => {}
         }
