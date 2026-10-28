@@ -83,7 +83,7 @@ stages:
         rules: [packaging/the-registry-is-a-novis-program]
   - id: 12
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: registry-tests
@@ -708,39 +708,40 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 11 are done; stage 12, the gate, is next. This session:
-- Wrote `the_publishing_commands_work_against_the_registry_service` in
-  `crates/nvs-cli/tests/registry_build.rs`: a served copy of `apps/registry`, a sign-up and a token
-  over HTTP with a Rust passkey, then `nvs pkg login`, `whoami`, `publish` (built by the service
-  from the test's HTTPS git host, and the client's digest agrees), `whoami` with the pending
-  release, `retract` and `unlist` (standing decision *plays the browser in Rust*). It passed once
-  by name in 4 s, and clippy is clean.
-- `registry-tests`, `service-proofs` and `owners-closes` pass, so stage 10 is done.
-- The sweep's `env-secret-proofs` log reads exit 0 again (looper's service state), and nightly
-  40662443492 was cancelled by a newer push. Neither needs a change in the tree.
+Every stage is done, and the goal is reached. Stage 12's gate found these, each fixed and committed:
+- `rule:packaging/an-owner-is-notified-without-email` was shipped with a `goal` and no
+  `guardedBy`; it names `FeedsTest`, `PushTest` and `WebhooksTest` now.
+- `nvs fmt` was not a fixed point when a broken list moved an item holding a broken operator
+  chain onto its own line. `Indent::opening_of` now counts a broken list's breaks
+  (`crates/nvs-fmt/src/indent.rs`), with a case in `tests/list_layout.rs`. The registry files
+  are in the one layout.
+- `nvs pkg publish` stopped waiting after 30 s while the registry's clone may take 300 s; it
+  waits the clone's limit and a minute more (`crates/nvs-cli/src/package/publish.rs`'s `WITHIN`).
+- Two test expectations matched their fixtures again, and the registry tests read through `nvs_repo`.
+- `Vendors::removeOwner`, `Releases::rebind` and `Activity::answer` read before they wrote, so
+  SQLite failed the lock upgrade at once beside a parallel writer (`500` in
+  `VendorsTest::anOwnerAddsAndRemovesOwners`). Each writes first now.
 
-Watch in stage 12: the new test's `nvs registry build`, `log append` and `index sign` children run
-with no `--data`, so they use `.nvsdata` beside the test's `nvs`. On a runner where that folder
-fails the ownership check, the publish answers `500`. The test needs `git` with `http-backend`,
-as the rest of the file does. `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads
-the refusal by status only. Every changing route sends notices to `https://hooks.invalid/<account>`,
-so a slow registry test may be DNS. One run in three had `IndexTest`'s `catchUp` return `false`.
-The three attacks under `tests/hostile/tools/packages/nvs-pkg-*` first run in the hostile suite
-there. No test is expected red.
+The second `bun nv affected --run` is green. `bun nv verify --doc`, `bun nv owners --closes
+registry-service` and `bun nv ci --check` pass, as do `registry-tests` and `service-proofs`.
+
+Watch: `nvs-stdlib test ldap` timed out three Samba cases beside the other binaries once and
+passed alone; Samba logged no crash, and nothing here reaches LDAP. `IndexTest`'s
+`aPublishedReleaseIsInTheLogAndInTheIndexFile` failed once in about 30 registry runs before the
+write-first fix and not in 23 after; its `catchUp` hides the error, so a repeat needs the caught
+`RuntimeError` written out to tell a log refusal from a store failure. No test is expected red.
 
 ### Next
 
-Stage 12.
-- [ ] `bun nv affected --run` with `run_in_background`, then every failure fixed in one pass and a second green run. `tools/nv/cmd/verify.ts:1`
-- [ ] Before `DONE`: `bun nv verify --doc`, `bun nv owners --closes registry-service`, `bun nv ci --check`. `crates/nvs-cli/tests/registry_build.rs:1337`
+Nothing: the goal is reached. The driver runs the acceptance checks and retires the file.
 
 ### Backlog
 
