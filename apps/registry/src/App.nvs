@@ -178,6 +178,7 @@ final class App
     }
 
     // Adds an owner to a vendor. Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    // The new owner must have a verified channel for messages.
     #[Route(path: '/api/vendors/{vendor}/owners', method: Method::Post)]
     #[Access(allow: Visitor::SignedIn)]
     public static function addOwner(tainted string $vendor): void
@@ -195,6 +196,10 @@ final class App
             ?string $account = Accounts::idOf(Request::jsonAs<OwnerAnswer>()->account);
             if ($account == null || !new Accounts($db)->exists($account)) {
                 App::fail(404, 'There is no account with this id.');
+                return;
+            }
+            if (!new Channels($db)->hasVerified($account)) {
+                App::fail(403, 'This account has no verified channel for messages. It must add a push device or a webhook before it can become an owner.');
                 return;
             }
             if (!$vendors->addOwner($name, $account)) {

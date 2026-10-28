@@ -1,0 +1,158 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Random;
+use Core\Time;
+
+// Saves the ways to reach each owner: push devices and webhooks. A new channel gets a one-time code
+// in a test message. It counts only after the owner sends that code back.
+// A channel that stops working stops counting. An account with no verified channel that works
+// cannot publish and cannot become an owner.
+final class Channels
+{
+    // A browser or a phone that gets Web Push messages. Its target is the subscription as JSON.
+    public const string PUSH = 'push';
+
+    // A URL that gets a signed `POST` for each message. Its target is the URL.
+    public const string WEBHOOK = 'webhook';
+
+    // The hours a one-time code works after it is sent.
+    public const int CODE_HOURS = 24;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Adds a channel that is not verified yet. `$kind` is `push` or `webhook`.
+    // It returns the id of the channel and its one-time code. The caller sends the code in the test message.
+    // Only the SHA-256 hash of the code is saved.
+    public function add(string $account, string $kind, string $target): array<string>
+    {
+        string $id = Random::token(8);
+        string $code = Random::token(16);
+        int $now = Time::now()->toEpochSeconds();
+        $this->db->execute(
+            'insert into channels (id, account, kind, target, created_at, code_hash, code_until) values (?, ?, ?, ?, ?, ?, ?)',
+            [$id, $account, $kind, $target, $now, Tokens::hashOf($code), $now + Channels::CODE_HOURS * 3600],
+        );
+        return ['id' => $id, 'code' => $code];
+    }
+
+    // Makes a new one-time code for a channel of the account, such as when the owner sends another test.
+    // It returns the code, or `null` when the account has no such channel.
+    public function newCode(string $account, tainted string $id): ?string
+    {
+        string $code = Random::token(16);
+        int $now = Time::now()->toEpochSeconds();
+        var $write = $this->db->execute(
+            'update channels set code_hash = ?, code_until = ? where id = ? and account = ?',
+            [Tokens::hashOf($code), $now + Channels::CODE_HOURS * 3600, $id, $account],
+        );
+        return $write->affected() == 1 ? $code : null;
+    }
+
+    // Checks the code that the owner sent back. A right code verifies the channel, and the code
+    // cannot be used again. A channel that stopped working counts again once it is verified again.
+    // It returns `false` for a wrong or expired code, or a channel of another account.
+    public function verify(string $account, tainted string $id, tainted string $code): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        var $write = $this->db->execute(
+            'update channels set verified_at = ?, answered_at = ?, failed_at = null, code_hash = null, code_until = null '
+                . 'where id = ? and account = ? and code_hash = ? and code_until > ?',
+            [$now, $now, $id, $account, Tokens::hashOf($code), $now],
+        );
+        return $write->affected() == 1;
+    }
+
+    // Saves that the channel took a message now.
+    public function answered(string $id): void
+    {
+        $this->db->execute('update channels set answered_at = ? where id = ?', [Time::now()->toEpochSeconds(), $id]);
+    }
+
+    // Saves that the channel stopped working, such as a webhook that still fails after its retries.
+    // It stops counting until the owner verifies it again.
+    public function failed(string $id): void
+    {
+        $this->db->execute('update channels set failed_at = ? where id = ? and failed_at is null', [Time::now()->toEpochSeconds(), $id]);
+    }
+
+    // Deletes a channel, such as a push device that the push service no longer knows.
+    public function drop(string $id): void
+    {
+        $this->db->execute('delete from channels where id = ?', [$id]);
+    }
+
+    // Deletes a channel of the account. It returns `false` when the account has no such channel.
+    public function remove(string $account, tainted string $id): bool
+    {
+        return $this->db->execute('delete from channels where id = ? and account = ?', [$id, $account])->affected() == 1;
+    }
+
+    // Returns `true` when the account has a verified channel that works.
+    // Only such an account can publish or become an owner.
+    public function hasVerified(string $account): bool
+    {
+        foreach ($this->db->query(
+            'select 1 as found from channels where account = ? and verified_at is not null and failed_at is null limit 1',
+            [$account],
+        ) as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the channels of the account, the oldest first.
+    public function of(string $account): array<Channel>
+    {
+        array<Channel> $channels = [];
+        foreach ($this->db->query(
+            'select id, kind, created_at, verified_at, answered_at, failed_at from channels where account = ? order by created_at, id',
+            [$account],
+        ) as Row $row) {
+            $channels[] = new Channel(
+                Channels::trusted($row->string('id')),
+                Channels::trusted($row->string('kind')),
+                $row->int('created_at') ?? 0,
+                $row->int('verified_at'),
+                $row->int('answered_at'),
+                $row->int('failed_at'),
+            );
+        }
+        return $channels;
+    }
+
+    // Returns the targets of the verified channels of one kind that work, by the id of each channel.
+    // `$except` is a channel to leave out, or an empty string.
+    public function working(string $account, string $kind, string $except = ''): array<string>
+    {
+        array<string> $targets = [];
+        foreach ($this->db->query(
+            'select id, target from channels where account = ? and kind = ? and id != ? and verified_at is not null and failed_at is null order by created_at, id',
+            [$account, $kind, $except],
+        ) as Row $row) {
+            $targets[Channels::trusted($row->string('id'))] = Channels::trusted($row->string('target'));
+        }
+        return $targets;
+    }
+
+    // Returns the kind and the target of a channel of the account, or `null` when it has no such channel.
+    public function find(string $account, tainted string $id): ?array<string>
+    {
+        foreach ($this->db->query('select kind, target from channels where id = ? and account = ?', [$id, $account]) as Row $row) {
+            return ['kind' => Channels::trusted($row->string('kind')), 'target' => Channels::trusted($row->string('target'))];
+        }
+        return null;
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

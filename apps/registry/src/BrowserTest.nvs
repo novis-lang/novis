@@ -70,12 +70,29 @@ final class BrowserTest
         return $this->send(Method::Post, '/api/signup', $this->register($options->body()));
     }
 
-    // Signs up, and returns the id of the new account.
+    // Signs up, gives the new account a verified webhook, and returns the id of the account.
+    // An account needs a verified channel to publish or to become an owner.
     public function newAccount(): string
+    {
+        string $account = $this->newAccountWithoutChannel();
+        BrowserTest::verifiedChannel($account);
+        return $account;
+    }
+
+    // Signs up, and returns the id of the new account. The account has no channel for messages.
+    public function newAccountWithoutChannel(): string
     {
         var $signUp = $this->signUp();
         Test::assertSame($signUp->status(), 201);
         return Accounts::idOf(($signUp->json() as array<mixed>)['account'] as tainted string) ?? '';
+    }
+
+    // Adds a webhook to the account and verifies it with its code, as an owner does on the website.
+    public static function verifiedChannel(string $account): void
+    {
+        var $channels = new Channels(Schema::open());
+        array<string> $added = $channels->add($account, Channels::WEBHOOK, 'https://hooks.example.com/' . $account);
+        Test::assertTrue($channels->verify($account, $added['id'], $added['code']));
     }
 
     // Signs up, and makes the new account the owner of a new vendor with a random name, such as `V3f2a9c1e`.

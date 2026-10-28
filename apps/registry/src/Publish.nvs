@@ -44,6 +44,9 @@ final class Publish
         if (!new Accounts($this->db)->isActive($token->account)) {
             return Published::refused(403, 'This account did not sign in with a passkey in the last 60 days. Sign in on the website, then publish again.');
         }
+        if (!new Channels($this->db)->hasVerified($token->account)) {
+            return Published::refused(403, 'This account has no verified channel for messages. Add a push device or a webhook on the website, then publish again.');
+        }
         ?string $repository = Publish::repositoryOf($sent->repository);
         if ($repository == null) {
             return Published::refused(400, 'The repository must be an `https://` URL.');

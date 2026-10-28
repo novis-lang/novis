@@ -1,0 +1,21 @@
+<?nvs
+namespace Registry;
+
+// One way to reach an owner, as the account page lists it: a push device or a webhook.
+// The subscription or the URL is not here. Every time is in seconds since 1970.
+// `verifiedAt` is `null` until the owner sends back the code of the test message.
+// `answeredAt` is the last time the push service or the webhook took a message.
+// `failedAt` is the time the channel stopped working, or `null` while it works.
+#[Core\Json\Derive]
+final class Channel
+{
+    public function constructor(
+        public readonly string $id,
+        public readonly string $kind,
+        public readonly int $createdAt,
+        public readonly ?int $verifiedAt,
+        public readonly ?int $answeredAt,
+        public readonly ?int $failedAt,
+    )
+    {}
+}

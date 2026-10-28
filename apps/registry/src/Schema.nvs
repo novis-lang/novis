@@ -108,6 +108,17 @@ final class Schema
                 . 'primary key (package, version))',
             [],
         );
+        // The ways to reach each owner. `kind` is `push` or `webhook`. `target` is the push subscription
+        // as JSON, or the URL of the webhook. `code_hash` is the SHA-256 hash of the one-time code of
+        // the test message, and it is null once the owner sent the code back. A channel counts while
+        // `verified_at` is set and `failed_at` is null. `Channels` writes this table.
+        $db->execute(
+            'create table if not exists channels ('
+                . 'id text primary key, account text not null references accounts (id), kind text not null, '
+                . 'target text not null, created_at integer not null, code_hash text, code_until integer, '
+                . 'verified_at integer, answered_at integer, failed_at integer)',
+            [],
+        );
         // The entries of the log that wait to be added, one line of JSON each, in the order of `id`.
         // `package` is the package whose index file changes, or null. `Index` deletes a row once the log has it.
         $db->execute('create table if not exists events (id integer primary key, entry text not null, package text)', []);
@@ -139,5 +150,6 @@ final class Schema
         $db->execute('create index if not exists codes_of_account on recovery_codes (account)', []);
         $db->execute('create index if not exists owners_of_account on owners (account)', []);
         $db->execute('create index if not exists tokens_of_account on tokens (account)', []);
+        $db->execute('create index if not exists channels_of_account on channels (account)', []);
     }
 }
