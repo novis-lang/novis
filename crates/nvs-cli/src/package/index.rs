@@ -16,7 +16,9 @@
 //! file per registry URL, so the client still finds the file hosts when the registry's URL does not
 //! answer.
 //!
-//! An `https:` URL is read through [`nvs_stdlib::tool_get`], one TLS stack with `Core\Http\Client`.
+//! An `https:` URL is read through [`nvs_stdlib::tool_stream`], one TLS stack with
+//! `Core\Http\Client`, and the read stops one byte past the file's limit, so an archive is read up
+//! to [`pack::MAX_ARCHIVE_BYTES`] and no further.
 //! A relative `file:` URL resolves against the directory of the `package.toml` that names it.
 //!
 //! Cost: the client holds each index file it read while it resolves, and one archive at a time.
@@ -45,8 +47,11 @@ const MAX_ROOT_BYTES: u64 = 64 * 1024;
 /// The most bytes an index file may have.
 const MAX_INDEX_BYTES: u64 = 1024 * 1024;
 
-/// How long one `https:` read may take.
+/// How long one `https:` read may take before the size of the file is counted.
 const WITHIN: Duration = Duration::from_secs(30);
+
+/// The slowest rate an `https:` read is given time for, in bytes per second: 256 KiB/s.
+const SLOWEST_RATE: u64 = 256 * 1024;
 
 /// The name a refusal or a failed read names the client by.
 const MEMBER: &str = "nvs pkg";
@@ -134,11 +139,22 @@ impl Place {
                     "User-Agent".to_owned(),
                     format!("nvs/{}", env!("CARGO_PKG_VERSION")),
                 )];
-                let reply = nvs_stdlib::tool_get(MEMBER, &url, headers, WITHIN).map_err(Fault)?;
+                let bounds = nvs_stdlib::ToolBounds {
+                    within: WITHIN + Duration::from_secs(limit / SLOWEST_RATE),
+                    bytes: limit + 1,
+                };
+                let anywhere = |_| None;
+                let mut reply =
+                    nvs_stdlib::tool_stream(MEMBER, &url, headers, None, bounds, &anywhere)
+                        .map_err(Fault)?;
                 match reply.status {
                     200 => {
-                        over(&reply.body, limit, &url)?;
-                        Ok(Some(reply.body))
+                        let mut bytes = Vec::new();
+                        reply
+                            .read_to_end(&mut bytes)
+                            .map_err(|err| fault(format!("cannot read `{url}`: {err}")))?;
+                        over(&bytes, limit, &url)?;
+                        Ok(Some(bytes))
                     }
                     404 | 410 => Ok(None),
                     status => Err(fault(format!("`{url}` returned status {status}"))),
