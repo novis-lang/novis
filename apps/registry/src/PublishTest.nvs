@@ -340,7 +340,7 @@ final class PublishTest
     public static function built(string $name, string $digest): string
     {
         array<mixed> $built = [
-            'schema' => 2,
+            'schema' => 3,
             'ok' => true,
             'name' => $name,
             'version' => '1.0.0',
@@ -352,6 +352,9 @@ final class PublishTest
             'files' => [{ path: 'src/A.nvs', size: 10 }],
             'api' => null,
             'doc_coverage' => { documented: 3, public: 6 },
+            'readme' => "# A\n\nA package for tests.\n",
+            'downloads' => [],
+            'supersedes' => null,
         ];
         return PublishTest::json($built);
     }

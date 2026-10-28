@@ -152,15 +152,19 @@ final class Publish
         string $dependencies = Publish::jsonOf($built['dependencies'] ?? null, '{}');
         string $capabilities = Publish::jsonOf($built['capabilities'] ?? null, '{"required":[],"optional":[]}');
         array<mixed> $coverage = $built['doc_coverage'] as array<mixed>;
+        ?string $changes = $built['api'] == null ? null : Publish::jsonOf($built['api'], '{}');
+        string $files = Publish::jsonOf($built['files'] ?? null, '[]');
+        string $external = Publish::jsonOf($built['downloads'] ?? null, '[]');
+        ?string $supersedes = ($built['supersedes'] ?? null) is string ? Publish::textOf($built['supersedes']) : null;
         bool $saved = $this->db->transaction(fn(): bool => {
             $this->db->execute(
                 'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
                 [$key, $name, Str::lower($vendor), $repository, $directory, $now],
             );
             var $write = $this->db->execute(
-                'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, published_at, pending_until, dependencies, capabilities, declarations, documented) '
-                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
-                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $repository, $directory, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities, $coverage['public'] as int, $coverage['documented'] as int],
+                'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, published_at, pending_until, dependencies, capabilities, declarations, documented, changes, files, external, readme, supersedes) '
+                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
+                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $repository, $directory, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities, $coverage['public'] as int, $coverage['documented'] as int, $changes, $files, $external, Publish::textOf($built['readme'] ?? ''), $supersedes],
             );
             if ($write->affected() != 1) {
                 return false;

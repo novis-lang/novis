@@ -1,0 +1,386 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Html\Markup;
+use Core\Json;
+use Core\Math;
+use Core\Str;
+use Core\Time;
+use Core\Uri;
+
+// The page of a package and the page of one of its versions
+// (`rule:packaging/search-sorts-by-the-readers-choice`).
+// The package page shows each version and its state, the commit each one was built from, the
+// package it replaces, its owners and their history, its retractions and withholds, every fact
+// `Ranking` reads, and the readme. The version page adds the capabilities and what changed in
+// them, the changes to the API, the files of the archive and the files from other hosts.
+// A text a publisher wrote, such as the readme, is escaped and shown as plain text.
+// Cost: a few queries per page, each over the rows of one package or one vendor.
+final class PackagePage
+{
+    // The file with the formula of the default order of a search. Every package page links to it.
+    public const string FORMULA = 'https://github.com/novis-lang/novis/blob/main/apps/registry/src/Ranking.nvs';
+
+    private Connection $db;
+    private int $now;
+
+    public function constructor(Connection $db, int $now)
+    {
+        $this->db = $db;
+        $this->now = $now;
+    }
+
+    // The page of the package `$key`, such as `acme\http`, or `null` when it has no release.
+    public function package(string $key): ?Markup
+    {
+        array<Row> $rows = $this->releases($key);
+        if (Arr::count($rows) == 0) {
+            return null;
+        }
+        string $name = Notices::nameOf($this->db, $key);
+        Row $newest = $rows[0];
+        var $versions = html``;
+        foreach ($rows as Row $row) {
+            string $version = PackagePage::text($row, 'version');
+            string $link = PackagePage::address($name) . '/' . $version;
+            tainted string $repository = PackagePage::raw($row, 'repository');
+            tainted string $commit = PackagePage::raw($row, 'git_commit');
+            string $published = PackagePage::date($row->int('published_at') ?? 0);
+            string $state = $this->stateOf($key, $row);
+            $versions = $versions + html`<tr><td><a href="{$link}">{$version}</a></td><td>{$state}</td><td>{$published}</td><td>{$repository}</td><td><code>{$commit}</code></td></tr>`;
+        }
+        var $content = html`<h1>{$name}</h1>`
+            + $this->replaces($newest)
+            + $this->replacedBy($name)
+            + html`<h2>Versions</h2>
+<table><tr><th>Version</th><th>State</th><th>Published</th><th>Repository</th><th>Commit</th></tr>{$versions}</table>`
+            + $this->advisories($rows)
+            + $this->ranking($key)
+            + $this->owners($key)
+            + PackagePage::readme($newest);
+        return PackagePage::layout($name, $content);
+    }
+
+    // The page of one version of the package `$key`, or `null` when the package has no such version.
+    public function version(string $key, string $version): ?Markup
+    {
+        foreach ($this->releases($key) as Row $row) {
+            if (PackagePage::text($row, 'version') != $version) {
+                continue;
+            }
+            string $name = Notices::nameOf($this->db, $key);
+            string $back = PackagePage::address($name);
+            tainted string $repository = PackagePage::raw($row, 'repository');
+            tainted string $directory = PackagePage::raw($row, 'directory');
+            tainted string $commit = PackagePage::raw($row, 'git_commit');
+            string $digest = PackagePage::text($row, 'digest');
+            string $size = PackagePage::bytes($row->int('size') ?? 0);
+            string $published = PackagePage::date($row->int('published_at') ?? 0);
+            string $state = $this->stateOf($key, $row);
+            var $content = html`<h1>{$name} {$version}</h1>
+<p><a href="{$back}">All versions of {$name}</a></p>
+<table>
+<tr><th>State</th><td>{$state}</td></tr>
+<tr><th>Published</th><td>{$published}</td></tr>
+<tr><th>Repository</th><td>{$repository}</td></tr>
+<tr><th>Folder in the repository</th><td>{$directory}</td></tr>
+<tr><th>Commit</th><td><code>{$commit}</code></td></tr>
+<tr><th>Archive</th><td><code>{$digest}</code>, {$size}</td></tr>
+</table>`
+                + $this->replaces($row)
+                + $this->advisories([$row])
+                + $this->capabilities($key, $row)
+                + $this->changes($row)
+                + PackagePage::files($row)
+                + PackagePage::external($row)
+                + PackagePage::readme($row);
+            return PackagePage::layout($name . ' ' . $version, $content);
+        }
+        return null;
+    }
+
+    // The state of a release at this time: `withheld`, `retracted`, `unlisted`, `waits for an owner`,
+    // `pending until` and a date, or `released`.
+    public function stateOf(string $key, Row $row): string
+    {
+        ?int $retractedAt = $row->int('retracted_at');
+        if (PackagePage::raw($row, 'withheld') != '') {
+            return 'withheld';
+        }
+        if ($retractedAt != null && $retractedAt <= $this->now) {
+            return 'retracted';
+        }
+        if ($row->int('unlisted_at') != null) {
+            return 'unlisted';
+        }
+        ?int $at = new Releases($this->db)->selectableAt($this->db, $key, PackagePage::text($row, 'version'));
+        if ($at == null) {
+            return 'waits for an owner';
+        }
+        if ($at > $this->now) {
+            return 'pending until ' . PackagePage::date($at);
+        }
+        return 'released';
+    }
+
+    // The capabilities this version requests, and what changed from the version before.
+    private function capabilities(string $key, Row $row): Markup
+    {
+        return html``;
+    }
+
+    // The changes to the API from the version before, as the build of this version found them.
+    private function changes(Row $row): Markup
+    {
+        return html``;
+    }
+
+    // Every release of the package with its state, the newest version first.
+    private function releases(string $key): array<Row>
+    {
+        array<Row> $rows = [];
+        var $found = $this->db->query(
+            'select r.*, s.unlisted_at, s.retracted_at, s.retract_reason, s.fixed_in, s.withheld '
+                . 'from releases r left join release_states s on s.package = r.package and s.version = r.version '
+                . 'where r.package = ? order by r.major desc, r.minor desc, r.patch desc',
+            [$key],
+        );
+        foreach ($found as Row $row) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    // The sentence about the package this release replaces, or nothing.
+    private function replaces(Row $row): Markup
+    {
+        tainted string $replaced = PackagePage::raw($row, 'supersedes');
+        if ($replaced == '') {
+            return html``;
+        }
+        string $link = PackagePage::address(PackagePage::trusted($replaced));
+        return html`<p>This package replaces <a href="{$link}">{$replaced}</a>.</p>`;
+    }
+
+    // The packages whose newest release says that they replace `$name`.
+    private function replacedBy(string $name): Markup
+    {
+        var $found = $this->db->query(
+            'select distinct p.name from releases r join packages p on p.key = r.package where lower(r.supersedes) = ? order by p.name',
+            [Str::lower($name)],
+        );
+        var $items = html``;
+        foreach ($found as Row $row) {
+            string $other = PackagePage::text($row, 'name');
+            string $link = PackagePage::address($other);
+            $items = $items + html`<li><a href="{$link}">{$other}</a></li>`;
+        }
+        return $found->count() == 0 ? html`` : html`<p>These packages say that they replace this one:</p><ul>{$items}</ul>`;
+    }
+
+    // The retractions and the withholds of these releases, each with its reason.
+    private function advisories(array<Row> $rows): Markup
+    {
+        var $items = html``;
+        bool $any = false;
+        foreach ($rows as Row $row) {
+            string $version = PackagePage::text($row, 'version');
+            tainted string $withheld = PackagePage::raw($row, 'withheld');
+            if ($withheld != '') {
+                $items = $items + html`<li>{$version} is withheld by the operator of the registry. The reason is: {$withheld}</li>`;
+                $any = true;
+            }
+            ?int $retractedAt = $row->int('retracted_at');
+            if ($retractedAt != null) {
+                string $from = PackagePage::date($retractedAt);
+                tainted string $reason = PackagePage::raw($row, 'retract_reason');
+                tainted string $fixedIn = PackagePage::raw($row, 'fixed_in');
+                var $fix = $fixedIn == '' ? html`` : html` Version {$fixedIn} fixes it.`;
+                $items = $items + html`<li>{$version} is retracted from {$from}. The reason is: {$reason}{$fix}</li>`;
+                $any = true;
+            }
+        }
+        if (!$any) {
+            return html`<h2>Advisories</h2><p>No version is retracted or withheld.</p>`;
+        }
+        return html`<h2>Advisories</h2><ul>{$items}</ul>`;
+    }
+
+    // Every fact the default order reads, the score it gives, and the link to the formula.
+    private function ranking(string $key): Markup
+    {
+        string $formula = PackagePage::FORMULA;
+        array<Facts> $all = Ranking::facts($this->db, $this->now, null, $key);
+        if (Arr::count($all) == 0) {
+            return html`<h2>Order in a search</h2>
+<p>No version of this package is released yet, so a search does not show it. <a href="{$formula}">The formula</a> explains the order of a search.</p>`;
+        }
+        Facts $facts = $all[0];
+        string $score = PackagePage::share(Ranking::score($facts));
+        string $work = PackagePage::share(Ranking::work($facts));
+        string $use = PackagePage::share(Ranking::use($facts));
+        string $age = $facts->ageDays . ' days';
+        string $months = '' . $facts->activeMonths;
+        string $recent = $facts->daysSinceRelease . ' days';
+        string $declarations = '' . $facts->declarations;
+        string $documented = '' . $facts->documented;
+        string $fixes = '' . $facts->fixedRetractions;
+        string $downloads = '' . $facts->downloads;
+        return html`<h2>Order in a search</h2>
+<p>The default order of a search uses these facts. The registry saw each one itself. <a href="{$formula}">The formula</a> explains how they give the score.</p>
+<table>
+<tr><th>Time since the first publish</th><td>{$age}</td></tr>
+<tr><th>Months with at least one release</th><td>{$months}</td></tr>
+<tr><th>Time since the newest release</th><td>{$recent}</td></tr>
+<tr><th>Public declarations in the highest version</th><td>{$declarations}</td></tr>
+<tr><th>Declarations with a doc comment</th><td>{$documented}</td></tr>
+<tr><th>Retracted versions that name the version with the fix</th><td>{$fixes}</td></tr>
+<tr><th>Downloads in the last 90 days</th><td>{$downloads}</td></tr>
+<tr><th>Score for work</th><td>{$work}</td></tr>
+<tr><th>Score for use</th><td>{$use}</td></tr>
+<tr><th>Score</th><td>{$score}</td></tr>
+</table>`;
+    }
+
+    // The owners of the package's vendor, and every change of its owners.
+    private function owners(string $key): Markup
+    {
+        string $vendor = Str::before($key, '\\') ?? $key;
+        var $list = html``;
+        foreach ($this->db->query('select account, added_at from owners where vendor = ? order by added_at', [$vendor]) as Row $row) {
+            string $account = PackagePage::text($row, 'account');
+            string $since = PackagePage::date($row->int('added_at') ?? 0);
+            $list = $list + html`<li><code>{$account}</code>, an owner since {$since}</li>`;
+        }
+        var $history = html``;
+        var $found = $this->db->query("select text, at from notices where vendor = ? and kind = 'ownership' order by id", [$vendor]);
+        foreach ($found as Row $row) {
+            string $at = PackagePage::date($row->int('at') ?? 0);
+            string $text = PackagePage::text($row, 'text');
+            $history = $history + html`<li>{$at}: {$text}</li>`;
+        }
+        var $changes = $found->count() == 0 ? html`<p>The owners did not change.</p>` : html`<ul>{$history}</ul>`;
+        return html`<h2>Owners</h2>
+<p>The owners of the vendor own every package of the vendor. An account has no name, so each owner is shown by the id of the account.</p>
+<ul>{$list}</ul>
+<h3>Changes of the owners</h3>{$changes}`;
+    }
+
+    // Every file of the archive, with its size.
+    private static function files(Row $row): Markup
+    {
+        tainted string $json = PackagePage::raw($row, 'files');
+        if ($json == '') {
+            return html`<h2>Files</h2><p>The registry did not keep the list of files of this version.</p>`;
+        }
+        var $items = html``;
+        foreach ((Json::decode($json) as array<mixed>) as mixed $entry) {
+            array<mixed> $file = $entry as array<mixed>;
+            tainted string $path = $file['path'] as tainted string;
+            string $size = PackagePage::bytes($file['size'] as int);
+            $items = $items + html`<tr><td><code>{$path}</code></td><td>{$size}</td></tr>`;
+        }
+        return html`<h2>Files</h2><table><tr><th>File</th><th>Size</th></tr>{$items}</table>`;
+    }
+
+    // Every file the package downloads from another host, with the host, the size, the SHA-256 hash and the license.
+    private static function external(Row $row): Markup
+    {
+        tainted string $json = PackagePage::raw($row, 'external');
+        array<mixed> $downloads = $json == '' ? [] : Json::decode($json) as array<mixed>;
+        if (Arr::count($downloads) == 0) {
+            return html`<h2>Files from other hosts</h2><p>This version downloads no files from other hosts.</p>`;
+        }
+        var $items = html``;
+        foreach ($downloads as mixed $entry) {
+            array<mixed> $download = $entry as array<mixed>;
+            tainted string $path = $download['path'] as tainted string;
+            array<string> $hosts = [];
+            foreach (($download['urls'] as array<mixed>) as mixed $url) {
+                $hosts[] = PackagePage::hostOf($url as tainted string);
+            }
+            tainted string $hostList = Str::join($hosts, ', ');
+            string $size = PackagePage::bytes($download['size'] as int);
+            tainted string $sha256 = $download['sha256'] as tainted string;
+            tainted string $license = ($download['license'] ?? 'not stated') as tainted string;
+            $items = $items + html`<tr><td><code>{$path}</code></td><td>{$hostList}</td><td>{$size}</td><td><code>{$sha256}</code></td><td>{$license}</td></tr>`;
+        }
+        return html`<h2>Files from other hosts</h2>
+<p><code>nvs pkg fetch</code> downloads each of these files and checks its size and its SHA-256 hash.</p>
+<table><tr><th>File</th><th>Hosts</th><th>Size</th><th>SHA-256</th><th>License</th></tr>{$items}</table>`;
+    }
+
+    // The readme of a release, as plain text.
+    private static function readme(Row $row): Markup
+    {
+        tainted string $text = PackagePage::raw($row, 'readme');
+        if ($text == '') {
+            return html``;
+        }
+        return html`<h2>Readme</h2><pre>{$text}</pre>`;
+    }
+
+    // The host of an address, such as `files.example.com`, or the whole text when it is not an address.
+    // The build checked each address of a `[[download]]` entry before the release was saved.
+    private static function hostOf(tainted string $url): string
+    {
+        string $checked = PackagePage::trusted($url);
+        ?Uri $parsed = Uri::tryParse($checked);
+        return $parsed?->host() ?? $checked;
+    }
+
+    // The address of a package page, such as `/packages/acme/http` for `Acme\Http`.
+    public static function address(string $name): string
+    {
+        return '/packages/' . Str::lower(Str::replace($name, '\\', '/'));
+    }
+
+    // A time as a date, such as `2026-03-04`.
+    private static function date(int $seconds): string
+    {
+        return Str::slice(Time::fromEpoch($seconds)->toIso(), 0, 10);
+    }
+
+    // A size in bytes, such as `1024 bytes`.
+    private static function bytes(int $size): string
+    {
+        return $size == 1 ? '1 byte' : $size . ' bytes';
+    }
+
+    // A score from 0 to 1 as a share, such as `0.42`.
+    private static function share(float $value): string
+    {
+        int $hundredths = Math::round($value * 100.0) as int;
+        return Math::intDiv($hundredths, 100) . '.' . Str::padStart('' . ($hundredths % 100), 2, '0');
+    }
+
+    // A column of a row as text, or `''` when it is null.
+    private static function raw(Row $row, string $column): tainted string
+    {
+        return $row->string($column) ?? '';
+    }
+
+    // A column of a row that the registry wrote itself, such as a version or an account id.
+    private static function text(Row $row, string $column): string
+    {
+        return PackagePage::trusted(PackagePage::raw($row, $column));
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+
+    // The whole page, with its title.
+    private static function layout(string $title, Markup $content): Markup
+    {
+        return html`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{$title} · Novis registry</title></head>
+<body>{$content}</body>
+</html>`;
+    }
+}

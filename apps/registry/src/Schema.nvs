@@ -87,8 +87,13 @@ final class Schema
         // `capabilities` are JSON from the build. `log` is the number of the release's entry in
         // the log, and it is null until the release is in the log and in the index.
         // `declarations` is the number of public declarations the build counted in the API, and
-        // `documented` is how many of them have a doc comment. Both are null when the release
-        // came back from the log, because the log does not have them.
+        // `documented` is how many of them have a doc comment. The package page reads the rest:
+        // `changes` is the build's JSON list of API changes from the version before, `files` is
+        // the JSON list of each file and its size, `external` is the JSON list of the files the
+        // package downloads from other hosts, `readme` is the text of the readme (at most 64 KiB),
+        // and `supersedes` is the package this one replaces. Each of these columns is null when
+        // the release came back from the log, because the log does not have them.
+        // Cost: the readme and the two lists, once per release.
         $db->execute(
             'create table if not exists releases ('
                 . 'package text not null references packages (key), version text not null, '
@@ -98,13 +103,23 @@ final class Schema
                 . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
                 . 'dependencies text not null, capabilities text not null, log integer, '
                 . 'declarations integer, documented integer, '
+                . 'changes text, files text, external text, readme text, supersedes text, '
                 . 'primary key (package, version))',
             [],
         );
-        // A database made before the two counts of the build has a `releases` table without them.
-        foreach (['declarations', 'documented'] as var $column) {
+        // A database made before these columns has a `releases` table without them.
+        array<string> $added = [
+            'declarations' => 'integer',
+            'documented' => 'integer',
+            'changes' => 'text',
+            'files' => 'text',
+            'external' => 'text',
+            'readme' => 'text',
+            'supersedes' => 'text',
+        ];
+        foreach ($added as string $column => string $type) {
             if ($db->query('select 1 from pragma_table_info(?) where name = ?', ['releases', $column])->count() == 0) {
-                $db->execute('alter table releases add column ' . $column . ' integer', []);
+                $db->execute('alter table releases add column ' . $column . ' ' . $type, []);
             }
         }
         // What changed about a release after it was published. Each column is null until it happens.

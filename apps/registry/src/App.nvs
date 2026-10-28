@@ -57,6 +57,29 @@ final class App
         });
     }
 
+    // The page of a package: its versions, owners, advisories, the facts of its order in a search, and its readme.
+    #[Route(path: '/packages/{vendor}/{name}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function packagePage(tainted string $vendor, tainted string $name): void
+    {
+        var $db = Schema::open();
+        ?string $key = new Releases($db)->packageOf($vendor, $name);
+        ?Core\Html\Markup $page = $key == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds())->package($key);
+        App::page($page);
+    }
+
+    // The page of one version of a package: its state, commit, capabilities, API changes, files and readme.
+    #[Route(path: '/packages/{vendor}/{name}/{version}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function versionPage(tainted string $vendor, tainted string $name, tainted string $version): void
+    {
+        var $db = Schema::open();
+        ?string $key = new Releases($db)->packageOf($vendor, $name);
+        ?string $wanted = App::versionOf($version);
+        ?Core\Html\Markup $page = $key == null || $wanted == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds())->version($key, $wanted);
+        App::page($page);
+    }
+
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
     #[Route(path: '/api/signup/work', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
@@ -996,6 +1019,17 @@ final class App
         }
         App::fail(403, 'Sign in with a passkey first. A recovery code is not enough for this.');
         return false;
+    }
+
+    // Sends a page, or a page that says there is no such package when `$page` is `null`.
+    private static function page(?Core\Html\Markup $page): void
+    {
+        if ($page == null) {
+            Response::setStatus(404);
+            Response::html(html`<!doctype html><title>Not found · Novis registry</title><p>There is no such package or version on this registry.</p>`);
+            return;
+        }
+        Response::html($page);
     }
 
     private static function fail(uint $status, string $text): void

@@ -44,8 +44,9 @@ final class Ranking
 
     // The facts of every package that has a release that is out, with the text search `$match`, or
     // of every package when it is `null`. `$match` is a query of the full-text index `search`.
+    // With no `$match`, `$key` limits the result to the package `$key`, such as `acme\http`.
     // Cost: one query. It reads every release and the downloads of the last 90 days of each package it returns.
-    public static function facts(Connection $db, int $now, ?string $match): array<Facts>
+    public static function facts(Connection $db, int $now, ?string $match, ?string $key = null): array<Facts>
     {
         string $sql = 'with shown as ('
             . '  select r.* from releases r left join release_states s on s.package = r.package and s.version = r.version'
@@ -66,6 +67,9 @@ final class Ranking
         if ($match != null) {
             $sql = $sql . 'where p.key in (select key from search where search match ?) ';
             $values[] = $match;
+        } elseif ($key != null) {
+            $sql = $sql . 'where p.key = ? ';
+            $values[] = $key;
         }
         $sql = $sql . 'group by p.key';
         array<Facts> $all = [];
