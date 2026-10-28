@@ -190,7 +190,8 @@ fn fetched(
     outbound: &Outbound,
     started: Instant,
 ) -> Result<gix::Repository, Fault> {
-    let failed = |err: &dyn std::error::Error| fault(format!("cannot fetch `{url}`: {}", chain(err)));
+    let failed =
+        |err: &dyn std::error::Error| fault(format!("cannot fetch `{url}`: {}", chain(err)));
     let repo = gix::ThreadSafeRepository::init_opts(
         dir,
         gix::create::Kind::Bare,
@@ -221,7 +222,10 @@ fn fetched(
     );
     remote
         .to_connection_with_transport(transport)
-        .prepare_fetch(gix::progress::Discard, gix::remote::ref_map::Options::default())
+        .prepare_fetch(
+            gix::progress::Discard,
+            gix::remote::ref_map::Options::default(),
+        )
         .map_err(|err| failed(&err))?
         .with_shallow(gix::remote::fetch::Shallow::DepthAtRemote(NonZeroU32::MIN))
         .receive(gix::progress::Discard, &AtomicBool::new(false))
@@ -791,7 +795,8 @@ pub(crate) mod tests {
         let scratch = nvs_repo::scratch("git-exact");
         let rev = package(&scratch.join("repo"), &[]);
         let url = format!("file:{}", scratch.join("repo").display());
-        let cloned = clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default()).expect("it clones");
+        let cloned =
+            clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default()).expect("it clones");
         assert_eq!(
             cloned.manifest.name.as_ref().map(ToString::to_string),
             Some("Acme\\Git".to_owned())
@@ -810,7 +815,8 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(paths, ["LICENSE", "package.toml", "src/Main.nvs"]);
         assert_eq!(cloned.digest, blake3::hash(&cloned.archive));
-        let again = clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default()).expect("it clones again");
+        let again = clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default())
+            .expect("it clones again");
         assert_eq!(again.digest, cloned.digest);
     }
 
@@ -821,7 +827,8 @@ pub(crate) mod tests {
         package(&scratch.join("repo"), &[]);
         let url = format!("file:{}", scratch.join("repo").display());
         let rev = "1".repeat(40);
-        let fault = clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default()).expect_err("it is refused");
+        let fault = clone(&url, &rev, &scratch, &scratch, LIMITS, &Outbound::default())
+            .expect_err("it is refused");
         assert!(fault.0.contains(&rev), "{fault}");
     }
 
@@ -836,7 +843,8 @@ pub(crate) mod tests {
             bytes: 32 * 1024,
             ..LIMITS
         };
-        let fault = clone(&url, &rev, &scratch, &scratch, limits, &Outbound::default()).expect_err("it is stopped");
+        let fault = clone(&url, &rev, &scratch, &scratch, limits, &Outbound::default())
+            .expect_err("it is stopped");
         assert!(fault.0.contains("larger than 32768 bytes"), "{fault}");
     }
 
@@ -908,5 +916,270 @@ pub(crate) mod tests {
         drop(done);
         host.join().expect("the test's host ends");
         assert!(fault.0.contains("took longer than 1 seconds"), "{fault}");
+    }
+
+    /// Set in the process [`an_https_remote_is_cloned_at_its_exact_commit`] starts for itself.
+    const ALONE: &str = "NVS_TEST_GIT_HTTPS_ALONE";
+
+    /// An `https:` remote on loopback, with the operator's `internal` exception written, is
+    /// fetched over protocol v2 and packs to the digest its `file:` clone has.
+    ///
+    /// The case runs in a process of its own, because the client must trust the host's
+    /// certificate and a process builds its one TLS client once (`rule:security/one-tls-client`).
+    /// Another case in this binary may have built it first.
+    #[test]
+    fn an_https_remote_is_cloned_at_its_exact_commit() {
+        if std::env::var_os(ALONE).is_none() {
+            let name = "package::git::tests::an_https_remote_is_cloned_at_its_exact_commit";
+            let ran = std::process::Command::new(
+                std::env::current_exe().expect("the test binary knows its own path"),
+            )
+            .args([name, "--exact", "--test-threads=1", "--nocapture"])
+            .env(ALONE, "1")
+            .output()
+            .expect("the test binary runs");
+            let said = format!(
+                "{}{}",
+                String::from_utf8_lossy(&ran.stdout),
+                String::from_utf8_lossy(&ran.stderr)
+            );
+            assert!(ran.status.success(), "{said}");
+            assert!(said.contains("1 passed"), "the case did not run: {said}");
+            return;
+        }
+        let scratch = nvs_repo::scratch("git-https");
+        let rev = package(&scratch.join("repo"), &[]);
+        let host = Host::start(&scratch, &rev);
+        nvs_host::tls::configure(&nvs_host::tls::ClientPolicy {
+            roots: vec![host.roots.to_string_lossy().into_owned()],
+            ..nvs_host::tls::ClientPolicy::default()
+        })
+        .expect("this process builds its TLS client here");
+        let outbound = Outbound::new(Some(nvs_config::tree::Capabilities {
+            net: Some(nvs_config::tree::CapNet {
+                internal: Some(nvs_config::Setting::List(vec!["127.0.0.1".to_owned()])),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }));
+        let url = format!("https://127.0.0.1:{}/acme/git", host.port);
+        let fetched = clone(&url, &rev, &scratch, &scratch, LIMITS, &outbound);
+        host.stop();
+        let fetched = fetched.expect("it clones over HTTPS");
+        let local = format!("file:{}", scratch.join("repo").display());
+        let opened = clone(
+            &local,
+            &rev,
+            &scratch,
+            &scratch,
+            LIMITS,
+            &Outbound::default(),
+        )
+        .expect("it clones from disk");
+        assert_eq!(fetched.digest, opened.digest);
+        assert_eq!(fetched.archive, opened.archive);
+    }
+
+    /// A git host on loopback that speaks protocol v2 over HTTPS, with a certificate for
+    /// `127.0.0.1`. Every `fetch` gets the one commit as shallow, and every object of the
+    /// repository in one pack.
+    struct Host {
+        port: u16,
+        /// The certificate's PEM file, which the client's `roots` names.
+        roots: PathBuf,
+        stopped: std::sync::Arc<AtomicBool>,
+        thread: std::thread::JoinHandle<()>,
+    }
+
+    impl Host {
+        /// Packs `scratch/repo`, issues the certificate, and serves one connection after
+        /// another on a thread of its own.
+        fn start(scratch: &Path, rev: &str) -> Self {
+            let pack = packed(&scratch.join("repo"));
+            let issued = rcgen::generate_simple_self_signed(vec!["127.0.0.1".to_owned()])
+                .expect("the certificate is issued");
+            let roots = scratch.join("roots.pem");
+            fs::write(&roots, issued.cert.pem()).expect("the test writes the certificate");
+            let key = rustls::pki_types::PrivateKeyDer::Pkcs8(
+                rustls::pki_types::PrivatePkcs8KeyDer::from(issued.signing_key.serialize_der()),
+            );
+            let config = std::sync::Arc::new(
+                rustls::ServerConfig::builder_with_provider(std::sync::Arc::new(
+                    rustls::crypto::ring::default_provider(),
+                ))
+                .with_safe_default_protocol_versions()
+                .expect("the provider speaks the default versions")
+                .with_no_client_auth()
+                .with_single_cert(vec![issued.cert.der().clone()], key)
+                .expect("the certificate and its key match"),
+            );
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the test listens");
+            let port = listener.local_addr().expect("it has an address").port();
+            let stopped = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = std::sync::Arc::clone(&stopped);
+            let rev = rev.to_owned();
+            let thread = std::thread::spawn(move || {
+                for stream in listener.incoming().map_while(Result::ok) {
+                    if stop.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    // A request that fails here fails the clone, which the case asserts.
+                    let _ = serve(stream, std::sync::Arc::clone(&config), &rev, &pack);
+                }
+            });
+            Self {
+                port,
+                roots,
+                stopped,
+                thread,
+            }
+        }
+
+        /// Ends the thread: the flag is set, and one connection wakes its `accept`.
+        fn stop(self) {
+            self.stopped.store(true, Ordering::SeqCst);
+            let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+            self.thread.join().expect("the test's host ends");
+        }
+    }
+
+    /// One request over TLS on `stream`, and its reply: the capabilities for the `GET`, an
+    /// empty ref list for `ls-refs`, and `shallow-info` and `pack` for `fetch`.
+    fn serve(
+        stream: std::net::TcpStream,
+        config: std::sync::Arc<rustls::ServerConfig>,
+        rev: &str,
+        pack: &[u8],
+    ) -> io::Result<()> {
+        stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+        let conn = rustls::ServerConnection::new(config).map_err(io::Error::other)?;
+        let mut tls = BufReader::new(rustls::StreamOwned::new(conn, stream));
+        let mut request = String::new();
+        tls.read_line(&mut request)?;
+        let mut length = 0;
+        loop {
+            let mut line = String::new();
+            tls.read_line(&mut line)?;
+            if line.trim().is_empty() {
+                break;
+            }
+            if let Some((name, value)) = line.split_once(':')
+                && name.trim().eq_ignore_ascii_case("content-length")
+            {
+                length = value.trim().parse().map_err(io::Error::other)?;
+            }
+        }
+        let mut body = vec![0; length];
+        tls.read_exact(&mut body)?;
+        let mut reply = Vec::new();
+        let kind = if request.starts_with("GET ") {
+            for line in [
+                "version 2\n",
+                "agent=git/test\n",
+                "ls-refs\n",
+                "fetch=shallow\n",
+                "object-format=sha1\n",
+            ] {
+                line_of(&mut reply, line.as_bytes());
+            }
+            reply.extend_from_slice(b"0000");
+            "advertisement"
+        } else {
+            if body.windows(13).any(|w| w == b"command=fetch") {
+                line_of(&mut reply, b"shallow-info\n");
+                line_of(&mut reply, format!("shallow {rev}\n").as_bytes());
+                reply.extend_from_slice(b"0001");
+                line_of(&mut reply, b"packfile\n");
+                for chunk in pack.chunks(60_000) {
+                    let mut band = vec![1];
+                    band.extend_from_slice(chunk);
+                    line_of(&mut reply, &band);
+                }
+            }
+            reply.extend_from_slice(b"0000");
+            "result"
+        };
+        let mut tls = tls.into_inner();
+        write!(
+            tls,
+            "HTTP/1.1 200 OK\r\nContent-Type: application/x-git-upload-pack-{kind}\r\n\
+             Content-Length: {}\r\nConnection: close\r\n\r\n",
+            reply.len()
+        )?;
+        tls.write_all(&reply)?;
+        tls.conn.send_close_notify();
+        tls.flush()
+    }
+
+    /// `data` as one pkt-line: its length with the 4 length digits, in hex, then the data.
+    fn line_of(out: &mut Vec<u8>, data: &[u8]) {
+        out.extend_from_slice(format!("{:04x}", data.len() + 4).as_bytes());
+        out.extend_from_slice(data);
+    }
+
+    /// Every object of the repository at `dir` as one version 2 pack, each object whole and
+    /// stored in zlib with no compression.
+    fn packed(dir: &Path) -> Vec<u8> {
+        let repo = gix::open_opts(dir, gix::open::Options::isolated()).expect("the test opens it");
+        let ids: Vec<gix::ObjectId> = repo
+            .objects
+            .iter()
+            .expect("the test lists the objects")
+            .map(|id| id.expect("an object id reads"))
+            .collect();
+        let mut pack = b"PACK".to_vec();
+        pack.extend_from_slice(&2_u32.to_be_bytes());
+        pack.extend_from_slice(
+            &u32::try_from(ids.len())
+                .expect("a few objects")
+                .to_be_bytes(),
+        );
+        for id in ids {
+            let object = repo.find_object(id).expect("the object reads");
+            let kind: u8 = match object.kind {
+                gix::object::Kind::Commit => 1,
+                gix::object::Kind::Tree => 2,
+                gix::object::Kind::Blob => 3,
+                gix::object::Kind::Tag => 4,
+            };
+            // The type and the size, 4 bits of the size in the first byte and 7 in each next.
+            let mut size = object.data.len();
+            let mut byte = (kind << 4) | u8::try_from(size & 0x0f).expect("4 bits");
+            size >>= 4;
+            while size > 0 {
+                pack.push(byte | 0x80);
+                byte = u8::try_from(size & 0x7f).expect("7 bits");
+                size >>= 7;
+            }
+            pack.push(byte);
+            stored(&mut pack, &object.data);
+        }
+        let mut hasher = gix::hash::hasher(gix::hash::Kind::Sha1);
+        hasher.update(&pack);
+        let sum = hasher.try_finalize().expect("the pack hashes");
+        pack.extend_from_slice(sum.as_bytes());
+        pack
+    }
+
+    /// `data` as a zlib stream of stored deflate blocks, with its Adler-32 sum.
+    fn stored(out: &mut Vec<u8>, data: &[u8]) {
+        out.extend_from_slice(&[0x78, 0x01]);
+        let mut blocks = data.chunks(0xffff).peekable();
+        if blocks.peek().is_none() {
+            out.extend_from_slice(&[1, 0, 0, 0xff, 0xff]);
+        }
+        while let Some(block) = blocks.next() {
+            out.push(u8::from(blocks.peek().is_none()));
+            let len = u16::try_from(block.len()).expect("a block is at most 0xffff bytes");
+            out.extend_from_slice(&len.to_le_bytes());
+            out.extend_from_slice(&(!len).to_le_bytes());
+            out.extend_from_slice(block);
+        }
+        let (mut a, mut b) = (1_u32, 0_u32);
+        for &byte in data {
+            a = (a + u32::from(byte)) % 65521;
+            b = (b + a) % 65521;
+        }
+        out.extend_from_slice(&((b << 16) | a).to_be_bytes());
     }
 }
