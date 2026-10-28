@@ -3,6 +3,7 @@ namespace Registry;
 
 use Core\Db\Connection;
 use Core\Db\Row;
+use Core\Db\Transaction;
 use Core\Encoding;
 use Core\Hash;
 use Core\Random;
@@ -58,17 +59,20 @@ final class Tokens
         return Str::trim(Str::slice($header, 7));
     }
 
-    // Makes a token for an account. It returns the id of the token and the token itself.
-    // The caller shows the token once. Only its hash is saved.
+    // Makes a token for an account, with its entry of the log. It returns the id of the token and
+    // the token itself. The caller shows the token once. Only its hash is saved.
     public function create(string $account, string $scope, int $days): array<string>
     {
         int $now = Time::now()->toEpochSeconds();
         string $id = Random::token(8);
         string $token = Tokens::PREFIX . Random::token(32);
-        $this->db->execute(
-            'insert into tokens (id, hash, account, scope, created_at, expires_at) values (?, ?, ?, ?, ?, ?)',
-            [$id, Tokens::hashOf($token), $account, $scope, $now, $now + $days * 86400],
-        );
+        $this->db->transaction(fn(Transaction $tx): void => {
+            $tx->execute(
+                'insert into tokens (id, hash, account, scope, created_at, expires_at) values (?, ?, ?, ?, ?, ?)',
+                [$id, Tokens::hashOf($token), $account, $scope, $now, $now + $days * 86400],
+            );
+            Events::token($tx, $account, $id, 'created');
+        });
         return ['id' => $id, 'token' => $token];
     }
 
@@ -131,15 +135,22 @@ final class Tokens
         return $found;
     }
 
-    // Revokes a token of an account. From now on, the token does not work.
+    // Revokes a token of an account, with its entry of the log. From now on, the token does not work.
     // It returns `false` when the account has no such token, or it was revoked before.
     public function revoke(string $account, tainted string $id): bool
     {
-        var $write = $this->db->execute(
-            'update tokens set revoked_at = ? where id = ? and account = ? and revoked_at is null',
-            [Time::now()->toEpochSeconds(), $id, $account],
-        );
-        return $write->affected() == 1;
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            var $write = $tx->execute(
+                'update tokens set revoked_at = ? where id = ? and account = ? and revoked_at is null',
+                [Time::now()->toEpochSeconds(), $id, $account],
+            );
+            if ($write->affected() != 1) {
+                return false;
+            }
+            // The id matched a row, so it is a token id the registry made.
+            Events::token($tx, $account, Core\Taint::assertTrusted($id, 'the id matched a token'), 'revoked');
+            return true;
+        });
     }
 
     // The hash that is saved for a token: SHA-256, as 64 hex characters.

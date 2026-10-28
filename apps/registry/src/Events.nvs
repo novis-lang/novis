@@ -1,0 +1,57 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Json;
+use Core\Str;
+
+// The entries of the log that wait to be added, such as an unlist or a new token.
+// A change and its entry are saved in one transaction. `Index` adds the waiting entries to the log
+// under the write lock of the database, before it writes an index file that shows the change.
+// An entry that the log did not take waits for the next change, publish or daily run.
+final class Events
+{
+    // A version was unlisted, or the unlist was reversed, or an owner released it or froze its API
+    // with a passkey. `$kind` is `unlist`, `relist`, `release-confirmed` or `stable-api-confirmed`.
+    // `$key` is the package in lower case, such as `acme\http`.
+    public static function release(Connection|Transaction $db, string $kind, string $key, string $version): void
+    {
+        Events::add($db, Json::encode({ v: 1, kind: $kind, package: Index::slug($key), version: $version }), $key);
+    }
+
+    // A version was retracted or withheld. `$kind` is `retract` or `withhold`.
+    public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason): void
+    {
+        Events::add($db, Json::encode({ v: 1, kind: $kind, package: Index::slug($key), version: $version, reason: $reason }), $key);
+    }
+
+    // An account became an owner of a vendor, or stopped being one. `$change` is `added` or `removed`.
+    // The log names packages, so there is one entry for each package of the vendor.
+    public static function ownership(Connection|Transaction $db, string $vendor, string $account, string $change): void
+    {
+        foreach ($db->query('select key from packages where vendor = ? order by key', [Str::lower($vendor)]) as Row $row) {
+            string $key = Events::trusted($row->string('key'));
+            Events::add($db, Json::encode({ v: 1, kind: 'ownership', package: Index::slug($key), account: $account, change: $change }), $key);
+        }
+    }
+
+    // A token was made or revoked. `$id` is the id of the token, never the token itself.
+    // `$change` is `created` or `revoked`. No index file changes.
+    public static function token(Connection|Transaction $db, string $account, string $id, string $change): void
+    {
+        Events::add($db, Json::encode({ v: 1, kind: 'token', account: $account, token: $id, change: $change }), null);
+    }
+
+    // Saves one entry, as one line of JSON. `$key` is the package whose index file changes, or `null`.
+    private static function add(Connection|Transaction $db, tainted string $entry, ?string $key): void
+    {
+        $db->execute('insert into events (entry, package) values (?, ?)', [Events::trusted($entry), $key]);
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

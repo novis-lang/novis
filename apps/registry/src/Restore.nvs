@@ -179,11 +179,13 @@ final class Restore
             throw new RuntimeError('The vendor of ' . $key . ' has no owner.');
         }
         // A release that the index file lists as waiting keeps its time. The archive and the API file
-        // are not on this computer, so their paths stay empty.
+        // are not on this computer, so their paths stay empty. A release that waits for an owner
+        // has no time in the index, and the first stable release then waits again.
         ?int $until = null;
         mixed $state = $listed['state'];
-        if ($state is array<mixed>) {
-            $until = (($state as array<mixed>)['pending'] as array<mixed>)['selectable_at'] as int;
+        if ($state is array<mixed> && Core\Arr::hasKey($state as array<mixed>, 'pending')) {
+            mixed $at = (($state as array<mixed>)['pending'] as array<mixed>)['selectable_at'] ?? null;
+            $until = $at == null ? null : $at as int;
         }
         $tx->execute(
             'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, '

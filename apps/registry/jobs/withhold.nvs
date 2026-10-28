@@ -1,0 +1,39 @@
+<?nvs
+// Withholds the bytes of one version, for malware or a legal order. Only the person who runs the
+// registry starts it, such as `nvs run jobs/withhold.nvs --config nvs.toml 'Acme\Http' 1.4.0 'Malware.'`.
+// The version stays in the index and the log with the reason, and its archive is no longer sent.
+autoload 'Registry' from '../src';
+
+array<tainted string> $words = Core\Cli::arguments();
+if (Core\Arr::count($words) != 3) {
+    throw new RuntimeError('Give the package, the version and the reason, such as: \'Acme\\Http\' 1.4.0 \'Malware.\'');
+}
+var $site = Registry\Site::load();
+var $db = Registry\Schema::open();
+?string $key = null;
+?string $scope = Registry\Tokens::scopeOf($words[0]);
+if ($scope != null) {
+    $key = new Registry\Releases($db)->packageOf(Core\Str::before($scope, '\\') ?? '', Core\Str::after($scope, '\\') ?? '');
+}
+?array<int> $parts = Registry\Publish::versionOf($words[1]);
+if ($key == null || $parts == null) {
+    throw new RuntimeError('There is no such package, or the version is not a version such as 1.4.0.');
+}
+string $package = $key ?? '';
+array<int> $numbers = $parts ?? [];
+string $version = $numbers[0] . '.' . $numbers[1] . '.' . $numbers[2];
+string $reason = Core\Str::trim(Core\Taint::assertTrusted($words[2], 'the person who runs the registry wrote the reason'));
+if ($reason == '') {
+    throw new RuntimeError('The reason must not be empty.');
+}
+var $releases = new Registry\Releases($db);
+if (!$releases->has($package, $version)) {
+    throw new RuntimeError('The package has no version ' . $version . '.');
+}
+if (!$releases->withhold($package, $version, $reason)) {
+    echo 'Version ', $version, ' is withheld already.', "\n";
+}
+if (!new Registry\Index($db, new Registry\NvsLog($site, Registry\Index::work($site)), $site)->flush()) {
+    throw new RuntimeError('The log or a store failed. Run this again to send the change.');
+}
+echo 'Version ', $version, ' of ', $package, ' is withheld.', "\n";

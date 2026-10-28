@@ -1,0 +1,217 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Json;
+use Core\Str;
+use Core\Time;
+
+// The state of each release after it is published: pending, released, unlisted, retracted or withheld.
+// A release by token alone is pending for seven days, and an owner's passkey releases it at once.
+// The first release at `0.1.0` or higher waits until an owner confirms its API with a passkey.
+// A release whose dependency is pending waits for that dependency.
+// Every change here is saved with its entry of the log (`Events`).
+final class Releases
+{
+    // A dependency that waits on another one is followed this many steps, and no further.
+    private const int DEPTH = 16;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Returns the package in lower case, such as `acme\http`, when `$vendor` and `$name` are a
+    // published package. Otherwise the result is `null`.
+    public function packageOf(tainted string $vendor, tainted string $name): ?string
+    {
+        ?string $scope = Tokens::scopeOf($vendor . '\\' . $name);
+        if ($scope == null || !Str::contains($scope, '\\')) {
+            return null;
+        }
+        string $key = Str::lower($scope);
+        foreach ($this->db->query('select 1 as found from packages where key = ?', [$key]) as Row $row) {
+            return $key;
+        }
+        return null;
+    }
+
+    // Returns `true` when the package `$key` has the version `$version`.
+    public function has(string $key, string $version): bool
+    {
+        foreach ($this->db->query('select 1 as found from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the time a release can be selected by `nvs pkg add`, in seconds since 1970.
+    // A time in the past means it is released. The result is `null` when the release waits for an
+    // owner: it is the first release at `0.1.0` or higher, or a dependency waits for one.
+    // A dependency that is not in this registry does not wait.
+    public function selectableAt(Connection|Transaction $db, string $key, string $version, int $depth = 0): ?int
+    {
+        var $rows = $db->query('select major, minor, patch, pending_until, dependencies from releases where package = ? and version = ?', [$key, $version]);
+        foreach ($rows as Row $row) {
+            int $at = $row->int('pending_until') ?? 0;
+            if ($this->waitsForStable($db, $key, $row->int('major') ?? 0, $row->int('minor') ?? 0, $row->int('patch') ?? 0)) {
+                return null;
+            }
+            if ($depth >= Releases::DEPTH) {
+                return $at;
+            }
+            foreach ((Json::decode(Releases::trusted($row->string('dependencies'))) as array<mixed>) as tainted string $name => mixed $minimum) {
+                ?int $needed = $this->selectableAt($db, Str::lower(Releases::trusted($name)), Releases::trusted($minimum), $depth + 1);
+                if ($needed == null) {
+                    return null;
+                }
+                if ($needed > $at) {
+                    $at = $needed;
+                }
+            }
+            return $at;
+        }
+        return 0;
+    }
+
+    // Returns `true` when a version at `0.1.0` or higher has no stable confirmation at or below it.
+    private function waitsForStable(Connection|Transaction $db, string $key, int $major, int $minor, int $patch): bool
+    {
+        if ($major == 0 && $minor == 0) {
+            return false;
+        }
+        var $rows = $db->query(
+            'select 1 as found from release_states s join releases r on r.package = s.package and r.version = s.version '
+                . 'where s.package = ? and s.stable_at is not null '
+                . 'and (r.major < ? or (r.major = ? and (r.minor < ? or (r.minor = ? and r.patch <= ?)))) limit 1',
+            [$key, $major, $major, $minor, $minor, $patch],
+        );
+        foreach ($rows as Row $row) {
+            return false;
+        }
+        return true;
+    }
+
+    // Returns `true` when this version waits for an owner to confirm its API.
+    public function needsStable(string $key, string $version): bool
+    {
+        foreach ($this->db->query('select major, minor, patch from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
+            return $this->waitsForStable($this->db, $key, $row->int('major') ?? 0, $row->int('minor') ?? 0, $row->int('patch') ?? 0);
+        }
+        return false;
+    }
+
+    // Releases a pending version now. An owner calls this after a passkey sign-in.
+    // With `$stable`, it also confirms the API of the first release at `0.1.0` or higher.
+    // From then on only a new major version may break that API.
+    // It returns `false` when there is nothing to confirm.
+    public function confirm(string $key, string $version, bool $stable): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        bool $waitsForStable = $this->needsStable($key, $version);
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            bool $changed = false;
+            if ($stable && $waitsForStable) {
+                $this->ensureRow($tx, $key, $version);
+                $tx->execute('update release_states set stable_at = ? where package = ? and version = ?', [$now, $key, $version]);
+                Events::release($tx, 'stable-api-confirmed', $key, $version);
+                $changed = true;
+            }
+            var $write = $tx->execute(
+                'update releases set pending_until = null where package = ? and version = ? and pending_until > ?',
+                [$key, $version, $now],
+            );
+            if ($write->affected() == 1) {
+                Events::release($tx, 'release-confirmed', $key, $version);
+                $changed = true;
+            }
+            return $changed;
+        });
+    }
+
+    // Hides a version from search and listings, or shows it again when `$listed` is `true`.
+    // It stays fetchable. It returns `false` when the version is in that state already.
+    public function unlist(string $key, string $version, bool $listed): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            $this->ensureRow($tx, $key, $version);
+            var $write = $listed
+                ? $tx->execute('update release_states set unlisted_at = null where package = ? and version = ? and unlisted_at is not null', [$key, $version])
+                : $tx->execute('update release_states set unlisted_at = ? where package = ? and version = ? and unlisted_at is null', [$now, $key, $version]);
+            if ($write->affected() != 1) {
+                return false;
+            }
+            Events::release($tx, $listed ? 'relist' : 'unlist', $key, $version);
+            return true;
+        });
+    }
+
+    // Retracts a version with its reason and, when there is one, the version that fixes it.
+    // `$from` is the time the retraction shows in the index: now for a passkey, seven days later
+    // for a token alone. A second retraction with an earlier time moves the time forward.
+    // It returns `false` when the version is retracted already from that time or earlier.
+    public function retract(string $key, string $version, string $reason, ?string $fixedIn, int $from): bool
+    {
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            $this->ensureRow($tx, $key, $version);
+            var $write = $tx->execute(
+                'update release_states set retracted_at = ?, retract_reason = ?, fixed_in = ? '
+                    . 'where package = ? and version = ? and (retracted_at is null or retracted_at > ?)',
+                [$from, $reason, $fixedIn, $key, $version, $from],
+            );
+            if ($write->affected() != 1) {
+                return false;
+            }
+            Events::reasoned($tx, 'retract', $key, $version, $reason);
+            return true;
+        });
+    }
+
+    // Withholds the bytes of a version, for malware or a legal order. Only the operator does this.
+    // The name, the version and the digest stay in the index and the log, with the reason.
+    // It returns `false` when the version is withheld already.
+    public function withhold(string $key, string $version, string $reason): bool
+    {
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            $this->ensureRow($tx, $key, $version);
+            var $write = $tx->execute(
+                'update release_states set withheld = ? where package = ? and version = ? and withheld is null',
+                [$reason, $key, $version],
+            );
+            if ($write->affected() != 1) {
+                return false;
+            }
+            Events::reasoned($tx, 'withhold', $key, $version, $reason);
+            return true;
+        });
+    }
+
+    // Returns `true` when the bytes of the archive with this digest are withheld.
+    public function isWithheld(string $digest): bool
+    {
+        var $rows = $this->db->query(
+            'select 1 as found from releases r join release_states s on s.package = r.package and s.version = r.version '
+                . 'where r.digest = ? and s.withheld is not null',
+            [$digest],
+        );
+        foreach ($rows as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    private function ensureRow(Transaction $tx, string $key, string $version): void
+    {
+        $tx->execute('insert into release_states (package, version) values (?, ?) on conflict (package, version) do nothing', [$key, $version]);
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

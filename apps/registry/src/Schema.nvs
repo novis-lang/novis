@@ -94,6 +94,20 @@ final class Schema
                 . 'primary key (package, version))',
             [],
         );
+        // What changed about a release after it was published. Each column is null until it happens.
+        // `stable_at` is the time an owner confirmed the first API at `0.1.0` or higher. `unlisted_at`
+        // is null again when the unlist is reversed. `retracted_at` is the time the retraction shows
+        // in the index. `withheld` is the operator's reason. `Releases` writes this table.
+        $db->execute(
+            'create table if not exists release_states ('
+                . 'package text not null, version text not null, stable_at integer, unlisted_at integer, '
+                . 'retracted_at integer, retract_reason text, fixed_in text, withheld text, '
+                . 'primary key (package, version))',
+            [],
+        );
+        // The entries of the log that wait to be added, one line of JSON each, in the order of `id`.
+        // `package` is the package whose index file changes, or null. `Index` deletes a row once the log has it.
+        $db->execute('create table if not exists events (id integer primary key, entry text not null, package text)', []);
         // The files in the work folder that some store does not have yet, such as `log/checkpoint`.
         // `rank` is the order they are sent in: the archives, the log, the index files, the checkpoint.
         $db->execute('create table if not exists unsent (path text primary key, rank integer not null)', []);

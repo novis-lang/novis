@@ -36,12 +36,26 @@ final class Index
     }
 
     // Adds every release of the package `$key` that is not in the log yet, such as `acme\http`.
-    // Each archive is copied first. Then the releases are added to the log, the index file and
-    // `registry.json` are written and signed, and every new file is sent to the stores.
+    // Each archive is copied first. Then the waiting entries of `Events` and the releases are added
+    // to the log, the index files and `registry.json` are written and signed, and every new file is
+    // sent to the stores.
     // It returns `false` when a step fails. A release that is not in the log yet is added the next
     // time this runs for its package, and a file that a store does not have is sent again then.
     // Memory: one archive at a time while it is sent to a store.
     public function catchUp(string $key): bool
+    {
+        return $this->run($key);
+    }
+
+    // Adds the waiting entries of `Events` to the log, such as an unlist, and writes, signs and sends
+    // the index files they change. A route calls this after it saved a change.
+    // It returns `false` when a step fails. The entries wait for the next run then.
+    public function flush(): bool
+    {
+        return $this->run(null);
+    }
+
+    private function run(?string $key): bool
     {
         string $folder = Index::work($this->site);
         var $stores = new Stores($this->db, $this->site);
@@ -50,48 +64,16 @@ final class Index
                 // This statement writes, so the transaction has the write lock of the database
                 // from here on. Two publishes add to the log and send to the stores one after the other.
                 // Other requests that write wait until the stores have the files.
-                $tx->execute('update releases set log = log where package = ? and log is null', [$key]);
-                var $rows = $tx->query(
-                    'select version, digest, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
-                    [$key],
-                );
-                string $repository = $this->repositoryOf($key);
-                int $next = $this->log->size();
-                string $lines = '';
-                foreach ($rows as Row $row) {
-                    string $version = Index::trusted($row->string('version'));
-                    string $digest = Index::hexOf(Index::trusted($row->string('digest')));
-                    IO::makeDir($folder . '/archive');
-                    IO::copy(Index::trusted($row->string('archive')), $folder . '/archive/' . $digest . '.tar');
-                    $stores->queue('archive/' . $digest . '.tar', Stores::ARCHIVE);
-                    $lines .= Index::trusted(Json::encode({
-                        v: 1,
-                        kind: 'publish',
-                        package: Index::slug($key),
-                        version: $version,
-                        digest: $digest,
-                        repository: $repository,
-                        commit: Index::trusted($row->string('git_commit')),
-                    })) . "\n";
-                    $tx->execute('update releases set log = ? where package = ? and version = ?', [$next, $key, $version]);
-                    $next++;
-                }
-                if ($lines != '') {
-                    ?array<string> $written = $this->log->append($lines);
-                    if ($written == null) {
-                        // Nothing was added, so the numbers above are undone with the transaction.
-                        throw new RuntimeError('the log did not add the releases');
-                    }
-                    foreach ($written as string $path) {
-                        $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
-                    }
-                }
-                // The log has the releases now, so the transaction must keep their numbers.
+                $tx->execute('update events set id = id', []);
+                array<string> $changed = $this->append($tx, $stores, $folder, $key);
+                // The log has the entries now, so the transaction must keep their numbers.
                 // So a failure below returns `false` and does not throw, and the next run sends again.
                 try {
-                    // `sign` signs every index file, and only the files of this package changed.
+                    // `sign` signs every index file, and only the files of these packages changed.
                     // The daily run sends every index file.
-                    $stores->queue($this->write($key, $folder), Stores::INDEX);
+                    foreach ($changed as string $package) {
+                        $stores->queue($this->write($package, $folder), Stores::INDEX);
+                    }
                     $this->sign($folder, $stores);
                 } catch (RuntimeError $error) {
                     return false;
@@ -101,6 +83,66 @@ final class Index
         } catch (RuntimeError $error) {
             return false;
         }
+    }
+
+    // Adds the waiting entries of `Events`, then every release of `$key` that is not in the log yet,
+    // and queues the files of the log. It returns the packages whose index files change.
+    // The caller has the write lock. It throws a `RuntimeError` when the log does not add the entries.
+    private function append(Transaction $tx, Stores $stores, string $folder, ?string $key): array<string>
+    {
+        int $next = $this->log->size();
+        string $lines = '';
+        int $last = 0;
+        array<string> $changed = [];
+        foreach ($tx->query('select id, entry, package from events order by id', []) as Row $row) {
+            $lines .= Index::trusted($row->string('entry')) . "\n";
+            $last = $row->int('id') ?? 0;
+            ?string $package = Index::optional($row->string('package'));
+            if ($package != null && !Arr::contains($changed, $package)) {
+                $changed[] = $package;
+            }
+            $next++;
+        }
+        if ($key != null) {
+            if (!Arr::contains($changed, $key)) {
+                $changed[] = $key;
+            }
+            var $rows = $tx->query(
+                'select version, digest, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
+                [$key],
+            );
+            string $repository = $this->repositoryOf($key);
+            foreach ($rows as Row $row) {
+                string $version = Index::trusted($row->string('version'));
+                string $digest = Index::hexOf(Index::trusted($row->string('digest')));
+                IO::makeDir($folder . '/archive');
+                IO::copy(Index::trusted($row->string('archive')), $folder . '/archive/' . $digest . '.tar');
+                $stores->queue('archive/' . $digest . '.tar', Stores::ARCHIVE);
+                $lines .= Index::trusted(Json::encode({
+                    v: 1,
+                    kind: 'publish',
+                    package: Index::slug($key),
+                    version: $version,
+                    digest: $digest,
+                    repository: $repository,
+                    commit: Index::trusted($row->string('git_commit')),
+                })) . "\n";
+                $tx->execute('update releases set log = ? where package = ? and version = ?', [$next, $key, $version]);
+                $next++;
+            }
+        }
+        if ($lines != '') {
+            ?array<string> $written = $this->log->append($lines);
+            if ($written == null) {
+                // Nothing was added, so the numbers above are undone with the transaction.
+                throw new RuntimeError('the log did not add the entries');
+            }
+            foreach ($written as string $path) {
+                $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
+            }
+            $tx->execute('delete from events where id <= ?', [$last]);
+        }
+        return $changed;
     }
 
     // Runs once a day, from `jobs/daily.nvs`. It adds every release that is not in the log yet.
@@ -127,6 +169,8 @@ final class Index
                 // This statement writes, so the transaction has the write lock of the database,
                 // as in `catchUp`. A publish waits until the stores have the files.
                 $tx->execute('update releases set log = log where log is null', []);
+                // An entry that waits is added before an index file shows its change.
+                $this->append($tx, $stores, $folder, null);
                 foreach ($tx->query('select distinct package from releases where log is not null order by package', []) as Row $row) {
                     $stores->queue($this->write(Index::trusted($row->string('package')), $folder), Stores::INDEX);
                 }
@@ -165,37 +209,62 @@ final class Index
         }
         string $repository = $this->repositoryOf($key);
         array<Listed> $versions = [];
+        int $now = Time::now()->toEpochSeconds();
+        var $releases = new Releases($this->db);
         $rows = $this->db->query(
-            'select version, digest, pending_until, dependencies, capabilities, git_commit, log from releases '
-                . 'where package = ? and log is not null order by major, minor, patch',
+            'select r.version, r.digest, r.dependencies, r.capabilities, r.git_commit, r.log, '
+                . 's.unlisted_at, s.retracted_at, s.retract_reason, s.fixed_in, s.withheld from releases r '
+                . 'left join release_states s on s.package = r.package and s.version = r.version '
+                . 'where r.package = ? and r.log is not null order by r.major, r.minor, r.patch',
             [$key],
         );
         foreach ($rows as Row $row) {
+            string $version = Index::trusted($row->string('version'));
+            ?int $at = $releases->selectableAt($this->db, $key, $version);
+            ?int $retractedAt = $row->int('retracted_at');
+            bool $retracted = $retractedAt != null && $retractedAt <= $now;
             $versions[] = new Listed(
-                Index::trusted($row->string('version')),
+                $version,
                 Index::hexOf(Index::trusted($row->string('digest'))),
-                $row->int('pending_until'),
+                $at != null && $at > $now ? $at : null,
                 Index::trusted($row->string('dependencies')),
                 Index::trusted($row->string('capabilities')),
                 $repository,
                 Index::trusted($row->string('git_commit')),
                 $row->int('log') ?? 0,
+                $at == null,
+                $row->int('unlisted_at') != null,
+                $retracted ? Index::optional($row->string('retract_reason')) : null,
+                $retracted ? Index::optional($row->string('fixed_in')) : null,
+                Index::optional($row->string('withheld')),
             );
         }
         string $path = 'index/' . Index::slug($key) . '.json';
         IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
-        IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
+        IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, $now));
         return $path;
     }
 
     // Returns the text of one index file before it is signed. `$now` is the time in seconds since 1970.
-    // A version whose pending time has passed is released.
+    // A version whose pending time has passed is released. A withheld version shows its reason first,
+    // then a retracted one, an unlisted one, and a pending one. A version that waits for an owner is
+    // pending with no time.
     public static function document(string $name, array<string> $owners, array<Listed> $versions, int $now): string
     {
         array<mixed> $lines = [];
         foreach ($versions as Listed $listed) {
             mixed $state = 'released';
-            if ($listed->pendingUntil != null && $listed->pendingUntil > $now) {
+            if ($listed->withheld != null) {
+                $state = { withheld: { reason: $listed->withheld } };
+            } else if ($listed->retracted != null) {
+                $state = $listed->fixedIn == null
+                    ? { retracted: { reason: $listed->retracted } }
+                    : { retracted: ['reason' => $listed->retracted, 'fixed_in' => $listed->fixedIn] };
+            } else if ($listed->unlisted) {
+                $state = 'unlisted';
+            } else if ($listed->waitsForOwner) {
+                $state = { pending: {} };
+            } else if ($listed->pendingUntil != null && $listed->pendingUntil > $now) {
                 $state = { pending: ['selectable_at' => $listed->pendingUntil] };
             }
             $lines[] = {
@@ -246,5 +315,11 @@ final class Index
     private static function trusted(mixed $value): string
     {
         return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+
+    // A text from a row the registry wrote, or `null` when the column is null.
+    private static function optional(?tainted string $value): ?string
+    {
+        return $value == null ? null : Index::trusted($value);
     }
 }

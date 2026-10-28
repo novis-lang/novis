@@ -110,17 +110,24 @@ final class Vendors
         return $found;
     }
 
-    // Adds an owner to a vendor. It returns `false` when the account is already an owner.
+    // Adds an owner to a vendor, with its entry of the log. It returns `false` when the account is already an owner.
     public function addOwner(string $vendor, string $account): bool
     {
-        var $write = $this->db->execute(
-            'insert into owners (vendor, account, added_at) values (?, ?, ?) on conflict (vendor, account) do nothing',
-            [Str::lower($vendor), $account, Time::now()->toEpochSeconds()],
-        );
-        return $write->affected() == 1;
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            var $write = $tx->execute(
+                'insert into owners (vendor, account, added_at) values (?, ?, ?) on conflict (vendor, account) do nothing',
+                [Str::lower($vendor), $account, Time::now()->toEpochSeconds()],
+            );
+            if ($write->affected() != 1) {
+                return false;
+            }
+            Events::ownership($tx, $vendor, $account, 'added');
+            return true;
+        });
     }
 
-    // Removes an owner from a vendor. The last owner cannot be removed, so a vendor always has one.
+    // Removes an owner from a vendor, with its entry of the log. The last owner cannot be removed,
+    // so a vendor always has one.
     // It returns `false` when the account is not an owner, or is the last one.
     public function removeOwner(string $vendor, string $account): bool
     {
@@ -131,7 +138,11 @@ final class Vendors
                     return false;
                 }
             }
-            return $tx->execute('delete from owners where vendor = ? and account = ?', [$key, $account])->affected() == 1;
+            if ($tx->execute('delete from owners where vendor = ? and account = ?', [$key, $account])->affected() != 1) {
+                return false;
+            }
+            Events::ownership($tx, $vendor, $account, 'removed');
+            return true;
         });
     }
 }

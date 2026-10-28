@@ -202,7 +202,7 @@ final class App
                 return;
             }
             Response::setStatus(201);
-            Response::json({ vendor: $name, owners: $vendors->owners($name) });
+            Response::json({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with an account.');
         }
@@ -217,7 +217,8 @@ final class App
         if (!App::needsPasskey()) {
             return;
         }
-        var $vendors = new Vendors(Schema::open());
+        var $db = Schema::open();
+        var $vendors = new Vendors($db);
         ?string $name = App::ownedVendor($vendors, $vendor);
         if ($name == null) {
             return;
@@ -231,7 +232,7 @@ final class App
             App::fail(409, 'The last owner of a vendor cannot be removed.');
             return;
         }
-        Response::json({ vendor: $name, owners: $vendors->owners($name) });
+        Response::json({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
     }
 
     // Makes a publish token for a vendor or one of its packages. The answer shows the token this one time only.
@@ -262,7 +263,7 @@ final class App
             }
             array<string> $made = new Tokens($db)->create($account, $scope, $asked->days);
             Response::setStatus(201);
-            Response::json({ id: $made['id'], token: $made['token'], scope: $scope, days: $asked->days });
+            Response::json({ id: $made['id'], token: $made['token'], scope: $scope, days: $asked->days, sent: App::flush($db) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a scope and a number of days.');
         }
@@ -281,10 +282,13 @@ final class App
     #[Access(allow: Visitor::SignedIn)]
     public static function revokeToken(tainted string $id): void
     {
-        if (!new Tokens(Schema::open())->revoke(Session::account() ?? '', $id)) {
+        var $db = Schema::open();
+        if (!new Tokens($db)->revoke(Session::account() ?? '', $id)) {
             App::fail(404, 'This account has no such token, or it was revoked before.');
             return;
         }
+        // The token stops working now. Its entry of the log waits for the next run when this fails.
+        App::flush($db);
         Response::setStatus(204);
     }
 
@@ -365,6 +369,131 @@ final class App
         Files::sendArchive($file);
     }
 
+    // Releases a pending version now. Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/packages/{vendor}/{name}/{version}/release', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function release(tainted string $vendor, tainted string $name, tainted string $version): void
+    {
+        App::confirm($vendor, $name, $version, false);
+    }
+
+    // Confirms the API of the first version at `0.1.0` or higher, and releases it.
+    // From then on, only a new major version may break this API.
+    // Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    #[Route(path: '/api/packages/{vendor}/{name}/{version}/stable', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function stable(tainted string $vendor, tainted string $name, tainted string $version): void
+    {
+        App::confirm($vendor, $name, $version, true);
+    }
+
+    // Returns the API of a version, as `nvs registry build` wrote it. The page that confirms
+    // the first stable API shows it.
+    #[Route(path: '/api/packages/{vendor}/{name}/{version}/api', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function api(tainted string $vendor, tainted string $name, tainted string $version): void
+    {
+        var $db = Schema::open();
+        ?string $key = new Releases($db)->packageOf($vendor, $name);
+        ?string $wanted = App::versionOf($version);
+        if ($key != null && $wanted != null) {
+            foreach ($db->query('select api from releases where package = ? and version = ?', [$key, $wanted]) as Core\Db\Row $row) {
+                string $file = Core\Taint::assertTrusted($row->string('api') as tainted string, 'the registry wrote this path');
+                if ($file != '' && Core\IO::isFile($file)) {
+                    Response::json({ waitsForOwner: new Releases($db)->needsStable($key, $wanted), api: Json::decode(Core\IO::read($file)) });
+                    return;
+                }
+            }
+        }
+        App::fail(404, 'There is no such version, or its API is not on this registry.');
+    }
+
+    // Hides a version from search and listings, or every version when `version` is empty.
+    // It stays fetchable. Only an owner who signed in with a passkey in the last 15 minutes can do this.
+    // With a token, the answer is `202` and gives the page where an owner does it with a passkey.
+    #[Route(path: '/api/packages/{vendor}/{name}/unlist', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function unlist(tainted string $vendor, tainted string $name): void
+    {
+        try {
+            App::listing($vendor, $name, Request::jsonAs<VersionRequest>(), false);
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a version.');
+        }
+    }
+
+    // Shows an unlisted version again, or every version when `version` is empty.
+    // It needs the same passkey sign-in as `unlist`.
+    #[Route(path: '/api/packages/{vendor}/{name}/relist', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function relist(tainted string $vendor, tainted string $name): void
+    {
+        try {
+            App::listing($vendor, $name, Request::jsonAs<VersionRequest>(), true);
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a version.');
+        }
+    }
+
+    // Retracts a version with a reason. With a passkey sign-in in the last 15 minutes, the index
+    // shows it at once. With a token alone, it shows seven days later, and an owner's passkey can
+    // retract it at once in that time.
+    #[Route(path: '/api/packages/{vendor}/{name}/retract', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function retract(tainted string $vendor, tainted string $name): void
+    {
+        var $db = Schema::open();
+        var $releases = new Releases($db);
+        ?string $key = $releases->packageOf($vendor, $name);
+        if ($key == null) {
+            App::fail(404, 'There is no such package.');
+            return;
+        }
+        try {
+            var $asked = Request::jsonAs<RetractRequest>();
+            ?string $version = App::versionOf($asked->version);
+            if ($version == null || !$releases->has($key, $version)) {
+                App::fail(404, 'The package has no such version.');
+                return;
+            }
+            ?string $fixedIn = $asked->fixedIn == '' ? null : App::versionOf($asked->fixedIn);
+            if ($asked->fixedIn != '' && ($fixedIn == null || !$releases->has($key, $fixedIn))) {
+                App::fail(422, 'The version that fixes it must be a published version of the package.');
+                return;
+            }
+            string $reason = Str::trim(Core\Taint::assertTrusted($asked->reason, 'a reason is text the index shows as JSON'));
+            if ($reason == '' || Str::length($reason) > App::REASON_LENGTH) {
+                App::fail(422, 'The reason must have 1 to 500 characters.');
+                return;
+            }
+            int $now = Core\Time::now()->toEpochSeconds();
+            int $from = $now;
+            if (!App::ownsWithPasskey($db, $key)) {
+                if (Session::account() != null) {
+                    // A signed-in visitor who is not an owner, or whose passkey sign-in is too old.
+                    App::fail(403, 'Sign in with a passkey as an owner of the package first.');
+                    return;
+                }
+                if (new Tokens($db)->allows(Tokens::bearer(), $key) == null) {
+                    App::fail(401, 'Send a publish token for this package, or sign in with a passkey.');
+                    return;
+                }
+                $from = $now + Publish::PENDING_DAYS * 86400;
+            }
+            if (!$releases->retract($key, $version, $reason, $fixedIn, $from)) {
+                App::fail(409, 'This version is retracted already.');
+                return;
+            }
+            bool $sent = App::flush($db);
+            string $text = $from == $now
+                ? 'Version ' . $version . ' is retracted.'
+                : 'Version ' . $version . ' is retracted from ' . Core\Time::fromEpoch($from)->toIso() . '. An owner can retract it now with a passkey on the website.';
+            Response::json({ message: $text, sent: $sent });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a version, a reason and fixedIn.');
+        }
+    }
+
     // Signs the visitor out.
     #[Route(path: '/api/signout', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
@@ -372,6 +501,104 @@ final class App
     {
         Session::signOut();
         Response::setStatus(204);
+    }
+
+    // The longest reason of a retraction, in characters.
+    private const int REASON_LENGTH = 500;
+
+    // Releases a pending version, or confirms its stable API when `$stable` is `true`.
+    private static function confirm(tainted string $vendor, tainted string $name, tainted string $version, bool $stable): void
+    {
+        if (!App::needsPasskey()) {
+            return;
+        }
+        var $db = Schema::open();
+        var $releases = new Releases($db);
+        ?string $key = $releases->packageOf($vendor, $name);
+        ?string $wanted = App::versionOf($version);
+        if ($key == null || $wanted == null || !$releases->has($key, $wanted) || !App::ownsWithPasskey($db, $key)) {
+            App::fail(404, 'You own no package with this version.');
+            return;
+        }
+        if (!$stable && $releases->needsStable($key, $wanted)) {
+            App::fail(409, 'This is the first version at 0.1.0 or higher. Confirm its API first.');
+            return;
+        }
+        if (!$releases->confirm($key, $wanted, $stable)) {
+            App::fail(409, 'This version is released already.');
+            return;
+        }
+        Response::json({ version: $wanted, sent: App::flush($db) });
+    }
+
+    // Unlists a version, or every version when the body's `version` is empty, or shows it again.
+    private static function listing(tainted string $vendor, tainted string $name, VersionRequest $asked, bool $listed): void
+    {
+        var $db = Schema::open();
+        var $releases = new Releases($db);
+        ?string $key = $releases->packageOf($vendor, $name);
+        if ($key == null) {
+            App::fail(404, 'There is no such package.');
+            return;
+        }
+        array<string> $versions = [];
+        if ($asked->version == '') {
+            foreach ($db->query('select version from releases where package = ? order by major, minor, patch', [$key]) as Core\Db\Row $row) {
+                $versions[] = Core\Taint::assertTrusted($row->string('version') as tainted string, 'the registry wrote this version');
+            }
+        } else {
+            ?string $one = App::versionOf($asked->version);
+            if ($one == null || !$releases->has($key, $one)) {
+                App::fail(404, 'The package has no such version.');
+                return;
+            }
+            $versions[] = $one;
+        }
+        if (!App::ownsWithPasskey($db, $key)) {
+            if (Session::account() == null && new Tokens($db)->allows(Tokens::bearer(), $key) != null) {
+                // A token cannot unlist. The answer names the page where an owner does it.
+                Response::setStatus(202);
+                Response::json({ message: 'To ' . ($listed ? 'list' : 'unlist') . ' it, sign in with a passkey and confirm on '
+                    . Site::load()->origin . '/packages/' . Index::slug($key) . '.' });
+                return;
+            }
+            App::fail(403, 'Sign in with a passkey as an owner of the package first.');
+            return;
+        }
+        array<string> $changed = [];
+        foreach ($versions as string $version) {
+            if ($releases->unlist($key, $version, $listed)) {
+                $changed[] = $version;
+            }
+        }
+        if (Arr::count($changed) == 0) {
+            App::fail(409, $listed ? 'Nothing is unlisted.' : 'This is unlisted already.');
+            return;
+        }
+        Response::json({ versions: $changed, sent: App::flush($db) });
+    }
+
+    // Returns `true` when the visitor owns the vendor of the package `$key` and signed in with a
+    // passkey in the last 15 minutes.
+    private static function ownsWithPasskey(Core\Db\Connection $db, string $key): bool
+    {
+        ?string $account = Session::account();
+        return $account != null && Session::hasRecentPasskey() && new Vendors($db)->isOwner(Str::before($key, '\\') ?? $key, $account);
+    }
+
+    // Adds the waiting entries to the log and sends the index files they change.
+    // A failure does not undo the change. The entries wait for the next run, and the result is `false`.
+    private static function flush(Core\Db\Connection $db): bool
+    {
+        var $site = Site::load();
+        return new Index($db, new NvsLog($site, Index::work($site)), $site)->flush();
+    }
+
+    // A version from a path or a body, such as `1.4.0`, or `null` when it is not one.
+    private static function versionOf(tainted string $text): ?string
+    {
+        ?array<int> $parts = Publish::versionOf($text);
+        return $parts == null ? null : $parts[0] . '.' . $parts[1] . '.' . $parts[2];
     }
 
     // The name a device shows for the passkey, such as `account 3f2a9c1e`.

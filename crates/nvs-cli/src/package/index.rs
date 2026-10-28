@@ -351,7 +351,8 @@ struct ReleaseLine {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 enum StateLine {
     Pending {
-        selectable_at: u64,
+        #[serde(default)]
+        selectable_at: Option<u64>,
     },
     Released,
     Unlisted,
@@ -379,8 +380,9 @@ pub(crate) struct Capabilities {
 /// `rule:packaging/the-operator-only-withholds`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum State {
-    /// Published, and selectable by `nvs pkg add` from this Unix time on.
-    Pending { selectable_at: u64 },
+    /// Published, and selectable by `nvs pkg add` from this Unix time on. With no time, it waits
+    /// for an owner's passkey: the first stable release, or one behind such a dependency.
+    Pending { selectable_at: Option<u64> },
     /// Selectable.
     Released,
     /// Hidden from search, and still selected when a minimum names it.
@@ -851,7 +853,7 @@ mod tests {
         assert_eq!(
             second.state,
             State::Pending {
-                selectable_at: 1_800_000_000
+                selectable_at: Some(1_800_000_000)
             }
         );
         assert_eq!(second.digest.to_hex().as_str(), "b".repeat(64));

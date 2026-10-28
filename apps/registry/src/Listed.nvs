@@ -9,7 +9,8 @@ final class Listed
         public readonly string $version,
         // The digest of the archive: 64 characters from `0` to `9` and `a` to `f`.
         public readonly string $digest,
-        // The time the version is released, in seconds since 1970. `null` means it is released.
+        // The time the version is released, in seconds since 1970, after its dependencies are released.
+        // `null` means it is released.
         public readonly ?int $pendingUntil,
         // The dependencies as JSON, such as `{"Acme\\Log":"1.0.0"}`.
         public readonly string $dependencies,
@@ -20,6 +21,14 @@ final class Listed
         public readonly string $commit,
         // The number of the entry in the log that publishes this version.
         public readonly int $log,
+        // `true` when the version waits for an owner's passkey, and seven days do not release it.
+        public readonly bool $waitsForOwner = false,
+        public readonly bool $unlisted = false,
+        // The reason of a retraction that shows now, and the version that fixes it, when there is one.
+        public readonly ?string $retracted = null,
+        public readonly ?string $fixedIn = null,
+        // The operator's reason when the bytes of the version are withheld.
+        public readonly ?string $withheld = null,
     )
     {}
 }

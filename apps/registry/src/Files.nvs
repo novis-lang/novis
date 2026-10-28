@@ -41,6 +41,12 @@ final class Files
         }
         string $digest = Core\Taint::assertTrusted(Str::slice($name, 0, 64), 'a digest is 64 hex characters');
         var $db = Schema::open();
+        if (new Releases($db)->isWithheld('blake3:' . $digest)) {
+            // The operator withheld this version. The index has the reason.
+            Response::setStatus(451);
+            Response::json({ error: 'This version is withheld. The index of its package gives the reason.' });
+            return;
+        }
         var $rows = $db->query('select package, version from releases where digest = ? and log is not null', ['blake3:' . $digest]);
         foreach ($rows as Row $row) {
             if (Str::startsWith(Request::header('user-agent') ?? '', 'nvs/')) {

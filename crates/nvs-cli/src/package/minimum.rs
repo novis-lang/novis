@@ -42,7 +42,7 @@ pub(crate) fn newest(index: &Index, now: u64) -> Option<&Release> {
         .rev()
         .find(|release| match release.state {
             State::Released => true,
-            State::Pending { selectable_at } => selectable_at <= now,
+            State::Pending { selectable_at } => selectable_at.is_some_and(|at| at <= now),
             State::Unlisted | State::Retracted { .. } | State::Withheld { .. } => false,
         })
 }

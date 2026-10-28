@@ -1,0 +1,20 @@
+<?nvs
+namespace Registry;
+
+// The JSON that retracts a version: the version, the reason, and the version that fixes it,
+// such as `{"version": "1.4.0", "reason": "It deletes the cache.", "fixedIn": "1.4.1"}`.
+// An empty `fixedIn` means no version fixes it yet.
+#[Core\Json\Derive]
+final class RetractRequest
+{
+    public tainted string $version;
+    public tainted string $reason;
+    public tainted string $fixedIn;
+
+    public function constructor(tainted string $version, tainted string $reason, tainted string $fixedIn)
+    {
+        $this->version = $version;
+        $this->reason = $reason;
+        $this->fixedIn = $fixedIn;
+    }
+}

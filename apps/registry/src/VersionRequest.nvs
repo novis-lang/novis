@@ -1,0 +1,15 @@
+<?nvs
+namespace Registry;
+
+// The JSON that unlists a version or shows it again, such as `{"version": "1.4.0"}`.
+// An empty version means every version of the package.
+#[Core\Json\Derive]
+final class VersionRequest
+{
+    public tainted string $version;
+
+    public function constructor(tainted string $version)
+    {
+        $this->version = $version;
+    }
+}

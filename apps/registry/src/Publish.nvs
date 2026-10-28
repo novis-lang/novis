@@ -161,9 +161,12 @@ final class Publish
             return Publish::taken($key, $version);
         }
         string $date = Time::now()->plus(Duration::days(Publish::PENDING_DAYS))->toIso();
+        string $wait = new Releases($this->db)->needsStable($key, $version)
+            ? ' It is the first version at 0.1.0 or higher, so it waits until an owner confirms its API with a passkey on the website.'
+            : ' It is pending until ' . $date . '. An owner can release it now with a passkey on the website.';
         return new Published(
             201,
-            '`' . $name . '` ' . $version . ' is published. It is pending until ' . $date . '. An owner can release it now with a passkey on the website.',
+            '`' . $name . '` ' . $version . ' is published.' . $wait,
             $digest,
             $key,
         );
