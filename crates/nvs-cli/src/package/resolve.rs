@@ -115,8 +115,9 @@ pub(crate) struct Registries<'a> {
     keep: Option<PathBuf>,
     open: BTreeMap<String, Registry>,
     indexes: BTreeMap<String, Option<Index>>,
-    /// Where a git dependency is written out while it is packed.
-    scratch: PathBuf,
+    /// Where a git dependency is written out while it is packed: the data folder's `tmp/`, or
+    /// nothing when there is no data folder, and a git dependency then fails.
+    scratch: Option<PathBuf>,
     /// The limits a git dependency is cloned inside.
     limits: Limits,
     /// The addresses an `https:` git dependency may be cloned from.
@@ -139,7 +140,7 @@ impl<'a> Registries<'a> {
             keep: keep.map(Path::to_path_buf),
             open: BTreeMap::new(),
             indexes: BTreeMap::new(),
-            scratch: std::env::temp_dir(),
+            scratch: None,
             limits: git::LIMITS,
             outbound: Outbound::default(),
             cloned: BTreeMap::new(),
@@ -156,7 +157,7 @@ impl<'a> Registries<'a> {
     /// These registries, with each git dependency written out under `scratch` and cloned inside
     /// `limits`.
     pub(crate) fn clones_in(mut self, scratch: &Path, limits: Limits) -> Self {
-        self.scratch = scratch.to_path_buf();
+        self.scratch = Some(scratch.to_path_buf());
         self.limits = limits;
         self
     }
@@ -370,11 +371,16 @@ fn cloned(
     url: &str,
     rev: &str,
 ) -> Result<Selected, Fault> {
+    let Some(scratch) = registries.scratch.as_deref() else {
+        return Err(fault(format!(
+            "`{name}` is a git dependency, and there is no usable data folder to clone it into"
+        )));
+    };
     let cloned = git::clone(
         url,
         rev,
         &registries.base,
-        &registries.scratch,
+        scratch,
         registries.limits,
         &registries.outbound,
     )?;

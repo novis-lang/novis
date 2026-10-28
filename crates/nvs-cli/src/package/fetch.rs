@@ -132,7 +132,16 @@ impl App {
     pub(crate) fn open() -> Result<Self, Failed> {
         let cwd = std::env::current_dir()
             .map_err(|err| fault(format!("cannot read the working directory: {err}")))?;
-        let Some(path) = manifest::find(&cwd) else {
+        Self::from(&cwd)
+    }
+
+    /// The application whose `package.toml` is the nearest one to `cwd`.
+    ///
+    /// # Errors
+    ///
+    /// As [`App::open`].
+    fn from(cwd: &Path) -> Result<Self, Failed> {
+        let Some(path) = manifest::find(cwd) else {
             return Err(fault(format!(
                 "there is no `{}` in `{}` or a folder above it. Write one with a \
                  `[dependencies]` table.",
