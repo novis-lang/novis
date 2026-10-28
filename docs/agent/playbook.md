@@ -185,6 +185,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **A scheduled script's `[[schedule]]` must be `scope = "host"` in an app with no shared store,
+  and `nvs check <app folder>` reads every entry file at once.** `fleet` is E0611 at boot. A
+  `jobs/` script with the same `autoload` line as `public/index.nvs` was E0315 until the checker
+  took same-root lines as one home, and the per-file `nvs check` a session ran never showed it.
+  Check an app with a new entry file by its folder: `nvs check apps/<app> --config apps/<app>/nvs.toml`.
+  `until: gone crates/nvs-hir/src/autoload.rs:the same roots are one place`
 - **Every byte added to a `Core\Test` ledger entry is paid once per assertion for the whole of an
   `nvs run`, because nothing empties the ledger outside a test.** Stage 2 of `diagnostic-records`
   added two record nodes per failed comparison, and a hostile proof that catches a million failures

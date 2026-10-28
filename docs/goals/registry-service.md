@@ -438,14 +438,17 @@ database, restores itself on a start with no database, and counts downloads from
 `Backup.nvs` and its test, then a second writes `Downloads.nvs` and its test.
 
 - [x] `hosting.json` and its reader: `dir` and `http` stores, the file hosts, the backup store and the download-log source, each secret a path read through `Core\Secret`, and a missing path stopping the start (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/hosting.json:1`, `apps/registry/src/Stores.nvs:1`
-- [ ] The publish writes the archive, the tiles, the index files and the checkpoint last to every public store, and fails when one store fails; the daily task signs every index file again. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Publish.nvs:1`
+- [x] The publish writes the archive, the tiles, the index files and the checkpoint last to every public store, and fails when one store fails; the daily task signs every index file again. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Publish.nvs:1`
   - [x] `nvs registry log append` prints each file it wrote, `checkpoint` last (`crates/nvs-cli/src/registry.rs`).
   - [x] `Index::catchUp` queues every new file in `unsent`, and `Stores::send` sends them rank by rank under the write lock.
   - [x] A failed store fails the publish, and the same commit published again answers `200` and sends what is left.
-  - [ ] The daily task: `nvs registry index sign` over every file, every index file queued and sent, and every package with an unlogged release caught up.
-- [ ] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
-- [ ] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
+  - [x] The daily task: `nvs registry index sign` over every file, every index file queued and sent, and every package with an unlogged release caught up.
+- [x] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
+- [x] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
 - [ ] Tests against loopback listeners: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
+  - [x] A sealed copy opens only with its key, and a restore brings back every release (`BackupTest.nvs`).
+  - [x] Access lines count one address once and skip a user agent that is not `nvs` (`DownloadsTest.nvs`).
+  - [ ] An `http` store receives each file in order, and a store that answers `500` fails the publish with no checkpoint moved (`StoresTest.nvs` or a Rust test with a loopback listener).
 - [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
 
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
@@ -543,38 +546,45 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done; stage 11 is live and now sits before stage 4 in the file, as the
-lane order says. Its first item landed: `hosting.json` names `work`, `stores`, `hosts`, `backup`,
-`backupKey`, `backupMinutes` and `downloadLog`, and `Site::load` (`apps/registry/src/Site.nvs`)
-reads them through `Store::of` (`Store.nvs`) and throws naming any file a setting names that does
-not exist. Of the second item, three checkpoints are done: `nvs registry log append` prints the
-files it wrote, `Index::catchUp` queues every new file in the `unsent` table, and `Stores::send`
-(`Stores.nvs`) sends them rank by rank under the write lock, as the new standing decision *Every new
-file waits in `unsent`* says. A publish of the same commit again answers `200`
-(`Publish::again`, tested by `theSameCommitAgainIsARetry`). `Files.nvs` serves from the first
-`dir` store. All 35 registry tests passed; `registry_log.rs` passed. A separate commit ran
-`cargo fmt` over eight `nvs-cli` package files that CI's lint would have refused.
+Stages 1, 2, 3 and 7 are done. Of stage 11, the settings, the publish to every store, the daily
+task, the backup and restore, and the access-line count have landed; the `http` store test and the
+rule's `shipped` status are left.
 
-The sweep's reds were stale: the `env-secret-proofs` log on disk is from 2026-10-22 and reads
-`exit 0`, and the check passes when run; nightly run 40662443492 was cancelled by a newer push.
+`Index::daily()` runs from `apps/registry/jobs/daily.nvs` (`[[schedule]]`, `scope = "host"`:
+`fleet` needs a shared store), then `Downloads::countLog` counts the day before's lines.
+`Backup.nvs`, `Restore.nvs` and `jobs/backup.nvs` follow the rewritten standing decision. The
+checker now takes two `autoload` lines of one prefix with the same roots as one home
+(`crates/nvs-hir/src/autoload.rs`); before it, every folder run of `apps/registry` was E0315.
+Run once: `BackupTest` and `DownloadsTest` (2 passed each), and the new autoload unit test.
+The sweep's `env-secret-proofs` red is stale (log from 2026-10-22 reads `exit 0`; no check has
+that name now), and nightly run 40662443492 was cancelled by a newer push.
 
-Expected red: none known. A local `apps/registry/files/` from before this change holds unsigned
-test files; it is gitignored test data and may be deleted.
+Expected red: none known. The conformance case
+`tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst` uses two different
+roots and should stay green.
 
 ### Next
 
-Stage 11's daily task, then the split's two subagents. The daily task re-signs every index file
-(`Log::sign`), queues every `index/**.json` and `registry.json` with `Stores::INDEX`, sends, and
-runs `Index::catchUp` for every package with an unlogged release. Run it from the schedule
-`rule:config/scheduled-work-is-a-config-block` describes, in the app's `nvs.toml`. Then the
-backup subagent (`Backup.nvs`, using `Site::backup`, `backupKey` and `backupMinutes`) and the
-download-log subagent (`Downloads.nvs`, using `Site::downloadLog` and `downloadFormat`).
-- [ ] The daily task. `apps/registry/src/Index.nvs:1`, `apps/registry/src/Stores.nvs:1`, `apps/registry/nvs.toml:1`
-- [ ] `Backup.nvs` and its test. `apps/registry/src/Backup.nvs:1`, `apps/registry/src/Site.nvs:33`
-- [ ] `Downloads.nvs`'s access-line count and its test. `apps/registry/src/Downloads.nvs:1`
+Stage 11's last test and its rule. `Core\Test` has no loopback listener but `server: true` (the
+app's own server), so the `http` store test needs a decision: a Rust test in `crates/nvs-cli/tests/`
+that runs a loopback `PUT` listener and a publish against `nvs serve` with a `hosting.json` in a
+scratch copy of the app (as `telemetry_e2e.rs` runs an app) is the recommendation, since it adds no
+test route to the app. Then set the rule `shipped` and stage 11 `done`.
+- [ ] The `http` store test: each file in order, and a `500` store failing the publish with no checkpoint moved. `crates/nvs-cli/tests/telemetry_e2e.rs:1`, `apps/registry/src/Store.nvs:1`
+- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`, and its *Not on disk* paragraph is removed. `data/rules/packaging/registry-hosting-is-configuration.json:1`
 
 ### Backlog
 
+- Bunny's access-line field order in `Downloads::parseBunny` (`apps/registry/src/Downloads.nvs`)
+  and the day path `MM-DD-YY/<file>` were written from memory, with no web tool to check them.
+  Check both against Bunny's logging documentation before stage 10's deploy guide names them.
+  Gzipped day files and a missed day's catch-up are not handled.
+- Restore leaves gaps: an index file's signature is not checked during a restore, a rebuilt
+  package has an empty `directory`, and the `builds/` API files are not in the copy, so a rebuilt
+  release's next build has no `--previous`. Stage 10's guide says so, or the copy takes them.
+- `Core` gaps the backup hit: `Db::open` with `Db\Driver::Sqlite` written in full passes `check`
+  and panics in `nvs-ir` lowering (`expr.rs:504`), a `readOnly` transaction throws on SQLite, and
+  there is no way to read a local file as bytes (the copy is base64 for that reason).
 - `StoresTest.nvs` must not share `unsent` with the parallel tests: another test's `send` takes
   the queued rows of a test and deletes them. Give the stores test its own database (a second
   `[db.*]` in `nvs.toml`) or its own `Stores` over a scratch connection, and a store folder of its
