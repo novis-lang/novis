@@ -10527,6 +10527,123 @@
       "Stop output from a function and keep it as text"
     ]
   },
+  "/reference/core/passkey/": {
+    "feature": "Core\\Passkey",
+    "hash": "783a86e2c295577a",
+    "questions": [
+      "How do I add passkey login to my web app?",
+      "Passwordless sign-in with WebAuthn on the server",
+      "Sign in with a fingerprint or face instead of a password",
+      "Do I need a JavaScript library to check passkeys?"
+    ]
+  },
+  "/reference/core/passkey/credentialid/": {
+    "feature": "Core\\Passkey::credentialId",
+    "hash": "abe5596e243d3c3f",
+    "questions": [
+      "How do I find which account a passkey belongs to?",
+      "Read the credential id from a WebAuthn sign-in response",
+      "Look up the saved passkey before checking the sign-in",
+      "Why is the passkey id tainted?"
+    ]
+  },
+  "/reference/core/passkey/registeroptions/": {
+    "feature": "Core\\Passkey::registerOptions",
+    "hash": "975300305dbe85bf",
+    "questions": [
+      "How do I create the options for navigator.credentials.create()?",
+      "Start adding a passkey to a user account",
+      "Make a WebAuthn registration challenge on the server",
+      "Stop a device from creating a second passkey for one account"
+    ]
+  },
+  "/reference/core/passkey/signinoptions/": {
+    "feature": "Core\\Passkey::signInOptions",
+    "hash": "e63391ac668cfc9a",
+    "questions": [
+      "How do I create the options for navigator.credentials.get()?",
+      "Start a passkey sign-in on the server",
+      "Sign in with a passkey without typing a user name",
+      "Make a WebAuthn sign-in challenge"
+    ]
+  },
+  "/reference/core/passkey/verifyregistration/": {
+    "feature": "Core\\Passkey::verifyRegistration",
+    "hash": "397e94dbb91c606b",
+    "questions": [
+      "How do I check a new passkey the browser created?",
+      "Verify a WebAuthn registration response on the server",
+      "What should I save after a user adds a passkey?",
+      "Check the origin and challenge of a new passkey"
+    ]
+  },
+  "/reference/core/passkey/verifysignin/": {
+    "feature": "Core\\Passkey::verifySignIn",
+    "hash": "c3ee7d71d71b880d",
+    "questions": [
+      "How do I verify a passkey sign-in?",
+      "Check a WebAuthn assertion signature against a saved key",
+      "Stop a recorded passkey answer from signing in twice",
+      "Why must I save the passkey again after each sign-in?"
+    ]
+  },
+  "/reference/core/passkey-credential/": {
+    "feature": "Core\\Passkey\\Credential",
+    "hash": "981b91bb7f3aa1d4",
+    "questions": [
+      "How do I save a passkey in my database?",
+      "What parts of a WebAuthn credential must the server keep?",
+      "Store a user's passkey and load it again for sign-in",
+      "Is a saved passkey public key a secret?"
+    ]
+  },
+  "/reference/core/passkey-credential/algorithm/": {
+    "feature": "Core\\Passkey\\Credential::algorithm",
+    "hash": "801effb4188b3fab",
+    "questions": [
+      "Which signature algorithm does this passkey use?",
+      "Is a passkey ES256 or Ed25519?",
+      "Save the passkey algorithm in a database column"
+    ]
+  },
+  "/reference/core/passkey-credential/id/": {
+    "feature": "Core\\Passkey\\Credential::id",
+    "hash": "5c4fe3a1bfa8f0b2",
+    "questions": [
+      "How do I get the credential id of a passkey?",
+      "Find the saved passkey that matches a sign-in",
+      "Save a passkey id as text in a database"
+    ]
+  },
+  "/reference/core/passkey-credential/of/": {
+    "feature": "Core\\Passkey\\Credential::of",
+    "hash": "c1f5cd41b5912e87",
+    "questions": [
+      "How do I load a saved passkey from my database?",
+      "Rebuild a WebAuthn credential from its id, key and counter",
+      "What happens if a saved passkey row was changed?",
+      "Check a stored public key before using it for sign-in"
+    ]
+  },
+  "/reference/core/passkey-credential/publickey/": {
+    "feature": "Core\\Passkey\\Credential::publicKey",
+    "hash": "2edb1209dabeb98e",
+    "questions": [
+      "How do I get the public key of a passkey?",
+      "Save a COSE public key from WebAuthn",
+      "Store a passkey key as text in a database"
+    ]
+  },
+  "/reference/core/passkey-credential/signcount/": {
+    "feature": "Core\\Passkey\\Credential::signCount",
+    "hash": "4e4e995636cd9f78",
+    "questions": [
+      "What is the passkey sign counter for?",
+      "Detect a copied passkey with the signature counter",
+      "Why is the passkey counter always 0?",
+      "Save the new sign counter after each login"
+    ]
+  },
   "/reference/core/password/": {
     "feature": "Core\\Password",
     "hash": "7ca5076362b11eac",
@@ -16796,6 +16913,15 @@
       "Use my own class as the type of a command argument",
       "Validate a query value and get a typed object",
       "Write a parse method for a value class"
+    ]
+  },
+  "/reference/types/passkey-credential-algorithm/": {
+    "feature": "Core\\Passkey\\Credential::Algorithm",
+    "hash": "25c7a13dee0b8d0c",
+    "questions": [
+      "Which passkey algorithms does Novis support?",
+      "ES256 or Ed25519 for WebAuthn passkeys",
+      "Save a passkey algorithm and read it back"
     ]
   },
   "/reference/types/propertyguard/": {
