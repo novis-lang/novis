@@ -27,7 +27,7 @@ stages:
         rules: [core-classes/passkey-verifies-a-webauthn-ceremony, security/protocol-roster, security/protocol-admission-test]
   - id: 4
     title: "the registration members have their feature proofs"
-    status: open
+    status: done
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 5
     title: "the sign-in members have their feature proofs, and the rule is shipped"
@@ -184,11 +184,11 @@ examples, bench and attack.
 examples (the browser half beside the server half, in the shape of `Core\Totp::check`'s) and the
 bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the attack.
 
-- [ ] `registerOptions`. `docs/examples/core/Passkey/registerOptions/about.md:1`, `benches/members/core/Passkey/registerOptions.nvs:1`
-- [ ] `verifyRegistration`. `docs/examples/core/Passkey/verifyRegistration/about.md:1`, `benches/members/core/Passkey/verifyRegistration.nvs:1`
-- [ ] `credentialId`. `docs/examples/core/Passkey/credentialId/about.md:1`, `benches/members/core/Passkey/credentialId.nvs:1`
-- [ ] The attack: a replayed registration. `tests/hostile/core/Passkey/verifyRegistration/01-a-replayed-registration.nvs:1`
-- [ ] `bun nv proofs --id` owes nothing for the three. `docs/examples/core/Passkey/registerOptions/about.md:1`
+- [x] `registerOptions`. `docs/examples/core/Passkey/registerOptions/about.md:1`, `benches/members/core/Passkey/registerOptions.nvs:1`
+- [x] `verifyRegistration`. `docs/examples/core/Passkey/verifyRegistration/about.md:1`, `benches/members/core/Passkey/verifyRegistration.nvs:1`
+- [x] `credentialId`. `docs/examples/core/Passkey/credentialId/about.md:1`, `benches/members/core/Passkey/credentialId.nvs:1`
+- [x] The attack: a replayed registration. `tests/hostile/core/Passkey/verifyRegistration/01-a-replayed-registration.nvs:1`
+- [x] `bun nv proofs --id` owes nothing for the three but the perf record, which stage 5 makes for all five members. `docs/examples/core/Passkey/registerOptions/about.md:1`
 
 ### 5. the sign-in members have their feature proofs, and the rule is shipped
 
@@ -200,6 +200,7 @@ bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the
 - [ ] `signInOptions`. `docs/examples/core/Passkey/signInOptions/about.md:1`, `benches/members/core/Passkey/signInOptions.nvs:1`
 - [ ] `verifySignIn`. `docs/examples/core/Passkey/verifySignIn/about.md:1`, `benches/members/core/Passkey/verifySignIn.nvs:1`
 - [ ] The attack: a replayed assertion. `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
+- [ ] The perf record of all five members, after the last change to `passkey.rs`: `bun nv proofs --record-perf --id <member>` for each, and `bun nv scaling --budget --write` for the new benches' shares. `data/perf/members.ndjson:1`, `data/perf/bench-budget.json:1`
 - [ ] `bun nv proofs --group 'Core\Passkey'` owes nothing. `docs/examples/core/Passkey/verifySignIn/about.md:1`
 - [ ] `rule:core-classes/passkey-verifies-a-webauthn-ceremony` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-passkey` passes. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
 
@@ -220,40 +221,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `crates/nvs-stdlib/src/passkey.rs` registers the five members,
-`Passkey\Credential` with `of` and four readers, and the enum; eleven Rust tests cover both
-ceremonies for both algorithms. Four cases under `tests/conformance/core/passkey-*` pass under
-`target/debug/nvs.exe test <file>`. `passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst`
-plays the browser: its `Device` class builds the client data, the authenticator data, a `none`
-attestation object and an Ed25519 COSE key (`a4010103272006215820` ‖ raw x) by hand and signs with
-`Core\Crypto::sign`, and a replay, a wrong origin, a wrong domain and a challenge after a failed
-check each throw for both ceremonies. The others pin `credentialId` of a request body as E0401 into
-plain `bytes`, every challenge member before `Core\Session::start`, and the counter rule with `of`'s
-three `LogicError`s. `conformance_coverage`'s two Passkey tests are green. `rule:security/protocol-roster`
-lists `Core\Passkey` as built; the passkey rule's `guardedBy` holds all four cases, and the rule
-stays `designed` until stage 5.
+Stages 1 to 4 are done. The class, its twelve Rust tests and four conformance cases are in;
+the protocol roster lists it as built, and the rule stays `designed` until stage 5.
+`registerOptions`, `verifyRegistration` and `credentialId` each have an about page, three examples,
+a bench and an attack, which pass under
+`bun nv proofs --run --nvs target/debug/nvs.exe --no-perf --id '<member>'`. Plain `--run` failed
+to build its coverage binary, so pass `--nvs`. Each owes only its perf record.
 
-`bun nv try` ignores `--GET--`, so a session case runs only under `nvs test`. `Core\Json::encode`
-and `decode` give tainted text, so the cases build JSON by concatenation and pass the challenge
-through `Core\Taint::assertTrusted`.
+A session example needs Redis: `// requires: redis`, an `nvs.toml` beside it, and a `.nvsr` per
+file (`docs/examples/core/Passkey/registerOptions/`). The `verifyRegistration` examples carry a
+short `Device` class that plays the browser. `Core\Json::decode` gives tainted text, so a challenge
+read from the options goes through `Core\Taint::assertTrusted`.
 
-**Expected red until stages 4 and 5:** the proofs gate's `Core\Passkey` rows (`passkey-proofs`).
+The options now check the memory limit before they are built (`credential_ids`).
+
+**Expected red until stage 5:** the proofs gate's `Core\Passkey` rows (`passkey-proofs`): the
+perf of all five members, and the proofs of `signInOptions` and `verifySignIn`.
 
 ### Next
 
-**Stage 4: the registration members' feature proofs.** Files: `docs/examples/core/Passkey/`,
-`benches/members/core/Passkey/`, `tests/hostile/core/Passkey/verifyRegistration/`. Follow the
-stage's **Split:** line: one writing subagent per member, one after another, then the attack. Give
-each the shape of `docs/examples/core/Totp/check/` and § *Text an end user reads*. A server example
-that needs a ceremony can reuse the first conformance case's `Device` class.
+**Stage 5: the sign-in members' feature proofs, the perf records and the shipped rule.** Files:
+`docs/examples/core/Passkey/signInOptions/`, `docs/examples/core/Passkey/verifySignIn/`,
+`benches/members/core/Passkey/`, `tests/hostile/core/Passkey/{signInOptions,verifySignIn}/`. Give
+each writing subagent the finished `registerOptions` tree as its model (it shows the Redis setup)
+and `verifyRegistration`'s `Device` class for a ceremony. `signInOptions` and `verifySignIn` can run
+side by side, since their files are disjoint. Each member owes one attack, so `signInOptions` needs
+one too.
 
-- [ ] `registerOptions`: `bun nv proofs --id 'Core\Passkey::registerOptions'` lists what it owes. `docs/examples/core/Passkey/registerOptions/about.md:1`, `benches/members/core/Passkey/registerOptions.nvs:1`
-- [ ] `verifyRegistration`. `docs/examples/core/Passkey/verifyRegistration/about.md:1`, `benches/members/core/Passkey/verifyRegistration.nvs:1`
-- [ ] `credentialId`. `docs/examples/core/Passkey/credentialId/about.md:1`, `benches/members/core/Passkey/credentialId.nvs:1`
-- [ ] The attack: a replayed registration. `tests/hostile/core/Passkey/verifyRegistration/01-a-replayed-registration.nvs:1`
-- [ ] `bun nv proofs --comments` over every new `.nvs` and `about.md`, and `bun nv proofs --id` owes nothing for the three. `docs/examples/core/Passkey/registerOptions/about.md:1`
+- [ ] `signInOptions`: about page, three examples, bench, attack. `docs/examples/core/Passkey/signInOptions/about.md:1`, `benches/members/core/Passkey/signInOptions.nvs:1`
+- [ ] `verifySignIn`, with the attack of a replayed assertion. `docs/examples/core/Passkey/verifySignIn/about.md:1`, `tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs:1`
+- [ ] The perf record of all five, once `passkey.rs` no longer changes. `data/perf/members.ndjson:1`
+- [ ] `bun nv proofs --group 'Core\Passkey'` owes nothing, and the rule is `shipped`. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
 
 ### Backlog
 
 - The registry's sign-in uses this goal's work in goal `registry-service` (`docs/goals/registry-service.md`).
 - Web Push, with its AES-128-GCM kept inside the class, is goal `core-web-push`'s (`docs/goals/core-web-push.md`).
+- `bun nv proofs --run` without `--nvs` failed to build its coverage binary under `target/covws` in
+  stage 4. The cause is not known. Stage 6 runs it, and that run shows whether it is still broken.
+  `tools/nv/proofs/run.ts:1`
