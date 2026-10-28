@@ -150,6 +150,9 @@ Conventions the whole file uses:
 | [`Core\Totp`](#core-core-totp) |  |
 | [`Core\Passkey`](#core-core-passkey) |  |
 | [`Core\Passkey\Credential`](#core-core-passkey-credential) |  |
+| [`Core\WebPush`](#core-core-webpush) |  |
+| [`Core\WebPush\Subscription`](#core-core-webpush-subscription) |  |
+| [`Core\WebPush\Sent`](#core-core-webpush-sent) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Jwt\KeySet`](#core-core-jwt-keyset) |  |
 | [`Core\Jwe`](#core-core-jwe) |  |
@@ -45560,6 +45563,124 @@ $credential->signCount(): int
 Returns the sign counter of the passkey. Some devices count every sign-in. Many devices always send `0`.
 
 **Returns** `int` — A whole number from 0 to 4294967295.
+
+<a id="core-core-webpush"></a>
+### `Core\WebPush`
+
+Keywords: subscription, applicationServerKey, send
+
+| Member | Signature |
+|---|---|
+| [`Core\WebPush::subscription`](#core-core-webpush-subscription) | `subscription(string $json): Core\WebPush\Subscription` |
+| [`Core\WebPush::applicationServerKey`](#core-core-webpush-applicationserverkey) | `applicationServerKey(Core\Crypto\KeyPair $vapid): string` |
+| [`Core\WebPush::send`](#core-core-webpush-send) | `send(Core\WebPush\Subscription $to, bytes $payload, Core\Crypto\KeyPair $vapid, string $subject, int $ttl = 86400): Core\WebPush\Sent` |
+
+<a id="core-core-webpush-subscription"></a>
+#### `Core\WebPush::subscription`
+
+```nvs skip
+Core\WebPush::subscription(string $json): Core\WebPush\Subscription
+```
+
+Reads a push subscription from the JSON that `PushSubscription.toJSON()` returns in the browser. It checks the endpoint URL and both keys. A subscription that fails a check throws an error here.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$json` | `string` (neutral) | The JSON text the browser sent, such as `{"endpoint": "https://…", "keys": {"p256dh": "…", "auth": "…"}}`. Other fields, such as `expirationTime`, are ignored. |
+
+**Returns** `Core\WebPush\Subscription` — The subscription, ready to send a message to.
+
+**Throws** `RuntimeError` — The text is not JSON or is longer than 8 KiB. Or the endpoint is not an `https:` URL, `p256dh` is not a P-256 public key, or `auth` is not 16 bytes. The message says which.
+
+<a id="core-core-webpush-applicationserverkey"></a>
+#### `Core\WebPush::applicationServerKey`
+
+```nvs skip
+Core\WebPush::applicationServerKey(Core\Crypto\KeyPair $vapid): string
+```
+
+Returns the public half of your VAPID key, as base64url text. Give it to `pushManager.subscribe()` in the browser as `applicationServerKey`. The private half is not in it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$vapid` | `Core\Crypto\KeyPair` | Your application's VAPID key: a `Core\Crypto\KeyPair` of kind `P256`. Create it once with `Core\Crypto::generateKeyPair`, keep it secret, and use the same key for every message. |
+
+**Returns** `string` — The public key: 87 characters of base64url, such as `BCVxsr7N_eNg…`.
+
+**Throws** `LogicError` — `$vapid` is not a key pair of kind `P256`.
+
+<a id="core-core-webpush-send"></a>
+#### `Core\WebPush::send`
+
+```nvs skip
+Core\WebPush::send(Core\WebPush\Subscription $to, bytes $payload, Core\Crypto\KeyPair $vapid, string $subject, int $ttl = 86400): Core\WebPush\Sent
+```
+
+Encrypts `$payload` for one browser and sends it to the browser's push service. The message is signed with your VAPID key. The program needs `net.connect` for the host of the endpoint.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$to` | `Core\WebPush\Subscription` | The subscription that `Core\WebPush::subscription` returned. |
+| `$payload` | `bytes` (neutral) | The message, at most 3993 bytes. The browser's service worker receives it in its `push` event. |
+| `$vapid` | `Core\Crypto\KeyPair` | Your application's VAPID key: a `Core\Crypto\KeyPair` of kind `P256`. Create it once with `Core\Crypto::generateKeyPair`, keep it secret, and use the same key for every message. |
+| `$subject` | `string` (neutral) | A way for the push service to contact you: a `mailto:` or an `https:` URL, such as `mailto:admin@example.com`. |
+| `$ttl` | `int` (default `86400`) | How many seconds the push service keeps the message while the browser is offline. `0` means the message is sent only if the browser is online now. |
+
+**Returns** `Core\WebPush\Sent` — The push service's answer. Its `status()` is `201` when the service accepted the message.
+
+**Throws** `LogicError` — `$vapid` is not a key pair of kind `P256`.; `LogicError` — `$subject` does not start with `mailto:` or `https:`, or `$ttl` is negative.; `RuntimeError` — The payload is longer than 3993 bytes, the program may not connect to the host, or the push service cannot be reached.
+
+<a id="core-core-webpush-subscription"></a>
+### `Core\WebPush\Subscription`
+
+Keywords: endpoint
+
+| Member | Signature |
+|---|---|
+| [`Core\WebPush\Subscription->endpoint`](#core-core-webpush-subscription-endpoint) | `endpoint(): tainted string` |
+
+<a id="core-core-webpush-subscription-endpoint"></a>
+#### `Core\WebPush\Subscription->endpoint`
+
+```nvs skip
+$subscription->endpoint(): tainted string
+```
+
+Returns the URL of the browser's push service for this subscription. Use it to find the subscription again, for example to delete it. The browser wrote this URL, so it is `tainted`.
+
+**Returns** `tainted string` — The endpoint URL, such as `https://push.example.com/send/abc123`.
+
+<a id="core-core-webpush-sent"></a>
+### `Core\WebPush\Sent`
+
+Keywords: status, gone
+
+| Member | Signature |
+|---|---|
+| [`Core\WebPush\Sent->status`](#core-core-webpush-sent-status) | `status(): int` |
+| [`Core\WebPush\Sent->gone`](#core-core-webpush-sent-gone) | `gone(): bool` |
+
+<a id="core-core-webpush-sent-status"></a>
+#### `Core\WebPush\Sent->status`
+
+```nvs skip
+$sent->status(): int
+```
+
+Returns the HTTP status code of the push service's answer.
+
+**Returns** `int` — The status code, such as `201` for a message the service accepted.
+
+<a id="core-core-webpush-sent-gone"></a>
+#### `Core\WebPush\Sent->gone`
+
+```nvs skip
+$sent->gone(): bool
+```
+
+Returns `true` when the push service no longer knows the subscription. The status is then `404` or `410`. Delete the subscription, because every later message fails too.
+
+**Returns** `bool` — `true` for a subscription the service has deleted, and `false` otherwise.
 
 <a id="core-core-jwt"></a>
 ### `Core\Jwt`

@@ -15787,6 +15787,100 @@
       "Make sure a title stays on one line"
     ]
   },
+  "/reference/core/webpush/": {
+    "feature": "Core\\WebPush",
+    "hash": "82a2bc16f826c7a5",
+    "questions": [
+      "How do I send push notifications to a browser?",
+      "Notify users when my web app is closed",
+      "Send a notification from the server without a JavaScript library",
+      "Is a Web Push message encrypted?",
+      "What do I need to send browser notifications?"
+    ]
+  },
+  "/reference/core/webpush/applicationserverkey/": {
+    "feature": "Core\\WebPush::applicationServerKey",
+    "hash": "33d67d5c11722f9c",
+    "questions": [
+      "What do I pass to pushManager.subscribe as the server key?",
+      "How do I get the public VAPID key for the browser?",
+      "Create a VAPID key for push notifications",
+      "Is it safe to send the VAPID key to the page?",
+      "Why does the browser need a key before it subscribes?"
+    ]
+  },
+  "/reference/core/webpush/send/": {
+    "feature": "Core\\WebPush::send",
+    "hash": "aa157d40737a654f",
+    "questions": [
+      "How do I send one push message to a subscribed browser?",
+      "How long does a push service keep a message for an offline browser?",
+      "How big can a push notification payload be?",
+      "Send a notification to every subscriber of my site",
+      "Which permission does my program need to send push messages?"
+    ]
+  },
+  "/reference/core/webpush/subscription/": {
+    "feature": "Core\\WebPush::subscription",
+    "hash": "c47b512e98ddcfbe",
+    "questions": [
+      "How do I read the subscription JSON the browser sends?",
+      "Where do p256dh and auth come from?",
+      "Check that a push subscription from the browser is valid",
+      "What should I save in the database for push notifications?",
+      "What happens with a subscription that has a broken key?"
+    ]
+  },
+  "/reference/core/webpush-sent/": {
+    "feature": "Core\\WebPush\\Sent",
+    "hash": "98178de078ac945e",
+    "questions": [
+      "What does sending a push message return?",
+      "How do I know if a push message was delivered to the service?",
+      "Read the result of a Web Push request",
+      "When should I remove a push subscription?"
+    ]
+  },
+  "/reference/core/webpush-sent/gone/": {
+    "feature": "Core\\WebPush\\Sent::gone",
+    "hash": "e3b05d421d7303de",
+    "questions": [
+      "How do I know a user turned off notifications?",
+      "Delete push subscriptions that no longer work",
+      "What do status 404 and 410 mean for a push subscription?",
+      "Clean up old browser subscriptions after a send"
+    ]
+  },
+  "/reference/core/webpush-sent/status/": {
+    "feature": "Core\\WebPush\\Sent::status",
+    "hash": "2a25fc472d0a8fe2",
+    "questions": [
+      "Which status code does the push service return?",
+      "Did the push service accept my notification?",
+      "What should I do when the push service says too many requests?",
+      "Does a failed push message throw an error?"
+    ]
+  },
+  "/reference/core/webpush-subscription/": {
+    "feature": "Core\\WebPush\\Subscription",
+    "hash": "62ef688a7c6ae94d",
+    "questions": [
+      "What is inside a browser push subscription?",
+      "Store a push subscription for a user",
+      "How do I keep one subscription per browser?",
+      "Can I build a push subscription without the browser?"
+    ]
+  },
+  "/reference/core/webpush-subscription/endpoint/": {
+    "feature": "Core\\WebPush\\Subscription::endpoint",
+    "hash": "c5d375290096259f",
+    "questions": [
+      "How do I get the push service URL of a subscription?",
+      "Find a saved subscription again by its URL",
+      "Why is the push endpoint URL tainted?",
+      "Show the push endpoint safely in an HTML page"
+    ]
+  },
   "/reference/core/xml/": {
     "feature": "Core\\Xml",
     "hash": "53f73f2e4743253b",

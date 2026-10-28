@@ -3,7 +3,7 @@
   "attacks": 1500,
   "languageTests": 3100,
   "rustTests": 8100,
-  "examples": 4400,
+  "examples": 4500,
   "benchmarks": 1700,
   "editorTests": 570,
   "crates": 21,

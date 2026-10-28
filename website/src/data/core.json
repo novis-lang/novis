@@ -48540,6 +48540,272 @@
       "summaryHtml": "<p>Checks whether a text has a certain format. <code>isEmail</code>, <code>isDomain</code>, <code>isIp</code> and <code>isMac</code> check for an email address, a domain name, an IP address and a MAC address. <code>isAscii</code> and <code>isPrintable</code> check which characters a text contains. Each method returns <code>true</code> or <code>false</code> and never changes the text.</p>\n<p>Every <code>Core\\Validate</code> member is a predicate over a <code>string</code> naming a <em>format</em>: <code>isEmail</code>, <code>isDomain</code>, <code>isIp</code> (with <code>{ version: 4 }</code> or <code>{ version: 6 }</code> to accept one family only), <code>isMac</code>, <code>isAscii</code> and <code>isPrintable</code>. None launders — a <code>tainted string</code> is as tainted after <code>isEmail</code> answers <code>true</code> — and none touches the network. There is no <code>isUrl</code>, <code>isInteger</code> or <code>isFloat</code>: those are <code>Core\\Uri::tryParse($s)?-&gt;scheme() != null</code> and <code>($s as ?int) != null</code>.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\narray&lt;string&gt; $emails = ['ada@example.test', 'no-at-sign', 'ada@localhost'];\nforeach ($emails as string $e) {\n    echo $e, ' ', (Core\\Validate::isEmail($e) ? 'email' : 'not'), &quot;\\n&quot;;\n}\necho (Core\\Validate::isDomain('a-b.example.test') ? 'domain' : 'not'), &quot;\\n&quot;;\necho (Core\\Validate::isIp('192.0.2.1') ? 'ip' : 'not'), &quot;\\n&quot;;\necho (Core\\Validate::isIp('2001:db8::1', { version: 4 }) ? 'v4' : 'not v4'), &quot;\\n&quot;;\necho (Core\\Validate::isIp('2001:db8::1', { version: 6 }) ? 'v6' : 'not v6'), &quot;\\n&quot;;\necho (Core\\Validate::isMac('00:11:22:33:44:55') ? 'mac' : 'not'), &quot;\\n&quot;;\necho (Core\\Validate::isAscii('café') ? 'ascii' : 'not ascii'), &quot;\\n&quot;;\necho (Core\\Validate::isPrintable('café') ? 'printable' : 'not'), &quot;\\n&quot;;\necho (Core\\Validate::isPrintable(&quot;a\\tb&quot;) ? 'printable' : 'not'), &quot;\\n&quot;;\necho (('12' as ?int) != null ? 'int' : 'not'), &quot;\\n&quot;;</code></pre>\n<pre class=\"output\"><code>ada@example.test email\nno-at-sign not\nada@localhost not\ndomain\nip\nnot v4\nv6\nmac\nnot ascii\nprintable\nnot\nint</code></pre>"
     },
     {
+      "id": "WebPush",
+      "name": "Core\\WebPush",
+      "summary": "Sends push notifications to a browser (Web Push). The browser gives your page a subscription. Your server reads it with `subscription`. Each message is encrypted for that one browser, and only that browser can read it.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "WebPush.subscription",
+          "name": "subscription",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "subscription(string $json): Core\\WebPush\\Subscription",
+          "params": [
+            {
+              "kind": "param",
+              "name": "json",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\WebPush\\Subscription",
+          "doc": {
+            "shortHtml": "Reads a push subscription from the JSON that <code>PushSubscription.toJSON()</code> returns in the browser. It checks the endpoint URL and both keys. A subscription that fails a check throws an error here.",
+            "params": [
+              {
+                "name": "json",
+                "descHtml": "The JSON text the browser sent, such as <code>{&quot;endpoint&quot;: &quot;https://…&quot;, &quot;keys&quot;: {&quot;p256dh&quot;: &quot;…&quot;, &quot;auth&quot;: &quot;…&quot;}}</code>. Other fields, such as <code>expirationTime</code>, are ignored."
+              }
+            ],
+            "returnHtml": "The subscription, ready to send a message to.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The text is not JSON or is longer than 8 KiB. Or the endpoint is not an <code>https:</code> URL, <code>p256dh</code> is not a P-256 public key, or <code>auth</code> is not 16 bytes. The message says which."
+              }
+            ]
+          },
+          "slug": "subscription",
+          "url": "/reference/core/webpush/subscription/",
+          "examples": "core/WebPush/subscription"
+        },
+        {
+          "id": "WebPush.applicationServerKey",
+          "name": "applicationServerKey",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "applicationServerKey(Core\\Crypto\\KeyPair $vapid): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "vapid",
+              "type": "Core\\Crypto\\KeyPair",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the public half of your VAPID key, as base64url text. Give it to <code>pushManager.subscribe()</code> in the browser as <code>applicationServerKey</code>. The private half is not in it.",
+            "params": [
+              {
+                "name": "vapid",
+                "descHtml": "Your application's VAPID key: a <code>Core\\Crypto\\KeyPair</code> of kind <code>P256</code>. Create it once with <code>Core\\Crypto::generateKeyPair</code>, keep it secret, and use the same key for every message."
+              }
+            ],
+            "returnHtml": "The public key: 87 characters of base64url, such as <code>BCVxsr7N_eNg…</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$vapid</code> is not a key pair of kind <code>P256</code>."
+              }
+            ]
+          },
+          "slug": "applicationserverkey",
+          "url": "/reference/core/webpush/applicationserverkey/",
+          "examples": "core/WebPush/applicationServerKey"
+        },
+        {
+          "id": "WebPush.send",
+          "name": "send",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "send(Core\\WebPush\\Subscription $to, bytes $payload, Core\\Crypto\\KeyPair $vapid, string $subject, int $ttl = 86400): Core\\WebPush\\Sent",
+          "params": [
+            {
+              "kind": "param",
+              "name": "to",
+              "type": "Core\\WebPush\\Subscription",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "payload",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "vapid",
+              "type": "Core\\Crypto\\KeyPair",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "subject",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "ttl",
+              "type": "int",
+              "default": "86400",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\WebPush\\Sent",
+          "doc": {
+            "shortHtml": "Encrypts <code>$payload</code> for one browser and sends it to the browser's push service. The message is signed with your VAPID key. The program needs <code>net.connect</code> for the host of the endpoint.",
+            "params": [
+              {
+                "name": "to",
+                "descHtml": "The subscription that <code>Core\\WebPush::subscription</code> returned."
+              },
+              {
+                "name": "payload",
+                "descHtml": "The message, at most 3993 bytes. The browser's service worker receives it in its <code>push</code> event."
+              },
+              {
+                "name": "vapid",
+                "descHtml": "Your application's VAPID key: a <code>Core\\Crypto\\KeyPair</code> of kind <code>P256</code>. Create it once with <code>Core\\Crypto::generateKeyPair</code>, keep it secret, and use the same key for every message."
+              },
+              {
+                "name": "subject",
+                "descHtml": "A way for the push service to contact you: a <code>mailto:</code> or an <code>https:</code> URL, such as <code>mailto:admin@example.com</code>."
+              },
+              {
+                "name": "ttl",
+                "descHtml": "How many seconds the push service keeps the message while the browser is offline. <code>0</code> means the message is sent only if the browser is online now."
+              }
+            ],
+            "returnHtml": "The push service's answer. Its <code>status()</code> is <code>201</code> when the service accepted the message.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$vapid</code> is not a key pair of kind <code>P256</code>."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$subject</code> does not start with <code>mailto:</code> or <code>https:</code>, or <code>$ttl</code> is negative."
+              },
+              {
+                "error": "RuntimeError",
+                "descHtml": "The payload is longer than 3993 bytes, the program may not connect to the host, or the push service cannot be reached."
+              }
+            ]
+          },
+          "slug": "send",
+          "url": "/reference/core/webpush/send/",
+          "examples": "core/WebPush/send"
+        }
+      ],
+      "slug": "webpush",
+      "url": "/reference/core/webpush/",
+      "summaryHtml": "<p>Sends push notifications to a browser (Web Push). The browser gives your page a subscription. Your server reads it with <code>subscription</code>. Each message is encrypted for that one browser, and only that browser can read it.</p>"
+    },
+    {
+      "id": "WebPush.Sent",
+      "name": "Core\\WebPush\\Sent",
+      "summary": "The answer of the browser's push service to one message that `Core\\WebPush::send` sent. Check `gone()` to know when to delete a subscription.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "WebPush.Sent.status",
+          "name": "status",
+          "static": false,
+          "receiver": "sent",
+          "generics": null,
+          "signature": "status(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the HTTP status code of the push service's answer.",
+            "returnHtml": "The status code, such as <code>201</code> for a message the service accepted."
+          },
+          "slug": "status",
+          "url": "/reference/core/webpush-sent/status/",
+          "examples": "core/WebPush-Sent/status"
+        },
+        {
+          "id": "WebPush.Sent.gone",
+          "name": "gone",
+          "static": false,
+          "receiver": "sent",
+          "generics": null,
+          "signature": "gone(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Returns <code>true</code> when the push service no longer knows the subscription. The status is then <code>404</code> or <code>410</code>. Delete the subscription, because every later message fails too.",
+            "returnHtml": "<code>true</code> for a subscription the service has deleted, and <code>false</code> otherwise."
+          },
+          "slug": "gone",
+          "url": "/reference/core/webpush-sent/gone/",
+          "examples": "core/WebPush-Sent/gone"
+        }
+      ],
+      "slug": "webpush-sent",
+      "url": "/reference/core/webpush-sent/",
+      "summaryHtml": "<p>The answer of the browser's push service to one message that <code>Core\\WebPush::send</code> sent. Check <code>gone()</code> to know when to delete a subscription.</p>"
+    },
+    {
+      "id": "WebPush.Subscription",
+      "name": "Core\\WebPush\\Subscription",
+      "summary": "A browser's push subscription, after `Core\\WebPush::subscription` checked it. It contains the URL of the browser's push service and the two keys that encrypt a message for this browser. Save the JSON text with the user, and read it again when you send.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "WebPush.Subscription.endpoint",
+          "name": "endpoint",
+          "static": false,
+          "receiver": "subscription",
+          "generics": null,
+          "signature": "endpoint(): tainted string",
+          "params": [],
+          "options": [],
+          "returnType": "tainted string",
+          "doc": {
+            "shortHtml": "Returns the URL of the browser's push service for this subscription. Use it to find the subscription again, for example to delete it. The browser wrote this URL, so it is <code>tainted</code>.",
+            "returnHtml": "The endpoint URL, such as <code>https://push.example.com/send/abc123</code>."
+          },
+          "slug": "endpoint",
+          "url": "/reference/core/webpush-subscription/endpoint/",
+          "examples": "core/WebPush-Subscription/endpoint"
+        }
+      ],
+      "slug": "webpush-subscription",
+      "url": "/reference/core/webpush-subscription/",
+      "summaryHtml": "<p>A browser's push subscription, after <code>Core\\WebPush::subscription</code> checked it. It contains the URL of the browser's push service and the two keys that encrypt a message for this browser. Save the JSON text with the user, and read it again when you send.</p>"
+    },
+    {
       "id": "Xml",
       "name": "Core\\Xml",
       "summary": "Reads and writes XML documents. `parse` reads a whole document into a tree of `Core\\Xml\\Node` objects. `reader` returns the nodes of a document one at a time and does not build a tree. `writer` builds a new document one node at a time, and escapes every text for you.",
