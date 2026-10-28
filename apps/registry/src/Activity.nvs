@@ -114,6 +114,9 @@ final class Activity
         int $now = Time::now()->toEpochSeconds();
         string $hash = Tokens::hashOf($code);
         return $this->db->transaction(fn(Transaction $tx): ?string => {
+            // This statement writes, so the transaction has the write lock of the database from here on.
+            // When the first statement only reads, SQLite fails the writes below at once while another request writes.
+            $tx->execute('update reminders set code_hash = code_hash where code_hash = ?', [$hash]);
             ?string $account = null;
             foreach ($tx->query(
                 'select r.account from reminders r join accounts a on a.id = r.account '

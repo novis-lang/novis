@@ -133,6 +133,9 @@ final class Vendors
     {
         string $key = Str::lower($vendor);
         return $this->db->transaction(fn(Transaction $tx): bool => {
+            // This statement writes, so the transaction has the write lock of the database from here on.
+            // When the first statement only reads, SQLite fails the write below at once while another request writes.
+            $tx->execute('update owners set added_at = added_at where vendor = ?', [$key]);
             foreach ($tx->query('select count(*) as owners from owners where vendor = ?', [$key]) as Row $row) {
                 if (($row->int('owners') ?? 0) < 2) {
                     return false;

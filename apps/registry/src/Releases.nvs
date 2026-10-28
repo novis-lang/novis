@@ -158,6 +158,9 @@ final class Releases
     public function rebind(string $key, string $repository, string $directory): bool
     {
         return $this->db->transaction(fn(Transaction $tx): bool => {
+            // This statement writes, so the transaction has the write lock of the database from here on.
+            // When the first statement only reads, SQLite fails the write below at once while another request writes.
+            $tx->execute('update packages set repository = repository where key = ?', [$key]);
             if ($tx->query('select 1 from packages where repository = ? and directory = ?', [$repository, $directory])->count() != 0) {
                 return false;
             }
