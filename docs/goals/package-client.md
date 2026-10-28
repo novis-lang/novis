@@ -55,7 +55,7 @@ stages:
         rules: [packaging/an-external-file-is-pinned-by-url-sha256-and-size, packaging/a-package-carries-only-its-source-and-what-it-lists, packaging/nothing-runs-before-the-program, security/net-address-policy, programs/relative-paths-resolve-from-their-file, security/package-authority-is-granted-one-line-at-a-time, security/path-scope-canonicalise-then-prefix]
   - id: 6
     title: "`package.toml`, `nvs pkg add` and `nvs pkg fetch` have their feature proofs"
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md]
   - id: 8
     title: the other client commands have their feature proofs, and the rules are shipped
@@ -462,10 +462,10 @@ placed at its path, and the two commands write an entry and fill the cache.
 one feature after the other, then a second writes the attacks, each held to § *Text an end user reads*
 in `AGENTS.md`.
 
-- [ ] The headings `# package.toml`, `# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in the chapter. `docs/reference/tools/35-packages.md:1`
-- [ ] The about pages and examples. `docs/examples/tools/packages/package-toml/about.md:1`, `docs/examples/tools/packages/nvs-pkg-add/about.md:1`, `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:1`
-- [ ] The attacks: a vendor answered by a second registry, a transitive git dependency, and a package whose top-level statement has an effect, which `nvs build` does not run. Add `// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor` to `crates/nvs-cli/tests/package_fetch.rs` once the heading exists. `tests/hostile/tools/packages/package-toml/01-a-vendor-answered-by-a-second-registry.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/01-a-transitive-git-dependency.nvs:1`
-- [ ] `bun nv proofs --id` owes nothing for `tools:packages/package-toml`, `tools:packages/nvs-pkg-add` and `tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor`. `docs/reference/tools/35-packages.md:1`
+- [x] The headings `# package.toml`, `# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in the chapter. `docs/reference/tools/35-packages.md:1`
+- [x] The about pages and examples. `docs/examples/tools/packages/package-toml/about.md:1`, `docs/examples/tools/packages/nvs-pkg-add/about.md:1`, `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:1`
+- [x] The attacks: a vendor answered by a second registry, a transitive git dependency, and a package whose top-level statement has an effect, which `nvs build` does not run. Add `// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor` to `crates/nvs-cli/tests/package_fetch.rs` once the heading exists. `tests/hostile/tools/packages/package-toml/01-a-vendor-answered-by-a-second-registry.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/01-a-transitive-git-dependency.nvs:1`
+- [x] `bun nv proofs --id` owes nothing for `tools:packages/package-toml`, `tools:packages/nvs-pkg-add` and `tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor`. `docs/reference/tools/35-packages.md:1`
 
 ### 8. the other client commands have their feature proofs, and the rules are shipped
 
@@ -501,36 +501,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 4, 5 and 9 are done. The read check's run-time half landed: a package's
-literal read of a file in its own set compiles with `PreparedFact::OwnFile`, the word
-`nvs_config::capability::own_file_word` makes from the resolved path
-(`crates/nvs-config/src/capability.rs`), filed by `own_file_word` in
-`crates/nvs-types/src/capability.rs`. The nine `OWN_FILE_READS` members are on
-`PREPARED_MEMBERS` (`crates/nvs-stdlib/src/registry.rs`), so each helper in
-`crates/nvs-stdlib/src/io.rs` takes the word as argument 0 and runs its door inside
-`Ctx::with_own_file` (`crates/nvs-runtime/src/ctx/isolate.rs`). The doors pass `fs.read` for
-that file alone after the scope refused (`own_file` and `allow` in
-`crates/nvs-runtime/src/capability.rs`). The rule's **Not on disk** line now names only the
-fetch's limits while it reads. The standing decision on the own-file read records the word.
+Stages 1, 2, 3, 7, 4, 5, 9 and 6 are done. Stage 6 landed the headings `# package.toml`,
+`# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in `docs/reference/tools/35-packages.md`,
+each before `# nvs pkg api and nvs pkg diff` with its own `<!-- src: -->` line, and the front
+matter's summary and keywords. Each feature has its about page and three examples under
+`docs/examples/tools/packages/<feature>/`, over a committed `vendor/` tree laid out as
+`nvs pkg fetch` writes it (`package.lock`, `vendor/packages.nvs`, `vendor/package-files.toml`).
+The attacks are under `tests/hostile/tools/packages/<feature>/`: another vendor's package
+declaring `Acme\Http` (`E0660`), a transitive git dependency's code carried in the package's
+folder (`E0660`), and a package file with a top-level statement (`E0317`). The Rust tests that
+prove each feature carry its `covers:` marker (`package_client.rs`, `package_fetch.rs`,
+`package_git.rs`). `bun nv proofs --gate --only` owes nothing for the three, and each one's
+examples and attack pass `proofs --run`. `website/public/llms-full.txt` is rendered.
 
-Tests: `a_package_reads_its_own_file_where_the_operator_scope_leaves_vendor_out`
-(`crates/nvs-cli/tests/package_fetch.rs`) is new and passes, with `package_fetch`,
-`package_download` and the `core_io` unit tests, whose calls now pass the leading word through
-`call_read`. Build and clippy are clean. No test should go red; the IR dump of a `Core\IO` read
-now shows a `prepared` argument, so a snapshot test of one would change.
+No test should go red: the Rust change is comment lines alone.
 
-The sweep's reds were stale: the `env-secret-proofs` log shows exit 0, and Miri run 40474302703
-ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+This machine's C: drive is full, so the MSVC linker failed (`LNK1108`) until `TMP` and `TEMP`
+pointed at `E:\mwl\.agent-tmp\tmp`. A session that sees a link failure sets both on the command.
+
+The sweep's reds were stale again: the `env-secret-proofs` log shows exit 0, and Miri run
+40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
 ### Next
 
-**Stage 6**, `docs/goals/package-client.md` § 6: the feature proofs of `package.toml`,
-`nvs pkg add` and `nvs pkg fetch and nvs pkg vendor`. Follow its `**Split:**` line.
+**Stage 8**, `docs/goals/package-client.md` § 8: the feature proofs of the last four features,
+then the two rules shipped. Follow its `**Split:**` line, as stage 6 did: the headings first, then
+one writing subagent for the about pages and examples, and one for the attacks, side by side.
 
-- [ ] The three headings in `docs/reference/tools/35-packages.md`, beside `# nvs pkg api and nvs pkg diff` (`docs/reference/tools/35-packages.md:123`).
-- [ ] One writing subagent writes the three about pages and examples under `docs/examples/tools/packages/`, held to § *Text an end user reads* in `AGENTS.md` (`docs/goals/package-client.md:466`).
-- [ ] A second writes the attacks under `tests/hostile/tools/packages/` (`docs/goals/package-client.md:467`), then `// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor` goes into `crates/nvs-cli/tests/package_fetch.rs:1`.
-- [ ] `bun nv proofs --id` owes nothing for the three features (`docs/goals/package-client.md:468`).
+- [ ] The four headings after `# nvs pkg fetch and nvs pkg vendor` in `docs/reference/tools/35-packages.md`, then `bun nv render --website` (`docs/goals/package-client.md:476`).
+- [ ] The about pages and examples, copying the `vendor/` tree of `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/` (`docs/goals/package-client.md:477`).
+- [ ] The attacks (`docs/goals/package-client.md:478`); `a_locked_run_refuses_a_missing_entry_and_an_edited_digest` in `crates/nvs-cli/tests/package_fetch.rs` takes `// covers: tools:packages/package-lock-and-locked`, and `crates/nvs-cli/tests/package_download.rs` the download feature's.
+- [ ] `bun nv proofs --gate --only` owes nothing for the four (`docs/goals/package-client.md:479`).
+- [ ] The two rules `shipped` (`docs/goals/package-client.md:480`).
 
 ### Backlog
 
