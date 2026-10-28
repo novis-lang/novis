@@ -41,7 +41,7 @@ use std::process::ExitCode;
 
 use nvs_diagnostics::{Renderer, SourceMap};
 
-use super::git::Outbound;
+use super::git::{self, Outbound};
 use super::index::{Capabilities, Fault, fault};
 use super::lock::{self, Lock};
 use super::manifest::{self, Manifest};
@@ -110,7 +110,8 @@ fn fetch(mode: Mode, locked: bool) -> Result<(), Failed> {
     })?;
     let app = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
     let outbound = Outbound::new(crate::config::written_capabilities().map_err(Failed::Reported)?);
-    let keep = nvs_config::data::current().map(nvs_config::data::Folder::registry);
+    let data = nvs_config::data::current();
+    let keep = data.map(nvs_config::data::Folder::registry);
     let lock_path = app.join(lock::FILE);
     let old = Lock::read(&lock_path)?;
     if locked && old.is_none() {
@@ -123,6 +124,11 @@ fn fetch(mode: Mode, locked: bool) -> Result<(), Failed> {
         .into());
     }
     let mut registries = Registries::new(&manifest, keep.as_deref()).reaching(outbound);
+    if let Some(data) = data {
+        // A git dependency is written out under the data folder, beside every other file Novis
+        // keeps, and removed once it is packed.
+        registries = registries.clones_in(&data.tmp(), git::LIMITS);
+    }
     let graph = resolve::resolve(&manifest, &mut registries, old.as_ref())?;
     if let Some(old) = &old {
         old.check(&graph, locked)?;

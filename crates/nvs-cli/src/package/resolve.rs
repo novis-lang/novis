@@ -152,7 +152,6 @@ impl<'a> Registries<'a> {
 
     /// These registries, with each git dependency written out under `scratch` and cloned inside
     /// `limits`.
-    #[cfg(test)]
     pub(crate) fn clones_in(mut self, scratch: &Path, limits: Limits) -> Self {
         self.scratch = scratch.to_path_buf();
         self.limits = limits;
