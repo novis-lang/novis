@@ -109,6 +109,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::signed_cookie::CLASS,
     crate::csrf::CLASS,
     crate::totp::CLASS,
+    crate::passkey::CLASS,
+    crate::passkey::CREDENTIAL,
     crate::jwt::CLASS,
     crate::jwt::KEY_SET,
     crate::jwe::CLASS,

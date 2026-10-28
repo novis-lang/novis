@@ -968,6 +968,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1eb98d5e9155e2cf7cd942c8b3033097d4563b6fb0a00b9caecb74669555c058"
+dependencies = [
+ "ciborium",
+ "ciborium-io",
+]
+
+[[package]]
 name = "cpp_demangle"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4634,6 +4644,8 @@ dependencies = [
  "brotli",
  "caseless",
  "chacha20poly1305",
+ "ciborium",
+ "coset",
  "crc32c",
  "crc32fast",
  "csv-core",

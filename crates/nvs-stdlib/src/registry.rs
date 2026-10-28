@@ -2592,6 +2592,9 @@ pub const ENUMS: &[CoreEnum] = &[
     // the same class: `exportKey`'s own three formats, named at the call rather
     // than sniffed out of the octets a program was handed.
     crate::crypto::KEY_FORMAT,
+    // A passkey's signature algorithm, after the key kinds because it is the same choice made by
+    // an authenticator: ES256 or Ed25519, and no third.
+    crate::passkey::ALGORITHM,
     // The answer `Core\Mime::detect` gives, whose zero case is `Unknown`: a
     // detection that cannot say is an ordinary case rather than an error, and
     // a closed one so a caller never compares against a media-type spelling

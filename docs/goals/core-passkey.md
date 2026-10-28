@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/passkey.rs, docs/rules/core-classes/passkey-veri
 stages:
   - id: 1
     title: a registration is created and verified, and the credential is returned to the application
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/totp.rs, crates/nvs-stdlib/src/crypto.rs, crates/nvs-stdlib/src/session.rs, crates/nvs-stdlib/src/registry.rs, Cargo.toml]
     extra:
       context:
@@ -66,9 +66,27 @@ are goal `core-web-push`'s, which keeps its AES-128-GCM inside `Core\WebPush`.
 **The member names and shapes are the ones
 `rule:core-classes/passkey-verifies-a-webauthn-ceremony` states**: `registerOptions`,
 `verifyRegistration`, `signInOptions`, `credentialId` and `verifySignIn`, with the value
-`Passkey\Credential` and the enum `Passkey\Algorithm`. Each member's reference card is its registry
+`Passkey\Credential` and the enum `Passkey\Credential::Algorithm`. Each member's reference card is its registry
 declaration (`rule:core-api/reference-card`), written with the member's code, as `Core\Totp`'s is
 (`crates/nvs-stdlib/src/totp.rs:132`).
+
+**The credential is a `Core` instance with four readers and a static `of`.** A `Core` instance has no
+property a program can reach, so `id()`, `publicKey()`, `algorithm()` and `signCount()` read its four
+slots, and `Passkey\Credential::of($id, $publicKey, $algorithm, $signCount)` builds a stored one
+again, checking the COSE key against the algorithm. The enum is `Passkey\Credential::Algorithm`,
+because the credential is the one class that takes or returns it
+(`rule:enums/an-enum-lives-in-the-class-that-uses-it`, held by `crates/nvs-stdlib/tests/enum_owners.rs`).
+Why: without `of`, a credential the application stored could never reach `verifySignIn`.
+
+**The challenge is saved with the second it was issued, and expires after five minutes.** The
+options send `timeout: 300000`, and a challenge older than that throws, so a ceremony the browser
+abandoned cannot be completed later. Memory: 40 bytes per ceremony in flight, in the session.
+`crate::session::put_bytes` and `take_bytes` (`crates/nvs-stdlib/src/session.rs`) are the two doors
+from Rust into the record.
+
+**`registerOptions`' text and bytes arguments are `Contagious`**, because each is copied into the
+JSON it returns, and `verifyRegistration`'s three are `Neutral`, because the answer is a checked
+object.
 
 **ES256 and Ed25519 only, and no attestation verification.** A credential with another algorithm is
 refused at registration. The attestation statement is not checked, so no vendor certificate list is
@@ -127,12 +145,12 @@ credential value.
 **Split:** first, an `Explore` subagent returns how a `Core` member reads and writes the started
 session from Rust (`file.rs:NN`, one line each), starting at `crates/nvs-stdlib/src/session.rs:617`.
 
-- [ ] `coset` and `ciborium` in the workspace `Cargo.toml` and `crates/nvs-stdlib/Cargo.toml`, each row saying why, with `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:1`
-- [ ] The class, its module and its place in the class list. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/lib.rs:230`, `crates/nvs-stdlib/src/registry.rs:5994`
-- [ ] `registerOptions`: the JSON for `navigator.credentials.create()`, with a fresh challenge saved in the session. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `verifyRegistration`: the client data (type, challenge, origin), the authenticator data (relying party id hash, user present, user verified), the COSE key for ES256 and Ed25519 with any other algorithm refused, and the `Passkey\Credential` returned (`rule:core-classes/passkey-verifies-a-webauthn-ceremony`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] The reference cards of `registerOptions`, `verifyRegistration`, `Passkey\Credential` and `Passkey\Algorithm` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] Rust tests: the software authenticator's registration for each algorithm, the spec's vectors, and a third algorithm refused. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] `coset` and `ciborium` in the workspace `Cargo.toml` and `crates/nvs-stdlib/Cargo.toml`, each row saying why, with `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:1`
+- [x] The class, its module and its place in the class list. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/lib.rs:230`, `crates/nvs-stdlib/src/registry.rs:5994`
+- [x] `registerOptions`: the JSON for `navigator.credentials.create()`, with a fresh challenge saved in the session. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] `verifyRegistration`: the client data (type, challenge, origin), the authenticator data (relying party id hash, user present, user verified), the COSE key for ES256 and Ed25519 with any other algorithm refused, and the `Passkey\Credential` returned (`rule:core-classes/passkey-verifies-a-webauthn-ceremony`). `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] The reference cards of `registerOptions`, `verifyRegistration`, `Passkey\Credential` and `Passkey\Credential::Algorithm` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] Rust tests: the software authenticator's registration for each algorithm, the spec's vectors, and a third algorithm refused. `crates/nvs-stdlib/src/passkey.rs:1`
 
 ### 2. an authentication is verified against a stored credential
 
@@ -200,25 +218,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `crates/nvs-stdlib/src/passkey.rs` does not exist. `Core\Totp`
-(`crates/nvs-stdlib/src/totp.rs:132`) is the nearest class in shape. The protocol roster already
-admits `Core\Passkey` as not built (`docs/rules/security/protocol-roster.md:7`).
+Stage 1 is done. `crates/nvs-stdlib/src/passkey.rs` registers `Core\Passkey` (rank 975, with
+`registerOptions` and `verifyRegistration`), `Core\Passkey\Credential` (rank 976: `of` and four
+readers) and the enum `Core\Passkey\Credential::Algorithm` (`ES256` = 0, `Ed25519` = 1). The
+challenge is saved through `crate::session::put_bytes`/`take_bytes` under the key
+`Core\Passkey::registerOptions`, and `take_challenge` removes it before any check. `key_point` returns
+the algorithm and the point a signature check reads (`04‖x‖y` for ES256, `x` for Ed25519). Six unit
+tests pass, including both WebAuthn L3 vectors (§ 16.2 none ES256, § 16.11 packed Ed25519). Neither
+vector sets the UV flag, so they assert that the parse matches the spec and that the full check stops
+at user verification. The scratch copy of the spec was deleted.
+
+**Expected red until stage 4:** `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
+`every_part_one_member_has_a_conformance_case` and `every_core_class_has_a_conformance_floor_of_three`
+(no conformance case uses the new members yet), and probably the proofs gate's `Core\Passkey` rows.
 
 ### Next
 
-**Stage 1: the registration ceremony**, one file set: `crates/nvs-stdlib/src/passkey.rs`,
-`crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/src/registry.rs`, `Cargo.toml`. No gate.
+**Stage 2: the sign-in ceremony**, one file set: `crates/nvs-stdlib/src/passkey.rs` and
+`crates/nvs-stdlib/src/crypto.rs`. No gate.
 
-- [ ] The `Explore` subagent's map of session access from Rust. `crates/nvs-stdlib/src/session.rs:617`
-- [ ] `coset` and `ciborium` rows, `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:1`
-- [ ] The class, its module and its place in the class list. `crates/nvs-stdlib/src/registry.rs:5994`
-- [ ] `registerOptions` with the challenge in the session (`rule:core-classes/session-is-started-explicitly`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `verifyRegistration` and the credential value (`rule:core-classes/passkey-verifies-a-webauthn-ceremony`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] The four reference cards (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] Rust tests from the software authenticator and the spec's vectors. `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] `signInOptions` with its own session key, `Core\Passkey::signInOptions`, through `issue_challenge`. `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] `credentialId`: the response's `id` (or `rawId`), base64url-decoded, returned as `tainted bytes`. `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] `verifySignIn`: `take_challenge` first, then `client_data(…, "webauthn.get", …)`, `auth_data` and `check_auth`, then the signature over `authData ‖ SHA-256(clientDataJSON)`. A WebAuthn ES256 signature is **DER**, and `crypto::verify_signature`'s `VerifyingKey::P256` uses ring's `ECDSA_P256_SHA256_FIXED`, so add the ASN.1 form beside it in `crates/nvs-stdlib/src/crypto.rs:2643`, or convert DER to `r‖s` in `passkey.rs`. `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] The counter rule, the reference cards and the Rust tests that stage 2 lists. The spec vectors' authentication halves are in WebAuthn L3 § 16.2 and § 16.11. `crates/nvs-stdlib/src/passkey.rs:1`
 
 ### Backlog
 
-- Stage 2 continues in the same file, in the same group when it fits. `crates/nvs-stdlib/src/passkey.rs`
+- Stage 3's single-use test is partly in place: `the_members_register_once_per_challenge` asserts that a second verification throws. `crates/nvs-stdlib/src/passkey.rs:1`
 - The registry's sign-in uses this goal's work in goal `registry-service` (`docs/goals/registry-service.md`).
 - Web Push, with its AES-128-GCM kept inside the class, is goal `core-web-push`'s (`docs/goals/core-web-push.md`).

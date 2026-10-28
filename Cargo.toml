@@ -906,6 +906,20 @@ base64 = { version = "0.23", default-features = false, features = ["std"] }
 # set to and why.
 data-encoding = "2"
 
+# --- CBOR and COSE (`Core\Passkey`'s WebAuthn ceremonies) ---
+# A WebAuthn attestation object is CBOR (RFC 8949) and the credential's public
+# key inside it is a COSE key (RFC 9052), both external specifications that
+# browser-sent, attacker-shaped bytes reach, so
+# `rule:packaging/somebody-elses-specification-is-a-crate` takes a crate and
+# `rule:packaging/a-c-dependency-answers-two-questions`'s second question picks
+# these two: both are pure Rust, with no build script and no C. `ciborium`
+# already reaches this tree's lock file through `criterion`, and `coset` is
+# Google's COSE types over that same `ciborium`, so it adds one crate. The
+# default features are off: `coset`'s `std` adds nothing a member reads.
+# `crates/nvs-stdlib/src/passkey.rs` owns which crate reads which field.
+ciborium = { version = "0.2", default-features = false, features = ["std"] }
+coset = { version = "0.4", default-features = false }
+
 # --- legacy text encodings (`Core\Encoding`'s text trio) ---
 # `Charset`'s roster is the WHATWG Encoding Standard's index rather than a list
 # Novis curates, and this crate *is* that standard: it is the reference

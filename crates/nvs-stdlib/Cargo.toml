@@ -122,6 +122,10 @@ pbkdf2.workspace = true
 ring.workspace = true
 base64.workspace = true
 data-encoding.workspace = true
+# `Core\Passkey` reads a WebAuthn attestation object with `ciborium` and the
+# credential's COSE key with `coset`. The root manifest's row says why each.
+ciborium.workspace = true
+coset.workspace = true
 encoding_rs.workspace = true
 csv-core.workspace = true
 fluent-uri.workspace = true

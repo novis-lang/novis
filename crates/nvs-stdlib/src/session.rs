@@ -1240,6 +1240,47 @@ pub(crate) fn sent_id(ctx: &mut Ctx, who: &str) -> Result<String, Fault> {
     Ok(session.id.clone())
 }
 
+/// Saves `value` under `key` in the started session's record, for a `Core` class that keeps one
+/// visitor's state between two of their requests: `Core\Passkey`'s challenge.
+///
+/// The caller checks that a session is started first and throws its own sentence, so this never
+/// meets [`unstarted`] from a program. The record is written whole, as [`nvs_core_session_set`]
+/// writes it.
+///
+/// # Errors
+///
+/// As [`nvs_core_session_set`]: [`record`]'s and [`write_back`]'s.
+pub(crate) fn put_bytes(ctx: &mut Ctx, key: &str, value: &[u8]) -> Result<(), Fault> {
+    let mut held = record(ctx, "set")?;
+    held.set(
+        NvsStr::new(key.as_bytes()),
+        Value::bytes(NvsStr::new(value)),
+    );
+    write_back(ctx, held, "set").map(drop)
+}
+
+/// The `bytes` saved under `key` in the started session's record, taken out of it: [`put_bytes`]'s
+/// other half, and what makes `Core\Passkey`'s challenge single-use.
+///
+/// The key is removed whatever it held, so a value that is not `bytes` is `None` and is gone
+/// too. A key the record does not have is `None` and writes nothing, as
+/// [`nvs_core_session_remove`] writes nothing.
+///
+/// # Errors
+///
+/// As [`nvs_core_session_remove`].
+pub(crate) fn take_bytes(ctx: &mut Ctx, key: &str) -> Result<Option<Vec<u8>>, Fault> {
+    let mut held = record(ctx, "remove")?;
+    let Some(found) = held.get(key.as_bytes()) else {
+        drop(held);
+        return Ok(None);
+    };
+    let taken = found.as_bytes().map(<[u8]>::to_vec);
+    held.unset(key.as_bytes());
+    write_back(ctx, held, "remove")?;
+    Ok(taken)
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Session::get(string $key): mixed` — `rule:core-api/session-roster`'s read of the record `start` loaded,
     /// replacing `$_SESSION[$key]`.

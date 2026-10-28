@@ -3049,7 +3049,9 @@ the credential it returns.
 | `verifySignIn(tainted string $response, Passkey\Credential $stored, string $rpId, string $origin): Passkey\Credential` | checks the signature against the stored credential and returns it with its sign counter updated |
 
 `Passkey\Credential` is a value with `id` (`bytes`), `publicKey` (`bytes`, the COSE key), `algorithm`
-(`Passkey\Algorithm::ES256` or `Ed25519`) and `signCount` (`int`). `Core\Passkey` reads and writes no
+(`Passkey\Credential::Algorithm::ES256` or `Ed25519`) and `signCount` (`int`), each read by the
+method of that name, and `Passkey\Credential::of($id, $publicKey, $algorithm, $signCount)` builds a
+stored one again, checking the key against the algorithm. `Core\Passkey` reads and writes no
 storage of its own: the application saves the credential wherever it keeps users.
 
 **What verification checks:** the client data's type, challenge and origin; the authenticator data's
