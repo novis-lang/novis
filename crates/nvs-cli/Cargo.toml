@@ -112,6 +112,8 @@ blake3.workspace = true
 # and refuses a path that is not in NFC, which is that crate's one check.
 tar.workspace = true
 unicode-normalization.workspace = true
+# A root git dependency's commit is read and packed (`src/package/git.rs`).
+gix.workspace = true
 # The read path maps the artifact rather than reading it, so BLAKE3 runs over
 # the page cache's own copy and no page is ever executable before it has.
 memmap2.workspace = true

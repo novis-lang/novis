@@ -23,14 +23,21 @@
 //! names for the vendor (`rule:packaging/a-vendor-resolves-from-one-registry`), and a package
 //! that registry does not list is a fault. No second registry is asked.
 //!
-//! Cost: one index file read per package, held until resolution ends, and the visited set.
+//! **A root git dependency is the version its commit declares**, cloned and packed by [`git`],
+//! and that version is selected whatever any other package asks for. Its own dependencies join
+//! the walk, and a git dependency among them is a fault that names it
+//! (`rule:packaging/a-git-dependency-is-root-only`). Only the application's file can name one,
+//! because an index lists registry dependencies alone.
+//!
+//! Cost: each git dependency's archive, at most [`super::pack::MAX_ARCHIVE_BYTES`], one index file read per package, held until resolution ends, and the visited set.
 //! Nothing here runs on the request path.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use super::index::{Fault, Index, Registry, Release, State, fault};
+use super::git::{self, Limits};
+use super::index::{Capabilities, Fault, Index, Registry, Release, State, fault};
 use super::lock::Lock;
 use super::manifest::{Manifest, Name, Source, Version};
 
@@ -108,6 +115,12 @@ pub(crate) struct Registries<'a> {
     keep: Option<PathBuf>,
     open: BTreeMap<String, Registry>,
     indexes: BTreeMap<String, Option<Index>>,
+    /// Where a git dependency is written out while it is packed.
+    scratch: PathBuf,
+    /// The limits a git dependency is cloned inside.
+    limits: Limits,
+    /// Each git dependency's archive, by slug.
+    cloned: BTreeMap<String, Vec<u8>>,
 }
 
 impl<'a> Registries<'a> {
@@ -122,7 +135,23 @@ impl<'a> Registries<'a> {
             keep: keep.map(Path::to_path_buf),
             open: BTreeMap::new(),
             indexes: BTreeMap::new(),
+            scratch: std::env::temp_dir(),
+            limits: git::LIMITS,
+            cloned: BTreeMap::new(),
         }
+    }
+
+    /// These registries, with each git dependency written out under `scratch` and cloned inside
+    /// `limits`.
+    pub(crate) fn clones_in(mut self, scratch: &Path, limits: Limits) -> Self {
+        self.scratch = scratch.to_path_buf();
+        self.limits = limits;
+        self
+    }
+
+    /// The archive of the git dependency `name`, once [`resolve`] has cloned it.
+    pub(crate) fn cloned(&self, name: &Name) -> Option<&[u8]> {
+        self.cloned.get(&name.slug()).map(Vec::as_slice)
     }
 
     /// The registry `name`'s vendor resolves from, opened on the first call.
@@ -168,7 +197,8 @@ fn line(version: Version) -> (u64, u64, u64) {
 /// # Errors
 ///
 /// A registry that cannot be read, a package its vendor's registry does not list, a version its
-/// index does not list, a git dependency, and a selected version that is retracted or withheld.
+/// index does not list, a git dependency that does not clone or names a git dependency itself,
+/// and a selected version that is retracted or withheld.
 pub(crate) fn resolve(
     manifest: &Manifest,
     registries: &mut Registries<'_>,
@@ -176,6 +206,7 @@ pub(crate) fn resolve(
 ) -> Result<Graph, Fault> {
     let mut asked = Asked::new();
     let mut queue: BTreeSet<(String, Version)> = BTreeSet::new();
+    let mut pinned: BTreeMap<String, Selected> = BTreeMap::new();
     for dependency in &manifest.dependencies {
         match &dependency.source {
             Source::Registry { minimum } => {
@@ -187,15 +218,28 @@ pub(crate) fn resolve(
                     Asker::Root,
                 );
             }
-            Source::Git { .. } => {
-                return Err(fault(format!(
-                    "`{}` is a git dependency, and this version of `nvs` cannot fetch one yet",
-                    dependency.name
-                )));
+            Source::Git { url, rev } => {
+                let selected = cloned(registries, &dependency.name, url, rev)?;
+                let version = selected.release.version;
+                ask(
+                    &mut asked,
+                    &mut queue,
+                    &dependency.name,
+                    version,
+                    Asker::Root,
+                );
+                let asker = Asker::Package(dependency.name.clone(), version);
+                for (name, minimum) in &selected.release.dependencies {
+                    ask(&mut asked, &mut queue, name, *minimum, asker.clone());
+                }
+                pinned.insert(dependency.name.slug(), selected);
             }
         }
     }
     while let Some((slug, version)) = queue.pop_first() {
+        if pinned.contains_key(&slug) {
+            continue;
+        }
         let (name, versions) = &asked[&slug];
         let name = name.clone();
         let release = find(registries, &name, version, &versions[&version])?.0;
@@ -206,12 +250,15 @@ pub(crate) fn resolve(
     }
     let mut packages = Vec::with_capacity(asked.len());
     let mut crossings = Vec::new();
-    for (name, versions) in asked.values() {
-        let Some((&selected, askers)) = versions.last_key_value() else {
-            continue;
+    for (slug, (name, versions)) in &asked {
+        let pin = pinned.remove(slug);
+        let selected = match &pin {
+            Some(pin) => pin.release.version,
+            None => match versions.last_key_value() {
+                Some((&selected, _)) => selected,
+                None => continue,
+            },
         };
-        let (release, owners) = find(registries, name, selected, askers)?;
-        usable(name, &release, lock)?;
         for (&older, askers) in versions {
             if line(older) != line(selected)
                 && !crossings
@@ -226,6 +273,12 @@ pub(crate) fn resolve(
                 });
             }
         }
+        if let Some(pin) = pin {
+            packages.push(pin);
+            continue;
+        }
+        let (release, owners) = find(registries, name, selected, &versions[&selected])?;
+        usable(name, &release, lock)?;
         let source = registries.registry(name)?.url.clone();
         packages.push(Selected {
             name: name.clone(),
@@ -259,6 +312,81 @@ fn ask(
         queue.insert((name.slug(), version));
     }
     versions.entry(version).or_default().insert(asker);
+}
+
+/// The root git dependency `name`, cloned from `url` at `rev` and packed, with its archive kept
+/// in `registries`.
+fn cloned(
+    registries: &mut Registries<'_>,
+    name: &Name,
+    url: &str,
+    rev: &str,
+) -> Result<Selected, Fault> {
+    let cloned = git::clone(
+        url,
+        rev,
+        &registries.base,
+        &registries.scratch,
+        registries.limits,
+    )?;
+    let package = &cloned.manifest;
+    if package.name.as_ref().map(Name::slug) != Some(name.slug()) {
+        return Err(fault(format!(
+            "`{url}` at `{rev}` is the package `{}`, and `package.toml` names it `{name}`",
+            package
+                .name
+                .as_ref()
+                .map_or_else(|| "(none)".to_owned(), ToString::to_string)
+        )));
+    }
+    let Some(version) = package.version else {
+        return Err(fault(format!(
+            "`{name}` at `{url}` has no `[package] version`"
+        )));
+    };
+    let mut dependencies = Vec::new();
+    for dependency in &package.dependencies {
+        match &dependency.source {
+            Source::Registry { minimum } => dependencies.push((dependency.name.clone(), *minimum)),
+            Source::Git { .. } => {
+                return Err(fault(format!(
+                    "`{name}` {version} depends on `{}` from git. Only the application's own \
+                     `package.toml` may name a git dependency.",
+                    dependency.name
+                )));
+            }
+        }
+    }
+    let capabilities = package
+        .package
+        .as_ref()
+        .map_or_else(Capabilities::default, |p| Capabilities {
+            required: p
+                .required()
+                .iter()
+                .map(|cap| cap.name().to_owned())
+                .collect(),
+            optional: p
+                .optional()
+                .iter()
+                .map(|cap| cap.name().to_owned())
+                .collect(),
+        });
+    registries.cloned.insert(name.slug(), cloned.archive);
+    Ok(Selected {
+        name: name.clone(),
+        release: Release {
+            version,
+            digest: cloned.digest,
+            state: State::Released,
+            dependencies,
+            capabilities,
+            repository: url.to_owned(),
+            commit: rev.to_owned(),
+        },
+        source: format!("git+{url}"),
+        owners: Vec::new(),
+    })
 }
 
 /// The release `name` at `version`, and the package's owners, which `askers` asked for.
@@ -368,6 +496,69 @@ pub(crate) mod tests {
             ["Acme\\Db 1.0.0", "Acme\\Http 2.0.0", "Acme\\Log 1.5.0"]
         );
         assert!(graph.crossings.is_empty());
+    }
+
+    /// The application manifest with the git dependency `Acme\Git` at `url` and `rev`, whose
+    /// `Acme` vendor resolves from the fixture.
+    fn with_git(fixture: &Fixture, url: &str, rev: &str) -> Manifest {
+        let text = format!(
+            "[dependencies]\n'Acme\\Git' = {{ git = '{url}', rev = '{rev}' }}\n\n\
+             [registries]\nAcme = {{ url = '{}' }}\n",
+            fixture.url()
+        );
+        let path = fixture.root().join("app/package.toml");
+        manifest::parse(&mut SourceMap::new(), &path, &text).expect("the test's manifest reads")
+    }
+
+    /// A root git dependency is the version its commit declares, its registry dependencies join
+    /// the graph, and its archive is kept.
+    #[test]
+    fn a_root_git_dependency_is_cloned_and_selected() {
+        let fixture = Fixture::new("resolve-git");
+        fixture.publish("Acme\\Log", "1.2.0", &[], "\"released\"");
+        let repo = fixture.root().join("repo");
+        let rev = super::super::git::tests::package(
+            &repo,
+            &[(
+                "package.toml",
+                b"[package]\nname = 'Acme\\Git'\nversion = \"1.0.0\"\n\n\
+                  [dependencies]\n'Acme\\Log' = \"1.2.0\"\n",
+            )],
+        );
+        let app = with_git(&fixture, &format!("file:{}", repo.display()), &rev);
+        let mut registries = Registries::new(&app, None).clones_in(fixture.root(), git::LIMITS);
+        let graph = resolve(&app, &mut registries, None).expect("it resolves");
+        assert_eq!(versions(&graph), ["Acme\\Git 1.0.0", "Acme\\Log 1.2.0"]);
+        let selected = &graph.packages[0];
+        assert_eq!(selected.release.commit, rev);
+        assert!(selected.source.starts_with("git+file:"));
+        let archive = registries
+            .cloned(&selected.name)
+            .expect("the archive is kept");
+        assert_eq!(blake3::hash(archive), selected.release.digest);
+    }
+
+    /// A git dependency of a git dependency is refused, naming the package that declared it.
+    #[test]
+    fn a_git_dependency_below_the_root_is_refused() {
+        let fixture = Fixture::new("resolve-git-below");
+        let repo = fixture.root().join("repo");
+        let toml = format!(
+            "[package]\nname = 'Acme\\Git'\nversion = \"1.0.0\"\n\n[dependencies]\n\
+             'Acme\\Other' = {{ git = 'file:{}', rev = '{}' }}\n",
+            repo.display(),
+            "1".repeat(40)
+        );
+        let rev = super::super::git::tests::package(&repo, &[("package.toml", toml.as_bytes())]);
+        let app = with_git(&fixture, &format!("file:{}", repo.display()), &rev);
+        let mut registries = Registries::new(&app, None).clones_in(fixture.root(), git::LIMITS);
+        let fault = resolve(&app, &mut registries, None).expect_err("it is refused");
+        assert!(
+            fault
+                .0
+                .contains("`Acme\\Git` 1.0.0 depends on `Acme\\Other` from git"),
+            "{fault}"
+        );
     }
 
     /// A graph across majors selects the higher major and reports who asked for the older one.

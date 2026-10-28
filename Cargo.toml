@@ -477,6 +477,17 @@ blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 # reads them. Pure Rust, no C, MIT OR Apache-2.0; it brings `filetime`, and
 # `libc` on Unix, which the tree already has. Never on the request path.
 tar = { version = "0.4", default-features = false }
+# A root git dependency's one commit (`rule:packaging/a-git-dependency-is-root-only`),
+# read by `crates/nvs-cli/src/package/git.rs`. Git's object and pack formats and
+# its wire protocol are somebody else's specification
+# (`rule:packaging/somebody-elses-specification-is-a-crate`). Default features off,
+# and no HTTP client feature: `blocking-network-client` brings the protocol and
+# `gix-transport`'s `Http` trait without curl or reqwest, so the connection is the
+# one `nvs` resolves, pins and checks. `sha1` is the hash every git host serves.
+# Pure Rust, no C (`bun nv gen-attribution --check-c-deps`), MIT OR Apache-2.0.
+# A large graph, bought because a git dependency needs a clone whose connection
+# `nvs` checks. Never on the request path.
+gix = { version = "0.90", default-features = false, features = ["sha1", "blocking-network-client"] }
 
 # --- sorting by key (`Core\Arr::sort`'s natural-order rows) ---
 # A stable sort for keys that map to an ordered integer or a byte string, radix

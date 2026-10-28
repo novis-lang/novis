@@ -19,6 +19,11 @@ mod api;
 mod diff;
 #[cfg(test)]
 mod fixture;
+#[allow(
+    dead_code,
+    reason = "the commands that resolve and lock are not written yet"
+)]
+mod git;
 // `nvs pkg fetch` and `add` read a registry, resolve and lock; they are not written yet.
 #[allow(
     dead_code,
