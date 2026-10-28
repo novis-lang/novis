@@ -322,6 +322,13 @@ on `55b03e97a`, before the commits that fixed its three failures.
 
 The installed `looper` has no `verify` subcommand; `bun nv affected --run` is the gate it stands for.
 
+The refused DONE's `floor-debt` red was a tree move, not a red atom: its three rounds paid 5770
+atoms with 0 red, and the last atom left, `test:nvs-ir test refusals`, was owed again by the
+side loop `side-ci-green`'s uncommitted `tools/nv/` edits (the `nv vsix` command) after the third
+round. `cargo test --test refusals` is green, and a `bun nv affected --run` recorded it. What the
+store still owes is tools tests and proofs that the same edits reach, which the next `floor-debt`
+pays in minutes.
+
 Expected red: none known.
 
 ### Next
