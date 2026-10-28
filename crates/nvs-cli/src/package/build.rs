@@ -130,7 +130,11 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .into());
     }
     let commit = build.commit.as_str();
-    if commit.len() != 40 || !commit.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+    if commit.len() != 40
+        || !commit
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    {
         return Err(fault(format!(
             "`{commit}` is not a full commit hash. A commit hash is 40 characters from 0 to 9 \
              and a to f."
@@ -142,16 +146,12 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         .ok_or_else(|| fault("There is no data folder to clone into. Use `--data`."))?;
     fs::create_dir_all(&scratch)
         .map_err(|err| fault(format!("cannot make `{}`: {err}", scratch.display())))?;
-    let dir = build.dir.as_deref().unwrap_or_default().trim_end_matches('/');
-    let cloned = git::clone_within(
-        url,
-        commit,
-        dir,
-        &scratch,
-        &scratch,
-        git::LIMITS,
-        outbound,
-    )?;
+    let dir = build
+        .dir
+        .as_deref()
+        .unwrap_or_default()
+        .trim_end_matches('/');
+    let cloned = git::clone_within(url, commit, dir, &scratch, &scratch, git::LIMITS, outbound)?;
     let version = checked(&cloned.manifest, build.version)?;
     let name = cloned
         .manifest
@@ -197,8 +197,7 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         write(path, &cloned.archive)?;
     }
     if let Some(path) = &build.api {
-        let text =
-            serde_json::to_string_pretty(&document).expect("a tree of strings serialises");
+        let text = serde_json::to_string_pretty(&document).expect("a tree of strings serialises");
         write(path, text.as_bytes())?;
     }
     let mut out = Map::new();
@@ -297,9 +296,10 @@ fn dependencies(manifest: &Manifest) -> Map<String, Value> {
         .dependencies
         .iter()
         .filter_map(|dependency| match &dependency.source {
-            Source::Registry { minimum } => {
-                Some((dependency.name.to_string(), Value::from(minimum.to_string())))
-            }
+            Source::Registry { minimum } => Some((
+                dependency.name.to_string(),
+                Value::from(minimum.to_string()),
+            )),
             Source::Git { .. } => None,
         })
         .collect()

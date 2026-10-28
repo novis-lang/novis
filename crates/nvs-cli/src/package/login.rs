@@ -169,7 +169,8 @@ fn host_of(rest: &str) -> Option<&str> {
 
 /// Whether `host` names this computer: `localhost` or a loopback address.
 fn is_loopback_host(host: &str) -> bool {
-    host.eq_ignore_ascii_case("localhost") || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    host.eq_ignore_ascii_case("localhost")
+        || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
 /// The token on standard input, checked to be one.
@@ -220,9 +221,17 @@ fn ask(origin: &str, token: &str) -> Result<Option<Holder>, Fault> {
             )));
         }
     }
-    let bad = || fault(format!("The reply of `{url}` is not what a registry returns."));
+    let bad = || {
+        fault(format!(
+            "The reply of `{url}` is not what a registry returns."
+        ))
+    };
     let json: serde_json::Value = serde_json::from_slice(&body).map_err(|_| bad())?;
-    let text = |key: &str| json.get(key).and_then(serde_json::Value::as_str).map(str::to_owned);
+    let text = |key: &str| {
+        json.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
     Ok(Some(Holder {
         account: text("account").ok_or_else(bad)?,
         scope: text("scope").ok_or_else(bad)?,

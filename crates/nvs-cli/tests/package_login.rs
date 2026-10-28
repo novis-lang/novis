@@ -180,7 +180,10 @@ fn login_stores_a_token_and_whoami_prints_its_account_and_scope() {
     let out = nvs(&data, &["login", "--registry", &url], &format!("{GOOD}\n"));
     assert!(out.status.success(), "{}", shown(&out));
     let said = shown(&out);
-    assert!(said.contains(ACCOUNT) && said.contains("Scope: Acme"), "{said}");
+    assert!(
+        said.contains(ACCOUNT) && said.contains("Scope: Acme"),
+        "{said}"
+    );
     assert!(!said.contains(GOOD), "the token was printed: {said}");
     let files = token_files(&data);
     assert_eq!(files.len(), 1, "one file per registry: {files:?}");
@@ -218,7 +221,10 @@ fn login_refuses_a_token_the_registry_answers_401_for() {
     let out = nvs(&data, &["login", "--registry", &host.url()], REVOKED);
     refused(&out, "does not accept this token");
     assert_eq!(host.served(), 1);
-    assert!(token_files(&data).is_empty(), "a refused token is not stored");
+    assert!(
+        token_files(&data).is_empty(),
+        "a refused token is not stored"
+    );
 }
 
 #[test]
@@ -227,7 +233,11 @@ fn login_never_takes_the_token_as_an_argument() {
     let host = Host::start();
     let out = nvs(&data, &["login", "--registry", &host.url(), GOOD], "");
     assert!(!out.status.success(), "it succeeded: {}", shown(&out));
-    assert_eq!(host.served(), 0, "a token on the command line is never sent");
+    assert_eq!(
+        host.served(),
+        0,
+        "a token on the command line is never sent"
+    );
     assert!(token_files(&data).is_empty());
 }
 
@@ -274,5 +284,9 @@ fn whoami_refuses_a_token_file_another_account_can_write() {
 
     let out = nvs(&data, &["whoami", "--registry", &url], "");
     refused(&out, "cannot be used for a token");
-    assert_eq!(host.served(), 1, "the token in a foreign-writable file is never sent");
+    assert_eq!(
+        host.served(),
+        1,
+        "the token in a foreign-writable file is never sent"
+    );
 }

@@ -155,7 +155,8 @@ impl App {
         let mut sources = SourceMap::new();
         let manifest = manifest::read(&path, &mut sources).map_err(|d| reported(&d, &sources))?;
         let dir = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
-        let outbound = Outbound::new(crate::config::package_network(None).map_err(Failed::Reported)?);
+        let outbound =
+            Outbound::new(crate::config::package_network(None).map_err(Failed::Reported)?);
         let old = Lock::read(&dir.join(lock::FILE))?;
         Ok(Self {
             path,

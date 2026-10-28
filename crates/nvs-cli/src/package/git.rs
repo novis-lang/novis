@@ -189,7 +189,11 @@ fn folder_path(within: &str) -> Result<Vec<String>, Fault> {
         return Ok(Vec::new());
     }
     let parts: Vec<String> = within.split('/').map(str::to_owned).collect();
-    if within.contains('\\') || parts.iter().any(|part| matches!(part.as_str(), "" | "." | "..")) {
+    if within.contains('\\')
+        || parts
+            .iter()
+            .any(|part| matches!(part.as_str(), "" | "." | ".."))
+    {
         return Err(fault(format!(
             "`{within}` is not a folder of a repository. Write it relative to the repository's \
              root, with `/` between folders, such as `packages/http`."

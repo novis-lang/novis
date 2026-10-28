@@ -161,7 +161,8 @@ fn publishing(
         .clone()
         .expect("`build::checked` refuses a manifest with no name");
     if !cloned.manifest.downloads.is_empty() {
-        let outbound = Outbound::new(crate::config::package_network(None).map_err(Failed::Reported)?);
+        let outbound =
+            Outbound::new(crate::config::package_network(None).map_err(Failed::Reported)?);
         let store = Store::current()?;
         for entry in &cloned.manifest.downloads {
             store.check_every_url(&name, entry, &outbound)?;
@@ -253,7 +254,11 @@ fn send(origin: &str, token: &str, release: &Release, version: Version) -> Resul
             )));
         }
     }
-    let bad = || fault(format!("The reply of `{origin}/api/publish` is not what a registry returns."));
+    let bad = || {
+        fault(format!(
+            "The reply of `{origin}/api/publish` is not what a registry returns."
+        ))
+    };
     Ok(Sent {
         digest: text("digest").ok_or_else(bad)?,
         state: text("message").ok_or_else(bad)?,

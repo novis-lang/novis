@@ -17,8 +17,8 @@ use std::io::{self, BufRead, BufReader, Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
@@ -184,7 +184,8 @@ impl Case {
         args.extend_from_slice(extra);
         let mut out = self.nvs(&self.work(), &args);
         for fault in host.faults() {
-            out.stderr.extend_from_slice(format!("\nthe test's git host: {fault}").as_bytes());
+            out.stderr
+                .extend_from_slice(format!("\nthe test's git host: {fault}").as_bytes());
         }
         let json = serde_json::from_slice(&out.stdout)
             .unwrap_or_else(|err| panic!("the build printed no JSON ({err}): {}", shown(&out)));
@@ -388,13 +389,19 @@ fn serve(
     if !output.stderr.is_empty() {
         note(
             faults,
-            format!("git http-backend: {}", String::from_utf8_lossy(&output.stderr)),
+            format!(
+                "git http-backend: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
         );
     }
     let reply = reply(&output.stdout);
     let mut tls = tls.into_inner();
     tls.write_all(&reply)?;
-    served.fetch_add(u64::try_from(reply.len()).unwrap_or(u64::MAX), Ordering::SeqCst);
+    served.fetch_add(
+        u64::try_from(reply.len()).unwrap_or(u64::MAX),
+        Ordering::SeqCst,
+    );
     tls.conn.send_close_notify();
     tls.flush()
 }
@@ -426,7 +433,10 @@ fn chunked(reader: &mut impl BufRead) -> io::Result<Vec<u8>> {
 /// The HTTP/1.1 reply for a CGI program's output: its `Status:` line, its other headers, and its
 /// body with a `Content-Length`.
 fn reply(cgi: &[u8]) -> Vec<u8> {
-    let crlf = cgi.windows(4).position(|w| w == b"\r\n\r\n").map(|at| (at, 4));
+    let crlf = cgi
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|at| (at, 4));
     let lf = cgi.windows(2).position(|w| w == b"\n\n").map(|at| (at, 2));
     let Some((end, gap)) = [crlf, lf].into_iter().flatten().min_by_key(|(at, _)| *at) else {
         let body = b"the CGI program wrote no headers";
@@ -507,7 +517,7 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
     let archive = case.root.join("archive.tar");
     let archive_arg = archive.to_str().expect("the scratch path is UTF-8");
 
-    let (out, json) = case.build(&host,&commit, &["--archive", archive_arg]);
+    let (out, json) = case.build(&host, &commit, &["--archive", archive_arg]);
     assert!(out.status.success(), "{}", shown(&out));
     assert_eq!(json["schema"], 1, "{json}");
     assert_eq!(json["ok"], true, "{json}");
@@ -562,14 +572,17 @@ fn a_dry_run_publish_prints_the_digest_the_build_gives() {
     let host = Host::start(&case);
     let url = host.url();
 
-    let (out, json) = case.build(&host,&commit, &["--dir", "packages/http"]);
+    let (out, json) = case.build(&host, &commit, &["--dir", "packages/http"]);
     assert!(out.status.success(), "{}", shown(&out));
     assert_eq!(json["directory"], "packages/http", "{json}");
     let digest = json["digest"].as_str().expect("the build has a digest");
     assert!(digest.starts_with("blake3:"), "{json}");
 
     let folder = case.repo().join("packages/http");
-    let out = case.nvs(&folder, &["pkg", "publish", "--dry-run", "--repository", &url]);
+    let out = case.nvs(
+        &folder,
+        &["pkg", "publish", "--dry-run", "--repository", &url],
+    );
     assert!(out.status.success(), "{}", shown(&out));
     let said = String::from_utf8_lossy(&out.stdout);
     assert!(said.contains(&format!("Commit: {commit}")), "{said}");
@@ -620,7 +633,7 @@ fn a_clone_over_512_mib_is_refused() {
     let commit = case.commit_index("huge");
     let host = Host::start(&case);
 
-    let (out, json) = case.build(&host,&commit, &[]);
+    let (out, json) = case.build(&host, &commit, &[]);
     refused(&out, &json, &format!("larger than {CLONE_LIMIT} bytes"));
     assert!(host.served() < 4 * 1024 * 1024, "{} bytes", host.served());
 }
@@ -634,12 +647,13 @@ fn an_archive_over_16_mib_is_refused() {
     case.write("package.toml", toml.as_bytes());
     fs::create_dir_all(case.repo().join("assets")).expect("the test makes the folder");
     let file = fs::File::create(case.repo().join("assets/data.bin")).expect("the test makes it");
-    file.set_len(PACK_LIMIT + 1).expect("the test sizes the file");
+    file.set_len(PACK_LIMIT + 1)
+        .expect("the test sizes the file");
     drop(file);
     let commit = case.commit("large");
     let host = Host::start(&case);
 
-    let (out, json) = case.build(&host,&commit, &[]);
+    let (out, json) = case.build(&host, &commit, &[]);
     refused(&out, &json, &format!("The limit is {PACK_LIMIT} bytes"));
 }
 
@@ -658,7 +672,7 @@ fn a_download_with_an_http_url_is_refused() {
     let commit = case.commit("download");
     let host = Host::start(&case);
 
-    let (out, json) = case.build(&host,&commit, &[]);
+    let (out, json) = case.build(&host, &commit, &[]);
     refused(&out, &json, "Every URL must start with `https://`");
 }
 
@@ -675,7 +689,7 @@ fn the_clone_fetches_the_commit_without_its_history() {
     let commit = case.commit("without it");
     let host = Host::start(&case);
 
-    let (out, json) = case.build(&host,&commit, &[]);
+    let (out, json) = case.build(&host, &commit, &[]);
     assert!(out.status.success(), "{}", shown(&out));
     assert_eq!(json["ok"], true, "{json}");
     let served = host.served();
@@ -698,8 +712,12 @@ fn a_class_outside_the_package_namespace_is_refused() {
     let commit = case.commit("outside");
     let host = Host::start(&case);
 
-    let (out, json) = case.build(&host,&commit, &[]);
-    refused(&out, &json, "is outside the package's namespace `Acme\\Http`");
+    let (out, json) = case.build(&host, &commit, &[]);
+    refused(
+        &out,
+        &json,
+        "is outside the package's namespace `Acme\\Http`",
+    );
 }
 
 /// A minor version that removes a public method breaks the API the previous build wrote, so it
@@ -715,7 +733,7 @@ fn a_minor_version_that_removes_a_method_is_refused() {
     let api = case.root.join("api-1.0.0.json");
     let api_arg = api.to_str().expect("the scratch path is UTF-8");
 
-    let (out, json) = case.build(&host,&first, &["--api", api_arg]);
+    let (out, json) = case.build(&host, &first, &["--api", api_arg]);
     assert!(out.status.success(), "{}", shown(&out));
     assert_eq!(json["ok"], true, "{json}");
     assert!(api.is_file(), "`--api` wrote no file");
