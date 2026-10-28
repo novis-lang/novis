@@ -35,4 +35,6 @@ held after the digest is recorded.
 - **A compressed archive as the identity.** Compression output differs between library versions; the
   uncompressed tar is the same bytes on every machine.
 
-**Not on disk.** There is no registry and no `nvs pkg pack`.
+**Not on disk.** `nvs registry build` and `nvs pkg publish` exist, and the service does not run
+the build yet. Binding the repository URL at the first publish, and changing it with a passkey, are
+the service's.

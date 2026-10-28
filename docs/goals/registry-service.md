@@ -20,7 +20,7 @@ stages:
         rules: [packaging/a-publish-token-is-scoped-and-expires, packaging/a-package-name-is-vendor-slash-name, config/ownership-is-the-trust-boundary]
   - id: 3
     title: "`nvs registry build` builds the archive from a git commit, and `nvs pkg publish` sends one"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/package/git.rs, crates/nvs-cli/src/package/diff.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/Cargo.toml, docs/rules/packaging/the-registry-builds-the-archive-from-git.md]
     extra:
       context:
@@ -186,6 +186,25 @@ clones that commit over HTTPS through `gix`, with size and time limits behind th
 table, packs the directory with `nvs pkg pack`'s code, and digests it. The repository URL is bound at a package's first
 publish, and changing it needs a passkey.
 
+**The build and the publish speak JSON, and the build checks what one commit can tell.**
+`nvs registry build <url> <commit>` takes `--dir`, `--version`, `--previous <api.json>` with
+`--previous-version`, `--archive <file>`, `--api <file>` and `--ca-file`, and prints
+`{"schema":1,"ok":true,"name","version","repository","commit","directory","digest":"blake3:…","size","files":[{"path","size"}],"api"}`
+or `{"schema":1,"ok":false,"refusal","api"}` with exit 1 (`crates/nvs-cli/src/package/build.rs`).
+It refuses a URL that is not `https:`, a missing name or version, a version other than `--version`,
+a git dependency, a declaration outside the namespace (compared without case, over the API
+document read from the unpacked archive), every refusal of the pack, and a break the step from
+`--previous-version` does not allow. The service stores each release's `--api` file and passes it as
+the next build's `--previous`. Everything that needs the database (the version published before, an
+active account, a verified channel, the vendor's owner) is the service's check, in stage 7. The
+loopback exception for the tests is the working directory's `[capabilities.net] internal`, as for
+every package command. `nvs pkg publish` sends `POST /api/publish` with
+`{"repository","commit","version","directory"}` and the stored token, and reads `{"digest","message"}`
+on a `2xx`, where `message` is the sentence it prints (pending until a date, or released), and
+`{"error"}` on a refusal. It packs `HEAD` from a `file:` clone of its own repository with the build's
+code first, so its digest is the registry's and uncommitted changes are never in it. Why: one JSON
+contract per side keeps the app's `Core\Test::double` and the Rust tests pinned to the same shape.
+
 **A publish is refused** when a file's namespace is outside the package's name, when the archive holds
 an `nvs.toml`, when the manifest names a git dependency, when the clone is over 512 MiB, when the
 archive breaks `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` (over 16 MiB or
@@ -338,9 +357,9 @@ for the service; `nvs pkg publish` sends a commit, and `--dry-run` predicts the 
 line each with its anchor. After the session lands `build.rs`, a writing subagent writes the HTTPS
 loopback git server and the tests.
 
-- [ ] `nvs registry build`: clone, pack, digest, the namespace and manifest checks, and the API diff against the previous release, as JSON for the service, with `--ca-file` (`rule:packaging/the-registry-builds-the-archive-from-git`). `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
-- [ ] `nvs pkg publish`, with `--dry-run` running the same packing locally to print every file, its size, the total and the digest, and both downloading every `[[download]]` entry and refusing one whose bytes do not match. `crates/nvs-cli/src/package/publish.rs:1`
-- [ ] Tests against the HTTPS loopback server: the JSON a build prints, the dry-run digest equal to the build's, an `http:` URL refused, a clone over 512 MiB refused, an archive over its limits refused, a malformed `[[download]]` entry refused, a clone that fetches the commit and none of its history, and a namespace outside the name refused. `crates/nvs-cli/tests/registry_build.rs:1`
+- [x] `nvs registry build`: clone, pack, digest, the namespace and manifest checks, and the API diff against the previous release, as JSON for the service, with `--ca-file` (`rule:packaging/the-registry-builds-the-archive-from-git`). `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
+- [x] `nvs pkg publish`, with `--dry-run` running the same packing locally to print every file, its size, the total and the digest, and both downloading every `[[download]]` entry and refusing one whose bytes do not match. `crates/nvs-cli/src/package/publish.rs:1`
+- [x] Tests against the HTTPS loopback server: the JSON a build prints, the dry-run digest equal to the build's, an `http:` URL refused, a clone over 512 MiB refused, an archive over its limits refused, a malformed `[[download]]` entry refused, a clone that fetches the commit and none of its history, and a namespace outside the name refused. `crates/nvs-cli/tests/registry_build.rs:1`
 
 ### 7. the service's publish refuses what the rules refuse, and the release lands in the static index
 
@@ -467,36 +486,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `apps/registry/` now keeps vendors, owners and tokens: `Vendors.nvs`
-(`claim`, `addOwner`, `removeOwner`, never the last owner), `Tokens.nvs` (`create`, `find`,
-`allows`, `revoke`, `bearer`), `Token.nvs`, and the routes in `App.nvs` under `/api/vendors/{vendor}/owners`,
-`/api/tokens` and `/api/whoami`. `Session::hasRecentPasskey` gates owner changes and token creation
-(15 minutes). `nvs test . --config nvs.toml` in `apps/registry/` passes 13 tests (`AccountsTest`,
-`TokensTest`, `VendorsTest`). `nvs pkg login` and `nvs pkg whoami` are
-`crates/nvs-cli/src/package/login.rs`, storing one token file per registry under the data folder's
-`tokens/` (`Folder::tokens`), with `--registry <URL>` (`http:` only on loopback); its 6 tests in
-`crates/nvs-cli/tests/package_login.rs` pass on Windows and in WSL. The token rule is `shipped`, with a
-*Not on disk* line for the log entry and the owner notification of a new or revoked token.
+Stages 1, 2 and 3 are done. Stage 3: `nvs registry build` is `crates/nvs-cli/src/package/build.rs`,
+dispatched from `crates/nvs-cli/src/registry.rs` (no `main.rs` edit was needed), and `nvs pkg publish`
+is `crates/nvs-cli/src/package/publish.rs`. The JSON contracts of both are the standing decision
+*The build and the publish speak JSON*. `git::clone_within` clones a package in a folder of its
+repository. `diff::report` returns the `--json` document of `nvs pkg diff`.
+`config::package_network(ca_file)` adds `--ca-file` to the tree's anchors (with the bundled set when
+the tree names none). `login::send`, `login::origin` and `login::stored` are shared with publish, and
+`download::Store::check_every_url` checks each URL of a `[[download]]` entry. The 9 tests in
+`crates/nvs-cli/tests/registry_build.rs` (`git http-backend` behind rustls) pass on Windows only.
+Watch on CI: the 513 MiB zero-blob case may make gix hold the object while it indexes the pack.
+`rule:packaging/the-registry-builds-the-archive-from-git` stays `designed` until stage 7.
 
-`Core\Test::request` now runs the request on the test's fixed clock (`crates/nvs-cli/src/runner.rs`,
-`rule:testing/in-process-request`), pinned by `itAnswersOnTheTestsFixedClock` in
-`crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs`.
+The app has `Vendors.nvs`, `Tokens.nvs` and the owner, token and whoami routes in `App.nvs`; its 13
+tests pass. The sweep's reds are stale: `env-secret-proofs` names no defined check, and nightly run
+40662443492 was cancelled by a newer push.
 
-The sweep's reds were stale: `env-secret-proofs` names a check no file defines any more, and its log
-from Oct 22 says exit 0. The nightly run 40662443492 was a `workflow_dispatch` on `97fcf96ce`,
-cancelled by a newer push, and every push run since is green.
-
-Expected red: none known. `bun nv ci --check` has not run, so a generated CLI reference that lists
-`nvs pkg` subcommands may want a render for `login` and `whoami`.
+Expected red: none known. No generated reference lists the `nvs pkg` subcommands (searched), so
+`login`, `whoami` and `publish` need no render. `registry_build.rs` needs `git http-backend` and git
+2.32 or later on each runner; a runner without them goes red there.
 
 ### Next
 
-Stage 3, the Rust lane: `nvs registry build` and `nvs pkg publish`. Follow its **Split:** line: an
-`Explore` subagent lists what `pack.rs`, `git.rs` and `diff.rs` export, the session writes `build.rs`,
-and a writing subagent writes the HTTPS loopback git server and the tests.
-- [ ] `nvs registry build` as JSON for the service, with `--ca-file`. `crates/nvs-cli/src/package/build.rs:1`, `crates/nvs-cli/src/main.rs:373`
-- [ ] `nvs pkg publish` and `--dry-run`, sending with the token `login.rs` stores (`login.rs`'s reader of the token file). `crates/nvs-cli/src/package/publish.rs:1`
-- [ ] Tests against the HTTPS loopback git server. `crates/nvs-cli/tests/registry_build.rs:1`
+Stage 7, the app lane: the service's publish. Follow its **Split:** line. `apps/registry/src/Publish.nvs`
+handles `POST /api/publish` with the body and reply in the standing decision, runs
+`nvs registry build` through one class the tests replace with `Core\Test::double` fed the JSON
+`build.rs` prints, binds the repository URL at the first publish, calls `Vendors::claim`, and checks
+the token with `Tokens::allows`.
+- [ ] The publish endpoint, the build class and every refusal. `apps/registry/src/Publish.nvs:1`, `apps/registry/src/App.nvs:1`, `crates/nvs-cli/src/package/build.rs:1`
+- [ ] The refusal tests. `apps/registry/src/PublishTest.nvs:1`
 
 ### Backlog
 
