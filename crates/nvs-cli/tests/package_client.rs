@@ -163,6 +163,7 @@ const FIXTURE_DIGEST: &str =
 
 /// The fixture packs to the pinned digest, with every packed file printed, and the test and the
 /// guide left out.
+// covers: tools:packages/nvs-pkg-pack
 #[test]
 fn a_package_packs_to_its_pinned_digest() {
     let (root, dir) = pack_fixture("package-client-pack", false);
@@ -202,6 +203,7 @@ fn a_package_packs_to_its_pinned_digest() {
 }
 
 /// File times and the order the files were written in do not reach the bytes.
+// covers: tools:packages/nvs-pkg-pack
 #[test]
 fn the_archive_does_not_depend_on_times_or_order() {
     let (root, first) = pack_fixture("package-client-pack-a", false);

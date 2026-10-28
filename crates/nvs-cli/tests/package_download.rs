@@ -422,6 +422,7 @@ fn a_file_past_its_declared_size_is_not_placed() {
 
 /// A redirect to the cloud metadata address, which `internal` does not name, is refused before
 /// anything connects to it, and the fetch fails.
+// covers: tools:packages/nvs-pkg-download-and-nvs-pkg-provide
 #[test]
 fn a_redirect_to_an_internal_address_is_refused() {
     let tree = Tree::new("package-download-redirect");
@@ -496,6 +497,7 @@ fn a_dead_url_is_followed_by_the_next() {
 
 /// When the only URL is dead, the fetch fails but writes the lock. `nvs pkg provide` refuses a
 /// file with other bytes and keeps the right one, and the next fetch places it with no network.
+// covers: tools:packages/nvs-pkg-download-and-nvs-pkg-provide
 #[test]
 fn a_provided_file_is_placed_without_its_url() {
     let tree = Tree::new("package-download-provide");

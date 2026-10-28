@@ -310,6 +310,7 @@ fn edit_digest(lock: &str) -> String {
         .join("\n")
 }
 
+// covers: tools:packages/package-lock-and-locked
 #[test]
 fn a_locked_run_refuses_a_missing_entry_and_an_edited_digest() {
     let tree = Tree::new("package-fetch-locked", HTTP);
@@ -435,6 +436,7 @@ fn add_chooses_only_a_released_version_and_takes_the_others_by_exact_version() {
     }
 }
 
+// covers: tools:packages/nvs-pkg-update-and-nvs-pkg-outdated
 #[test]
 fn update_prints_a_capability_the_new_version_requests() {
     let tree = Tree::new("package-update-report", HTTP);

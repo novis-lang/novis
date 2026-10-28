@@ -1,8 +1,8 @@
 ---
 id: packages
-title: "Packages: grants, package.toml, adding and fetching packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
-keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+title: "Packages: grants, package.toml, adding, fetching, updating and packing packages, and API versions"
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
+keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -275,6 +275,163 @@ not write them.
 same work, but it downloads every package again and replaces its folder. Use it when a file in
 `vendor/` was changed. Both commands remove only the folders of packages they wrote before, so code
 you copied into `vendor/` yourself stays.
+
+<!-- src: `rule:packaging/resolution-takes-the-highest-minimum`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted` -->
+
+# nvs pkg update and nvs pkg outdated
+
+    nvs pkg update [<package> ...]
+    nvs pkg outdated
+
+`nvs pkg outdated` lists each package that has a newer released version. It changes no file:
+
+```text
+`Acme\Slug` 1.2.0 -> 1.3.0
+`Acme\Text` 1.1.0 -> 2.0.0 (a new major version)
+```
+
+`nvs pkg update acme/slug` raises the minimum of `acme/slug` in `[dependencies]` to its newest released
+version. Without a package, the command raises every dependency. A minimum is only raised, never
+lowered. The comment on the line stays. Then the command does what `nvs pkg fetch` does.
+
+Before the command changes any file, it prints what changed since `package.lock`:
+
+```text
+`Acme\Slug`: the minimum is raised from 1.2.0 to 1.3.0.
+Changes since package.lock:
+  `Acme\Slug` 1.2.0 -> 1.3.0
+    now requests net.connect (optional)
+    owners were acme and are now acme, newcomer
+```
+
+The report lists each new version, each capability a package now requests or no longer requests, a
+change of owners and a change of repository. A new package and a package that is no longer needed are
+listed too. The report changes no grant line, so a capability that a package now requests stays
+refused until you add it.
+
+When two packages need different major versions of a third package, the higher version is used. The
+report then names the packages that asked for the older version. Your program is checked when it
+compiles, so a change that breaks your code is a compile error.
+
+A retracted version that `package.lock` already has stays in use, so you can update the other packages.
+The command never chooses a retracted version that is not in `package.lock`. A git dependency is not
+updated by these commands. Change its `rev` in `package.toml` instead.
+
+<!-- src: `rule:packaging/the-lockfile-holds-every-digest`, `rule:packaging/a-package-is-its-digest` -->
+
+# package.lock and --locked
+
+    nvs pkg fetch --locked
+    nvs pkg vendor --locked
+
+`package.lock` lists every package your application uses. `nvs pkg fetch`, `nvs pkg vendor`,
+`nvs pkg add` and `nvs pkg update` write it. Commit it with your code, and do not edit it. One entry
+looks like this:
+
+```toml
+[[package]]
+name = 'Acme\Slug'
+version = "1.2.0"
+source = "https://packages.example.com"
+digest = "ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75"
+repository = "https://git.example.com/acme/slug"
+commit = "4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e"
+owners = ["acme"]
+
+[package.capabilities]
+required = []
+optional = []
+```
+
+| Key | What it says |
+|---|---|
+| `name`, `version` | the package and the version that is used |
+| `source` | the registry URL, or `git+` and the repository URL for a git dependency |
+| `digest` | the BLAKE3 hash of the package's archive |
+| `repository`, `commit` | where the package's source code is |
+| `owners` | the accounts that may publish the package |
+| `[package.capabilities]` | the capabilities the package requests |
+| `hosts` | the hosts its downloaded files come from, when it has any |
+
+Every command checks each archive against the digest in `package.lock`. When a digest does not match,
+the command stops with an error and writes no file. So a changed archive or a changed digest in the
+file is never used.
+
+With `--locked`, the command also stops when `package.lock` has to change. That happens when a package
+is missing from it, has another version, or is no longer needed. Use `--locked` in CI, so the build
+uses exactly the versions you tested.
+
+<!-- src: `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`, `rule:packaging/a-package-is-its-digest` -->
+
+# nvs pkg pack
+
+    nvs pkg pack [<dir>] [--out <file>]
+
+`nvs pkg pack` builds the archive of the package in `<dir>`. The default is the current folder. The
+archive contains only these files:
+
+- every `.nvs` file under `src`;
+- `package.toml`;
+- the license and readme files next to `package.toml`, such as `LICENSE` and `README.md`;
+- each file that `[package] files` lists.
+
+The command prints each file with its size, the total and the digest of the package:
+
+```text
+       241  LICENSE
+       112  package.toml
+       530  src/Slug.nvs
+       883  total, 3 files
+acme/slug 1.2.0  blake3:ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75
+wrote acme-slug-1.2.0.tar
+```
+
+The same files always give the same archive and the same digest, on every system. The archive does
+not contain the time, the owner or the permissions of a file.
+
+A package must have a license file, such as `LICENSE` or `COPYING`. It has at most 5,000 files, and at most 16 MiB together. Every path must work on Windows, macOS
+and Linux. A symbolic link is not allowed. For a larger file, use `nvs pkg download`.
+
+<!-- src: `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` -->
+
+# nvs pkg download and nvs pkg provide
+
+    nvs pkg download <url> --to <path>
+    nvs pkg provide <file>
+
+A package can use a file that is too large for its archive, such as a font or a data set. Run
+`nvs pkg download` in the folder of your package:
+
+    nvs pkg download https://files.example.com/fonts/Big.otf --to fonts/Big.otf
+
+The command downloads the file, saves it at `fonts/Big.otf` and adds this entry to `package.toml`:
+
+```toml
+[[download]]
+path = "fonts/Big.otf"
+urls = ["https://files.example.com/fonts/Big.otf"]
+sha256 = "9f2c4e6a8b0d1f3e5a7c9b2d4f6e8a0c1b3d5f7e9a2c4b6d8f0e1a3c5b7d9f2e"
+size = 734212
+```
+
+You can add more URLs to `urls`, and a `license` such as `"OFL-1.1"`. Every URL must start with
+`https://`. The path may not be under `src` and may not end in `.nvs`.
+
+When somebody fetches your package, `nvs pkg fetch` downloads each file and checks its size and its
+SHA-256 hash. A file that does not match is not used, and the next URL is tried. A redirect to an
+internal address, such as `127.0.0.1`, is not allowed. Nothing in the file runs. The package's own code
+may read the file with no grant.
+
+Each file is kept once in a download cache in the Novis data folder. Every project that needs the same
+file uses that copy.
+
+When no URL of a file works, get the file in another way. Then run `nvs pkg provide` with it:
+
+    nvs pkg provide Big.otf
+    nvs pkg fetch
+
+`nvs pkg provide` adds the file to the cache only when its size and its hash match a file that a
+package in `package.lock` lists.
 
 # nvs pkg api and nvs pkg diff
 
