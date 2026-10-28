@@ -104,18 +104,12 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `1db03d990`. CI 40695285274 and Website 40695285520 are green on it, all
-37 CI jobs. No fix waits for a push.
+`origin/main` is at `980f820f5`, the end of `check-and-serve-fixes`. CI 40712247908 and Website
+40712248085 are green on it, all 37 CI jobs. No fix waits for a push. The stale figures and pages
+the last State named went out fixed in that push.
 
 The next watch runs with no `--next`: the newest runs are green, so a plain watch waits for the
-next push.
-
-Before the 1db03d990 watch, `bun nv proofs --gate --limit 0` named 6 stale perf figures of
-`docs/reference/lang/90-attributes.md`, and `bun nv site --check stale questions` named 3 stale
-stamps and 6 stale question pages (routes, `nvs check`, `nvs serve`, `nvs service`,
-`Core\Router\Refusal`, the test runner). All come from the main loop's unpushed `058d3fcdb` and
-`7a7f63b04`, and it was recording the ledger in the root, so they are its open work. If the next
-goal end's push is refused on them, they are this goal's to fix.
+next push. One `gh` 502 during the watch was retried and passed.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures.
