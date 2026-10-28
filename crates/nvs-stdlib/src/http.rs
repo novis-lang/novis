@@ -4024,7 +4024,11 @@ pub struct ToolStream {
 impl std::io::Read for ToolStream {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         while self.body.held().is_empty() {
-            if !self.body.pull().map_err(|fault| std::io::Error::other(said(fault)))? {
+            if !self
+                .body
+                .pull()
+                .map_err(|fault| std::io::Error::other(said(fault)))?
+            {
                 return Ok(0);
             }
         }
@@ -4153,11 +4157,7 @@ fn tool_hop(
 
 /// Up to eight addresses the system resolver finds for `url`'s host. One that `refused` names is
 /// a fault, so a name that resolves to an internal address among public ones reaches nothing.
-fn tool_addresses(
-    member: &str,
-    url: &str,
-    refused: ToolRefusal<'_>,
-) -> Result<Vec<IpAddr>, Fault> {
+fn tool_addresses(member: &str, url: &str, refused: ToolRefusal<'_>) -> Result<Vec<IpAddr>, Fault> {
     use std::net::ToSocketAddrs as _;
     let reference =
         UriRef::parse(url).map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
