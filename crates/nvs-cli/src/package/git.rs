@@ -931,8 +931,9 @@ pub(crate) mod tests {
     fn an_https_remote_is_cloned_at_its_exact_commit() {
         if std::env::var_os(ALONE).is_none() {
             let name = "package::git::tests::an_https_remote_is_cloned_at_its_exact_commit";
-            let ran = std::process::Command::new(
+            let ran = nvs_repo::spawn(
                 std::env::current_exe().expect("the test binary knows its own path"),
+                &[],
             )
             .args([name, "--exact", "--test-threads=1", "--nocapture"])
             .env(ALONE, "1")
