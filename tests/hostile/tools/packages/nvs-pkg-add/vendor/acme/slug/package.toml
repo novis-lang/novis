@@ -1,0 +1,9 @@
+[package]
+name = 'Acme\Slug'
+version = "1.2.0"
+
+[dependencies]
+
+
+[capabilities]
+required = []

@@ -1,0 +1,11 @@
+<?nvs
+// This file is a copy of the git dependency `Other\Tools`, inside the folder of `Acme\Http`.
+namespace Other\Tools;
+
+final class Socket
+{
+    public static function open(): string
+    {
+        return 'opened by Other\Tools';
+    }
+}

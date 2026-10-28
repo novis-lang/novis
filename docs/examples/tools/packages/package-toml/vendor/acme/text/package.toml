@@ -1,0 +1,6 @@
+[package]
+name = 'Acme\Text'
+version = "1.1.0"
+
+[capabilities]
+required = []

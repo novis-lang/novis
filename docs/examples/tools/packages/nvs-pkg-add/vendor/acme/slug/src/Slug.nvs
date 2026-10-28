@@ -1,0 +1,31 @@
+<?nvs
+namespace Acme\Slug;
+
+final class Slug
+{
+    // Makes a URL slug from a title. Short words such as "the" are left out.
+    public static function make(string $title): string
+    {
+        // The package lists this file in its `package.toml`, so it may read it with no grant.
+        array<string> $stop = Core\Str::lines(Core\IO::read('../data/stop-words.txt'));
+        array<string> $kept = [];
+        foreach (Core\Str::split(Acme\Text\Case::lower($title), ' ') as string $word) {
+            if ($word != '' && !Core\Arr::contains($stop, $word)) {
+                $kept[] = $word;
+            }
+        }
+        return Core\Str::join($kept, '-');
+    }
+
+    // Returns the first line of the package's license file.
+    public static function license(): string
+    {
+        return Core\Str::lines(Core\IO::read('../LICENSE'))[0];
+    }
+
+    // Returns whether this package may read any file.
+    public static function mayReadFiles(): bool
+    {
+        return Core\Cap::has('fs.read');
+    }
+}

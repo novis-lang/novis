@@ -269,7 +269,7 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
-- C.6 [Packages: grants, package files and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions *(package.toml, grants, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code)*
+- C.6 [Packages: grants, package.toml, adding and fetching packages, and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions *(package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code)*
 - C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
 - C.8 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
@@ -58571,9 +58571,9 @@ E0739
 ```
 
 <a id="tools-packages"></a>
-## C.6 Packages: grants, package files and API versions
+## C.6 Packages: grants, package.toml, adding and fetching packages, and API versions
 
-Keywords: package.toml, grants, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+Keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
 
 ### Grants: what each namespace may do
 
@@ -58687,6 +58687,156 @@ package.
 
 A `require` or `autoload` path in a package must stay inside the package's directory. A path that
 leaves it with `..`, with an absolute path or through a symbolic link is error `E0661`.
+
+### package.toml
+
+`package.toml` describes your application or a package. The `nvs pkg` commands read all of it.
+When your program compiles, Novis reads only `[grants]` of your application's file, and only
+`[package] name` and `[capabilities]` of a package's file. Your program never reads the file when it
+runs.
+
+A file with a `[package] name` is a package's file. A file without one is an application's file.
+This is an application's file:
+
+```toml
+[dependencies]
+'Acme\Slug' = "1.2.0"
+'Acme\Fork' = { git = "https://git.example.com/acme/fork.git", rev = "4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e" }
+
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+[grants]
+'Acme\Slug\*' = []  # required: fs.read
+'Acme\Fork\*' = []
+```
+
+| Table or key | What it says |
+|---|---|
+| `[package] name` | the package's name, which is also its namespace, such as `'Acme\Slug'` |
+| `[package] version` | the package's version, `MAJOR.MINOR.PATCH`, such as `"1.2.0"` |
+| `[package] files` | the files the package carries beside its `src` folder, such as `["data/words.txt"]` |
+| `[dependencies]` | each package your code needs, with the lowest version it works with |
+| `[registries]` | the registry each vendor's packages come from |
+| `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
+| `[grants]` | the capabilities each namespace may use, in an application's file only |
+| `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
+
+`version`, `files`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
+other key is error `E0659`, and the `nvs pkg` commands stop.
+
+A package's name has two parts, a vendor and a name: `Acme\Slug`. On the command line and in a URL,
+you write it in lower case with `/`: `acme/slug`. No package may be named `Core` or take the name of a
+built-in component, such as `Novis\Image`.
+
+A dependency is written with its namespace, the same way as in `[grants]`. Its value is the lowest
+version your code works with. `nvs pkg fetch` may choose a higher version, as
+[nvs pkg fetch and nvs pkg vendor](#nvs-pkg-fetch-and-nvs-pkg-vendor) says.
+
+A dependency can also come from a git repository. Write its URL and the full commit hash as `rev`. A
+branch or a tag is not allowed, because it can point to other code later. Only your application's
+file may have a git dependency. When a package's file has one, `nvs pkg fetch` stops with an error.
+
+Each vendor's packages come from one registry. `[registries]` names the registry for a vendor. Every
+other vendor's packages come from `https://registry.novis-lang.org`. A registry URL starts with
+`https:`, or with `file:` for a folder on your disk. `nvs pkg fetch` never looks for a vendor's
+package in a second registry. So nobody can publish a package with your vendor's name in another
+registry and have it used.
+
+### nvs pkg add
+
+    nvs pkg add <package>
+    nvs pkg add <package>@<version>
+
+`nvs pkg add acme/slug` adds the newest released version of `acme/slug` to `[dependencies]`. Then it
+does what `nvs pkg fetch` does. With a version, such as `acme/slug@1.2.0`, it adds exactly that
+version.
+
+Before the command changes any file, it prints each package it adds, with the capabilities that
+package requests. The packages that `acme/slug` needs are included:
+
+```text
+`Acme\Slug` 1.2.0 needs 1 other package(s). Each one requests:
+  `Acme\Slug` 1.2.0: required fs.read
+  `Acme\Text` 1.0.0: no capabilities
+There is no package.lock yet, so every package is new:
+  `Acme\Slug` 1.2.0 is new. It requests required fs.read.
+  `Acme\Text` 1.0.0 is new. It requests no capabilities.
+added to [grants]: 'Acme\Slug\*' = []  # required: fs.read
+added to [grants]: 'Acme\Text\*' = []
+2 package(s), 2 written to vendor/
+```
+
+Each new grant line is empty, so the package may use no capability yet. The comment says what the
+package requests. You add a capability to the line when you agree with it.
+
+A new version of a package is released seven days after it is published, or earlier when an owner of
+the package confirms it. `nvs pkg add` without a version chooses only a released version. A version
+that waits for its release, or that its owners unlisted, is added only when you write its number.
+
+A retracted version has a known problem. The command stops with an error that gives the reason and
+the version with the fix. A version that the registry withheld, such as malware, also stops the
+command. In both cases, no file changes.
+
+A dependency that is already in `[dependencies]` keeps its version when that version is higher. With
+`@<version>`, the command writes that version. The comment on the line stays.
+
+When a package also downloads files from other hosts, the command lists each host and the total
+size. Those hosts see the address of the computer that runs `nvs pkg fetch`.
+
+### nvs pkg fetch and nvs pkg vendor
+
+    nvs pkg fetch [--locked]
+    nvs pkg vendor [--locked]
+
+`nvs pkg fetch` downloads every package in `[dependencies]`, and every package those packages need.
+Run it in the folder of your application, next to `package.toml`. It writes these files:
+
+| File | What it contains |
+|---|---|
+| `vendor/<vendor>/<name>/` | each package's files: `package.toml`, the `src` folder and the files it lists |
+| `vendor/packages.nvs` | one `autoload` line for each package |
+| `vendor/package-files.toml` | the files of each package, which its own code may read with no grant |
+| `package.lock` | the version, the source and the digest of every package |
+| `package.toml` | one new grant line in `[grants]` for each new package |
+
+Your program loads every package with one line:
+
+```nvs skip
+require './vendor/packages.nvs';
+```
+
+`vendor/packages.nvs` looks like this:
+
+```nvs skip
+<?nvs
+// Generated by `nvs pkg` from package.lock. Do not edit.
+autoload 'Acme\Slug' from './acme/slug/src';
+autoload 'Acme\Text' from './acme/text/src';
+```
+
+When two packages need different versions of a third package, the higher version is used. A version
+is only chosen when a package asks for it, so a new release does not change your program until you
+run `nvs pkg add` or `nvs pkg update`.
+
+The digest of a package is the BLAKE3 hash of its archive. `package.lock` has the digest of every
+package. Commit `package.lock` with your code. The next `nvs pkg fetch` checks each archive against its
+digest and stops with an error when one does not match. `--locked` also stops when `package.lock` is
+missing a package or has to change, so CI uses exactly the versions you tested.
+
+No code of a package runs during `nvs pkg fetch`. A package's code runs only when your program calls
+it. A file that `autoload` loads may only declare a class, an interface, an enum or a type. Any other
+statement at the top of the file is error `E0317`.
+
+A new grant line gives the package no capability. A line that is already in `[grants]` is never
+changed, so a capability you added stays. A package's own code may read the files that
+`vendor/package-files.toml` lists for it with no grant, when the path is a string in the code. It may
+not write them.
+
+`nvs pkg fetch` keeps a package folder whose files still match `package.lock`. `nvs pkg vendor` does the
+same work, but it downloads every package again and replaces its folder. Use it when a file in
+`vendor/` was changed. Both commands remove only the folders of packages they wrote before, so code
+you copied into `vendor/` yourself stays.
 
 ### nvs pkg api and nvs pkg diff
 

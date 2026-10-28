@@ -1,0 +1,11 @@
+<?nvs
+// Shows a package reading its own license file, which `vendor/package-files.toml` lists for it.
+
+require './vendor/packages.nvs';
+
+// The grant line of `Acme\Slug` is empty. So the package may not read files in general.
+// This prints `false`.
+echo Acme\Slug\Slug::mayReadFiles() ? 'true' : 'false', "\n";
+
+// The package may still read the files it came with. This prints `MIT License`.
+echo Acme\Slug\Slug::license(), "\n";

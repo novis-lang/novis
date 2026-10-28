@@ -1,0 +1,12 @@
+<?nvs
+// Attack: a package needs a git dependency, and `nvs pkg fetch` downloads one only for your application.
+// So the package carries a copy in its own folder. A package may only use its own namespace,
+// so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. Loads the copy of `Other\Tools` from the folder of `Acme\Http`.
+autoload 'Other\Tools' from './vendor/acme/http/tools/src';
+
+echo Acme\Http\Client::send(), "\n";

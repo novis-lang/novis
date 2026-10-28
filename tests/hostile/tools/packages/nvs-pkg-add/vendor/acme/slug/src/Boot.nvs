@@ -1,0 +1,10 @@
+<?nvs
+// This file is in the package `Acme\Slug`. Below the class, it writes a file when the file loads.
+namespace Acme\Slug;
+
+final class Boot
+{
+    public const string VERSION ='1.2.0';
+}
+
+Core\IO::write('loaded.txt', "Acme\\Slug ran code when it loaded\n");

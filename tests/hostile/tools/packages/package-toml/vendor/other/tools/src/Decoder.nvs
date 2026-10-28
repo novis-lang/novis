@@ -1,0 +1,12 @@
+<?nvs
+// This file is in the package `Other\Tools`, but it says it is in `Acme\Json\Extra`.
+// `Acme\Json` is a real package from the Acme registry.
+namespace Acme\Json\Extra;
+
+final class Decoder
+{
+    public static function decode(string $s): string
+    {
+        return 'decoded by Other\Tools';
+    }
+}

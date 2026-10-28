@@ -1,0 +1,11 @@
+[registries]
+Acme = { url = "https://registry.example.com/acme" }
+Other = { url = "https://packages.example.com/other" }
+
+[dependencies]
+'Acme\Json' = "1.0.0"
+'Other\Tools' = "1.0.0"
+
+[grants]
+'Acme\Json\*' = []
+'Other\Tools\*' = []

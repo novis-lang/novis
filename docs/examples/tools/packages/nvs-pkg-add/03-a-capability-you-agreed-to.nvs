@@ -1,0 +1,18 @@
+<?nvs
+// Shows a package that may read files, because you added `fs.read` to its grant line.
+// `nvs pkg add acme/feed` printed that `Acme\Feed` requests `required fs.read`.
+// It added `'Acme\Feed\*' = []`, and you changed the line to `["fs.read"]`.
+
+require './vendor/packages.nvs';
+
+// No line in `[grants]` matches this file, so it may write files.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.txt');
+Core\IO::write($path, "Order 1041 Shipped\nOrder 1042 Packed\n");
+
+// `Acme\Feed` reads the file. This prints the two lines in lower case.
+foreach (Acme\Feed\Feed::titles($path) as string $line) {
+    echo $line, "\n";
+}
+
+// You did not add `fs.write`, so this prints `false`.
+echo Acme\Feed\Feed::may('fs.write') ? 'true' : 'false', "\n";

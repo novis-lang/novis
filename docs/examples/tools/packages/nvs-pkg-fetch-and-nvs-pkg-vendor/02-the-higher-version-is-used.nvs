@@ -1,0 +1,11 @@
+<?nvs
+// Shows which version of a package two other packages share when they need different versions.
+// `Acme\Slug` needs `Acme\Text` 1.0.0, and `Acme\Feed` needs `Acme\Text` 1.1.0.
+
+require './vendor/packages.nvs';
+
+// `nvs pkg fetch` chose the higher version. Both packages use it. This prints `1.1.0`.
+echo Acme\Text\Case::VERSION, "\n";
+
+// `Acme\Slug` works with version 1.1.0 too. This prints `price-list`.
+echo Acme\Slug\Slug::make('The Price List'), "\n";

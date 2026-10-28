@@ -1,0 +1,10 @@
+<?nvs
+namespace Acme\Json;
+
+final class Json
+{
+    public static function quote(string $s): string
+    {
+        return '"' . $s . '"';
+    }
+}

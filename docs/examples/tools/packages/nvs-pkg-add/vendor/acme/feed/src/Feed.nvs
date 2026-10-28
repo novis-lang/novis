@@ -1,0 +1,23 @@
+<?nvs
+namespace Acme\Feed;
+
+final class Feed
+{
+    // Reads a file with one title on each line, and returns the titles in lower case.
+    public static function titles(string $path): array<string>
+    {
+        array<string> $titles = [];
+        foreach (Core\Str::lines(Core\IO::read($path)) as string $line) {
+            if (Core\Str::trim($line) != '') {
+                $titles[] = Acme\Text\Case::lower($line);
+            }
+        }
+        return $titles;
+    }
+
+    // Returns whether this package has the capability.
+    public static function may(string $capability): bool
+    {
+        return Core\Cap::has($capability);
+    }
+}

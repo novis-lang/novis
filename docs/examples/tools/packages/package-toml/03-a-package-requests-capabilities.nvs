@@ -1,0 +1,18 @@
+<?nvs
+// Shows a package that needs `fs.read` and can also use `fs.write`, as its `[capabilities]` table says.
+
+require './vendor/packages.nvs';
+
+// No line in `[grants]` matches this file, so it may write files.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'news.txt');
+Core\IO::write($path, "Summer Sale\nNew Store in Vienna\n");
+
+// The grant line of `Acme\Feed` lists `fs.read`, so the package reads the file.
+// This prints the two titles in lower case.
+foreach (Acme\Feed\Feed::titles($path) as string $title) {
+    echo $title, "\n";
+}
+
+// `fs.write` is optional and not on the grant line. This prints `true` and then `false`.
+echo Acme\Feed\Feed::may('fs.read') ? 'true' : 'false', "\n";
+echo Acme\Feed\Feed::may('fs.write') ? 'true' : 'false', "\n";

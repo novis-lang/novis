@@ -1,0 +1,11 @@
+<?nvs
+// Shows a package reading a data file that `files` lists in the package's own `package.toml`.
+
+require './vendor/packages.nvs';
+
+// The grant line of `Acme\Slug` is empty, so the package may read no file. This prints `false`.
+echo Acme\Slug\Slug::mayReadFiles() ? 'true' : 'false', "\n";
+
+// The package still reads its list of short words, such as "the" and "of".
+// This prints `history-rome`.
+echo Acme\Slug\Slug::make('The History of Rome'), "\n";

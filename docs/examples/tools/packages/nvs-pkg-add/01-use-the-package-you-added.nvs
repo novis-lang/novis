@@ -1,0 +1,9 @@
+<?nvs
+// Shows a program using a package that `nvs pkg add acme/slug` added.
+// The command added `'Acme\Slug' = "1.2.0"` to `[dependencies]`.
+// It also added `'Acme\Slug\*' = []` to `[grants]`, so the package may use no capability.
+
+require './vendor/packages.nvs';
+
+// `Acme\Slug` needs no capability, so the empty grant line is enough. This prints `blue-wool-scarf`.
+echo Acme\Slug\Slug::make('Blue Wool Scarf'), "\n";

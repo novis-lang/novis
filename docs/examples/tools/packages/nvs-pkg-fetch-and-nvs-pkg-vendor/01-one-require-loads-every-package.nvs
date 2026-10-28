@@ -1,0 +1,12 @@
+<?nvs
+// Shows one `require` line loading every package that `nvs pkg fetch` wrote to `vendor/`.
+
+// `vendor/packages.nvs` has one `autoload` line for each of the three packages.
+require './vendor/packages.nvs';
+
+// Your program can now use the classes of every package. This prints `winter-coat`, then `winter coat`.
+echo Acme\Slug\Slug::make('Winter Coat'), "\n";
+echo Acme\Text\Case::lower('Winter Coat'), "\n";
+
+// This prints `true`, because the grant line of `Acme\Feed` lists `fs.read`.
+echo Acme\Feed\Feed::may('fs.read') ? 'true' : 'false', "\n";

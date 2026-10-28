@@ -1,0 +1,14 @@
+<?nvs
+// Attack: a package from the Other registry says its files are in `Acme` namespaces.
+// A package may only use its own namespace, so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+autoload 'Acme\Http' from './vendor/other/tools/src';
+autoload 'Acme\Json\Extra' from './vendor/other/tools/src';
+
+// 1. A file of `Other\Tools` says it is in `Acme\Http`, a package that is not installed.
+echo Acme\Http\Client::send(), "\n";
+
+// 2. A file of `Other\Tools` says it is in `Acme\Json\Extra`, inside the installed `Acme\Json`.
+echo Acme\Json\Extra\Decoder::decode('{}'), "\n";

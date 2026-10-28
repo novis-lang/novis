@@ -1,0 +1,12 @@
+<?nvs
+// Shows two packages from one `nvs pkg add acme/slug`: `Acme\Slug` and `Acme\Text`, which it needs.
+// The command printed both packages, and added a grant line for each one.
+
+// This one line loads both packages.
+require './vendor/packages.nvs';
+
+// `Acme\Slug` calls `Acme\Text` to change the title to lower case. This prints `garden-chairs`.
+echo Acme\Slug\Slug::make('  Garden Chairs  '), "\n";
+
+// Your own code may call `Acme\Text` too. This prints `garden chairs`.
+echo Acme\Text\Case::lower('  Garden Chairs  '), "\n";

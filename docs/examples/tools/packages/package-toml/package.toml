@@ -1,0 +1,14 @@
+# This is the file of an application. It has no `[package] name`.
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+# Your code needs two packages. `Acme\Text` is not listed, because the two packages need it.
+[dependencies]
+'Acme\Feed' = "2.0.0"
+'Acme\Slug' = "1.2.0"
+
+# `Acme\Feed` may read files. It may not write files.
+[grants]
+'Acme\Feed\*' = ["fs.read"]  # required: fs.read; optional: fs.write
+'Acme\Slug\*' = []
+'Acme\Text\*' = []

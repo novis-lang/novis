@@ -1,0 +1,11 @@
+[registries]
+Acme = { url = "https://packages.example.com" }
+
+[dependencies]
+'Acme\Slug' = "1.2.0"
+'Acme\Feed' = "2.0.0"
+
+[grants]
+'Acme\Slug\*' = []
+'Acme\Text\*' = []
+'Acme\Feed\*' = ["fs.read"]  # required: fs.read; optional: fs.write

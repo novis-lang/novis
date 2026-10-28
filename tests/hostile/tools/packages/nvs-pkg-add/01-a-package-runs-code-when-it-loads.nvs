@@ -1,0 +1,12 @@
+<?nvs
+// Attack: a package that `nvs pkg add` added tries to run its own code when the program loads it.
+// A file that `autoload` loads may only declare one thing, so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. The file of `Acme\Slug\Slug` has an `echo` below the class.
+echo Acme\Slug\Slug::make('Hello World'), "\n";
+
+// 2. The file of `Acme\Slug\Boot` calls `Core\IO::write` below the class.
+echo Acme\Slug\Boot::VERSION, "\n";

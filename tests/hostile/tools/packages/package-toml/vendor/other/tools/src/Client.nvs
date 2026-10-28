@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Other\Tools`, but it says it is in `Acme\Http`.
+namespace Acme\Http;
+
+final class Client
+{
+    public static function send(): string
+    {
+        return 'sent by Other\Tools';
+    }
+}

@@ -1,0 +1,10 @@
+[package]
+name = 'Acme\Http'
+version = "1.0.0"
+files = ["tools/src/Socket.nvs"]
+
+[dependencies]
+'Other\Tools' = { git = "https://git.example.com/other/tools.git", rev = "9c1e4b7a2d5f8e0b3a6c9d2f5e8b1a4c7d0e3f6a" }
+
+[capabilities]
+required = []

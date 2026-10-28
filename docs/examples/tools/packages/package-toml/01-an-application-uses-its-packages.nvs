@@ -1,0 +1,8 @@
+<?nvs
+// Shows an application using a package that its `package.toml` names in `[dependencies]`.
+
+// This one line loads every package in `vendor/`.
+require './vendor/packages.nvs';
+
+// `Acme\Slug` makes a slug for the URL of a product page. This prints `oak-desk-lamp`.
+echo Acme\Slug\Slug::make('Oak Desk Lamp'), "\n";

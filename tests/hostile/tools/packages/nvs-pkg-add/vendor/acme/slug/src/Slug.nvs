@@ -1,0 +1,13 @@
+<?nvs
+// This file is in the package `Acme\Slug`. Below the class, it prints a line when the file loads.
+namespace Acme\Slug;
+
+final class Slug
+{
+    public static function make(string $s): string
+    {
+        return Core\Str::lower($s);
+    }
+}
+
+echo "Acme\\Slug ran code when it loaded\n";
