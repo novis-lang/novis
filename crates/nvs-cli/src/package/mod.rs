@@ -6,19 +6,22 @@
 //! from the checked program and never by running any of it, and [`diff`] is its comparison: every
 //! change between two versions, breaking or additive, and whether the version step allows it.
 //! [`manifest`] reads `package.toml`, a package's or an application's, and refuses an unknown key.
+//! [`pack`] builds the deterministic archive whose digest is a package's identity
+//! (`rule:packaging/a-package-is-its-digest`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
-// `nvs pkg diff` reads the version alone. The name, the dependencies, the registries and the
-// downloads are read by `nvs pkg pack`, `fetch` and `add`, which are not written yet.
+// `nvs pkg diff` reads the version, and `nvs pkg pack` the name and `files`. The dependencies,
+// the registries and the downloads are read by `nvs pkg fetch` and `add`, which are not written yet.
 #[allow(
     dead_code,
     reason = "the commands that read most of a manifest are not written yet"
 )]
 mod manifest;
+mod pack;
 
 /// Work with Novis packages.
 #[derive(clap::Args)]
@@ -68,6 +71,27 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Build the archive that is published for a package.
+    ///
+    /// The archive contains every `.nvs` file under `src`, `package.toml`,
+    /// the license and readme files next to it, and each file that the
+    /// `files` list in `package.toml` names. Nothing else is packed.
+    ///
+    /// The command prints each file with its size, the total, and the
+    /// package's digest. The same files always give the same archive and the
+    /// same digest, on every system.
+    ///
+    /// A package may have at most 5,000 files of at most 16 MiB together.
+    /// Every path must also work on Windows, macOS and Linux.
+    Pack {
+        /// The package's directory, the one that contains `package.toml`.
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Where to write the archive. The default is
+        /// `<vendor>-<name>-<version>.tar` in the current directory.
+        #[arg(long, value_name = "FILE")]
+        out: Option<PathBuf>,
+    },
 }
 
 impl Args {
@@ -82,6 +106,7 @@ impl Args {
                 to,
                 json,
             } => diff::run(&old, &new, from, to, json),
+            Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),
         }
     }
 }

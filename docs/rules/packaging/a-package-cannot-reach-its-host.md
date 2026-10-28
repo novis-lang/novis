@@ -14,4 +14,7 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
 file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
 
+`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
+(`crates/nvs-cli/src/package/pack.rs`).
+
 **Not on disk.** No fetch path exists to refuse an archive that holds an `nvs.toml`.

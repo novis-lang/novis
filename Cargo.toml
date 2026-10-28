@@ -468,6 +468,15 @@ globset = "0.4"
 # faster than SHA-256 in its portable form. `std` is added back because
 # `default-features = false` is what turns the assembly off.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
+# The `ustar` format of a package archive, whose BLAKE3 digest above is the
+# package's identity (`rule:packaging/a-package-is-its-digest`). A tar header is
+# somebody else's specification (`rule:packaging/somebody-elses-specification-is-a-crate`),
+# so this crate writes it, and `crates/nvs-cli/src/package/pack.rs` sets every
+# field it writes. Default features off: the one default is `xattr`, which reads
+# extended attributes off disk, and an archive built from fixed fields never
+# reads them. Pure Rust, no C, MIT OR Apache-2.0; it brings `filetime`, and
+# `libc` on Unix, which the tree already has. Never on the request path.
+tar = { version = "0.4", default-features = false }
 
 # --- sorting by key (`Core\Arr::sort`'s natural-order rows) ---
 # A stable sort for keys that map to an ordered integer or a byte string, radix

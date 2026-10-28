@@ -75,5 +75,10 @@ nothing per request.
 - **A larger limit raised per package on request.** It needs a person to decide each request, and the
   operator only withholds (`rule:packaging/the-operator-only-withholds`).
 
-**Not on disk.** There is no `nvs pkg pack`, no reader for `files`, and no read check for a
-package's own files.
+`nvs pkg pack` builds the set, checks every path and both limits, and prints what it packs
+(`crates/nvs-cli/src/package/pack.rs`, whose `MAX_BYTES` and `MAX_FILES` are the two constants).
+It refuses a symbolic link anywhere it reads, since a link would make the set depend on what lies
+outside the package.
+
+**Not on disk.** The fetch does not yet stop at the limits while it reads, and there is no read
+check for a package's own files.

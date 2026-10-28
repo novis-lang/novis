@@ -13,7 +13,7 @@ stages:
         rules: [packaging/package-toml-is-a-tool-input, packaging/a-package-name-is-vendor-slash-name, packaging/a-vendor-resolves-from-one-registry, core-api/reserved-namespace]
   - id: 2
     title: "`nvs pkg pack` builds a deterministic archive"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/pack.rs, docs/rules/packaging/a-package-is-its-digest.md]
     extra:
       context:
@@ -243,13 +243,13 @@ dependencies, registries and requested capabilities are read from it.
 
 **Does:** a package directory becomes the same archive bytes and digest on every platform.
 
-- [ ] The `tar` row in the workspace `Cargo.toml`, with `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:425`
-- [ ] The archive and its BLAKE3 digest as the standing decision says, with an `nvs.toml` anywhere in it refused (`rule:packaging/a-package-is-its-digest`). `crates/nvs-cli/src/package/pack.rs:1`, `Cargo.toml:425`
-- [ ] The file set: `src/**/*.nvs`, `package.toml`, the root license and readme files and the `files` list, with a missing license, a missing listed file, a listed `.nvs` and a listed default file refused (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-cli/src/package/pack.rs:1`
-- [ ] The 16 MiB and 5,000-file limits as format constants, and the path rules: NFC, 160 bytes, case-only twins, Windows reserved names and characters, a trailing dot or space. `crates/nvs-cli/src/package/pack.rs:1`
-- [ ] `nvs pkg pack` in the group, printing every file with its size and the total. `crates/nvs-cli/src/package/mod.rs:1`
-- [ ] `rule:packaging/a-package-is-its-digest`'s fragment states the archive format. `docs/rules/packaging/a-package-is-its-digest.md:1`
-- [ ] Tests: a pinned digest for a fixture directory, the same bytes after its files are touched and reordered, a `tests/` file and a `docs/` markdown file left out, a symlink and an `nvs.toml` refused, each file-set refusal, each path rule, and one byte over each limit refused. `crates/nvs-cli/tests/package_client.rs:1`
+- [x] The `tar` row in the workspace `Cargo.toml`, with `cargo deny` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:425`
+- [x] The archive and its BLAKE3 digest as the standing decision says, with an `nvs.toml` anywhere in it refused (`rule:packaging/a-package-is-its-digest`). `crates/nvs-cli/src/package/pack.rs:1`, `Cargo.toml:425`
+- [x] The file set: `src/**/*.nvs`, `package.toml`, the root license and readme files and the `files` list, with a missing license, a missing listed file, a listed `.nvs` and a listed default file refused (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-cli/src/package/pack.rs:1`
+- [x] The 16 MiB and 5,000-file limits as format constants, and the path rules: NFC, 160 bytes, case-only twins, Windows reserved names and characters, a trailing dot or space. `crates/nvs-cli/src/package/pack.rs:1`
+- [x] `nvs pkg pack` in the group, printing every file with its size and the total. `crates/nvs-cli/src/package/mod.rs:1`
+- [x] `rule:packaging/a-package-is-its-digest`'s fragment states the archive format. `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [x] Tests: a pinned digest for a fixture directory, the same bytes after its files are touched and reordered, a `tests/` file and a `docs/` markdown file left out, a symlink and an `nvs.toml` refused, each file-set refusal, each path rule, and one byte over each limit refused. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### 3. the index is read, resolution takes the highest minimum, and the lock holds every digest
 
@@ -352,26 +352,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Both gates hold: `api-compat` made `crates/nvs-cli/src/package/mod.rs`, and
-`namespace-grants` shipped `crates/nvs-config/src/grants.rs` and `package.rs`, so stage 4 is not
-blocked by them.
+Stages 1 and 2 are done; the `api-compat` and `namespace-grants` gates hold.
 
-`crates/nvs-cli/src/package/manifest.rs` reads the whole file into `Manifest`, as the standing
-decision *The manifest's keys are fixed* says. `[package] name` and `[capabilities]` go through
-`nvs_config::package::Package::parse`, and `[grants]` through `nvs_config::grants::Grants::parse`.
-`nvs_config::grants::is_segment` is now `pub` for that. `Name::slug` derives `acme/http`, and
-`Manifest::registry` gives a vendor its URL or `DEFAULT_REGISTRY`. Every refusal is `E0659`, and its
-card now says the `nvs pkg` commands check every key. `manifest::version` reads through the full
-reader, so `nvs pkg diff` refuses a bad file. The two `versioned` fixtures under
-`crates/nvs-cli/tests/fixtures/package-api/` moved `version` under `[package]`.
+`crates/nvs-cli/src/package/pack.rs`: `file_set` builds the allowlist (`pack.rs:188`), `check_path`
+the path rules (`pack.rs:358`), `MAX_BYTES` and `MAX_FILES` the limits (`pack.rs:37`), and `write`
+streams the `ustar` bytes through BLAKE3 into any writer (`pack.rs:451`). `nvs pkg pack [dir]
+[--out FILE]` (`mod.rs:86`) writes `<vendor>-<name>-<version>.tar` through a `.partial` file. A
+pack refusal is a plain `error:` line, since it names a file and not a line of `package.toml`.
+A symlink anywhere the set is read from is refused. The `tar` row is `Cargo.toml:479`, and
+`THIRD-PARTY-LICENSES.txt` is regenerated. The digest rule's fragment states the format. The
+digest and file-set rules stay `designed` until the fetch side exists; stage 8 ships them.
 
-The module carries `#[allow(dead_code)]` in `mod.rs` until `pack`, `fetch` and `add` read the
-name, dependencies and registries; drop it once they do.
+`mod.rs` keeps `#[allow(dead_code)]` on `manifest` until `fetch` and `add` read the rest of it.
 
-The refusals are unit tests in `manifest.rs`, and `crates/nvs-cli/tests/package_client.rs` checks
-through `nvs pkg diff` that one reaches the user. No test is expected to go red.
+The path rules and limits are unit tests in `pack.rs`, and the pinned digest and file-set
+refusals are in `crates/nvs-cli/tests/package_client.rs`; all pass. No test should go red.
 
-The sweep's reds were already fixed at `HEAD`. The three nightly Miri jobs of run 40474302703 ran
+The sweep's reds are fixed at `HEAD`, and the sweep repeated them unchanged. The three nightly Miri jobs of run 40474302703 ran
 on `55b03e97a`. `22f1e4ec4` skips the `secret` span test under Miri, `c33a8b8f7` counts the spool
 wakes against files opened, and `e461612ce` and `c33a8b8f7` skip the two slow spool tests.
 `env-secret-proofs` exits 0 when run, and no goal or floor names that check any more. Its log
@@ -379,20 +376,21 @@ under `.looper/loops/main/checks/` dates from 22 October, so the sweep reads a s
 
 ### Next
 
-**Stage 2: `nvs pkg pack`**, one file set: `Cargo.toml` (the `tar` row),
-`crates/nvs-cli/src/package/pack.rs`, `crates/nvs-cli/src/package/mod.rs`,
-`docs/rules/packaging/a-package-is-its-digest.md`, `crates/nvs-cli/tests/package_client.rs`.
-Stage 3 may go first instead; the two share no file but `mod.rs` and the test file.
+**Stage 3: the index, resolution and the lock**, files `crates/nvs-cli/src/package/index.rs`,
+`resolve.rs`, `lock.rs`, `mod.rs`, `docs/rules/packaging/a-package-is-its-digest.md` (the index
+schema), `crates/nvs-cli/tests/fixtures/registry/README.md` and `package_client.rs`. Split the
+index and root file from resolution and the lock if it runs past one session.
 
-- [ ] The `tar` row, default features off, `cargo deny` green. `Cargo.toml:425`
-- [ ] The file set from `Manifest::files` and the root license and readme files, the limits and the path rules. `crates/nvs-cli/src/package/pack.rs:1`, `crates/nvs-cli/src/package/manifest.rs:222`
-- [ ] The archive and its BLAKE3 digest, and `nvs pkg pack` printing each file, its size, the total and the slug. `crates/nvs-cli/src/package/pack.rs:1`, `crates/nvs-cli/src/package/mod.rs:29`
-- [ ] The rule fragment states the archive format. `docs/rules/packaging/a-package-is-its-digest.md:1`
-- [ ] Tests as stage 2 lists them. `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] The index reader and its schema in the digest rule's fragment; the test fixture registry built from package directories through `pack::file_set` and `pack::write`. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/package/pack.rs:188`
+- [ ] `registry.json`'s file hosts in order, the next on a failure or digest mismatch, and the last root file kept under `<data>/registry/`. `crates/nvs-config/src/data.rs:163`
+- [ ] Minimal version selection across majors with the crossing reported. `crates/nvs-cli/src/package/resolve.rs:1`, `crates/nvs-cli/src/package/manifest.rs:236`
+- [ ] The lock, `--locked`, and a digest mismatch as a hard error naming the package. `crates/nvs-cli/src/package/lock.rs:1`
+- [ ] Tests as stage 3 lists them. `crates/nvs-cli/tests/package_client.rs:1`
 
 ### Backlog
 
-- Stage 3 (`index.rs`, `resolve.rs`, `lock.rs`) after or before stage 2. `Manifest::registry` is its vendor lookup. `crates/nvs-cli/src/package/manifest.rs:236`
+- Stage 7 (the git dependency) after stage 3; it packs a clone through `pack::file_set`. `crates/nvs-cli/src/package/pack.rs:188`
+- The fetch stops one byte past the largest archive `MAX_BYTES` and `MAX_FILES` allow, before the digest is checked (stage 4). `crates/nvs-cli/src/package/pack.rs:37`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the

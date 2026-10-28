@@ -105,8 +105,13 @@ nvs-fmt.workspace = true
 clap.workspace = true
 # The artifact header's checksum, over the payload this binary is about to
 # publish. The key beside it is `nvs-config`'s, so this is the only place the
-# cache hashes anything itself.
+# cache hashes anything itself. `nvs pkg pack` hashes a package archive with it,
+# because that digest is the package's identity (`src/package/pack.rs`).
 blake3.workspace = true
+# `nvs pkg pack` writes a package archive as a `ustar` tar (`src/package/pack.rs`),
+# and refuses a path that is not in NFC, which is that crate's one check.
+tar.workspace = true
+unicode-normalization.workspace = true
 # The read path maps the artifact rather than reading it, so BLAKE3 runs over
 # the page cache's own copy and no page is ever executable before it has.
 memmap2.workspace = true
