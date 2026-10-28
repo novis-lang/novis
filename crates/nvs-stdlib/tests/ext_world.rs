@@ -220,6 +220,11 @@ const REFUSED: &[(&str, &str)] = &[
         "Core\\Passkey\\Credential",
         "Its key is checked against its algorithm when the host builds one, and a guest takes its four parts as scalars.",
     ),
+    (
+        "Core\\WebPush\\Subscription",
+        "Its endpoint and keys are checked when the host reads one, and a guest takes the browser's JSON as a string.",
+    ),
+    ("Core\\WebPush\\Sent", REPORT),
 ];
 
 /// Every interface the `extension` world imports once resolved: its own
