@@ -163,6 +163,8 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Net\\Datagram\\Message", REPORT),
     ("Core\\Cache\\Store", HANDLE),
     ("Core\\Cache\\SecretEntry", SECRET),
+    ("Core\\WebPush\\Subscription", SECRET),
+    ("Core\\WebPush\\Sent", REPORT),
     ("Core\\RateLimit\\Decision", REPORT),
     ("Core\\Reflect\\ClassInfo", REFLECT),
     ("Core\\Reflect\\MethodInfo", REFLECT),
