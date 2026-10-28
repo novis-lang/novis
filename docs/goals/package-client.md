@@ -330,6 +330,20 @@ package has none. Why: security first, the
 narrowest exception, one literal path checked twice; simplicity, no namespace at run time. Memory:
 one set of paths per package for each compile, and nothing per request.
 
+**A build checks nothing against the lock** (stage 8). Every `nvs pkg fetch` packs each vendored
+folder again against its locked digest, and `--locked` in CI fails on any difference. Why:
+latency, because a check on every compile reads every vendored file; security gains nothing,
+because whoever can edit `vendor/` can edit the application's own code. Recorded as a Declined
+bullet in `rule:packaging/the-lockfile-holds-every-digest`.
+
+**A `Core\Http\Client` call with a string URL needs `net.connect` in its namespace's grant line**
+(stage 8). The capability table has no `Core\Http\Client` row, on the reasoning that
+`Core\Http::allowUrl` is the door, but `Client::get('https://…')` needs no `allowUrl`, so a package
+under an empty grant line sends requests. Each member whose URL argument is a string gets a
+`net.connect` row; a call that takes what `allowUrl` returned keeps its row-less path if the type
+makes that visible to the checker, and otherwise every URL-taking member gets the row. Why:
+security first, a grant line must bound what a package reaches. Memory: none.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -473,15 +487,17 @@ in `AGENTS.md`.
 
 **Split:** as stage 6: about pages and examples one feature after the other, then the attacks.
 
-- [ ] The headings `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked`, `# nvs pkg pack` and `# nvs pkg download and nvs pkg provide`. `docs/reference/tools/35-packages.md:1`
-- [ ] The about pages and examples. `docs/examples/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/about.md:1`, `docs/examples/tools/packages/package-lock-and-locked/about.md:1`, `docs/examples/tools/packages/nvs-pkg-pack/about.md:1`, `docs/examples/tools/packages/nvs-pkg-download-and-nvs-pkg-provide/about.md:1`
-- [ ] The attacks: a lock whose digest was edited, and a download that redirects to an internal address. `tests/hostile/tools/packages/package-lock-and-locked/01-an-edited-digest.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-download-and-nvs-pkg-provide/01-a-redirect-to-an-internal-address.nvs:1`
-- [ ] `bun nv proofs --id` owes nothing for the four. `docs/reference/tools/35-packages.md:1`
-- [ ] `rule:packaging/package-toml-is-a-tool-input` and `rule:packaging/a-package-name-is-vendor-slash-name` are `shipped`. `data/rules/packaging/package-toml-is-a-tool-input.json:3`, `data/rules/packaging/a-package-name-is-vendor-slash-name.json:3`
-- [ ] `rule:packaging/a-vendor-resolves-from-one-registry` and `rule:packaging/a-package-is-its-digest` are `shipped`. `data/rules/packaging/a-vendor-resolves-from-one-registry.json:3`, `data/rules/packaging/a-package-is-its-digest.json:3`
-- [ ] `rule:packaging/resolution-takes-the-highest-minimum` and `rule:packaging/the-lockfile-holds-every-digest` are `shipped`. `data/rules/packaging/resolution-takes-the-highest-minimum.json:3`, `data/rules/packaging/the-lockfile-holds-every-digest.json:3`
-- [ ] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
-- [ ] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` and `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.json:3`, `data/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.json:3`
+- [x] The headings `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked`, `# nvs pkg pack` and `# nvs pkg download and nvs pkg provide`. `docs/reference/tools/35-packages.md:1`
+- [x] The about pages and examples. `docs/examples/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/about.md:1`, `docs/examples/tools/packages/package-lock-and-locked/about.md:1`, `docs/examples/tools/packages/nvs-pkg-pack/about.md:1`, `docs/examples/tools/packages/nvs-pkg-download-and-nvs-pkg-provide/about.md:1`
+- [x] The attacks, one per feature, each a program over a committed tree: an edited `vendor/package-files.toml`, a file the archive did not carry, a downloaded file read through a built path, and a new version's capability under an unchanged grant line. The edited digest and the redirect to an internal address are Rust tests, because no program can run `nvs pkg`. `tests/hostile/tools/packages/package-lock-and-locked/01-an-edited-file-list.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs:1`
+- [x] `bun nv proofs --id` owes nothing for the four. `docs/reference/tools/35-packages.md:1`
+- [x] `rule:packaging/package-toml-is-a-tool-input` and `rule:packaging/a-package-name-is-vendor-slash-name` are `shipped`. `data/rules/packaging/package-toml-is-a-tool-input.json:3`, `data/rules/packaging/a-package-name-is-vendor-slash-name.json:3`
+- [x] `rule:packaging/a-vendor-resolves-from-one-registry` and `rule:packaging/a-package-is-its-digest` are `shipped`. `data/rules/packaging/a-vendor-resolves-from-one-registry.json:3`, `data/rules/packaging/a-package-is-its-digest.json:3`
+- [x] `rule:packaging/resolution-takes-the-highest-minimum` and `rule:packaging/the-lockfile-holds-every-digest` are `shipped`. `data/rules/packaging/resolution-takes-the-highest-minimum.json:3`, `data/rules/packaging/the-lockfile-holds-every-digest.json:3`
+- [x] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
+- [x] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` and `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.json:3`, `data/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.json:3`
+- [ ] A `Core\Http\Client` call that names its URL as a string needs `net.connect` in the calling namespace's grant line, so the update attack is refused with `E0658`. `crates/nvs-stdlib/src/registry.rs:2132`, `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs:1`
+- [ ] An archive over 1 MiB is fetched from a loopback `https:` registry, as `package_download.rs` serves its files. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-cli/tests/package_download.rs:143`
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -501,42 +517,42 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 4, 5, 9 and 6 are done. Stage 6 landed the headings `# package.toml`,
-`# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in `docs/reference/tools/35-packages.md`,
-each before `# nvs pkg api and nvs pkg diff` with its own `<!-- src: -->` line, and the front
-matter's summary and keywords. Each feature has its about page and three examples under
-`docs/examples/tools/packages/<feature>/`, over a committed `vendor/` tree laid out as
-`nvs pkg fetch` writes it (`package.lock`, `vendor/packages.nvs`, `vendor/package-files.toml`).
-The attacks are under `tests/hostile/tools/packages/<feature>/`: another vendor's package
-declaring `Acme\Http` (`E0660`), a transitive git dependency's code carried in the package's
-folder (`E0660`), and a package file with a top-level statement (`E0317`). The Rust tests that
-prove each feature carry its `covers:` marker (`package_client.rs`, `package_fetch.rs`,
-`package_git.rs`). `bun nv proofs --gate --only` owes nothing for the three, and each one's
-examples and attack pass `proofs --run`. `website/public/llms-full.txt` is rendered.
+Stages 1, 2, 3, 7, 4, 5, 9 and 6 are done, and stage 8 has two items left. Stage 8 landed the
+headings `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked`, `# nvs pkg pack`
+and `# nvs pkg download and nvs pkg provide` in `docs/reference/tools/35-packages.md`, each
+feature's about page and three examples, one attack per feature, and the `covers:` markers in
+`package_fetch.rs`, `package_client.rs` and `package_download.rs`. `client-proofs` and
+`owners-closes` pass. All eleven rules are `shipped`, each fragment's last lines naming the code
+and what `nvs pkg publish` or the registry still owes. The editor's grants hover gap went to goal
+`first-packages`. An `https:` registry now reads index files and archives through
+`nvs_stdlib::tool_stream` up to the caller's limit (`index.rs:137`), where `tool_get` capped them at
+1 MiB; that path has no test yet.
 
-No test should go red: the Rust change is comment lines alone.
+**The update attack is red, and it is a real hole.** `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs`
+compiles: a package under an empty grant line calls `Core\Http\Client::get` and nothing refuses
+it, while `Core\Net::connect` in the same tree is `E0658`. The capability table in
+`crates/nvs-stdlib/src/registry.rs` has no `Core\Http\Client` row (comment at `:2132`), and
+`Client::get` with a string checks only the operator's scope (`crates/nvs-stdlib/src/http.rs:481`).
+`proofs --run` fails this case until the fix lands. Expect it red in any sweep.
 
-This machine's C: drive is full, so the MSVC linker failed (`LNK1108`) until `TMP` and `TEMP`
-pointed at `E:\mwl\.agent-tmp\tmp`. A session that sees a link failure sets both on the command.
 
-The sweep's reds were stale again: the `env-secret-proofs` log shows exit 0, and Miri run
-40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+This machine's C: drive is full (0 MB free), so the MSVC linker fails (`LNK1108`) unless `TMP` and
+`TEMP` point at `E:\mwl\.agent-tmp\tmp`, and Claude Code's own temporary folder there is full too.
+
+The sweep's reds at the start of this session were stale: `env-secret-proofs` exits 0 when run, and
+Miri run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
 ### Next
 
-**Stage 8**, `docs/goals/package-client.md` § 8: the feature proofs of the last four features,
-then the two rules shipped. Follow its `**Split:**` line, as stage 6 did: the headings first, then
-one writing subagent for the about pages and examples, and one for the attacks, side by side.
+**Stage 8's two last items**, then stage 10.
 
-- [ ] The four headings after `# nvs pkg fetch and nvs pkg vendor` in `docs/reference/tools/35-packages.md`, then `bun nv render --website` (`docs/goals/package-client.md:476`).
-- [ ] The about pages and examples, copying the `vendor/` tree of `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/` (`docs/goals/package-client.md:477`).
-- [ ] The attacks (`docs/goals/package-client.md:478`); `a_locked_run_refuses_a_missing_entry_and_an_edited_digest` in `crates/nvs-cli/tests/package_fetch.rs` takes `// covers: tools:packages/package-lock-and-locked`, and `crates/nvs-cli/tests/package_download.rs` the download feature's.
-- [ ] `bun nv proofs --gate --only` owes nothing for the four (`docs/goals/package-client.md:479`).
-- [ ] The two rules `shipped` (`docs/goals/package-client.md:480`).
+- [ ] `net.connect` rows for every `Core\Http\Client` member whose URL is a string, as the standing decision says; find each URL-taking member in `crates/nvs-stdlib/src/http.rs`, add the rows in `crates/nvs-stdlib/src/registry.rs:2132`'s table, and rewrite that comment. Run the attack once by `bun nv proofs --run --no-cache --id 'tools:packages/nvs-pkg-update-and-nvs-pkg-outdated'`. Expect examples and conformance cases that call `Core\Http\Client` from a namespace under a grant table to need a grant line; a program with no `[grants]` table is unaffected only if the application's namespace keeps every capability, so check `rule:security/an-unmatched-namespace-holds-the-application` first. (`docs/goals/package-client.md:499`)
+- [ ] A test in `crates/nvs-cli/tests/package_download.rs` that serves `registry.json`, an index file and an archive over 1 MiB from the loopback TLS listener (`serve`, `:143`) and fetches it. (`docs/goals/package-client.md:500`)
+- [ ] Set stage 8 `done` in the front matter, then stage 10. `docs/goals/package-client.md:1`
 
 ### Backlog
 
-- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 9 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
+- `bun nv proofs --run --only` with several ids crashes at `tools/nv/proofs/run.ts:1090` (`r.verdict` of undefined); one `--id` per call works.
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the
