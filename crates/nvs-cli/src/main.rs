@@ -852,6 +852,11 @@ struct Checked {
     /// The `[grants]` table the program was checked against, which every
     /// unit's key folds in (`nvs_config::cache::env_hash`).
     grants: nvs_config::grants::Grants,
+    /// The file a test request runs in place of the entry: a folder's
+    /// `public/index.nvs`, the file a tree with no `[[server.mount]]` serves.
+    /// `None` for a single file and for a folder without one
+    /// (`rule:testing/in-process-request`, [`Program::front_end`]).
+    request: Option<nvs_diagnostics::SourceId>,
 }
 
 impl Checked {
@@ -1302,6 +1307,7 @@ fn front_end_in(
         autoload,
         names: module.symbols.len() + module.imports.len(),
         grants: namespace_grants,
+        request: None,
     })
 }
 
@@ -3132,7 +3138,7 @@ impl Program {
                 (map, entry)
             }
         };
-        front_end_in(
+        let mut checked = front_end_in(
             map,
             &entry,
             None,
@@ -3142,7 +3148,21 @@ impl Program {
             config::Init::Never,
             looked,
             None,
-        )
+        )?;
+        // A folder's generated entry requires every file, so each one is checked. A test request
+        // runs only the file a served request runs, and never a script under `jobs/` or `bin/`.
+        if let Self::Directory { dir, .. } = self {
+            let served =
+                nvs_diagnostics::canonical_key(&dir.join(nvs_config::mount::IMPLICIT_ENTRY));
+            checked.request = checked.files.iter().map(|file| file.id).find(|&id| {
+                checked
+                    .map
+                    .file(id)
+                    .path()
+                    .is_some_and(|path| nvs_diagnostics::canonical_key(path) == served)
+            });
+        }
+        Ok(checked)
     }
 
     /// What `--watch` checks after a pass whose compile began at `started`

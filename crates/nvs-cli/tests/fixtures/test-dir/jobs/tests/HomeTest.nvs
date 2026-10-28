@@ -1,0 +1,12 @@
+<?nvs
+use Core\Http\Method;
+use Core\Test;
+
+final class HomeTest
+{
+    #[Test]
+    public function aRequestRunsTheServedFileAlone(): void
+    {
+        Test::assertSame(Test::request(Method::Get, '/')->body(), 'served');
+    }
+}

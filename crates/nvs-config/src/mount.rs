@@ -73,8 +73,9 @@ pub struct Mounted {
     pub captures: Vec<String>,
 }
 
-/// § 3's implicit mount, for a tree that writes no `[[server.mount]]` at all.
-const IMPLICIT_ENTRY: &str = "public/index.nvs";
+/// § 3's implicit mount, for a tree that writes no `[[server.mount]]` at all. `nvs test` over a
+/// folder answers a test request with this file too (`rule:testing/in-process-request`).
+pub const IMPLICIT_ENTRY: &str = "public/index.nvs";
 
 /// Why a brace that is not a capture reference is refused rather than kept as text. § 4 step 1
 /// matches a prefix against the path as it was sent, so a brace that survived expansion would be a

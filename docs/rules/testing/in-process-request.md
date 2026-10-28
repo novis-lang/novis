@@ -5,6 +5,12 @@ nothing may invoke directly. **An in-process request may not be made from inside
 answering it is the entry that asked, so a second would answer itself forever, and the refusal is at
 the door rather than at a depth ceiling that would report an engine limit instead of the mistake.
 
+**The entry is the file a served request runs.** Under `nvs test` over a folder that has a
+`public/index.nvs`, the file a tree with no `[[server.mount]]` serves, a request runs that file's
+frame alone, so a script under `jobs/` or `bin/` that the folder's generated entry requires never
+runs per request (`rule:testing/a-directory-of-programs-is-one-test-program`). Every other program
+answers with its own entry. The `#[Test(server: true)]` listener still runs the generated entry.
+
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
 array<string>, body?: string|bytes, mount?: string, captures?: array<string>}):
 Core\Test\Response`. A `?` in `$path` starts the query. A `body` that is not given is no body, which

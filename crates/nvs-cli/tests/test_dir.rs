@@ -147,6 +147,19 @@ fn a_project_root_requires_the_entry_its_bootstrap_requires_once() {
     assert!(ok, "{out}{err}");
 }
 
+/// A test request runs the folder's `public/index.nvs` alone, as a served request does. The
+/// script under `jobs/` throws at its top level, and it is still checked, but no request runs it.
+#[test]
+fn a_test_request_runs_the_served_file_and_not_the_jobs() {
+    let document = document(&["--format", "json"], "jobs");
+    assert_eq!(
+        names(&document, "tests"),
+        ["HomeTest::aRequestRunsTheServedFileAlone"]
+    );
+    let (out, err, ok) = run_test(&[], &fixture("jobs"));
+    assert!(ok, "{out}{err}");
+}
+
 /// `nvs test` runs one program, so a second program path is refused with a
 /// sentence about the count, not about the kind of file.
 #[test]

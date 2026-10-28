@@ -15,6 +15,8 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
+# `Unit::file_script` takes a file's `SourceId`; `nvs-ir` already depends on it.
+nvs-diagnostics.workspace = true
 nvs-ir.workspace = true
 nvs-runtime.workspace = true
 nvs-stdlib.workspace = true
@@ -30,7 +32,6 @@ wasmtime-internal-jit-icache-coherence.workspace = true
 
 [dev-dependencies]
 object.workspace = true
-nvs-diagnostics.workspace = true
 nvs-syntax.workspace = true
 nvs-hir.workspace = true
 nvs-types.workspace = true

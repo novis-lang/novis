@@ -1313,6 +1313,10 @@ pub(crate) struct UnderTest {
     /// `rule:routing/matched-once-before-the-handler`'s table, installed on the child so that a handler reading
     /// its own route reads the same one the door matched against.
     routes: std::sync::Arc<nvs_runtime::routes::Routes>,
+    /// A folder's `public/index.nvs`, whose frame a request runs in place of the
+    /// generated entry, so a script under `jobs/` never runs per request
+    /// (`crate::Checked`'s `request`). `None` runs the entry.
+    request: Option<nvs_diagnostics::SourceId>,
 }
 
 impl std::fmt::Debug for UnderTest {
@@ -1334,6 +1338,7 @@ impl UnderTest {
         Self {
             unit: Arc::clone(unit),
             routes: std::sync::Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
+            request: checked.request,
         }
     }
 }
@@ -1364,6 +1369,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // copy, so nothing the request does moves the test's clock. The `seed:` generator does not
         // cross: a copy of its state would draw the same values in every request a test makes.
         let clock = ctx.fixed_clock();
+        let request = self.request;
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
         // child's statics and its error class are armed from inside, because
@@ -1377,16 +1383,29 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 if !routes.rows().is_empty() {
                     ctx.set_routes(std::sync::Arc::clone(&routes));
                 }
-                let Some(entry) = unit.script() else {
+                let entry = match request {
+                    Some(id) => unit.file_script(id),
+                    None => unit.script(),
+                };
+                let Some(entry) = entry else {
                     // Not reachable for a unit that compiled, and a failure
                     // value rather than a panic for `program_over`'s reason: a
                     // child may not end its parent.
                     ctx.set_pending("the program under test has no script frame");
                     return nvs_runtime::Value::null();
                 };
-                entry
-                    .call(ctx)
-                    .unwrap_or_else(|_| nvs_runtime::Value::null())
+                // A required file's frame returns `1` where its statements run
+                // out, and a request's program returns what the entry does.
+                entry.call(ctx).map_or_else(
+                    |_| nvs_runtime::Value::null(),
+                    |value| {
+                        if request.is_some() {
+                            nvs_runtime::Value::null()
+                        } else {
+                            value
+                        }
+                    },
+                )
             });
         // `Isolate` and not `Host::start_isolate`: the seam's operation takes no
         // request, and the request is exactly what decides the child's sink —

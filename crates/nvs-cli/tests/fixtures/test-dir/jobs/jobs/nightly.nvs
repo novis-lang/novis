@@ -1,0 +1,2 @@
+<?nvs
+throw new RuntimeError('a job runs only when somebody starts it');

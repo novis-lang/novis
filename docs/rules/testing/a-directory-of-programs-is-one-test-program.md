@@ -20,6 +20,11 @@ the same files by hand would.
   requires it would run it twice per request. The edges are the ones the name-resolution walk
   resolves, so the runner agrees with the build on what a path names, and a directory whose files
   hold no `require` walks nothing first.
+- **A test request runs `public/index.nvs` alone.** The entry requires every file, so a script
+  under `jobs/` is checked with the rest. When the directory has a `public/index.nvs`,
+  `Core\Test::request` runs that file's frame in place of the entry, as a served request does, and
+  never a scheduled or operator script (`rule:testing/in-process-request`). A directory without one
+  answers with the entry.
 - **One program per call.** A second path beside a program is refused with a sentence about the
   count: `nvs test .` over the root is how a project with tests in two places runs them together.
 - **Name order, not test order.** The order the files are required in decides nothing a reader can

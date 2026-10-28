@@ -616,6 +616,16 @@ impl Unit {
             .map(ScriptFn)
     }
 
+    /// The script frame of the file `id`, which is not the entry: the frame a
+    /// `require` site that names the file calls ([`nvs_ir::lower::file_script_label`]).
+    /// It returns the tagged `1` a `require` returns where its statements run
+    /// out. `None` for a file this unit did not compile.
+    #[must_use]
+    pub fn file_script(&self, id: nvs_diagnostics::SourceId) -> Option<ScriptFn> {
+        self.raw_function(&nvs_ir::lower::file_script_label(id))
+            .map(ScriptFn)
+    }
+
     /// Whether this unit compiled a function called `name`.
     ///
     /// What a test asks when the claim is that a lowering *happened* — a
