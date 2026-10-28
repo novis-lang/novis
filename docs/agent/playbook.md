@@ -25,6 +25,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`gix`'s `blocking-network-client` feature does not bring `gix_transport`'s `Http` trait.** The
+  `blocking_io::http` module sits behind gix-transport's own `http-client` feature, which gix turns
+  on only with curl or reqwest. Name `gix-transport` with `http-client` alone, as the workspace row
+  does, and implement the trait over `nvs_stdlib::tool_stream`. See `crates/nvs-cli/src/package/git.rs`. `until: gone crates/nvs-cli/src/package/git.rs:impl http::Http for Checked`
 - **A `bun nv linux-test` piped into `grep` is killed as a hang before it builds.** The mirror and the
   WSL build run inside the VM, where the watcher sees no CPU, and a filter that drops the `Compiling`
   lines leaves it no output either, so it kills the run at 90 s. Run it with `run_in_background`,
