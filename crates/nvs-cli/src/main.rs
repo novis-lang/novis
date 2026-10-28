@@ -1175,6 +1175,14 @@ fn front_end_in(
                 .iter()
                 .map(|package| (package.name().to_owned(), package.optional().to_vec())),
         );
+        // A read of a file in a package's own set compiles with no grant, so the sets are in
+        // the digest too.
+        namespace_grants.set_files(
+            packages
+                .all()
+                .iter()
+                .map(|package| (package.name().to_owned(), package.files().to_vec())),
+        );
 
         let mut interner = nvs_types::TypeInterner::new();
         let mut exprs = nvs_types::ExprTypeTable::new();

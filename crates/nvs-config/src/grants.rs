@@ -35,7 +35,8 @@
 //! cache miss. It is over the normalized keys and their capabilities, so a comment, a reordering
 //! or a change anywhere else in the file keeps every key. It also covers each package's
 //! `optional` list ([`Grants::set_optional`]): an ungranted optional capability compiles to a
-//! guard, and an ungranted required one does not compile.
+//! guard, and an ungranted required one does not compile. It covers each package's file set
+//! ([`Grants::set_files`]) too, because a read of a file in it compiles with no grant.
 //!
 //! Cost: one read of the file and one `metadata` per directory walked, once per compiler run, and
 //! a table of a few dozen keys held for that run. Memory: the table is compile-time input, and
@@ -69,6 +70,9 @@ pub struct Grants {
     /// Each package's name and the capabilities its manifest lists as `optional`, sorted by
     /// name. Read by [`Self::digest`] alone.
     optional: Vec<(String, Vec<Cap>)>,
+    /// Each package's name and the files its own code may read with no grant, sorted by name.
+    /// Read by [`Self::digest`] alone.
+    files: Vec<(String, Vec<String>)>,
 }
 
 /// One line of the table: a key and the capabilities it grants.
@@ -137,6 +141,7 @@ pub static EMPTY: Grants = Grants {
     keys: Vec::new(),
     file: None,
     optional: Vec::new(),
+    files: Vec::new(),
 };
 
 impl Grants {
@@ -208,6 +213,7 @@ impl Grants {
             keys: keys.into_values().map(|(grant, _)| grant).collect(),
             file: None,
             optional: Vec::new(),
+            files: Vec::new(),
         })
     }
 
@@ -243,6 +249,14 @@ impl Grants {
         self.optional = packages.filter(|(_, caps)| !caps.is_empty()).collect();
         self.optional
             .sort_by(|(left, _), (right, _)| left.cmp(right));
+    }
+
+    /// Replaces the file sets [`Self::digest`] covers with `packages`: each package's name and
+    /// the files `vendor/package-files.toml` lists for it ([`crate::package::Package::files`]).
+    /// A package with no file is left out, so a program with no such file keeps its key.
+    pub fn set_files(&mut self, packages: impl Iterator<Item = (String, Vec<String>)>) {
+        self.files = packages.filter(|(_, files)| !files.is_empty()).collect();
+        self.files.sort_by(|(left, _), (right, _)| left.cmp(right));
     }
 
     /// The `package.toml` the table was read from, or `None` when [`find`] found none.
@@ -282,6 +296,21 @@ impl Grants {
                 for cap in caps {
                     hasher.update(&len(cap.name().len()));
                     hasher.update(cap.name().as_bytes());
+                }
+            }
+        }
+        // Only when a package lists its files, for the same reason: a call that reads one of
+        // them compiles with no grant, and one that reads another file does not.
+        if !self.files.is_empty() {
+            hasher.update(b"files");
+            hasher.update(&len(self.files.len()));
+            for (package, files) in &self.files {
+                hasher.update(&len(package.len()));
+                hasher.update(package.as_bytes());
+                hasher.update(&len(files.len()));
+                for file in files {
+                    hasher.update(&len(file.len()));
+                    hasher.update(file.as_bytes());
                 }
             }
         }

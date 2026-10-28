@@ -25,9 +25,20 @@
 //! (`rule:security/capability-roster-is-closed`). Everything this module refuses is
 //! [`code::E_BAD_PACKAGE_MANIFEST`].
 //!
-//! Cost: one read of each package's file, once per compiler run. Memory: a name and two short
-//! lists per package, held for that run and never per request.
+//! **A vendored package's file set is read from `vendor/package-files.toml`** ([`FILES`]), which
+//! `nvs pkg fetch` writes beside `vendor/packages.nvs`: one line per package, its name and the
+//! paths of every file it carries and downloads, relative to its folder and joined with `/`.
+//! Code in the package's namespace may read those files with no grant
+//! (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`), and `nvs_types`
+//! checks each such read. The set is read only for a package whose folder is
+//! `vendor/<vendor>/<name>/`, the place `nvs pkg fetch` writes it, so a hand-copied package has
+//! none.
+//!
+//! Cost: one read of each package's file and of `vendor/package-files.toml`, once per compiler
+//! run. Memory: a name, two short lists and one list of paths per package, held for that run and
+//! never per request.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, SourceId, SourceMap, Span, code};
@@ -40,6 +51,9 @@ use crate::grants::{FILE, is_segment};
 /// The namespace no package may take, compared without case.
 const RESERVED: &str = "Core";
 
+/// The file in the `vendor/` folder that lists each package's files.
+pub const FILES: &str = "package-files.toml";
+
 /// One package: its name, the directory its `package.toml` is in, and what it requests.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Package {
@@ -51,6 +65,9 @@ pub struct Package {
     required: Vec<Cap>,
     /// The capabilities the package can work without, in [`Cap::ALL`]'s order.
     optional: Vec<Cap>,
+    /// The files the package's own code may read with no grant, relative to [`Self::dir`] and
+    /// joined with `/`, sorted. Empty for a package that is not vendored.
+    files: Vec<String>,
 }
 
 impl Package {
@@ -76,6 +93,21 @@ impl Package {
     #[must_use]
     pub fn optional(&self) -> &[Cap] {
         &self.optional
+    }
+
+    /// The files [`FILES`] lists for the package: relative to [`Self::dir`], joined with `/`,
+    /// sorted.
+    #[must_use]
+    pub fn files(&self) -> &[String] {
+        &self.files
+    }
+
+    /// Whether `relative`, a path inside [`Self::dir`] joined with `/`, is one of [`Self::files`].
+    #[must_use]
+    pub fn lists(&self, relative: &str) -> bool {
+        self.files
+            .binary_search_by(|file| file.as_str().cmp(relative))
+            .is_ok()
     }
 
     /// Whether `namespace` is the package's own namespace or one below it. Compared exactly
@@ -111,11 +143,13 @@ impl Package {
 /// The file is loaded into `sources` by its path, so a server that holds a unit sees an edit to
 /// it.
 ///
+/// A vendored package's [`Package::files`] are read from [`FILES`] the same way.
+///
 /// # Errors
 ///
 /// [`code::E_BAD_PACKAGE_MANIFEST`]: a file that cannot be read or is not TOML, a name that is
 /// not two namespace segments or is under `Core`, a capability not on the roster, or one listed
-/// as both required and optional.
+/// as both required and optional, and a [`FILES`] that is not a table of lists of paths.
 pub fn read(dir: &Path, sources: &mut SourceMap) -> Result<Option<Package>, Diagnostic> {
     let path = dir.join(FILE);
     let id = sources.load(&path).map_err(|err| {
@@ -127,7 +161,49 @@ pub fn read(dir: &Path, sources: &mut SourceMap) -> Result<Option<Package>, Diag
             "the compiler reads the package's name and capabilities from this file".to_owned(),
         )
     })?;
-    parse_in(id, sources.file(id).text(), dir)
+    let Some(mut package) = parse_in(id, sources.file(id).text(), dir)? else {
+        return Ok(None);
+    };
+    package.files = own_files(&package, sources)?;
+    Ok(Some(package))
+}
+
+/// The files [`FILES`] lists for `package`, or none when the package's folder is not
+/// `vendor/<vendor>/<name>/` or the file does not exist. A missing file is noted in `sources`,
+/// so a server sees it when `nvs pkg fetch` writes it.
+fn own_files(package: &Package, sources: &mut SourceMap) -> Result<Vec<String>, Diagnostic> {
+    let slug: PathBuf = package.name.split('\\').map(str::to_lowercase).collect();
+    if !package.dir.ends_with(&slug) {
+        return Ok(Vec::new());
+    }
+    let Some(vendor) = package.dir.parent().and_then(Path::parent) else {
+        return Ok(Vec::new());
+    };
+    let path = vendor.join(FILES);
+    if !path.is_file() {
+        sources.note_missing(&path);
+        return Ok(Vec::new());
+    }
+    let id = sources.load(&path).map_err(|err| {
+        Diagnostic::error(
+            code::E_BAD_PACKAGE_MANIFEST,
+            format!("cannot read `{}`: {err}", path.display()),
+        )
+        .with_help("run `nvs pkg fetch` to write this file again".to_owned())
+    })?;
+    let (mut sets, _) = crate::file::parse_at::<BTreeMap<String, Vec<String>>>(
+        id,
+        sources.file(id).text(),
+    )
+    .map_err(|refused| {
+        refused
+            .with_code(code::E_BAD_PACKAGE_MANIFEST)
+            .with_help("run `nvs pkg fetch` to write this file again".to_owned())
+    })?;
+    let mut files = sets.remove(&package.name).unwrap_or_default();
+    files.sort();
+    files.dedup();
+    Ok(files)
 }
 
 /// The part of `package.toml` this module reads. Every other table is left to `nvs pkg`.
@@ -186,6 +262,7 @@ fn parse_in(id: SourceId, text: &str, dir: &Path) -> Result<Option<Package>, Dia
         dir: dir.to_path_buf(),
         required,
         optional,
+        files: Vec::new(),
     }))
 }
 

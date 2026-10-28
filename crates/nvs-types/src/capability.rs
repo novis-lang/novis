@@ -62,14 +62,31 @@
 //! an ungranted one always throws when it is reached. The package is the one
 //! [`crate::package::check`] placed the call's file in, so a file of the
 //! application never has a guard.
+//!
+//! # A package reads its own files with no grant
+//!
+//! Code in a package's namespace may read the files its package carries and
+//! downloads with no `fs.read` on its line
+//! (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
+//! [`reads_own_file`] allows exactly one shape: a member on
+//! [`nvs_stdlib::registry::OWN_FILE_READS`], whose first argument is a string
+//! literal, whose path canonicalizes to a file inside the package's folder
+//! that `vendor/package-files.toml` lists for it
+//! ([`nvs_config::package::Package::files`]). A path built at run time, a
+//! write, a listing, a file the set does not list and another package's file
+//! all still need the grant. `..` and a symlink are resolved before the
+//! comparison, so neither leaves the set. Cost: one `canonicalize` per such
+//! call site in a package while compiling, and nothing at run time.
+
+use std::path::{Path, PathBuf};
 
 use nvs_config::Cap;
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::CallArgs;
+use nvs_syntax::ast::{CallArgs, ExprKind};
 
 use crate::defaults::ConstArg;
-use crate::expr_table::{CapabilityGuard, Prepared, PreparedFact};
+use crate::expr_table::{ArgSlot, CapabilityGuard, Prepared, PreparedFact};
 use crate::ty::Ty;
 use crate::{Ctx, Env};
 
@@ -199,13 +216,17 @@ pub(crate) fn prepare_cap_has(
 ///
 /// A missing capability that the call's package lists as `optional` is not
 /// refused: it records a [`CapabilityGuard`], and the call throws when it runs.
+/// A missing `fs.read` is not refused for a read of the package's own file
+/// ([`reads_own_file`]).
 ///
 /// The hook `crate::expr::calls` reaches once a call or a method reference has
-/// resolved, on the instance and the static path alike.
+/// resolved, on the instance and the static path alike. `args` and `slots` are
+/// the call's written arguments and the parameter each fills.
 pub(crate) fn reject_ungranted_call(
     owner: &QName,
     member: &str,
     span: Span,
+    (args, slots): (&CallArgs, &[ArgSlot]),
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
@@ -220,6 +241,9 @@ pub(crate) fn reject_ungranted_call(
     let mut missing: Vec<Cap> = nvs_stdlib::cap::needs(&class, member)
         .filter(|cap| !line.grants(*cap))
         .collect();
+    if missing.contains(&Cap::FsRead) && reads_own_file(&class, member, span, args, slots, env) {
+        missing.retain(|cap| *cap != Cap::FsRead);
+    }
     if missing.is_empty() {
         return;
     }
@@ -276,4 +300,63 @@ pub(crate) fn reject_ungranted_call(
             names(&missing, "\"")
         )),
     );
+}
+
+/// Whether the call `class::member` at `span` reads a file of its own
+/// package's set, so it needs no `fs.read` grant: the member is on
+/// [`nvs_stdlib::registry::OWN_FILE_READS`], the call is in a package, and the
+/// argument that fills the first parameter is a string literal whose canonical
+/// path is inside the package's folder and listed in its set.
+fn reads_own_file(
+    class: &str,
+    member: &str,
+    span: Span,
+    args: &CallArgs,
+    slots: &[ArgSlot],
+    env: &Env<'_>,
+) -> bool {
+    if !nvs_stdlib::registry::OWN_FILE_READS
+        .iter()
+        .any(|&(owner, name)| owner == class && name == member)
+    {
+        return false;
+    }
+    let Some(package) = env.packages.and_then(|packages| packages.of(span.file)) else {
+        return false;
+    };
+    let CallArgs::List(list) = args else {
+        return false;
+    };
+    let Some(arg) = list
+        .iter()
+        .zip(slots)
+        .find_map(|(arg, slot)| matches!(slot, ArgSlot::Param(0)).then_some(arg))
+    else {
+        return false;
+    };
+    let ExprKind::Str(literal) = arg.value.unparenthesized().kind else {
+        return false;
+    };
+    // A relative literal was joined to its file's folder by `crate::paths`; an
+    // absolute one is its own text.
+    let path = env.exprs.written_path(literal).map_or_else(
+        || PathBuf::from(nvs_syntax::string_lit::cook_string_literal(env.src, literal)),
+        PathBuf::from,
+    );
+    path.is_absolute()
+        && nvs_hir::requires::canonicalize(&path)
+            .and_then(|real| relative_in(&real, package.dir()))
+            .is_some_and(|relative| package.lists(&relative))
+}
+
+/// `path` relative to `dir`, its parts joined with `/`, or `None` when it is
+/// not inside `dir` or a part is not UTF-8. Both paths are canonical.
+fn relative_in(path: &Path, dir: &Path) -> Option<String> {
+    let parts = path
+        .strip_prefix(dir)
+        .ok()?
+        .components()
+        .map(|part| part.as_os_str().to_str())
+        .collect::<Option<Vec<_>>>()?;
+    (!parts.is_empty()).then(|| parts.join("/"))
 }

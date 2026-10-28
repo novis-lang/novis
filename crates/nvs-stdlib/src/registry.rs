@@ -1858,6 +1858,9 @@ pub use crate::classes::CLASSES;
 /// resolving a name follows the symlinks and reads the directories above it,
 /// which is what a program that could resolve an ungranted path would be
 /// enumerating.
+///
+/// [`OWN_FILE_READS`] names the members of this table a package may call on
+/// its own files with no grant.
 pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `Core\Response::sendFile` is the one member outside `Core\IO` that opens a
     // file, and it is `fs.read` for the reading below rather than for a weaker
@@ -2306,6 +2309,26 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::zip::NAME, "read", None),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsRead)),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsWrite)),
+];
+
+/// The members code in a package's namespace may call with no `fs.read` grant
+/// when the path, its first argument, is a string literal naming a file of the
+/// package's own set (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
+///
+/// Each one reads one named file or a fact about it, and needs `fs.read` alone
+/// in [`CAPABILITIES`]. `list`, `walk` and `within` are not here, because they
+/// read names the package did not list, and `copy` and `open` are not, because
+/// they can write.
+pub const OWN_FILE_READS: &[(&str, &str)] = &[
+    (crate::io::NAME, "read"),
+    (crate::io::NAME, "readText"),
+    (crate::io::NAME, "lines"),
+    (crate::io::NAME, "exists"),
+    (crate::io::NAME, "isFile"),
+    (crate::io::NAME, "isReadable"),
+    (crate::io::NAME, "size"),
+    (crate::io::NAME, "stat"),
+    (crate::io::NAME, "modifiedAt"),
 ];
 
 /// `rule:expressions/nullable-conversion`
@@ -5355,6 +5378,38 @@ mod tests {
             missing.len(),
             missing.join("\n  ")
         );
+    }
+
+    /// Each member a package may call on its own files with no grant takes its path first and
+    /// needs `fs.read` and nothing else, so the checker's exception never covers a write.
+    #[test]
+    fn an_own_file_read_takes_a_path_first_and_needs_fs_read_alone() {
+        for &(class, member) in OWN_FILE_READS {
+            let rows: Vec<Option<nvs_config::Cap>> = CAPABILITIES
+                .iter()
+                .filter(|(owner, name, _)| *owner == class && *name == member)
+                .map(|(_, _, cap)| *cap)
+                .collect();
+            assert_eq!(
+                rows,
+                [Some(nvs_config::Cap::FsRead)],
+                "{class}::{member} must need `fs.read` alone"
+            );
+            let found = CLASSES
+                .iter()
+                .find(|each| each.name == class)
+                .into_iter()
+                .flat_map(|each| each.members())
+                .filter(|method| method.name == member)
+                .collect::<Vec<_>>();
+            assert!(!found.is_empty(), "{class}::{member} is not registered");
+            for method in found {
+                assert!(
+                    matches!(method.params.first(), Some(CoreTy::Path(_))),
+                    "{class}::{member} must take its path first"
+                );
+            }
+        }
     }
 
     /// A card states the fact, never the rule that decided it.
