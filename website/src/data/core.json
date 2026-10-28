@@ -31046,6 +31046,512 @@
       "summaryHtml": "<p>Collects what a piece of code prints, so your program can use it as a value. <code>capture</code> runs a function and returns everything it printed.</p>\n<p><code>Core\\Out::capture</code> runs a callable and returns everything it <code>echo</code>ed as the carrier of the sink in force — a <code>Core\\Cli\\Text</code>, or a <code>Core\\Html\\Markup</code> under an HTTP request, typed <code>Core\\Html\\Markup|Core\\Cli\\Text</code> — never a plain <code>string</code>, so re-emitting it is one more <code>echo</code> and it is not escaped a second time. <code>as string</code> reads the text out. Nothing the callable wrote reaches the output below; a capture nests by call nesting, and there is no global buffer stack and no implicit flush. <code>{ through: $fn }</code> transforms the carrier before it is returned, and the callable's own return value is discarded. <code>Core\\Debug::dump</code> is never captured — it writes to stderr.</p>\n<pre><code class=\"language-nvs\">&lt;?nvs\nvar $captured = Core\\Out::capture(fn(): void =&gt; {\n    echo 'a';\n    echo 'b';\n});\necho 'captured=[', $captured, &quot;]\\n&quot;;\n\necho Core\\Out::capture(fn(): void =&gt; {\n    echo 'outer&lt;';\n    echo Core\\Out::capture(fn(): void =&gt; { echo 'inner'; });\n    echo '&gt;';\n}), &quot;\\n&quot;;\n\necho '[', Core\\Out::capture(fn(): void =&gt; {}), &quot;]\\n&quot;;\n\ntry {\n    echo Core\\Out::capture(fn(): void =&gt; {\n        echo 'lost';\n        throw new RuntimeError('stop');\n    });\n} catch (RuntimeError $e) {\n    echo 'threw: ', $e-&gt;message, &quot;\\n&quot;;\n}</code></pre>\n<pre class=\"output\"><code>captured=[ab]\nouter&lt;inner&gt;\n[]\nthrew: stop</code></pre>"
     },
     {
+      "id": "Passkey",
+      "name": "Core\\Passkey",
+      "summary": "Passkey sign-in (WebAuthn). A passkey replaces a password. `registerOptions` and `verifyRegistration` add a passkey to an account. `signInOptions` and `verifySignIn` sign the user in with it. In the browser, JavaScript calls `navigator.credentials` with the options.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Passkey.registerOptions",
+          "name": "registerOptions",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "registerOptions(string $rpId, string $rpName, bytes $userId, string $userName, array<Core\\Passkey\\Credential> $existing = []): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "rpId",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "rpName",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "userId",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "userName",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "existing",
+              "type": "array<Core\\Passkey\\Credential>",
+              "default": "[]",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the options for <code>navigator.credentials.create()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session, so call <code>Core\\Session::start()</code> first.",
+            "params": [
+              {
+                "name": "rpId",
+                "descHtml": "The domain of your site, such as <code>example.com</code>. The passkey works only on this domain and its subdomains."
+              },
+              {
+                "name": "rpName",
+                "descHtml": "The name of your site. The browser shows it to the user."
+              },
+              {
+                "name": "userId",
+                "descHtml": "A unique id for the account, from 1 to 64 bytes. Do not use an email address or a name. <code>Core\\Random::bytes(16)</code> makes a good id."
+              },
+              {
+                "name": "userName",
+                "descHtml": "The name the user signs in with, such as an email address. The browser shows it in its list of passkeys."
+              },
+              {
+                "name": "existing",
+                "descHtml": "The passkeys this account already has. A device that has one of them does not create a second one."
+              }
+            ],
+            "returnHtml": "A JSON string. In the browser, pass it to <code>PublicKeyCredential.parseCreationOptionsFromJSON()</code>, and pass the result to <code>navigator.credentials.create()</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The request has not started a session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$rpId</code> is empty, or <code>$userId</code> is empty or longer than 64 bytes."
+              }
+            ]
+          },
+          "slug": "registeroptions",
+          "url": "/reference/core/passkey/registeroptions/",
+          "examples": "core/Passkey/registerOptions"
+        },
+        {
+          "id": "Passkey.verifyRegistration",
+          "name": "verifyRegistration",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "verifyRegistration(string $response, string $rpId, string $origin): Core\\Passkey\\Credential",
+          "params": [
+            {
+              "kind": "param",
+              "name": "response",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "rpId",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "origin",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Passkey\\Credential",
+          "doc": {
+            "shortHtml": "Checks the browser's answer to <code>registerOptions</code> and returns the new passkey. Save the passkey with the account. A challenge can be checked only once, so a second call with the same answer throws an error.",
+            "params": [
+              {
+                "name": "response",
+                "descHtml": "The credential that <code>navigator.credentials.create()</code> returned, as JSON. In the browser, <code>JSON.stringify(credential)</code> makes it."
+              },
+              {
+                "name": "rpId",
+                "descHtml": "The same domain that you passed to <code>registerOptions</code>."
+              },
+              {
+                "name": "origin",
+                "descHtml": "The address of your site in the browser, such as <code>https://example.com</code>. The answer must name exactly this origin."
+              }
+            ],
+            "returnHtml": "The new passkey, with its id, its public key, its algorithm and its sign counter.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The request has not started a session, no registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws."
+              }
+            ]
+          },
+          "slug": "verifyregistration",
+          "url": "/reference/core/passkey/verifyregistration/",
+          "examples": "core/Passkey/verifyRegistration"
+        },
+        {
+          "id": "Passkey.signInOptions",
+          "name": "signInOptions",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "signInOptions(string $rpId, array<Core\\Passkey\\Credential> $allowed = []): string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "rpId",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "allowed",
+              "type": "array<Core\\Passkey\\Credential>",
+              "default": "[]",
+              "optional": true,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the options for <code>navigator.credentials.get()</code> as JSON. The options contain a new random challenge. The challenge is saved in the session, so call <code>Core\\Session::start()</code> first.",
+            "params": [
+              {
+                "name": "rpId",
+                "descHtml": "The domain of your site, such as <code>example.com</code>. Use the same domain as for <code>registerOptions</code>."
+              },
+              {
+                "name": "allowed",
+                "descHtml": "The passkeys of the account that signs in. Leave it empty when you do not know the account yet. The browser then shows every passkey it has for your site."
+              }
+            ],
+            "returnHtml": "A JSON string. In the browser, pass it to <code>PublicKeyCredential.parseRequestOptionsFromJSON()</code>, and pass the result to <code>navigator.credentials.get()</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The request has not started a session."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$rpId</code> is empty."
+              }
+            ]
+          },
+          "slug": "signinoptions",
+          "url": "/reference/core/passkey/signinoptions/",
+          "examples": "core/Passkey/signInOptions"
+        },
+        {
+          "id": "Passkey.credentialId",
+          "name": "credentialId",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "credentialId(string $response): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "response",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the passkey id in the browser's answer to <code>signInOptions</code>. Use it to find the saved passkey. The id is not checked yet, so the result is <code>tainted</code>.",
+            "params": [
+              {
+                "name": "response",
+                "descHtml": "The credential that <code>navigator.credentials.get()</code> returned, as JSON. In the browser, <code>JSON.stringify(credential)</code> makes it."
+              }
+            ],
+            "returnHtml": "The passkey id, from 1 to 1023 bytes.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The answer is not JSON or is longer than 64 KB. It is also thrown when the <code>id</code> is missing, is not base64url or is too long."
+              }
+            ]
+          },
+          "slug": "credentialid",
+          "url": "/reference/core/passkey/credentialid/",
+          "examples": "core/Passkey/credentialId"
+        },
+        {
+          "id": "Passkey.verifySignIn",
+          "name": "verifySignIn",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "verifySignIn(string $response, Core\\Passkey\\Credential $stored, string $rpId, string $origin): Core\\Passkey\\Credential",
+          "params": [
+            {
+              "kind": "param",
+              "name": "response",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "stored",
+              "type": "Core\\Passkey\\Credential",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "rpId",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "origin",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Passkey\\Credential",
+          "doc": {
+            "shortHtml": "Checks the browser's answer to <code>signInOptions</code> against the saved passkey. It returns the passkey with its new sign counter. Save it again. A challenge can be checked only once, so a second call with the same answer throws an error.",
+            "params": [
+              {
+                "name": "response",
+                "descHtml": "The credential that <code>navigator.credentials.get()</code> returned, as JSON."
+              },
+              {
+                "name": "stored",
+                "descHtml": "The saved passkey with the id that <code>credentialId</code> returned."
+              },
+              {
+                "name": "rpId",
+                "descHtml": "The same domain that you passed to <code>signInOptions</code>."
+              },
+              {
+                "name": "origin",
+                "descHtml": "The address of your site in the browser, such as <code>https://example.com</code>. The answer must name exactly this origin."
+              }
+            ],
+            "returnHtml": "The passkey with its new sign counter.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The request has not started a session, no sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws."
+              }
+            ]
+          },
+          "slug": "verifysignin",
+          "url": "/reference/core/passkey/verifysignin/",
+          "examples": "core/Passkey/verifySignIn"
+        }
+      ],
+      "slug": "passkey",
+      "url": "/reference/core/passkey/",
+      "summaryHtml": "<p>Passkey sign-in (WebAuthn). A passkey replaces a password. <code>registerOptions</code> and <code>verifyRegistration</code> add a passkey to an account. <code>signInOptions</code> and <code>verifySignIn</code> sign the user in with it. In the browser, JavaScript calls <code>navigator.credentials</code> with the options.</p>"
+    },
+    {
+      "id": "Passkey.Credential",
+      "name": "Core\\Passkey\\Credential",
+      "summary": "A passkey that a user registered. Save its four values with the account, and create it again with `of`. It contains no secret, because a public key can only check signatures.",
+      "enums": [
+        {
+          "name": "Algorithm",
+          "cases": [],
+          "raw": "Algorithm",
+          "doc": {
+            "shortHtml": "The signature algorithm of a passkey. A passkey with another algorithm cannot be registered.",
+            "cases": []
+          }
+        }
+      ],
+      "types": [],
+      "constants": [],
+      "members": [
+        {
+          "id": "Passkey.Credential.of",
+          "name": "of",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "of(bytes $id, bytes $publicKey, Core\\Passkey\\Credential::Algorithm $algorithm, int $signCount): Core\\Passkey\\Credential",
+          "params": [
+            {
+              "kind": "param",
+              "name": "id",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "publicKey",
+              "type": "bytes",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "algorithm",
+              "type": "Core\\Passkey\\Credential::Algorithm",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "signCount",
+              "type": "int",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Passkey\\Credential",
+          "doc": {
+            "shortHtml": "Creates a passkey from the four values that you saved. The public key is checked against the algorithm.",
+            "params": [
+              {
+                "name": "id",
+                "descHtml": "The value that <code>id()</code> returned."
+              },
+              {
+                "name": "publicKey",
+                "descHtml": "The value that <code>publicKey()</code> returned."
+              },
+              {
+                "name": "algorithm",
+                "descHtml": "The value that <code>algorithm()</code> returned."
+              },
+              {
+                "name": "signCount",
+                "descHtml": "The value that <code>signCount()</code> returned."
+              }
+            ],
+            "returnHtml": "The passkey.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$publicKey</code> is not a key of <code>$algorithm</code>, or <code>$id</code> is empty or longer than 1023 bytes. It is also thrown when <code>$signCount</code> is below 0 or above 4294967295."
+              }
+            ]
+          },
+          "slug": "of",
+          "url": "/reference/core/passkey-credential/of/",
+          "examples": "core/Passkey-Credential/of"
+        },
+        {
+          "id": "Passkey.Credential.id",
+          "name": "id",
+          "static": false,
+          "receiver": "credential",
+          "generics": null,
+          "signature": "id(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the id of the passkey. The browser sends this id when the user signs in.",
+            "returnHtml": "From 1 to 1023 bytes."
+          },
+          "slug": "id",
+          "url": "/reference/core/passkey-credential/id/",
+          "examples": "core/Passkey-Credential/id"
+        },
+        {
+          "id": "Passkey.Credential.publicKey",
+          "name": "publicKey",
+          "static": false,
+          "receiver": "credential",
+          "generics": null,
+          "signature": "publicKey(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns the public key of the passkey, in the COSE format that WebAuthn uses.",
+            "returnHtml": "The key as bytes. Save them unchanged."
+          },
+          "slug": "publickey",
+          "url": "/reference/core/passkey-credential/publickey/",
+          "examples": "core/Passkey-Credential/publicKey"
+        },
+        {
+          "id": "Passkey.Credential.algorithm",
+          "name": "algorithm",
+          "static": false,
+          "receiver": "credential",
+          "generics": null,
+          "signature": "algorithm(): Core\\Passkey\\Credential::Algorithm",
+          "params": [],
+          "options": [],
+          "returnType": "Core\\Passkey\\Credential::Algorithm",
+          "doc": {
+            "shortHtml": "Returns the signature algorithm of the passkey.",
+            "returnHtml": "<code>ES256</code> or <code>Ed25519</code>."
+          },
+          "slug": "algorithm",
+          "url": "/reference/core/passkey-credential/algorithm/",
+          "examples": "core/Passkey-Credential/algorithm"
+        },
+        {
+          "id": "Passkey.Credential.signCount",
+          "name": "signCount",
+          "static": false,
+          "receiver": "credential",
+          "generics": null,
+          "signature": "signCount(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the sign counter of the passkey. Some devices count every sign-in. Many devices always send <code>0</code>.",
+            "returnHtml": "A whole number from 0 to 4294967295."
+          },
+          "slug": "signcount",
+          "url": "/reference/core/passkey-credential/signcount/",
+          "examples": "core/Passkey-Credential/signCount"
+        }
+      ],
+      "slug": "passkey-credential",
+      "url": "/reference/core/passkey-credential/",
+      "summaryHtml": "<p>A passkey that a user registered. Save its four values with the account, and create it again with <code>of</code>. It contains no secret, because a public key can only check signatures.</p>"
+    },
+    {
       "id": "Password",
       "name": "Core\\Password",
       "summary": "Stores and checks passwords safely. `hash` turns a password into a string you can save, `verify` checks a password against that string, and `needsRehash` tells you when a saved hash should be made again.",

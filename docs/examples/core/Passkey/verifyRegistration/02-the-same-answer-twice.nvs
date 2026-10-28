@@ -47,5 +47,5 @@ try {
     Core\Passkey::verifyRegistration($answer, 'example.com', 'https://example.com');
     echo "second check: the passkey is new\n";
 } catch (RuntimeError $e) {
-    echo "second check: ", $e->message, "\n";
+    echo 'second check: ', $e->message, "\n";
 }

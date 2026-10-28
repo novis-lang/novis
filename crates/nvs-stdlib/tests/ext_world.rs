@@ -216,6 +216,10 @@ const REFUSED: &[(&str, &str)] = &[
     ("Core\\Db\\Plan\\Step", REPORT),
     ("Core\\Queue\\Id", REPORT),
     ("Core\\Queue\\Stats", REPORT),
+    (
+        "Core\\Passkey\\Credential",
+        "Its key is checked against its algorithm when the host builds one, and a guest takes its four parts as scalars.",
+    ),
 ];
 
 /// Every interface the `extension` world imports once resolved: its own

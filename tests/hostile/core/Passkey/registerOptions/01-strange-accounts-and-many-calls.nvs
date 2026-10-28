@@ -15,7 +15,7 @@ try {
 Core\Session::start();
 
 // 2. An empty site, and account ids of 0, 64 and 65 bytes. Each error is caught.
-array<bytes> $ids = [Core\Bytes::fill(0, 0),Core\Random::bytes(64), Core\Random::bytes(65)];
+array<bytes> $ids = [Core\Bytes::fill(0, 0), Core\Random::bytes(64), Core\Random::bytes(65)];
 foreach ($ids as bytes $id) {
     try {
         Core\Passkey::registerOptions('example.com', 'Example Shop', $id, 'ada');
