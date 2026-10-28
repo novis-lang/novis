@@ -1479,6 +1479,17 @@ impl SqliteConn {
         Ok(span)
     }
 
+    /// Whether the `main` database is private to this connection: `:memory:`,
+    /// the empty path, or a temporary file SQLite named. Its tables and rows
+    /// are the data of the request that opened it, so no reset can make the
+    /// connection clean and the pool closes it
+    /// (`rule:security/db-pool-reset-is-a-boundary`). A lookup in the
+    /// connection's own memory, with no statement run.
+    #[must_use]
+    pub fn is_private(&self) -> bool {
+        lock(&self.handle).path().is_none_or(str::is_empty)
+    }
+
     /// `rule:security/db-pool-reset-is-a-boundary`'s reset, and the
     /// connection back only if it worked.
     ///
@@ -2667,6 +2678,28 @@ mod tests {
 
         conn.roll_back().expect("the outermost rollback");
         assert_eq!(conn.depth(), 0);
+    }
+
+    /// A `:memory:` database belongs to its connection, so the pool never
+    /// reuses it, and a file's connection is reused.
+    #[test]
+    fn a_memory_database_is_private_and_a_file_is_not() {
+        assert!(
+            connect().is_private(),
+            "`:memory:` is private to its connection"
+        );
+        let dir = nvs_repo::scratch("nvs-db-private");
+        let block = Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(dir.join("shared.sqlite").to_string_lossy().into_owned()),
+            ..Database::default()
+        };
+        let file = open(&SqliteTarget::resolve(&block).expect("the block resolves"))
+            .expect("the file opens");
+        assert!(
+            !file.is_private(),
+            "a file is shared by every connection to it"
+        );
     }
 
     /// A write that another connection's open transaction is holding the table

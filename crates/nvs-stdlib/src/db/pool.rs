@@ -68,6 +68,9 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
         nvs_db::Connection::SqlServer(tds) => {
             Some(nvs_db::Connection::SqlServer(tds.reset().ok()?))
         }
+        // A private database's tables are the last request's data, which no
+        // reset removes, so the connection is closed and a fresh one opened.
+        nvs_db::Connection::Sqlite(sqlite) if sqlite.is_private() => None,
         nvs_db::Connection::Sqlite(sqlite) => {
             Some(nvs_db::Connection::Sqlite(sqlite.reset().ok()?))
         }

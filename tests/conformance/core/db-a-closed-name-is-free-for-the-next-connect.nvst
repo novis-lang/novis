@@ -1,5 +1,5 @@
 --TEST--
-`rule:core-classes/db-connection-is-named` memoizes a connection and not a name, so a `Core\Db::connect` after that connection's `close` answers a usable handle again — while the closed handle stays closed and stays refused — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary`
+`rule:core-classes/db-connection-is-named` memoizes a connection and not a name, so a `Core\Db::connect` after that connection's `close` answers a usable handle again — while the closed handle stays closed and stays refused, and a `:memory:` database is never handed back from the pool — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::close
@@ -18,16 +18,15 @@ echo "second driver ", $second->driver() == Core\Db\Driver::Sqlite ? "is sqlite"
 
 // The new handle is usable, which is the half `isOpen()` alone does not say:
 // a statement runs on it.
+// § 13 never hands a `:memory:` database back from the pool: its tables are the
+// data of whoever opened it, so the second `connect` opens a new one, and the
+// first one's table is not in it.
+echo "second sees ", $second->query("select count(*) from sqlite_master where name = 't'", [])->value(), " tables named t\n";
+$second->execute("create table t (id integer primary key)", []);
 var $wrote = $second->execute("insert into t (id) values (?)", [1]);
 echo "second wrote ", $wrote->affected(), "\n";
 
-// **This case deliberately asserts nothing about which connection that is.**
-// § 13 releases a `close`d connection to this core's pool, so the second
-// `connect` may well be handed the very one the first gave up — pooling is
-// exactly that, and a case pinning "a different database" would be pinning the
-// absence of the pool.
-//
-// What it does assert is that the two *handles* are separate: closing one is
+// The two *handles* are separate too: closing one is
 // not a statement about the block, and the closed one is still refused.
 try {
     $first->query("select id from t", []);
@@ -49,6 +48,7 @@ path = ":memory:"
 first: closed
 second: open
 second driver is sqlite
+second sees 0 tables named t
 second wrote 1
 first: still refused
 first still: closed
