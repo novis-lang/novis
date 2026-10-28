@@ -13,7 +13,7 @@ stages:
         rules: [core-classes/web-push-sends-an-encrypted-message, core-classes/crypto-interop-tier, core-api/reference-card]
   - id: 2
     title: a VAPID token is signed with the application's key, and the message is sent under `net.connect`
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/crypto.rs, crates/nvs-stdlib/src/jwt.rs, crates/nvs-stdlib/src/http.rs, crates/nvs-stdlib/src/http/transport.rs]
     extra:
       context:
@@ -136,11 +136,11 @@ key pair per message.
 **Does:** the message carries a signed VAPID token for the endpoint's origin and is sent through
 `Core`'s HTTP client.
 
-- [ ] `applicationServerKey`, and the VAPID token: audience from the endpoint's origin, an expiry, the subject the application passes, signed ES256 with the application's key (RFC 8292). `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/jwt.rs:1351`
-- [ ] `send` through the transport path as the standing decision says, under `net.connect` with the address policy applied, returning `WebPush\Sent` with `status` and `gone`. `crates/nvs-stdlib/src/http.rs:3980`
-- [ ] The three rows in `registry::CAPABILITIES` (`rule:testing/capability-completeness-test`, `rule:security/capability-check-at-the-door`). `crates/nvs-stdlib/src/registry.rs:1809`
-- [ ] The reference cards of `applicationServerKey`, `send` and `WebPush\Sent` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Tests: a loopback TLS push service, as the standing decision says, decrypts what it receives and checks the token; a `410` answer gives `gone`. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/http/transport.rs:5499`
+- [x] `applicationServerKey`, and the VAPID token: audience from the endpoint's origin, an expiry, the subject the application passes, signed ES256 with the application's key (RFC 8292). `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/jwt.rs:1351`
+- [x] `send` through the transport path as the standing decision says, under `net.connect` with the address policy applied, returning `WebPush\Sent` with `status` and `gone`. `crates/nvs-stdlib/src/http.rs:3980`
+- [x] The three rows in `registry::CAPABILITIES` (`rule:testing/capability-completeness-test`, `rule:security/capability-check-at-the-door`). `crates/nvs-stdlib/src/registry.rs:1809`
+- [x] The reference cards of `applicationServerKey`, `send` and `WebPush\Sent` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/webpush.rs:1`
+- [x] Tests: a loopback TLS push service, as the standing decision says, decrypts what it receives and checks the token; a `410` answer gives `gone`. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/http/transport.rs:5499`
 
 ### 3. the subscription is tainted, the key is secret, and the class is on the protocol roster
 
@@ -184,33 +184,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `crates/nvs-stdlib/src/webpush.rs` registers `Core\WebPush` (rank 977) with
-`subscription`, and `Core\WebPush\Subscription` (rank 978) with slots `endpoint`, `p256dh`, `auth` and
-one reader, `endpoint(): tainted string`, now on `nvs-types`' tainted-answer roster
-(`crates/nvs-types/src/core_lib.rs`). `read_subscription` (`webpush.rs:219`) already throws for a
-non-`https:` endpoint, an off-curve or compressed `p256dh` and a wrong-length `auth`, with a unit test,
-so stage 3's second item needs only its conformance cases. `encrypt` (`webpush.rs:283`) matches RFC
-8291 § 5's published message byte for byte. `seal` (`webpush.rs:395`) draws the salt and the key and
-`subscription_of` (`webpush.rs:354`) reads an instance back; both carry `expect(dead_code)` until
-`send` calls them, and that attribute goes when it does. Registry guards and clippy are green. The
-`env-secret-proofs` finding was a stale Oct 22 log of a check no longer declared, and the cancelled
-nightly run 40662443492 was superseded by a push; every CI run since is green.
+Stages 1 and 2 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` (rank 977)
+with `subscription`, `applicationServerKey` and `send`, `WebPushSubscription` (978) and
+`WebPushSent` (979, `status()` and `gone()`, `gone` for a `404` or a `410`). `vapid_of`
+(`webpush.rs:607`) throws a `LogicError` for a pair that is not `P256`; `vapid_token`
+(`webpush.rs:650`) signs RFC 8292's JWT through `crypto::sign`, 12 hours, audience the endpoint's
+origin, and throws for a subject that is not `mailto:` or `https://`. `send` (`webpush.rs:733`)
+throws for a negative `ttl` and posts through `http::push_send` (`http.rs:4296`), the
+`extension_send` sibling with no redirect followed. Three `CAPABILITIES` rows (`registry.rs:2370`).
+Seven webpush tests pass, two against a loopback TLS push service that decrypts the body and verifies
+the token; the capability, registry and symbol guards and clippy are green.
 
 ### Next
 
-**Stage 2: the VAPID token and `send`**, one file set: `crates/nvs-stdlib/src/webpush.rs`,
-`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/registry.rs`. No gate.
+**Stage 3: taint, secrecy and the roster**, one file set: `crates/nvs-stdlib/src/webpush.rs`,
+`tests/conformance/core/`, `docs/rules/security/protocol-roster.md`,
+`data/rules/security/protocol-roster.json`. No gate.
 
-- [ ] `applicationServerKey` and the ES256 VAPID token (RFC 8292). `crates/nvs-stdlib/src/jwt.rs:1351`
-- [ ] `send` through a sibling of `extension_send`, then remove the two `expect(dead_code)`. `crates/nvs-stdlib/src/http.rs:4231`, `crates/nvs-stdlib/src/webpush.rs:395`
-- [ ] The three `CAPABILITIES` rows. `crates/nvs-stdlib/src/registry.rs:1864`
-- [ ] `WebPush\Sent` with `status()` and `gone()`, and the cards. `crates/nvs-stdlib/src/webpush.rs:130`
-- [ ] The loopback TLS push-service test. `crates/nvs-stdlib/src/http/transport.rs:5499`
+- [ ] Confirm the VAPID key never reaches a message: every `vapid_of` and `vapid_token` error names the parameter alone. `crates/nvs-stdlib/src/webpush.rs:607`
+- [ ] Conformance cases for each catchable refusal: `subscription`'s five sentences (`webpush.rs:408`) and `send`'s `LogicError`s. `tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst:1`
+- [ ] The roster names `CoreWebPush` as built, and its case joins `guardedBy`. `docs/rules/security/protocol-roster.md:9`, `data/rules/security/protocol-roster.json:10`
 
-Expected red until stage 4: `bun nv proofs` owes every proof of `Core\WebPush`, and a check over
-`data/perf/members.ndjson` or the website's `Core` index may want rows for the two new members.
+Expected red until stage 4: `bun nv proofs` owes every proof of `CoreWebPush`, and a check over
+`data/perf/members.ndjson` or the website's `Core` index may want rows for the new members.
 
 ### Backlog
 
-- Stage 2 sends through a loopback TLS push service in tests. `crates/nvs-stdlib/src/http/transport.rs`
 - The registry's owner notifications and its "I am here" reminder send through this class in goal `registry-service` (`docs/goals/registry-service.md`).
