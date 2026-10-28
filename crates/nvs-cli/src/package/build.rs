@@ -21,7 +21,8 @@
 //! unpacked into a scratch folder, so what is checked is what is served.
 //!
 //! **What it prints is one JSON document** on standard output, for the service: `"ok": true` with
-//! the name, the version, the digest, every file and the API report, or `"ok": false` with the
+//! the name, the version, the digest, every file, the dependencies with their minimums, the
+//! requested capabilities in the index file's shape, and the API report, or `"ok": false` with the
 //! refusal as a sentence the service shows the publisher, and exit `1`. A compile error's
 //! diagnostics go to standard error, as `nvs pkg api` prints them. `--archive` and `--api` write
 //! the archive and its API document for the service to store, each through a temporary file.
@@ -214,6 +215,14 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
     );
     out.insert("size".into(), Value::from(cloned.archive.len()));
     out.insert("files".into(), Value::Array(files(&cloned.archive)?));
+    out.insert(
+        "dependencies".into(),
+        Value::Object(dependencies(&cloned.manifest)),
+    );
+    out.insert(
+        "capabilities".into(),
+        capabilities(cloned.manifest.package.as_ref()),
+    );
     out.insert("api".into(), report);
     Ok(Value::Object(out))
 }
@@ -279,6 +288,30 @@ fn inside(document: &Value, namespace: &str) -> Result<(), Fault> {
         }
     }
     Ok(())
+}
+
+/// Each registry dependency of `manifest` and its minimum, in name order. [`checked`] has refused
+/// a git dependency before this runs.
+fn dependencies(manifest: &Manifest) -> Map<String, Value> {
+    manifest
+        .dependencies
+        .iter()
+        .filter_map(|dependency| match &dependency.source {
+            Source::Registry { minimum } => {
+                Some((dependency.name.to_string(), Value::from(minimum.to_string())))
+            }
+            Source::Git { .. } => None,
+        })
+        .collect()
+}
+
+/// The capabilities `package` requests, as `{"required": [...], "optional": [...]}`.
+fn capabilities(package: Option<&nvs_config::package::Package>) -> Value {
+    let names = |caps: &[nvs_config::Cap]| caps.iter().map(|cap| cap.name()).collect::<Vec<_>>();
+    serde_json::json!({
+        "required": package.map(|package| names(package.required())).unwrap_or_default(),
+        "optional": package.map(|package| names(package.optional())).unwrap_or_default(),
+    })
 }
 
 /// Each file of `archive`, as its path and its size, in the archive's order.

@@ -36,7 +36,9 @@ const PACK_LIMIT: u64 = 16 * 1024 * 1024;
 
 /// The package's manifest at `version`.
 fn manifest(version: &str) -> String {
-    format!("[package]\nname = \"Acme\\\\Http\"\nversion = \"{version}\"\n")
+    format!(
+        "[package]\nname = \"Acme\\\\Http\"\nversion = \"{version}\"\n\n[capabilities]\nrequired = [\"net.connect\"]\n"
+    )
 }
 
 /// The package's one class, with a second public method when `label` is set.
@@ -515,6 +517,12 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
     assert_eq!(json["commit"], commit.as_str(), "{json}");
     assert_eq!(json["directory"], "", "{json}");
     assert_eq!(json["api"], Value::Null, "{json}");
+    assert_eq!(json["dependencies"], serde_json::json!({}), "{json}");
+    assert_eq!(
+        json["capabilities"],
+        serde_json::json!({"required": ["net.connect"], "optional": []}),
+        "{json}"
+    );
     let files: Vec<(String, u64)> = json["files"]
         .as_array()
         .expect("`files` is a list")
