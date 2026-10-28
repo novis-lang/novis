@@ -1,0 +1,8 @@
+[registries]
+Acme = { url = "https://registry.example.com/acme" }
+
+[dependencies]
+'Acme\Fonts' = "1.0.0"
+
+[grants]
+'Acme\Fonts\*' = []

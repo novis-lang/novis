@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Slug`. It reads `data/notes.txt` from the package's folder.
+namespace Acme\Slug;
+
+final class Notes
+{
+    public static function read(): string
+    {
+        return Core\IO::readText('../data/notes.txt');
+    }
+}

@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Http`. It reads a file four folders above its own folder.
+namespace Acme\Http;
+
+final class Reader
+{
+    public static function read(): string
+    {
+        return Core\IO::readText('../../../../secrets.txt');
+    }
+}

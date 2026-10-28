@@ -1,0 +1,9 @@
+<?nvs
+// Attack: a package reads its downloaded file through a path that it builds while the program runs.
+// That path could name any file, so the package needs a grant. This program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. The package joins its `fonts` folder and the name it is given, and reads that file. Its grant line is empty.
+echo Acme\Fonts\Loader::load('Big.otf'), "\n";

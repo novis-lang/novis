@@ -1,0 +1,9 @@
+<?nvs
+// Attack: somebody edits `vendor/package-files.toml` so it lists `secrets.txt`, a file outside the package's folder.
+// A package reads only its own files with no grant, so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. The package reads `secrets.txt` from the folder of this program. Its grant line is empty.
+echo Acme\Http\Reader::read(), "\n";

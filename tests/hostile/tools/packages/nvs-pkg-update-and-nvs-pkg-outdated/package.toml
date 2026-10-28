@@ -1,0 +1,8 @@
+[registries]
+Acme = { url = "https://registry.example.com/acme" }
+
+[dependencies]
+'Acme\Http' = "1.1.0"
+
+[grants]
+'Acme\Http\*' = []  # optional: fs.write

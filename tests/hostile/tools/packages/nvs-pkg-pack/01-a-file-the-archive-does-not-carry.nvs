@@ -1,0 +1,9 @@
+<?nvs
+// Attack: somebody puts `data/notes.txt` in the package's folder by hand. The package's archive does not have it.
+// A package reads only the files of its archive with no grant, so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. The package reads `data/notes.txt` from its own folder. Its grant line is empty.
+echo Acme\Slug\Notes::read(), "\n";

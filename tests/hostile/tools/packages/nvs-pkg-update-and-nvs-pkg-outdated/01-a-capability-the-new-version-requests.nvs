@@ -1,0 +1,9 @@
+<?nvs
+// Attack: after `nvs pkg update`, the new version of a package needs `net.connect`. Nobody changed its grant line.
+// The update never changes a grant line, so this program should not compile.
+// hostile: expect-refusal
+
+require './vendor/packages.nvs';
+
+// 1. The package sends a `GET` request. Its grant line is still empty.
+echo Acme\Http\Client::send(), "\n";

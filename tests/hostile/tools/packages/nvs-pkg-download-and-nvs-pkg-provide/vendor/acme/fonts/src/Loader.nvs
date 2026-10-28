@@ -1,0 +1,11 @@
+<?nvs
+// This file is in the package `Acme\Fonts`. It builds the path of the file to read from `$name`.
+namespace Acme\Fonts;
+
+final class Loader
+{
+    public static function load(string $name): string
+    {
+        return Core\IO::readText(Core\Path::thisDir('../fonts') . '/' . $name);
+    }
+}

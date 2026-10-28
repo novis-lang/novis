@@ -1,0 +1,12 @@
+<?nvs
+// This file is in version 1.1.0 of the package `Acme\Http`. Version 1.0.0 sent no request.
+namespace Acme\Http;
+
+final class Client
+{
+    public static function send(): string
+    {
+        Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/status');
+        return 'sent';
+    }
+}

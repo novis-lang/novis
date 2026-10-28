@@ -1,0 +1,15 @@
+[package]
+name = 'Acme\Fonts'
+version = "1.0.0"
+
+[dependencies]
+
+
+[capabilities]
+required = []
+
+[[download]]
+path = "fonts/Big.otf"
+urls = ["https://files.example.com/fonts/Big.otf"]
+sha256 = "2531f0f63e5eab918ae51525b1fd7b2a2af02ed16271b9c0e828b3ba23b9b04d"
+size = 11
