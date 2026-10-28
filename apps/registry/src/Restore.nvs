@@ -82,8 +82,15 @@ final class Restore
                 int $number = 0;
                 foreach ($entries as string $line) {
                     var $entry = Json::decode($line) as array<mixed>;
-                    if (Restore::trusted($entry['kind']) == 'publish') {
+                    string $kind = Restore::trusted($entry['kind']);
+                    if ($kind == 'publish') {
                         $this->release($tx, $entry, $number);
+                    } else if ($kind == 'repository') {
+                        // An owner moved the package. The folder is not in the log, so it stays as the copy has it.
+                        $tx->execute('update packages set repository = ? where key = ?', [
+                            Restore::trusted($entry['repository']),
+                            Str::replace(Restore::trusted($entry['package']), '/', '\\'),
+                        ]);
                     }
                     $number++;
                 }
@@ -188,10 +195,10 @@ final class Restore
             $until = $at == null ? null : $at as int;
         }
         $tx->execute(
-            'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, '
-                . 'published_at, pending_until, dependencies, capabilities, log) values (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+                . "published_at, pending_until, dependencies, capabilities, log) values (?, ?, ?, ?, ?, ?, 0, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                $key, $version, $parts[0], $parts[1], $parts[2], 'blake3:' . $digest, $commit, $account, '', '', '',
+                $key, $version, $parts[0], $parts[1], $parts[2], 'blake3:' . $digest, Restore::trusted($entry['repository']), $commit, $account, '', '', '',
                 $now, $until, Restore::trusted(Json::encode($listed['dependencies'])), Restore::trusted(Json::encode($listed['capabilities'])), $number,
             ],
         );

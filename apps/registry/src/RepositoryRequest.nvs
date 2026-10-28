@@ -1,0 +1,18 @@
+<?nvs
+namespace Registry;
+
+// The JSON that moves a package to another repository, such as
+// `{"repository": "https://git.example.com/acme/http.git", "directory": ""}`.
+// An empty `directory` is the repository's root.
+#[Core\Json\Derive]
+final class RepositoryRequest
+{
+    public tainted string $repository;
+    public tainted string $directory;
+
+    public function constructor(tainted string $repository, tainted string $directory)
+    {
+        $this->repository = $repository;
+        $this->directory = $directory;
+    }
+}

@@ -108,10 +108,9 @@ final class Index
                 $changed[] = $key;
             }
             var $rows = $tx->query(
-                'select version, digest, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
+                'select version, digest, repository, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
                 [$key],
             );
-            string $repository = $this->repositoryOf($key);
             foreach ($rows as Row $row) {
                 string $version = Index::trusted($row->string('version'));
                 string $digest = Index::hexOf(Index::trusted($row->string('digest')));
@@ -124,7 +123,7 @@ final class Index
                     package: Index::slug($key),
                     version: $version,
                     digest: $digest,
-                    repository: $repository,
+                    repository: Index::trusted($row->string('repository')),
                     commit: Index::trusted($row->string('git_commit')),
                 })) . "\n";
                 $tx->execute('update releases set log = ? where package = ? and version = ?', [$next, $key, $version]);
@@ -207,12 +206,11 @@ final class Index
         foreach ($rows as Row $row) {
             $owners[] = Index::trusted($row->string('account'));
         }
-        string $repository = $this->repositoryOf($key);
         array<Listed> $versions = [];
         int $now = Time::now()->toEpochSeconds();
         var $releases = new Releases($this->db);
         $rows = $this->db->query(
-            'select r.version, r.digest, r.dependencies, r.capabilities, r.git_commit, r.log, '
+            'select r.version, r.digest, r.dependencies, r.capabilities, r.repository, r.git_commit, r.log, '
                 . 's.unlisted_at, s.retracted_at, s.retract_reason, s.fixed_in, s.withheld from releases r '
                 . 'left join release_states s on s.package = r.package and s.version = r.version '
                 . 'where r.package = ? and r.log is not null order by r.major, r.minor, r.patch',
@@ -229,7 +227,7 @@ final class Index
                 $at != null && $at > $now ? $at : null,
                 Index::trusted($row->string('dependencies')),
                 Index::trusted($row->string('capabilities')),
-                $repository,
+                Index::trusted($row->string('repository')),
                 Index::trusted($row->string('git_commit')),
                 $row->int('log') ?? 0,
                 $at == null,
@@ -281,13 +279,6 @@ final class Index
         return Index::trusted(Json::encode({ schema: 1, name: $name, owners: $owners, versions: $lines }));
     }
 
-    private function repositoryOf(string $key): string
-    {
-        foreach ($this->db->query('select repository from packages where key = ?', [$key]) as Row $row) {
-            return Index::trusted($row->string('repository'));
-        }
-        return '';
-    }
 
     // The path of a package in the index, such as `acme/http` for `acme\http`.
     public static function slug(string $key): string

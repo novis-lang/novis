@@ -151,6 +151,21 @@ final class Releases
         });
     }
 
+    // Moves the package `$key` to another repository, or another folder in it, and saves its log entry.
+    // The next publish must come from there, and each release keeps the repository it was built from.
+    // It returns `false` when a package publishes from that folder of that repository already.
+    public function rebind(string $key, string $repository, string $directory): bool
+    {
+        return $this->db->transaction(fn(Transaction $tx): bool => {
+            if ($tx->query('select 1 from packages where repository = ? and directory = ?', [$repository, $directory])->count() != 0) {
+                return false;
+            }
+            $tx->execute('update packages set repository = ?, directory = ? where key = ?', [$repository, $directory, $key]);
+            Events::repository($tx, $key, $repository);
+            return true;
+        });
+    }
+
     // Retracts a version with its reason and, when there is one, the version that fixes it.
     // `$from` is the time the retraction shows in the index: now for a passkey, seven days later
     // for a token alone. A second retraction with an earlier time moves the time forward.

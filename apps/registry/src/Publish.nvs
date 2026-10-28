@@ -151,9 +151,9 @@ final class Publish
                 [$key, $name, Str::lower($vendor), $repository, $directory, $now],
             );
             var $write = $this->db->execute(
-                'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, published_at, pending_until, dependencies, capabilities) '
-                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
-                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities],
+                'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, published_at, pending_until, dependencies, capabilities) '
+                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
+                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $repository, $directory, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities],
             );
             return $write->affected() == 1;
         });
@@ -254,7 +254,7 @@ final class Publish
     }
 
     // Checks that a sent text is an `https://` URL with only the characters a URL has.
-    private static function repositoryOf(tainted string $text): ?string
+    public static function repositoryOf(tainted string $text): ?string
     {
         if (!Str::startsWith($text, 'https://') || Str::length($text) > 2000 || Str::length($text) < 9) {
             return null;
@@ -296,7 +296,7 @@ final class Publish
     }
 
     // Checks that a sent text is a folder in a repository, such as `packages/http`, or empty for the root.
-    private static function directoryOf(tainted string $text): ?string
+    public static function directoryOf(tainted string $text): ?string
     {
         if ($text == '') {
             return '';

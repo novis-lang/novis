@@ -197,19 +197,22 @@ final class ReleasesTest
             Test::assertTrue($releases->unlist(ReleasesTest::KEY, '0.0.9', true));
             Test::assertTrue($releases->retract(ReleasesTest::KEY, '0.0.9', 'Broken.', null, ReleasesTest::now()));
             Test::assertTrue($releases->withhold(ReleasesTest::KEY, '0.0.9', 'Malware.'));
+            Test::assertTrue($releases->rebind(ReleasesTest::KEY, 'https://git.example.com/acme/moved.git', 'http'));
             // Every change waits for the log, and no index file shows it yet.
-            Test::assertSame($db->query('select count(*) from events', [])->value() as int, 9);
+            Test::assertSame($db->query('select count(*) from events', [])->value() as int, 10);
             Test::assertTrue(!IO::exists($folder . '/work/index/acme/http.json'));
 
-            // One run adds the nine entries at once, in order, and then writes the index file.
+            // One run adds the ten entries at once, in order, and then writes the index file.
             var $log = ReleasesTest::log($folder);
             Test::assertTrue(new Index($db, $log, ReleasesTest::site($folder))->flush());
             Test::assertCalled($log, Log::append, { times: 1 });
             Test::assertSame(ReleasesTest::logged($folder), [
-                'ownership', 'ownership', 'token', 'token', 'release-confirmed', 'unlist', 'relist', 'retract', 'withhold',
+                'ownership', 'ownership', 'token', 'token', 'release-confirmed', 'unlist', 'relist', 'retract', 'withhold', 'repository',
             ]);
             Test::assertSame($db->query('select count(*) from events', [])->value() as int, 0);
             Test::assertTrue(IO::isFile($folder . '/files/index/acme/http.json'));
+            // The package moved, and its version keeps the repository it was built from.
+            Test::assertSame((ReleasesTest::versions($folder)[0] as array<mixed>)['repository'] as tainted string, 'https://git.example.com/acme/http.git');
             // An entry names the token by its id, never by the token itself.
             Test::assertTrue(!Str::contains(IO::read($folder . '/log.txt'), 'nvsreg_'));
         } finally {
@@ -232,6 +235,35 @@ final class ReleasesTest
         Test::assertTrue((new Releases($db)->selectableAt($db, $key, '0.0.9') ?? 1) <= ReleasesTest::now());
         // A second release has nothing to do.
         Test::assertSame($browser->post('/api/packages/' . $vendor . '/http/0.0.9/release', {})->status(), 409);
+    }
+
+    #[Test]
+    public function anOwnerMovesAPackageAndEachReleaseKeepsItsRepository(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        IndexTest::publish($browser, $vendor, '0.0.9');
+        string $moved = 'https://git.example.com/' . $vendor . '/moved.git';
+        string $path = '/api/packages/' . $vendor . '/http/repository';
+        var $done = $browser->post($path, { repository: $moved, directory: 'packages/http' });
+        Test::assertSame($done->status(), 200);
+        string $key = Str::lower($vendor) . '\\http';
+        foreach (Schema::open()->query('select repository, directory from packages where key = ?', [$key]) as Row $row) {
+            Test::assertSame($row->string('repository'), $moved);
+            Test::assertSame($row->string('directory'), 'packages/http');
+        }
+        // The version published before keeps the repository it was built from.
+        foreach (Schema::open()->query('select repository from releases where package = ?', [$key]) as Row $row) {
+            Test::assertSame($row->string('repository'), 'https://git.example.com/' . $vendor . '/http.git');
+        }
+        // The folder is taken now, and a URL that is not `https://` is not allowed.
+        Test::assertSame($browser->post($path, { repository: $moved, directory: 'packages/http' })->status(), 409);
+        Test::assertSame($browser->post($path, { repository: 'http://git.example.com/a.git', directory: '' })->status(), 422);
+        // A token cannot move a package.
+        tainted string $token = IndexTest::token($browser, $vendor);
+        var $anonymous = new BrowserTest()->send(Method::Post, $path, '{"repository":"https://git.example.com/b.git","directory":""}', $token);
+        Test::assertTrue($anonymous->status() != 200);
     }
 
     #[Test]
@@ -309,10 +341,10 @@ final class ReleasesTest
         array<string> $parts = Str::split($version, '.');
         string $digest = 'blake3:' . Encoding::toHex(Random::bytes(32));
         $db->execute(
-            'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, '
+            'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
                 . 'published_at, pending_until, dependencies, capabilities, log) '
-                . "values (?, ?, ?, ?, ?, ?, 10, ?, ?, 'token', '', '', 0, ?, ?, '{\"required\":[],\"optional\":[]}', 0)",
-            [$key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, $digest, Str::repeat('1', 40), ReleasesTest::OWNER, $until, $dependencies],
+                . "values (?, ?, ?, ?, ?, ?, 10, ?, '', ?, ?, 'token', '', '', 0, ?, ?, '{\"required\":[],\"optional\":[]}', 0)",
+            [$key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, $digest, 'https://git.example.com/acme/' . Str::slice($key, 5) . '.git', Str::repeat('1', 40), ReleasesTest::OWNER, $until, $dependencies],
         );
         return $digest;
     }

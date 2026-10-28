@@ -37,6 +37,12 @@ final class Events
         }
     }
 
+    // An owner moved the package `$key` to the repository `$repository`.
+    public static function repository(Connection|Transaction $db, string $key, string $repository): void
+    {
+        Events::add($db, Json::encode({ v: 1, kind: 'repository', package: Index::slug($key), repository: $repository }), $key);
+    }
+
     // A token was made or revoked. `$id` is the id of the token, never the token itself.
     // `$change` is `created` or `revoked`. No index file changes.
     public static function token(Connection|Transaction $db, string $account, string $id, string $change): void

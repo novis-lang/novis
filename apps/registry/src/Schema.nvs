@@ -70,7 +70,8 @@ final class Schema
             [],
         );
         // `key` is the package name in lower case, such as `acme\http`. `name` is the name as it was
-        // first published. The repository and the folder in it are set by the first publish.
+        // first published. The repository and the folder in it are set by the first publish, and an
+        // owner can change them with a passkey. The next publish must come from there.
         // A row is never deleted, so a name is never given to somebody else.
         $db->execute(
             'create table if not exists packages ('
@@ -79,6 +80,8 @@ final class Schema
             [],
         );
         // One row per published version. A version is never published twice.
+        // `repository` and `directory` are where the build took the release from. A package can
+        // move to another repository later, and each release keeps its own.
         // `archive` and `api` are the files the build wrote. `pending_until` is the time a release
         // by token alone is released, unless an owner confirms it earlier. `dependencies` and
         // `capabilities` are JSON from the build. `log` is the number of the release's entry in
@@ -87,7 +90,7 @@ final class Schema
             'create table if not exists releases ('
                 . 'package text not null references packages (key), version text not null, '
                 . 'major integer not null, minor integer not null, patch integer not null, '
-                . 'digest text not null, size integer not null, git_commit text not null, '
+                . 'digest text not null, size integer not null, repository text not null, directory text not null, git_commit text not null, '
                 . 'account text not null references accounts (id), token text not null, '
                 . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
                 . 'dependencies text not null, capabilities text not null, log integer, '
