@@ -1,0 +1,4 @@
+201: gone is false
+404: gone is true
+410: gone is true
+500: gone is false

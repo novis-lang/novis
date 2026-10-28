@@ -1,0 +1,76 @@
+<?nvs
+// Attack: a push service replies with status codes outside the range HTTP allows, and with
+// redirects to another address. `status()` must return each code unchanged, and `send` must
+// never follow a redirect.
+
+final class Push
+{
+    // Sends one message to the endpoint and returns the status of the reply.
+    public static function statusOf(string $endpoint, Core\Crypto\KeyPair $vapid): int
+    {
+        string $json = '{"endpoint":"' . $endpoint . '","keys":{'
+            . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+        bytes $payload = Core\Encoding::encodeText('{"title":"New order"}', Core\Charset::Utf8);
+        return Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com')->status();
+    }
+}
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// 1. Codes that are not HTTP status codes. Each one must throw an error when it is registered,
+//    or `status()` must return the same code.
+array<uint> $codes = [0, 99, 600, 999, 1000, 4294967496, 18446744073709551615];
+uint $n = 0;
+uint $allowed = 0;
+foreach ($codes as uint $code) {
+    string $url = 'https://push.example.com/odd/' . $n;
+    $n = $n + 1;
+    try {
+        Core\Test::answerHttp($url, $code, {});
+    } catch (LogicError $notAllowed) {
+        // The code was not allowed. That is also a pass.
+        continue;
+    }
+    $allowed = $allowed + 1;
+    int $read = Push::statusOf($url, $vapid);
+    if (($read as string) != ($code as string)) {
+        throw new LogicError('status ' . $code . ' came back as ' . $read);
+    }
+}
+echo 'step 1: ', $allowed, ' of ', $n, ' codes allowed', "\n";
+
+// 2. Each redirect points to an address inside this server's network. `status()` must return
+//    the redirect code, and the internal address must never be sent a request.
+Core\Test::answerHttp('http://169.254.169.254/*', 200, {});
+array<uint> $redirects = [301, 302, 303, 307, 308];
+foreach ($redirects as uint $redirect) {
+    string $moved = 'https://push.example.com/moved/' . $redirect;
+    Core\Test::answerHttp($moved, $redirect, { headers: ['Location' => 'http://169.254.169.254/latest/meta-data/'] });
+    int $status = Push::statusOf($moved, $vapid);
+    if (($status as string) != ($redirect as string)) {
+        throw new LogicError('redirect ' . $redirect . ' came back as ' . $status);
+    }
+}
+foreach (Core\Test::sentHttp() as Core\Test\SentRequest $call) {
+    if (Core\Str::contains($call->url(), '169.254')) {
+        throw new LogicError('a redirect was followed to ' . $call->url());
+    }
+}
+echo 'step 2: no redirect followed', "\n";
+
+// 3. One redirect is sent to a thousand times. Each send must make exactly one request.
+Core\Test::answerHttp('https://push.example.com/loop/*', 302, { headers: ['Location' => 'https://push.example.com/loop/again'] });
+uint $before = Core\Arr::count(Core\Test::sentHttp());
+uint $i = 0;
+while ($i < 1000) {
+    if (Push::statusOf('https://push.example.com/loop/' . $i, $vapid) != 302) {
+        throw new LogicError('a redirect loop changed the status');
+    }
+    $i = $i + 1;
+}
+uint $made = Core\Arr::count(Core\Test::sentHttp()) - $before;
+if ($made != 1000) {
+    throw new LogicError('1000 sends made ' . $made . ' requests');
+}
+echo 'step 3: ', $made, ' requests', "\n";

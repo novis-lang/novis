@@ -1,0 +1,15 @@
+<?nvs
+// Attack: a browser sends a subscription whose endpoint is the cloud metadata address.
+// The program then fetches that URL itself. The endpoint is tainted, so the program should not compile.
+// hostile: expect-refusal
+
+string $json = '{"endpoint":"https://169.254.169.254/latest/meta-data/","keys":{"p256dh":'
+    . '"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+
+// 1. The subscription is read. Its endpoint is an `https:` URL, so this works.
+Core\WebPush\Subscription $subscription = Core\WebPush::subscription($json);
+
+// 2. The program passes the endpoint to the HTTP client as the URL to fetch.
+Core\Http\Response $response = Core\Http\Client::get($subscription->endpoint());
+echo $response->status(), "\n";

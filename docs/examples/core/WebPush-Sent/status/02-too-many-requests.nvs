@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to tell a message that was accepted from a message that was sent too often.
+
+class Push
+{
+    // Returns a short report for one status code.
+    public static function report(int $status): string
+    {
+        if ($status == 201) {
+            return 'accepted';
+        }
+        // 429 means "too many requests". Wait before you send to this browser again.
+        if ($status == 429) {
+            return 'too many requests, try again later';
+        }
+        return 'failed with ' . $status;
+    }
+}
+
+// Two fixed replies, so the example runs without a network.
+Core\Test::answerHttp('https://push.example.com/send/phone', 201, {});
+Core\Test::answerHttp('https://push.example.com/send/laptop', 429, {});
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $payload = Core\Encoding::encodeText('New message', Core\Charset::Utf8);
+
+// This prints one line per browser: the phone is accepted and the laptop is not.
+array<string> $devices = ['phone', 'laptop'];
+foreach ($devices as string $device) {
+    string $json = '{"endpoint":"https://push.example.com/send/' . $device . '","keys":{'
+        . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+        . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+    Core\WebPush\Sent $sent = Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com');
+    echo $device, ': ', Push::report($sent->status()), "\n";
+}

@@ -1,0 +1,40 @@
+<?nvs
+// Shows a function that sends a message to every stored subscription and deletes each one that is gone.
+
+class Subscriptions
+{
+    // Sends the message to each stored endpoint. Returns the endpoints to keep.
+    public static function sendAndClean(array<string> $stored, string $text, Core\Crypto\KeyPair $vapid): array<string>
+    {
+        bytes $payload = Core\Encoding::encodeText($text, Core\Charset::Utf8);
+        array<string> $keep = [];
+        foreach ($stored as string $endpoint) {
+            string $json = '{"endpoint":"' . $endpoint . '","keys":{'
+                . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+                . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+            Core\WebPush\Sent $sent = Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com');
+            if ($sent->gone()) {
+                echo 'deleted: ', $endpoint, "\n";
+            } else {
+                $keep[] = $endpoint;
+            }
+        }
+        return $keep;
+    }
+}
+
+// The laptop's subscription returns 404, so the push service no longer knows it.
+Core\Test::answerHttp('https://push.example.com/send/phone', 201, {});
+Core\Test::answerHttp('https://push.example.com/send/laptop', 404, {});
+Core\Test::answerHttp('https://push.example.com/send/tablet', 201, {});
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+array<string> $stored = [
+    'https://push.example.com/send/phone',
+    'https://push.example.com/send/laptop',
+    'https://push.example.com/send/tablet',
+];
+
+// This prints the deleted endpoint, then `2 subscriptions kept`.
+array<string> $kept = Subscriptions::sendAndClean($stored, 'Your order has shipped.', $vapid);
+echo Core\Arr::count($kept), " subscriptions kept\n";

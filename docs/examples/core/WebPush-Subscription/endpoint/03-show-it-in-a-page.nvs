@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to write the endpoint into an HTML page safely.
+
+// The browser can put characters into the URL that have a meaning in HTML, such as `&`.
+string $json = '{"endpoint":"https://push.example.com/send/abc?user=7&key=x\'y",'
+    . '"keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+Core\WebPush\Subscription $subscription = Core\WebPush::subscription($json);
+
+// `endpoint()` returns a `tainted string`. Tainted means that the text came from outside
+// your program and nothing has checked it yet.
+tainted string $endpoint = $subscription->endpoint();
+
+// `Core\Html::escape` writes `&` and `'` as character references, so the page shows them as text.
+// This prints "<li>https://push.example.com/send/abc?user=7&amp;key=x&#39;y</li>".
+echo '<li>', Core\Html::escape($endpoint), "</li>\n";

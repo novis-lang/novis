@@ -1,0 +1,39 @@
+<?nvs
+// Shows a function that sends one message to several browsers and counts the sends that failed.
+
+class Broadcast
+{
+    // Sends the message to each endpoint. Returns how many sends had a status outside 200 to 299.
+    public static function failures(array<string> $endpoints, string $text, Core\Crypto\KeyPair $vapid): uint
+    {
+        bytes $payload = Core\Encoding::encodeText($text, Core\Charset::Utf8);
+        uint $failed = 0;
+        foreach ($endpoints as string $endpoint) {
+            string $json = '{"endpoint":"' . $endpoint . '","keys":{'
+                . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+                . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+            int $status = Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com')->status();
+            if ($status < 200 || $status > 299) {
+                $failed = $failed + 1;
+            }
+        }
+        return $failed;
+    }
+}
+
+// Four fixed replies, so the example runs without a network.
+Core\Test::answerHttp('https://push.example.com/send/1', 201, {});
+Core\Test::answerHttp('https://push.example.com/send/2', 201, {});
+Core\Test::answerHttp('https://push.example.com/send/3', 503, {});
+Core\Test::answerHttp('https://push.example.com/send/4', 413, {});
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+array<string> $endpoints = [
+    'https://push.example.com/send/1',
+    'https://push.example.com/send/2',
+    'https://push.example.com/send/3',
+    'https://push.example.com/send/4',
+];
+
+// Two of the four sends failed, so this prints `2 of 4 failed`.
+echo Broadcast::failures($endpoints, 'The sale starts now.', $vapid), ' of 4 failed', "\n";

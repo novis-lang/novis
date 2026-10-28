@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a push service replies with status codes close to 404 and 410, so that a program
+// deletes subscriptions that still exist. `gone()` must be `true` for 404 and 410 only.
+
+final class Push
+{
+    // Sends one message to the endpoint and returns the result.
+    public static function send(string $endpoint, Core\Crypto\KeyPair $vapid): Core\WebPush\Sent
+    {
+        string $json = '{"endpoint":"' . $endpoint . '","keys":{'
+            . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+        bytes $payload = Core\Encoding::encodeText('{"title":"New order"}', Core\Charset::Utf8);
+        return Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com');
+    }
+}
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// 1. Every status from 100 to 599. Only 404 and 410 may give `true`.
+uint $gone = 0;
+uint $code = 100;
+while ($code < 600) {
+    string $url = 'https://push.example.com/code/' . $code;
+    Core\Test::answerHttp($url, $code, {});
+    Core\WebPush\Sent $sent = Push::send($url, $vapid);
+    bool $expected = $code == 404 || $code == 410;
+    if ($sent->gone() != $expected) {
+        throw new LogicError('status ' . $code . ' gave gone ' . ($sent->gone() ? 'true' : 'false'));
+    }
+    if ($sent->gone()) {
+        $gone = $gone + 1;
+    }
+    $code = $code + 1;
+}
+echo 'step 1: ', $gone, ' codes gone', "\n";
+
+// 2. A 404 whose body and headers claim the message arrived. `gone()` must still be `true`,
+//    and `status()` must still be 404.
+Core\Test::answerHttp('https://push.example.com/liar', 404, {
+    body: '{"status":201,"success":true}',
+    headers: ['Status' => '201 Created'],
+});
+Core\WebPush\Sent $liar = Push::send('https://push.example.com/liar', $vapid);
+if (!$liar->gone() || $liar->status() != 404) {
+    throw new LogicError('a 404 was read as a success');
+}
+echo 'step 2: 404 is gone', "\n";
+
+// 3. A 201 whose body claims the subscription is gone. `gone()` must be `false`.
+Core\Test::answerHttp('https://push.example.com/fake', 201, { body: '410 Gone', headers: ['Status' => '410 Gone'] });
+if (Push::send('https://push.example.com/fake', $vapid)->gone()) {
+    throw new LogicError('a 201 was read as gone');
+}
+echo 'step 3: 201 is not gone', "\n";

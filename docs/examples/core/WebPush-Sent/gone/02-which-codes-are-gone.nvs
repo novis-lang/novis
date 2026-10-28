@@ -1,0 +1,21 @@
+<?nvs
+// Shows that `gone()` is `true` only for the status codes 404 and 410.
+
+// Four fixed replies, so the example runs without a network.
+Core\Test::answerHttp('https://push.example.com/send/201', 201, {});
+Core\Test::answerHttp('https://push.example.com/send/404', 404, {});
+Core\Test::answerHttp('https://push.example.com/send/410', 410, {});
+Core\Test::answerHttp('https://push.example.com/send/500', 500, {});
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $payload = Core\Encoding::encodeText('Hello', Core\Charset::Utf8);
+
+// This prints one line per status. A 500 is an error, but the subscription still exists.
+array<string> $codes = ['201', '404', '410', '500'];
+foreach ($codes as string $code) {
+    string $json = '{"endpoint":"https://push.example.com/send/' . $code . '","keys":{'
+        . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+        . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+    Core\WebPush\Sent $sent = Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com');
+    echo $sent->status(), ': gone is ', $sent->gone() ? 'true' : 'false', "\n";
+}

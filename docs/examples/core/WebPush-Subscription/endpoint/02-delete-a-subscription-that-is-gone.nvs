@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to delete the saved subscriptions that the push service no longer knows.
+
+// These replies replace the push service, so the example runs without a network.
+Core\Test::answerHttp('https://push.example.com/send/*', 201, {});
+Core\Test::answerHttp('https://push.example.com/old/*', 410, {});
+
+class Store
+{
+    // Returns the JSON a browser sends, with the given endpoint.
+    public static function json(string $endpoint): string
+    {
+        return '{"endpoint":"' . $endpoint . '","keys":{"p256dh":'
+            . '"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+    }
+}
+
+array<string> $saved = [
+    Store::json('https://push.example.com/send/a1'),
+    Store::json('https://push.example.com/old/b2'),
+    Store::json('https://push.example.com/send/c3'),
+];
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $payload = Core\Encoding::encodeText('{"title":"New order"}', Core\Charset::Utf8);
+
+// `gone()` is true when the push service no longer knows the subscription.
+// The program then deletes it, and finds it by its endpoint.
+array<string> $kept = [];
+foreach ($saved as string $json) {
+    Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+    Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
+    if ($sent->gone()) {
+        echo 'delete ', $to->endpoint(), "\n";
+    } else {
+        $kept[] = $json;
+    }
+}
+
+// This prints "2 kept".
+echo Core\Arr::count($kept), " kept\n";

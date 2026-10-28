@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the push service URL of a subscription that a browser sent.
+
+string $json = '{"endpoint":"https://push.example.com/send/abc123",'
+    . '"keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+    . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+Core\WebPush\Subscription $subscription = Core\WebPush::subscription($json);
+
+// `endpoint()` returns the URL from the `endpoint` field of the JSON.
+// This prints "https://push.example.com/send/abc123".
+echo $subscription->endpoint(), "\n";
+
+// The URL is the same each time you call `endpoint()`, so you can compare two subscriptions with it.
+Core\WebPush\Subscription $again = Core\WebPush::subscription($json);
+echo $subscription->endpoint() == $again->endpoint() ? "same browser\n" : "other browser\n";

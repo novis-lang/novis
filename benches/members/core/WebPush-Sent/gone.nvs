@@ -1,0 +1,38 @@
+<?nvs
+// Checks whether a subscription is gone, as a program does after every push message it sends.
+// bench: iterations 1024
+// bench: allocations 0
+// bench: calls 1
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // Both sends are answered from this table, so nothing is sent over a network.
+        Core\Test::answerHttp('https://push.example.com/send/ok', 201, {});
+        Core\Test::answerHttp('https://push.example.com/send/old', 410, {});
+        Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+        bytes $payload = Core\Encoding::encodeText('Hello', Core\Charset::Utf8);
+        array<Core\WebPush\Sent> $sent = [];
+        array<string> $devices = ['ok', 'old'];
+        foreach ($devices as string $device) {
+            string $json = '{"endpoint":"https://push.example.com/send/' . $device . '","keys":{'
+                . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+                . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+            $sent[] = Core\WebPush::send(Core\WebPush::subscription($json), $payload, $vapid, 'mailto:admin@example.com');
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The message in each round depends on the round before, so no round can be left out.
+            if ($sent[(($total + $i) % 2) as int]->gone()) {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";
