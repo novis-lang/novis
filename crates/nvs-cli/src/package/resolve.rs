@@ -152,6 +152,7 @@ impl<'a> Registries<'a> {
 
     /// These registries, with each git dependency written out under `scratch` and cloned inside
     /// `limits`.
+    #[cfg(test)]
     pub(crate) fn clones_in(mut self, scratch: &Path, limits: Limits) -> Self {
         self.scratch = scratch.to_path_buf();
         self.limits = limits;
@@ -168,6 +169,13 @@ impl<'a> Registries<'a> {
         let url = self.manifest.registry(name.vendor()).to_owned();
         if !self.open.contains_key(&url) {
             let registry = Registry::open(&url, &self.base, self.keep.as_deref())?;
+            if registry.from_kept {
+                eprintln!(
+                    "note: the registry `{url}` did not answer, so its file hosts are read from \
+                     the copy of `{}` kept from the last run",
+                    super::index::ROOT_FILE
+                );
+            }
             self.open.insert(url.clone(), registry);
         }
         Ok(&self.open[&url])

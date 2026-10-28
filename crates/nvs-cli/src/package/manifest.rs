@@ -225,6 +225,10 @@ pub(crate) struct Manifest {
     /// `[registries]`, in vendor order.
     pub(crate) registries: Vec<Registry>,
     /// `[[download]]`, in file order.
+    #[allow(
+        dead_code,
+        reason = "`nvs pkg download` reads it, and it is not written yet"
+    )]
     pub(crate) downloads: Vec<Download>,
     /// `[grants]`.
     pub(crate) grants: Grants,
@@ -310,6 +314,10 @@ struct File {
     capabilities: Option<Spanned<Requests>>,
     // `nvs_config::grants` reads the lines.
     #[serde(default)]
+    #[allow(
+        dead_code,
+        reason = "read so the key is known; `nvs_config::grants` parses it"
+    )]
     grants: Option<toml::Table>,
     #[serde(default)]
     download: Option<Spanned<Vec<Download>>>,
@@ -331,6 +339,10 @@ struct Header {
 /// `[capabilities]`, whose names `nvs_config::package` checks.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(
+    dead_code,
+    reason = "read so the keys are known; `nvs_config::package` parses them"
+)]
 struct Requests {
     #[serde(default)]
     required: Vec<String>,

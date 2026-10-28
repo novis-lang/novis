@@ -1102,7 +1102,9 @@ it still `tainted`.
 - **A package inherits the application's defaults.** It would hand every dependency the files, hosts
   and programs a first program needs, which is the ambient authority above under another name.
 
-**Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
+**Not on disk.** `nvs pkg fetch` writes the grant lines (`crates/nvs-cli/src/package/fetch.rs`), and
+the compiler checks each call against them (`crates/nvs-types/src/capability.rs`). `nvs pkg add`,
+which prints what a new dependency's subgraph requests, is not written yet.
 
 <sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 

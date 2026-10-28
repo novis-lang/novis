@@ -50,4 +50,5 @@ language locating a declaration. The file is TOML with unknown fields refused
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** The tree reads no `package.toml` and has no `nvs pkg` command.
+**Not on disk.** `nvs pkg` has `api`, `diff`, `pack`, `fetch` and `vendor`, and the other
+subcommands are not written yet.

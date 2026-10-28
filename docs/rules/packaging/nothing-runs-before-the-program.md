@@ -18,4 +18,6 @@ language with no FFI and no native compilation step available to userland, an al
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
 
-**Not on disk.** The tree has no package system.
+**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` read archives and write files, and compile
+nothing (`crates/nvs-cli/tests/package_fetch.rs`). `nvs build` compiles a vendored package as it
+compiles any other source, and runs none of it.

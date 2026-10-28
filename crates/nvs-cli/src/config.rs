@@ -853,6 +853,31 @@ pub(crate) fn grants(
     ))
 }
 
+/// The `[capabilities]` the working directory's tree writes, for a command that
+/// reaches the network on a URL somebody else wrote, as `nvs pkg fetch` does.
+/// `None` where no tree is found, so only the shipped refusals apply. Nothing is
+/// written into the data folder.
+///
+/// # Errors
+///
+/// The exit code to return when the tree does not resolve. The diagnostic is
+/// rendered before it comes back.
+pub(crate) fn written_capabilities() -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
+    let mut sources = SourceMap::new();
+    let found_a_tree = matches!(
+        working_directory().map(|cwd| roots_in(&[], &cwd)),
+        Ok(nvs_config::Roots::Files(_))
+    );
+    let (snapshot, _) =
+        boot_origins(&[], None, &mut sources, Init::Never).map_err(|diagnostic| {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &sources);
+            ExitCode::FAILURE
+        })?;
+    Ok(found_a_tree.then(|| snapshot.config.capabilities.clone().unwrap_or_default()))
+}
+
 /// The manifests of the extension set the tree resolves to for `entry`, for a
 /// compile that asks the tree nothing else, as `nvs build --compile` does.
 ///

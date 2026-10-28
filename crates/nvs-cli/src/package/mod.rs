@@ -10,43 +10,23 @@
 //! (`rule:packaging/a-package-is-its-digest`). [`index`] reads a registry's root file, index files
 //! and archives, [`resolve`] selects the highest minimum of every package in the graph
 //! (`rule:packaging/resolution-takes-the-highest-minimum`), and [`lock`] reads, writes and checks
-//! `package.lock` (`rule:packaging/the-lockfile-holds-every-digest`).
+//! `package.lock` (`rule:packaging/the-lockfile-holds-every-digest`). [`fetch`] is `nvs pkg fetch`
+//! and `nvs pkg vendor`: the graph written under `vendor/`, with `vendor/packages.nvs` and one grant
+//! line per package (`rule:packaging/a-fetched-package-is-an-autoload-line`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
+mod fetch;
 #[cfg(test)]
 mod fixture;
-#[allow(
-    dead_code,
-    reason = "the commands that resolve and lock are not written yet"
-)]
 mod git;
-// `nvs pkg fetch` and `add` read a registry, resolve and lock; they are not written yet.
-#[allow(
-    dead_code,
-    reason = "the commands that resolve and lock are not written yet"
-)]
 mod index;
-#[allow(
-    dead_code,
-    reason = "the commands that resolve and lock are not written yet"
-)]
 mod lock;
-// `nvs pkg diff` reads the version, and `nvs pkg pack` the name and `files`. The dependencies,
-// the registries and the downloads are read by `nvs pkg fetch` and `add`, which are not written yet.
-#[allow(
-    dead_code,
-    reason = "the commands that read most of a manifest are not written yet"
-)]
 mod manifest;
 mod pack;
-#[allow(
-    dead_code,
-    reason = "the commands that resolve and lock are not written yet"
-)]
 mod resolve;
 
 /// Work with Novis packages.
@@ -118,6 +98,40 @@ enum Command {
         #[arg(long, value_name = "FILE")]
         out: Option<PathBuf>,
     },
+    /// Download the packages that `package.toml` needs into the `vendor` folder.
+    ///
+    /// Each package goes into `vendor/<vendor>/<name>`. When two packages need
+    /// different versions of a third one, the higher version is used. The
+    /// versions and the digest of every package are written to
+    /// `package.lock`.
+    ///
+    /// The file `vendor/packages.nvs` has one `autoload` line for each
+    /// package. Your program needs `require './vendor/packages.nvs';` once.
+    ///
+    /// For each new package, the command adds one line to the `[grants]`
+    /// table in `package.toml`. The line gives the package no capabilities.
+    /// Add a capability to the line to allow it. The command never changes a
+    /// line that is already there.
+    ///
+    /// No code of a package runs.
+    Fetch {
+        /// Use only the versions in `package.lock`, and never change it. The
+        /// command stops with an error if `package.lock` does not match.
+        #[arg(long)]
+        locked: bool,
+    },
+    /// Write every package into the `vendor` folder again.
+    ///
+    /// This command does what `nvs pkg fetch` does, with one difference.
+    /// `nvs pkg fetch` keeps a package folder whose files match
+    /// `package.lock`. This command downloads every package again and
+    /// replaces its folder. Use it when a file in `vendor` was changed.
+    Vendor {
+        /// Use only the versions in `package.lock`, and never change it. The
+        /// command stops with an error if `package.lock` does not match.
+        #[arg(long)]
+        locked: bool,
+    },
 }
 
 impl Args {
@@ -132,6 +146,8 @@ impl Args {
                 to,
                 json,
             } => diff::run(&old, &new, from, to, json),
+            Command::Fetch { locked } => fetch::run(fetch::Mode::Fetch, locked),
+            Command::Vendor { locked } => fetch::run(fetch::Mode::Vendor, locked),
             Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),
         }
     }

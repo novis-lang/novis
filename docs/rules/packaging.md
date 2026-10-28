@@ -966,8 +966,49 @@ subsystem of the standard library is never a package.
 Compiled artifacts are never published: a compiled unit is unreviewable, and source distribution is
 what makes "the digest is the identity" a statement about code a human could read.
 
-**Not on disk.** There is no `nvs pkg` command, no `package.toml` or `package.lock` reader, and
-nothing in the tree digests a package archive.
+**The archive is deterministic**, so the same files give the same digest on every platform and the
+registry, building from the commit, gets the bytes the publisher got
+([`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git)):
+
+- It is an **uncompressed POSIX `ustar` tar**, written through the `tar` crate
+  ([`packaging/somebody-elses-specification-is-a-crate`](packaging.md#packaging-somebody-elses-specification-is-a-crate)). A transport may compress it; the digest
+  is over the uncompressed bytes.
+- It holds the files [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists) names,
+  **sorted by the bytes of their paths**, each a regular file. A path over 100 bytes is split
+  between the header's `prefix` and `name` fields at a `/`, as `ustar` says, and a path with no such
+  split is refused. There is no directory entry, link, special file or extended header.
+- **Every field not taken from the file is fixed:** mode `0644`, owner and group `0` with empty
+  names, time `0`, and the device fields left zero bytes. A file's time, owner, mode and the order a file system
+  lists it in never reach the bytes.
+- It ends with the two zero blocks `ustar` requires, and nothing after them.
+
+`nvs pkg pack` writes it and prints its digest (`crates/nvs-cli/src/package/pack.rs`), and
+`crates/nvs-cli/tests/package_client.rs` pins one fixture's digest, so a change to the format is a
+deliberate change to every package's identity.
+
+**The registry's files have one schema**, which the client defines
+(`crates/nvs-cli/src/package/index.rs`) and the registry's service writes. Each file carries
+`"schema": 1`, and a client refuses a schema it does not read, and every key it does not know. The
+registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
+them ([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)); with no `hosts`, the files are under the
+registry's URL. Under each file host:
+
+- **`index/<vendor>/<name>.json`**, named by the package's slug, holds `name` (the namespace),
+  `owners`, and `versions`. Each version has `version`, `digest` (64 lowercase hex digits),
+  `state`, `dependencies` (each namespace to its minimum), `capabilities` (`required` and
+  `optional`), and the `repository` and `commit` the registry built it from.
+- **`state`** is `"released"`, `"unlisted"`, `{"pending": {"selectable_at": <Unix seconds>}}`,
+  `{"retracted": {"reason": ..., "fixed_in": <version or null>}}` or
+  `{"withheld": {"reason": ...}}`.
+- **`archive/<digest>.tar`** is the archive. A client tries the next file host when a host does not
+  answer or when the bytes it serves do not have the digest.
+
+```json
+{"schema": 1, "hosts": ["https://files.example.com"]}
+```
+
+**Not on disk.** No command fetches a package yet: the index, the lock and the archive's digest
+check exist (`crates/nvs-cli/src/package/`), and `nvs pkg fetch` does not.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
@@ -1029,7 +1070,8 @@ language locating a declaration. The file is TOML with unknown fields refused
 - **`nvs package` as a second spelling of `nvs pkg`.** Two spellings of one command are two things to
   document, complete and search for.
 
-**Not on disk.** The tree reads no `package.toml` and has no `nvs pkg` command.
+**Not on disk.** `nvs pkg` has `api`, `diff`, `pack`, `fetch` and `vendor`, and the other
+subcommands are not written yet.
 
 <sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
@@ -1082,9 +1124,9 @@ a file a `require` loaded are placed by one rule (`crates/nvs-types/src/package.
 
 ```nvs
 <?nvs
-// Generated by `nvs pkg fetch` from package.lock. Do not edit.
-autoload 'Acme\Http' from './acme-http-1.4.0/src';
-autoload 'Acme\Csv'  from './acme-csv-0.3.0/src';
+// Generated by `nvs pkg` from package.lock. Do not edit.
+autoload 'Acme\Csv' from './acme/csv/src';
+autoload 'Acme\Http' from './acme/http/src';
 ```
 
 The application `require`s that file once. **That is the entire integration.** Name resolution is
@@ -1097,11 +1139,16 @@ learns nothing about packages in order to resolve a name. The proof is structura
 graph shows up in a diff as a line of source rather than as a change in a tool's behaviour.
 
 The prefix each line names is the package's name ([`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name)).
-Beside each `autoload` line, the fetch writes one grant line for the same package into `[grants]`, an
-empty one included ([`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application)), and never rewrites
-a grant line a person already edited ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)).
+Each package is written to `vendor/<vendor>/<name>/`, its slug as a path, so the folder of a package
+does not move when its version does. Beside each `autoload` line, the fetch writes one grant line for
+the same package into `[grants]`, an empty one included
+([`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application)), and never rewrites a grant line a
+person already edited ([`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input)). The line is the subtree form,
+`'Acme\Http\*' = []`, because a package's code is its namespace and every namespace below it, and a
+package that already has a key naming its namespace, in either form, gets no line.
 
-**Not on disk.** `autoload` is shipped; `nvs pkg fetch` and the generated file are not.
+**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write the folders, the generated file and the
+grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` is not written yet.
 
 <sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key).</sub>
 
@@ -1131,7 +1178,9 @@ language with no FFI and no native compilation step available to userland, an al
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
 
-**Not on disk.** The tree has no package system.
+**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` read archives and write files, and compile
+nothing (`crates/nvs-cli/tests/package_fetch.rs`). `nvs build` compiles a vendored package as it
+compiles any other source, and runs none of it.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
@@ -1156,6 +1205,9 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 
 The path half is `E0661`: each `require` edge and each existing `autoload` root written in a package
 file is canonicalized and must lie under the package's directory (`crates/nvs-types/src/package.rs`).
+
+`nvs pkg pack` refuses a file named `nvs.toml`, in any case, anywhere in the archive
+(`crates/nvs-cli/src/package/pack.rs`).
 
 **Not on disk.** No fetch path exists to refuse an archive that holds an `nvs.toml`.
 
@@ -1301,7 +1353,9 @@ The lock is for integrity, not for determinism: [`packaging/resolution-takes-the
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
 
-**Not on disk.** The tree has no package system and no `package.lock`.
+**Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write and check `package.lock` and take
+`--locked` (`crates/nvs-cli/src/package/fetch.rs`). `nvs build --locked` does not exist yet, and a
+build does not check vendored bytes against the lock.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
@@ -1813,8 +1867,13 @@ nothing per request.
 - **A larger limit raised per package on request.** It needs a person to decide each request, and the
   operator only withholds ([`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds)).
 
-**Not on disk.** There is no `nvs pkg pack`, no reader for `files`, and no read check for a
-package's own files.
+`nvs pkg pack` builds the set, checks every path and both limits, and prints what it packs
+(`crates/nvs-cli/src/package/pack.rs`, whose `MAX_BYTES` and `MAX_FILES` are the two constants).
+It refuses a symbolic link anywhere it reads, since a link would make the set depend on what lies
+outside the package.
+
+**Not on disk.** The fetch does not yet stop at the limits while it reads, and there is no read
+check for a package's own files.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/an-external-file-is-pinned-by-url-sha256-and-size`](packaging.md#packaging-an-external-file-is-pinned-by-url-sha256-and-size), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
