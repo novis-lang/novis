@@ -113,6 +113,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::passkey::CREDENTIAL,
     crate::webpush::CLASS,
     crate::webpush::SUBSCRIPTION,
+    crate::webpush::SENT,
     crate::jwt::CLASS,
     crate::jwt::KEY_SET,
     crate::jwe::CLASS,

@@ -2360,6 +2360,17 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::zip::NAME, "read", None),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsRead)),
     (crate::zip::NAME, "extract", Some(nvs_config::Cap::FsWrite)),
+    // `Core\WebPush::send` posts to the endpoint a browser wrote, so it is the
+    // client's own door: the host is pinned under `net.connect` and the address
+    // policy, as for `Core\Http\Client::post`. Reading a subscription and the
+    // public half of a key reach nothing.
+    (crate::webpush::NAME, "subscription", None),
+    (crate::webpush::NAME, "applicationServerKey", None),
+    (
+        crate::webpush::NAME,
+        "send",
+        Some(nvs_config::Cap::NetConnect),
+    ),
 ];
 
 /// The members code in a package's namespace may call with no `fs.read` grant

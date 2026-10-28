@@ -4279,6 +4279,53 @@ pub fn extension_send(
     })
 }
 
+/// One Web Push message `POST`ed to a subscription's endpoint, over the transport a
+/// `Core\Http\Client` call takes, and the status the push service answered with
+/// (`rule:core-classes/web-push-sends-an-encrypted-message`).
+///
+/// [`extension_send`]'s sibling, and the same door: `net.connect` and the address policy are
+/// asked of `ctx` for the endpoint's host, and `[http.client]`'s bounds and TLS trust apply as
+/// they do to a call with no options. A refusal names `member`, which is `Core\WebPush::send`.
+/// **No redirect is followed.** The `Authorization` header carries a token whose audience is the
+/// endpoint's origin, so a hop elsewhere would carry it to a host it does not name, and a push
+/// service answers a message with a status of its own. A `3xx` is returned as its status.
+///
+/// # Errors
+///
+/// [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised.
+pub(crate) fn push_send(
+    ctx: &mut Ctx,
+    member: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+) -> Result<i64, Fault> {
+    // Every option slot null, for `extension_send`'s reason.
+    let args = [Value::null(); REQUEST_ARITY];
+    let began = Instant::now();
+    let addresses = pin(ctx, url, member, Roster::Request)?;
+    let resolve = began.elapsed();
+    let mut call = call_of(
+        ctx,
+        &args,
+        member,
+        "POST",
+        url.to_owned(),
+        addresses,
+        resolve,
+    )?;
+    call.headers = headers;
+    call.body = Some(held(None, body));
+    call.redirects = 0;
+    let reply = transport::send(&call, &mut |_, _| {
+        Err(Fault::fatal(format!(
+            "{member} asked to follow a redirect under a limit of none"
+        )))
+    })?;
+    traced(ctx, &call);
+    Ok(reply.status)
+}
+
 /// The [`transport::Call`] to `url` at `addresses`, with no headers and no body yet, and every
 /// bound, the identity and the TLS policy read from `args`, or from `[http.client]` where a slot
 /// is null. Its deadline starts now.
