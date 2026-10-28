@@ -55,7 +55,7 @@ stages:
         rules: [packaging/an-owner-is-notified-without-email, core-classes/web-push-sends-an-encrypted-message]
   - id: 8
     title: an owner is notified by a signed webhook with retries, verified by a one-time code
-    status: open
+    status: done
     context: [crates/nvs-config/src/capability.rs, apps/registry/src/Channels.nvs, docs/rules/packaging/an-owner-is-notified-without-email.md]
     extra:
       context:
@@ -355,6 +355,21 @@ test account a verified webhook through `Channels`, and `newAccountWithoutChanne
 refusals. A test cannot decrypt a push, so it reads a code from `Channels::newCode`. Why: the key is
 a secret like `logKey`, and a key in the repository would be scanned and reused.
 
+**A webhook message is signed as Standard Webhooks says, and a failed one is retried by a job.**
+`Webhooks` (`apps/registry/src/Webhooks.nvs`) gives each webhook a `whsec_` secret, shown once at
+`POST /api/webhooks` and kept in the `webhooks` table (it must sign, so it cannot be a hash). Each
+`POST` carries `webhook-id`, `webhook-timestamp` and `webhook-signature: v1,<base64 HMAC-SHA256 of
+id.timestamp.body>`, and its URL goes through `Core\Http::allowUrl` at the add and again at each
+try; only `https:` is taken. The first try is in the request; a failure waits in `webhook_sends`
+with the same message id, and `jobs/webhooks.nvs`, every minute, tries again after 1 minute, 10
+minutes, 1 hour and 6 hours. After the fifth try `Channels::failed` stops it counting. The link in a
+code message, `GET /api/channels/{id}/confirm/{code}`, verifies without a session: the code proves
+the message arrived, so a link preview that opens it proves the same. `nvs.toml` writes
+`[capabilities.net] internal = []`, so development and the tests refuse loopback as production does.
+`WebhooksTest` gives each test its own in-memory database, because `retry` sends every due row.
+Why: a published signing scheme means an owner verifies with an existing library; a retry in a job
+never holds a request through a wait. Memory: one message body per waiting row, at most five tries.
+
 **An account must show activity within 60 days, or it can no longer publish**
 (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). The 60 days are fixed. Its packages
 stay available and its releases are untouched. Activity is a passkey sign-in, or the "Yes, I am here"
@@ -580,9 +595,9 @@ every event to it as a signed POST, with retries.
 
 **Split:** after the session lands the signed POST, a writing subagent writes the tests.
 
-- [ ] Webhooks: a signed POST through the outbound address table, with retries. `apps/registry/src/Webhooks.nvs:1`, `crates/nvs-config/src/capability.rs:262`
-- [ ] Verification: a one-time code returned on the website or by the link in the message, and a webhook that still fails after its retries no longer counting. `apps/registry/src/Channels.nvs:1`
-- [ ] Tests against the loopback receiver: the signature checks, a retry after a failure, an internal address refused, and a failing webhook that stops counting. `apps/registry/src/WebhooksTest.nvs:1`
+- [x] Webhooks: a signed POST through the outbound address table, with retries. `apps/registry/src/Webhooks.nvs:1`, `crates/nvs-config/src/capability.rs:262`
+- [x] Verification: a one-time code returned on the website or by the link in the message, and a webhook that still fails after its retries no longer counting. `apps/registry/src/Channels.nvs:1`
+- [x] Tests against the loopback receiver: the signature checks, a retry after a failure, an internal address refused, and a failing webhook that stops counting. `apps/registry/src/WebhooksTest.nvs:1`
 
 ### 9. the feeds, the inbox and the commands show every event, never by email
 
@@ -640,32 +655,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 7 and 11 are done. This session closed stage 5: `Channels`
-(`apps/registry/src/Channels.nvs`) keeps each push device and webhook with the hash of its one-time
-code, and `hasVerified` is true while one is verified and not failed. `Publish::publish` refuses an
-account with none before the build, and the `addOwner` route answers `403` for one. `Push`
-(`apps/registry/src/Push.nvs`) registers a device (passkey in the last 15 minutes), sends its test
-code, tells the other devices, and deletes a gone one. `App.nvs` has `/api/push/key`,
-`/api/push/devices` and `/api/channels` (list, `{id}/verify`, `{id}/test`, delete). `hosting.json`
-has `pushKey` and `pushSubject` (standing decision *The VAPID key is a file the operator names*).
-New tests, each run once by name and green: the six cases in `apps/registry/src/PushTest.nvs`.
+Stages 1, 2, 3, 4, 5, 7, 8 and 11 are done. This session closed stage 8 (standing decision *A
+webhook message is signed as Standard Webhooks says*): `Webhooks` (`apps/registry/src/Webhooks.nvs`)
+adds a webhook, sends its code, signs every `POST`, and queues a failed one in `webhook_sends` for
+`jobs/webhooks.nvs` (a new every-minute `[[schedule]]`). `App.nvs` has `POST /api/webhooks`
+(passkey), `GET /api/channels/{id}/confirm/{code}` (no session), and `{id}/test` sends a webhook its
+code. Adding a device or a webhook, and deleting a channel, tells the webhooks as well as the push
+devices. `Channels::drop` and `remove` delete a webhook's secret and waiting messages. `nvs.toml`
+now writes `[capabilities.net] internal = []`. New tests, run once by name and green: the four
+cases in `apps/registry/src/WebhooksTest.nvs`. No other test was run.
 
-`BrowserTest::newAccount` now gives every account a verified webhook, so the existing publish and
-owner tests keep passing; none was run. The new `channels` table is added by `create table if not
-exists`, so an old local `registry.sqlite` needs no deletion.
-
-Watch in stage 12: one run in three had `IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s
-`catchUp` return `false`. The sweep's `env-secret-proofs` red was stale again (a rerun exits 0), and
-nightly run 40662443492 was cancelled by a newer push. No test is expected red.
+Watch in stage 12: `internal = []` refuses loopback for every registry test; no existing test
+reaches loopback (the Rust git server is outside the app), but a red that names `net.internal` is
+this. One run in three had `IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s `catchUp`
+return `false`. The sweep's `env-secret-proofs` red was stale for a third time: its own log says
+`exit 0`, and a rerun exits 0. Nightly run 40662443492 was cancelled by a newer push. No test is
+expected red.
 
 ### Next
 
-Stage 8, the webhooks; it needs only stage 2. Follow its `**Split:**` line: land the signed POST,
-then a writing subagent writes `WebhooksTest.nvs`.
-- [ ] `Webhooks.nvs`: add a webhook (passkey) as a `Channels::WEBHOOK` row, send its code, a signed POST with retries through the outbound address table. `apps/registry/src/Channels.nvs:33`, `crates/nvs-config/src/capability.rs:262`
-- [ ] A webhook that still fails after its retries calls `Channels::failed`; the code link route verifies it. `apps/registry/src/Channels.nvs:80`
-- [ ] `POST /api/channels/{id}/test` answers `409` for a webhook today; send its code there. `apps/registry/src/App.nvs:370`
-- [ ] `Push::register` and the channel delete route tell only push devices; tell the webhooks too. `apps/registry/src/Push.nvs:66`
+Stage 9, the feeds and the inbox; it needs stages 5 and 8, both done. Follow its `**Split:**`
+line: land `Feeds.nvs` and the notifying of each event, then one writing subagent writes the Rust
+items in `publish.rs` and `login.rs`.
+- [ ] Notify each owner of each event: every row `Events.nvs` adds (publish, token, owner change, unlist, retraction) also calls `Push::notify` and `Webhooks::notify` for every owner of the vendor. `apps/registry/src/Events.nvs:1`, `apps/registry/src/Webhooks.nvs:84`
+- [ ] `Feeds.nvs`: the signed feed per vendor, the inbox, the public pending feed. `apps/registry/src/Feeds.nvs:1`
+- [ ] The route that adds a device and the one that adds a webhook each call both senders; fold them into one `Notices` helper if a third caller appears. `apps/registry/src/App.nvs:318`
 
 ### Backlog
 
@@ -682,10 +696,12 @@ then a writing subagent writes `WebhooksTest.nvs`.
 - Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
   an `fs.read` grant for each secret file outside the app folder (`pushKey` among them); the
   committed `nvs.toml` has neither (standing decision *The build runs only where the operator grants it*).
-- The owners are not yet notified of each event in `events`. Stage 8 or 9 sends a `Push::notify`
-  and a webhook message for each publish, token, owner change, unlist and retraction; every adding
-  of a row is in `Events.nvs`. `rule:packaging/an-owner-is-notified-without-email` stays `designed`
-  until then.
+- `rule:packaging/an-owner-is-notified-without-email` stays `designed` until stage 9 sends each
+  event to every owner's channels.
+- `Webhooks::retry` catches only `RuntimeError`, so another throwable from one send stops the
+  rest of that minute's sends. The next minute tries again.
+- A webhook added with a plain URL answers `400` with the `Core\Http::allowUrl` message, which may
+  name the resolved address. The account page in goal `registry-website` shows it to the owner.
 - The `POST /api/push/devices` route reads every `RuntimeError` from `Push::register` as a bad
   subscription (`400`), a database error included.
 - `Restore` brings back only the pending time from an index file. Unlisted, retracted and withheld
