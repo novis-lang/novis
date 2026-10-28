@@ -533,35 +533,41 @@ fn only_a_package(id: SourceId, file: &File) -> Result<(), Diagnostic> {
 /// A `[dependencies]` key, checked: two namespace segments, not under `Core`, and not a built-in
 /// component.
 fn dependency_name(id: SourceId, written: &Spanned<String>) -> Result<Name, Diagnostic> {
-    let text = written.get_ref();
-    let bare = text.strip_prefix('\\').unwrap_or(text);
-    let segments: Vec<&str> = bare.split('\\').collect();
-    if segments.len() != 2 || !segments.iter().all(|s| nvs_config::grants::is_segment(s)) {
-        return Err(bad(
-            id,
-            written.span(),
-            format!("`{text}` is not a package name"),
-            "a package name is a vendor and a name, such as `Acme\\Http`",
-        ));
+    Name::checked(written.get_ref())
+        .map_err(|(message, help)| bad(id, written.span(), message, &help))
+}
+
+impl Name {
+    /// `text` as a dependency's name: two namespace segments, not under `Core`, and not a
+    /// built-in component. The index and the lock name packages through this too.
+    ///
+    /// # Errors
+    ///
+    /// The message and its help line.
+    pub(crate) fn checked(text: &str) -> Result<Self, (String, String)> {
+        let bare = text.strip_prefix('\\').unwrap_or(text);
+        let segments: Vec<&str> = bare.split('\\').collect();
+        if segments.len() != 2 || !segments.iter().all(|s| nvs_config::grants::is_segment(s)) {
+            return Err((
+                format!("`{text}` is not a package name"),
+                "a package name is a vendor and a name, such as `Acme\\Http`".to_owned(),
+            ));
+        }
+        let name = Self(bare.to_owned());
+        if name.vendor().eq_ignore_ascii_case(RESERVED) {
+            return Err((
+                format!("`{text}` is not a package"),
+                "`Core` is the standard library, and every program has it".to_owned(),
+            ));
+        }
+        if let Some(class) = built_in(&name) {
+            return Err((
+                format!("`{text}` is not a package"),
+                format!("`{text}` is a built-in component, and every program has `{class}`"),
+            ));
+        }
+        Ok(name)
     }
-    let name = Name(bare.to_owned());
-    if name.vendor().eq_ignore_ascii_case(RESERVED) {
-        return Err(bad(
-            id,
-            written.span(),
-            format!("`{text}` is not a package"),
-            "`Core` is the standard library, and every program has it",
-        ));
-    }
-    if let Some(class) = built_in(&name) {
-        return Err(bad(
-            id,
-            written.span(),
-            format!("`{text}` is not a package"),
-            &format!("`{text}` is a built-in component, and every program has `{class}`"),
-        ));
-    }
-    Ok(name)
 }
 
 /// The class of the built-in component whose namespace is `name`, compared without case.

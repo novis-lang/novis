@@ -7,13 +7,29 @@
 //! change between two versions, breaking or additive, and whether the version step allows it.
 //! [`manifest`] reads `package.toml`, a package's or an application's, and refuses an unknown key.
 //! [`pack`] builds the deterministic archive whose digest is a package's identity
-//! (`rule:packaging/a-package-is-its-digest`).
+//! (`rule:packaging/a-package-is-its-digest`). [`index`] reads a registry's root file, index files
+//! and archives, [`resolve`] selects the highest minimum of every package in the graph
+//! (`rule:packaging/resolution-takes-the-highest-minimum`), and [`lock`] reads, writes and checks
+//! `package.lock` (`rule:packaging/the-lockfile-holds-every-digest`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod api;
 mod diff;
+#[cfg(test)]
+mod fixture;
+// `nvs pkg fetch` and `add` read a registry, resolve and lock; they are not written yet.
+#[allow(
+    dead_code,
+    reason = "the commands that resolve and lock are not written yet"
+)]
+mod index;
+#[allow(
+    dead_code,
+    reason = "the commands that resolve and lock are not written yet"
+)]
+mod lock;
 // `nvs pkg diff` reads the version, and `nvs pkg pack` the name and `files`. The dependencies,
 // the registries and the downloads are read by `nvs pkg fetch` and `add`, which are not written yet.
 #[allow(
@@ -22,6 +38,11 @@ mod diff;
 )]
 mod manifest;
 mod pack;
+#[allow(
+    dead_code,
+    reason = "the commands that resolve and lock are not written yet"
+)]
+mod resolve;
 
 /// Work with Novis packages.
 #[derive(clap::Args)]

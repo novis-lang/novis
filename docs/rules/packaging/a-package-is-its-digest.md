@@ -36,5 +36,26 @@ registry, building from the commit, gets the bytes the publisher got
 `crates/nvs-cli/tests/package_client.rs` pins one fixture's digest, so a change to the format is a
 deliberate change to every package's identity.
 
-**Not on disk.** No `package.lock` reader exists, and no fetch checks an archive against its
-digest.
+**The registry's files have one schema**, which the client defines
+(`crates/nvs-cli/src/package/index.rs`) and the registry's service writes. Each file carries
+`"schema": 1`, and a client refuses a schema it does not read, and every key it does not know. The
+registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
+them (`rule:packaging/registry-hosting-is-configuration`); with no `hosts`, the files are under the
+registry's URL. Under each file host:
+
+- **`index/<vendor>/<name>.json`**, named by the package's slug, holds `name` (the namespace),
+  `owners`, and `versions`. Each version has `version`, `digest` (64 lowercase hex digits),
+  `state`, `dependencies` (each namespace to its minimum), `capabilities` (`required` and
+  `optional`), and the `repository` and `commit` the registry built it from.
+- **`state`** is `"released"`, `"unlisted"`, `{"pending": {"selectable_at": <Unix seconds>}}`,
+  `{"retracted": {"reason": ..., "fixed_in": <version or null>}}` or
+  `{"withheld": {"reason": ...}}`.
+- **`archive/<digest>.tar`** is the archive. A client tries the next file host when a host does not
+  answer or when the bytes it serves do not have the digest.
+
+```json
+{"schema": 1, "hosts": ["https://files.example.com"]}
+```
+
+**Not on disk.** No command fetches a package yet: the index, the lock and the archive's digest
+check exist (`crates/nvs-cli/src/package/`), and `nvs pkg fetch` does not.

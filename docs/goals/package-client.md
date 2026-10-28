@@ -20,7 +20,7 @@ stages:
         rules: [packaging/a-package-is-its-digest, packaging/the-registry-builds-the-archive-from-git, packaging/somebody-elses-specification-is-a-crate]
   - id: 3
     title: the index is read, resolution takes the highest minimum, and the lock holds every digest
-    status: open
+    status: done
     context: [docs/rules/packaging/resolution-takes-the-highest-minimum.md, docs/rules/packaging/the-lockfile-holds-every-digest.md]
     extra:
       context:
@@ -219,6 +219,17 @@ address, which `nvs pkg add` prints.
 `gix` is a large dependency, bought because a git dependency needs a clone whose connection `nvs`
 checks.
 
+**Stage 3's tests are unit tests, and stage 4 adds the binary's.** No command resolves or locks
+until `nvs pkg fetch` exists, so the index, resolution and lock cases run in `index.rs`,
+`resolve.rs` and `lock.rs` against the fixture registry `src/package/fixture.rs` packs at test time.
+`--locked` is `Lock::check(graph, true)`; stage 4 puts the flag on `fetch` and `vendor` and shows a
+missing entry and an edited digest through the binary in `package_client.rs`. Why: simplicity, and
+no test-only subcommand. A version visited but not selected is read for its dependencies whatever
+its state, as minimal version selection walks every version asked for; only the selected
+version's state is judged. A retracted selection is allowed exactly when the lock already has that
+version. Index and root files use `deny_unknown_fields` with `"schema": 1`, so a new key is a schema
+bump the client names.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -255,12 +266,12 @@ dependencies, registries and requested capabilities are read from it.
 
 **Does:** the client reads a fixture registry on disk, resolves the graph and writes `package.lock`.
 
-- [ ] The index reader, its schema written into `rule:packaging/a-package-is-its-digest`'s fragment, and a fixture registry built at test time. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/tests/fixtures/registry/README.md:1`
-- [ ] The root file `registry.json`: its file hosts tried in order, the next one on a network failure or a digest mismatch, and the last root file kept under `<data>/registry/` (`rule:packaging/registry-hosting-is-configuration`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-config/src/data.rs:163`
-- [ ] Tests: a fixture registry whose first file host is a missing directory reads from the second, and a registry URL that does not answer reads through the kept root file. `crates/nvs-cli/tests/package_client.rs:1`
-- [ ] Minimal version selection across majors, with the crossing reported (`rule:packaging/resolution-takes-the-highest-minimum`). `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] The lock, `--locked` that fetches nothing outside it, and a digest mismatch as a hard error naming the package (`rule:packaging/the-lockfile-holds-every-digest`). `crates/nvs-cli/src/package/lock.rs:1`
-- [ ] Tests: a graph across majors, a `--locked` run with a missing entry, and an edited digest. `crates/nvs-cli/tests/package_client.rs:1`
+- [x] The index reader, its schema written into `rule:packaging/a-package-is-its-digest`'s fragment, and a fixture registry built at test time. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/tests/fixtures/registry/README.md:1`
+- [x] The root file `registry.json`: its file hosts tried in order, the next one on a network failure or a digest mismatch, and the last root file kept under `<data>/registry/` (`rule:packaging/registry-hosting-is-configuration`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-config/src/data.rs:163`
+- [x] Tests: a fixture registry whose first file host is a missing directory reads from the second, and a registry URL that does not answer reads through the kept root file. `crates/nvs-cli/src/package/index.rs:1`
+- [x] Minimal version selection across majors, with the crossing reported (`rule:packaging/resolution-takes-the-highest-minimum`). `crates/nvs-cli/src/package/resolve.rs:1`
+- [x] The lock, `--locked` that fetches nothing outside it, and a digest mismatch as a hard error naming the package (`rule:packaging/the-lockfile-holds-every-digest`). `crates/nvs-cli/src/package/lock.rs:1`
+- [x] Tests: a graph across majors, a `--locked` run with a missing entry, and an edited digest. `crates/nvs-cli/src/package/lock.rs:1`, `crates/nvs-cli/src/package/resolve.rs:1`
 
 ### 7. a root git dependency is cloned inside fixed limits and packed, and one below the root is refused
 
@@ -280,6 +291,7 @@ for every package, an empty one included.
 - [ ] `vendor/packages.nvs`, generated from the lock and committed (`rule:packaging/a-fetched-package-is-an-autoload-line`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-hir/src/autoload.rs:259`
 - [ ] `nvs pkg add` and `nvs pkg fetch` write a line into `[grants]` in the application's `package.toml` for every package in the graph, direct and transitive, with nothing granted until a person writes it and an edited line left as it is (`rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
 - [ ] Tests: a fetched package compiles only with its grant line, an edited line survives a second fetch, and an effectful top-level statement produces no effect from `fetch`, `build` or `vendor` (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] `--locked` on `nvs pkg fetch` and `nvs pkg vendor` through `Lock::check(graph, true)`, and the binary's tests of a locked run with a missing entry and an edited digest. `crates/nvs-cli/src/package/lock.rs:140`, `crates/nvs-cli/tests/package_client.rs:1`
 
 ### 5. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` select only what is released and print what a change brings
 
@@ -352,45 +364,43 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done; the `api-compat` and `namespace-grants` gates hold.
+Stages 1, 2 and 3 are done; the `api-compat` and `namespace-grants` gates hold.
 
-`crates/nvs-cli/src/package/pack.rs`: `file_set` builds the allowlist (`pack.rs:188`), `check_path`
-the path rules (`pack.rs:358`), `MAX_BYTES` and `MAX_FILES` the limits (`pack.rs:37`), and `write`
-streams the `ustar` bytes through BLAKE3 into any writer (`pack.rs:451`). `nvs pkg pack [dir]
-[--out FILE]` (`mod.rs:86`) writes `<vendor>-<name>-<version>.tar` through a `.partial` file. A
-pack refusal is a plain `error:` line, since it names a file and not a line of `package.toml`.
-A symlink anywhere the set is read from is refused. The `tar` row is `Cargo.toml:479`, and
-`THIRD-PARTY-LICENSES.txt` is regenerated. The digest rule's fragment states the format. The
-digest and file-set rules stay `designed` until the fetch side exists; stage 8 ships them.
+Stage 3: `crates/nvs-cli/src/package/index.rs` reads `registry.json`, the index files and the
+archives. `Registry::open` (`index.rs:303`) keeps the root file under `Folder::registry()`
+(`crates/nvs-config/src/data.rs`, new), and `Registry::archive` (`index.rs:368`) tries each file
+host and checks BLAKE3. `resolve.rs:172` is minimal version selection with `Crossing` reports, and
+`line` (`resolve.rs:151`) is the breaking line below 1.0. `lock.rs` reads, renders and writes
+`package.lock`, and `Lock::check` (`lock.rs:140`) is the digest and `--locked` check.
+`Name::checked` (`manifest.rs:547`) is the one name check for the manifest, the index and the lock.
+`pack::MAX_ARCHIVE_BYTES` (`pack.rs:45`) caps a `file:` archive read. The schema is in
+`rule:packaging/a-package-is-its-digest`'s fragment. The standing decision *Stage 3's tests are
+unit tests* records why the cases are in the three modules and not yet in `package_client.rs`.
 
-`mod.rs` keeps `#[allow(dead_code)]` on `manifest` until `fetch` and `add` read the rest of it.
+`mod.rs` keeps `#[allow(dead_code)]` on `manifest`, `index`, `resolve` and `lock` until `fetch`
+and `add` call them. A git dependency is a fault in `resolve.rs:190` until stage 7.
 
-The path rules and limits are unit tests in `pack.rs`, and the pinned digest and file-set
-refusals are in `crates/nvs-cli/tests/package_client.rs`; all pass. No test should go red.
+The 16 new unit tests pass (`cargo test --bin nvs -- package::index package::resolve
+package::lock`). No test should go red.
 
-The sweep's reds are fixed at `HEAD`, and the sweep repeated them unchanged. The three nightly Miri jobs of run 40474302703 ran
-on `55b03e97a`. `22f1e4ec4` skips the `secret` span test under Miri, `c33a8b8f7` counts the spool
-wakes against files opened, and `e461612ce` and `c33a8b8f7` skip the two slow spool tests.
-`env-secret-proofs` exits 0 when run, and no goal or floor names that check any more. Its log
-under `.looper/loops/main/checks/` dates from 22 October, so the sweep reads a stale check list.
+The sweep's reds are stale. The `env-secret-proofs` log itself says `exit 0`, dated 22 October.
+The three nightly Miri jobs of run 40474302703 ran on `55b03e97a`, before `22f1e4ec4`,
+`c33a8b8f7` and `e461612ce` fixed them.
 
 ### Next
 
-**Stage 3: the index, resolution and the lock**, files `crates/nvs-cli/src/package/index.rs`,
-`resolve.rs`, `lock.rs`, `mod.rs`, `docs/rules/packaging/a-package-is-its-digest.md` (the index
-schema), `crates/nvs-cli/tests/fixtures/registry/README.md` and `package_client.rs`. Split the
-index and root file from resolution and the lock if it runs past one session.
+**Stage 7: the root git dependency**, files `Cargo.toml` (`gix`), `crates/nvs-cli/src/package/git.rs`,
+`resolve.rs` and `crates/nvs-cli/tests/package_git.rs`. Read the standing decisions *A git clone runs
+inside fixed limits* and *The clone's tests never reach the network* first.
 
-- [ ] The index reader and its schema in the digest rule's fragment; the test fixture registry built from package directories through `pack::file_set` and `pack::write`. `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/package/pack.rs:188`
-- [ ] `registry.json`'s file hosts in order, the next on a failure or digest mismatch, and the last root file kept under `<data>/registry/`. `crates/nvs-config/src/data.rs:163`
-- [ ] Minimal version selection across majors with the crossing reported. `crates/nvs-cli/src/package/resolve.rs:1`, `crates/nvs-cli/src/package/manifest.rs:236`
-- [ ] The lock, `--locked`, and a digest mismatch as a hard error naming the package. `crates/nvs-cli/src/package/lock.rs:1`
-- [ ] Tests as stage 3 lists them. `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] `gix` with default features off and `cargo deny` green; check first whether it takes a pinned connector. `Cargo.toml:1`
+- [ ] The clone at an exact commit inside the size and time limits, packed through `pack::file_set`. `crates/nvs-cli/src/package/git.rs:1`, `crates/nvs-cli/src/package/pack.rs:193`
+- [ ] Replace the git fault in `resolve` with the cloned package, and refuse a git dependency below the root. `crates/nvs-cli/src/package/resolve.rs:190`
+- [ ] Tests as stage 7 lists them. `crates/nvs-cli/tests/package_git.rs:1`
 
 ### Backlog
 
-- Stage 7 (the git dependency) after stage 3; it packs a clone through `pack::file_set`. `crates/nvs-cli/src/package/pack.rs:188`
-- The fetch stops one byte past the largest archive `MAX_BYTES` and `MAX_FILES` allow, before the digest is checked (stage 4). `crates/nvs-cli/src/package/pack.rs:37`
+- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 4 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the

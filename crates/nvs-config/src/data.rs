@@ -9,6 +9,7 @@
 //! is a fact about one machine's last test run. `logs/` is the default only for a service: `nvs_cli`'s hosted entry point reads it
 //! when the resolved tree sets no `[log] target`, and the command line keeps `stderr`.
 //! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
+//! [`Folder::registry`] has no key either: it is a copy of what each registry last said.
 //! [`Folder::spool`] and [`Folder::debug_index`] are under `debug/`, which only a run with
 //! `[debug] store` on creates ([`Folder::prepare_spool`]).
 //!
@@ -180,6 +181,14 @@ impl Folder {
     #[must_use]
     pub fn telemetry(&self) -> PathBuf {
         self.root.join("telemetry")
+    }
+
+    /// `registry/`: the last root file `nvs pkg` read from each registry, so it still finds the
+    /// registry's file hosts when the registry's URL does not answer
+    /// (`rule:packaging/registry-hosting-is-configuration`). `nvs pkg` creates it.
+    #[must_use]
+    pub fn registry(&self) -> PathBuf {
+        self.root.join("registry")
     }
 
     /// `failed-tests/`: one file per tested program, with the tests its last `nvs test` run

@@ -16,4 +16,5 @@ The lock is for integrity, not for determinism: `rule:packaging/resolution-takes
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
 
-**Not on disk.** The tree has no package system and no `package.lock`.
+**Not on disk.** `crates/nvs-cli/src/package/lock.rs` reads, writes and checks `package.lock`,
+and no command calls it yet: there is no `nvs pkg fetch`, `nvs pkg vendor` or `--locked` flag.

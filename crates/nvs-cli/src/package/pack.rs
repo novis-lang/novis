@@ -39,6 +39,11 @@ pub(crate) const MAX_BYTES: u64 = 16 * 1024 * 1024;
 /// The most files an archive may hold.
 pub(crate) const MAX_FILES: usize = 5_000;
 
+/// The most bytes an archive within [`MAX_FILES`] and [`MAX_BYTES`] can have: a 512-byte header
+/// and up to 511 bytes of padding per file, and the two zero blocks at the end. A fetch reads no
+/// byte past it.
+pub(crate) const MAX_ARCHIVE_BYTES: u64 = MAX_BYTES + MAX_FILES as u64 * (512 + 511) + 1024;
+
 /// The longest path inside an archive, in UTF-8 bytes. It leaves room under the Windows path
 /// limit for the folder a package is fetched into.
 pub(crate) const MAX_PATH_BYTES: usize = 160;
