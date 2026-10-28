@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to compute the root hash from the entries of a log and compare it with the checkpoint.
+
+// `entries` has the two entries of this log, one JSON entry per line.
+array<string> $entries = Core\Str::lines(Core\Str::trim(Core\IO::read('./entries')));
+
+class LogHash
+{
+    // The hash of one entry is SHA-256 of the byte 0x00 and then the entry.
+    public static function entry(string $entry): bytes
+    {
+        bytes $input = Core\Bytes::join([Core\Encoding::fromHex('00'), $entry as bytes]);
+        return Core\Hash::of($input, Core\Hash::Digest::Sha256);
+    }
+
+    // Two hashes are combined with SHA-256 of the byte 0x01, the left hash and the right hash.
+    public static function pair(bytes $left, bytes $right): bytes
+    {
+        bytes $input = Core\Bytes::join([Core\Encoding::fromHex('01'), $left, $right]);
+        return Core\Hash::of($input, Core\Hash::Digest::Sha256);
+    }
+}
+
+// With two entries, the root hash combines the hashes of the two entries.
+bytes $root = LogHash::pair(LogHash::entry($entries[0]), LogHash::entry($entries[1]));
+echo 'computed:   ', Core\Encoding::toBase64($root), "\n";
+
+// The checkpoint's third line is the root hash that the registry signed.
+array<string> $lines = Core\Str::lines(Core\IO::read('./checkpoint'));
+echo 'checkpoint: ', $lines[2], "\n";
+
+// The two hashes are the same, so this prints `true`.
+// A changed or removed entry gives another root hash.
+bool $same = Core\Hash::equals($root, Core\Encoding::fromBase64($lines[2]));
+echo 'same: ', $same ? 'true' : 'false', "\n";

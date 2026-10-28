@@ -1,0 +1,208 @@
+<?nvs
+// Attack: a registry rewrites its log and removes a retraction. It signs the new log with its real key.
+// The client kept the old checkpoint, so every step below should be found and stopped.
+
+// The registry's public key, as it is written under `[registries]`.
+string $verifier = 'packages.example.com+ceb96d1a+AYoaRb74N7Kj2MuZSj38KBDVjpz/weG/Lk+F8wJ51YRF';
+
+// The checkpoint the client kept from its last visit. The log had 2 entries then.
+string $kept = "packages.example.com\n2\nBK/VChA5E6yTmz2hOByDDbDLgVzdjfdBsEx1VOT1B34=\n\n— packages.example.com zrltGl7/BuGwDD0HnfmHV2jvuPFz9vTB3WpNzFx88Zq1dlc3SXLRBqvtrlNDTIjBQ6bmLITqI3cM4McAXTHeIgiDYAk=\n";
+
+// The entries of the log. The second entry is the retraction of version 1.2.0.
+string $publish120 = '{"commit":"4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e","digest":"ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75","kind":"publish","package":"acme/slug","repository":"https://git.example.com/acme/slug","v":1,"version":"1.2.0"}';
+string $retract120 = '{"kind":"retract","package":"acme/slug","reason":"wrong output","v":1,"version":"1.2.0"}';
+string $publish121 = '{"commit":"9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d","digest":"1c3e5f7a9b0d2c4e6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e","kind":"publish","package":"acme/slug","repository":"https://git.example.com/acme/slug","v":1,"version":"1.2.1"}';
+string $publish130 = '{"commit":"0a1b2c3d4e5f60718293a4b5c6d7e8f901234567","digest":"5a5b5c5d5e5f60616263646566676869707172737475767778798081828384aa","kind":"publish","package":"acme/slug","repository":"https://git.example.com/acme/slug","v":1,"version":"1.3.0"}';
+
+// The honest next checkpoint. The log has 3 entries, and the first 2 are the same as before.
+string $honest = "packages.example.com\n3\nNTSqq/BLmLcCFXrv3XmM9dIjel6IEWfWFZMmRI6nTag=\n\n— packages.example.com zrltGlQWP0cAC/GaK+bFYKb466WuEEvLvS8pC9559qKU5rpNrWFqMLQxEZcJAOKQoEOx7vNToG9LiKVZzfDvi5gZPQ8=\n";
+
+// The rewritten log. It has no retraction, and the registry signed it with its real key.
+string $forked = "packages.example.com\n3\nhBjzlNzIE6xqlcmwV4dzEig0zSYCEneDmFZzMZNOGAE=\n\n— packages.example.com zrltGkNIiNPEbyrO8U18z/fzjkU7jr+eGO6ZmHFcZCYjWsfnQKiBp8egRdvdoePzs2F8hKT8FskJXgl3k+eJaliE5AY=\n";
+
+// The same rewritten log, signed by a key that is not the registry's key.
+string $stranger = "packages.example.com\n3\nhBjzlNzIE6xqlcmwV4dzEig0zSYCEneDmFZzMZNOGAE=\n\n— packages.example.com bxfBvvyk247iLByLpp/ctvVfiipQ6BukCZ1+RhZoz31M9kyNV6mOmU4LRruM7LfhKPHcH1FxPmSVtA61DNioVMZ3JgU=\n";
+
+// A checkpoint of a log with only 1 entry, signed with the registry's real key.
+string $shorter = "packages.example.com\n1\n5f7+zpYNaeKs6wrrb25Ca74c36mzUc/uY1QDhiRrWXA=\n\n— packages.example.com zrltGptaLeO+4vCNWUHDydZnUbA5JhijukhufEMFHS0ODaqeB903w+nUXmHFrBynbAY/5LN/B8EfWU8hiheILJ988gI=\n";
+// The checks a client runs on a checkpoint.
+class LogCheck {
+
+    // Reads the key. The first byte says it is an Ed25519 key, and the other 32 bytes are the key.
+    public static function readKey(string $verifier): Core\Crypto\PublicKey {
+        string $rest = Core\Str::after($verifier, '+') ?? '';
+        bytes $keyData = Core\Encoding::fromBase64(Core\Str::after($rest, '+') ?? '');
+        return Core\Crypto\PublicKey::read(
+            Core\Bytes::slice($keyData, 1),
+            Core\Crypto\KeyKind::Ed25519,
+            Core\Crypto\PublicKey::Format::Raw,
+        );
+    }
+
+    // Checks the signature of a note and returns the signed text.
+    // It throws an error when the note has no signature or the signature does not match.
+    public static function signedText(string $note, Core\Crypto\PublicKey $key): string {
+        string $text = (Core\Str::before($note, "\n\n") ?? '') . "\n";
+        ?string $line = Core\Str::after($note, "\n\n");
+        if ($line == null) {
+            throw new RuntimeError('the note has no signature');
+        }
+        array<string> $parts = Core\Str::split(Core\Str::trim($line), ' ');
+        if (Core\Arr::count($parts) != 3) {
+            throw new RuntimeError('the signature line has the wrong form');
+        }
+        bytes $signed = Core\Encoding::fromBase64($parts[2]);
+        Core\Crypto::verify($text as bytes, Core\Bytes::slice($signed, 4), $key);
+        return $text;
+    }
+
+    // Reads the number of entries from the second line of a checkpoint.
+    public static function readSize(string $text): int {
+        array<string> $lines = Core\Str::lines($text);
+        if (Core\Arr::count($lines) != 3) {
+            throw new RuntimeError('a checkpoint has 3 lines');
+        }
+        ?int $size = $lines[1] as ?int;
+        if ($size == null || $size < 1) {
+            throw new RuntimeError('the size is not a positive whole number');
+        }
+        return $size;
+    }
+
+    // Reads the root hash from the third line. A SHA-256 hash is always 32 bytes.
+    public static function readRoot(string $text): bytes {
+        bytes $root = Core\Encoding::fromBase64(Core\Str::lines($text)[2]);
+        if (Core\Bytes::length($root) != 32) {
+            throw new RuntimeError('the root hash is not 32 bytes');
+        }
+        return $root;
+    }
+
+    // The hash of one entry is SHA-256 of the byte 0x00 and then the entry.
+    public static function leafHash(string $entry): bytes {
+        return Core\Hash::of(Core\Bytes::join([Core\Encoding::fromHex('00'), $entry as bytes]), Core\Hash::Digest::Sha256);
+    }
+
+    // Two hashes are combined with SHA-256 of the byte 0x01, the left hash and the right hash.
+    public static function nodeHash(bytes $left, bytes $right): bytes {
+        return Core\Hash::of(Core\Bytes::join([Core\Encoding::fromHex('01'), $left, $right]), Core\Hash::Digest::Sha256);
+    }
+
+    // Computes the root hash of a list of entry hashes.
+    // The left part is the largest power of two that is smaller than the count.
+    public static function treeHash(array<bytes> $leaves): bytes {
+        int $count = Core\Arr::count($leaves) as int;
+        if ($count == 1) {
+            return $leaves[0];
+        }
+        int $split = 1;
+        while ($split * 2 < $count) {
+            $split = $split * 2;
+        }
+        array<bytes> $left = Core\Arr::values(Core\Arr::slice($leaves, 0, $split));
+        array<bytes> $right = Core\Arr::values(Core\Arr::slice($leaves, $split, null));
+        return LogCheck::nodeHash(LogCheck::treeHash($left), LogCheck::treeHash($right));
+    }
+
+    // Checks that the new log still has every entry of the kept log.
+    // The first entries of the new log must give the kept root hash again.
+    public static function checkContinues(string $keptText, string $newText, array<string> $entries): void {
+        int $keptSize = LogCheck::readSize($keptText);
+        bytes $keptRoot = LogCheck::readRoot($keptText);
+        int $newSize = LogCheck::readSize($newText);
+        bytes $newRoot = LogCheck::readRoot($newText);
+        if ($newSize < $keptSize) {
+            throw new RuntimeError('the new log is shorter than the kept one');
+        }
+        if (Core\Arr::count($entries) != $newSize) {
+            throw new RuntimeError('the number of entries is not the size of the log');
+        }
+        array<bytes> $leaves = [];
+        foreach ($entries as string $entry) {
+            $leaves[] = LogCheck::leafHash($entry);
+        }
+        array<bytes> $first = Core\Arr::values(Core\Arr::slice($leaves, 0, $keptSize));
+        if (!Core\Hash::equals(LogCheck::treeHash($first), $keptRoot)) {
+            throw new RuntimeError('the log was forked: its first entries changed');
+        }
+        if (!Core\Hash::equals(LogCheck::treeHash($leaves), $newRoot)) {
+            throw new RuntimeError('the entries do not give the signed root hash');
+        }
+    }
+}
+
+Core\Crypto\PublicKey $key = LogCheck::readKey($verifier);
+string $keptText = LogCheck::signedText($kept, $key);
+
+// 1. The registry sends the honest next checkpoint. This check passes.
+// Each step below catches its error, so the next step still runs.
+try {
+    LogCheck::checkContinues($keptText, LogCheck::signedText($honest, $key), [$publish120, $retract120, $publish121]);
+    echo "1. the honest log continues the kept one\n";
+} catch (Throwable $e) {
+    echo '1. the honest log was not accepted: ', $e->message, "\n";
+}
+
+// 2. The registry sends the rewritten log. Its signature is valid, but the first 2 entries changed.
+try {
+    LogCheck::checkContinues($keptText, LogCheck::signedText($forked, $key), [$publish120, $publish121, $publish130]);
+    echo "2. the rewritten log was accepted\n";
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. The rewritten text gets the signature line of the honest checkpoint.
+string $copied = (Core\Str::before($forked, "\n\n") ?? '') . "\n\n" . (Core\Str::after($honest, "\n\n") ?? '');
+try {
+    LogCheck::checkContinues($keptText, LogCheck::signedText($copied, $key), [$publish120, $publish121, $publish130]);
+    echo "3. the copied signature was accepted\n";
+} catch (Throwable $e) {
+    echo "3. stopped: the copied signature does not match the text\n";
+}
+
+// 4. The registry sends a real signed checkpoint with fewer entries than the kept one.
+try {
+    LogCheck::checkContinues($keptText, LogCheck::signedText($shorter, $key), [$publish120]);
+    echo "4. the shorter log was accepted\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The rewritten log is signed by another key.
+try {
+    LogCheck::checkContinues($keptText, LogCheck::signedText($stranger, $key), [$publish120, $publish121, $publish130]);
+    echo "5. the other key was accepted\n";
+} catch (Throwable $e) {
+    echo "5. stopped: the signature is not from the registry's key\n";
+}
+
+// 6. The signature line has a signature that is too short, and then one that is empty.
+array<string> $shortSignatures = ['zrltGg==', ''];
+foreach ($shortSignatures as string $bad) {
+    string $note = (Core\Str::before($honest, "\n\n") ?? '') . "\n\n— packages.example.com " . $bad . "\n";
+    try {
+        LogCheck::signedText($note, $key);
+        echo "6. the short signature was accepted\n";
+    } catch (Throwable $e) {
+        echo "6. stopped: the signature has ", Core\Bytes::length(Core\Encoding::fromBase64($bad)), " bytes\n";
+    }
+}
+
+// 7. The kept checkpoint on disk was changed. Each copy has a bad root hash, a bad size or a missing line.
+array<string> $damaged = [
+    "packages.example.com\n2\nnot base64!\n",
+    "packages.example.com\n2\n" . Core\Encoding::toBase64(Core\Bytes::fill(31, 0)) . "\n",
+    "packages.example.com\n2\n" . Core\Encoding::toBase64(Core\Bytes::fill(33, 0)) . "\n",
+    "packages.example.com\n-1\nBK/VChA5E6yTmz2hOByDDbDLgVzdjfdBsEx1VOT1B34=\n",
+    "packages.example.com\n2x\nBK/VChA5E6yTmz2hOByDDbDLgVzdjfdBsEx1VOT1B34=\n",
+    "packages.example.com\n99999999999999999999999\nBK/VChA5E6yTmz2hOByDDbDLgVzdjfdBsEx1VOT1B34=\n",
+    "packages.example.com\n2\n",
+];
+foreach ($damaged as string $bad) {
+    try {
+        LogCheck::checkContinues($bad, LogCheck::signedText($honest, $key), [$publish120, $retract120, $publish121]);
+        echo "7. the damaged checkpoint was accepted\n";
+    } catch (Throwable $e) {
+        echo '7. stopped: ', $e->message, "\n";
+    }
+}

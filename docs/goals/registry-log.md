@@ -41,7 +41,7 @@ stages:
         rules: [packaging/the-registry-keeps-an-append-only-log, packaging/a-vendor-resolves-from-one-registry, packaging/registry-hosting-is-configuration]
   - id: 4
     title: the log has its feature proofs, and its rule is shipped
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md]
   - id: 7
     title: the goal is verified once, and every failure is fixed
@@ -284,10 +284,10 @@ select from.
 examples `bun nv proofs --id 'tools:packages/the-transparency-log'` lists, then a second writes the
 attack. Both follow AGENTS.md § *Text an end user reads*.
 
-- [ ] The heading `# The transparency log` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-transparency-log/about.md:1`
-- [ ] The attacks: a registry serves a rewritten log to a client that saw the old one, and a file host marks a pending release as released. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`, `tests/hostile/tools/packages/the-transparency-log/02-a-changed-index.nvs:1`
-- [ ] The rule is `shipped` with the stage 1, 5, 2, 3 and 6 tests in its `guardedBy`, and `bun nv owners --closes registry-log` passes. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
+- [x] The heading `# The transparency log` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
+- [x] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-transparency-log/about.md:1`
+- [x] The attacks: a registry serves a rewritten log to a client that saw the old one, and a file host marks a pending release as released. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`, `tests/hostile/tools/packages/the-transparency-log/02-a-changed-index.nvs:1`
+- [x] The rule is `shipped` with the stage 1, 5, 2, 3 and 6 tests in its `guardedBy`, and `bun nv owners --closes registry-log` passes. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -306,37 +306,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2, 3 and 6 are done. Stage 6: every root file and index file is a signed note
-whose text is its JSON with `signed_at` and `checkpoint` (`index::sign`), and the hidden
-`nvs registry index sign <dir> --key <file> [--log <dir>] [--at <seconds>]` writes them
-(`crates/nvs-cli/src/registry.rs`). `Registries::registry` now needs the key, opens the root file
-with it (`Registry::open`), opens the log (`Seen::open`) and checks the root's checkpoint
-(`Seen::covers`). `Registry::index` checks each index file's signature, time (an hour ahead at
-most), checkpoint and, with `Registries::selecting`, the seven-day bound, and tries the next host.
-`minimum.rs` makes `add`, `update` and `outdated` selecting, and `fetch` is never selecting. The
-rules `a-package-is-its-digest`, `a-vendor-resolves-from-one-registry` and the log's own say so.
+Stages 1, 5, 2, 3, 6 and 4 are done. Stage 4: the heading `# The transparency log` is in
+`docs/reference/tools/35-packages.md`, with the `nvs registry` commands, the client's three checks
+and the seven-day bound, and the front matter names it. `about.md` and three examples read a
+checkpoint, check its Ed25519 signature with `Core\Crypto::verify` and recompute its RFC 6962
+root, from public artifacts the debug binary made. The two attacks are a forked log signed with
+the real key and a signed index file changed from `pending` to `released`, each with its edges.
+The five log tests in `package_client.rs` carry `// covers: tools:packages/the-transparency-log`.
+The rule is `shipped`, with no `goal`, guarded by `log.rs`, `note.rs`, `entry.rs`, `index.rs`,
+`tests/registry_log.rs` and `tests/package_client.rs`; its **Not on disk** line still holds.
+`bun nv rules --render` and `bun nv render --website` output is committed.
 
-Run once by name, all green: `package::` unit tests (72, four new), `--test package_fetch` (9),
-`--test package_download` (9), `--test package_client` (18, two new). `log.rs` and `note.rs`
-still keep `expect(dead_code)`, fulfilled: `Tile::parse` and `Verifier::id` are uncalled outside
-tests. Stage 4 removes them only if something calls them; otherwise they stay.
+Green: `bun nv proofs --gate --only tools:packages/the-transparency-log` (`log-proofs`),
+`bun nv owners --closes registry-log`, `bun nv proofs --run --id` (3 examples, 2 attacks),
+`bun nv rules --check`, build and clippy.
 
-The sweep's reds were stale again: the `env-secret-proofs` gate exits 0 when rerun, and the Miri
-reds are run 40474302703, which `c33a8b8f7` and `e461612ce` fixed.
+The sweep's reds were stale again: the `env-secret-proofs` log shows exit 0, and Miri run
+40474302703 is on `55b03e97a`, before `c33a8b8f7`, `e461612ce` and `22f1e4ec4`, which fixed its
+three failures.
 
-Expected red: none known. Any other test that writes an unsigned `registry.json` or index file and
-runs `nvs pkg` would go red. The three binary harnesses and `fixture.rs` are all the grep found.
+Expected red: none known. `log.rs` and `note.rs` keep `expect(dead_code)` for `Tile::parse` and
+`Verifier::id`, which only tests call.
 
 ### Next
 
-Stage 4, the feature proofs and the shipped rule, on `docs/reference/tools/35-packages.md`,
-`docs/examples/tools/packages/the-transparency-log/`, `tests/hostile/tools/packages/the-transparency-log/`
-and `data/rules/packaging/the-registry-keeps-an-append-only-log.json`. Follow the stage's
-**Split:** line. Run `bun nv proofs --id 'tools:packages/the-transparency-log'` first for what it owes.
-- [ ] The heading `# The transparency log`. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and the examples. `docs/examples/tools/packages/the-transparency-log/about.md:1`
-- [ ] The two attacks, a forked log and a changed index file. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`
-- [ ] The rule `shipped`, with the stage 1, 5, 2, 3 and 6 tests in `guardedBy`, and its **Not on disk** line checked. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
+Stage 7, the gate. Start `looper verify` with `run_in_background` and end the turn. Group its
+failures by cause, fix them in one pass and run it again. Then the goal-end gates of AGENTS.md
+§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes registry-log`, `bun nv ci --check`.
+- [ ] `bun nv affected --run` has run once, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
+- [ ] The second run is green, and the goal-end gates pass. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 

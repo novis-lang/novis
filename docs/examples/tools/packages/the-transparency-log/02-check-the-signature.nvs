@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to check that the registry signed a checkpoint, with the key from `[registries]`.
+
+// This is the `key` of the registry's line under `[registries]`.
+// It has three parts with `+` between them: a name, a key ID and the key.
+string $verifier = 'packages.example.com+7c8e0395+AdI9LCNTrrOfcKeXBgtjwYWKNj5z3Dw/iKWTMHw10TkL';
+string $rest = Core\Str::after($verifier, '+') ?? '';
+string $keyId = Core\Str::before($rest, '+') ?? '';
+bytes $keyData = Core\Encoding::fromBase64(Core\Str::after($rest, '+') ?? '');
+
+// The first byte says that this is an Ed25519 key. The other 32 bytes are the key.
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    Core\Bytes::slice($keyData, 1),
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\PublicKey::Format::Raw,
+);
+
+// The signed text is everything before the empty line, with its last newline.
+string $note = Core\IO::read('./checkpoint');
+string $text = (Core\Str::before($note, "\n\n") ?? '') . "\n";
+
+// The signature line has three parts with a space between them. They are a long dash,
+// the name of the signer and the signature in base64.
+string $line = Core\Str::trim(Core\Str::after($note, "\n\n") ?? '');
+bytes $signed = Core\Encoding::fromBase64(Core\Str::split($line, ' ')[2]);
+
+// The first 4 bytes are the key ID. This prints `true`.
+bool $sameId = Core\Encoding::toHex(Core\Bytes::slice($signed, 0, 4)) == $keyId;
+echo 'same key ID: ', $sameId ? 'true' : 'false', "\n";
+
+// The other 64 bytes are the signature. `verify` throws an error when it does not match.
+Core\Crypto::verify($text as bytes, Core\Bytes::slice($signed, 4), $key);
+echo 'the registry signed this checkpoint', "\n";
+
+// This text says the log has 1 entry. The registry did not sign it, so the check fails.
+string $changed = Core\Str::replace($text, "\n2\n", "\n1\n");
+try {
+    Core\Crypto::verify($changed as bytes, Core\Bytes::slice($signed, 4), $key);
+    echo 'the changed checkpoint passed', "\n";
+} catch (Throwable $e) {
+    echo 'the changed checkpoint does not match the signature', "\n";
+}

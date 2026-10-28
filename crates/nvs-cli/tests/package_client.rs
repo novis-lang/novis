@@ -568,6 +568,7 @@ fn shown(out: &Output) -> String {
 
 /// An index line whose log record publishes another digest is not fetched, even though its
 /// archive is on the host and matches the index.
+// covers: tools:packages/the-transparency-log
 #[test]
 fn an_archive_absent_from_the_log_is_refused() {
     let logged = Logged::new("package-client-log-absent");
@@ -594,6 +595,7 @@ fn an_archive_absent_from_the_log_is_refused() {
 
 /// A registry whose log no longer continues the checkpoint this computer kept is refused as
 /// forked, and nothing is fetched from it.
+// covers: tools:packages/the-transparency-log
 #[test]
 fn a_forked_log_is_refused() {
     let logged = Logged::new("package-client-log-forked");
@@ -619,6 +621,7 @@ fn a_forked_log_is_refused() {
 
 /// An index file signed eight days ago is not used by `nvs pkg add`, which names the registry
 /// and the time, and `nvs pkg fetch --locked` still builds from the lock with it.
+// covers: tools:packages/the-transparency-log
 #[test]
 fn an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch() {
     let logged = Logged::new("package-client-index-old");
@@ -646,6 +649,7 @@ fn an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch() {
 }
 
 /// An index file with no signature is not used, and nothing is fetched.
+// covers: tools:packages/the-transparency-log
 #[test]
 fn an_unsigned_index_file_is_refused() {
     let logged = Logged::new("package-client-index-unsigned");
@@ -671,6 +675,7 @@ fn an_unsigned_index_file_is_refused() {
 }
 
 /// A log that only grew since the kept checkpoint is accepted, and its new version is fetched.
+// covers: tools:packages/the-transparency-log
 #[test]
 fn a_log_that_grew_is_accepted() {
     let logged = Logged::new("package-client-log-grew");

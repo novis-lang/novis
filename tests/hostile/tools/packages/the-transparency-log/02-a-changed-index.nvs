@@ -1,0 +1,123 @@
+<?nvs
+// Attack: a file host changes a signed index file and keeps the registry's signature.
+// It also sends old copies, copies from the future and copies with no signature. Every step below should be stopped.
+
+// The registry's public key, as it is written under `[registries]`.
+string $verifier = 'packages.example.com+ceb96d1a+AYoaRb74N7Kj2MuZSj38KBDVjpz/weG/Lk+F8wJ51YRF';
+
+// The time of the check, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+// The index file of one package, signed by the registry 10 minutes before the check.
+string $fresh = '{"checkpoint":{"root":"NTSqq/BLmLcCFXrv3XmM9dIjel6IEWfWFZMmRI6nTag=","size":3},"name":"Acme\\\\Slug","owners":["acme"],"schema":1,"signed_at":1793000000,"versions":[{"capabilities":{"optional":[],"required":[]},"commit":"4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e","dependencies":{},"digest":"ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75","log":0,"repository":"https://git.example.com/acme/slug","state":"pending","version":"1.2.0"}]}'
+    . "\n\n— packages.example.com zrltGkQ5MC/tugJPVOQdLoDWr5TiKS29jt5n1oGKx2NuvCxFy6n4v3k9WHB+B/8DbKq5XYRK2mIcX16MddrEDZg9ngs=\n";
+
+// The same file, signed by the registry 8 days earlier.
+string $old = '{"checkpoint":{"root":"NTSqq/BLmLcCFXrv3XmM9dIjel6IEWfWFZMmRI6nTag=","size":3},"name":"Acme\\\\Slug","owners":["acme"],"schema":1,"signed_at":1792308800,"versions":[{"capabilities":{"optional":[],"required":[]},"commit":"4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e","dependencies":{},"digest":"ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75","log":0,"repository":"https://git.example.com/acme/slug","state":"pending","version":"1.2.0"}]}'
+    . "\n\n— packages.example.com zrltGvXX09ANYfAmfnx4IedNWxKHL9QOdxZMeloGDfmyjoMGYVbvz4THdv0BBl4CeI4151XJDVfDA+TftjsinneujQQ=\n";
+
+// The same file, signed with a time 2 hours after the check.
+string $future = '{"checkpoint":{"root":"NTSqq/BLmLcCFXrv3XmM9dIjel6IEWfWFZMmRI6nTag=","size":3},"name":"Acme\\\\Slug","owners":["acme"],"schema":1,"signed_at":1793007200,"versions":[{"capabilities":{"optional":[],"required":[]},"commit":"4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e","dependencies":{},"digest":"ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75","log":0,"repository":"https://git.example.com/acme/slug","state":"pending","version":"1.2.0"}]}'
+    . "\n\n— packages.example.com zrltGsY4Z3kR9VE6MEbkBOmKe+/TiK2dHGk4XP6LtlkyRVj5wA0Cikw58Rw6gUfpIS+evtKCiysJtOT6gVfMnfU7ow4=\n";
+
+// The checks a client runs on a signed index file.
+class IndexCheck {
+    // Reads the key. The first byte says it is an Ed25519 key, and the other 32 bytes are the key.
+    public static function readKey(string $verifier): Core\Crypto\PublicKey {
+        string $rest = Core\Str::after($verifier, '+') ?? '';
+        bytes $keyData = Core\Encoding::fromBase64(Core\Str::after($rest, '+') ?? '');
+        return Core\Crypto\PublicKey::read(
+            Core\Bytes::slice($keyData, 1),
+            Core\Crypto\KeyKind::Ed25519,
+            Core\Crypto\PublicKey::Format::Raw,
+        );
+    }
+
+    // Checks the signature and the time of a signed index file, and returns the time it was signed.
+    // `$choosesVersions` is true for `nvs pkg add`, `update` and `outdated`. They need a file from the last 7 days.
+    public static function check(string $note, Core\Crypto\PublicKey $key, int $now, bool $choosesVersions): int {
+        ?string $line = Core\Str::after($note, "\n\n");
+        if ($line == null || Core\Str::trim($line) == '') {
+            throw new RuntimeError('the file has no signature');
+        }
+        array<string> $parts = Core\Str::split(Core\Str::trim($line), ' ');
+        if (Core\Arr::count($parts) != 3) {
+            throw new RuntimeError('the signature line has the wrong form');
+        }
+        string $text = (Core\Str::before($note, "\n\n") ?? '') . "\n";
+        bytes $signed = Core\Encoding::fromBase64($parts[2]);
+        Core\Crypto::verify($text as bytes, Core\Bytes::slice($signed, 4), $key);
+
+        var $file = Core\Json::decode($text) as array<mixed>;
+        ?int $signedAt = $file['signed_at'] as ?int;
+        if ($signedAt == null) {
+            throw new RuntimeError('the file has no time of signing');
+        }
+        if ($signedAt > $now + 3600) {
+            throw new RuntimeError('the file was signed more than an hour in the future');
+        }
+        if ($choosesVersions && $signedAt < $now - 7 * 86400) {
+            throw new RuntimeError('the file is older than 7 days');
+        }
+        return $signedAt;
+    }
+}
+
+Core\Crypto\PublicKey $key = IndexCheck::readKey($verifier);
+
+// 1. The file host sends the file as the registry signed it. This check passes.
+// Each step below catches its error, so the next step still runs.
+try {
+    IndexCheck::check($fresh, $key, $now, true);
+    echo "1. the signed file is accepted\n";
+} catch (Throwable $e) {
+    echo '1. the signed file was not accepted: ', $e->message, "\n";
+}
+
+// 2. The file host changes the state of version 1.2.0 from `pending` to `released`.
+string $released = Core\Str::replace($fresh, '"state":"pending"', '"state":"released"');
+try {
+    IndexCheck::check($released, $key, $now, true);
+    echo "2. the changed file was accepted\n";
+} catch (Throwable $e) {
+    echo "2. stopped: the changed text does not match the signature\n";
+}
+
+// 3. The file host sends the copy from 8 days ago. Its signature is valid.
+try {
+    IndexCheck::check($old, $key, $now, true);
+    echo "3. the old file was accepted\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. The file host changes the time in the old copy to a recent time.
+string $renewed = Core\Str::replace($old, '"signed_at":1792308800', '"signed_at":1793000000');
+try {
+    IndexCheck::check($renewed, $key, $now, true);
+    echo "4. the old file with a new time was accepted\n";
+} catch (Throwable $e) {
+    echo "4. stopped: the new time does not match the signature\n";
+}
+
+// 5. The file host sends a copy signed 2 hours in the future.
+try {
+    IndexCheck::check($future, $key, $now, false);
+    echo "5. the file from the future was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+// 6. The file host removes the signature line, and then the empty line before it too.
+array<string> $unsigned = [
+    (Core\Str::before($released, "\n\n") ?? '') . "\n\n",
+    (Core\Str::before($released, "\n\n") ?? '') . "\n",
+];
+foreach ($unsigned as string $note) {
+    try {
+        IndexCheck::check($note, $key, $now, true);
+        echo "6. the file with no signature was accepted\n";
+    } catch (Throwable $e) {
+        echo '6. stopped: ', $e->message, "\n";
+    }
+}

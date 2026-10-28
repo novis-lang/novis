@@ -1,8 +1,8 @@
 ---
 id: packages
 title: "Packages: grants, package.toml, adding, fetching, updating and packing packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
-keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, and `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions
+keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -438,6 +438,58 @@ When no URL of a file works, get the file in another way. Then run `nvs pkg prov
 
 `nvs pkg provide` adds the file to the cache only when its size and its hash match a file that a
 package in `package.lock` lists.
+
+<!-- src: `rule:packaging/the-registry-keeps-an-append-only-log` -->
+
+# The transparency log
+
+    nvs registry key <file> --name <name>
+    nvs registry log append <dir> --key <file> --origin <name>
+    nvs registry log verify <dir>
+    nvs registry index sign <dir> --key <file> [--log <dir>] [--at <seconds>]
+
+A registry keeps a log of every change it makes. Each publish, retraction, withhold, unlist and
+change of owner is one entry. An entry is never changed or removed, so the log only grows. The log
+uses the C2SP formats `tlog-tiles` and `signed-note`, which other transparency logs also use.
+
+A checkpoint is the signed summary of the log. It has the log's name, its number of entries and a
+SHA-256 hash of all the entries:
+
+```text
+packages.example.com
+2
+ivAZfe0T7wcstVA1V/8iXOr5+LHx+fw6Zb25ASoaPxU=
+
+— packages.example.com fI4DleVohE11yxi/MdYzFqIELlvHFJqbjAVI3m1yHkn8Bk16LjuP/DWSeKcUgFTsIsrHIUvEb7l8TV2h7+phl5tdMAc=
+```
+
+The last line is an Ed25519 signature. The `key` of the registry's line under `[registries]` is the
+public key that checks it. `nvs pkg` never takes the key from the registry itself.
+
+Every `nvs pkg` command that reads a registry does these checks:
+
+- **The log continues the one it saw last time.** `nvs pkg` keeps the newest checkpoint of each
+  registry in the Novis data folder. A new checkpoint must contain every entry of the kept one.
+  When it does not, the registry changed its history. `nvs pkg` stops with an error that says the
+  log was forked, and it fetches nothing.
+- **Each archive is in the log.** Each version in an index file names its publish entry. The entry
+  must have the same package, version, digest, repository and commit. An archive that is not in
+  the log is not used.
+- **Each index file is signed.** `registry.json` and each package's index file are signed with
+  the same key. Each one has the time it was signed and the checkpoint it was signed with. A file
+  with a wrong signature, or a time more than an hour in the future, is not used. `nvs pkg` then
+  tries the next file host.
+
+`nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` also need an index file signed in the last
+seven days. They choose versions, and an old file could hide a newer release or a retraction. A
+build from `package.lock` and `nvs pkg fetch --locked` choose nothing, so they still work when the
+registry is down.
+
+The `nvs registry` commands are for the people who run a registry. `nvs registry key` makes the
+signing key and prints the public key for `[registries]`. `nvs registry log append` reads one JSON
+entry per line and signs a new checkpoint. If one entry is wrong, it adds nothing.
+`nvs registry log verify` checks every file of a log from the start. `nvs registry index sign` signs
+`registry.json` and every index file again. Run it at least once a day.
 
 # nvs pkg api and nvs pkg diff
 

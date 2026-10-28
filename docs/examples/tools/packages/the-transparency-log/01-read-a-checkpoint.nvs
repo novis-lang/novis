@@ -1,0 +1,17 @@
+<?nvs
+// Shows a program reading a checkpoint, the signed summary of a registry's log.
+
+string $note = Core\IO::read('./checkpoint');
+
+// The text ends at the first empty line. The signature comes after it.
+string $text = Core\Str::before($note, "\n\n") ?? '';
+array<string> $lines = Core\Str::lines($text);
+
+// The text has three lines: the name of the log, the number of entries and the root hash.
+echo 'log: ', $lines[0], "\n";
+echo 'entries: ', $lines[1], "\n";
+
+// The root hash is a SHA-256 hash of all the entries, written in base64.
+// This prints its 32 bytes as hex.
+bytes $root = Core\Encoding::fromBase64($lines[2]);
+echo 'root hash: ', Core\Encoding::toHex($root), "\n";

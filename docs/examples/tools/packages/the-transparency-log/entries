@@ -1,0 +1,2 @@
+{"commit":"4f2a9c0e1b7d3a5f6e8c9b0a1d2e3f4a5b6c7d8e","digest":"ad5fbbc3700675923bf1fcd46f4c46775db50fe76f05385b9d40782b75447d75","kind":"publish","package":"acme/slug","repository":"https://git.example.com/acme/slug","v":1,"version":"1.2.0"}
+{"kind":"retract","package":"acme/slug","reason":"wrong output","v":1,"version":"1.1.0"}

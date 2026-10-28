@@ -3,7 +3,7 @@
 
 # Packaging
 
-*14 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -993,14 +993,20 @@ deliberate change to every package's identity.
 **The registry's files have one schema**, which the client defines
 (`crates/nvs-cli/src/package/index.rs`) and the registry's service writes. Each file carries
 `"schema": 1`, and a client refuses a schema it does not read, and every key it does not know. The
-registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
+root file and each index file are signed notes whose text is the JSON on one line, with
+`signed_at`, a Unix time, and `checkpoint`, the `size` and base64 `root` of the log it was signed
+with ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)). The registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
 them ([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)); with no `hosts`, the files are under the
 registry's URL. Under each file host:
 
 - **`index/<vendor>/<name>.json`**, named by the package's slug, holds `name` (the namespace),
   `owners`, and `versions`. Each version has `version`, `digest` (64 lowercase hex digits),
   `state`, `dependencies` (each namespace to its minimum), `capabilities` (`required` and
-  `optional`), and the `repository` and `commit` the registry built it from.
+  `optional`), the `repository` and `commit` the registry built it from, and `log`, the number of
+  the record in the registry's log that publishes it
+  ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)).
+- **`log/`** is the registry's transparency log in C2SP tlog-tiles: `log/checkpoint` and
+  `log/tile/...`.
 - **`state`** is `"released"`, `"unlisted"`, `{"pending": {"selectable_at": <Unix seconds>}}`,
   `{"retracted": {"reason": ..., "fixed_in": <version or null>}}` or
   `{"withheld": {"reason": ...}}`.
@@ -1008,7 +1014,9 @@ registry's URL. Under each file host:
   answer or when the bytes it serves do not have the digest.
 
 ```json
-{"schema": 1, "hosts": ["https://files.example.com"]}
+{"schema": 1, "hosts": ["https://files.example.com"], "signed_at": 1793000000, "checkpoint": {"size": 42, "root": "<base64>"}}
+
+— registry.example.com <base64 signature>
 ```
 
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
@@ -1413,8 +1421,6 @@ registries in order would make the first one that answers the owner of every nam
 
 The client resolves each vendor from its one registry (`crates/nvs-cli/src/package/resolve.rs`), and
 `nvs pkg add` and `nvs pkg update` print the report (`crates/nvs-cli/src/package/report.rs`).
-
-**Not on disk.** The verifier key is read and not checked yet.
 
 <sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
@@ -2087,7 +2093,7 @@ until then (`crates/nvs-cli/src/package/minimum.rs`).
 
 <a id="packaging-the-registry-keeps-an-append-only-log"></a>
 
-## The registry keeps an append-only C2SP transparency log of every event it acts on, and a client verifies inclusion and consistency before using an archive  *(designed — owned by goal registry-log)*
+## The registry keeps an append-only C2SP transparency log of every event it acts on, and a client verifies inclusion and consistency before using an archive
 
 `rule:packaging/the-registry-keeps-an-append-only-log`
 
@@ -2149,8 +2155,10 @@ what it said.
 **Outside witnesses can co-sign checkpoints later with no format change**, and none are required now.
 The C2SP formats are what make that true, and they are what other transparency logs already speak.
 
-The byte work is `nvs registry log append` and `nvs registry log verify`, the commands the service calls
-([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)).
+The byte work is `nvs registry log append`, `nvs registry log verify` and `nvs registry index sign`,
+the commands the service calls ([`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program)). The client's
+checks are `crates/nvs-cli/src/package/proof.rs` for the log and
+`crates/nvs-cli/src/package/index.rs` for the signed files.
 
 **Memory:** a stored checkpoint and the last root file are a few hundred bytes per registry. A fetch
 holds one inclusion proof per archive and one consistency proof per checkpoint while it runs. The
@@ -2184,7 +2192,9 @@ module and of C2SP's and Go's tile paths, vendored under `crates/nvs-cli/tests/f
 The cost is that this tree owns the code for as long as the log exists. The risk is bounded: a
 proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every other verifier.
 
-**Not on disk.** There is no registry, no signed checkpoint, and no command that appends to the log.
+**Not on disk.** There is no registry service to run the commands, the default registry has no
+verifier key yet, so nothing is read from it, and `nvs pkg audit` does not compare a second copy of
+the checkpoint.
 
 <sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 

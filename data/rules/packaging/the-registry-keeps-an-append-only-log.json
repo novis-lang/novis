@@ -1,6 +1,6 @@
 {
   "title": "The registry keeps an append-only C2SP transparency log of every event it acts on, and a client verifies inclusion and consistency before using an archive",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/the-lockfile-holds-every-digest",
     "packaging/a-known-bad-version-is-retracted-not-deleted",
@@ -10,6 +10,12 @@
     "packaging/a-vendor-resolves-from-one-registry",
     "config/ownership-is-the-trust-boundary"
   ],
-  "guardedBy": [],
-  "goal": "registry-log"
+  "guardedBy": [
+    "crates/nvs-cli/src/package/log.rs",
+    "crates/nvs-cli/src/package/note.rs",
+    "crates/nvs-cli/src/package/entry.rs",
+    "crates/nvs-cli/src/package/index.rs",
+    "crates/nvs-cli/tests/registry_log.rs",
+    "crates/nvs-cli/tests/package_client.rs"
+  ]
 }
