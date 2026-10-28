@@ -249,6 +249,7 @@ fn every_reader_queries_the_one_index() {
                 "overridden",
                 "overriders",
                 "queries_in",
+                "parses",
             ],
         ),
         (

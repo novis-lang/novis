@@ -420,8 +420,8 @@ top once it answers, correcting the places only a parse can decide — which of 
 names is a class, which is a parameter, which value carries `secret`.
 
 Both layers ship *names*, never colours. Every scope is a standard TextMate name suffixed `.nvs`,
-every token type is one of LSP's own, and the extension contributes no theme and no colour
-customization of any kind. Your theme keeps its opinions about what a keyword looks like. The two
+every token type is one of LSP's own, and the extension changes no colour unless you ask it to.
+Your theme keeps its opinions about what a keyword looks like. The two
 modifiers Novis adds are not in LSP's legend and cannot be, so a theme that has never heard of
 `tainted` styles the token underneath it — the value is coloured as the variable it is, rather than
 as nothing.
@@ -429,6 +429,10 @@ as nothing.
 The extension turns on semantic highlighting for `.nvs` files. Some themes turn it off, and then the
 editor ignores every token the server sends. Your theme still picks each colour. To turn it off, set
 `"editor.semanticHighlighting.enabled": false` inside `"[nvs]"` in your settings.
+
+Some themes give class names and methods almost the same colour. You can fix that in two ways. The
+extension has two colour themes, **Novis Dark** and **Novis Light**, and you can pick one. Or you can
+turn on `nvs.highlighting.distinctNames`, which keeps your theme and adds two colours for these names.
 
 ## The settings it contributes
 
@@ -445,13 +449,14 @@ editor ignores every token the server sends. Your theme still picks each colour.
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.ast.enable` | `false` | whether the Explorer shows the **Novis AST** panel, and the command palette shows **Novis: Show AST** |
 | `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
+| `nvs.highlighting.distinctNames` | `false` | gives class names and methods two different colours in `.nvs` files, and keeps your colour theme. On adds colour rules for the current theme to `editor.semanticTokenColorCustomizations` in your user settings. Off removes the rules you did not change |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`,
-`nvs.template.format` and `nvs.ast.enable` are the client's own and take effect on the next redraw, request or save,
+`nvs.template.format`, `nvs.ast.enable` and `nvs.highlighting.distinctNames` are the client's own and take effect on the next redraw, request or save,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
 `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.lsp.debounce` are read by the server. When you
@@ -474,6 +479,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |
 | `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view. The panel and this command are off until you turn on `nvs.ast.enable` |
 | `nvs.viewProfile` | View Profile | opens a speedscope profile, such as one from `nvs run --profile=speedscope`, in a viewer inside the editor. The profile stays on your computer |
+| `nvs.useNovisTheme` | Use Novis Colour Theme | switches to **Novis Dark** or **Novis Light**, the one that matches your current theme's light or dark kind |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
 

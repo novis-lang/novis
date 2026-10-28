@@ -1762,6 +1762,19 @@
     },
     {
       "area": "types",
+      "slug": "passkey-credential-algorithm",
+      "url": "/reference/types/passkey-credential-algorithm/",
+      "title": "Core\\Passkey\\Credential::Algorithm",
+      "group": "Enums",
+      "intro": {
+        "id": "Core\\Passkey\\Credential::Algorithm",
+        "title": "Core\\Passkey\\Credential::Algorithm",
+        "examples": "types/Passkey-Credential-Algorithm"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "queue-state",
       "url": "/reference/types/queue-state/",
       "title": "Core\\Queue::State",

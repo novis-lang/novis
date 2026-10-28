@@ -148,6 +148,8 @@ Conventions the whole file uses:
 | [`Core\SignedCookie`](#core-core-signedcookie) |  |
 | [`Core\Csrf`](#core-core-csrf) |  |
 | [`Core\Totp`](#core-core-totp) |  |
+| [`Core\Passkey`](#core-core-passkey) |  |
+| [`Core\Passkey\Credential`](#core-core-passkey-credential) |  |
 | [`Core\Jwt`](#core-core-jwt) |  |
 | [`Core\Jwt\KeySet`](#core-core-jwt-keyset) |  |
 | [`Core\Jwe`](#core-core-jwe) |  |
@@ -45369,6 +45371,191 @@ Tests a code that a user typed. It accepts the code of the current 30-second ste
 
 **Throws** `LogicError` — `$secret` is shorter than 16 bytes, or the clock is outside the range of dates a code can have.
 
+<a id="core-core-passkey"></a>
+### `Core\Passkey`
+
+Keywords: registerOptions, verifyRegistration, signInOptions, credentialId, verifySignIn
+
+| Member | Signature |
+|---|---|
+| [`Core\Passkey::registerOptions`](#core-core-passkey-registeroptions) | `registerOptions(string $rpId, string $rpName, bytes $userId, string $userName, array<Core\Passkey\Credential> $existing = []): string` |
+| [`Core\Passkey::verifyRegistration`](#core-core-passkey-verifyregistration) | `verifyRegistration(string $response, string $rpId, string $origin): Core\Passkey\Credential` |
+| [`Core\Passkey::signInOptions`](#core-core-passkey-signinoptions) | `signInOptions(string $rpId, array<Core\Passkey\Credential> $allowed = []): string` |
+| [`Core\Passkey::credentialId`](#core-core-passkey-credentialid) | `credentialId(string $response): bytes` |
+| [`Core\Passkey::verifySignIn`](#core-core-passkey-verifysignin) | `verifySignIn(string $response, Core\Passkey\Credential $stored, string $rpId, string $origin): Core\Passkey\Credential` |
+
+<a id="core-core-passkey-registeroptions"></a>
+#### `Core\Passkey::registerOptions`
+
+```nvs skip
+Core\Passkey::registerOptions(string $rpId, string $rpName, bytes $userId, string $userName, array<Core\Passkey\Credential> $existing = []): string
+```
+
+Returns the options for `navigator.credentials.create()` as JSON. The options contain a new random challenge. The challenge is saved in the session, so call `Core\Session::start()` first.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$rpId` | `string` | The domain of your site, such as `example.com`. The passkey works only on this domain and its subdomains. |
+| `$rpName` | `string` | The name of your site. The browser shows it to the user. |
+| `$userId` | `bytes` | A unique id for the account, from 1 to 64 bytes. Do not use an email address or a name. `Core\Random::bytes(16)` makes a good id. |
+| `$userName` | `string` | The name the user signs in with, such as an email address. The browser shows it in its list of passkeys. |
+| `$existing` | `array<Core\Passkey\Credential>` (default `[]`) | The passkeys this account already has. A device that has one of them does not create a second one. |
+
+**Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseCreationOptionsFromJSON()`, and pass the result to `navigator.credentials.create()`.
+
+**Throws** `RuntimeError` — The request has not started a session.; `LogicError` — `$rpId` is empty, or `$userId` is empty or longer than 64 bytes.
+
+<a id="core-core-passkey-verifyregistration"></a>
+#### `Core\Passkey::verifyRegistration`
+
+```nvs skip
+Core\Passkey::verifyRegistration(string $response, string $rpId, string $origin): Core\Passkey\Credential
+```
+
+Checks the browser's answer to `registerOptions` and returns the new passkey. Save the passkey with the account. A challenge can be checked only once, so a second call with the same answer throws an error.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$response` | `string` (neutral) | The credential that `navigator.credentials.create()` returned, as JSON. In the browser, `JSON.stringify(credential)` makes it. |
+| `$rpId` | `string` (neutral) | The same domain that you passed to `registerOptions`. |
+| `$origin` | `string` (neutral) | The address of your site in the browser, such as `https://example.com`. The answer must name exactly this origin. |
+
+**Returns** `Core\Passkey\Credential` — The new passkey, with its id, its public key, its algorithm and its sign counter.
+
+**Throws** `RuntimeError` — The request has not started a session, no registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws.
+
+<a id="core-core-passkey-signinoptions"></a>
+#### `Core\Passkey::signInOptions`
+
+```nvs skip
+Core\Passkey::signInOptions(string $rpId, array<Core\Passkey\Credential> $allowed = []): string
+```
+
+Returns the options for `navigator.credentials.get()` as JSON. The options contain a new random challenge. The challenge is saved in the session, so call `Core\Session::start()` first.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$rpId` | `string` | The domain of your site, such as `example.com`. Use the same domain as for `registerOptions`. |
+| `$allowed` | `array<Core\Passkey\Credential>` (default `[]`) | The passkeys of the account that signs in. Leave it empty when you do not know the account yet. The browser then shows every passkey it has for your site. |
+
+**Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseRequestOptionsFromJSON()`, and pass the result to `navigator.credentials.get()`.
+
+**Throws** `RuntimeError` — The request has not started a session.; `LogicError` — `$rpId` is empty.
+
+<a id="core-core-passkey-credentialid"></a>
+#### `Core\Passkey::credentialId`
+
+```nvs skip
+Core\Passkey::credentialId(string $response): bytes
+```
+
+Returns the passkey id in the browser's answer to `signInOptions`. Use it to find the saved passkey. The id is not checked yet, so the result is `tainted`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$response` | `string` | The credential that `navigator.credentials.get()` returned, as JSON. In the browser, `JSON.stringify(credential)` makes it. |
+
+**Returns** `bytes` — The passkey id, from 1 to 1023 bytes.
+
+**Throws** `RuntimeError` — The answer is not JSON or is longer than 64 KB. It is also thrown when the `id` is missing, is not base64url or is too long.
+
+<a id="core-core-passkey-verifysignin"></a>
+#### `Core\Passkey::verifySignIn`
+
+```nvs skip
+Core\Passkey::verifySignIn(string $response, Core\Passkey\Credential $stored, string $rpId, string $origin): Core\Passkey\Credential
+```
+
+Checks the browser's answer to `signInOptions` against the saved passkey. It returns the passkey with its new sign counter. Save it again. A challenge can be checked only once, so a second call with the same answer throws an error.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$response` | `string` (neutral) | The credential that `navigator.credentials.get()` returned, as JSON. |
+| `$stored` | `Core\Passkey\Credential` | The saved passkey with the id that `credentialId` returned. |
+| `$rpId` | `string` (neutral) | The same domain that you passed to `signInOptions`. |
+| `$origin` | `string` (neutral) | The address of your site in the browser, such as `https://example.com`. The answer must name exactly this origin. |
+
+**Returns** `Core\Passkey\Credential` — The passkey with its new sign counter.
+
+**Throws** `RuntimeError` — The request has not started a session, no sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws.
+
+<a id="core-core-passkey-credential"></a>
+### `Core\Passkey\Credential`
+
+Keywords: of, id, publicKey, algorithm, signCount
+
+| Member | Signature |
+|---|---|
+| [`Core\Passkey\Credential::of`](#core-core-passkey-credential-of) | `of(bytes $id, bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm, int $signCount): Core\Passkey\Credential` |
+| [`Core\Passkey\Credential->id`](#core-core-passkey-credential-id) | `id(): bytes` |
+| [`Core\Passkey\Credential->publicKey`](#core-core-passkey-credential-publickey) | `publicKey(): bytes` |
+| [`Core\Passkey\Credential->algorithm`](#core-core-passkey-credential-algorithm) | `algorithm(): Core\Passkey\Credential::Algorithm` |
+| [`Core\Passkey\Credential->signCount`](#core-core-passkey-credential-signcount) | `signCount(): int` |
+
+<a id="core-core-passkey-credential-of"></a>
+#### `Core\Passkey\Credential::of`
+
+```nvs skip
+Core\Passkey\Credential::of(bytes $id, bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm, int $signCount): Core\Passkey\Credential
+```
+
+Creates a passkey from the four values that you saved. The public key is checked against the algorithm.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$id` | `bytes` (neutral) | The value that `id()` returned. |
+| `$publicKey` | `bytes` (neutral) | The value that `publicKey()` returned. |
+| `$algorithm` | `Core\Passkey\Credential::Algorithm` | The value that `algorithm()` returned. |
+| `$signCount` | `int` | The value that `signCount()` returned. |
+
+**Returns** `Core\Passkey\Credential` — The passkey.
+
+**Throws** `LogicError` — `$publicKey` is not a key of `$algorithm`, or `$id` is empty or longer than 1023 bytes. It is also thrown when `$signCount` is below 0 or above 4294967295.
+
+<a id="core-core-passkey-credential-id"></a>
+#### `Core\Passkey\Credential->id`
+
+```nvs skip
+$credential->id(): bytes
+```
+
+Returns the id of the passkey. The browser sends this id when the user signs in.
+
+**Returns** `bytes` — From 1 to 1023 bytes.
+
+<a id="core-core-passkey-credential-publickey"></a>
+#### `Core\Passkey\Credential->publicKey`
+
+```nvs skip
+$credential->publicKey(): bytes
+```
+
+Returns the public key of the passkey, in the COSE format that WebAuthn uses.
+
+**Returns** `bytes` — The key as bytes. Save them unchanged.
+
+<a id="core-core-passkey-credential-algorithm"></a>
+#### `Core\Passkey\Credential->algorithm`
+
+```nvs skip
+$credential->algorithm(): Core\Passkey\Credential::Algorithm
+```
+
+Returns the signature algorithm of the passkey.
+
+**Returns** `Core\Passkey\Credential::Algorithm` — `ES256` or `Ed25519`.
+
+<a id="core-core-passkey-credential-signcount"></a>
+#### `Core\Passkey\Credential->signCount`
+
+```nvs skip
+$credential->signCount(): int
+```
+
+Returns the sign counter of the passkey. Some devices count every sign-in. Many devices always send `0`.
+
+**Returns** `int` — A whole number from 0 to 4294967295.
+
 <a id="core-core-jwt"></a>
 ### `Core\Jwt`
 
@@ -55056,6 +55243,16 @@ The encoding that a public key is read from or written to. The three cases are t
 | `Core\Crypto\PublicKey::Format::Spki` | DER `SubjectPublicKeyInfo`: the key together with the identifier of its algorithm. Every kind has this form. A certificate and a `.pem` public key use it. An RSA key can be read and written in this format and in `Jwk`, and in no other. |
 | `Core\Crypto\PublicKey::Format::Jwk` | A JSON Web Key, as UTF-8 JSON bytes. A read accepts what a browser exports, including `ext` and `key_ops`. A key with `d` throws an error, because `d` makes it a private key, and a private key given as a public key is a bug. A write gives the fields that RFC 7638 requires, sorted. A thumbprint is computed over this form. |
 
+<a id="enum-core-passkey-credential-algorithm"></a>
+#### `Core\Passkey\Credential::Algorithm`
+
+The signature algorithm of a passkey. A passkey with another algorithm cannot be registered.
+
+| Case | Meaning |
+|---|---|
+| `Core\Passkey\Credential::Algorithm::ES256` | ECDSA with the P-256 curve and SHA-256. Almost every device supports it. |
+| `Core\Passkey\Credential::Algorithm::Ed25519` | Ed25519 signatures. Some devices support it. |
+
 <a id="enum-core-mime-type"></a>
 #### `Core\Mime::Type`
 
@@ -59513,8 +59710,8 @@ top once it answers, correcting the places only a parse can decide — which of 
 names is a class, which is a parameter, which value carries `secret`.
 
 Both layers ship *names*, never colours. Every scope is a standard TextMate name suffixed `.nvs`,
-every token type is one of LSP's own, and the extension contributes no theme and no colour
-customization of any kind. Your theme keeps its opinions about what a keyword looks like. The two
+every token type is one of LSP's own, and the extension changes no colour unless you ask it to.
+Your theme keeps its opinions about what a keyword looks like. The two
 modifiers Novis adds are not in LSP's legend and cannot be, so a theme that has never heard of
 `tainted` styles the token underneath it — the value is coloured as the variable it is, rather than
 as nothing.
@@ -59522,6 +59719,10 @@ as nothing.
 The extension turns on semantic highlighting for `.nvs` files. Some themes turn it off, and then the
 editor ignores every token the server sends. Your theme still picks each colour. To turn it off, set
 `"editor.semanticHighlighting.enabled": false` inside `"[nvs]"` in your settings.
+
+Some themes give class names and methods almost the same colour. You can fix that in two ways. The
+extension has two colour themes, **Novis Dark** and **Novis Light**, and you can pick one. Or you can
+turn on `nvs.highlighting.distinctNames`, which keeps your theme and adds two colours for these names.
 
 #### The settings it contributes
 
@@ -59538,13 +59739,14 @@ editor ignores every token the server sends. Your theme still picks each colour.
 | `nvs.taint.mark` | `"off"` | whether a `tainted` value carries a marker glyph as well as the token modifier every theme already styles — `off`, `declaration` for each declaration whose type carries it, or `sink` |
 | `nvs.ast.enable` | `false` | whether the Explorer shows the **Novis AST** panel, and the command palette shows **Novis: Show AST** |
 | `nvs.lsp.debounce` | `150` | how many milliseconds the server waits after a keystroke before it checks the file again. `0` checks after every keystroke |
+| `nvs.highlighting.distinctNames` | `false` | gives class names and methods two different colours in `.nvs` files, and keeps your colour theme. On adds colour rules for the current theme to `editor.semanticTokenColorCustomizations` in your user settings. Off removes the rules you did not change |
 | `nvs.stubs.dir` | `""` | the directory the server writes the `Core` declaration files to, which Go to Definition on a `Core` name opens. Empty is a directory inside the extension's own storage, one per server version. A server that gets no directory from its editor writes to the `lsp` folder in the data folder |
 
 Changing `nvs.path` or `nvs.lsp.enable` restarts the server, since neither can reach one that is
 already running.
 
 The rest divide by who reads them. `nvs.secrets.redact`, `nvs.taint.mark`, `nvs.template.services`,
-`nvs.template.format` and `nvs.ast.enable` are the client's own and take effect on the next redraw, request or save,
+`nvs.template.format`, `nvs.ast.enable` and `nvs.highlighting.distinctNames` are the client's own and take effect on the next redraw, request or save,
 and `nvs.lsp.trace.server` is read by the LSP client library off the id the server is started under.
 
 `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.lsp.debounce` are read by the server. When you
@@ -59567,6 +59769,7 @@ Every one is under the **Novis** category in the command palette.
 | `nvs.test` | Run Tests | starts the `nvs` task that runs the open file's `#[Test]` methods, or the `.nvst` cases under it |
 | `nvs.showAst` | Show AST | shows the open file's syntax tree, from `nvs ast --json`, in the editor's tree view. The panel and this command are off until you turn on `nvs.ast.enable` |
 | `nvs.viewProfile` | View Profile | opens a speedscope profile, such as one from `nvs run --profile=speedscope`, in a viewer inside the editor. The profile stays on your computer |
+| `nvs.useNovisTheme` | Use Novis Colour Theme | switches to **Novis Dark** or **Novis Light**, the one that matches your current theme's light or dark kind |
 | `nvs.downloadBinary` | Download nvs | installs the newest `nvs` release this extension can talk to. See below |
 | `nvs.openReleases` | Open Releases | opens the release page in the browser |
 
