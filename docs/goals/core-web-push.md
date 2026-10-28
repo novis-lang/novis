@@ -20,7 +20,7 @@ stages:
         rules: [core-classes/web-push-sends-an-encrypted-message, security/capability-check-at-the-door, testing/capability-completeness-test, security/net-address-policy]
   - id: 3
     title: the subscription is tainted, the key is secret, and the class is on the protocol roster
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/taint.rs, docs/rules/security/protocol-roster.md, docs/rules/security/protocol-admission-test.md]
     extra:
       context:
@@ -147,10 +147,10 @@ key pair per message.
 **Does:** what the browser sent is `tainted`, the VAPID key stays `secret`, and the class meets the
 roster's admission test.
 
-- [ ] The subscription's endpoint and keys are `tainted`, and the VAPID key is `secret` and never appears in a message or an error. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/registry.rs:185`
-- [ ] A `p256dh` value not on the curve, an `auth` value of the wrong length and an endpoint that is not `https:` each throw. `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Rust tests for each refusal, and conformance cases for each error a program can catch. `tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst:1`
-- [ ] `rule:security/protocol-roster` names `Core\WebPush` as built, not only admitted, and its case joins `guardedBy` (`rule:security/protocol-admission-test`). `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
+- [x] The subscription's endpoint and keys are `tainted`, and the VAPID key is `secret` and never appears in a message or an error. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/registry.rs:185`
+- [x] A `p256dh` value not on the curve, an `auth` value of the wrong length and an endpoint that is not `https:` each throw. `crates/nvs-stdlib/src/webpush.rs:1`
+- [x] Rust tests for each refusal, and conformance cases for each error a program can catch. `tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst:1`
+- [x] `rule:security/protocol-roster` names `Core\WebPush` as built, not only admitted, and its case joins `guardedBy` (`rule:security/protocol-admission-test`). `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
 
 ### 4. `Core\WebPush` has its feature proofs, and the rule is shipped
 
@@ -184,29 +184,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` (rank 977)
-with `subscription`, `applicationServerKey` and `send`, `WebPushSubscription` (978) and
-`WebPushSent` (979, `status()` and `gone()`, `gone` for a `404` or a `410`). `vapid_of`
-(`webpush.rs:607`) throws a `LogicError` for a pair that is not `P256`; `vapid_token`
-(`webpush.rs:650`) signs RFC 8292's JWT through `crypto::sign`, 12 hours, audience the endpoint's
-origin, and throws for a subject that is not `mailto:` or `https://`. `send` (`webpush.rs:733`)
-throws for a negative `ttl` and posts through `http::push_send` (`http.rs:4296`), the
-`extension_send` sibling with no redirect followed. Three `CAPABILITIES` rows (`registry.rs:2370`).
-Seven webpush tests pass, two against a loopback TLS push service that decrypts the body and verifies
-the token; the capability, registry and symbol guards and clippy are green.
+Stages 1, 2 and 3 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` (rank 977)
+with `subscription`, `applicationServerKey` and `send`, `WebPushSubscription` (978,
+`endpoint(): tainted string`) and `WebPushSent` (979, `status()` and `gone()`). Every error is a
+fixed sentence that names a parameter: `no_vapid_error_carries_the_key` (`webpush.rs:1201`) checks
+that no `vapid_of` or `vapid_token` message contains the key in hex or base64url. Three conformance
+cases pass under `nvs test`: `web-push-a-subscription-that-is-not-a-browsers-throws.nvst` (eight
+`RuntimeError` sentences from `read_subscription`, `webpush.rs:408`),
+`web-push-send-throws-a-logic-error-before-it-reaches-a-host.nvst` (not `P256`, `$subject`, `$ttl`)
+and `web-push-endpoint-of-a-request-body-is-tainted.nvst` (`E0403`). `rule:security/protocol-roster`
+lists `Core\WebPush` as built, and the first two cases are in its `guardedBy`. The sweep's
+`env-secret-proofs` red was stale (it exits 0), and the cancelled nightly run 40662443492 was
+superseded by a push whose CI passed.
 
 ### Next
 
-**Stage 3: taint, secrecy and the roster**, one file set: `crates/nvs-stdlib/src/webpush.rs`,
-`tests/conformance/core/`, `docs/rules/security/protocol-roster.md`,
-`data/rules/security/protocol-roster.json`. No gate.
+**Stage 4: the feature proofs, and the rule shipped.** Follow the stage's `**Split:**` line: one
+writing subagent per member, one after another, then one for the attack. The shape to copy is
+`docs/examples/core/Totp/check/` and `tests/hostile/core/Totp/check/01-guess-every-code.nvs`.
 
-- [ ] Confirm the VAPID key never reaches a message: every `vapid_of` and `vapid_token` error names the parameter alone. `crates/nvs-stdlib/src/webpush.rs:607`
-- [ ] Conformance cases for each catchable refusal: `subscription`'s five sentences (`webpush.rs:408`) and `send`'s `LogicError`s. `tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst:1`
-- [ ] The roster names `CoreWebPush` as built, and its case joins `guardedBy`. `docs/rules/security/protocol-roster.md:9`, `data/rules/security/protocol-roster.json:10`
+- [ ] `subscription`: about page, three examples, bench. `docs/examples/core/WebPush/subscription/about.md:1`, `benches/members/core/WebPush/subscription.nvs:1`
+- [ ] `applicationServerKey`: the same. `docs/examples/core/WebPush/applicationServerKey/about.md:1`, `benches/members/core/WebPush/applicationServerKey.nvs:1`
+- [ ] `send`: the same. An example cannot reach a real push service, so it shows a `LogicError` path or reads `gone()` from a subscription the program built. `docs/examples/core/WebPush/send/about.md:1`, `benches/members/core/WebPush/send.nvs:1`
+- [ ] The attack: an endpoint on an internal address does not connect. `tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:1`
+- [ ] `bun nv proofs --group 'Core\WebPush'` owes nothing. `docs/examples/core/WebPush/send/about.md:1`
+- [ ] `data/rules/core-classes/web-push-sends-an-encrypted-message.json:3` becomes `shipped`, with the three `web-push-*.nvst` cases in its `guardedBy` (it is empty now), and `bun nv owners --closes core-web-push` passes.
 
-Expected red until stage 4: `bun nv proofs` owes every proof of `CoreWebPush`, and a check over
-`data/perf/members.ndjson` or the website's `Core` index may want rows for the new members.
+Expected red until stage 4 ends: `bun nv proofs` owes every proof of `Core\WebPush`, and a check
+over `data/perf/members.ndjson` or the website's `Core` index may want rows for the new members.
 
 ### Backlog
 
