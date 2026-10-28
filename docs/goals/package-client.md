@@ -41,7 +41,7 @@ stages:
         rules: [packaging/a-fetched-package-is-an-autoload-line, packaging/nothing-runs-before-the-program, security/package-authority-is-granted-one-line-at-a-time, security/grants-are-keyed-on-a-namespace, packaging/package-toml-is-a-tool-input, config/the-extension-set-is-in-every-unit-key]
   - id: 5
     title: "`nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` select only what is released and print what a change brings"
-    status: open
+    status: done
     context: [docs/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.md, docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md, docs/rules/packaging/an-owner-may-unlist.md, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
@@ -273,6 +273,17 @@ dependency's clone is written under the data folder's `tmp/`. Why: simplicity, o
 both commands; security, every archive path is checked before it is written. Memory: one archive
 at a time.
 
+**A command chooses only the newest released version, and the lock's allowance stays** (stage 5).
+`minimum::newest` takes a released version, or a pending one past its time, and never an unlisted,
+retracted or withheld one. `add` without a version never lowers a written minimum, `add` with one
+writes it exactly, `update` with no package raises every registry dependency, and `update` of a
+package not in `[dependencies]` is a fault that names `nvs pkg add`. `add` and `update` resolve with
+the old lock, so a retracted version the lock already has stays selected: an update of one package
+is never blocked by another, and a retracted version is still never newly selected. A minimum is
+written into the file's text by replacing its version string, so the line's comment stays.
+Why: simplicity, one pipeline (`fetch::land`) for `fetch`, `add` and `update`; security, the
+report prints before anything is written and grants nothing.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -353,10 +364,19 @@ for every package, an empty one included.
 **Does:** a pending version is fetched only by its exact version, a retracted, unlisted or withheld
 one is handled as its rule says, and every change prints its authority before it lands.
 
-- [ ] A pending version is never selected by `add` or `update`, and `nvs pkg add acme/http@1.4.0` fetches it (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] An unlisted version still resolves and fetches, a withheld one fails naming its advisory, and a retracted one is never newly selected (`rule:packaging/an-owner-may-unlist`, `rule:packaging/the-operator-only-withholds`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] The output: every capability requested by the package and its subgraph, capability changes since the lock, the transitive count, owner and repository changes, and the majors crossed with who asked for the older one. `crates/nvs-cli/src/package/report.rs:1`
-- [ ] Tests: one fixture registry entry per version state, and the report of an update that adds a capability. `crates/nvs-cli/tests/package_fetch.rs:1`
+- [x] A pending version is never selected by `add` or `update`, and `nvs pkg add acme/http@1.4.0` fetches it (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `crates/nvs-cli/src/package/resolve.rs:1`
+  - [x] `fetch.rs` split into `App::open`, resolution and `land`, so `add` and `update` run the same pipeline
+  - [x] `minimum::newest`: the newest released version, a pending one past its time included, and no other state
+  - [x] `add <slug>[@<version>]` writes the `[dependencies]` line into the file's text, resolves, then lands
+  - [x] `update [<package>...]` raises each root minimum to its newest released version; `outdated` prints and writes nothing
+- [x] An unlisted version still resolves and fetches, a withheld one fails naming its advisory, and a retracted one is never newly selected (`rule:packaging/an-owner-may-unlist`, `rule:packaging/the-operator-only-withholds`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/resolve.rs:1`
+- [x] The output: every capability requested by the package and its subgraph, capability changes since the lock, the transitive count, owner and repository changes, and the majors crossed with who asked for the older one. `crates/nvs-cli/src/package/report.rs:1`
+  - [x] each target's subgraph, its count and every capability it requests
+  - [x] each change since the lock: version, capabilities, owners, repository, new and removed packages
+  - [x] the majors crossed
+- [x] Tests: one fixture registry entry per version state, and the report of an update that adds a capability. `crates/nvs-cli/tests/package_fetch.rs:1`
+  - [x] the `Tree` helper publishes a version in a given state
+  - [x] a test per version state through `add`, and an update that adds a capability through `outdated` and `update`
 
 ### 9. an external download is fetched, checked and placed, and `nvs pkg download` and `nvs pkg provide` work
 
@@ -444,6 +464,43 @@ The sweep's reds were stale: the `env-secret-proofs` log exits 0, and Miri run 4
 - [ ] `update` resolves without the lock's retracted allowance and writes the lock; `outdated` lists each package's newest released version and changes nothing. `crates/nvs-cli/src/package/resolve.rs:218`
 - [ ] `report.rs`: the capabilities the package and its subgraph request, the changes since the old lock (capabilities, owners, repository), the transitive count, and each crossing (`crates/nvs-cli/src/package/resolve.rs:76`).
 - [ ] Tests: one fixture registry entry per version state, and an update that adds a capability, in `tests/package_fetch.rs` with its `Tree` helper (`crates/nvs-cli/tests/package_fetch.rs:16`).
+
+### Backlog
+
+- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 9 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
+- Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
+- `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
+- The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the
+  editor shows `E0658`, `E0660` and `E0661` as `nvs check` does. Handed over from goal
+  `namespace-grants`. `data/gaps/nvs-lsp/the-grants-hover-reads-the-entrys-tree-and-every-grant.json`,
+  `crates/nvs-lsp/src/document.rs:771`### State
+
+Stages 1, 2, 3, 7, 4 and 5 are done. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` are
+`crates/nvs-cli/src/package/minimum.rs`: `minimum::newest` chooses only a released version, or a
+pending one past its time, and `minimum::with_minimum` writes the minimum into the file's text.
+`add` and `update` resolve, print `report::report` (`crates/nvs-cli/src/package/report.rs:27`),
+then write `package.toml` and run the same pipeline as `fetch`: `fetch::App::open` and
+`fetch::land` (`crates/nvs-cli/src/package/fetch.rs:205`). A graph that does not resolve writes
+nothing. The standing decision *A command chooses only the newest released version* records the
+choices, among them that `update` keeps the lock's retracted allowance.
+
+Tests: 5 binary cases in `tests/package_fetch.rs` (`Tree::release` publishes a version in any
+state) and 2 unit cases in `minimum.rs`, all passing; clippy and rustfmt clean. The rule fragments'
+**Not on disk** lines name what ships. No test should go red.
+
+The sweep's reds were stale again: the `env-secret-proofs` log exits 0, and Miri run 40474302703
+ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+
+### Next
+
+**Stage 9: an external download**, in a new `crates/nvs-cli/src/package/download.rs`, `manifest.rs`,
+`fetch.rs`, `report.rs` and `lock.rs`. Follow the stage's **Split:** line, and write its
+checkpoints into the goal file first.
+
+- [ ] The `[[download]]` form checks on `Manifest::downloads`, whose `dead_code` allowance goes (`crates/nvs-cli/src/package/manifest.rs:228`).
+- [ ] `download.rs` over `crates/nvs-stdlib/src/http/transport.rs`, each hop checked by `git::Outbound`'s table, into the SHA-256 cache (`crates/nvs-cli/src/cache.rs:1258`); read archives through it too, which retires the 1 MiB backlog bullet (`crates/nvs-cli/src/package/index.rs:137`).
+- [ ] `fetch::land` places each file; `report::report` prints each file's host, size and license, and a host new since the lock, which `Lock` records (`crates/nvs-cli/src/package/lock.rs:275`).
+- [ ] `nvs pkg download` and `nvs pkg provide` in the `Command` enum (`crates/nvs-cli/src/package/mod.rs:41`), and the read check beside the grant lookup (`crates/nvs-config/src/grants.rs`).
 
 ### Backlog
 
