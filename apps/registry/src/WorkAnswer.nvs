@@ -1,0 +1,16 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends with a sign-up: the challenge of the proof-of-work and the number it found.
+#[Core\Json\Derive]
+final class WorkAnswer
+{
+    public tainted string $challenge;
+    public tainted string $nonce;
+
+    public function constructor(tainted string $challenge, tainted string $nonce)
+    {
+        $this->challenge = $challenge;
+        $this->nonce = $nonce;
+    }
+}

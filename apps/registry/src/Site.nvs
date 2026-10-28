@@ -1,0 +1,35 @@
+<?nvs
+namespace Registry;
+
+use Core\IO;
+use Core\Json;
+use Core\Str;
+use Core\Uri;
+
+// The settings of this installation, read from `hosting.json`.
+// A deployment writes its own `hosting.json`. The code names no host.
+final class Site
+{
+    public function constructor(
+        // The address of the site, such as `https://registry.example.com`. Passkeys work only on it.
+        public readonly string $origin,
+        // The number of zero bits the proof-of-work of a sign-up needs.
+        public readonly int $signUpWork,
+    )
+    {}
+
+    // Reads `hosting.json` from the folder above `src`.
+    public static function load(): Site
+    {
+        var $settings = Json::decode(IO::read('../hosting.json')) as array<mixed>;
+        string $origin = Core\Taint::assertTrusted($settings['origin'] as tainted string, 'the operator wrote hosting.json');
+        int $work = $settings['signUpWork'] as int;
+        return new Site($origin, $work);
+    }
+
+    // The domain of the site, such as `registry.example.com`. A passkey belongs to this domain.
+    public function domain(): string
+    {
+        return Str::lower(Uri::parse($this->origin)->host() ?? '');
+    }
+}

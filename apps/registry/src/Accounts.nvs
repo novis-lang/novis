@@ -1,0 +1,160 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Hash;
+use Core\Passkey\Credential;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+
+// Reads and saves accounts, their passkeys and their recovery codes.
+// An account is one or more passkeys and a set of recovery codes. It has no email and no password.
+final class Accounts
+{
+    // The number of recovery codes a new account gets.
+    public const int RECOVERY_CODES = 10;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Makes a new account id: 16 random bytes as 32 hex characters.
+    public static function newId(): string
+    {
+        return Random::token(16);
+    }
+
+    // Checks that a stored or sent text is an account id: 32 characters from `0` to `9` and `a` to `f`.
+    // It returns the id as a plain `string`. Any other text returns `null`.
+    public static function idOf(?tainted string $text): ?string
+    {
+        if ($text == null || Str::length($text) != 32 || Str::trim($text, { characters: '0123456789abcdef' }) != '') {
+            return null;
+        }
+        return Core\Taint::assertTrusted($text, 'an account id is 32 hex characters');
+    }
+
+    // Saves a new account with its first passkey. It returns the recovery codes.
+    // The codes are shown to the user once. Only their hashes are saved.
+    public function create(string $account, Credential $passkey): array<string>
+    {
+        int $now = Time::now()->toEpochSeconds();
+        array<string> $codes = [];
+        for (int $i = 0; $i < Accounts::RECOVERY_CODES; $i++) {
+            $codes[] = Accounts::newCode();
+        }
+        $this->db->transaction(fn(): void => {
+            $this->db->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?)', [$account, $now, $now]);
+            $this->addPasskey($account, $passkey);
+            foreach ($codes as string $code) {
+                $this->db->execute('insert into recovery_codes (hash, account) values (?, ?)', [Accounts::hashOf($code), $account]);
+            }
+        });
+        return $codes;
+    }
+
+    // Saves one more passkey for an account.
+    public function addPasskey(string $account, Credential $passkey): void
+    {
+        int $now = Time::now()->toEpochSeconds();
+        $this->db->execute(
+            'insert into passkeys (id, account, public_key, algorithm, sign_count, created_at, used_at) values (?, ?, ?, ?, ?, ?, ?)',
+            [
+                Encoding::toBase64Url($passkey->id()),
+                $account,
+                Encoding::toBase64Url($passkey->publicKey()),
+                $passkey->algorithm() as int,
+                $passkey->signCount(),
+                $now,
+                $now,
+            ],
+        );
+    }
+
+    // Returns the passkeys of an account.
+    public function passkeys(string $account): array<Credential>
+    {
+        array<Credential> $found = [];
+        var $rows = $this->db->query('select id, public_key, algorithm, sign_count from passkeys where account = ? order by created_at', [$account]);
+        foreach ($rows as Row $row) {
+            $found[] = Accounts::toCredential($row);
+        }
+        return $found;
+    }
+
+    // Returns the passkey with this id and the account it belongs to.
+    // If there is none, the result is `null`.
+    public function findPasskey(tainted bytes $id): ?Owned
+    {
+        var $rows = $this->db->query('select id, account, public_key, algorithm, sign_count from passkeys where id = ?', [Encoding::toBase64Url($id)]);
+        foreach ($rows as Row $row) {
+            return new Owned(Accounts::idOf($row->string('account')) ?? '', Accounts::toCredential($row));
+        }
+        return null;
+    }
+
+    // Saves the new sign counter after a sign-in. A sign-in with a passkey counts as activity.
+    public function signedIn(string $account, Credential $passkey): void
+    {
+        int $now = Time::now()->toEpochSeconds();
+        $this->db->execute('update passkeys set sign_count = ?, used_at = ? where id = ?', [$passkey->signCount(), $now, Encoding::toBase64Url($passkey->id())]);
+        $this->db->execute('update accounts set active_at = ? where id = ?', [$now, $account]);
+    }
+
+    // Uses one recovery code. It returns the account of the code, and the code cannot be used again.
+    // A code that is not known, or that was used before, returns `null`.
+    public function useRecoveryCode(tainted string $code): ?string
+    {
+        string $hash = Accounts::hashOf($code);
+        var $write = $this->db->execute(
+            'update recovery_codes set used_at = ? where hash = ? and used_at is null',
+            [Time::now()->toEpochSeconds(), $hash],
+        );
+        if ($write->affected() != 1) {
+            return null;
+        }
+        foreach ($this->db->query('select account from recovery_codes where hash = ?', [$hash]) as Row $row) {
+            return Accounts::idOf($row->string('account'));
+        }
+        return null;
+    }
+
+    // Returns how many recovery codes of an account are not used yet.
+    public function recoveryCodesLeft(string $account): int
+    {
+        foreach ($this->db->query('select count(*) as left from recovery_codes where account = ? and used_at is null', [$account]) as Row $row) {
+            return $row->int('left') ?? 0;
+        }
+        return 0;
+    }
+
+    // A recovery code is 10 random bytes, written as four groups of five hex characters.
+    private static function newCode(): string
+    {
+        string $hex = Random::token(10);
+        return Str::join(Str::chunk($hex, 5), '-');
+    }
+
+    // The hash of a recovery code. Dashes, spaces and upper-case letters do not change it.
+    private static function hashOf(tainted string $code): string
+    {
+        tainted string $plain = Str::lower(Str::replaceAll($code, ['-' => '', ' ' => '']));
+        return Encoding::toHex(Hash::of($plain, Hash::Digest::Sha256));
+    }
+
+    private static function toCredential(Row $row): Credential
+    {
+        return Credential::of(
+            Encoding::fromBase64Url($row->string('id') ?? ''),
+            Encoding::fromBase64Url($row->string('public_key') ?? ''),
+            ($row->int('algorithm') ?? -1) as Credential::Algorithm,
+            $row->int('sign_count') ?? 0,
+        );
+    }
+}

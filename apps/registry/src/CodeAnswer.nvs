@@ -1,0 +1,14 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to sign in with a recovery code.
+#[Core\Json\Derive]
+final class CodeAnswer
+{
+    public tainted string $code;
+
+    public function constructor(tainted string $code)
+    {
+        $this->code = $code;
+    }
+}

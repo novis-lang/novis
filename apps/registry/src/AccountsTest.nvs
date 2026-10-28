@@ -1,0 +1,109 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Http\Method;
+use Core\Test;
+
+// Tests for sign-up, sign-in, recovery codes and more passkeys.
+// Each test signs up its own new accounts, so the tests do not see each other's rows.
+final class AccountsTest
+{
+    #[Test]
+    public function aSignUpWithoutTheProofOfWorkIsRefused(): void
+    {
+        var $browser = new BrowserTest();
+        array<tainted string> $answer = $browser->solveWork();
+        // A wrong number does not solve the challenge, so the status is 403.
+        $answer['nonce'] = AccountsTest::wrongNonce($answer['challenge']);
+        Test::assertSame($browser->post('/api/signup/options', $answer)->status(), 403);
+        // The challenge was used, so the right number does not work after that.
+        Test::assertSame($browser->post('/api/signup/options', $browser->solveWork())->status(), 200);
+        var $stale = $browser->solveWork();
+        $browser->post('/api/signup/options', $stale);
+        Test::assertSame($browser->post('/api/signup/options', $stale)->status(), 403);
+        // Without the proof-of-work, there is no sign-up to finish.
+        var $other = new BrowserTest();
+        Test::assertSame($other->send(Method::Post, '/api/signup', '{}')->status(), 403);
+        Test::assertSame($other->send(Method::Get, '/api/account')->status(), 403);
+    }
+
+    #[Test]
+    public function theRecoveryCodesAreShownOnceAtTheSignUp(): void
+    {
+        var $browser = new BrowserTest();
+        var $signUp = $browser->signUp();
+        Test::assertSame($signUp->status(), 201);
+        var $codes = ($signUp->json() as array<mixed>)['recoveryCodes'] as array<mixed>;
+        Test::assertCount($codes, 10);
+        // The account has one passkey and ten unused codes. The answer does not show the codes again.
+        var $account = $browser->send(Method::Get, '/api/account')->json() as array<mixed>;
+        Test::assertSame($account['passkeys'] as int, 1);
+        Test::assertSame($account['recoveryCodesLeft'] as int, 10);
+        Test::assertTrue(!Arr::hasKey($account, 'recoveryCodes'));
+        // The sign-up is finished, so a second try of the last step is refused.
+        Test::assertSame($browser->send(Method::Post, '/api/signup', '{}')->status(), 403);
+    }
+
+    #[Test]
+    public function eachRecoveryCodeWorksOnce(): void
+    {
+        var $browser = new BrowserTest();
+        var $codes = ($browser->signUp()->json() as array<mixed>)['recoveryCodes'] as array<mixed>;
+        tainted string $code = $codes[3] as tainted string;
+        $browser->send(Method::Post, '/api/signout');
+        Test::assertSame($browser->send(Method::Get, '/api/account')->status(), 403);
+        var $first = $browser->post('/api/signin/recovery', { code: $code });
+        Test::assertSame($first->status(), 200);
+        Test::assertSame(($first->json() as array<mixed>)['recoveryCodesLeft'] as int, 9);
+        Test::assertSame($browser->send(Method::Get, '/api/account')->status(), 200);
+        // The same code a second time is refused, also from another browser.
+        Test::assertSame(new BrowserTest()->post('/api/signin/recovery', { code: $code })->status(), 403);
+        Test::assertSame(new BrowserTest()->post('/api/signin/recovery', { code: 'abcde-abcde-abcde-abcde' })->status(), 403);
+    }
+
+    #[Test]
+    public function aPasskeySignsIn(): void
+    {
+        var $browser = new BrowserTest();
+        tainted string $account = ($browser->signUp()->json() as array<mixed>)['account'] as tainted string;
+        $browser->send(Method::Post, '/api/signout');
+        var $signIn = $browser->signIn();
+        Test::assertSame($signIn->status(), 200);
+        Test::assertSame(($signIn->json() as array<mixed>)['account'] as tainted string, $account);
+        // A passkey that no account has is refused.
+        var $stranger = new BrowserTest();
+        Test::assertSame($stranger->signIn()->status(), 403);
+    }
+
+    #[Test]
+    public function aSecondPasskeyIsAddedOnlyWhileSignedIn(): void
+    {
+        // A visitor who did not sign in gets no options and cannot add a passkey.
+        var $visitor = new BrowserTest();
+        Test::assertSame($visitor->send(Method::Post, '/api/account/passkeys/options')->status(), 403);
+        Test::assertSame($visitor->send(Method::Post, '/api/account/passkeys', '{}')->status(), 403);
+        // After the sign-up, the same browser adds a second passkey. Then both sign in.
+        var $browser = new BrowserTest();
+        tainted string $account = ($browser->signUp()->json() as array<mixed>)['account'] as tainted string;
+        var $options = $browser->send(Method::Post, '/api/account/passkeys/options');
+        Test::assertSame($options->status(), 200);
+        var $added = $browser->send(Method::Post, '/api/account/passkeys', $browser->register($options->body()));
+        Test::assertSame($added->status(), 201);
+        Test::assertSame(($added->json() as array<mixed>)['passkeys'] as int, 2);
+        $browser->send(Method::Post, '/api/signout');
+        var $signIn = $browser->signIn();
+        Test::assertSame($signIn->status(), 200);
+        Test::assertSame(($signIn->json() as array<mixed>)['account'] as tainted string, $account);
+    }
+
+    // Returns a number that does not solve the challenge.
+    private static function wrongNonce(tainted string $challenge): string
+    {
+        int $nonce = 0;
+        while (Work::zeroBits($challenge . ':' . $nonce) >= Site::load()->signUpWork) {
+            $nonce++;
+        }
+        return $nonce . '';
+    }
+}

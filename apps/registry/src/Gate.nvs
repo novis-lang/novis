@@ -1,0 +1,43 @@
+<?nvs
+namespace Registry;
+
+use Core\Response;
+use Core\Router\Refusal;
+use Throwable;
+
+// The gate of the app. `Core\Router::dispatch` calls it for every request.
+// It decides if a route method may run, and it writes the error answers as JSON.
+final class Gate implements Core\Router\Gate
+{
+    // Starts the session of the request. A route for `Visitor::SignedIn` runs only when
+    // the session has an account.
+    public function allows(Core\Router\Match $route): bool
+    {
+        Core\Session::start();
+        if ($route->accessAs<Visitor>() == Visitor::Anyone) {
+            return true;
+        }
+        return Session::account() != null;
+    }
+
+    // Writes the error when no route method can handle the request.
+    // `dispatch` has already set the status code, such as 403, 404 or 405.
+    public function refused(Refusal $reason, ?Core\Router\Match $route): void
+    {
+        string $text = match ($reason) {
+            Refusal::NotFound => 'There is nothing at this address.',
+            Refusal::MethodNotAllowed => 'This address does not accept this kind of request.',
+            Refusal::Denied => 'Please sign in first.',
+            Refusal::Csrf => 'The request was not sent from this website.',
+            Refusal::BodyTooLarge => 'The request is too large.',
+            default => 'This request is not allowed.',
+        };
+        Response::json({ error: $text });
+    }
+
+    // Writes the error when a route method throws an error. The status code is 500.
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        Response::json({ error: 'Something went wrong.' });
+    }
+}

@@ -1,0 +1,14 @@
+<?nvs
+namespace Registry;
+
+use Core\Passkey\Credential;
+
+// A saved passkey and the id of the account it belongs to.
+final class Owned
+{
+    public function constructor(
+        public readonly string $account,
+        public readonly Credential $passkey,
+    )
+    {}
+}

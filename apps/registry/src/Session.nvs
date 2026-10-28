@@ -1,0 +1,44 @@
+<?nvs
+namespace Registry;
+
+// The account a visitor signed in to, and the account a sign-up is creating.
+// Both are kept in the session. `Gate::allows` starts the session before every route.
+final class Session
+{
+    private const string ACCOUNT = 'registry.account';
+    private const string SIGN_UP = 'registry.signUp';
+
+    // The account of this visitor, or `null` when nobody signed in.
+    public static function account(): ?string
+    {
+        return Accounts::idOf(Core\Session::get(Session::ACCOUNT) as ?tainted string);
+    }
+
+    // Signs the visitor in to an account. The session gets a new id first,
+    // so an id that somebody else knew before the sign-in is useless.
+    public static function signIn(string $account): void
+    {
+        Core\Session::regenerate();
+        Core\Session::set(Session::ACCOUNT, $account);
+    }
+
+    // Ends the session.
+    public static function signOut(): void
+    {
+        Core\Session::destroy();
+    }
+
+    // Saves the id of the account that the sign-up creates once its passkey is checked.
+    public static function startSignUp(string $account): void
+    {
+        Core\Session::set(Session::SIGN_UP, $account);
+    }
+
+    // Returns the id that `startSignUp` saved, and deletes it. The result is `null` when there is none.
+    public static function takeSignUp(): ?string
+    {
+        ?string $account = Accounts::idOf(Core\Session::get(Session::SIGN_UP) as ?tainted string);
+        Core\Session::remove(Session::SIGN_UP);
+        return $account;
+    }
+}

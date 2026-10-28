@@ -1,0 +1,139 @@
+<?nvs
+namespace Registry;
+
+use Core\Bytes;
+use Core\Crypto;
+use Core\Encoding;
+use Core\Hash;
+use Core\Http\Method;
+use Core\Json;
+use Core\Random;
+use Core\Test;
+
+// Plays a browser with one passkey device in the tests. It keeps the session cookie between requests.
+// The answers of the device follow the WebAuthn standard. A real browser makes them.
+final class BrowserTest
+{
+    private string $cookie = '';
+    private Core\Crypto\KeyPair $key;
+    private bytes $passkeyId;
+    private int $counter = 0;
+
+    public function constructor()
+    {
+        $this->key = Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        $this->passkeyId = Random::bytes(16);
+    }
+
+    // Sends a request with the session cookie, and keeps the cookie the answer sets.
+    public function send(Method $method, string $path, tainted string $body = ''): Core\Test\Response
+    {
+        array<string> $headers = ['content-type' => 'application/json'];
+        if ($this->cookie != '') {
+            $headers['cookie'] = $this->cookie;
+        }
+        var $response = Test::request($method, $path, { headers: $headers, body: Core\Taint::assertTrusted($body, 'the test wrote this body') });
+        foreach ($response->cookies() as string $name => string $value) {
+            $this->cookie = $name . '=' . $value;
+        }
+        return $response;
+    }
+
+    // Sends a JSON value with a `POST` request.
+    public function post(string $path, mixed $value): Core\Test\Response
+    {
+        return $this->send(Method::Post, $path, Json::encode($value));
+    }
+
+    // Asks for a challenge, finds a number that solves it, and returns the answer to send.
+    public function solveWork(): array<tainted string>
+    {
+        var $work = $this->send(Method::Post, '/api/signup/work')->json() as array<mixed>;
+        tainted string $challenge = $work['challenge'] as tainted string;
+        int $bits = $work['bits'] as int;
+        int $nonce = 0;
+        while (Work::zeroBits($challenge . ':' . $nonce) < $bits) {
+            $nonce++;
+        }
+        return ['challenge' => $challenge, 'nonce' => $nonce . ''];
+    }
+
+    // Signs up with a new passkey and returns the answer of the last step.
+    public function signUp(): Core\Test\Response
+    {
+        var $options = $this->post('/api/signup/options', $this->solveWork());
+        Test::assertSame($options->status(), 200);
+        return $this->send(Method::Post, '/api/signup', $this->register($options->body()));
+    }
+
+    // Signs in with the passkey of this device.
+    public function signIn(): Core\Test\Response
+    {
+        var $options = $this->send(Method::Post, '/api/signin/options');
+        return $this->send(Method::Post, '/api/signin', $this->assert($options->body()));
+    }
+
+    // Makes a new passkey for this device and returns the answer to the registration options.
+    public function register(tainted string $options): tainted string
+    {
+        $this->key = Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+        $this->passkeyId = Random::bytes(16);
+        $this->counter = 0;
+        tainted bytes $client = BrowserTest::clientData('webauthn.create', $options);
+        bytes $data = Bytes::join([
+            Hash::of('localhost', Hash::Digest::Sha256),
+            Encoding::fromHex('450000000000000000000000000000000000000000'),
+            Bytes::pack('n', 16),
+            $this->passkeyId,
+            Encoding::fromHex('a4010103272006215820'),
+            $this->key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+        ]);
+        bytes $object = Bytes::join([
+            Encoding::fromHex('a363666d74646e6f6e656761747453746d74a068617574684461746158'),
+            Bytes::pack('C', Bytes::length($data)),
+            $data,
+        ]);
+        string $id = Encoding::toBase64Url($this->passkeyId);
+        return Json::encode({
+            type: 'public-key',
+            id: $id,
+            rawId: $id,
+            response: { clientDataJSON: Encoding::toBase64Url($client), attestationObject: Encoding::toBase64Url($object) },
+        });
+    }
+
+    // Signs the challenge of the sign-in options with the passkey of this device.
+    public function assert(tainted string $options): tainted string
+    {
+        $this->counter++;
+        tainted bytes $client = BrowserTest::clientData('webauthn.get', $options);
+        bytes $data = Bytes::join([
+            Hash::of('localhost', Hash::Digest::Sha256),
+            Bytes::pack('C', 0x05),
+            Bytes::pack('N', $this->counter),
+        ]);
+        bytes $signature = Crypto::sign(Bytes::join([$data, Hash::of($client, Hash::Digest::Sha256)]), $this->key);
+        string $id = Encoding::toBase64Url($this->passkeyId);
+        return Json::encode({
+            type: 'public-key',
+            id: $id,
+            rawId: $id,
+            response: {
+                clientDataJSON: Encoding::toBase64Url($client),
+                authenticatorData: Encoding::toBase64Url($data),
+                signature: Encoding::toBase64Url($signature),
+            },
+        });
+    }
+
+    // The client data the browser signs. It has the challenge of the options and the address of the site.
+    private static function clientData(string $type, tainted string $options): tainted bytes
+    {
+        var $read = Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as tainted string, 'the app under test wrote the options');
+        return Encoding::encodeText(
+            Json::encode({ type: $type, challenge: $challenge, origin: Site::load()->origin }),
+            Core\Charset::Utf8,
+        );
+    }
+}

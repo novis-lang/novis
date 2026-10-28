@@ -1,0 +1,11 @@
+<?nvs
+namespace Registry;
+
+// Who may call a route. `Gate` reads it from the `allow:` value of the route.
+enum Visitor
+{
+    // Anybody, signed in or not.
+    Anyone = 1,
+    // Only a visitor who signed in with a passkey or a recovery code.
+    SignedIn = 2,
+}

@@ -27,4 +27,9 @@ than by a support desk.
 - **Account recovery by the operator.** A process a person can be talked through is the weakest
   credential on the account.
 
-**Not on disk.** There is no registry.
+**On disk.** `apps/registry/src/App.nvs` is the sign-up, the sign-in and the passkey routes;
+`Work.nvs` is the proof-of-work, a SHA-256 of a session-bound challenge with as many leading zero bits
+as `hosting.json`'s `signUpWork` names, checked once and within ten minutes; `Accounts.nvs` keeps ten
+recovery codes per account as SHA-256 hashes, each used once. The schema has no column for a name, an
+address or a password. **Memory:** one challenge per visitor in the session, and no state between
+requests outside SQLite.

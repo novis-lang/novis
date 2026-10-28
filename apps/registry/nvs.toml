@@ -1,0 +1,14 @@
+# The accounts and passkeys are kept in the SQLite file `registry.sqlite`, next to this file.
+# Novis creates the file when the first request opens the database.
+[db.registry]
+driver = "sqlite"
+path = "registry.sqlite"
+
+# A request may read this file and no other file. `hosting.json` has the address of the site
+# and the other settings of this installation.
+[capabilities.fs]
+read = ["hosting.json"]
+
+# The program may open this database and no other.
+[capabilities.db]
+connect = ["registry"]

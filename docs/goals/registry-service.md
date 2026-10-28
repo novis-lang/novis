@@ -6,7 +6,7 @@ context: [apps/registry/README.md, apps/registry/src/App.nvs, crates/nvs-cli/src
 stages:
   - id: 1
     title: the application exists, and an account is passkeys, recovery codes and a proof-of-work sign-up
-    status: open
+    status: done
     context: [apps/notes/src/App.nvs, apps/notes/README.md, crates/nvs-stdlib/src/passkey.rs, docs/rules/packaging/a-registry-account-is-a-passkey.md]
     extra:
       context:
@@ -89,7 +89,7 @@ checks:
   - id: registry-tests
     stage: 10
     name: the registry application's own tests pass
-    run: [cargo, run, -q, --bin, nvs, --, test, apps/registry]
+    run: [cargo, run, -q, --bin, nvs, --, test, apps/registry, --config, apps/registry/nvs.toml]
   - id: service-proofs
     stage: 10
     name: the publishing commands owe no feature proof
@@ -118,9 +118,25 @@ already runs, so a publisher's `nvs pkg publish --dry-run` predicts exactly what
 **The service is `apps/registry/`, a Novis application like `apps/notes/`.** It stores its data in
 SQLite through `Core\Db`, signs users in with `Core\Passkey` (goal `core-passkey`), and runs `nvs`
 subcommands as child processes, granted in its own `nvs.toml`. Its tests run with
-`nvs test apps/registry` against a temporary database and a push service and a webhook receiver on
-loopback listeners. The app runs `nvs registry build` through one class, and its tests replace that
-class with `Core\Test::double` fed the JSON that `crates/nvs-cli/tests/registry_build.rs` pins.
+`nvs test apps/registry --config apps/registry/nvs.toml` against the app's own database file and a
+push service and a webhook receiver on loopback listeners. The app runs `nvs registry build` through
+one class, and its tests replace that class with `Core\Test::double` fed the JSON that
+`crates/nvs-cli/tests/registry_build.rs` pins.
+
+**The tests share `registry.sqlite`, and each test makes its own accounts.** `Core\Test::request`
+runs the app in a fresh run, so neither `#[Test(db:)]`'s rollback nor a `:memory:` database reaches
+the rows a request writes (probed: the count grew across runs). Every test signs up new accounts with
+random ids through `Registry\BrowserTest` and reads only those, so tests run in parallel and in any
+order. `registry.sqlite` is gitignored. Why: the tested path is the real request path, with no test
+switch in the app. A later need for a clean file is one `--config` naming another path.
+
+**The API is JSON, and the gate starts the session.** Every route takes and returns JSON; the HTML
+pages are goal `registry-website`'s. `Registry\Gate::allows` calls `Core\Session::start()` once per
+request, because a second `start()` throws, and `Visitor::SignedIn` routes need the session's account.
+Account ids are 32 hex characters, checked by `Accounts::idOf` wherever one is read back from the
+session or a row. `hosting.json` holds `origin` (the passkey domain is its host) and `signUpWork`, the
+proof-of-work's zero bits: 8 in the committed file so a test solves one in milliseconds, and the
+deploy guide (stage 10) gives a production figure near 20.
 
 **The test git server speaks HTTPS, never plain HTTP, and only the Rust tests run it.**
 `crates/nvs-cli/tests/registry_build.rs` serves `git http-backend` behind a rustls listener with a
@@ -286,10 +302,10 @@ adds more passkeys and signs in.
 **Split:** an `Explore` subagent returns `Core\Passkey`'s calls for registration and sign-in from its
 reference card, one line each, and the list of `apps/notes/` files with what each holds.
 
-- [ ] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/notes/src/App.nvs:1`, `apps/registry/src/App.nvs:1`
-- [ ] Sign-up with its proof-of-work, passkeys through `Core\Passkey`, recovery codes stored hashed, and sign-in; nothing asks for an email (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
-- [ ] Tests: a sign-up without the proof-of-work refused, recovery codes shown once and each usable once, a second passkey added only while signed in. `apps/registry/src/AccountsTest.nvs:1`
-- [ ] `rule:packaging/a-registry-account-is-a-passkey` is `shipped` with these tests in `guardedBy`. `data/rules/packaging/a-registry-account-is-a-passkey.json:1`
+- [x] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/notes/src/App.nvs:1`, `apps/registry/src/App.nvs:1`
+- [x] Sign-up with its proof-of-work, passkeys through `Core\Passkey`, recovery codes stored hashed, and sign-in; nothing asks for an email (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
+- [x] Tests: a sign-up without the proof-of-work refused, recovery codes shown once and each usable once, a second passkey added only while signed in. `apps/registry/src/AccountsTest.nvs:1`
+- [x] `rule:packaging/a-registry-account-is-a-passkey` is `shipped` with these tests in `guardedBy`. `data/rules/packaging/a-registry-account-is-a-passkey.json:1`
 
 ### 2. a vendor has owners, and a token is scoped, hashed and expires
 
@@ -442,22 +458,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. No stage is started, and `apps/registry/` does not exist. Stage 1's gate is open
-until goal `core-passkey` ships `rule:core-classes/passkey-verifies-a-webauthn-ceremony`.
+Stage 1 is done. `apps/registry/` is a JSON API: `App.nvs` routes sign-up (work, options, finish),
+sign-in by passkey and by recovery code, the account, adding a passkey and sign-out; `Work.nvs` is
+the proof-of-work, `Accounts.nvs` the store, `Schema.nvs` the tables, `Gate.nvs` starts the session,
+`Site.nvs` reads `hosting.json`. `AccountsTest.nvs` passes its five tests with
+`nvs test . --config nvs.toml` in `apps/registry/`, driving `BrowserTest.nvs`, which plays the browser
+and an Ed25519 passkey device. `rule:packaging/a-registry-account-is-a-passkey` is shipped. No test
+is expected to go red. Every gate in *Gates* now holds: `package-client`, `api-compat` and
+`registry-log` are reached, and `Core\WebPush` is shipped.
 
 ### Next
 
-Stage 1, the application and its accounts, on `apps/registry/`. Gate:
-`data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json` reads `"status": "shipped"`; until
-it does, take the first item alone.
-- [ ] `apps/registry/` with its `nvs.toml`, schema and test setup, in the shape of `apps/notes/` (`rule:packaging/the-registry-is-a-novis-program`). `apps/registry/src/App.nvs:1`
-- [ ] Sign-up with its proof-of-work, passkeys, recovery codes and sign-in (`rule:packaging/a-registry-account-is-a-passkey`). `apps/registry/src/Accounts.nvs:1`
-- [ ] Their tests. `apps/registry/src/AccountsTest.nvs:1`
-- [ ] `rule:packaging/a-registry-account-is-a-passkey` is `shipped`. `data/rules/packaging/a-registry-account-is-a-passkey.json:1`
+Stage 2, vendors, owners and tokens, on `apps/registry/` (app items), then the Rust lane's
+`login.rs`. Add the `vendors`, `owners` and `tokens` tables to `Schema::setUp`
+(`apps/registry/src/Schema.nvs:21`); a token is checked from the `authorization` header, never the
+session. An owner is added only after a passkey sign-in in the same session: keep the sign-in time in
+`Registry\Session` (`apps/registry/src/Session.nvs:20`).
+- [ ] Vendors and owners, an owner added only with a passkey. `apps/registry/src/Vendors.nvs:1`
+- [ ] Tokens: scope, expiry, the `nvsreg_` prefix, hashed storage and revocation (`rule:packaging/a-publish-token-is-scoped-and-expires`). `apps/registry/src/Tokens.nvs:1`
+- [ ] Their tests, in the shape of `apps/registry/src/AccountsTest.nvs:1`. `apps/registry/src/TokensTest.nvs:1`
+- [ ] `nvs pkg login` and `nvs pkg whoami`. `crates/nvs-cli/src/package/login.rs:1`
+- [ ] `rule:packaging/a-publish-token-is-scoped-and-expires` is `shipped`. `data/rules/packaging/a-publish-token-is-scoped-and-expires.json:1`
 
 ### Backlog
 
-- Stage 3, `nvs registry build` and `nvs pkg publish`, is the Rust lane; its gate is goals `package-client` and `api-compat` reached (`docs/goals/package-client.md`).
+- Stage 3, `nvs registry build` and `nvs pkg publish`, is the Rust lane, disjoint from `apps/registry/`, and its gate holds (`crates/nvs-cli/src/package/mod.rs`).
 
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - Stage 11, the hosting settings, the durable publish, the backup and the restore, follows stage 7 (`apps/registry/src/Stores.nvs`).

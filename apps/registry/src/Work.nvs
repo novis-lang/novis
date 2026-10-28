@@ -1,0 +1,69 @@
+<?nvs
+namespace Registry;
+
+use Core\Encoding;
+use Core\Hash;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+
+// The proof-of-work that a sign-up needs. It makes many sign-ups from one program slow.
+// The browser tries numbers until SHA-256 of `challenge:number` starts with enough zero bits.
+final class Work
+{
+    // A challenge can be used for ten minutes, and only once.
+    public const int LIFETIME = 600;
+
+    private const string KEY = 'registry.work';
+
+    // Makes a new challenge and saves it in the session. A new challenge replaces the last one.
+    public static function issue(): string
+    {
+        string $challenge = Random::token(16);
+        Core\Session::set(Work::KEY, Time::now()->toEpochSeconds() . ':' . $challenge);
+        return $challenge;
+    }
+
+    // Checks the answer to the challenge in the session. The challenge is deleted first,
+    // so each challenge can be checked once.
+    public static function check(tainted string $challenge, tainted string $nonce, int $bits): bool
+    {
+        ?tainted string $saved = Core\Session::get(Work::KEY) as ?tainted string;
+        Core\Session::remove(Work::KEY);
+        if ($saved == null) {
+            return false;
+        }
+        int $issued = (Str::before($saved, ':') ?? '') as ?int ?? 0;
+        tainted string $expected = Str::after($saved, ':') ?? '';
+        if (Time::now()->toEpochSeconds() - $issued > Work::LIFETIME) {
+            return false;
+        }
+        if ($challenge != $expected || Str::length($nonce) == 0 || Str::length($nonce) > 20) {
+            return false;
+        }
+        return Work::zeroBits($challenge . ':' . $nonce) >= $bits;
+    }
+
+    // Counts the zero bits at the start of the SHA-256 hash of `$text`.
+    public static function zeroBits(tainted string $text): int
+    {
+        string $hex = Encoding::toHex(Hash::of($text, Hash::Digest::Sha256));
+        int $bits = 0;
+        foreach (Str::chunk($hex, 1) as string $digit) {
+            uint $value = Str::indexOf('0123456789abcdef', $digit) ?? 0;
+            if ($value == 0) {
+                $bits += 4;
+                continue;
+            }
+            if ($value < 2) {
+                $bits += 3;
+            } elseif ($value < 4) {
+                $bits += 2;
+            } elseif ($value < 8) {
+                $bits += 1;
+            }
+            return $bits;
+        }
+        return $bits;
+    }
+}

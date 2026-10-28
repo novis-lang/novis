@@ -200,5 +200,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `crates/nvs-cli/tests/telemetry_e2e.rs` does. A relative `read` entry is read from the folder of
   the `nvs.toml` that has it, so a copy elsewhere needs full paths.
   `until: gone crates/nvs-config/src/capability.rs:fn default_of`
+- **A route that calls `Core\Session::start()` after its gate did throws, and the route's
+  `catch (RuntimeError)` turns it into an ordinary 400.** `apps/registry`'s sign-up failed as "the
+  passkey could not be checked" until `Gate::allows` became the one `start()`; there is no
+  `isStarted`. Two more there: rows a `Core\Test::request` writes outlive `#[Test(db:)]`'s rollback,
+  because the request is its own run, and an arrow closure appending to an outer array appends to a
+  copy. See `apps/registry/src/Gate.nvs`. `until: gone apps/registry/src/Gate.nvs:Core\Session::start`
 
 ## Divergences

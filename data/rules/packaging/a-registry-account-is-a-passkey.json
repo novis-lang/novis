@@ -1,12 +1,13 @@
 {
   "title": "A registry account is passkeys and one-time recovery codes, with no email, no SMS, no password, no forge binding and no human recovery",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/passkey-verifies-a-webauthn-ceremony",
     "packaging/an-account-stays-active-by-proof-not-by-token",
     "packaging/an-owner-is-notified-without-email",
     "packaging/a-publish-token-is-scoped-and-expires"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/AccountsTest.nvs"
+  ]
 }

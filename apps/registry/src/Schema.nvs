@@ -1,0 +1,46 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+
+// The tables of the registry. `open` creates each table that does not exist yet.
+final class Schema
+{
+    // Opens the database `registry` from `nvs.toml` and creates the missing tables.
+    public static function open(): Connection
+    {
+        var $db = Db::connect('registry');
+        Schema::setUp($db);
+        return $db;
+    }
+
+    // Every time is in seconds since 1970, from `Core\Time::now()`.
+    // An account has no name, no email and no password. Its id is 32 hex characters.
+    // `active_at` is the time of the last sign-in with a passkey.
+    public static function setUp(Connection $db): void
+    {
+        $db->execute(
+            'create table if not exists accounts ('
+                . 'id text primary key, created_at integer not null, active_at integer not null)',
+            [],
+        );
+        // The id and the public key are base64url text. `algorithm` is the case of
+        // `Core\Passkey\Credential::Algorithm` as a number.
+        $db->execute(
+            'create table if not exists passkeys ('
+                . 'id text primary key, account text not null references accounts (id), '
+                . 'public_key text not null, algorithm integer not null, sign_count integer not null, '
+                . 'created_at integer not null, used_at integer not null)',
+            [],
+        );
+        // Only the SHA-256 hash of each recovery code is kept. `used_at` is null until the code is used.
+        $db->execute(
+            'create table if not exists recovery_codes ('
+                . 'hash text primary key, account text not null references accounts (id), used_at integer)',
+            [],
+        );
+        $db->execute('create index if not exists passkeys_of_account on passkeys (account)', []);
+        $db->execute('create index if not exists codes_of_account on recovery_codes (account)', []);
+    }
+}

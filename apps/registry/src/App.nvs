@@ -1,0 +1,192 @@
+<?nvs
+namespace Registry;
+
+use Core\Access;
+use Core\Arr;
+use Core\Encoding;
+use Core\Http\Method;
+use Core\Json;
+use Core\Passkey;
+use Core\Request;
+use Core\Response;
+use Core\Route;
+use Core\Str;
+use ParseError;
+use RuntimeError;
+
+// The routes of the registry. Each method with a `Route` handles one kind of request.
+// Every route takes JSON and returns JSON.
+final class App
+{
+    // The name of the site, as a device shows it next to the passkey.
+    public const string NAME = 'Novis registry';
+
+    // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
+    #[Route(path: '/api/signup/work', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signUpWork(): void
+    {
+        Response::json({ challenge: Work::issue(), bits: Site::load()->signUpWork });
+    }
+
+    // Step 2 of a sign-up: checks the proof-of-work and returns the options for a new passkey.
+    #[Route(path: '/api/signup/options', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signUpOptions(): void
+    {
+        var $site = Site::load();
+        try {
+            var $answer = Request::jsonAs<WorkAnswer>();
+            if (!Work::check($answer->challenge, $answer->nonce, $site->signUpWork)) {
+                App::fail(403, 'The proof-of-work is not valid. Ask for a new challenge.');
+                return;
+            }
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a challenge and a nonce.');
+            return;
+        }
+        string $account = Accounts::newId();
+        Session::startSignUp($account);
+        App::options(Passkey::registerOptions($site->domain(), App::NAME, Encoding::fromHex($account), App::label($account)));
+    }
+
+    // Step 3 of a sign-up: checks the new passkey and creates the account.
+    // It returns the recovery codes. They are shown this one time only.
+    #[Route(path: '/api/signup', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signUp(): void
+    {
+        var $site = Site::load();
+        ?string $account = Session::takeSignUp();
+        if ($account == null) {
+            App::fail(403, 'Send the proof-of-work first.');
+            return;
+        }
+        try {
+            var $passkey = Passkey::verifyRegistration(Request::body(), $site->domain(), $site->origin);
+            array<string> $codes = new Accounts(Schema::open())->create($account, $passkey);
+            Session::signIn($account);
+            Response::setStatus(201);
+            Response::json({ account: $account, recoveryCodes: $codes });
+        } catch (RuntimeError $error) {
+            App::fail(400, 'The passkey could not be checked. Start the sign-up again.');
+        }
+    }
+
+    // Returns the options to sign in with any passkey of this site.
+    #[Route(path: '/api/signin/options', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signInOptions(): void
+    {
+        App::options(Passkey::signInOptions(Site::load()->domain()));
+    }
+
+    // Checks a sign-in with a passkey, and signs the visitor in to its account.
+    #[Route(path: '/api/signin', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signIn(): void
+    {
+        var $site = Site::load();
+        var $accounts = new Accounts(Schema::open());
+        try {
+            ?Owned $owned = $accounts->findPasskey(Passkey::credentialId(Request::body()));
+            if ($owned == null) {
+                App::fail(403, 'This passkey belongs to no account.');
+                return;
+            }
+            var $passkey = Passkey::verifySignIn(Request::body(), $owned->passkey, $site->domain(), $site->origin);
+            $accounts->signedIn($owned->account, $passkey);
+            Session::signIn($owned->account);
+            Response::json({ account: $owned->account });
+        } catch (RuntimeError $error) {
+            App::fail(403, 'The passkey could not be checked.');
+        }
+    }
+
+    // Signs the visitor in with a recovery code. Each code works once.
+    #[Route(path: '/api/signin/recovery', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signInWithCode(): void
+    {
+        var $accounts = new Accounts(Schema::open());
+        try {
+            ?string $account = $accounts->useRecoveryCode(Request::jsonAs<CodeAnswer>()->code);
+            if ($account == null) {
+                App::fail(403, 'This recovery code is not valid, or it was used before.');
+                return;
+            }
+            Session::signIn($account);
+            Response::json({ account: $account, recoveryCodesLeft: $accounts->recoveryCodesLeft($account) });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a code.');
+        }
+    }
+
+    // Returns the account of the visitor, its number of passkeys and of unused recovery codes.
+    #[Route(path: '/api/account', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function account(): void
+    {
+        string $account = Session::account() ?? '';
+        var $accounts = new Accounts(Schema::open());
+        Response::json({
+            account: $account,
+            passkeys: Arr::count($accounts->passkeys($account)),
+            recoveryCodesLeft: $accounts->recoveryCodesLeft($account),
+        });
+    }
+
+    // Returns the options for one more passkey. The passkeys the account has are excluded.
+    #[Route(path: '/api/account/passkeys/options', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function passkeyOptions(): void
+    {
+        string $account = Session::account() ?? '';
+        var $existing = new Accounts(Schema::open())->passkeys($account);
+        App::options(Passkey::registerOptions(Site::load()->domain(), App::NAME, Encoding::fromHex($account), App::label($account), $existing));
+    }
+
+    // Checks the new passkey and adds it to the account.
+    #[Route(path: '/api/account/passkeys', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function addPasskey(): void
+    {
+        var $site = Site::load();
+        string $account = Session::account() ?? '';
+        var $accounts = new Accounts(Schema::open());
+        try {
+            $accounts->addPasskey($account, Passkey::verifyRegistration(Request::body(), $site->domain(), $site->origin));
+            Response::setStatus(201);
+            Response::json({ passkeys: Arr::count($accounts->passkeys($account)) });
+        } catch (RuntimeError $error) {
+            App::fail(400, 'The passkey could not be checked.');
+        }
+    }
+
+    // Signs the visitor out.
+    #[Route(path: '/api/signout', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function signOut(): void
+    {
+        Session::signOut();
+        Response::setStatus(204);
+    }
+
+    // The name a device shows for the passkey, such as `account 3f2a9c1e`.
+    private static function label(string $account): string
+    {
+        return 'account ' . Str::slice($account, 0, 8);
+    }
+
+    // Sends the options of a passkey ceremony to the browser.
+    private static function options(string $json): void
+    {
+        Response::json(Json::decode($json));
+    }
+
+    private static function fail(uint $status, string $text): void
+    {
+        Response::setStatus($status);
+        Response::json({ error: $text });
+    }
+}

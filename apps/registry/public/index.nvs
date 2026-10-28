@@ -1,0 +1,8 @@
+<?nvs
+// This is the entry file. `nvs serve public/index.nvs` runs it once for each request.
+// The `autoload` line reads each class `Registry\...` from the folder `src`.
+autoload 'Registry' from '../src';
+
+// `dispatch` finds the route for the request and calls its method.
+// `Registry\Gate` decides if the method may run, and it shows the error pages.
+Core\Router::dispatch(new Registry\Gate());
