@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/webpush.rs, docs/rules/core-classes/web-push-sen
 stages:
   - id: 1
     title: a payload is encrypted as RFC 8291's `aes128gcm` encoding, with the nonce derived inside
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/crypto.rs, crates/nvs-stdlib/src/registry.rs, Cargo.toml]
     extra:
       context:
@@ -97,6 +97,11 @@ loopback TLS origin with a test certificate, through `tls_origin`
 exception the test writes. Why: security first, so the class has no test-only escape, and the test
 exercises the same TLS and address checks a real push service gets.
 
+**`WebPush\Subscription` has one reader, `endpoint(): tainted string`.** The application stores the
+browser's JSON text and reads it again with `subscription` before it sends, so the keys need no
+readers, and the endpoint is the one value it looks a subscription up by. It is `tainted` because a
+browser wrote it. `subscription` checks every value when it reads, so `send` trusts the slots.
+
 **The VAPID key is a `Core\Crypto\KeyPair` of kind `P256`.** It is `secret`, and the token is signed by
 the code `Core\Jwt` already uses for ES256 (`crates/nvs-stdlib/src/jwt.rs:1162`,
 `crates/nvs-stdlib/src/jwt.rs:1351`).
@@ -120,11 +125,11 @@ module list in `crates/nvs-stdlib/src/lib.rs:230`, `docs/rules/security/protocol
 **Does:** a payload becomes one `aes128gcm` record for the subscription's keys, with a fresh salt and
 key pair per message.
 
-- [ ] The class, its module, its place in the class list, and `subscription` reading `PushSubscription.toJSON()`. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/lib.rs:230`, `crates/nvs-stdlib/src/registry.rs:5994`
-- [ ] The key agreement with the subscription's `p256dh`, the HKDF steps with its `auth` secret, and the content key and nonce derived from them (`rule:core-classes/web-push-sends-an-encrypted-message`). `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1816`, `crates/nvs-stdlib/src/crypto.rs:1830`, `crates/nvs-stdlib/src/crypto.rs:1770`
-- [ ] AES-128-GCM from the `aes-gcm` crate, used only inside this file, with the padding delimiter and the record header. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1623`
-- [ ] The reference cards of `subscription` and `WebPush\Subscription` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Tests: RFC 8291's example message with its fixed salt and key pair matches its published bytes, and a payload over 3993 bytes throws. `crates/nvs-stdlib/src/webpush.rs:1`
+- [x] The class, its module, its place in the class list, and `subscription` reading `PushSubscription.toJSON()`. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/lib.rs:230`, `crates/nvs-stdlib/src/registry.rs:5994`
+- [x] The key agreement with the subscription's `p256dh`, the HKDF steps with its `auth` secret, and the content key and nonce derived from them (`rule:core-classes/web-push-sends-an-encrypted-message`). `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1816`, `crates/nvs-stdlib/src/crypto.rs:1830`, `crates/nvs-stdlib/src/crypto.rs:1770`
+- [x] AES-128-GCM from the `aes-gcm` crate, used only inside this file, with the padding delimiter and the record header. `crates/nvs-stdlib/src/webpush.rs:1`, `crates/nvs-stdlib/src/crypto.rs:1623`
+- [x] The reference cards of `subscription` and `WebPush\Subscription` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/webpush.rs:1`
+- [x] Tests: RFC 8291's example message with its fixed salt and key pair matches its published bytes, and a payload over 3993 bytes throws. `crates/nvs-stdlib/src/webpush.rs:1`
 
 ### 2. a VAPID token is signed with the application's key, and the message is sent under `net.connect`
 
@@ -179,21 +184,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `crates/nvs-stdlib/src/webpush.rs` does not exist. `Core\Jwt`
-(`crates/nvs-stdlib/src/jwt.rs:244`) and `Core\Totp` (`crates/nvs-stdlib/src/totp.rs:132`) are the
-nearest classes in shape. `Core\Crypto` has every primitive but AES-128-GCM, which the `aes-gcm` crate
-already gives. The protocol roster admits `Core\WebPush` as not built.
+Stage 1 is done. `crates/nvs-stdlib/src/webpush.rs` registers `Core\WebPush` (rank 977) with
+`subscription`, and `Core\WebPush\Subscription` (rank 978) with slots `endpoint`, `p256dh`, `auth` and
+one reader, `endpoint(): tainted string`, now on `nvs-types`' tainted-answer roster
+(`crates/nvs-types/src/core_lib.rs`). `read_subscription` (`webpush.rs:219`) already throws for a
+non-`https:` endpoint, an off-curve or compressed `p256dh` and a wrong-length `auth`, with a unit test,
+so stage 3's second item needs only its conformance cases. `encrypt` (`webpush.rs:283`) matches RFC
+8291 § 5's published message byte for byte. `seal` (`webpush.rs:395`) draws the salt and the key and
+`subscription_of` (`webpush.rs:354`) reads an instance back; both carry `expect(dead_code)` until
+`send` calls them, and that attribute goes when it does. Registry guards and clippy are green. The
+`env-secret-proofs` finding was a stale Oct 22 log of a check no longer declared, and the cancelled
+nightly run 40662443492 was superseded by a push; every CI run since is green.
 
 ### Next
 
-**Stage 1: the `aes128gcm` encoding**, one file set: `crates/nvs-stdlib/src/webpush.rs`,
-`crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/src/registry.rs`. No gate.
+**Stage 2: the VAPID token and `send`**, one file set: `crates/nvs-stdlib/src/webpush.rs`,
+`crates/nvs-stdlib/src/http.rs`, `crates/nvs-stdlib/src/registry.rs`. No gate.
 
-- [ ] The class, its module, its place in the class list, and `subscription`. `crates/nvs-stdlib/src/registry.rs:5994`
-- [ ] The key agreement and HKDF steps (`rule:core-classes/web-push-sends-an-encrypted-message`). `crates/nvs-stdlib/src/crypto.rs:1830`
-- [ ] AES-128-GCM inside the new file, with the record header. `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] The reference cards of `subscription` and `WebPush\Subscription` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/webpush.rs:1`
-- [ ] Tests: RFC 8291's example, and a payload over one record. `crates/nvs-stdlib/src/webpush.rs:1`
+- [ ] `applicationServerKey` and the ES256 VAPID token (RFC 8292). `crates/nvs-stdlib/src/jwt.rs:1351`
+- [ ] `send` through a sibling of `extension_send`, then remove the two `expect(dead_code)`. `crates/nvs-stdlib/src/http.rs:4231`, `crates/nvs-stdlib/src/webpush.rs:395`
+- [ ] The three `CAPABILITIES` rows. `crates/nvs-stdlib/src/registry.rs:1864`
+- [ ] `WebPush\Sent` with `status()` and `gone()`, and the cards. `crates/nvs-stdlib/src/webpush.rs:130`
+- [ ] The loopback TLS push-service test. `crates/nvs-stdlib/src/http/transport.rs:5499`
+
+Expected red until stage 4: `bun nv proofs` owes every proof of `Core\WebPush`, and a check over
+`data/perf/members.ndjson` or the website's `Core` index may want rows for the two new members.
 
 ### Backlog
 

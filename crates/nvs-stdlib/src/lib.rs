@@ -232,6 +232,7 @@ mod totp;
 pub mod uri;
 pub mod uuid;
 mod validate;
+mod webpush;
 mod xml;
 mod zip;
 
@@ -459,6 +460,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| uri::address(symbol))
         .or_else(|| uuid::address(symbol))
         .or_else(|| validate::address(symbol))
+        .or_else(|| webpush::address(symbol))
         .or_else(|| xml::address(symbol))
         .unwrap_or_else(|| panic!("nvs-stdlib registers `{symbol}` with no implementation address"))
 }

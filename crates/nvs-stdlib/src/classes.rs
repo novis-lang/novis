@@ -111,6 +111,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::totp::CLASS,
     crate::passkey::CLASS,
     crate::passkey::CREDENTIAL,
+    crate::webpush::CLASS,
+    crate::webpush::SUBSCRIPTION,
     crate::jwt::CLASS,
     crate::jwt::KEY_SET,
     crate::jwe::CLASS,

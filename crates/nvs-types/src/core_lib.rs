@@ -1633,7 +1633,9 @@ mod tests {
     /// are on it for the same reason: `of` and `child` launder a value into a
     /// `Dn`, and the text it gives back must not leave the DN sink unmarked.
     /// `Core\Storage::get` is on it because a stored value is whatever any
-    /// earlier request wrote. `Core\Random\Seeded`'s `bytes` and `token` are on
+    /// earlier request wrote. `Core\WebPush\Subscription::endpoint` is on it
+    /// because a browser wrote the URL, and `Core\WebPush::subscription`
+    /// checked its scheme and nothing about where it points. `Core\Random\Seeded`'s `bytes` and `token` are on
     /// it because their output is predictable, and the mark is what keeps it
     /// out of a parameter that takes a key or a token.
     /// All of them belong in this set for the reason the claims do: a member that
@@ -1832,6 +1834,12 @@ mod tests {
                 ),
                 // A stored value is whatever the program put there, from any source.
                 (r"Core\Storage", "get", "null|tainted bytes".to_owned()),
+                // A push subscription's endpoint is the URL a browser wrote.
+                (
+                    r"Core\WebPush\Subscription",
+                    "endpoint",
+                    "tainted string".to_owned(),
+                ),
                 (
                     r"Core\Xml\Node",
                     "attributes",
