@@ -4290,9 +4290,15 @@ pub fn extension_send(
 /// endpoint's origin, so a hop elsewhere would carry it to a host it does not name, and a push
 /// service answers a message with a status of its own. A `3xx` is returned as its status.
 ///
+/// **A test's answer table answers it** as it answers [`faked`]'s calls
+/// (`rule:testing/an-outbound-call-is-answered-from-a-table`): once a row is registered, the
+/// message is recorded for `Core\Test::sentHttp` and answered with the row's status, and nothing
+/// connects. The endpoint's text and the headers are judged first, as a real call judges them.
+///
 /// # Errors
 ///
-/// [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised.
+/// [`pin`]'s refusals, [`call_of`]'s, and whatever [`transport::send`] raised, or, where a test
+/// has armed the answer table, [`judged_host`]'s and a `LogicError` naming an unanswered URL.
 pub(crate) fn push_send(
     ctx: &mut Ctx,
     member: &str,
@@ -4300,6 +4306,26 @@ pub(crate) fn push_send(
     headers: Vec<(String, String)>,
     body: Vec<u8>,
 ) -> Result<i64, Fault> {
+    if ctx.faked_http().is_armed() {
+        judged_host(url, member, Roster::Request)?;
+        let headers: Vec<(String, String)> = headers
+            .into_iter()
+            .map(|(name, value)| (name.to_ascii_lowercase(), value))
+            .collect();
+        for (name, value) in &headers {
+            transport::judged_field(name, value, member)?;
+        }
+        ctx.faked_http_mut().record(nvs_runtime::HttpSent {
+            verb: "POST".to_owned(),
+            url: url.to_owned(),
+            headers,
+            body,
+        });
+        return match ctx.faked_http().answer_for(url) {
+            Some(answer) => Ok(i64::from(answer.status)),
+            None => Err(unanswered(member, url)),
+        };
+    }
     // Every option slot null, for `extension_send`'s reason.
     let args = [Value::null(); REQUEST_ARITY];
     let began = Instant::now();
@@ -4697,14 +4723,7 @@ fn faked(
     });
 
     let Some(answer) = ctx.faked_http().answer_for(&url) else {
-        return Err(Fault::thrown_as(
-            ThrownClass::Logic,
-            format!(
-                "{named}: this test answers outbound calls from a table and no answer is \
-                 registered for {url} — `Core\\Test::answerHttp` registers one, exactly or as a \
-                 prefix ending in `*`"
-            ),
-        ));
+        return Err(unanswered(named, &url));
     };
     let status = i64::from(answer.status);
     let octets = answer.body.clone();
@@ -4730,6 +4749,18 @@ fn faked(
         Value::bytes(NvsStr::new(&octets))
     };
     Ok((status, body, headers, tls))
+}
+
+/// The `LogicError` a call throws when a test armed the answer table and no row answers `url`.
+fn unanswered(named: &str, url: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{named}: this test answers outbound calls from a table and no answer is \
+             registered for {url} — `Core\\Test::answerHttp` registers one, exactly or as a \
+             prefix ending in `*`"
+        ),
+    )
 }
 
 /// The `traceparent` this call carries: the request's own trace, when

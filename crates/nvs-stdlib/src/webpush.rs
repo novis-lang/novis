@@ -1087,7 +1087,7 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
-    // covers: Core\WebPush::send
+    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::gone
     #[test]
     fn a_push_service_decrypts_what_send_posts_and_checks_its_vapid_token() {
         let (sent, pushed, port, mut ctx) = sent_to(201, b"New message from Shop");
@@ -1133,6 +1133,7 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
+    // covers: Core\WebPush\Sent::status, Core\WebPush\Sent::gone
     #[test]
     fn a_410_answer_is_a_subscription_that_is_gone() {
         let (sent, _, _, mut ctx) = sent_to(410, b"hello");
@@ -1140,6 +1141,101 @@ mod tests {
         assert_eq!(status.expect("a status").as_int(), Some(410));
         let gone = nvs_runtime::call(nvs_core_webpush_sent_gone, &mut ctx, &[sent]);
         assert_eq!(gone.expect("an answer").as_bool(), Some(true));
+    }
+
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
+    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::gone
+    #[test]
+    fn a_test_s_answer_table_answers_send_and_records_the_message() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.faked_http_mut().answer(nvs_runtime::HttpAnswer {
+            url: "https://push.example.com/*".to_owned(),
+            status: 404,
+            headers: Vec::new(),
+            body: Vec::new(),
+            tls: None,
+        });
+        let json = subscription_json("https://push.example.com/send/abc", UA_PUBLIC, AUTH);
+        let to = nvs_runtime::call(
+            nvs_core_webpush_subscription,
+            &mut ctx,
+            &[Value::text(&json)],
+        )
+        .expect("the subscription reads");
+        let send = |ctx: &mut nvs_runtime::Ctx, to: Value| {
+            nvs_runtime::call(
+                nvs_core_webpush_send,
+                ctx,
+                &[
+                    to,
+                    Value::bytes(NvsStr::new(b"hello")),
+                    vapid_pair(),
+                    Value::text("mailto:admin@example.com"),
+                    Value::int(60),
+                ],
+            )
+        };
+        let sent = send(&mut ctx, to).expect("the table answers");
+        let status = nvs_runtime::call(nvs_core_webpush_sent_status, &mut ctx, &[sent]);
+        assert_eq!(status.expect("a status").as_int(), Some(404));
+        let gone = nvs_runtime::call(nvs_core_webpush_sent_gone, &mut ctx, &[sent]);
+        assert_eq!(gone.expect("an answer").as_bool(), Some(true));
+
+        let recorded = ctx.faked_http().sent();
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0].verb, "POST");
+        assert_eq!(recorded[0].url, "https://push.example.com/send/abc");
+        assert_eq!(decrypted(&recorded[0].body), b"hello");
+        let named = |name: &str| {
+            recorded[0]
+                .headers
+                .iter()
+                .find(|(written, _)| written == name)
+                .map(|(_, value)| value.as_str())
+        };
+        assert_eq!(named("content-encoding"), Some("aes128gcm"));
+        assert!(named("authorization").is_some_and(|value| value.starts_with("vapid t=")));
+
+        // A row for another host leaves this endpoint unanswered, and nothing connects.
+        let json = subscription_json("https://other.example.com/send/abc", UA_PUBLIC, AUTH);
+        let elsewhere = nvs_runtime::call(
+            nvs_core_webpush_subscription,
+            &mut ctx,
+            &[Value::text(&json)],
+        )
+        .expect("the subscription reads");
+        send(&mut ctx, elsewhere).expect_err("no row answers this endpoint");
+        let why = ctx
+            .take_pending()
+            .map(std::borrow::Cow::into_owned)
+            .unwrap_or_default();
+        assert!(
+            why.contains("no answer is registered for https://other.example.com/send/abc"),
+            "{why}"
+        );
+    }
+
+    // covers: Core\WebPush\Subscription::endpoint
+    #[test]
+    fn endpoint_returns_the_url_the_browser_wrote_and_keeps_it_tainted() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let json = subscription_json("https://push.example.com/send/abc", UA_PUBLIC, AUTH);
+        let to = nvs_runtime::call(
+            nvs_core_webpush_subscription,
+            &mut ctx,
+            &[Value::text(&json)],
+        )
+        .expect("the subscription reads");
+        let endpoint = nvs_runtime::call(nvs_core_webpush_subscription_endpoint, &mut ctx, &[to])
+            .expect("an endpoint");
+        assert_eq!(endpoint.as_text(), Some("https://push.example.com/send/abc"));
+        assert!(
+            matches!(SUBSCRIPTION.instance[0].return_ty, CoreTy::TaintedStr),
+            "the browser wrote the URL"
+        );
     }
 
     #[cfg_attr(

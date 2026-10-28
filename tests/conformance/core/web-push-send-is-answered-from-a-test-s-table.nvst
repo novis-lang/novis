@@ -1,0 +1,39 @@
+--TEST--
+`Core\WebPush::send` is answered from a test's table once `Core\Test::answerHttp` registers a row, records the encrypted `POST` it would have sent, and its `WebPush\Sent` reads the row's status, with `gone()` true for a `404` and a `410` — `rule:core-classes/web-push-sends-an-encrypted-message`, `rule:testing/an-outbound-call-is-answered-from-a-table`
+--FILE--
+<?nvs
+// covers: Core\WebPush::send
+// covers: Core\WebPush\Sent::status
+// covers: Core\WebPush\Sent::gone
+// Each endpoint is answered from the table, so nothing connects.
+Core\Test::answerHttp("https://push.example.com/ok/*", 201, {});
+Core\Test::answerHttp("https://push.example.com/missing/*", 404, {});
+Core\Test::answerHttp("https://push.example.com/expired/*", 410, {});
+
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $payload = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+
+array<string> $paths = ["ok", "missing", "expired"];
+foreach ($paths as string $path) {
+    string $json = "{\"endpoint\":\"https://push.example.com/" . $path . "/abc\",\"keys\":{\"p256dh\":"
+        . "\"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4\","
+        . "\"auth\":\"BTBZMqHH6r4Tts7J_aSIgg\"}}";
+    Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+    Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, "mailto:admin@example.com", 60);
+    echo $path, " ", $sent->status(), " gone ", $sent->gone() ? "yes" : "no", "\n";
+}
+
+// Each message is encrypted and carries a signed VAPID token.
+foreach (Core\Test::sentHttp() as Core\Test\SentRequest $call) {
+    string $authorization = $call->header("authorization") ?? "";
+    echo $call->url(), " ", $call->header("content-encoding") ?? "-",
+        " ttl ", $call->header("ttl") ?? "-",
+        " vapid ", Core\Str::startsWith($authorization, "vapid t=") ? "yes" : "no", "\n";
+}
+--EXPECT--
+ok 201 gone no
+missing 404 gone yes
+expired 410 gone yes
+https://push.example.com/ok/abc aes128gcm ttl 60 vapid yes
+https://push.example.com/missing/abc aes128gcm ttl 60 vapid yes
+https://push.example.com/expired/abc aes128gcm ttl 60 vapid yes
