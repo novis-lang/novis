@@ -279,6 +279,36 @@ policy page says so (goal `registry-website` writes the page). Every event that 
 tokens, the repository binding, listing, retraction, withholding or confirmation is a log entry
 through `nvs registry log append` (goal `registry-log`).
 
+**A change and its log entry are saved together, and the log has the entry before an index file
+shows the change.** `Releases` (`apps/registry/src/Releases.nvs`) writes each state after publish
+into `release_states` (`stable_at`, `unlisted_at`, `retracted_at` with its reason and `fixed_in`,
+`withheld`), and in the same transaction `Events` (`apps/registry/src/Events.nvs`) saves the entry
+as a JSON line in `events`. The owner and token changes in `Vendors` and `Tokens` do the same.
+`Index::flush`, and `catchUp` before a publish's own entries, appends every waiting line under the
+write lock, deletes those rows, then rewrites the index files of the packages they name. A route
+answers its change at once with `sent: false` when the log or a store fails; the entries wait for
+the next flush, publish or daily run. Why: a revoked token must stop working even when the log is
+down, and an index file must never show a change the log does not have. The first publish's
+claim of a vendor is not an `ownership` entry; its `publish` entry and the index's owners show it.
+
+**A release that waits for an owner is `{"pending": {}}`, with no time.** The first release at
+`0.1.0` or higher waits until an owner's passkey confirms its API (`POST
+/api/packages/<vendor>/<name>/<version>/stable`, which also releases it); a later stable release
+waits only while no release at or below it was confirmed. A release whose dependency's minimum
+version waits takes the later of the two times, or no time; a dependency outside this registry
+never waits, and the walk stops after 16 steps. The client's `State::Pending` carries an
+`Option<u64>`, and `nvs pkg add` never selects one with none. Why: a far-future sentinel time would
+be a fake date every reader has to know about.
+
+**A token can retract but not unlist, and the operator withholds from a shell.** A retraction sent
+with a token shows in the index seven days later; one from an owner signed in with a passkey shows
+at once, and moves a waiting one's time to now. An unlist sent with a token is answered `202` with
+the page where an owner confirms it with a passkey, so `nvs pkg unlist` prints that. The operator
+runs `nvs run jobs/withhold.nvs --config nvs.toml <package> <version> <reason>` on the server; there
+is no operator account on the website, so no web credential can withhold. A withheld archive's
+route answers `451`. Why: the operator's one power stays off the network, and a stolen token can
+only start a public seven-day retraction.
+
 **Owners are notified without email** (`rule:packaging/an-owner-is-notified-without-email`). Each
 publish, new token, owner change, unlist and retraction reaches every owner through the channels that
 owner set up: Web Push, and webhooks. A webhook is a signed POST to a URL the owner gives, sent through
@@ -462,10 +492,21 @@ the first stable API at once, and unlisting and withholding work as their rules 
 **Split:** after the session lands `Releases.nvs` and `Events.nvs`, one writing subagent writes
 `retract.rs` and `unlist.rs` (the Rust lane), then a second writes the tests.
 
-- [ ] The pending state, the dependency wait, the passkey confirmation and the one-time stable confirmation (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `apps/registry/src/Releases.nvs:1`
-- [ ] `nvs pkg retract`, with the same wait for a token and none for a passkey (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/retract.rs:1`
-- [ ] `nvs pkg unlist` and its passkey step, reversible (`rule:packaging/an-owner-may-unlist`), and the operator's withhold as a signed advisory with its reason (`rule:packaging/the-operator-only-withholds`). `crates/nvs-cli/src/package/unlist.rs:1`, `apps/registry/src/Withhold.nvs:1`
+- [x] The pending state, the dependency wait, the passkey confirmation and the one-time stable confirmation (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `apps/registry/src/Releases.nvs:1`
+  - [x] `release_states` and `Releases::selectableAt`: own time, the stable wait, the dependency walk
+  - [x] `Index::document` writes `{"pending": {}}` for a release that waits for an owner, and the client reads it
+  - [x] the `release` and `stable` routes, and the publish message for a first stable release
+- [x] `nvs pkg retract`, with the same wait for a token and none for a passkey (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/retract.rs:1`
+  - [x] the `retract` route: seven days for a token, at once for a passkey
+  - [x] `crates/nvs-cli/src/package/retract.rs` and its test
+- [x] `nvs pkg unlist` and its passkey step, reversible (`rule:packaging/an-owner-may-unlist`), and the operator's withhold as a signed advisory with its reason (`rule:packaging/the-operator-only-withholds`). `crates/nvs-cli/src/package/unlist.rs:1`, `apps/registry/jobs/withhold.nvs:1`
+  - [x] the `unlist` and `relist` routes, `202` with the confirm page for a token
+  - [x] `jobs/withhold.nvs`, and `451` from the archive route
+  - [x] `crates/nvs-cli/src/package/unlist.rs` and its test
 - [ ] A log entry through `nvs registry log append` for every event in the standing decision. `apps/registry/src/Events.nvs:1`, `crates/nvs-cli/src/package/log.rs:1`
+  - [x] `Events` and the `events` table, appended by `Index::flush` and `catchUp` before an index file changes
+  - [x] owner changes, tokens made and revoked, unlist, relist, retract, withhold, release and stable confirmations
+  - [ ] the `repository` entry, with the passkey route that rebinds a package's repository; each release first keeps its own repository, because `Index::write` takes every version's from the package row
 - [ ] Tests under a fixed clock: a token release selectable after seven days and not before, a passkey release at once, a release behind a pending dependency, an unlist reversed, a withhold carrying its reason, and one log entry per event. `apps/registry/src/ReleasesTest.nvs:1`
 - [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
 
@@ -549,29 +590,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7 and 11 are done. `apps/registry/src/StoresTest.nvs` tests the `http` store
-through `Core\Test::answerHttp` and `Core\Test::sentHttp` (the standing decision on hosting now says
-so; no loopback listener and no Rust harness were needed). Each test has its own in-memory database
-with only `unsent`, so it never takes another test's queued rows. Run once: `StoresTest` (2 passed).
-`rule:packaging/registry-hosting-is-configuration` is `shipped`, guarded by the three app tests, and
-the rulebook is rendered (it also carries last session's autoload fragment into `programs.md`).
-The sweep's `env-secret-proofs` red is stale (its log reads `exit 0`), and nightly run 40662443492
+Stages 1, 2, 3, 7 and 11 are done. Stage 4's service side and Rust lane landed: `Releases`
+(states, the stable wait, the dependency walk), `Events` (the `events` table that
+`Index::flush` and `catchUp` append before any index file changes), the `release`, `stable`,
+`api`, `unlist`, `relist` and `retract` routes in `apps/registry/src/App.nvs`, the owner and
+token entries in `Vendors` and `Tokens`, `jobs/withhold.nvs` with `451` from the archive route,
+and `nvs pkg retract` and `nvs pkg unlist` (`crates/nvs-cli/src/package/retract.rs`,
+`unlist.rs`). The client's `State::Pending` takes `Option<u64>`; `{"pending": {}}` waits for an
+owner. Three standing decisions record the design. `nvs check apps/registry` is clean, and clippy
+too. Run once: `cargo test --test package_retract` (3 passed). No app test was run.
+The sweep's `env-secret-proofs` red is stale (rerun: nothing owed), and nightly run 40662443492
 was cancelled by a newer push.
 
-Expected red: none known.
+Expected red: `IndexTest` at `apps/registry/src/IndexTest.nvs:47`. It publishes `1.0.0`, which is
+now the first stable release, so its state is `{"pending": {}}` and has no `selectable_at`. Any
+app test that pins a publish message for a version at `0.1.0` or higher reads the new sentence.
 
 ### Next
 
-Stage 4. Its gate holds: `docs/goals/registry-log.md` is gone. Follow the stage's **Split:** line.
-`pending_until` already exists: `Publish` sets it seven days out for a token publish
-(`apps/registry/src/Publish.nvs:154`), `Publish::again` reports it, and `Index::document` lists a
-version as pending until then (`apps/registry/src/Index.nvs:192`). The log already has every entry
-kind stage 4 needs (`crates/nvs-cli/src/package/entry.rs:46`: `Unlist`, `Relist`, `Retract`,
-`Withhold`, `ReleaseConfirmed`, `StableApiConfirmed`, `Ownership`, `Token`, `Repository`). `Log`
-appends JSON lines through `NvsLog`, and the tests double it (`BackupTest::log`).
-- [ ] `Releases.nvs`: the passkey confirmation route ends `pending_until` and appends `ReleaseConfirmed`, a release behind a pending dependency stays pending, and the first `>= 0.1.0` waits for `StableApiConfirmed`. `apps/registry/src/Publish.nvs:154`, `apps/registry/src/Index.nvs:192`
-- [ ] `Events.nvs`: one place that appends an entry for owner changes, tokens made and revoked, the repository binding, unlist, relist, retract and withhold, under the write lock as `Index::catchUp` does. `apps/registry/src/Index.nvs:44`, `crates/nvs-cli/src/package/entry.rs:46`
-- [ ] `nvs pkg retract` and `nvs pkg unlist` in the Rust lane. `crates/nvs-cli/src/package/publish.rs:1`
+Stage 4's tests, then its rules. The second subagent of the **Split:** line writes the tests.
+- [ ] `apps/registry/src/ReleasesTest.nvs` under `#[Test(at: ...)]` and `Core\Test::advance`: a token release selectable after seven days and not before, a passkey `release` at once, the stable wait and `stable`, a release behind a waiting dependency, an unlist reversed, a token unlist answered `202`, a retraction by token seven days out and by passkey at once, a withhold carrying its reason in `Index::document` and `451` from `/archive/…`, and one `events` row per change with owner and token changes too. Give each test its own in-memory database, as `StoresTest` does, because a test whose `Log` double accepts lines deletes every waiting row of the shared `registry.sqlite`. `apps/registry/src/Releases.nvs:1`, `apps/registry/src/Events.nvs:1`, `apps/registry/src/StoresTest.nvs:1`
+- [ ] `IndexTest` publishes `0.9.0`, or confirms `stable` first, so it keeps checking `selectable_at`. `apps/registry/src/IndexTest.nvs:47`
+- [ ] The `repository` entry and the passkey route that rebinds a package's repository. First give each release its own repository: `Index::write` lists every version with the package row's. `apps/registry/src/Index.nvs:@write`, `apps/registry/src/Publish.nvs:130`
+- [ ] The three rules `shipped`, each with its guards. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`
 
 ### Backlog
 
@@ -592,7 +633,14 @@ appends JSON lines through `NvsLog`, and the tests double it (`BackupTest::log`)
   neither (standing decision *The build runs only where the operator grants it*).
 - Changing a package's bound repository with a passkey is a route stage 4 or `registry-website` adds;
   `Publish` refuses the change with a 403 until then.
-- Stage 4 writes the log entries for owner changes and for making and revoking a token; stage 5 notifies
-  the owners and adds the verified-channel check to `addOwner` (`apps/registry/src/App.nvs`).
+- Stage 5 notifies the owners of each event in `events` and adds the verified-channel check to
+  `addOwner` (`apps/registry/src/App.nvs`).
+- Withholding stops only the registry's own `/archive/…` route. The copies in the stores and the work
+  folder are not deleted, so a file host still serves them. `Store` needs a delete for
+  `jobs/withhold.nvs` (`apps/registry/src/Store.nvs`).
+- `Restore` brings back only the pending time from an index file. Unlisted, retracted and withheld
+  states and stable confirmations after the newest copy are lost until it replays those log entries
+  (`apps/registry/src/Restore.nvs:181`).
+- `nvs pkg retract` does not check the 500-character reason limit; only the registry does.
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).
