@@ -230,6 +230,23 @@ version's state is judged. A retracted selection is allowed exactly when the loc
 version. Index and root files use `deny_unknown_fields` with `"schema": 1`, so a new key is a schema
 bump the client names.
 
+**A git dependency is read from its commit's tree, and only the archive's paths are written.**
+A `file:` remote is opened in place through `gix::open_opts` with isolated options, never
+through gix's `file://` transport, which runs `git upload-pack`; so nothing of the repository's
+or the user's configuration is read and no program runs. An `https:` remote is fetched into a
+bare repository in a scratch folder, and both then take the same walk: `package.toml` from the
+commit's root, and then the root files, `src/` and the `files` list written out and packed through
+`pack::file_set`. A symlink or submodule at one of those paths is refused. The size limit counts
+the bytes of every object read, and the time limit is five minutes (`git::LIMITS`), which fetches
+512 MiB at about 2 MiB/s. The archive is kept in `Registries` by slug (`Registries::cloned`), the
+scratch folder is removed on every way out, and the lock's `source` is `git+<url>`. The pinned
+version is the one the commit's `package.toml` declares, and it stays selected whatever a registry
+package asks for. Why: security first, because a hostile repository's other paths are never written
+and its hooks and filters never run. Simplicity, because one walk serves both remotes. Memory: one
+archive per git dependency while the client runs. The `file:` cases are unit tests in `git.rs` and
+`resolve.rs`, as stage 3's are, until a command clones; the loopback cases go into
+`tests/package_git.rs` with the HTTPS fetch.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -278,10 +295,17 @@ dependencies, registries and requested capabilities are read from it.
 **Does:** a root git dependency is cloned at its exact commit through a checked connection and packed
 as stage 2 packs a directory, and a git dependency anywhere below the root is refused.
 
-- [ ] `gix` in the workspace `Cargo.toml` with its default features off, and `cargo deny` green. `Cargo.toml:1`
+- [x] `gix` in the workspace `Cargo.toml` with its default features off, and `cargo deny` green. `Cargo.toml:1`
 - [ ] The HTTPS clone at an exact commit, inside the size and time limits and behind the outbound address check, as the standing decision says. `crates/nvs-cli/src/package/git.rs:1`, `crates/nvs-config/src/capability.rs:263`
-- [ ] A git dependency below the root is a hard error naming the package that declared it (`rule:packaging/a-git-dependency-is-root-only`). `crates/nvs-cli/src/package/resolve.rs:1`
+  - [x] A `file:` remote opened in place with isolated options, the commit's tree written for the archive's paths alone inside both limits, and packed. `crates/nvs-cli/src/package/git.rs:66`
+  - [ ] A stdlib entry for the tool that resolves a host, refuses an internal address, and streams a reply under a byte ceiling and a deadline. `crates/nvs-stdlib/src/http.rs:3948`
+  - [ ] `gix_transport`'s `Http` trait over that entry, and `connect_http` into a bare repository in the scratch folder. `crates/nvs-cli/src/package/git.rs:66`
+  - [ ] The fetch of the one commit at depth 1, by its hash as the refspec, then the same tree walk. `crates/nvs-cli/src/package/git.rs:66`
+- [x] A git dependency below the root is a hard error naming the package that declared it (`rule:packaging/a-git-dependency-is-root-only`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] Tests, offline as the standing decision says: an internal host refused, a slow listener stopped by the time limit, the exact commit from a `file:` remote, an over-size repository stopped, and a transitive git dependency refused. `crates/nvs-cli/tests/package_git.rs:1`
+  - [x] The exact commit, a missing commit and the size limit against a `file:` remote, as unit tests. `crates/nvs-cli/src/package/git.rs:353`
+  - [x] A root git dependency resolved, and a transitive one refused, as unit tests. `crates/nvs-cli/src/package/resolve.rs:516`
+  - [ ] An internal host refused and a slow listener stopped, against loopback TLS. `crates/nvs-cli/tests/package_git.rs:1`
 
 ### 4. `nvs pkg fetch` and `nvs pkg vendor` write the tree, `vendor/packages.nvs` and a grant line per package
 
@@ -364,39 +388,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done; the `api-compat` and `namespace-grants` gates hold.
+Stages 1, 2 and 3 are done; the `api-compat` and `namespace-grants` gates hold. Stage 7 is half
+done: a `file:` git dependency works end to end, and the HTTPS fetch is next.
 
-Stage 3: `crates/nvs-cli/src/package/index.rs` reads `registry.json`, the index files and the
-archives. `Registry::open` (`index.rs:303`) keeps the root file under `Folder::registry()`
-(`crates/nvs-config/src/data.rs`, new), and `Registry::archive` (`index.rs:368`) tries each file
-host and checks BLAKE3. `resolve.rs:172` is minimal version selection with `Crossing` reports, and
-`line` (`resolve.rs:151`) is the breaking line below 1.0. `lock.rs` reads, renders and writes
-`package.lock`, and `Lock::check` (`lock.rs:140`) is the digest and `--locked` check.
-`Name::checked` (`manifest.rs:547`) is the one name check for the manifest, the index and the lock.
-`pack::MAX_ARCHIVE_BYTES` (`pack.rs:45`) caps a `file:` archive read. The schema is in
-`rule:packaging/a-package-is-its-digest`'s fragment. The standing decision *Stage 3's tests are
-unit tests* records why the cases are in the three modules and not yet in `package_client.rs`.
+Stage 7 so far: `gix` 0.90 is in the workspace with `sha1` and `blocking-network-client` alone.
+`cargo deny` is green, `--check-c-deps` finds no new C crate, and `THIRD-PARTY-LICENSES.txt` is
+regenerated. gix takes a pinned connector: `gix_transport::client::blocking_io::http::connect_http(H,
+url, Protocol::V2, false)` takes any `H: Http`, and `Remote::to_connection_with_transport` uses
+it, so no stdlib transport is reimplemented. An object hash as the refspec is a `want` of that
+commit (`gix-refspec`'s `SourceRef::ObjectId`), and `Shallow::DepthAtRemote(1)` drops history.
+`git::clone` (`git.rs:67`) opens a `file:` remote in place, and `Walk::place` (`git.rs:207`)
+writes only the archive's paths. `Walk::read` (`git.rs:263`) checks both limits before each
+object. An `https:` URL is a fault at `git.rs:76`. `resolve` clones each root git dependency
+through `cloned` (`resolve.rs:319`) and keeps its archive in `Registries::cloned`
+(`resolve.rs:153`). The standing decision *A git dependency is read from its commit's tree*
+records the design. The 6 new unit tests pass (`cargo test --bin nvs -- package::git
+package::resolve::tests::a_root_git package::resolve::tests::a_git_dependency`). `mod.rs` keeps `#[allow(dead_code)]` on `manifest`, `index`, `git`, `resolve` and `lock` until
+`fetch` and `add` call them. No test should go red.
 
-`mod.rs` keeps `#[allow(dead_code)]` on `manifest`, `index`, `resolve` and `lock` until `fetch`
-and `add` call them. A git dependency is a fault in `resolve.rs:190` until stage 7.
-
-The 16 new unit tests pass (`cargo test --bin nvs -- package::index package::resolve
-package::lock`). No test should go red.
-
-The sweep's reds are stale. The `env-secret-proofs` log itself says `exit 0`, dated 22 October.
-The three nightly Miri jobs of run 40474302703 ran on `55b03e97a`, before `22f1e4ec4`,
-`c33a8b8f7` and `e461612ce` fixed them.
+The sweep's reds are stale. `bun nv proofs --gate --only "Core\\Env::secret"` passes when run by
+hand, though the sweep's log still says it failed. The three nightly Miri jobs of run 40474302703 ran on `55b03e97a`, an
+ancestor of `22f1e4ec4` and `e461612ce`, which fixed them.
 
 ### Next
 
-**Stage 7: the root git dependency**, files `Cargo.toml` (`gix`), `crates/nvs-cli/src/package/git.rs`,
-`resolve.rs` and `crates/nvs-cli/tests/package_git.rs`. Read the standing decisions *A git clone runs
-inside fixed limits* and *The clone's tests never reach the network* first.
+**Stage 7, second half: the HTTPS fetch**, files `crates/nvs-stdlib/src/http.rs` (a new tool
+entry), `crates/nvs-cli/src/package/git.rs` and `crates/nvs-cli/tests/package_git.rs`. Read the
+standing decisions *A git clone runs inside fixed limits*, *The clone's tests never reach the
+network* and *A git dependency is read from its commit's tree* first.
 
-- [ ] `gix` with default features off and `cargo deny` green; check first whether it takes a pinned connector. `Cargo.toml:1`
-- [ ] The clone at an exact commit inside the size and time limits, packed through `pack::file_set`. `crates/nvs-cli/src/package/git.rs:1`, `crates/nvs-cli/src/package/pack.rs:193`
-- [ ] Replace the git fault in `resolve` with the cloned package, and refuse a git dependency below the root. `crates/nvs-cli/src/package/resolve.rs:190`
-- [ ] Tests as stage 7 lists them. `crates/nvs-cli/tests/package_git.rs:1`
+- [ ] A streamed tool request in the stdlib: `tool_get`'s resolution with each address checked against the outbound table, the body streamed under a byte ceiling and a deadline. `tool_get` today buffers 1 MiB and checks no address. `crates/nvs-stdlib/src/http.rs:3948`, `crates/nvs-stdlib/src/http/transport.rs:1290`
+- [ ] `impl gix_transport::client::blocking_io::http::Http` over it: `get`, and `post` with the body buffered and sent when the reply is first read. `crates/nvs-cli/src/package/git.rs:67`
+- [ ] Replace the fault at `git.rs:76`: `gix::init_bare` in a `Folder`, `remote.to_connection_with_transport(connect_http(..))`, fetch the hash at depth 1, then `Walk::write`. The bytes received count against `Limits::bytes`. `crates/nvs-cli/src/package/git.rs:76`
+- [ ] Loopback TLS tests: an internal host refused, a slow listener stopped by the time limit. Replace `an_https_remote_is_not_fetched_yet`. `crates/nvs-cli/tests/package_git.rs:1`, `crates/nvs-cli/src/package/git.rs:408`
 
 ### Backlog
 
