@@ -621,7 +621,7 @@ additive: paths./users.get.query.q — optional parameter added
 
 # nvs config check and nvs config dump
 
-    nvs config check [files]...
+    nvs config check [files]... [--as <account>]
     nvs config dump [files]... [--origin] [--toml]
 
 Both read the configuration tree offline and run nothing, so a tree can be validated in CI before
@@ -636,6 +636,13 @@ Naming files positionally is the same as `--config`. Neither command creates the
   both `password` and `password_file` (`E0608`). It does **not** check whether a value is a valid
   quantity, or whether a default lies under its own `[limits.hard]` ceiling: `memory = "12
   bananas"` passes `config check` in this build.
+- `config check --as <account>` also checks who owns each file and who can write it. It checks the
+  files for `<account>`, the account that will run `nvs serve`. A file that `nvs serve` would not
+  read as that account is `E0607`, with the same help `nvs serve` prints. On Unix, `<account>` is a
+  user name or a uid. On Windows, it is an account name, `LocalSystem` or `NT SERVICE\<service>`.
+  An account that does not exist on this machine is `E0662`. The check reads the files on this
+  machine as they are now. Without `--as`, `config check` does not check ownership. `config dump`
+  does not take `--as`.
 - `config dump` prints every key in force, one per line in dotted-key order, with array-of-tables
   blocks numbered (`app.0.root`, `include.1.path`). A value or a table name that holds a new line, a
   control character or a right-to-left mark is written as a TOML escape, such as `\n` for a new

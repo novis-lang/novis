@@ -1092,6 +1092,11 @@ Two `#[Core\Access]` lines on one method are `E0763`, and one with no `allow:` i
 method whose routes are all `Head` or `Options` is `E0764`. It is allowed on `Get`, because a
 WebSocket upgrade arrives as a `Get`.
 
+The server checks the `Origin` header before it looks for a route. A `POST`, `PUT`, `PATCH` or
+`DELETE` from another origin gets `Core\Router\Refusal::Csrf` and the status `403`. This is also true
+when no route has its path. So `NotFound` is a request from the same origin, a request with no
+`Origin`, or a request with `Get`, `Head` or `Options`.
+
 A fixed segment is tried before a capture, so `/users/new` matches the route `/users/new` and not
 `/users/{id}`. The order of the two routes in the code does not matter.
 

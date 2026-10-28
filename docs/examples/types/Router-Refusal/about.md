@@ -5,11 +5,11 @@ response first. Your gate writes the body, and it can change the status.
 
 | Case | Status | When |
 |---|---|---|
-| `NotFound` | `404` | No route has this path. |
+| `NotFound` | `404` | No route has this path. A `POST`, `PUT`, `PATCH` or `DELETE` from another origin is `Csrf` instead. |
 | `MethodNotAllowed` | `405` | A route has this path, but not this HTTP method. The `Allow` header lists the methods it accepts. |
 | `UnknownMethod` | `501` | The HTTP method is not a case of `Core\Http\Method`. |
 | `Denied` | `403` | `allows()` returned `false` or threw an error. |
-| `Csrf` | `403` | The CSRF token or the origin is not accepted. |
+| `Csrf` | `403` | The CSRF token or the origin is not accepted. The server checks the origin before it looks for a route. |
 | `BodyTooLarge` | `413` | The body is larger than the server's limit. |
 | `BadCapture` | `400` | A path or query value does not convert to its type. Or a required query key is missing or repeated. |
 

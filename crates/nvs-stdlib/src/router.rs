@@ -956,7 +956,8 @@ const REFUSAL_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "NotFound",
-            desc: "No route has this path. The status is `404`.",
+            desc: "No route has this path. The status is `404`. A `POST`, `PUT`, `PATCH` or \
+                   `DELETE` from another origin is `Csrf`, even when no route has its path.",
         },
         CaseDoc {
             name: "MethodNotAllowed",
@@ -974,7 +975,7 @@ const REFUSAL_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Csrf",
             desc: "The server did not accept the CSRF token or the origin of the request. The \
-                   status is `403`.",
+                   status is `403`. The server checks the origin before it looks for a route.",
         },
         CaseDoc {
             name: "BodyTooLarge",

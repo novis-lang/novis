@@ -13,6 +13,9 @@ the request came from was this application's.
 
 **The origin half covers every unsafe verb, matched or not.** A program with no `#[Route]` table,
 and a path a routed program's table does not claim, get the same origin refusal a matched row gets.
+The origin is judged before `Core\Router::dispatch` asks whether a route matched, so a cross-origin
+unsafe write to an unclaimed path is `Refusal::Csrf`, never `NotFound`, and `NotFound` is a
+same-origin request, one with no `Origin`, or a safe verb.
 The token half applies only to a matched row, because the opt-out is written on a route: a program
 with no table could not exempt a webhook from it, and every write it serves under a key would be
 refused.

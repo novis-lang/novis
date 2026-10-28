@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-cli/src/serve/mounts.rs, crates/nvs-cli/src/script.rs, crates/nvs-cli/src/service.rs, docs/reference/tools/25-server.md]
   - id: 6
     title: "the reference states config check --as and that the origin check comes before route matching"
-    status: open
+    status: done
     context: [docs/reference/tools/10-cli.md, crates/nvs-stdlib/src/router.rs, docs/examples/types/Router-Refusal/about.md, docs/rules/security/csrf-is-on-by-default.md]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
@@ -200,11 +200,11 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 **Does:** two reference texts match the behaviour.
 
-- [ ] `nvs config check and nvs config dump` documents `--as <account>`. `docs/reference/tools/10-cli.md:617`
-- [ ] The `Core\Router\Refusal` card says a cross-origin unsafe write is `Csrf` before any route is
+- [x] `nvs config check and nvs config dump` documents `--as <account>`. `docs/reference/tools/10-cli.md:617`
+- [x] The `Core\Router\Refusal` card says a cross-origin unsafe write is `Csrf` before any route is
   matched, so `NotFound` is a same-origin or safe request. `crates/nvs-stdlib/src/router.rs:951-959`,
   `docs/examples/types/Router-Refusal/about.md:8`
-- [ ] The route-table section of the routing reference says the origin check comes first.
+- [x] The route-table section of the routing reference says the origin check comes first.
   `docs/rules/security/csrf-is-on-by-default.md:6`
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -217,33 +217,34 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stages 1, 2 and 3 are done, each new test run once by name and green. Stage 3: `is_plain` reads
-tokens, `crates/nvs-hir/src/lenders.rs:208`. `nvs check --root` sets `survey_root`
-(`crates/nvs-cli/src/main.rs:1547`), and `searched_note` (`:1354`) goes on the first
-`E0303`/`E0306` when no lender is found. The hook's root is `project_dir`,
-`crates/nvs-cli/src/agent.rs:2730`. `crates/nvs-cli/tests/agent.rs` now clears `CLAUDE_PROJECT_DIR`,
-which the agent running the suite sets.
+Stages 1, 2, 3, 4 and 6 are done, each new test run once by name and green. Stage 4's removed
+options are `REMOVED_OPTIONS` in `crates/nvs-types/src/attributes.rs`, pinned by
+`tests/conformance/reject/a-removed-route-option-names-its-replacement.nvst`, and its rule is
+`core-api/no-deprecation-window-before-a-release`. Stage 6's origin-first text matches dispatch,
+which answers the door's refusal before it looks for a match (`crates/nvs-stdlib/src/router.rs`).
 
 Tests that may go red in stage 7, none searched for:
-- one comparing the whole stderr of an `nvs check` or a hook report whose `E0303`/`E0306` found no
-  lender: it now has one more note line;
-- on Windows, one comparing a diagnostic's file name with `fs::canonicalize` output (stage 2);
-- one whose html template hole holds a call `nvs-hir` now reports (stage 1).
+- a whole-stderr comparison of an `E0303`/`E0306` that found no lender: one more note line (stage 3);
+- on Windows, a diagnostic's file name compared with `fs::canonicalize` output (stage 2);
+- a case whose html template hole holds a call `nvs-hir` now reports (stage 1);
+- a pin of E0409's no-constructor or `$this`-escape help, or of E0428's help (stage 4);
+- a snapshot of the `Refusal` card, `nvs meta --json` or the rendered reference (stage 6).
 
-The sweep's `env-secret-proofs` log shows exit 0 on its last run. The nightly run `40662443492` was
-a cancelled manual dispatch, and the push run after it, `40664047249`, is green. Neither needs a fix.
+The sweep's `env-secret-proofs` exits 0 when run this session, and the nightly run `40662443492`
+was a cancelled manual dispatch with a green push run after it. Neither needs a fix.
 
 ### Next
 
-Stage 4, the lateinit help and the removed-option help, on `crates/nvs-types/src/ctor_init.rs` and
-`crates/nvs-diagnostics/src/code/types.rs`. No gate. Every help line and card is end-user text.
-- [ ] E0409's help and card name `lateinit` and `LateInit`. `crates/nvs-types/src/ctor_init.rs:514`, `crates/nvs-diagnostics/src/code/types.rs:69`
-- [ ] E0428's help and card name `LateInit`. `crates/nvs-diagnostics/src/code/types.rs:213`
-- [ ] E0454's help from the removed-option list, and a `.nvst` case. `crates/nvs-diagnostics/src/code/types.rs:465`
-- [ ] The no-deprecation-window rule fragment, beside `docs/rules/core-api/reference-card.md:1`
+Stage 5, `nvs serve` starts with the mounts that compile. Stage 5's items list the anchors. Write the
+CLI test first, so it fails first.
+- [ ] The CLI test: a `scan` table with one good module and one broken one. `crates/nvs-cli/tests/live_edit.rs:1200`
+- [ ] The start-up loop keeps a failing mount and logs it. `crates/nvs-cli/src/serve.rs:542-547`
+  The start fails only when no mount compiles.
+- [ ] A kept failing row runs `unreached_origin` when it first compiles. `crates/nvs-cli/src/serve/mounts.rs:386-402`
+- [ ] `nvs service status` lists the mounts that failed at start. `crates/nvs-cli/src/service.rs:4714`
+- [ ] The rules and the reference say it, as stage 5's last item lists. `docs/reference/tools/25-server.md:14-16`,
+  and the module doc's "Every mounted entry is compiled" paragraph. `crates/nvs-cli/src/serve.rs:49`
 
 ### Backlog
 
-- Stage 6 touches no file another stage touches and can run as a lane beside stage 4. It edits
-  `docs/reference/tools/10-cli.md`, which stage 3 changed in its `nvs check` section only.
-- Stage 5 edits `crates/nvs-cli/src/serve.rs` and runs after stage 4 or as its own lane.
+- Stage 7, the gate, after stage 5.
