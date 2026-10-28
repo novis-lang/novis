@@ -500,7 +500,7 @@ in `AGENTS.md`.
 - [x] `rule:packaging/a-git-dependency-is-root-only`, `rule:packaging/a-fetched-package-is-an-autoload-line` and `rule:packaging/nothing-runs-before-the-program` are `shipped`. `data/rules/packaging/a-git-dependency-is-root-only.json:3`, `data/rules/packaging/a-fetched-package-is-an-autoload-line.json:3`, `data/rules/packaging/nothing-runs-before-the-program.json:3`
 - [x] `rule:packaging/a-package-carries-only-its-source-and-what-it-lists` and `rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size` are `shipped`, and `bun nv owners --closes package-client` passes. `data/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.json:3`, `data/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.json:3`
 - [x] A `Core\Http\Client` call that names its URL as a string needs `net.connect` in the calling namespace's grant line, so the update attack is refused with `E0658`. `crates/nvs-stdlib/src/registry.rs:2132`, `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs:1`
-- [ ] An archive over 1 MiB is fetched from a loopback `https:` registry, as `package_download.rs` serves its files. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-cli/tests/package_download.rs:143`
+- [x] An archive over 1 MiB is fetched from a loopback `https:` registry, as `package_download.rs` serves its files. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-cli/tests/package_download.rs:143`
 
 ### 10. the goal is verified once, and every failure is fixed
 

@@ -4,7 +4,8 @@
 //! `rule:packaging/nothing-runs-before-the-program`).
 //!
 //! Each test builds a `file:` registry from a package that `nvs pkg pack` packs, an application
-//! beside it, and an HTTPS host on loopback that serves the files. The application's `nvs.toml`
+//! beside it, and an HTTPS host on loopback that serves the files, or the registry's own files
+//! as an `https:` registry. The application's `nvs.toml`
 //! trusts the host's certificate and writes `internal = ["127.0.0.1"]`, the one key that lets a
 //! download reach loopback. The form check and the cache are unit tests in
 //! `src/package/download.rs`; these tests show what the binary places and what it refuses, and
@@ -536,6 +537,56 @@ fn a_provided_file_is_placed_without_its_url() {
     assert_eq!(
         fs::read(tree.package().join(PATH)).expect("the file was placed"),
         b"right bytes"
+    );
+}
+
+/// An `https:` registry gives an archive over 1 MiB, and `nvs pkg fetch` writes the package from
+/// it. The host serves the registry's three files, built as [`Tree::publish`] builds a `file:`
+/// one.
+#[test]
+fn an_https_registry_gives_an_archive_over_one_mebibyte() {
+    let tree = Tree::new("package-download-large-archive");
+    let main = format!(
+        "<?nvs\n// {}\nnamespace Acme\\Http;\n\nfinal class Main\n{{\n}}\n",
+        "x".repeat(3 << 19)
+    );
+    tree.publish_with("", &main);
+    let served = |path: &str| fs::read(tree.registry().join(path)).expect("the registry has it");
+    let archive = fs::read_dir(tree.registry().join("archive"))
+        .expect("the archive folder was made")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .next()
+        .expect("one archive was published");
+    let tar = served(&format!("archive/{archive}"));
+    assert!(tar.len() > 1 << 20, "the archive is {} bytes", tar.len());
+    let host = Host::start(
+        &tree.root,
+        vec![
+            ("/registry.json", Reply::ok(&served("registry.json"))),
+            (
+                "/index/acme/http.json",
+                Reply::ok(&served("index/acme/http.json")),
+            ),
+            (&format!("/archive/{archive}"), Reply::ok(&tar)),
+        ],
+    );
+    tree.trust(&host);
+    fs::write(
+        tree.app().join("package.toml"),
+        format!(
+            "[dependencies]\n'Acme\\Http' = \"1.0.0\"\n\n\
+             [registries]\nAcme = {{ url = \"{}\" }}\n",
+            host.url("")
+        ),
+    )
+    .expect("the test writes the manifest");
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(
+        fs::read_to_string(tree.package().join("src/Main.nvs")).expect("the source was written"),
+        main
     );
 }
 
