@@ -335,6 +335,26 @@ fn a_check_from_below_the_program_names_the_folder_it_searched_and_root_finds_it
     assert!(self::stderr(&missing).contains("`--root` needs a folder"));
 }
 
+/// A name of one segment is declared by no `autoload` map, so a class file
+/// that names `Countable` gets the error alone, with no note about a map or
+/// `--root`.
+#[test]
+fn a_name_no_map_could_declare_gets_no_note_about_a_map() {
+    let project = Project::new("global-name");
+    project.write(
+        "Bag.nvs",
+        "<?nvs\nclass Bag implements Countable {\n    \
+         public function count(): int {\n        return 1;\n    }\n}\n",
+    );
+
+    let output = project.check(&["Bag.nvs"]);
+    let stderr = stderr(&output);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("E0303"), "{stderr}");
+    assert!(!stderr.contains("--root"), "{stderr}");
+    assert!(!stderr.contains("`autoload` map"), "{stderr}");
+}
+
 /// A test file whose comment and string say `require` writes no `require` as
 /// code, so it is plain and borrows its bootstrap's map.
 #[test]

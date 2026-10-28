@@ -1232,7 +1232,7 @@ fn front_end_in(
         if lent.is_none()
             && let Some(root) = survey
             && autoload.sites().is_empty()
-            && diags.iter().any(names_an_undeclared_type)
+            && diags.iter().any(nvs_hir::lenders::a_map_could_declare)
         {
             if let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain) {
                 drop(files);
@@ -1249,7 +1249,10 @@ fn front_end_in(
             }
             // The search found no program, so the folder it searched may be
             // the wrong one. The first unresolved name says which it was.
-            if let Some(first) = diags.iter_mut().find(|d| names_an_undeclared_type(d)) {
+            if let Some(first) = diags
+                .iter_mut()
+                .find(|d| nvs_hir::lenders::a_map_could_declare(d))
+            {
                 first.notes.push(searched_note(root));
             }
         }
@@ -1336,16 +1339,6 @@ fn resolve_entry(
         extensions,
     );
     (diags, module, loaded, autoload)
-}
-
-/// Whether `diagnostic` says a class, interface, enum or `type` name, or a
-/// `use` of one, is declared nowhere. Those are the two a borrowed `autoload`
-/// map can change.
-fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
-    diagnostic.code.is_some_and(|code| {
-        code == nvs_diagnostics::code::E_UNDEFINED_CLASS
-            || code == nvs_diagnostics::code::E_UNRESOLVED_IMPORT
-    })
 }
 
 /// The note on the first unresolved name when the search for a program that

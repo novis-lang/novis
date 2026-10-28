@@ -284,7 +284,7 @@ impl Resolver {
                 diags.report(
                     Diagnostic::error(
                         code::E_UNRESOLVED_IMPORT,
-                        format!("`{}` does not resolve to any declaration", import.target),
+                        format!("`{}`{DOES_NOT_RESOLVE}", import.target),
                     )
                     .with_primary(import.span, "no matching class, interface or enum declared"),
                 );
@@ -304,6 +304,26 @@ impl Resolver {
     pub const fn module(&self) -> &Module {
         &self.module
     }
+}
+
+/// The end of an `E_UNRESOLVED_IMPORT` headline, after the quoted target.
+const DOES_NOT_RESOLVE: &str = " does not resolve to any declaration";
+
+/// The target an `E_UNRESOLVED_IMPORT` diagnostic names, read back off its
+/// headline, and `None` for any other diagnostic. The counterpart of
+/// [`crate::hierarchy::undeclared_subject`], written beside the headline so the
+/// two cannot drift apart.
+#[must_use]
+pub fn unresolved_import_subject(diagnostic: &Diagnostic) -> Option<QName> {
+    if diagnostic.code != Some(code::E_UNRESOLVED_IMPORT) {
+        return None;
+    }
+    let name = diagnostic
+        .message
+        .strip_prefix('`')?
+        .strip_suffix(DOES_NOT_RESOLVE)?
+        .strip_suffix('`')?;
+    (!name.is_empty() && !name.contains('`')).then(|| QName::parse(name))
 }
 
 /// The key of the enum `owner`'s body declares under `name`, if it declares one

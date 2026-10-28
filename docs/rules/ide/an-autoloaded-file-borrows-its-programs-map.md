@@ -56,6 +56,9 @@ the first check's diagnostics, and so does a file checked from a directory outsi
 the search ran and found no lender, the first `E0303` or `E0306` carries a note naming the folder it
 searched, absolute, and `--root`, so a check run from the wrong folder says so. `E0303`
 and `E0306` are the two diagnostics a borrowed map can change, so no other finding starts a search.
+Neither does one for a name of one segment, such as `Countable`, or a name under `Core`: an
+`autoload` prefix is at least one segment followed by `\`, so no map declares either, and a note
+about a map would send the reader to the wrong fix.
 The second check starts from a fresh source map, and its diagnostics are the ones reported, in the same
 text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
 file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender

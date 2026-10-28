@@ -16,7 +16,7 @@
 //! files under the project root in path order with [`first_lender`] and stops
 //! at the first lender that owns the checked file. It does that only when the
 //! checked file declares no map of its own and names something no file
-//! declares. Both pick through [`choose`].
+//! declares that a map could declare ([`a_map_could_declare`]). Both pick through [`choose`].
 
 use std::borrow::Borrow;
 use std::path::{Path, PathBuf};
@@ -233,6 +233,21 @@ pub fn is_plain(text: &str) -> bool {
                 | TokenKind::Keyword(Keyword::Function)
         );
     }
+}
+
+/// Whether `diagnostic` says a type is not declared (`E0303`) or a `use` does
+/// not resolve (`E0306`), for a name a borrowed map could declare.
+///
+/// A prefix is at least one namespace segment and matching appends a `\`, so
+/// no map declares a name with one segment, such as `Countable`. No map
+/// declares a name under `Core` either. Neither starts a search for a lender,
+/// and neither gets a note about one, the same two names
+/// [`AutoloadMap::note_searched_roots`] passes over.
+#[must_use]
+pub fn a_map_could_declare(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
+    crate::hierarchy::undeclared_subject(diagnostic)
+        .or_else(|| crate::resolve::unresolved_import_subject(diagnostic))
+        .is_some_and(|name| !name.is_core() && name.segments().len() >= 2)
 }
 
 /// The lender among the `.nvs` files under `root` that lends its map to
