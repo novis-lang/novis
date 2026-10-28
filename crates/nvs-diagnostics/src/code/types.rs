@@ -69,7 +69,10 @@ codes! {
     pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409").card(
         "A property with no default value and no `?` in its type is not assigned on every path \
          through the constructor. The constructor must also assign it before it uses `$this` or \
-         calls `parent::constructor(...)`. Assign it earlier, or give it a default value.",
+         calls `parent::constructor(...)`. Assign it earlier, or give it a default value. If the \
+         value needs `$this`, declare the property `lateinit` and assign it after the \
+         constructor. A class that implements `LateInit` sets a `lateinit` property in its \
+         `initProperty` method, the first time the property is read.",
     );
     /// A subclass constructor has a path that never calls
     /// `parent::constructor(...)`, so the properties it inherits are never
@@ -212,7 +215,9 @@ codes! {
     /// § 2 runtime throw.
     pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428").card(
         "A method reads a `lateinit` property before anything in the method assigns it. Assign \
-         the property before this line, or read it after the call that sets it.",
+         the property before this line, or read it after the call that sets it. You can also \
+         implement `LateInit` in the class. Its `initProperty` method then sets the property the \
+         first time it is read.",
     );
     /// An integer literal whose magnitude doesn't fit the width it's being
     /// checked against — too large for `int`/`uint` outright, or exactly the
@@ -464,7 +469,8 @@ codes! {
     /// reader to know which arm they were in before they could look it up.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454").card(
         "This name is not one of the options that are allowed here. The error message lists the \
-         options you can use, so check the spelling against that list.",
+         options you can use, so check the spelling against that list. If the option was \
+         removed, the message names what replaced it.",
     );
     /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — `rule:types/arithmetic`. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
     /// there is no type that represents both operands' values, so one side

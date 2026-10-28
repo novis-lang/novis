@@ -511,7 +511,8 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
             let help = if hooked {
                 "add a `constructor` that assigns it"
             } else {
-                "give it a default value, or add a `constructor` that assigns it"
+                "give it a default value, or add a `constructor` that assigns it. If the value \
+                 needs `$this`, declare the property `lateinit` and assign it later"
             };
             env.diags.report(
                 Diagnostic::error(
@@ -634,7 +635,8 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
                 format!("a path reaches this use of `$this` before `${name}` has a value"),
                 format!(
                     "assign `$this->{name}` before this line on every path. Code that gets \
-                     `$this` can read every property"
+                     `$this` can read every property. If the value needs `$this`, declare \
+                     `${name}` as `lateinit` and assign it after the constructor"
                 ),
             ),
             (None, _) => (

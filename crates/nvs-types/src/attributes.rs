@@ -511,6 +511,18 @@ fn exceeds_int(expr: &Expr, env: &Env<'_>) -> bool {
     )
 }
 
+/// Each option a `Core` attribute no longer takes: the attribute as
+/// [`check_roster`] names it, the option, and the help sentence that names
+/// its replacement. `rule:core-api/no-deprecation-window-before-a-release`
+/// keeps a removed option an error, and this list is how its error says what
+/// to write instead. A row stays while code written before the removal may
+/// still be compiled, and costs one comparison per unknown option.
+const REMOVED_OPTIONS: &[(&str, &str, &str)] = &[(
+    "Route",
+    "name",
+    "A link names the route method itself, as in `Core\\Router::url(Home::show)`",
+)];
+
 /// One recognized attribute's payload, checked against its roster of options.
 ///
 /// The walk every `rule:core-classes/derive-attribute` name that carries a payload shares, because a
@@ -527,6 +539,7 @@ fn exceeds_int(expr: &Expr, env: &Env<'_>) -> bool {
 /// cannot state, and stays with the roster that declares it.
 ///
 /// `attribute` is the name as a diagnostic writes it, without its `#[]`.
+/// A name on [`REMOVED_OPTIONS`] is answered with what replaced it.
 pub(crate) fn check_roster(
     attribute: &str,
     options: &[(&str, crate::testing::OptionTy)],
@@ -549,11 +562,17 @@ pub(crate) fn check_roster(
         let expected = declared.and_then(|ty| ty.intern(env));
         check_expr(&field.value, expected, &mut live, &scope, ctx, env);
         if declared.is_none() {
-            let help = match crate::routes::option_home(attribute, &name) {
-                Some(home) => format!(
+            let removed = REMOVED_OPTIONS
+                .iter()
+                .find(|(on, option, _)| *on == attribute && *option == name);
+            let help = match (removed, crate::routes::option_home(attribute, &name)) {
+                (Some((_, _, instead)), _) => {
+                    format!("`{name}` was removed from `#[{attribute}]`. {instead}")
+                }
+                (None, Some(home)) => format!(
                     "`{name}` is an option of `#[{home}]`. Write it in the `#[{home}]` of the same method"
                 ),
-                None => format!("the options are: {}", roster_names(options)),
+                (None, None) => format!("the options are: {}", roster_names(options)),
             };
             env.diags.report(
                 Diagnostic::error(

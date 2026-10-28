@@ -1,0 +1,13 @@
+{
+  "title": "`Core`'s own API has no deprecation window before a release, and a removed name's error names its replacement",
+  "status": "shipped",
+  "seeAlso": [
+    "attributes/a-deprecation-names-its-replacement-as-code",
+    "core-api/options-bag",
+    "programs/no-compatibility-promise"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/src/attributes.rs",
+    "tests/conformance/reject/a-removed-route-option-names-its-replacement.nvst"
+  ]
+}

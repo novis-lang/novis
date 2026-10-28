@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-hir/src/lenders.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/src/agent.rs, docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md]
   - id: 4
     title: "E0409 and E0428 name lateinit, and a removed Core option's error names its replacement"
-    status: open
+    status: done
     context: [crates/nvs-types/src/ctor_init.rs, crates/nvs-diagnostics/src/code/types.rs]
   - id: 5
     title: "nvs serve starts with the mounts that compile and names the ones that do not"
@@ -172,12 +172,12 @@ and takes `--root`, and a test file that mentions `require` in a comment is stil
 **Does:** the help of E0409 and E0428 offers `lateinit` and `LateInit`, and E0454 for a removed
 `#[Core\Route]` option says what replaced it.
 
-- [ ] E0409's help and card add: a property whose value needs `$this` can be `lateinit`, and a class
+- [x] E0409's help and card add: a property whose value needs `$this` can be `lateinit`, and a class
   that implements `LateInit` sets it on the first read. `crates/nvs-types/src/ctor_init.rs:514`, `crates/nvs-diagnostics/src/code/types.rs:69`
-- [ ] E0428's card and help add `LateInit` the same way. `crates/nvs-diagnostics/src/code/types.rs:213`
-- [ ] A list of removed `Core` attribute options and their replacements feeds E0454's help, starting
+- [x] E0428's card and help add `LateInit` the same way. `crates/nvs-diagnostics/src/code/types.rs:213`
+- [x] A list of removed `Core` attribute options and their replacements feeds E0454's help, starting
   with `#[Core\Route]`'s `name` → `Core\Router::url(Home::show)`, with a `.nvst` case.
-- [ ] A rule fragment states that `Core`'s own API has no deprecation window while Novis is
+- [x] A rule fragment states that `Core`'s own API has no deprecation window while Novis is
   Pre-Alpha, and that a removed name's error names its replacement, with its reasons and Declined list.
 
 Every help line and card follows AGENTS.md § *Text an end user reads*.

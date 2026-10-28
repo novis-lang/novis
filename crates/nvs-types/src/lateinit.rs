@@ -409,8 +409,9 @@ fn scan_expr(
                         )
                         .with_primary(*name_span, "possibly still unwritten")
                         .with_help(
-                            "assign it before this read, or move the read after whatever call \
-                             populates it",
+                            "assign it before this read, or read it after the call that sets \
+                             it. A class that implements `LateInit` sets the property on its \
+                             first read, in its `initProperty` method",
                         ),
                     );
                     // Don't cry wolf again for a repeated read on the same

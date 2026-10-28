@@ -58,6 +58,7 @@
     "core-api/one-temporary-directory-member",
     "core-api/session-roster",
     "core-api/reference-card",
-    "core-api/removals"
+    "core-api/removals",
+    "core-api/no-deprecation-window-before-a-release"
   ]
 }

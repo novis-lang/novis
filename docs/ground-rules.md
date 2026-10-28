@@ -759,6 +759,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it** — The session surface is `start` plus the members that work on the record it loaded — read, write, remove, clear, regenerate, destroy, and the sealed pair `http-server/a-session-holds-a-secret-only-sealed` adds. ([`core-api/session-roster`](rules/core-api.md#core-api-session-roster))
 - **An implemented `Core` member carries its reference card in the registry declaration beside its code** — An implemented `Core` member's reference documentation lives in its registry declaration, next to the code it documents: a short description of one or two sentences, a name and description per parameter — and for a shap… ([`core-api/reference-card`](rules/core-api.md#core-api-reference-card))
 - **A PHP built-in is absent for one of four standing reasons** — A PHP built-in that has no successor here is absent for one of four standing reasons:… ([`core-api/removals`](rules/core-api.md#core-api-removals))
+- **`Core`'s own API has no deprecation window before a release, and a removed name's error names its replacement** — While Novis is Pre-Alpha, a name `Core` removes from its own API is gone in the release that removes it: a member, a parameter, an attribute option or an option of an options bag. ([`core-api/no-deprecation-window-before-a-release`](rules/core-api.md#core-api-no-deprecation-window-before-a-release))
 
 ## The Core classes
 

@@ -1,0 +1,21 @@
+--TEST--
+`name` was removed from `#[Core\Route]`, so writing it is `E0454`, and the help names what replaced it (`rule:core-api/no-deprecation-window-before-a-release`)
+--FILE--
+<?nvs
+class Home {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "home"; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `name` is not an option of `#[Route]`
+  --> case.nvs:3:60
+%A
+  = help: `name` was removed from `#[Route]`. A link names the route method itself, as in `Core\Router::url(Home::show)`
+
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
