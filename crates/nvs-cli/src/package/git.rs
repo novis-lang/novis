@@ -11,11 +11,16 @@
 //!
 //! **A `file:` remote is opened where it is**, with gix's isolated options, so no configuration
 //! file, hook or helper program of that repository or of this user is read or run. It reaches only
-//! the user's own disk. An `https:` remote is fetched at the commit alone, at depth 1, into a
+//! the user's own disk. It never goes through gix's `file://` transport, because that one runs
+//! `git upload-pack`. An `https:` remote is fetched at the commit alone, at depth 1, into a
 //! new bare repository in a scratch folder. `gix` speaks the protocol, and every request it makes
 //! goes through [`nvs_stdlib::tool_stream`], the TLS stack `Core\Http\Client` uses. Each address
 //! the host resolves to is judged by [`Outbound`] before anything connects, so an internal host
 //! is refused unless the operator's `[capabilities.net] internal` key names it.
+//!
+//! **`gix` runs with its default features off and no C transport**, so the only connection a
+//! clone makes is the one `nvs` resolved and judged. It is a large dependency, bought because a
+//! git dependency needs a clone whose connection `nvs` checks.
 //!
 //! **Two limits bound the clone** ([`Limits`]): the bytes received and read, and the time since
 //! the clone started. Every request runs inside what is left of the time, every body byte
@@ -70,7 +75,9 @@ pub(crate) struct Cloned {
 
 /// The addresses an `https:` clone may connect to. Every address in the outbound address table
 /// is refused (`rule:security/net-address-policy`), except the ones the operator's
-/// `[capabilities.net] internal` key names.
+/// `[capabilities.net] internal` key names. A CLI run's default loopback exception is not taken,
+/// so a repository URL on loopback or a private network is refused until the operator writes the
+/// line the fault prints: a package command reaches the network on a URL somebody else wrote.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Outbound {
     /// The application's written `[capabilities]`, or `None` where it writes none.
@@ -345,8 +352,7 @@ impl Read for Counted {
 }
 
 /// `gix`'s HTTP transport over [`nvs_stdlib::tool_stream`]: the one TLS stack, with every
-/// address checked against [`Outbound`] (the standing decision *A git clone runs inside fixed
-/// limits*).
+/// address checked against [`Outbound`] and every request inside the clone's [`Limits`].
 struct Checked(Rc<Link>);
 
 /// One request and its reply. A `GET` is sent at once. A `POST` is sent when its reply is first
@@ -733,6 +739,12 @@ fn check(path: &str, url: &str) -> Result<(), Fault> {
     pack::check_path(path).map_err(|refusal| fault(format!("`{url}`: {refusal}")))
 }
 
+/// No case reaches the network. The exact commit, the content and the size limit run against a
+/// `file:` remote of a repository the case builds with `gix`. The address check, TLS and the time
+/// limit run against loopback listeners built from `rcgen` and `rustls`, with loopback allowed only
+/// by the `internal` exception the case writes. So the production path has no test-only way in,
+/// and loopback TLS runs the same checked connection a real host gets. `download.rs`'s cases do the
+/// same.
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

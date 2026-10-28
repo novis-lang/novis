@@ -9,12 +9,14 @@
 //! the lock again when the graph changed. With `--locked` a package, version or entry the lock
 //! does not match is an error, and the lock is never written.
 //!
-//! **Each package is unpacked into `vendor/<vendor>/<name>/`** ([`unpack`]), its slug as a path.
+//! **Each package is unpacked into `vendor/<vendor>/<name>/`** ([`unpack`]), its slug as a path,
+//! so its folder does not move when its version does.
 //! Every entry of the archive is a regular file at a path [`pack::check_path`] accepts, within
 //! [`pack::MAX_FILES`] and [`pack::MAX_BYTES`], so a hostile archive writes nothing outside its
 //! folder. The folder is written beside its place and renamed into it, so a failed fetch leaves
 //! the old folder whole. `fetch` keeps a folder whose files already pack to the locked digest, so
-//! a second fetch reads no archive. `vendor` writes every folder again from its archive. A folder
+//! a second fetch reads no archive. `vendor` writes every folder again from its archive, for a
+//! tree a person changed by hand. A folder
 //! of a package the old lock had and the graph no longer needs is removed; nothing else under
 //! `vendor/` is touched, because a person may keep hand-vendored code there.
 //!

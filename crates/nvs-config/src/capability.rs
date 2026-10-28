@@ -1709,7 +1709,9 @@ pub const OWN_FILE_WORD: i64 = 1 << 62;
 /// The compiler mints it for a package's string literal that names a file of the package's own set,
 /// and a `Core\IO` read door compares it with the word of the path it resolved when it runs. So the
 /// door passes exactly the file the compiler approved, and a link changed since then fails the
-/// comparison and leaves the operator's scope to decide. **Cost:** one hash of the path's bytes.
+/// comparison and leaves the operator's scope to decide. A word and not the path, because an
+/// integer is an immediate where a path string is a staged temporary on every `Core\IO` read.
+/// **Cost:** one hash of the path's bytes.
 #[must_use]
 pub fn own_file_word(resolved: &Path) -> i64 {
     let hash = blake3::hash(resolved.as_os_str().as_encoded_bytes());

@@ -48,7 +48,9 @@
 //! client reads it.
 //!
 //! **A dependency is a minimum version or a git commit.** A git dependency names its URL and an
-//! exact `rev`, never a branch or a tag (`rule:packaging/a-git-dependency-is-root-only`).
+//! exact `rev`, never a branch or a tag (`rule:packaging/a-git-dependency-is-root-only`). Each
+//! value has one form, so a dependency is never a table with a `version` key. A dependency's key
+//! is the package's namespace, as `[grants]` keys it, so the file names a package one way.
 //!
 //! **Each vendor resolves from one registry** (`rule:packaging/a-vendor-resolves-from-one-registry`):
 //! `[registries]` maps a vendor to its URL, and [`Manifest::registry`] gives every other vendor
@@ -83,7 +85,8 @@ pub(crate) const DEFAULT_REGISTRY: &str = "https://registry.novis-lang.org";
 const RESERVED: &str = "Core";
 
 /// The classes of the built-in components. Each one's first two segments are a namespace no
-/// package may take (`rule:packaging/the-first-party-components-are-built-in`).
+/// package may take (`rule:packaging/the-first-party-components-are-built-in`). The list is
+/// `nvs_ext::builtin`'s own constants, so a new component is refused with no second list.
 const BUILT_IN: [&str; 4] = [
     nvs_ext::builtin::IMAGE_CLASS,
     nvs_ext::builtin::INTL_CLASS,

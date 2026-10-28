@@ -5,7 +5,8 @@
 //! hosts in order. Every other file is under each file host: `index/<vendor>/<name>.json` for a
 //! package and `archive/<digest>.tar` for a version. A root file with no file host has the files
 //! under the registry's URL itself, as a `file:` registry has them. The schema of both files is
-//! the digest rule's fragment, and [`SCHEMA`] is the version this client reads.
+//! the digest rule's fragment, and [`SCHEMA`] is the version this client reads. The files can move
+//! to a CDN, or gain a second host, by a change to the root file and no `nvs` release.
 //!
 //! **A file host that does not answer is skipped**, and so is one whose archive's BLAKE3 digest is
 //! not the one the index names. A host that answers that a package does not exist has answered, so

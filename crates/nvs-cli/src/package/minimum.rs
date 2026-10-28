@@ -15,7 +15,8 @@
 //! every comment and every other line stays as written. Then they resolve, print what the change
 //! brings ([`report::report`]), and write the file, the tree and the lock as `nvs pkg fetch` does
 //! ([`fetch::land`]). A graph that does not resolve writes nothing. `add` without a version never
-//! lowers a minimum, `update` only raises one, and `outdated` resolves, prints each package with a
+//! lowers a minimum, `update` only raises one and names `nvs pkg add` for a package not in
+//! `[dependencies]`, and `outdated` resolves, prints each package with a
 //! newer released version, and writes nothing.
 //!
 //! Cost: what `nvs pkg fetch` holds, and the file's text. Nothing here runs on the request path.

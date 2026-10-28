@@ -25,7 +25,8 @@
 //! `nvs pkg update` compares: the requested capabilities, the repository and commit, the owners,
 //! and the host of every URL its `[[download]]` files name
 //! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`), which a package without
-//! one does not write. Every key is known, and an unknown one is refused.
+//! one does not write. Every key is known, and an unknown one is refused. A root git
+//! dependency's `source` is `git+<url>`.
 //!
 //! **A digest that differs from the registry's is a hard error naming the package** ([`Lock::check`]):
 //! never a warning and never a fetch of the other bytes. With `--locked`, a package the lock does
