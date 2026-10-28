@@ -27,7 +27,7 @@ stages:
         rules: [core-classes/web-push-sends-an-encrypted-message, security/protocol-roster, security/protocol-admission-test]
   - id: 4
     title: "`Core\\WebPush` has its feature proofs, and the rule is shipped"
-    status: open
+    status: done
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 5
     title: the goal is verified once, and every failure is fixed
@@ -160,12 +160,12 @@ roster's admission test.
 examples (the browser's subscription beside the server's send, in the shape of `Core\Totp::check`'s)
 and the bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the attack.
 
-- [ ] `subscription`. `docs/examples/core/WebPush/subscription/about.md:1`, `benches/members/core/WebPush/subscription.nvs:1`
-- [ ] `applicationServerKey`. `docs/examples/core/WebPush/applicationServerKey/about.md:1`, `benches/members/core/WebPush/applicationServerKey.nvs:1`
-- [ ] `send`. `docs/examples/core/WebPush/send/about.md:1`, `benches/members/core/WebPush/send.nvs:1`
-- [ ] The attack: a subscription whose endpoint names an internal address does not reach it. `tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:1`
-- [ ] `bun nv proofs --group 'Core\WebPush'` owes nothing. `docs/examples/core/WebPush/send/about.md:1`
-- [ ] `rule:core-classes/web-push-sends-an-encrypted-message` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-web-push` passes. `data/rules/core-classes/web-push-sends-an-encrypted-message.json:3`
+- [x] `subscription`. `docs/examples/core/WebPush/subscription/about.md:1`, `benches/members/core/WebPush/subscription.nvs:1`
+- [x] `applicationServerKey`. `docs/examples/core/WebPush/applicationServerKey/about.md:1`, `benches/members/core/WebPush/applicationServerKey.nvs:1`
+- [x] `send`. `docs/examples/core/WebPush/send/about.md:1`, `benches/members/core/WebPush/send.nvs:1`
+- [x] The attack: a subscription whose endpoint names an internal address does not reach it. `tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:1`
+- [x] `bun nv proofs --group 'Core\WebPush'` owes nothing. `docs/examples/core/WebPush/send/about.md:1`
+- [x] `rule:core-classes/web-push-sends-an-encrypted-message` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-web-push` passes. `data/rules/core-classes/web-push-sends-an-encrypted-message.json:3`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -184,34 +184,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` (rank 977)
-with `subscription`, `applicationServerKey` and `send`, `WebPushSubscription` (978,
-`endpoint(): tainted string`) and `WebPushSent` (979, `status()` and `gone()`). Every error is a
-fixed sentence that names a parameter: `no_vapid_error_carries_the_key` (`webpush.rs:1201`) checks
-that no `vapid_of` or `vapid_token` message contains the key in hex or base64url. Three conformance
-cases pass under `nvs test`: `web-push-a-subscription-that-is-not-a-browsers-throws.nvst` (eight
-`RuntimeError` sentences from `read_subscription`, `webpush.rs:408`),
-`web-push-send-throws-a-logic-error-before-it-reaches-a-host.nvst` (not `P256`, `$subject`, `$ttl`)
-and `web-push-endpoint-of-a-request-body-is-tainted.nvst` (`E0403`). `rule:security/protocol-roster`
-lists `Core\WebPush` as built, and the first two cases are in its `guardedBy`. The sweep's
-`env-secret-proofs` red was stale (it exits 0), and the cancelled nightly run 40662443492 was
-superseded by a push whose CI passed.
+Stages 1 to 4 are done. `crates/nvs-stdlib/src/webpush.rs` registers `CoreWebPush` with
+`subscription`, `applicationServerKey` and `send`, and each member has a Rust test that carries its
+`covers:` marker (`a_vapid_token_names_the_endpoints_origin_and_verifies_under_the_public_key` now
+reads its key through `applicationServerKey`). Each member has its about page, three examples, a
+bench with a perf row in `data/perf/members.ndjson`, and an attack, under
+`docs/examples/core/WebPush/`, `benches/members/core/WebPush/` and `tests/hostile/core/WebPush/`.
+`bun nv proofs --gate --group 'Core\WebPush'` owes nothing, and `bun nv owners --closes
+core-web-push` passes. `rule:core-classes/web-push-sends-an-encrypted-message` is `shipped`, with
+the three `web-push-*.nvst` cases in `guardedBy` and its `goal` field removed.
+
+The `send` attack has its own `nvs.toml` block (`root = "tests/hostile/core/WebPush/send"`,
+`connect = true`), so the address table alone refuses each internal endpoint, and a
+`needs the capability` error stops it with a `LogicError`. The examples and the `send` bench never
+connect: each sends to `10.0.0.x`, which a CLI run refuses before a socket opens. The four subagents
+ran side by side, because their directories were disjoint.
 
 ### Next
 
-**Stage 4: the feature proofs, and the rule shipped.** Follow the stage's `**Split:**` line: one
-writing subagent per member, one after another, then one for the attack. The shape to copy is
-`docs/examples/core/Totp/check/` and `tests/hostile/core/Totp/check/01-guess-every-code.nvs`.
+**Stage 5: the goal is verified once.** Start `bun nv affected --run` (in the loop, `looper verify`)
+with `run_in_background`, group the failures by cause, fix them in one pass, and run it again.
+Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes core-web-push` and
+`bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
 
-- [ ] `subscription`: about page, three examples, bench. `docs/examples/core/WebPush/subscription/about.md:1`, `benches/members/core/WebPush/subscription.nvs:1`
-- [ ] `applicationServerKey`: the same. `docs/examples/core/WebPush/applicationServerKey/about.md:1`, `benches/members/core/WebPush/applicationServerKey.nvs:1`
-- [ ] `send`: the same. An example cannot reach a real push service, so it shows a `LogicError` path or reads `gone()` from a subscription the program built. `docs/examples/core/WebPush/send/about.md:1`, `benches/members/core/WebPush/send.nvs:1`
-- [ ] The attack: an endpoint on an internal address does not connect. `tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:1`
-- [ ] `bun nv proofs --group 'Core\WebPush'` owes nothing. `docs/examples/core/WebPush/send/about.md:1`
-- [ ] `data/rules/core-classes/web-push-sends-an-encrypted-message.json:3` becomes `shipped`, with the three `web-push-*.nvst` cases in its `guardedBy` (it is empty now), and `bun nv owners --closes core-web-push` passes.
+Possible reds: the decimal and hex loopback hosts in step 2 of
+`tests/hostile/core/WebPush/send/01-an-endpoint-on-the-internal-network.nvs:62` fail to resolve on
+Windows but resolve to `127.0.0.1` on Linux, and both throw a `RuntimeError`. Check the Linux run.
+A check over the website's `Core` index may want rows for the new members.
 
-Expected red until stage 4 ends: `bun nv proofs` owes every proof of `Core\WebPush`, and a check
-over `data/perf/members.ndjson` or the website's `Core` index may want rows for the new members.
+The perf rows: `applicationServerKey` costs about 530 µs a call (`vapid_of` reads the pair and
+derives the public point each time), `send` about 1.2 ms and `subscription` about 2 µs.
 
 ### Backlog
 
