@@ -69,7 +69,7 @@ stages:
         rules: [packaging/an-owner-is-notified-without-email, packaging/a-release-waits-seven-days-unless-an-owner-confirms]
   - id: 6
     title: an account stays active by proof, never by token
-    status: open
+    status: done
     context: [docs/rules/packaging/an-account-stays-active-by-proof-not-by-token.md, apps/registry/src/Push.nvs, apps/registry/src/Webhooks.nvs]
     extra:
       context:
@@ -397,6 +397,19 @@ answer too. Token use never counts. An answer keeps an active account active, an
 without activity, only a passkey sign-in makes the account active again. The owner chooses when the
 reminders start, such as after 14, 30 or 45 quiet days.
 
+**A reminder is answered by a `POST` to `/here/<code>`, and the daily job sends it.**
+`Activity` (`apps/registry/src/Activity.nvs`) owns the clock: `accounts.active_at`, which a passkey
+sign-in and an answer move, and `Publish` asks `Activity::isActive`. The owner picks the first
+reminder from 7 to 59 quiet days (`POST /api/account/reminders`, 30 until chosen; `/api/account`
+returns `activeUntil` and `remindAfter`), and an unanswered account gets another every 7 days until
+it lapses. `jobs/daily.nvs` calls `Activity::remind`, which sends through `Notices::tell`'s `$here`
+argument: `here` in the push payload, and a `reminder` webhook body with `link`. A reminder is no
+`notices` row, so its code never reaches the inbox. One code per reminder, hashed in `reminders`,
+works once and only until the account would lapse. `GET /here/<code>` is the small page with the
+button, and only the `POST` counts. Why: a link preview or a mail scanner that opens a link must not
+count as a person being there, and one code for both kinds of channel keeps one row per account.
+Memory: one row per account that chose a start or got a reminder.
+
 **The service is built and tested on one machine, and hosting is configuration**
 (`rule:packaging/registry-hosting-is-configuration`). The committed `apps/registry/hosting.json` names
 directories as every store, so `nvs serve apps/registry` and `nvs test apps/registry` need nothing
@@ -633,10 +646,10 @@ writes the Rust items after the session lands the feeds.
 
 **Does:** an account with no passkey sign-in or reminder answer for 60 days can no longer publish.
 
-- [ ] The activity clock: a passkey sign-in or a reminder answer counts, token use never does, and after 60 days only a passkey sign-in revives the account (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). `apps/registry/src/Activity.nvs:1`
-- [ ] The "Yes, I am here" reminder: the start the owner chose, the one-time code in the encrypted push payload, the small page the notification opens, and the one-time link in a webhook message. `apps/registry/src/Push.nvs:1`, `apps/registry/src/Webhooks.nvs:1`
-- [ ] Tests under a fixed clock moved by `Core\Test::advance`: token use on day 59 does not count, a reminder answer does, and on day 61 only a passkey sign-in revives. `apps/registry/src/ActivityTest.nvs:1`
-- [ ] `rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`. `data/rules/packaging/an-account-stays-active-by-proof-not-by-token.json:1`
+- [x] The activity clock: a passkey sign-in or a reminder answer counts, token use never does, and after 60 days only a passkey sign-in revives the account (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). `apps/registry/src/Activity.nvs:1`
+- [x] The "Yes, I am here" reminder: the start the owner chose, the one-time code in the encrypted push payload, the small page the notification opens, and the one-time link in a webhook message. `apps/registry/src/Push.nvs:1`, `apps/registry/src/Webhooks.nvs:1`
+- [x] Tests under a fixed clock moved by `Core\Test::advance`: token use on day 59 does not count, a reminder answer does, and on day 61 only a passkey sign-in revives. `apps/registry/src/ActivityTest.nvs:1`
+- [x] `rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`. `data/rules/packaging/an-account-stays-active-by-proof-not-by-token.json:1`
 
 ### 10. the service has its deploy guide and its proofs, and its rules are shipped
 
@@ -672,31 +685,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 7, 8, 9 and 11 are done. This session closed stage 9 (standing decision *A
-notice is a row saved with its change*): `Notices` (`apps/registry/src/Notices.nvs`) saves one row
-per event with its change and sends it to every owner's push devices and webhooks after the commit.
-`Feeds` (`apps/registry/src/Feeds.nvs`) serves `/feeds/vendors/{vendor}` and `/feeds/pending` as
-signed notes under the log key, and `/api/inbox`. `/api/whoami` and `/api/publish` return `pending`,
-and the publish returns `warning`. `nvs pkg whoami` and `nvs pkg publish` print them
-(`crates/nvs-cli/src/package/login.rs`, `publish.rs`). `Events::token` now takes the scope.
-`Push::register` no longer tells the other devices; the route calls `Notices::tell`.
-`rule:packaging/an-owner-is-notified-without-email` is `shipped`. Run once by name and green:
-`FeedsTest`'s three cases and the five new or extended tests in `package_login.rs`,
-`registry_build.rs` and `login.rs`. No other test was run.
+Stages 1 to 9 and 11 are done. This session closed stage 6 (standing decision *A reminder is
+answered by a `POST` to `/here/<code>`*): `Activity` (`apps/registry/src/Activity.nvs`) took
+`isActive` from `Accounts`, sends reminders from `jobs/daily.nvs` through `Notices::tell`'s new
+`$here` argument (`Push::notify` and `Webhooks::notify` take it too), and `App` has
+`POST /api/account/reminders`, `GET` and `POST /here/{code}`. The table `reminders` is new and
+`create table if not exists` adds it to an existing `registry.sqlite`.
+`rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`, and `bun nv rules
+--render` also rendered fragments other goals had left unrendered in `security.md` and `testing.md`.
+`ActivityTest`'s three cases ran once by name and are green. No other test was run.
 
-Watch in stage 12: every changing route now sends notices; the test webhook is
-`https://hooks.invalid/<account>`, so a registry test slow on DNS is this. A red naming
-`net.internal` is `internal = []`. One run in three had `IndexTest`'s `catchUp` return `false`. The
-sweep's `env-secret-proofs` is in no goal or floor (`looper check` finds no such check; its log is
-from 2026-10-22, `exit 0`), so it is looper's service state. Nightly 40662443492 was cancelled by a
-newer push. No test is expected red.
+Watch in stage 12: `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads the refusal
+by status only, and its message changed. The sweep's `env-secret-proofs` passes when run by hand
+(`bun nv proofs --gate --only 'Core\Env::secret'`, exit 0); its red log is looper's service state
+from 2026-10-22. Nightly 40662443492 was cancelled by a newer push. Every changing route sends
+notices to `https://hooks.invalid/<account>`, so a slow registry test may be DNS. One run in three
+had `IndexTest`'s `catchUp` return `false`. No test is expected red.
 
 ### Next
 
-Stage 6, the activity rule; it needs stages 5 and 8, both done. Its reminder is one more `Notices`
-caller: send it with `Notices::tell`, never a third copy of the two senders.
-- [ ] The activity clock and its check in `Publish`. `apps/registry/src/Activity.nvs:1`, `apps/registry/src/Publish.nvs:38`
-- [ ] The reminder with its one-time code in push and webhook messages. `apps/registry/src/Notices.nvs:95`, `apps/registry/src/Push.nvs:1`, `apps/registry/src/Webhooks.nvs:83`
+Stage 10, the deploy guide and the proofs. Its `**Split:**` line says how: the session writes the
+three headings, then one writing subagent per heading, one after another.
+- [ ] Check Bunny's access-line format and day path (Backlog) before the guide names them. `apps/registry/src/Downloads.nvs:1`
+- [ ] The deploy guide, with every Backlog item that says "stage 10's guide". `apps/registry/README.md:1`
+- [ ] The three headings. `docs/reference/tools/35-packages.md:1`
 
 ### Backlog
 
@@ -731,5 +743,8 @@ caller: send it with `Notices::tell`, never a third copy of the two senders.
   `TestServer::bind` takes the unit and routes from `run_the_test` (`crates/nvs-cli/src/runner.rs:3358`);
   passing `Checked::request` there too makes both mechanisms run `public/index.nvs`. No registry
   test uses `server: true`.
+- The service worker that shows a push message, sends a channel's `code` and a reminder's `here`
+  back, and opens `/here/<here>` on a click is goal `registry-website`'s; the payload already
+  carries both. The page at `/here/<code>` is bare HTML until that goal styles it.
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).

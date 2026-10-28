@@ -1,0 +1,140 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Random;
+use Core\Time;
+
+// The activity of an account. An account with no activity for 60 days cannot publish.
+// Activity is a sign-in with a passkey, or the answer to a reminder. Using a token is never activity.
+// An answer keeps an active account active. After 60 days, only a sign-in with a passkey
+// makes the account active again. Its packages and releases do not change.
+final class Activity
+{
+    // The days without activity after which an account cannot publish. It is not a setting.
+    public const int DAYS = 60;
+
+    // The quiet days before the first reminder, until the owner chooses another number.
+    public const int REMIND_AFTER = 30;
+
+    // The fewest and the most quiet days an owner can choose.
+    public const int REMIND_FIRST = 7;
+    public const int REMIND_LAST = 59;
+
+    // The days between two reminders while the account does not answer.
+    public const int REMIND_EVERY = 7;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Returns `true` when the account showed activity in the last 60 days. Only such an account can publish.
+    public function isActive(string $account): bool
+    {
+        ?int $until = $this->activeUntil($account);
+        return $until != null && $until > Time::now()->toEpochSeconds();
+    }
+
+    // Returns the time the account stops being able to publish, unless it shows activity first.
+    // An account that does not exist returns `null`.
+    public function activeUntil(string $account): ?int
+    {
+        foreach ($this->db->query('select active_at from accounts where id = ?', [$account]) as Row $row) {
+            return ($row->int('active_at') ?? 0) + Activity::DAYS * 86400;
+        }
+        return null;
+    }
+
+    // Returns the quiet days after which the account gets its first reminder.
+    public function remindAfter(string $account): int
+    {
+        foreach ($this->db->query('select remind_after from reminders where account = ?', [$account]) as Row $row) {
+            return $row->int('remind_after') ?? Activity::REMIND_AFTER;
+        }
+        return Activity::REMIND_AFTER;
+    }
+
+    // Saves the quiet days after which the account gets its first reminder, from 7 to 59.
+    // Another number returns `false`, and nothing changes.
+    public function setRemindAfter(string $account, int $days): bool
+    {
+        if ($days < Activity::REMIND_FIRST || $days > Activity::REMIND_LAST) {
+            return false;
+        }
+        $this->db->execute(
+            'insert into reminders (account, remind_after) values (?, ?) '
+                . 'on conflict (account) do update set remind_after = excluded.remind_after',
+            [$account, $days],
+        );
+        return true;
+    }
+
+    // Sends a reminder to every active account that was quiet for the days its owner chose.
+    // The reminder has a new one-time code. A push message has it in its encrypted payload,
+    // and a webhook message has a link with it. An account that does not answer gets another
+    // reminder every 7 days until its 60 days end. The daily job calls this.
+    // It returns the number of accounts that got a reminder.
+    public function remind(Notices $notices): int
+    {
+        int $now = Time::now()->toEpochSeconds();
+        array<int> $due = [];
+        foreach ($this->db->query(
+            'select a.id, a.active_at from accounts a left join reminders r on r.account = a.id '
+                . 'where a.active_at > ? and a.active_at <= ? - coalesce(r.remind_after, ?) * 86400 '
+                . 'and (r.reminded_at is null or r.reminded_at <= a.active_at or r.reminded_at <= ?) order by a.id',
+            [$now - Activity::DAYS * 86400, $now, Activity::REMIND_AFTER, $now - Activity::REMIND_EVERY * 86400],
+        ) as Row $row) {
+            string $account = Core\Taint::assertTrusted($row->string('id') as tainted string, 'the registry wrote this id');
+            $due[$account] = ($row->int('active_at') ?? 0) + Activity::DAYS * 86400;
+        }
+        foreach ($due as string $account => int $until) {
+            string $code = Random::token(16);
+            // The code works until the account stops being active, because an answer after that does not count.
+            $this->db->execute(
+                'insert into reminders (account, remind_after, reminded_at, code_hash, code_until) values (?, ?, ?, ?, ?) '
+                    . 'on conflict (account) do update set reminded_at = excluded.reminded_at, '
+                    . 'code_hash = excluded.code_hash, code_until = excluded.code_until',
+                [$account, Activity::REMIND_AFTER, $now, Tokens::hashOf($code), $until],
+            );
+            $notices->tell($account, Activity::reminder(Core\Math::ceil(($until - $now) / 86400.0) as int), '', $code);
+        }
+        return Core\Arr::count($due) as int;
+    }
+
+    // Checks the code of a reminder. A right code counts as activity, and it cannot be used again.
+    // It returns the account. A wrong or used code returns `null`. So does the code of an account
+    // with no activity for 60 days, because only a passkey sign-in makes that account active again.
+    public function answer(tainted string $code): ?string
+    {
+        int $now = Time::now()->toEpochSeconds();
+        string $hash = Tokens::hashOf($code);
+        return $this->db->transaction(fn(Transaction $tx): ?string => {
+            ?string $account = null;
+            foreach ($tx->query(
+                'select r.account from reminders r join accounts a on a.id = r.account '
+                    . 'where r.code_hash = ? and r.code_until > ? and a.active_at > ?',
+                [$hash, $now, $now - Activity::DAYS * 86400],
+            ) as Row $row) {
+                $account = Accounts::idOf($row->string('account'));
+            }
+            if ($account == null) {
+                return null;
+            }
+            $tx->execute('update reminders set code_hash = null, code_until = null where account = ?', [$account]);
+            $tx->execute('update accounts set active_at = ? where id = ?', [$now, $account]);
+            return $account;
+        });
+    }
+
+    // The text of a reminder. `$daysLeft` is the number of days until the account cannot publish.
+    private static function reminder(int $daysLeft): string
+    {
+        return 'Your account had no activity for a while. Answer "Yes, I am here" to keep it able to publish. '
+            . 'Without an answer or a passkey sign-in, it cannot publish after ' . $daysLeft . ' more days.';
+    }
+}

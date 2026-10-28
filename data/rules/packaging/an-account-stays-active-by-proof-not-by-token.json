@@ -1,11 +1,13 @@
 {
   "title": "An account that shows no passkey sign-in or reminder answer for 60 fixed days can no longer publish, and token use never counts",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-registry-account-is-a-passkey",
     "packaging/an-owner-is-notified-without-email",
     "packaging/a-publish-token-is-scoped-and-expires"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/ActivityTest.nvs",
+    "apps/registry/src/PublishTest.nvs"
+  ]
 }

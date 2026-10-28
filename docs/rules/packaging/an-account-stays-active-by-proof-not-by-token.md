@@ -27,4 +27,12 @@ account needs the passkey itself.
 - **A period the owner sets.** The 60 days are a bound on how long a leaked token stays useful, and a
   bound that each owner can raise is not one.
 
-**Not on disk.** There is no registry.
+**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity, and
+`Publish` refuses an account whose `active_at` is 60 days old. The owner picks the first reminder
+from 7 to 59 quiet days (30 until they choose, `POST /api/account/reminders`), and an account that
+does not answer gets another every 7 days until it lapses. The daily job sends them through
+`Notices::tell`. Each reminder has a new one-time code, stored as a hash, that works until the account
+would lapse and only once. A push message carries it as `here` in its encrypted payload; a webhook
+message is `{"type": "reminder", "link": "<origin>/here/<code>"}`. `GET /here/<code>` is the small
+page with the "Yes, I am here" button, and only its `POST` counts, so a link preview that opens the
+page counts nothing. **Memory:** one row per account that set a reminder or got one.

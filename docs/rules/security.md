@@ -2167,7 +2167,10 @@ goes with it. SQLite rolls back, applies the pragmas its open set again, and dro
 and trigger in the `temp` schema. A SQLite connection refuses `ATTACH` and `DETACH` when a statement
 is prepared, `VACUUM INTO` with them, because an attached database is a file no `fs` grant was
 asked about; the unnamed temporary database a plain `VACUUM` attaches is the one exception, and a
-reset that finds a database still attached closes the connection. The pool exists to keep a
+reset that finds a database still attached closes the connection. A SQLite connection whose `main`
+database is private to it, `:memory:` or the empty path, is never reused: its tables are the data of
+the request that opened it, so the pool closes it and the next request opens a new one, which costs
+that request an open and its own schema. The pool exists to keep a
 connection's handshake and statement cache across requests; Novis code cannot observe whether a
 handshake happened.
 

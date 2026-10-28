@@ -79,13 +79,17 @@ final class Webhooks
 
     // Sends a message to every verified webhook of the account that works. `$except` is a channel
     // to leave out, or an empty string. It returns the number of webhooks that took the message
-    // at the first try. The others get it again later.
-    public function notify(string $account, string $text, string $except = ''): int
+    // at the first try. The others get it again later. `$here` is the one-time code of a reminder,
+    // or an empty string. A reminder has the type `reminder` and a `link` to the page that answers it.
+    public function notify(string $account, string $text, string $except = '', string $here = ''): int
     {
         int $took = 0;
         foreach (new Channels($this->db)->working($account, Channels::WEBHOOK, $except) as string $id => string $url) {
             ?string $secret = $this->secretOf($id);
-            if ($secret != null && $this->deliver($id, $url, $secret, Webhooks::json({ type: 'notice', channel: $id, text: $text }))) {
+            string $body = $here == ''
+                ? Webhooks::json({ type: 'notice', channel: $id, text: $text })
+                : Webhooks::json({ type: 'reminder', channel: $id, text: $text, link: $this->origin . '/here/' . $here });
+            if ($secret != null && $this->deliver($id, $url, $secret, $body)) {
                 $took++;
             }
         }

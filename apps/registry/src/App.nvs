@@ -128,6 +128,8 @@ final class App
     }
 
     // Returns the account of the visitor, its number of passkeys and of unused recovery codes, and the vendors it owns.
+    // `activeUntil` is the time the account stops being able to publish without activity, and
+    // `remindAfter` is the quiet days before its first reminder.
     #[Route(path: '/api/account', method: Method::Get)]
     #[Access(allow: Visitor::SignedIn)]
     public static function account(): void
@@ -135,12 +137,60 @@ final class App
         string $account = Session::account() ?? '';
         var $db = Schema::open();
         var $accounts = new Accounts($db);
+        var $activity = new Activity($db);
         Response::json({
             account: $account,
             passkeys: Arr::count($accounts->passkeys($account)),
             recoveryCodesLeft: $accounts->recoveryCodesLeft($account),
             vendors: new Vendors($db)->ownedBy($account),
+            activeUntil: $activity->activeUntil($account),
+            remindAfter: $activity->remindAfter($account),
         });
+    }
+
+    // Saves the quiet days before the first reminder, from 7 to 59, such as `{"days": 45}`.
+    #[Route(path: '/api/account/reminders', method: Method::Post)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function setReminders(): void
+    {
+        try {
+            int $days = Request::jsonAs<ReminderRequest>()->days;
+            if (!new Activity(Schema::open())->setRemindAfter(Session::account() ?? '', $days)) {
+                App::fail(400, 'The number of days must be from ' . Activity::REMIND_FIRST . ' to ' . Activity::REMIND_LAST . '.');
+                return;
+            }
+            Response::json({ remindAfter: $days });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a number of days.');
+        }
+    }
+
+    // The page that a reminder opens. Its button sends the answer "Yes, I am here".
+    #[Route(path: '/here/{code}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function herePage(tainted string $code): void
+    {
+        Response::html(
+            '<!doctype html><title>Novis registry</title><p>Your account had no activity for a while.</p>' as Core\Html\Markup
+                + '<form method="post"><button>Yes, I am here</button></form>' as Core\Html\Markup,
+        );
+    }
+
+    // Takes the answer "Yes, I am here" with the one-time code of a reminder. A right code counts
+    // as activity. The button of the page and the action of a push message send it.
+    #[Route(path: '/here/{code}', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function here(tainted string $code): void
+    {
+        if (new Activity(Schema::open())->answer($code) == null) {
+            Response::setStatus(404);
+            Response::html(
+                '<!doctype html><title>Novis registry</title><p>This link is wrong or was used before. ' as Core\Html\Markup
+                    + 'If your account had no activity for 60 days, sign in with a passkey.</p>' as Core\Html\Markup,
+            );
+            return;
+        }
+        Response::html('<!doctype html><title>Novis registry</title><p>Thank you. Your account can publish.</p>' as Core\Html\Markup);
     }
 
     // Returns the options for one more passkey. The passkeys the account has are excluded.

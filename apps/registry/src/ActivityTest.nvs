@@ -1,0 +1,157 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Json;
+use Core\Passkey\Credential;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+use Core\Time;
+use Core\Time\Duration;
+
+// Tests for the activity of an account under a fixed clock. Each account has one verified webhook,
+// a fake web service from `Test::answerHttp`, so the test reads each reminder there.
+// Each test has its own database in memory, because `remind` reminds every account in the table.
+final class ActivityTest
+{
+    // The start of each webhook URL. The address is reserved for examples, so it is not internal.
+    private const string HOOKS = 'https://203.0.113.9/activity/';
+
+    // The address of the site. The link in a reminder starts with it.
+    private const string ORIGIN = 'https://registry.example.com';
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function tokenUseDoesNotCountAndAReminderAnswerDoes(): void
+    {
+        var $db = ActivityTest::database();
+        var $activity = new Activity($db);
+        string $account = ActivityTest::account($db);
+        string $token = new Tokens($db)->create($account, 'Acme', 365)['token'];
+        var $notices = ActivityTest::notices($db);
+
+        // Before 30 quiet days, there is no reminder. On day 30, the webhook gets one.
+        Test::advance(Duration::days(29));
+        Test::assertSame($activity->remind($notices), 0);
+        Test::advance(Duration::days(1));
+        Test::assertSame($activity->remind($notices), 1);
+        tainted string $code = ActivityTest::reminderCode();
+        // A second run on the same day sends nothing.
+        Test::assertSame($activity->remind($notices), 0);
+
+        // The token publishes on day 59, and that does not move the end of the 60 days.
+        ?int $until = $activity->activeUntil($account);
+        Test::advance(Duration::days(29));
+        Test::assertTrue(new Tokens($db)->allows($token, 'Acme\\Http') != null);
+        Test::assertSame($activity->activeUntil($account), $until);
+
+        // The answer on day 59 counts, so the account is still active on day 61. The code works once.
+        Test::assertSame($activity->answer('wrong'), null);
+        Test::assertSame($activity->answer($code), $account);
+        Test::assertSame($activity->answer($code), null);
+        Test::advance(Duration::days(2));
+        Test::assertTrue($activity->isActive($account));
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function onDay61OnlyAPasskeySignInMakesTheAccountActive(): void
+    {
+        var $db = ActivityTest::database();
+        var $activity = new Activity($db);
+        string $account = ActivityTest::account($db);
+        Test::advance(Duration::days(30));
+        $activity->remind(ActivityTest::notices($db));
+        tainted string $code = ActivityTest::reminderCode();
+
+        // After 60 days, the account cannot publish, and the answer to the reminder does not change that.
+        Test::advance(Duration::days(31));
+        Test::assertTrue(!$activity->isActive($account));
+        Test::assertSame($activity->answer($code), null);
+        Test::assertTrue(!$activity->isActive($account));
+
+        // A sign-in with a passkey makes it active again.
+        // The key is an Ed25519 public key in the COSE format a device sends.
+        bytes $key = Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), Random::bytes(32)]);
+        new Accounts($db)->signedIn($account, Credential::of(Random::bytes(16), $key, Credential::Algorithm::Ed25519, 1));
+        Test::assertTrue($activity->isActive($account));
+        Test::assertSame($activity->activeUntil($account), Time::now()->toEpochSeconds() + Activity::DAYS * 86400);
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function theOwnerChoosesWhenTheRemindersStart(): void
+    {
+        var $db = ActivityTest::database();
+        var $activity = new Activity($db);
+        string $account = ActivityTest::account($db);
+        var $notices = ActivityTest::notices($db);
+        Test::assertSame($activity->remindAfter($account), Activity::REMIND_AFTER);
+        Test::assertTrue(!$activity->setRemindAfter($account, 6));
+        Test::assertTrue(!$activity->setRemindAfter($account, 60));
+        Test::assertTrue($activity->setRemindAfter($account, 14));
+        Test::assertSame($activity->remindAfter($account), 14);
+
+        // The first reminder comes on day 14. Without an answer, the next one comes 7 days later.
+        Test::advance(Duration::days(13));
+        Test::assertSame($activity->remind($notices), 0);
+        Test::advance(Duration::days(1));
+        Test::assertSame($activity->remind($notices), 1);
+        Test::advance(Duration::days(6));
+        Test::assertSame($activity->remind($notices), 0);
+        Test::advance(Duration::days(1));
+        Test::assertSame($activity->remind($notices), 1);
+        // The newest reminder has a new code, and the code of the first one no longer works.
+        array<SentRequest> $sent = Test::sentHttp();
+        tainted string $first = ActivityTest::codeOf($sent[Core\Arr::count($sent) - 2]);
+        Test::assertSame($activity->answer($first), null);
+        Test::assertSame($activity->answer(ActivityTest::reminderCode()), $account);
+        // After the answer, the next reminder comes 14 days later.
+        Test::advance(Duration::days(13));
+        Test::assertSame($activity->remind($notices), 0);
+    }
+
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        return $db;
+    }
+
+    // Adds a new account with one verified webhook, and returns its id.
+    private static function account(Connection $db): string
+    {
+        string $account = Random::token(16);
+        int $now = Time::now()->toEpochSeconds();
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?)', [$account, $now, $now]);
+        string $url = ActivityTest::HOOKS . Random::token(8);
+        Test::answerHttp($url, 200);
+        string $channel = new Webhooks($db, ActivityTest::ORIGIN)->add($account, $url)['id'];
+        var $channels = new Channels($db);
+        Test::assertTrue($channels->verify($account, $channel, $channels->newCode($account, $channel) ?? ''));
+        return $account;
+    }
+
+    private static function notices(Connection $db): Notices
+    {
+        return new Notices($db, null, new Webhooks($db, ActivityTest::ORIGIN));
+    }
+
+    // The one-time code of the newest reminder that the webhook got.
+    private static function reminderCode(): tainted string
+    {
+        array<SentRequest> $sent = Test::sentHttp();
+        return ActivityTest::codeOf($sent[Core\Arr::count($sent) - 1]);
+    }
+
+    // The code at the end of the link in one reminder.
+    private static function codeOf(SentRequest $request): tainted string
+    {
+        var $body = Json::decode($request->body() as string) as array<mixed>;
+        Test::assertSame($body['type'] as string, 'reminder');
+        tainted string $link = $body['link'] as tainted string;
+        Test::assertTrue(Str::startsWith($link, ActivityTest::ORIGIN . '/here/'));
+        return Str::slice($link, Str::length(ActivityTest::ORIGIN . '/here/') as int);
+    }
+}

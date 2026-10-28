@@ -93,13 +93,14 @@ final class Push
 
     // Sends a message to every verified device of the account that works. `$except` is a device
     // to leave out, or an empty string. A device that the push service no longer knows is deleted.
-    // A device that fails for another reason is kept. It returns the number of devices that took the message.
-    public function notify(string $account, string $text, string $except = ''): int
+    // A device that fails for another reason is kept. `$here` is the one-time code of a reminder, or
+    // an empty string. It returns the number of devices that took the message.
+    public function notify(string $account, string $text, string $except = '', string $here = ''): int
     {
         var $channels = new Channels($this->db);
         int $took = 0;
         foreach ($channels->working($account, Channels::PUSH, $except) as string $id => string $target) {
-            ?Sent $sent = $this->send($id, $target, $text, '');
+            ?Sent $sent = $this->send($id, $target, $text, '', $here);
             if ($sent == null) {
                 continue;
             }
@@ -113,13 +114,15 @@ final class Push
         return $took;
     }
 
-    // Sends one message to one device. The payload is JSON with `title`, `body`, `channel` and `code`.
-    // `code` is the one-time code of a test message, or an empty string.
+    // Sends one message to one device. The payload is JSON with `title`, `body`, `channel`, `code` and `here`.
+    // `code` is the one-time code of a test message, or an empty string. `here` is the one-time
+    // code of a reminder, or an empty string. The action "Yes, I am here" sends it in a `POST` to
+    // `/here/<here>`, and a click on the message opens that page.
     // A message that could not be sent returns `null`.
-    private function send(string $id, string $subscription, string $text, string $code): ?Sent
+    private function send(string $id, string $subscription, string $text, string $code, string $here = ''): ?Sent
     {
         bytes $payload = Encoding::encodeText(
-            Json::encode({ title: Push::TITLE, body: $text, channel: $id, code: $code }),
+            Json::encode({ title: Push::TITLE, body: $text, channel: $id, code: $code, here: $here }),
             Charset::Utf8,
         );
         try {

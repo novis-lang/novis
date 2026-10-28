@@ -1,0 +1,14 @@
+<?nvs
+namespace Registry;
+
+// The JSON a browser sends to choose the quiet days before the first reminder, such as `{"days": 45}`.
+#[Core\Json\Derive]
+final class ReminderRequest
+{
+    public int $days;
+
+    public function constructor(int $days)
+    {
+        $this->days = $days;
+    }
+}

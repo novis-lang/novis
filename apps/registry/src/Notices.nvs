@@ -94,11 +94,12 @@ final class Notices
 
     // Sends a message to every push device and webhook of one account that works.
     // `$except` is a channel to leave out, such as the device that was just added, or an empty string.
-    // It returns the number of devices and webhooks that took the message at the first try.
-    public function tell(string $account, string $text, string $except = ''): int
+    // `$here` is the one-time code of a reminder, which the owner sends back to answer "Yes, I am here",
+    // or an empty string. It returns the number of devices and webhooks that took the message at the first try.
+    public function tell(string $account, string $text, string $except = '', string $here = ''): int
     {
-        int $took = $this->push?->notify($account, $text, $except) ?? 0;
-        return $took + $this->webhooks->notify($account, $text, $except);
+        int $took = $this->push?->notify($account, $text, $except, $here) ?? 0;
+        return $took + $this->webhooks->notify($account, $text, $except, $here);
     }
 
     // Returns `true` when an owner of the vendor has a verified channel that works.

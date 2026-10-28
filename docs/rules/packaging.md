@@ -3,7 +3,7 @@
 
 # Packaging
 
-*8 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1656,7 +1656,7 @@ requests outside SQLite.
 
 <a id="packaging-an-account-stays-active-by-proof-not-by-token"></a>
 
-## An account that shows no passkey sign-in or reminder answer for 60 fixed days can no longer publish, and token use never counts  *(designed — owned by goal registry-service)*
+## An account that shows no passkey sign-in or reminder answer for 60 fixed days can no longer publish, and token use never counts
 
 `rule:packaging/an-account-stays-active-by-proof-not-by-token`
 
@@ -1689,13 +1689,21 @@ account needs the passkey itself.
 - **A period the owner sets.** The 60 days are a bound on how long a leaked token stays useful, and a
   bound that each owner can raise is not one.
 
-**Not on disk.** There is no registry.
+**On disk** in `apps/registry/src/Activity.nvs`. `accounts.active_at` is the last activity, and
+`Publish` refuses an account whose `active_at` is 60 days old. The owner picks the first reminder
+from 7 to 59 quiet days (30 until they choose, `POST /api/account/reminders`), and an account that
+does not answer gets another every 7 days until it lapses. The daily job sends them through
+`Notices::tell`. Each reminder has a new one-time code, stored as a hash, that works until the account
+would lapse and only once. A push message carries it as `here` in its encrypted payload; a webhook
+message is `{"type": "reminder", "link": "<origin>/here/<code>"}`. `GET /here/<code>` is the small
+page with the "Yes, I am here" button, and only its `POST` counts, so a link preview that opens the
+page counts nothing. **Memory:** one row per account that set a reminder or got one.
 
 <sub>See also [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
 <a id="packaging-an-owner-is-notified-without-email"></a>
 
-## Every owner is notified of each publish, token, owner change, unlist and retraction through Web Push or a webhook they verified, and an account with no verified channel cannot publish  *(designed — owned by goal registry-service)*
+## Every owner is notified of each publish, token, owner change, unlist and retraction through Web Push or a webhook they verified, and an account with no verified channel cannot publish
 
 `rule:packaging/an-owner-is-notified-without-email`
 
@@ -1719,7 +1727,20 @@ cannot publish and cannot be added as an owner.
 **Always present, whatever the owner set up:** a signed feed per vendor, the inbox on the website, and
 `nvs pkg publish` and `nvs pkg whoami` printing the pending releases the caller did not confirm. A
 public feed lists every pending release ([`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms)).
-`nvs pkg publish` warns when no owner of the vendor has a working channel.
+`nvs pkg publish` warns when no device or webhook of an owner of the vendor took the message.
+
+**One message per event, saved with the change.** Each change writes a `notices` row in the
+transaction that writes the change and its log entry, so an event is never shown without its message.
+The route sends every unsent row once it commits, and claims each row before it sends it, so two
+requests never send one message twice. The every-minute job sends what a failed request left. A message
+goes to every owner of the vendor and to the account the event is about, such as a removed owner or the
+maker of a token.
+
+**The feeds are C2SP signed notes under the log's key**, the format of the log's checkpoints:
+`GET /feeds/vendors/<vendor>` has the newest 100 events and `GET /feeds/pending` every pending release.
+Each line after the name and the count is one JSON object. The log's public key checks a feed, with the
+client's note reader or any C2SP library. So a copy of a feed can be checked, wherever it came from. The
+inbox, `GET /api/inbox`, is the same rows for a signed-in account.
 
 **A verified channel is mandatory.** A push device is verified by the action on a test push, which
 sends back the one-time code inside the encrypted payload. A webhook is verified by a one-time code the
@@ -1731,14 +1752,18 @@ The seven-day window protects a vendor only if somebody hears about the release 
 that reaches a person is part of the right to publish. Adding a device needs a passkey, and every other
 channel hears about it, so an attacker cannot quietly add a device of their own to receive the codes.
 
-**Memory:** the service holds one message per send while it encrypts and posts it; subscriptions and
-webhooks are rows on disk.
+**Memory:** the service holds one message per send while it encrypts and posts it; subscriptions,
+webhooks and one short row per event are on disk. A pending list checks the newest 500 releases no
+owner confirmed, so a request's work stays bounded as the registry grows.
 
 **Declined:**
 - **Email.** The registry holds no address ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey)), and a
   mailbox is a takeover path.
 - **Notification as an option an owner may skip.** An owner nobody can reach makes the pending window
   worthless for that vendor.
+- **An Atom or RSS feed.** A feed reader cannot check a signature, and a second key only for feeds is one
+  more secret for the operator. The log's key already signs, and its public key is already published.
+- **Sending inside the change's transaction.** A slow push service would hold the database's write lock.
 
 **Not on disk.** There is no registry.
 
@@ -2079,7 +2104,7 @@ yet, because no channel exists yet.
 
 <a id="packaging-a-release-waits-seven-days-unless-an-owner-confirms"></a>
 
-## A release published with a token alone is pending for seven fixed days, fetchable by exact version and never selected, unless an owner confirms it with a passkey  *(designed — owned by goal registry-service)*
+## A release published with a token alone is pending for seven fixed days, fetchable by exact version and never selected, unless an owner confirms it with a passkey
 
 `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`
 
@@ -2114,9 +2139,21 @@ confirmation with one is what shortens the window.
 - **Hiding a pending release until it is released.** A pending release has to be fetchable by exact
   version so it can be tested, and it has to be listed so anybody can check it.
 
-**Not on disk.** There is no registry. The client reads a pending version and the time it becomes
-selectable from the index, and `nvs pkg add` and `nvs pkg update` choose it only by its exact version
-until then (`crates/nvs-cli/src/package/minimum.rs`).
+The service side is `apps/registry/src/Releases.nvs`. A publish stores the release with its seven
+days, and `Releases::selectableAt` takes the later of its own time and every dependency's, walking at
+most 16 steps; a dependency outside the registry never waits. The first release at `0.1.0` or higher,
+and a later stable one while no release at or below it was confirmed, has no time at all, and the
+index writes it as `{"pending": {}}`. An owner signed in with a passkey in the last 15 minutes
+releases a version with `POST /api/packages/<vendor>/<name>/<version>/release` and freezes the first
+stable API with `.../stable`, whose page reads the API from `.../api`. Each confirmation is a
+`release-confirmed` or `stable-api-confirmed` log entry saved with the change (`Events.nvs`). A
+retraction sent with a token shows seven days later (`App::retract`). The client reads both pending
+forms from the index, and `nvs pkg add` and `nvs pkg update` choose a pending version only by its
+exact version (`crates/nvs-cli/src/package/minimum.rs`).
+
+**Not on disk.** The public feed of pending releases, the owners' notification, and the pending list
+in `nvs pkg publish` and `nvs pkg whoami` are not written, and neither are the website's confirmation
+pages. An advisory sent with a token has no route.
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -2229,7 +2266,7 @@ the checkpoint.
 
 <a id="packaging-an-owner-may-unlist"></a>
 
-## An owner may unlist a package or a version with a passkey, which hides it from search and keeps it fetchable, logged and reversible  *(designed — owned by goal registry-service)*
+## An owner may unlist a package or a version with a passkey, which hides it from search and keeps it fetchable, logged and reversible
 
 `rule:packaging/an-owner-may-unlist`
 
@@ -2250,9 +2287,17 @@ retracted instead, which is what tells the people who already use it.
 - **Deletion by the owner.** It breaks every lockfile that holds the digest, and a deleted name would
   invite somebody to publish different code under it.
 
-**Not on disk.** There is no registry. The client resolves and fetches an unlisted version a minimum
-names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
+An owner signed in with a passkey in the last 15 minutes unlists a version, or every version, with
+`POST /api/packages/<vendor>/<name>/unlist` and reverses it with `.../relist`
+(`apps/registry/src/App.nvs`). Each change is an `unlist` or `relist` log entry saved with it, and the
+index file shows the version as `unlisted`. A token cannot unlist: the request is answered `202` with
+the page where an owner confirms it, and `nvs pkg unlist` prints that page
+(`crates/nvs-cli/src/package/unlist.rs`). The client resolves and fetches an unlisted version a
+minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
 (`crates/nvs-cli/src/package/minimum.rs`).
+
+**Not on disk.** There is no search, no package page and no owners' notification yet, so nothing
+hides an unlisted package from a listing, and no owner is told of an unlist.
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
@@ -2300,7 +2345,7 @@ the lock does not already have and names its fix (`crates/nvs-cli/src/package/re
 
 <a id="packaging-the-operator-only-withholds"></a>
 
-## The registry's operator may only withhold a version's bytes, for malware or a legal order, as a signed and logged advisory, and never deletes, edits or reassigns  *(designed — owned by goal registry-service)*
+## The registry's operator may only withhold a version's bytes, for malware or a legal order, as a signed and logged advisory, and never deletes, edits or reassigns
 
 `rule:packaging/the-operator-only-withholds`
 
@@ -2329,8 +2374,17 @@ registry can carry.
 - **A review queue before publication.** It delays every release and implies a safety promise no
   reviewer can keep.
 
-**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a withheld version
-and prints its reason (`crates/nvs-cli/src/package/resolve.rs`).
+The operator withholds from a shell on the server, with `nvs run jobs/withhold.nvs --config nvs.toml
+<package> <version> <reason>` (`apps/registry/jobs/withhold.nvs`). No web credential can withhold,
+because the website has no operator account. `Releases::withhold` saves the reason and a `withhold` log
+entry together, and the index file, signed with the log's key, shows `{"withheld": {"reason"}}`. The
+registry's own archive route answers `451` for a withheld digest. Once the log and the index have the
+reason, the job deletes the archive from every store and from the work folder (`Stores::remove`), and
+running it again finishes a delete a store failed. Resolution refuses a withheld version and prints its
+reason (`crates/nvs-cli/src/package/resolve.rs`).
+
+**Not on disk.** There is no `nvs pkg audit` and no policy page. A CDN in front of a store may serve
+a cached archive until its cache lifetime ends, because the service never purges a CDN.
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 

@@ -24,7 +24,7 @@ final class Schema
 
     // Every time is in seconds since 1970, from `Core\Time::now()`.
     // An account has no name, no email and no password. Its id is 32 hex characters.
-    // `active_at` is the time of the last sign-in with a passkey.
+    // `active_at` is the time of the last activity: a sign-in with a passkey or the answer to a reminder.
     // `Restore` calls this inside its transaction, so a restore that fails leaves no table.
     public static function setUp(Connection|Transaction $db): void
     {
@@ -119,6 +119,14 @@ final class Schema
                 . 'verified_at integer, answered_at integer, failed_at integer)',
             [],
         );
+        // The reminders of each account that `Activity` sends. `remind_after` is the quiet days before
+        // the first reminder, as the owner chose them. `reminded_at` is the time of the last reminder.
+        // `code_hash` is the SHA-256 hash of its one-time code, and it is null once the code was used.
+        $db->execute(
+            'create table if not exists reminders (account text primary key references accounts (id), '
+                . 'remind_after integer not null, reminded_at integer, code_hash text, code_until integer)',
+            [],
+        );
         // The secret that signs the messages of each webhook. `channel` is the id of its row in `channels`.
         $db->execute('create table if not exists webhooks (channel text primary key, secret text not null)', []);
         // The webhook messages that failed and wait for the next try. `id` is the message id, the same
@@ -170,6 +178,7 @@ final class Schema
         $db->execute('create index if not exists owners_of_account on owners (account)', []);
         $db->execute('create index if not exists tokens_of_account on tokens (account)', []);
         $db->execute('create index if not exists channels_of_account on channels (account)', []);
+        $db->execute('create index if not exists reminders_of_code on reminders (code_hash)', []);
         $db->execute('create index if not exists notices_of_vendor on notices (vendor, id)', []);
         $db->execute('create index if not exists notices_of_account on notices (account, id)', []);
         $db->execute('create index if not exists notices_unsent on notices (sent_at)', []);
