@@ -50,7 +50,7 @@ foreach ($counts as int $count) {
 // so `verifySignIn` throws a `RuntimeError`.
 string $next = Core\Passkey::signInOptions('example.com', [$saved]);
 try {
-    Core\Passkey::verifySignIn(Device::signIn($next,$key, $saved->id(), 10), $saved, 'example.com', 'https://example.com');
+    Core\Passkey::verifySignIn(Device::signIn($next, $key, $saved->id(), 10), $saved, 'example.com', 'https://example.com');
     echo "the copy signed in\n";
 } catch (RuntimeError $e) {
     echo $e->message, "\n";

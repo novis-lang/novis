@@ -15,7 +15,7 @@ Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, 
 // `toBase64Url` converts the key to text, and `fromBase64Url` converts it back.
 // The passkey is created again with the same key. This prints `same key`.
 string $text = Core\Encoding::toBase64Url($passkey->publicKey());
-Core\Passkey\Credential $loaded = Core\Passkey\Credential::of($id, Core\Encoding::fromBase64Url($text),Core\Passkey\Credential::Algorithm::ES256, 0);
+Core\Passkey\Credential $loaded = Core\Passkey\Credential::of($id, Core\Encoding::fromBase64Url($text), Core\Passkey\Credential::Algorithm::ES256, 0);
 echo $loaded->publicKey() == $passkey->publicKey() ? 'same key' : 'another key', "\n";
 
 // The last byte of the saved key was changed. The bytes are not a valid ES256 key now,

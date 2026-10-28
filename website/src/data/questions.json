@@ -10617,7 +10617,7 @@
   },
   "/reference/core/passkey-credential/of/": {
     "feature": "Core\\Passkey\\Credential::of",
-    "hash": "c1f5cd41b5912e87",
+    "hash": "a7f8f0882a7f4da0",
     "questions": [
       "How do I load a saved passkey from my database?",
       "Rebuild a WebAuthn credential from its id, key and counter",
@@ -10627,7 +10627,7 @@
   },
   "/reference/core/passkey-credential/publickey/": {
     "feature": "Core\\Passkey\\Credential::publicKey",
-    "hash": "2edb1209dabeb98e",
+    "hash": "d1e9d6f54424d0d2",
     "questions": [
       "How do I get the public key of a passkey?",
       "Save a COSE public key from WebAuthn",
@@ -10636,7 +10636,7 @@
   },
   "/reference/core/passkey-credential/signcount/": {
     "feature": "Core\\Passkey\\Credential::signCount",
-    "hash": "4e4e995636cd9f78",
+    "hash": "a1da8895a58e6544",
     "questions": [
       "What is the passkey sign counter for?",
       "Detect a copied passkey with the signature counter",
@@ -16917,7 +16917,7 @@
   },
   "/reference/types/passkey-credential-algorithm/": {
     "feature": "Core\\Passkey\\Credential::Algorithm",
-    "hash": "25c7a13dee0b8d0c",
+    "hash": "1259201abcb998a2",
     "questions": [
       "Which passkey algorithms does Novis support?",
       "ES256 or Ed25519 for WebAuthn passkeys",
