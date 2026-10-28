@@ -100,6 +100,14 @@ pub(crate) struct Args {
     /// are not changed.
     #[arg(long, conflicts_with = "json")]
     fix: bool,
+    /// The folder to search for the program that gives this file its
+    /// `autoload` map. Use it when you check a class file from outside
+    /// the project folder.
+    ///
+    /// The default is the folder of the first `--config` file, or else
+    /// the current folder.
+    #[arg(long, value_name = "DIR")]
+    root: Option<PathBuf>,
 }
 
 impl Args {
@@ -117,6 +125,7 @@ impl Args {
                 todos: self.todos,
                 deny: self.deny,
                 fix: self.fix,
+                root: self.root,
             },
             init,
         )

@@ -9,7 +9,9 @@
 //! outranks one that only holds it by directory, that the nearest of those that
 //! hold it by directory lends, that a file no program lends
 //! to is checked as before, and that a file declaring its own map never
-//! borrows.
+//! borrows. A check from below the program names the folder it searched and
+//! `--root` finds the program, and a test file whose comment says `require`
+//! still borrows its bootstrap's map.
 //!
 //! Through the built binary, because the survey's root is the working
 //! directory the command runs in.
@@ -43,13 +45,18 @@ impl Project {
 
     /// Runs `nvs check` with `args` from the project directory.
     fn check(&self, args: &[&str]) -> Output {
+        self.check_in("", args)
+    }
+
+    /// Runs `nvs check` with `args` from `sub`, a directory under the project.
+    fn check_in(&self, sub: &str, args: &[&str]) -> Output {
         let data = nvs_repo::scratch_private("nvsdata");
         Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
             .arg(&*data)
             .arg("check")
             .args(args)
-            .current_dir(&self.dir)
+            .current_dir(self.dir.join(sub))
             .output()
             .expect("the `nvs` binary this test was built beside runs")
     }
@@ -298,6 +305,54 @@ fn the_nearest_program_that_holds_a_test_file_lends() {
     );
 
     let checked = project.check(&["tests/ExampleTest.nvs"]);
+    assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
+}
+
+/// A class file checked from its own directory finds no program there. The
+/// first unresolved name carries a note naming the folder searched and
+/// `--root`, and with `--root` naming the program's folder the file is clean.
+// covers: tools:cli/nvs-check
+#[test]
+fn a_check_from_below_the_program_names_the_folder_it_searched_and_root_finds_it() {
+    let project = Project::new("root");
+    site(&project);
+
+    let output = project.check_in("site/app", &["User.nvs"]);
+    let stderr = stderr(&output);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert_eq!(stderr.matches("nvs check --root").count(), 1, "{stderr}");
+    assert!(stderr.contains("no program in `"), "{stderr}");
+    assert!(
+        stderr.contains("app` gives this file an `autoload` map"),
+        "{stderr}"
+    );
+
+    let rooted = project.check_in("site/app", &["--root", "..", "User.nvs"]);
+    assert_eq!(rooted.status.code(), Some(0), "{}", self::stderr(&rooted));
+
+    let missing = project.check_in("site/app", &["--root", "nowhere", "User.nvs"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(self::stderr(&missing).contains("`--root` needs a folder"));
+}
+
+/// A test file whose comment and string say `require` writes no `require` as
+/// code, so it is plain and borrows its bootstrap's map.
+#[test]
+fn a_test_file_that_mentions_require_only_in_a_comment_borrows_its_bootstraps_map() {
+    let project = Project::new("comment-require");
+    site(&project);
+    project.write(
+        "tests/bootstrap.nvs",
+        "<?nvs\nrequire '../site/main.nvs';\n",
+    );
+    project.write(
+        "tests/UserTest.nvs",
+        "<?nvs\n// The bootstrap does the require for this file.\nuse App\\User;\n\n\
+         final class UserTest {\n    public function make(): User {\n        \
+         echo \"no autoload here\\n\";\n        return new User();\n    }\n}\n",
+    );
+
+    let checked = project.check(&["tests/UserTest.nvs"]);
     assert_eq!(checked.status.code(), Some(0), "{}", stderr(&checked));
 }
 

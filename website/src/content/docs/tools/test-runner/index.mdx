@@ -37,7 +37,9 @@ reads them as one program and runs every test in it. Run it from your project fo
 file is in that folder, so the tests can use your classes.
 
 You can write the tests under `src/`, next to your classes. You can also keep them in a `tests`
-folder with one `bootstrap.nvs` that requires your entry file. `nvs test .` runs both. Read
+folder with one `bootstrap.nvs` that requires your entry file. `nvs test .` runs both. The
+editor and `nvs check tests/CartTest.nvs` use `tests/bootstrap.nvs` too, so a test file can
+use your classes without a `require` of its own. Read
 [Project layout](/guides/how-to-use/project-layout/) for both ways.
 
 ## Choose which tests run

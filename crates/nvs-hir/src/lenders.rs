@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 use nvs_diagnostics::{Diagnostics, SourceMap, canonical_key};
-use nvs_syntax::parse_file;
+use nvs_syntax::{Keyword, Lexer, TokenKind, parse_file};
 
 use crate::autoload::{AutoloadMap, Site};
 use crate::hierarchy::CoreRoster;
@@ -42,7 +42,8 @@ pub struct Lender {
     /// files borrow this map without lying under a root.
     reads: Vec<PathBuf>,
     /// The directory of its entry, under `canonical_key`. A plain file under
-    /// it, one holding neither `require` nor `autoload`, borrows this map too.
+    /// it, one whose code writes neither `require` nor `autoload`
+    /// ([`is_plain`]), borrows this map too.
     /// That is how a directory `nvs test` runs as one program is analysed the
     /// way it runs.
     dir: PathBuf,
@@ -56,8 +57,8 @@ impl Lender {
     /// `autoload`.
     ///
     /// `map` is the source map the walk reads through: empty for files on
-    /// disk, or holding the open buffers an editor overlays on them. The text
-    /// is searched for `autoload` and `require` before anything is parsed, so a
+    /// disk, or holding the open buffers an editor overlays on them. The file
+    /// is asked [`is_plain`] before anything is parsed, so a
     /// tree pays one read per file and one walk per file that starts a chain. A
     /// program whose declaration sits in a file it requires holds neither
     /// declaration itself, and only the walk finds it. The walk is name
@@ -134,7 +135,7 @@ impl Lender {
     /// the file is under a root one of its own declarations names, or the file
     /// is under the directory of its entry and is plain.
     ///
-    /// `plain` says whether the text of `path` holds neither `require` nor
+    /// `plain` says whether the code of `path` writes neither `require` nor
     /// `autoload` ([`is_plain`]). It is asked only when the directory test
     /// needs it, so a caller can read the text lazily. Whether `path` is itself
     /// a lender is the caller's question: a lender never borrows.
@@ -194,11 +195,44 @@ pub fn choose<L: Borrow<Lender>>(
     by_place
 }
 
-/// Whether `text` holds neither `require` nor `autoload`, so the file starts no
-/// program of its own.
+/// Whether `text` writes neither a `require` nor an `autoload` as code, so the
+/// file starts no program of its own.
+///
+/// The lexer's tokens decide it, so the word in a comment or a string never
+/// counts, and neither does a member of that name (`->require`, `::autoload`,
+/// `function autoload`). A `require` anywhere in the code counts, as every one
+/// is a file the program's walk reads. A text without either word is plain
+/// without being lexed, so most files cost one search; the rest cost one copy
+/// of the text and one lex, with the lexer's diagnostics dropped.
 #[must_use]
 pub fn is_plain(text: &str) -> bool {
-    !text.contains("require") && !text.contains("autoload")
+    if !text.contains("require") && !text.contains("autoload") {
+        return true;
+    }
+    let mut map = SourceMap::new();
+    let id = map.add("", text);
+    let mut diags = Diagnostics::new();
+    let mut lexer = Lexer::new(map.file(id));
+    let mut after_member = false;
+    loop {
+        let kind = lexer.next_token(&mut diags).kind;
+        match kind {
+            TokenKind::Eof => return true,
+            TokenKind::Keyword(Keyword::Require | Keyword::RequireOnce | Keyword::Autoload)
+                if !after_member =>
+            {
+                return false;
+            }
+            _ => {}
+        }
+        after_member = matches!(
+            kind,
+            TokenKind::Arrow
+                | TokenKind::NullsafeArrow
+                | TokenKind::DoubleColon
+                | TokenKind::Keyword(Keyword::Function)
+        );
+    }
 }
 
 /// The lender among the `.nvs` files under `root` that lends its map to
@@ -310,6 +344,23 @@ mod tests {
             .collect();
         found.sort();
         found
+    }
+
+    #[test]
+    fn a_require_in_a_comment_or_a_string_leaves_a_file_plain() {
+        assert!(is_plain(
+            "<?nvs\n// This test needs the bootstrap to require.\n"
+        ));
+        assert!(is_plain("<?nvs\n/* autoload */\necho \"require me\";\n"));
+        assert!(is_plain("<?nvs\n$loader->autoload();\nFoo::require();\n"));
+        assert!(is_plain("plain html that says require and autoload\n"));
+    }
+
+    #[test]
+    fn a_require_or_an_autoload_written_as_code_makes_a_file_a_program() {
+        assert!(!is_plain("<?nvs\nrequire __DIR__ . '/bootstrap.nvs';\n"));
+        assert!(!is_plain("<?nvs\nautoload 'App\\\\' => 'src';\n"));
+        assert!(!is_plain("<?nvs\n// require\nrequire 'a.nvs';\n"));
     }
 
     #[test]

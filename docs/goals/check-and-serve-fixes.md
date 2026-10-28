@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-diagnostics/src/source.rs, crates/nvs-config/src/trust.rs, crates/nvs-lsp/src/grants.rs, crates/nvs-footprint/src/lib.rs]
   - id: 3
     title: "a class file and a test file are lent their program's map from wherever the check runs"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/lenders.rs, crates/nvs-cli/src/main.rs, crates/nvs-cli/src/agent.rs, docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md]
   - id: 4
     title: "E0409 and E0428 name lateinit, and a removed Core option's error names its replacement"
@@ -87,9 +87,14 @@ reproducer below is a neutral rewrite of what they reported.
   feeds that help. The decision and its reasons become a rule fragment.
 
 **The agent's calls:**
-- **"Plain" is decided from statements, not text.** A file is plain when no top-level `require` or
-  `autoload` statement is in it. The lexer's tokens decide it, so a comment or a string never
-  counts. A test file that really `require`s stays a program of its own, as the rule says.
+- **"Plain" is decided from tokens, not text.** A file is plain when no `require`, `require_once`
+  or `autoload` keyword token is in its code, except one after `->`, `?->`, `::` or `function`. A
+  comment, a string or a member of that name never counts. A `require` anywhere counts, not only at
+  the top level, because the program's walk follows every one (`crates/nvs-hir/src/requires.rs`'s
+  `walk_expr`). A text without either word is not lexed. A test file that really `require`s stays a
+  program of its own, as the rule says.
+- **`--root` must name a folder**, and the note names the searched folder absolute, through
+  `plain_path`, so `.` is never what the reader sees.
 - **The display name drops the verbatim prefix and keeps `\\?\UNC\` as a UNC path.** The stored
   path and `canonical_key` stay verbatim, so file identity is unchanged. The helper is
   `nvs_diagnostics::plain_path`, and `trust.rs` and `grants.rs` call it. `nvs-footprint` keeps its
@@ -151,15 +156,15 @@ and stage 5 `crates/nvs-cli/src/serve.rs`, so they run in one tree one after the
 **Does:** the hook finds the lender from the agent's project folder, `nvs check` says where it looked
 and takes `--root`, and a test file that mentions `require` in a comment is still plain.
 
-- [ ] `is_plain` reads top-level `require` and `autoload` statements from tokens, with cases for
+- [x] `is_plain` reads top-level `require` and `autoload` statements from tokens, with cases for
   a comment, a string and a real statement. `crates/nvs-hir/src/lenders.rs:200`, `crates/nvs-cli/src/main.rs:1169`
-- [ ] `nvs check --root <dir>` sets the survey root, and when no lender is found the first
+- [x] `nvs check --root <dir>` sets the survey root, and when no lender is found the first
   `E0303`/`E0306` carries a note naming the folder searched. `crates/nvs-cli/src/main.rs:1521`
-- [ ] The hook surveys `CLAUDE_PROJECT_DIR`, else `workspace_roots[0]`, else `cwd`, with a test
+- [x] The hook surveys `CLAUDE_PROJECT_DIR`, else `workspace_roots[0]`, else `cwd`, with a test
   whose `cwd` is a subdirectory of the project. `crates/nvs-cli/src/agent.rs:2665-2700`
-- [ ] The rule fragment states the hook's root, `--root` and the note, and its Declined list keeps
+- [x] The rule fragment states the hook's root, `--root` and the note, and its Declined list keeps
   the upward walk with the reason above. `docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md`
-- [ ] The test-runner page says `nvs check` needs `tests/bootstrap.nvs` too, and the CLI reference
+- [x] The test-runner page says `nvs check` needs `tests/bootstrap.nvs` too, and the CLI reference
   documents `--root`. `website/src/content/docs/tools/test-runner/index.mdx:40`, `docs/reference/tools/10-cli.md`
 
 ### 4. E0409 and E0428 name lateinit, and a removed Core option's error names its replacement
@@ -212,35 +217,33 @@ Every help line and card follows AGENTS.md § *Text an end user reads*.
 
 ### State
 
-Stage 2 is done. `nvs_diagnostics::plain_path` drops `\\?\` from the name a diagnostic prints and
-turns `\\?\UNC\host\share` into `\\host\share`, `crates/nvs-diagnostics/src/source.rs:316`.
-`SourceMap::load` names the file with it on disk and overlay reads. `trust.rs` and `grants.rs` call
-it, and `nvs-footprint` keeps its own copy for the reason under Standing decisions. The Windows case
-`a_diagnostic_in_an_autoloaded_file_names_it_without_the_verbatim_prefix` in
-`crates/nvs-cli/tests/check_borrow.rs` passes. The release binary from before the fix printed
-`\\?\E:\...` for the autoloaded file. A test may go red in stage 7 if, on Windows, it compares a
-diagnostic's file name with `fs::canonicalize` output. None was searched for.
+Stages 1, 2 and 3 are done, each new test run once by name and green. Stage 3: `is_plain` reads
+tokens, `crates/nvs-hir/src/lenders.rs:208`. `nvs check --root` sets `survey_root`
+(`crates/nvs-cli/src/main.rs:1547`), and `searched_note` (`:1354`) goes on the first
+`E0303`/`E0306` when no lender is found. The hook's root is `project_dir`,
+`crates/nvs-cli/src/agent.rs:2730`. `crates/nvs-cli/tests/agent.rs` now clears `CLAUDE_PROJECT_DIR`,
+which the agent running the suite sets.
 
-Stage 1 is done. `walk_expr` walks an `HtmlTemplate`'s holes as it walks an interpolated string's,
-`crates/nvs-hir/src/members.rs:1137`. One case pins all six calls in a hole:
-`tests/conformance/reject/a-call-in-an-html-template-hole-is-checked-as-it-is-outside-one.nvst`. It
-fails on the release binary from before the fix and passes on the debug build. The `Core\Str` cases
-and `new Nope()` already reported in a hole, because `nvs-types` walks holes in
-`infer_html_template`. Only the `nvs-hir` walk had missed them. A test goes red only if its hole holds
-a call that `nvs-hir` now reports. The corpus was not searched for one, so stage 7 finds it if it exists.
+Tests that may go red in stage 7, none searched for:
+- one comparing the whole stderr of an `nvs check` or a hook report whose `E0303`/`E0306` found no
+  lender: it now has one more note line;
+- on Windows, one comparing a diagnostic's file name with `fs::canonicalize` output (stage 2);
+- one whose html template hole holds a call `nvs-hir` now reports (stage 1).
 
 The sweep's `env-secret-proofs` log shows exit 0 on its last run. The nightly run `40662443492` was
 a cancelled manual dispatch, and the push run after it, `40664047249`, is green. Neither needs a fix.
 
 ### Next
 
-Stage 3, the lender search, on `crates/nvs-hir/src/lenders.rs` and `crates/nvs-cli/src/main.rs`. No gate.
-- [ ] `is_plain` from tokens, with comment, string and statement cases. `crates/nvs-hir/src/lenders.rs:200`
-- [ ] `nvs check --root` and the note on the first `E0303`/`E0306`. `crates/nvs-cli/src/main.rs:1521`
-- [ ] The hook's root: `CLAUDE_PROJECT_DIR`, then `workspace_roots[0]`, then `cwd`. `crates/nvs-cli/src/agent.rs:2648`, `:2666`
-- [ ] The rule fragment, the test-runner page and the CLI reference. `docs/rules/ide/an-autoloaded-file-borrows-its-programs-map.md:1`,
-  `website/src/content/docs/tools/test-runner/index.mdx:40`
+Stage 4, the lateinit help and the removed-option help, on `crates/nvs-types/src/ctor_init.rs` and
+`crates/nvs-diagnostics/src/code/types.rs`. No gate. Every help line and card is end-user text.
+- [ ] E0409's help and card name `lateinit` and `LateInit`. `crates/nvs-types/src/ctor_init.rs:514`, `crates/nvs-diagnostics/src/code/types.rs:69`
+- [ ] E0428's help and card name `LateInit`. `crates/nvs-diagnostics/src/code/types.rs:213`
+- [ ] E0454's help from the removed-option list, and a `.nvst` case. `crates/nvs-diagnostics/src/code/types.rs:465`
+- [ ] The no-deprecation-window rule fragment, beside `docs/rules/core-api/reference-card.md:1`
 
 ### Backlog
 
-- Stages 4 and 6 touch no file another stage touches and can run as lanes.
+- Stage 6 touches no file another stage touches and can run as a lane beside stage 4. It edits
+  `docs/reference/tools/10-cli.md`, which stage 3 changed in its `nvs check` section only.
+- Stage 5 edits `crates/nvs-cli/src/serve.rs` and runs after stage 4 or as its own lane.

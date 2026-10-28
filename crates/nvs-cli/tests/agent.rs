@@ -1275,6 +1275,7 @@ fn tree(name: &str) -> PathBuf {
 /// a test sees.
 const AGENT_VARS: &[&str] = &[
     "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_PROJECT_DIR",
     "CURSOR_AGENT",
     "CURSOR_PROJECT_DIR",
     "CURSOR_VERSION",
@@ -2699,6 +2700,52 @@ fn the_hook_checks_an_autoloaded_class_file_through_its_programs_map() {
         assert_eq!(out.is_empty(), lent, "lent: {lent}: {out}");
         let _ = std::fs::remove_dir_all(&dir);
     }
+}
+
+/// An agent whose shell is in a subfolder of the project still gets a class
+/// file checked through the map of the program above it. The hook searches
+/// `CLAUDE_PROJECT_DIR`, or Cursor's first workspace root, and without either
+/// only the working directory, where no program lends the map.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_hook_searches_the_project_folder_when_its_cwd_is_a_subfolder() {
+    let main = "<?nvs\nautoload 'App' from './app';\n\nuse App\\User;\n\nnew User();\n";
+    let user = "<?nvs\nnamespace App;\n\nuse App\\Mailer;\n\nclass User {\n    \
+                public function send(): int {\n        return Mailer::count();\n    }\n}\n";
+    let mailer = "<?nvs\nnamespace App;\n\nclass Mailer {\n    \
+                  public static function count(): int {\n        return 1;\n    }\n}\n";
+    let dir = tree("hook-project-dir");
+    std::fs::create_dir_all(dir.join("app")).expect("the class directory");
+    std::fs::create_dir_all(dir.join("tools")).expect("a subfolder");
+    std::fs::write(dir.join("main.nvs"), main).expect("the program");
+    std::fs::write(dir.join("app/User.nvs"), user).expect("a class");
+    std::fs::write(dir.join("app/Mailer.nvs"), mailer).expect("a class");
+    let sub = dir.join("tools");
+    let edited = dir.join("app/User.nvs");
+    let edited = edited.to_str().expect("the fixture path is UTF-8");
+    let root = dir.to_str().expect("the fixture path is UTF-8");
+    let input = payload(&sub, edited);
+
+    let (out, err, ok) = hook_in(&sub, &[("CLAUDE_PROJECT_DIR", root)], "claude-code", &input);
+    assert!(ok, "{err}");
+    assert_eq!(out, "", "CLAUDE_PROJECT_DIR is searched");
+
+    let cursor = serde_json::json!({
+        "tool_input": { "file_path": edited },
+        "cwd": sub.to_str().expect("the fixture path is UTF-8"),
+        "workspace_roots": [root],
+    });
+    let (out, err, ok) = hook_in(&sub, &[], "cursor", &cursor.to_string());
+    assert!(ok, "{err}");
+    assert_eq!(out, "", "the first workspace root is searched");
+
+    let (out, err, ok) = hook_in(&sub, &[], "claude-code", &input);
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("--root"),
+        "only the subfolder is searched: {out}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Cursor also runs the hooks in `.claude/settings.json`. When the project

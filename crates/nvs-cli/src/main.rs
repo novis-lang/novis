@@ -1233,19 +1233,25 @@ fn front_end_in(
             && let Some(root) = survey
             && autoload.sites().is_empty()
             && diags.iter().any(names_an_undeclared_type)
-            && let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain)
         {
-            drop(files);
-            lent = Some(lender);
-            map = SourceMap::new();
-            id = match map.load(path) {
-                Ok(id) => id,
-                Err(err) => {
-                    report_unreadable(path, &err, sink);
-                    return Err(ExitCode::FAILURE);
-                }
-            };
-            continue;
+            if let Some(lender) = nvs_hir::lenders::first_lender(root, path, plain) {
+                drop(files);
+                lent = Some(lender);
+                map = SourceMap::new();
+                id = match map.load(path) {
+                    Ok(id) => id,
+                    Err(err) => {
+                        report_unreadable(path, &err, sink);
+                        return Err(ExitCode::FAILURE);
+                    }
+                };
+                continue;
+            }
+            // The search found no program, so the folder it searched may be
+            // the wrong one. The first unresolved name says which it was.
+            if let Some(first) = diags.iter_mut().find(|d| names_an_undeclared_type(d)) {
+                first.notes.push(searched_note(root));
+            }
         }
 
         let layouts =
@@ -1342,6 +1348,18 @@ fn names_an_undeclared_type(diagnostic: &nvs_diagnostics::Diagnostic) -> bool {
     })
 }
 
+/// The note on the first unresolved name when the search for a program that
+/// lends the checked file its `autoload` map found none: the folder searched,
+/// shown absolute, and the option that names another one.
+fn searched_note(root: &std::path::Path) -> String {
+    let shown = std::path::absolute(root).unwrap_or_else(|_| root.to_path_buf());
+    format!(
+        "no program in `{}` gives this file an `autoload` map. \
+         To search another folder, run `nvs check --root <folder>`.",
+        nvs_diagnostics::plain_path(&shown).display()
+    )
+}
+
 /// `nvs check`, and with `--autoload-map` also `rule:programs/autoload`'s last sentence:
 /// the resolved prefix → roots map, what a `discover` glob passed over and
 /// what an explicit prefix shadowed.
@@ -1391,7 +1409,13 @@ fn run_check(
     flags: &CheckFlags,
     init: config::Init,
 ) -> ExitCode {
-    let survey = survey_root(config);
+    if let Some(root) = &flags.root
+        && !root.is_dir()
+    {
+        eprintln!("error: {}: `--root` needs a folder", root.display());
+        return ExitCode::FAILURE;
+    }
+    let survey = survey_root(flags.root.as_deref(), config);
     let directory = if path.is_dir() {
         match Program::named_by(path) {
             Ok(Some(Program::Directory { dir, files })) => Some(Program::entry(&dir, &files)),
@@ -1513,12 +1537,20 @@ struct CheckFlags {
     todos: bool,
     deny: Vec<check::Deny>,
     fix: bool,
+    root: Option<PathBuf>,
 }
 
 /// The tree `nvs check` searches for a program that lends the checked file its
-/// `autoload` map: the directory of the first `--config` file, else the
-/// working directory (`.`), where the `nvs.toml` that applies is found.
-fn survey_root(config: &[std::path::PathBuf]) -> std::path::PathBuf {
+/// `autoload` map: `--root` when given, else the directory of the first
+/// `--config` file, else the working directory (`.`), where the `nvs.toml`
+/// that applies is found.
+fn survey_root(
+    root: Option<&std::path::Path>,
+    config: &[std::path::PathBuf],
+) -> std::path::PathBuf {
+    if let Some(root) = root {
+        return root.to_path_buf();
+    }
     config
         .iter()
         .find(|path| path.is_file())

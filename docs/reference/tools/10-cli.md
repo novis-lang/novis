@@ -123,7 +123,7 @@ before
 
 # nvs check
 
-    nvs check <path> [--autoload-map]
+    nvs check <path> [--autoload-map] [--root <folder>]
 
 Prints `no errors` and exits `0` when the file and everything it reaches through `require` and
 `autoload` type-checks; otherwise prints every diagnostic found and exits `1`. Nothing runs, so it
@@ -176,9 +176,14 @@ program loads with `autoload` cannot declare `autoload` itself. So when the file
 file declares, `nvs check` looks for the program that loads this file with `autoload` or `require`. It searches the `.nvs` files in
 the project folder in path order and uses the first program it finds. Then it checks the file with that
 program's `autoload` lines, and the result is the same as for the whole program. The project folder is
-the folder of the `--config` file, or else the folder you run the command in. The search skips
-`vendor`, `target` and folders whose names start with a dot. If no program loads the file, the
-errors are reported as usual.
+the folder that `--root <folder>` names. Without `--root`, it is the folder of the `--config` file,
+or else the folder you run the command in. The search skips `vendor`, `target` and folders whose
+names start with a dot. If no program loads the file, the errors are reported as usual. The first
+error about an unknown class then has a note. The note names the folder that was searched.
+
+A test file in a `tests` folder is checked the same way. It uses the `autoload` lines that
+`tests/bootstrap.nvs` loads. A `require` in a comment or a string does not count. A test file
+with its own `require` is a program of its own.
 
 `--autoload-map` prints the resolved `autoload` map instead of `no errors` — every prefix, what a
 `discover` glob skipped, what was shadowed, and every root that does not exist — so an autoload

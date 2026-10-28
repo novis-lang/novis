@@ -2641,8 +2641,9 @@ pub(crate) fn keep_errors(diags: &mut Diagnostics, map: &SourceMap) {
 /// hook must never stop the agent's own work. A clean file prints nothing.
 ///
 /// The check is `nvs check <file>`'s, run in the payload's working directory,
-/// so the configuration and the program that lends a class file its
-/// `autoload` map are found as they would be there. It never writes a default
+/// so the configuration is found as it would be there. The program that lends
+/// a class file its `autoload` map is searched for in the agent's project
+/// folder ([`project_dir`]), as `nvs check --root` would. It never writes a default
 /// `nvs.toml`: a hook runs after every edit, and the project did not ask for
 /// one.
 pub(crate) fn hook(name: &str) -> ExitCode {
@@ -2696,7 +2697,7 @@ pub(crate) fn hook(name: &str) -> ExitCode {
         false,
         crate::Sink::Hook,
         crate::config::Init::Never,
-        Some(Path::new(".")),
+        Some(&project_dir(&payload)),
     );
     if checked.is_ok() {
         return ExitCode::SUCCESS;
@@ -2715,6 +2716,23 @@ pub(crate) fn hook(name: &str) -> ExitCode {
     };
     println!("{answer}");
     ExitCode::SUCCESS
+}
+
+/// The folder the hook searches for the program that lends the edited file
+/// its `autoload` map: the agent's project folder, which is the tree the
+/// editor's language server surveys too. Claude Code gives every hook
+/// `CLAUDE_PROJECT_DIR`, and Cursor sends `workspace_roots`. Without either,
+/// the working directory, where the check runs.
+///
+/// The working directory is not enough on its own: an agent whose shell is in
+/// a subfolder of the project would see every class file there reported as
+/// unresolved, because the program that lends the map is above it.
+fn project_dir(payload: &Value) -> PathBuf {
+    std::env::var_os("CLAUDE_PROJECT_DIR")
+        .map(PathBuf::from)
+        .or_else(|| payload["workspace_roots"][0].as_str().map(PathBuf::from))
+        .filter(|dir| dir.is_dir())
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 /// The path of the file the payload says was edited. Claude Code documents
