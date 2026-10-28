@@ -59,7 +59,7 @@ stages:
     context: [docs/reference/tools/35-packages.md]
   - id: 8
     title: the other client commands have their feature proofs, and the rules are shipped
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md]
   - id: 10
     title: the goal is verified once, and every failure is fixed
@@ -520,38 +520,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 4, 5, 9 and 6 are done, and stage 8 has two items left. Stage 8 landed the
-headings `# nvs pkg update and nvs pkg outdated`, `# package.lock and --locked`, `# nvs pkg pack`
-and `# nvs pkg download and nvs pkg provide` in `docs/reference/tools/35-packages.md`, each
-feature's about page and three examples, one attack per feature, and the `covers:` markers in
-`package_fetch.rs`, `package_client.rs` and `package_download.rs`. `client-proofs` and
-`owners-closes` pass. All eleven rules are `shipped`, each fragment's last lines naming the code
-and what `nvs pkg publish` or the registry still owes. The editor's grants hover gap went to goal
-`first-packages`. An `https:` registry now reads index files and archives through
-`nvs_stdlib::tool_stream` up to the caller's limit (`index.rs:137`), where `tool_get` capped them at
-1 MiB; that path has no test yet.
+Stages 1, 2, 3, 7, 4, 5, 9, 6 and 8 are done, and stage 10, the gate, is next. Stage 8's last two
+items landed. Every `Core\Http\Client` member now has a `net.connect` row in
+`crates/nvs-stdlib/src/registry.rs` (beside `allowUrl`'s), so the update attack is refused with
+`E0658`, and `bun nv proofs --run --no-cache --id 'tools:packages/nvs-pkg-update-and-nvs-pkg-outdated'`
+is green. A namespace with no grant line keeps the application's authority, and no example,
+attack or conformance tree but that attack calls the client under a `[grants]` table.
+`an_https_registry_gives_an_archive_over_one_mebibyte` in `crates/nvs-cli/tests/package_download.rs`
+fetches a 1.5 MiB archive from a loopback `https:` registry and passes. `cargo fmt --all` formatted
+four files earlier slices left unformatted. `client-proofs` and `owners-closes` pass.
 
-**The update attack is red, and it is a real hole.** `tests/hostile/tools/packages/nvs-pkg-update-and-nvs-pkg-outdated/01-a-capability-the-new-version-requests.nvs`
-compiles: a package under an empty grant line calls `Core\Http\Client::get` and nothing refuses
-it, while `Core\Net::connect` in the same tree is `E0658`. The capability table in
-`crates/nvs-stdlib/src/registry.rs` has no `Core\Http\Client` row (comment at `:2132`), and
-`Client::get` with a string checks only the operator's scope (`crates/nvs-stdlib/src/http.rs:481`).
-`proofs --run` fails this case until the fix lands. Expect it red in any sweep.
+This machine's C: drive is full (0 MB free), so the MSVC linker fails (`LNK1104`/`LNK1108`) unless
+`TMP` and `TEMP` point at `E:\mwl\.agent-tmp\tmp`; create that folder first, because a scratch
+cleanup removes it. Claude Code's own temporary folder on C: is full too.
 
-
-This machine's C: drive is full (0 MB free), so the MSVC linker fails (`LNK1108`) unless `TMP` and
-`TEMP` point at `E:\mwl\.agent-tmp\tmp`, and Claude Code's own temporary folder there is full too.
-
-The sweep's reds at the start of this session were stale: `env-secret-proofs` exits 0 when run, and
+The sweep's reds at the start of this session were stale again: `env-secret-proofs` exits 0, and
 Miri run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+
+Tests that may go red at the gate: `nvs-cli`'s `tests/meta.rs` if it pins the capabilities roster's
+size or `Core\Http\Client`'s absence, and any `nvs-types` or `nvs-lsp` test that compiles a
+`Core\Http\Client` call under an in-memory grant table with no `net.connect`.
 
 ### Next
 
-**Stage 8's two last items**, then stage 10.
+**Stage 10, the gate.**
 
-- [ ] `net.connect` rows for every `Core\Http\Client` member whose URL is a string, as the standing decision says; find each URL-taking member in `crates/nvs-stdlib/src/http.rs`, add the rows in `crates/nvs-stdlib/src/registry.rs:2132`'s table, and rewrite that comment. Run the attack once by `bun nv proofs --run --no-cache --id 'tools:packages/nvs-pkg-update-and-nvs-pkg-outdated'`. Expect examples and conformance cases that call `Core\Http\Client` from a namespace under a grant table to need a grant line; a program with no `[grants]` table is unaffected only if the application's namespace keeps every capability, so check `rule:security/an-unmatched-namespace-holds-the-application` first. (`docs/goals/package-client.md:499`)
-- [ ] A test in `crates/nvs-cli/tests/package_download.rs` that serves `registry.json`, an index file and an archive over 1 MiB from the loopback TLS listener (`serve`, `:143`) and fetches it. (`docs/goals/package-client.md:500`)
-- [ ] Set stage 8 `done` in the front matter, then stage 10. `docs/goals/package-client.md:1`
+- [ ] Start `bun nv affected --run` with `run_in_background` and end the turn; group its failures by cause. `docs/goals/package-client.md:514`
+- [ ] Fix every failure in one pass, then run it once more. `docs/goals/package-client.md:515`
+- [ ] Before `DONE`: `bun nv verify --doc`, `bun nv owners --closes package-client` and `bun nv ci --check`, each red fixed; move each decision only this goal's prose holds into a rule or a module doc before the file is deleted. `AGENTS.md:1`
 
 ### Backlog
 
