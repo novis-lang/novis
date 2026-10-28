@@ -1,0 +1,52 @@
+--TEST--
+`Core\WebPush::subscription` checks every value of a browser's subscription once and throws a `RuntimeError` naming the first that fails: text that is not JSON or is over 8 KiB, a missing endpoint, an endpoint that is not `https:`, a `p256dh` not on the curve and an `auth` that is not 16 bytes — `rule:core-classes/web-push-sends-an-encrypted-message` and `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// covers: Core\WebPush::subscription
+// covers: Core\WebPush\Subscription::endpoint
+// A browser's subscription has an `https:` endpoint, a P-256 public key and a
+// 16-byte `auth` secret. Each text below breaks one of these.
+final class Browser {
+    public static function json(string $endpoint, string $p256dh, string $auth): string {
+        return "{\"endpoint\":\"" . $endpoint . "\",\"keys\":{\"p256dh\":\"" . $p256dh
+            . "\",\"auth\":\"" . $auth . "\"}}";
+    }
+}
+
+string $point = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4";
+// The same point with its last octet changed. It is not on the curve.
+string $offCurve = "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw8";
+string $auth = "BTBZMqHH6r4Tts7J_aSIgg";
+string $endpoint = "https://push.example.com/send/abc";
+
+Core\WebPush\Subscription $read = Core\WebPush::subscription(Browser::json($endpoint, $point, $auth));
+echo "read ", $read->endpoint(), "\n";
+
+array<string> $broken = [
+    "{",
+    "{\"keys\":{}}",
+    Browser::json("http://push.example.com/send/abc", $point, $auth),
+    "{\"endpoint\":\"" . $endpoint . "\"}",
+    Browser::json($endpoint, $offCurve, $auth),
+    Browser::json($endpoint, "not base64url!", $auth),
+    Browser::json($endpoint, $point, "BTBZMqHH6r4Tts7J_aSI"),
+    Browser::json($endpoint, $point, Core\Str::repeat("A", 8192)),
+];
+foreach ($broken as string $json) {
+    try {
+        Core\WebPush::subscription($json);
+        echo "accepted\n";
+    } catch (RuntimeError $e) {
+        echo $e->message, "\n";
+    }
+}
+--EXPECT--
+read https://push.example.com/send/abc
+Core\WebPush::subscription(): the subscription is not JSON.
+Core\WebPush::subscription(): the subscription has no `endpoint` string.
+Core\WebPush::subscription(): the endpoint is not an `https:` URL.
+Core\WebPush::subscription(): the subscription has no `keys` object.
+Core\WebPush::subscription(): `p256dh` is not a P-256 public key.
+Core\WebPush::subscription(): `keys.p256dh` is not base64url.
+Core\WebPush::subscription(): `auth` is not 16 bytes.
+Core\WebPush::subscription(): the subscription is 8358 bytes, and the limit is 8192.

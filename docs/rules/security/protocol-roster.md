@@ -1,13 +1,11 @@
 A closed roster of application-layer security protocols lives in `Core`: signed and encrypted cookies
 (authenticated encryption only, with key rotation), CSRF tokens, TOTP, JWT — signed and verified under a
 shared key, and verified when another party issued it (`rule:security/jws-issued-subset`) — JWE
-(`rule:security/jwe-compact-subset`), detached signatures over a canonical payload, and `Core\Passkey`,
+(`rule:security/jwe-compact-subset`), detached signatures over a canonical payload, `Core\Passkey`,
 the server half of a WebAuthn registration and sign-in
-(`rule:core-classes/passkey-verifies-a-webauthn-ceremony`). Nothing joins it without meeting the
-admission test (`rule:security/protocol-admission-test`).
-
-One more entry is admitted and not built: `Core\WebPush`, one encrypted push message
-(`rule:core-classes/web-push-sends-an-encrypted-message`).
+(`rule:core-classes/passkey-verifies-a-webauthn-ceremony`), and `Core\WebPush`, one encrypted and
+signed push message (`rule:core-classes/web-push-sends-an-encrypted-message`). Nothing joins it
+without meeting the admission test (`rule:security/protocol-admission-test`).
 
 Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
 a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong

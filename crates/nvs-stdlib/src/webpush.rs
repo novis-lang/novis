@@ -1192,4 +1192,60 @@ mod tests {
             "{refused:?}"
         );
     }
+
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
+    #[test]
+    fn no_vapid_error_carries_the_key() {
+        let scalar = b64("yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw");
+        let held = vapid_pair();
+        let (octets, _) = crate::crypto::stored_key(&[held], 0, &KEY_PAIR, "send").unwrap();
+        let der = crate::crypto::stored_octets(&octets, &KEY_PAIR, "send")
+            .unwrap()
+            .to_vec();
+        let hex = |octets: &[u8]| {
+            octets
+                .iter()
+                .map(|o| format!("{o:02x}"))
+                .collect::<String>()
+        };
+        let leaks = |why: &str| {
+            [
+                LENIENT.encode(&scalar),
+                hex(&scalar),
+                LENIENT.encode(&der),
+                hex(&der),
+            ]
+            .iter()
+            .any(|key| why.contains(&key[..16]))
+        };
+
+        // The same DER under the `Ed25519` tag, so the kind check is the one that throws.
+        let mislabelled = crate::instance::build(
+            &KEY_PAIR,
+            [
+                Value::bytes(NvsStr::new(&der)),
+                Value::int(KeyKind::Ed25519.tag()),
+            ],
+        );
+        let wrong_kind = vapid_of(&[mislabelled], 0, "send").map(drop);
+        let ctx = nvs_runtime::Ctx::buffered();
+        let wrong_subject = vapid_token(
+            &ctx,
+            vapid_of(&[held], 0, "send").unwrap(),
+            "https://a.example/",
+            "admin",
+            "send",
+        )
+        .map(drop);
+        for refused in [wrong_kind, wrong_subject] {
+            let Err(Fault::Thrown(ThrownClass::Logic, why)) = refused else {
+                panic!("a LogicError, got {refused:?}");
+            };
+            assert!(!leaks(&why), "{why}");
+            assert!(why.contains("$vapid") || why.contains("$subject"), "{why}");
+        }
+    }
 }

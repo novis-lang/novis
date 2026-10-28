@@ -1,0 +1,20 @@
+--TEST--
+`Core\WebPush::subscription` accepts the `tainted` text a browser sent, and `Core\WebPush\Subscription::endpoint` returns `tainted string`, so a plain `string` return type does not accept it — `rule:core-classes/web-push-sends-an-encrypted-message` and `rule:security/tainted-qualifier`
+--FILE--
+<?nvs
+// covers: Core\WebPush\Subscription::endpoint
+// The browser wrote the endpoint. Nothing has checked where it points, so it stays `tainted`.
+final class Push {
+    public static function endpointOf(tainted string $json): string {
+        return Core\WebPush::subscription($json)->endpoint();
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0403]: this method declares `string` but returns `tainted string`
+  --> case.nvs:6:16
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

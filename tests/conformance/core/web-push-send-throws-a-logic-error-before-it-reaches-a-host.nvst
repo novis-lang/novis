@@ -1,0 +1,46 @@
+--TEST--
+`Core\WebPush::send` throws a `LogicError` for a VAPID key that is not `P256`, a subject that is not a `mailto:` or `https:` URL and a negative `ttl`, before it reaches any host, and no message names the key — `rule:core-classes/web-push-sends-an-encrypted-message` and `rule:security/protocol-roster`
+--FILE--
+<?nvs
+// covers: Core\WebPush::send
+// covers: Core\WebPush::applicationServerKey
+// The endpoint's host does not exist. Each call below throws before it
+// connects, so no call fails on the network.
+string $json = "{\"endpoint\":\"https://push.invalid/send/abc\",\"keys\":{\"p256dh\":"
+    . "\"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4\","
+    . "\"auth\":\"BTBZMqHH6r4Tts7J_aSIgg\"}}";
+Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
+bytes $payload = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
+Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+Core\Crypto\KeyPair $ed25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+string $public = Core\WebPush::applicationServerKey($vapid);
+echo "public key ", Core\Str::length($public), " characters\n";
+
+try {
+    Core\WebPush::applicationServerKey($ed25519);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    Core\WebPush::send($to, $payload, $ed25519, "mailto:admin@example.com");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    Core\WebPush::send($to, $payload, $vapid, "admin@example.com");
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+    echo "names the key: ", Core\Str::contains($e->message, $public) ? "yes" : "no", "\n";
+}
+try {
+    Core\WebPush::send($to, $payload, $vapid, "mailto:admin@example.com", -1);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+public key 87 characters
+Core\WebPush::applicationServerKey(): $vapid is not a key pair of kind `P256`.
+Core\WebPush::send(): $vapid is not a key pair of kind `P256`.
+Core\WebPush::send(): $subject is not a `mailto:` or an `https:` URL.
+names the key: no
+Core\WebPush::send(): $ttl is -1, and a message is kept for 0 seconds or more.

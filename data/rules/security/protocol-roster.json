@@ -14,6 +14,8 @@
     "tests/conformance/core/totp-accepts-a-code-once-inside-a-window-with-no-widening-argument.nvst",
     "tests/conformance/core/jwe-a-token-opens-only-under-the-static-that-sealed-it.nvst",
     "tests/conformance/core/signature-a-lifetime-is-written-and-omitting-it-does-not-compile.nvst",
-    "tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst"
+    "tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst",
+    "tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst",
+    "tests/conformance/core/web-push-send-throws-a-logic-error-before-it-reaches-a-host.nvst"
   ]
 }
