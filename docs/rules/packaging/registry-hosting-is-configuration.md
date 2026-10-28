@@ -81,13 +81,3 @@ and keeps none of them after it.
   place a provider's format is code.
 - **Hosting settings in `nvs.toml`.** It holds the runtime's directives and refuses a name it does not
   know, and hosting is the application's own.
-
-**Not on disk.** `apps/registry/hosting.json` and `Site::load` read the stores, the file hosts, the
-backup store and key, and the download-log source, and stop on a file a setting names that does not
-exist. `Stores` sends each publish's files from the work folder to every store, one rank at a time
-across the stores and the checkpoint last, and a publish of the same commit sends what a failed
-one left. `jobs/daily.nvs` signs and sends every index file, `Backup` copies the database after a
-publish and from `jobs/backup.nvs`, and `Restore` runs from `Schema::open` on a database with no
-tables. `jobs/daily.nvs` also counts the day before from Bunny's access lines through
-`Downloads::countLog`, with a salt and a set of hashes held only in memory, and marks the day in
-`downloads_counted` so a second run counts nothing.

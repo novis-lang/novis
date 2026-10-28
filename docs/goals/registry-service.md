@@ -34,7 +34,7 @@ stages:
         rules: [packaging/publishing-never-overwrites, packaging/the-registry-builds-the-archive-from-git, packaging/a-package-is-its-digest, packaging/a-package-name-is-vendor-slash-name]
   - id: 11
     title: the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
-    status: open
+    status: done
     context: [apps/registry/hosting.json, apps/registry/src/Site.nvs, apps/registry/src/Stores.nvs, apps/registry/src/Index.nvs, docs/rules/packaging/registry-hosting-is-configuration.md]
     extra:
       context:
@@ -314,8 +314,11 @@ reminders start, such as after 14, 30 or 45 quiet days.
 (`rule:packaging/registry-hosting-is-configuration`). The committed `apps/registry/hosting.json` names
 directories as every store, so `nvs serve apps/registry` and `nvs test apps/registry` need nothing
 else. A deployment writes its own `hosting.json`, and nothing in the code names a host or a provider.
-The tests run the `http` store, the backup and the access-line source against loopback listeners, as
-the push and webhook tests do. Why: the user's call is that the service is finished locally and a
+The tests run the backup and the access-line source against `dir` stores in a folder of their own,
+and the `http` store against `Core\Test::answerHttp`, which records each `PUT` with its header and
+body and answers `500` for one URL (`apps/registry/src/StoresTest.nvs`). That is the same
+`Client::put` call a deployment makes, with no listener grant in the app's `nvs.toml` and no Rust
+harness around the app. Why: the user's call is that the service is finished locally and a
 deployment only changes configuration.
 
 **A publish is durable before it is visible.** The archive, the log tiles, the index files signed by
@@ -445,11 +448,11 @@ database, restores itself on a start with no database, and counts downloads from
   - [x] The daily task: `nvs registry index sign` over every file, every index file queued and sent, and every package with an unlogged release caught up.
 - [x] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
 - [x] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
-- [ ] Tests against loopback listeners: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
+- [x] Tests against a fake web service and scratch stores: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
   - [x] A sealed copy opens only with its key, and a restore brings back every release (`BackupTest.nvs`).
   - [x] Access lines count one address once and skip a user agent that is not `nvs` (`DownloadsTest.nvs`).
-  - [ ] An `http` store receives each file in order, and a store that answers `500` fails the publish with no checkpoint moved (`StoresTest.nvs` or a Rust test with a loopback listener).
-- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
+  - [x] An `http` store receives each file in order, and a store that answers `500` fails the publish with no checkpoint moved (`StoresTest.nvs`, through `Core\Test::answerHttp`).
+- [x] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
 
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
 
@@ -546,32 +549,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done. Of stage 11, the settings, the publish to every store, the daily
-task, the backup and restore, and the access-line count have landed; the `http` store test and the
-rule's `shipped` status are left.
+Stages 1, 2, 3, 7 and 11 are done. `apps/registry/src/StoresTest.nvs` tests the `http` store
+through `Core\Test::answerHttp` and `Core\Test::sentHttp` (the standing decision on hosting now says
+so; no loopback listener and no Rust harness were needed). Each test has its own in-memory database
+with only `unsent`, so it never takes another test's queued rows. Run once: `StoresTest` (2 passed).
+`rule:packaging/registry-hosting-is-configuration` is `shipped`, guarded by the three app tests, and
+the rulebook is rendered (it also carries last session's autoload fragment into `programs.md`).
+The sweep's `env-secret-proofs` red is stale (its log reads `exit 0`), and nightly run 40662443492
+was cancelled by a newer push.
 
-`Index::daily()` runs from `apps/registry/jobs/daily.nvs` (`[[schedule]]`, `scope = "host"`:
-`fleet` needs a shared store), then `Downloads::countLog` counts the day before's lines.
-`Backup.nvs`, `Restore.nvs` and `jobs/backup.nvs` follow the rewritten standing decision. The
-checker now takes two `autoload` lines of one prefix with the same roots as one home
-(`crates/nvs-hir/src/autoload.rs`); before it, every folder run of `apps/registry` was E0315.
-Run once: `BackupTest` and `DownloadsTest` (2 passed each), and the new autoload unit test.
-The sweep's `env-secret-proofs` red is stale (log from 2026-10-22 reads `exit 0`; no check has
-that name now), and nightly run 40662443492 was cancelled by a newer push.
-
-Expected red: none known. The conformance case
-`tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst` uses two different
-roots and should stay green.
+Expected red: none known.
 
 ### Next
 
-Stage 11's last test and its rule. `Core\Test` has no loopback listener but `server: true` (the
-app's own server), so the `http` store test needs a decision: a Rust test in `crates/nvs-cli/tests/`
-that runs a loopback `PUT` listener and a publish against `nvs serve` with a `hosting.json` in a
-scratch copy of the app (as `telemetry_e2e.rs` runs an app) is the recommendation, since it adds no
-test route to the app. Then set the rule `shipped` and stage 11 `done`.
-- [ ] The `http` store test: each file in order, and a `500` store failing the publish with no checkpoint moved. `crates/nvs-cli/tests/telemetry_e2e.rs:1`, `apps/registry/src/Store.nvs:1`
-- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`, and its *Not on disk* paragraph is removed. `data/rules/packaging/registry-hosting-is-configuration.json:1`
+Stage 4. Its gate holds: `docs/goals/registry-log.md` is gone. Follow the stage's **Split:** line.
+`pending_until` already exists: `Publish` sets it seven days out for a token publish
+(`apps/registry/src/Publish.nvs:154`), `Publish::again` reports it, and `Index::document` lists a
+version as pending until then (`apps/registry/src/Index.nvs:192`). The log already has every entry
+kind stage 4 needs (`crates/nvs-cli/src/package/entry.rs:46`: `Unlist`, `Relist`, `Retract`,
+`Withhold`, `ReleaseConfirmed`, `StableApiConfirmed`, `Ownership`, `Token`, `Repository`). `Log`
+appends JSON lines through `NvsLog`, and the tests double it (`BackupTest::log`).
+- [ ] `Releases.nvs`: the passkey confirmation route ends `pending_until` and appends `ReleaseConfirmed`, a release behind a pending dependency stays pending, and the first `>= 0.1.0` waits for `StableApiConfirmed`. `apps/registry/src/Publish.nvs:154`, `apps/registry/src/Index.nvs:192`
+- [ ] `Events.nvs`: one place that appends an entry for owner changes, tokens made and revoked, the repository binding, unlist, relist, retract and withhold, under the write lock as `Index::catchUp` does. `apps/registry/src/Index.nvs:44`, `crates/nvs-cli/src/package/entry.rs:46`
+- [ ] `nvs pkg retract` and `nvs pkg unlist` in the Rust lane. `crates/nvs-cli/src/package/publish.rs:1`
 
 ### Backlog
 
@@ -585,10 +585,6 @@ test route to the app. Then set the rule `shipped` and stage 11 `done`.
 - `Core` gaps the backup hit: `Db::open` with `Db\Driver::Sqlite` written in full passes `check`
   and panics in `nvs-ir` lowering (`expr.rs:504`), a `readOnly` transaction throws on SQLite, and
   there is no way to read a local file as bytes (the copy is base64 for that reason).
-- `StoresTest.nvs` must not share `unsent` with the parallel tests: another test's `send` takes
-  the queued rows of a test and deletes them. Give the stores test its own database (a second
-  `[db.*]` in `nvs.toml`) or its own `Stores` over a scratch connection, and a store folder of its
-  own under `work/`.
 - Stage 5 adds the verified-channel refusal to `Publish::record` and `App::addOwner`
   (`apps/registry/src/Publish.nvs`); there is no channel to verify before it.
 - Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and

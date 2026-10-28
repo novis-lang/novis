@@ -1,0 +1,175 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Http\Method;
+use Core\IO;
+use Core\Path;
+use Core\Random;
+use Core\Test;
+use Core\Test\SentRequest;
+
+// Tests for sending the public files to the stores.
+// The `http` store is a fake web service from `Test::answerHttp`. Each test has its own folder
+// under `work` and its own database in memory, and deletes the folder at the end.
+final class StoresTest
+{
+    // The address of the fake `http` store.
+    private const string URL = 'https://storage.example.com/zone/';
+
+    #[Test]
+    public function anHttpStoreGetsEachFileInOrder(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::URL . '*', 201);
+            var $db = StoresTest::database();
+            var $stores = new Stores($db, StoresTest::site($folder, [StoresTest::http($folder), new Store('dir', $folder . '/files')]));
+            StoresTest::queue($stores);
+
+            Test::assertTrue($stores->send());
+
+            // The archive comes first and the checkpoint last, whatever the order of `queue`.
+            array<string> $urls = [];
+            foreach (Test::sentHttp() as SentRequest $request) {
+                Test::assertTrue($request->method() == Method::Put);
+                Test::assertSame($request->header('AccessKey'), 'the store key');
+                $urls[] = $request->url();
+                string $path = Core\Str::slice($request->url(), Core\Str::length(StoresTest::URL) as int);
+                Test::assertSame($request->body() as string, IO::read($folder . '/work/' . $path));
+            }
+            Test::assertSame($urls, [
+                StoresTest::URL . 'archive/aa.tar',
+                StoresTest::URL . 'log/tile/0/000',
+                StoresTest::URL . 'index/acme/http.json',
+                StoresTest::URL . 'registry.json',
+                StoresTest::URL . 'log/checkpoint',
+            ]);
+            // The folder store has every file too, and no file waits.
+            Test::assertSame(IO::read($folder . '/files/log/checkpoint'), "test\n1\nnew\n");
+            Test::assertSame($db->query('select count(*) from unsent', [])->value() as int, 0);
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function aStoreThatAnswers500StopsTheSendBeforeTheCheckpoint(): void
+    {
+        string $folder = StoresTest::folder();
+        try {
+            Test::answerHttp(StoresTest::URL . '*', 201);
+            Test::answerHttp(StoresTest::URL . 'index/acme/http.json', 500);
+            var $db = StoresTest::database();
+            IO::makeDir($folder . '/files/log');
+            IO::write($folder . '/files/log/checkpoint', "test\n0\nold\n");
+            var $stores = new Stores($db, StoresTest::site($folder, [new Store('dir', $folder . '/files'), StoresTest::http($folder)]));
+            StoresTest::queue($stores);
+
+            Test::assertTrue(!$stores->send());
+
+            // The `http` store got the archive and the tile, and then the index file failed.
+            array<string> $urls = [];
+            foreach (Test::sentHttp() as SentRequest $request) {
+                $urls[] = $request->url();
+            }
+            Test::assertSame($urls, [
+                StoresTest::URL . 'archive/aa.tar',
+                StoresTest::URL . 'log/tile/0/000',
+                StoresTest::URL . 'index/acme/http.json',
+            ]);
+            // The folder store got the index file. Its checkpoint is still the old one.
+            Test::assertTrue(IO::isFile($folder . '/files/index/acme/http.json'));
+            Test::assertSame(IO::read($folder . '/files/log/checkpoint'), "test\n0\nold\n");
+            // Every file still waits, so the next send sends all of them again.
+            Test::assertSame($db->query('select count(*) from unsent', [])->value() as int, 5);
+        } finally {
+            StoresTest::remove($folder);
+        }
+    }
+
+    // Writes five files to the work folder and queues them in the reverse of the order they are sent.
+    private static function queue(Stores $stores): void
+    {
+        $stores->queue('log/checkpoint', Stores::CHECKPOINT);
+        $stores->queue('registry.json', Stores::INDEX);
+        $stores->queue('index/acme/http.json', Stores::INDEX);
+        $stores->queue('log/tile/0/000', Stores::LOG);
+        $stores->queue('archive/aa.tar', Stores::ARCHIVE);
+    }
+
+    // A new database in memory with the table `unsent`. Other tests do not see its rows.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        $db->execute('create table unsent (path text primary key, rank integer not null)', []);
+        return $db;
+    }
+
+    // An `http` store at the fake address, with its key in a file in `$folder`.
+    private static function http(string $folder): Store
+    {
+        IO::write($folder . '/store.key', "the store key\n");
+        return new Store('http', StoresTest::URL, 'AccessKey', $folder . '/store.key');
+    }
+
+    // A new folder for one test, under `work`, with the five files of `queue` in its own `work`.
+    private static function folder(): string
+    {
+        string $folder = Path::join(Index::work(Site::load()), 'test-stores-' . Random::token(8));
+        StoresTest::write($folder . '/work/archive/aa.tar', 'the archive');
+        StoresTest::write($folder . '/work/log/tile/0/000', 'the tile');
+        StoresTest::write($folder . '/work/index/acme/http.json', '{"name":"Acme\\\\Http"}');
+        StoresTest::write($folder . '/work/registry.json', '{"schema":1}');
+        StoresTest::write($folder . '/work/log/checkpoint', "test\n1\nnew\n");
+        return $folder;
+    }
+
+    // Writes `$text` to `$file`, and makes its folder first.
+    private static function write(string $file, string $text): void
+    {
+        IO::makeDir(Path::dirname($file));
+        IO::write($file, $text);
+    }
+
+    // The settings of `hosting.json`, with the work folder in `$folder` and the stores `$stores`.
+    private static function site(string $folder, array<Store> $stores): Site
+    {
+        var $loaded = Site::load();
+        return new Site(
+            $loaded->origin,
+            $loaded->signUpWork,
+            $loaded->nvs,
+            $loaded->gitCaFile,
+            $loaded->projectAccount,
+            $folder . '/work',
+            $stores,
+            [],
+            new Store('dir', $folder . '/backup'),
+            '',
+            5,
+            null,
+            '',
+            '',
+            '',
+            $loaded->logName,
+        );
+    }
+
+    // Deletes `$path` and everything in it.
+    private static function remove(string $path): void
+    {
+        if (!IO::isDir($path)) {
+            if (IO::exists($path)) {
+                IO::remove($path);
+            }
+            return;
+        }
+        foreach (IO::list($path) as string $name) {
+            StoresTest::remove(Path::join($path, $name));
+        }
+        IO::removeDir($path);
+    }
+}

@@ -522,8 +522,10 @@ single whole-segment `*`, and one whose base directory does not exist, are both
 Longest matching prefix wins; within a prefix, roots are probed in declaration order and the first hit
 wins, which is what makes a vendor override work. Remaining segments are directories, the last is the
 file name plus `.nvs`, and the on-disk entry is compared exactly ([`programs/path-case`](programs.md#programs-path-case)). An
-explicit prefix beats a `discover` glob producing the same prefix and the glob skips that name; any
-other duplicate is `E_DUPLICATE_AUTOLOAD_PREFIX`, naming both sites.
+explicit prefix beats a `discover` glob producing the same prefix and the glob skips that name. Two
+explicit declarations whose roots resolve to the same directories in the same order are one home, so
+an application's request entry and its scheduled scripts each write the line and `nvs check` over the
+folder reads them together. Any other duplicate is `E_DUPLICATE_AUTOLOAD_PREFIX`, naming both sites.
 
 A miss is not a diagnostic of its own: the name stays undeclared, and the site that named it is
 `E_UNDEFINED_CLASS`. When the program declares any `autoload`, that diagnostic carries a note naming

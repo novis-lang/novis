@@ -3,7 +3,7 @@
 
 # Packaging
 
-*9 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1520,7 +1520,7 @@ child process whose memory ends with it.
 
 <a id="packaging-registry-hosting-is-configuration"></a>
 
-## The registry's hosting is one settings file: stores, file hosts, backup and download logs, with a publish durable on every store before it is visible  *(designed — owned by goal registry-service)*
+## The registry's hosting is one settings file: stores, file hosts, backup and download logs, with a publish durable on every store before it is visible
 
 `rule:packaging/registry-hosting-is-configuration`
 
@@ -1561,11 +1561,13 @@ tile and the checkpoint change, and are served with one of 60 seconds. The servi
 CDN, so it holds no CDN account key.
 
 **The database is copied to the backup store** after each publish and at an interval the settings set,
-five minutes by default, and not when nothing changed since the last copy. The copy is a
-`VACUUM INTO` a temporary file, sealed with `Core\Crypto::seal` under XChaCha20Poly1305 and a key the
-settings name, so the backup store never reads it. The log is the record of every release, so a lost
-interval loses at most the rows the log does not hold, such as a token created in it, which its owner
-creates again.
+five minutes by default, and not when nothing changed since the last copy, which a SHA-256 of the
+copy tells. The copy is every row of every table as JSON lines, read in one transaction, sealed with
+`Core\Crypto::seal` under XChaCha20Poly1305 and a key the settings name, so the backup store never
+reads it, and it replaces the one before. It is not a `VACUUM INTO`, because Core's SQLite driver
+refuses that statement: it writes a file no `fs` grant was checked for. The log is the record of
+every release, so a lost interval loses at most the rows the log does not hold, such as a token
+created in it, which its owner creates again.
 
 **A service that starts with no database restores itself.** When the backup store has a copy, the
 service opens it, takes the log from a public store, runs `nvs registry log verify`, rebuilds every
@@ -1586,7 +1588,8 @@ and outside every store, because a lost key cannot sign the next checkpoint.
 
 **Memory:** a publish holds one archive while it writes it to each store, and the repository size
 limit bounds it. A database copy is a temporary file the size of the database, deleted once it is
-sent. The daily count holds one day's salted hashes, as the counting rule says.
+sent. The daily count holds one day's access lines, twice, and their salted hashes while it runs,
+and keeps none of them after it.
 
 **Declined:**
 - **The service serving every file in production.** An outage of one host would stop every
@@ -1604,13 +1607,6 @@ sent. The daily count holds one day's salted hashes, as the counting rule says.
   place a provider's format is code.
 - **Hosting settings in `nvs.toml`.** It holds the runtime's directives and refuses a name it does not
   know, and hosting is the application's own.
-
-**Not on disk.** `apps/registry/hosting.json` and `Site::load` read the stores, the file hosts, the
-backup store and key, and the download-log source, and stop on a file a setting names that does not
-exist. `Stores` sends each publish's files from the work folder to every store, one rank at a time
-across the stores and the checkpoint last, and a publish of the same commit sends what a failed
-one left. The daily run that signs and sends every index file, the backup, the restore and the
-count from access lines are not built.
 
 <sub>See also [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/search-sorts-by-the-readers-choice`](packaging.md#packaging-search-sorts-by-the-readers-choice), [`packaging/a-vendor-resolves-from-one-registry`](packaging.md#packaging-a-vendor-resolves-from-one-registry).</sub>
 
