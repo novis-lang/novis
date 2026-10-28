@@ -2,12 +2,16 @@
 //! through the binary
 //! (`rule:packaging/a-fetched-package-is-an-autoload-line`,
 //! `rule:security/package-authority-is-granted-one-line-at-a-time`,
-//! `rule:packaging/nothing-runs-before-the-program`, `rule:packaging/the-lockfile-holds-every-digest`).
+//! `rule:packaging/nothing-runs-before-the-program`, `rule:packaging/the-lockfile-holds-every-digest`,
+//! `rule:packaging/a-package-carries-only-its-source-and-what-it-lists`).
 //!
 //! Each test builds a `file:` registry from package folders that `nvs pkg pack` packs, so a digest
 //! is always the one the code packs today, and an application beside it that names the registry
 //! for its vendor. Resolution, the lock's checks and the index are unit tests in
 //! `src/package/`; these tests show what the commands write and what the compiler then reads.
+//! That includes `vendor/package-files.toml`: a package reads a file it lists through a string
+//! literal with an empty grant line, and a write, a `..` out of its set, an unlisted file, another
+//! package's file and a link out of its folder are `E0658`.
 
 use std::fs;
 use std::path::PathBuf;
@@ -79,14 +83,39 @@ impl Tree {
         required: &[&str],
         files: &[(&str, &str)],
     ) {
+        self.release_listing(namespace, version, state, required, files, &[]);
+    }
+
+    /// `namespace` 1.0.0 as [`Self::publish`] makes it, which also carries `listed`, each a path
+    /// beside `src` and its text, named in `[package] files`.
+    fn publish_listing(&self, namespace: &str, files: &[(&str, &str)], listed: &[(&str, &str)]) {
+        self.release_listing(namespace, "1.0.0", "released", &["fs.read"], files, listed);
+    }
+
+    /// [`Self::release`], with `listed` written beside `src` and named in `[package] files`.
+    fn release_listing(
+        &self,
+        namespace: &str,
+        version: &str,
+        state: &str,
+        required: &[&str],
+        files: &[(&str, &str)],
+        listed: &[(&str, &str)],
+    ) {
         let slug = namespace.to_lowercase().replace('\\', "/");
         let folder = format!("{}-{version}", slug.replace('/', "-"));
         let dir = self.root.join("packages").join(&folder);
         fs::create_dir_all(dir.join("src")).expect("the test makes the package");
+        let names: Vec<&str> = listed.iter().map(|(path, _)| *path).collect();
+        let files_line = if names.is_empty() {
+            String::new()
+        } else {
+            format!("files = {names:?}\n")
+        };
         fs::write(
             dir.join("package.toml"),
             format!(
-                "[package]\nname = '{namespace}'\nversion = \"{version}\"\n\n\
+                "[package]\nname = '{namespace}'\nversion = \"{version}\"\n{files_line}\n\
                  [capabilities]\nrequired = {required:?}\n"
             ),
         )
@@ -94,6 +123,12 @@ impl Tree {
         fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
         for (path, text) in files {
             fs::write(dir.join("src").join(path), text).expect("the test writes the source");
+        }
+        for (path, text) in listed {
+            let path = dir.join(path);
+            fs::create_dir_all(path.parent().expect("a listed file has a folder"))
+                .expect("the test makes the listed file's folder");
+            fs::write(path, text).expect("the test writes the listed file");
         }
         let tar = self.root.join("packages").join(format!("{folder}.tar"));
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -458,4 +493,164 @@ fn update_prints_a_capability_the_new_version_requests() {
         "{}",
         shown(&out)
     );
+}
+
+/// The file `Acme\Http` lists, and its text.
+const GREETING: (&str, &str) = ("data/greeting.txt", "hello from the package\n");
+
+/// A class `name` in `Acme\Http` whose constructor runs `body`.
+fn class(name: &str, body: &str) -> String {
+    format!(
+        "<?nvs\nnamespace Acme\\Http;\n\nfinal class {name}\n{{\n    \
+         public function constructor()\n    {{\n        {body}\n    }}\n}}\n"
+    )
+}
+
+/// The class that reads `Acme\Http`'s own listed file, relative to `src/`.
+fn reads_greeting() -> String {
+    class("Main", "echo Core\\IO::readText('../data/greeting.txt');")
+}
+
+impl Tree {
+    /// The application's `main.nvs`, which makes one `Acme\Http\<name>`.
+    fn entry(&self, name: &str) {
+        fs::write(
+            self.app().join("main.nvs"),
+            format!(
+                "<?nvs\nrequire './vendor/packages.nvs';\n\nvar $main = new Acme\\Http\\{name}();\n"
+            ),
+        )
+        .expect("the test writes the entry");
+    }
+}
+
+#[test]
+fn a_package_reads_its_own_listed_file_with_no_grant() {
+    let tree = Tree::new("package-fetch-own-file", HTTP);
+    tree.publish_listing(
+        "Acme\\Http",
+        &[("Main.nvs", &reads_greeting())],
+        &[GREETING],
+    );
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert!(
+        tree.read("package.toml").contains("'Acme\\Http\\*' = []"),
+        "{}",
+        tree.read("package.toml")
+    );
+    let set: toml::Table = toml::from_str(&tree.read("vendor/package-files.toml"))
+        .expect("`vendor/package-files.toml` is TOML");
+    let listed = set
+        .get("Acme\\Http")
+        .and_then(toml::Value::as_array)
+        .expect("the set has a line for `Acme\\Http`");
+    assert!(
+        listed.iter().any(|path| path.as_str() == Some(GREETING.0)),
+        "{}",
+        tree.read("vendor/package-files.toml")
+    );
+
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), GREETING.1);
+}
+
+#[test]
+fn a_package_needs_its_grant_for_anything_outside_its_own_set() {
+    let tree = Tree::new(
+        "package-fetch-own-file-outside",
+        &format!("{HTTP}'Acme\\Other' = \"1.0.0\"\n"),
+    );
+    // From `vendor/acme/http/src/`: up four folders is the application's.
+    let cases = [
+        (
+            "Write",
+            "Core\\IO::write('../data/greeting.txt', 'changed');",
+        ),
+        (
+            "Escape",
+            "echo Core\\IO::readText('../data/../../../../secret.txt');",
+        ),
+        (
+            "Unlisted",
+            "echo Core\\IO::readText('../data/unlisted.txt');",
+        ),
+        (
+            "Foreign",
+            "echo Core\\IO::readText('../../other/data/other.txt');",
+        ),
+    ];
+    let mut files = vec![("Main.nvs".to_owned(), reads_greeting())];
+    files.extend(
+        cases
+            .iter()
+            .map(|(name, body)| (format!("{name}.nvs"), class(name, body))),
+    );
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    tree.publish_listing("Acme\\Http", &files, &[GREETING]);
+    tree.publish_listing("Acme\\Other", &[], &[("data/other.txt", "other\n")]);
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    fs::write(tree.app().join("secret.txt"), "secret\n").expect("the test writes the file");
+    fs::write(
+        tree.app().join("vendor/acme/http/data/unlisted.txt"),
+        "unlisted\n",
+    )
+    .expect("the test places the file");
+    assert!(
+        tree.app()
+            .join("vendor/acme/other/data/other.txt")
+            .is_file()
+    );
+
+    // The listed read compiles in the same tree, so each refusal below is its case's own.
+    tree.entry("Main");
+    let out = tree.nvs(&["check", "main.nvs"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    for (name, _) in cases {
+        tree.entry(name);
+        let out = tree.nvs(&["check", "main.nvs"]);
+        assert!(!out.status.success(), "{name} compiled with no grant");
+        assert!(shown(&out).contains("E0658"), "{name}: {}", shown(&out));
+    }
+}
+
+#[cfg(unix)]
+fn link_file(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(windows)]
+fn link_file(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_file(target, link)
+}
+
+#[test]
+fn a_listed_file_that_links_out_of_its_package_needs_its_grant() {
+    let tree = Tree::new("package-fetch-own-file-link", HTTP);
+    tree.publish_listing(
+        "Acme\\Http",
+        &[("Main.nvs", &reads_greeting())],
+        &[GREETING],
+    );
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+
+    let secret = tree.app().join("secret.txt");
+    fs::write(&secret, "secret\n").expect("the test writes the file");
+    let listed = tree.app().join("vendor/acme/http").join(GREETING.0);
+    fs::remove_file(&listed).expect("the test removes the listed file");
+    if link_file(&secret, &listed).is_err() {
+        // Windows makes a symlink only with a privilege this runner may not have.
+        return;
+    }
+    let out = tree.nvs(&["check", "main.nvs"]);
+    assert!(!out.status.success(), "a link out of the package compiled");
+    assert!(shown(&out).contains("E0658"), "{}", shown(&out));
 }

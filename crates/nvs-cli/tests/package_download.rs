@@ -7,7 +7,8 @@
 //! beside it, and an HTTPS host on loopback that serves the files. The application's `nvs.toml`
 //! trusts the host's certificate and writes `internal = ["127.0.0.1"]`, the one key that lets a
 //! download reach loopback. The form check and the cache are unit tests in
-//! `src/package/download.rs`; these tests show what the binary places and what it refuses.
+//! `src/package/download.rs`; these tests show what the binary places and what it refuses, and
+//! that the package's code reads a placed file with an empty grant line.
 
 use std::fs;
 use std::io::{BufRead as _, BufReader, Write as _};
@@ -196,6 +197,9 @@ fn entry(path: &str, urls: &[String], body: &[u8]) -> String {
     )
 }
 
+/// The package's `src/Main.nvs` when a case does not run it.
+const EMPTY_MAIN: &str = "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n}\n";
+
 /// A registry, an application that needs `Acme\Http` from it, and a private data folder.
 struct Tree {
     root: nvs_repo::Scratch,
@@ -255,6 +259,11 @@ impl Tree {
     /// The folder of `Acme\Http` 1.0.0, whose `package.toml` ends with `downloads`, and
     /// `nvs pkg pack`'s run on it.
     fn pack(&self, downloads: &str) -> (Output, PathBuf) {
+        self.pack_with(downloads, EMPTY_MAIN)
+    }
+
+    /// [`Self::pack`], with `main` as the text of `src/Main.nvs`.
+    fn pack_with(&self, downloads: &str, main: &str) -> (Output, PathBuf) {
         let dir = self.root.join("packages/acme-http-1.0.0");
         fs::create_dir_all(dir.join("src")).expect("the test makes the package");
         fs::write(
@@ -266,11 +275,7 @@ impl Tree {
         )
         .expect("the test writes the package's manifest");
         fs::write(dir.join("LICENSE"), "MIT\n").expect("the test writes the license");
-        fs::write(
-            dir.join("src/Main.nvs"),
-            "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n}\n",
-        )
-        .expect("the test writes the source");
+        fs::write(dir.join("src/Main.nvs"), main).expect("the test writes the source");
         let tar = self.root.join("packages/acme-http-1.0.0.tar");
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .args(["pkg", "pack"])
@@ -285,7 +290,12 @@ impl Tree {
     /// `Acme\Http` 1.0.0 with `downloads`, packed by the binary and listed in the registry as
     /// released.
     fn publish(&self, downloads: &str) {
-        let (out, tar) = self.pack(downloads);
+        self.publish_with(downloads, EMPTY_MAIN);
+    }
+
+    /// [`Self::publish`], with `main` as the text of `src/Main.nvs`.
+    fn publish_with(&self, downloads: &str, main: &str) {
+        let (out, tar) = self.pack_with(downloads, main);
         assert!(out.status.success(), "{}", shown(&out));
         let bytes = fs::read(&tar).expect("the archive was written");
         let digest = blake3::hash(&bytes).to_hex().to_string();
@@ -554,4 +564,36 @@ fn an_archive_is_placed_without_being_unpacked() {
         "something beside the zip was written"
     );
     assert!(!tree.package().join("inner.txt").exists());
+}
+
+/// The package's code reads the file it downloads with the empty grant line `nvs pkg fetch`
+/// adds, and the program prints it.
+#[test]
+fn a_package_reads_its_downloaded_file_with_no_grant() {
+    let tree = Tree::new("package-download-own-file");
+    let host = Host::start(&tree.root, vec![("/big", Reply::ok(b"downloaded text\n"))]);
+    tree.trust(&host);
+    let main = format!(
+        "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{{\n    \
+         public function constructor()\n    {{\n        \
+         echo Core\\IO::readText('../{PATH}');\n    }}\n}}\n"
+    );
+    tree.publish_with(
+        &entry(PATH, &[host.url("/big")], b"downloaded text\n"),
+        &main,
+    );
+
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let manifest = fs::read_to_string(tree.app().join("package.toml")).unwrap_or_default();
+    assert!(manifest.contains("'Acme\\Http\\*' = []"), "{manifest}");
+    fs::write(
+        tree.app().join("main.nvs"),
+        "<?nvs\nrequire './vendor/packages.nvs';\n\nvar $main = new Acme\\Http\\Main();\n",
+    )
+    .expect("the test writes the entry");
+
+    let out = tree.nvs(&["run", "main.nvs"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "downloaded text\n");
 }

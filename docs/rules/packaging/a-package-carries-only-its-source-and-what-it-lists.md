@@ -80,5 +80,12 @@ nothing per request.
 It refuses a symbolic link anywhere it reads, since a link would make the set depend on what lies
 outside the package.
 
-**Not on disk.** The fetch does not yet stop at the limits while it reads, and there is no read
-check for a package's own files.
+`nvs pkg fetch` writes each package's set to `vendor/package-files.toml`
+(`crates/nvs-cli/src/package/fetch.rs`), `nvs_config::package` reads it onto each vendored package,
+and the grant check passes a read whose path is a string literal in the set
+(`crates/nvs-types/src/capability.rs`'s `reads_own_file`, over `nvs_stdlib::registry::OWN_FILE_READS`).
+A path built at run time still needs a grant.
+
+**Not on disk.** The fetch does not yet stop at the limits while it reads, and the door still asks the
+operator's `fs.read` scope for a package's own file, which the default scope, the application's folder,
+covers.
