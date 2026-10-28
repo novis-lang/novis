@@ -2,6 +2,7 @@
 namespace Registry;
 
 use Core\Charset;
+use Core\Compress;
 use Core\Db\Connection;
 use Core\Db\Row;
 use Core\Db\Transaction;
@@ -25,7 +26,14 @@ final class Downloads
     // The seconds in one day.
     public const int DAY = 86400;
 
+    // The most bytes one part of the access lines may have when it is uncompressed: 512 MiB.
+    // A bigger part stops the count of its day.
+    public const uint PART_BYTES = 536870912;
+
     private const string HEX = '0123456789abcdef';
+
+    // The characters of the name of a part of the access lines.
+    private const string NAME = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-.';
 
     private Connection $db;
 
@@ -53,41 +61,74 @@ final class Downloads
         });
     }
 
-    // Returns the path of the access lines of the day `$day` in the download-log store.
-    // Bunny writes each day to `<MM>-<DD>-<YY>/<file>`, such as `03-04-26/12345.log`.
-    public static function logOf(int $day, string $file): string
+    // Returns the folder of the month of the day `$day` in Bunny's Permanent Log Storage, such as `2026/03/`.
+    public static function folderOf(int $day): string
     {
         string $iso = Time::fromEpoch($day * Downloads::DAY)->toIso();
-        return Str::slice($iso, 5, 2) . '-' . Str::slice($iso, 8, 2) . '-' . Str::slice($iso, 2, 2) . '/' . $file;
+        return Str::slice($iso, 0, 4) . '/' . Str::slice($iso, 5, 2) . '/';
     }
 
-    // Counts the downloads in Bunny's access lines of the day `$day`, read from `$log` at `logOf`.
-    // `$folder` is a folder that is never served, for the copy of the lines while they are counted.
+    // Returns the names in `$names` of the files of the day `$day` in the folder `folderOf($day)`.
+    // Bunny writes each day in parts, such as `04_100-0-a1b2c3d4.gzip` for 4 March: the day,
+    // the log server, the number of the part and a random text.
+    public static function partsOf(array<tainted string> $names, int $day): array<string>
+    {
+        string $prefix = Str::slice(Time::fromEpoch($day * Downloads::DAY)->toIso(), 8, 2) . '_';
+        array<string> $parts = [];
+        foreach ($names as tainted string $name) {
+            if (Str::startsWith($name, $prefix) && Str::endsWith($name, '.gzip') && Str::trim($name, { characters: Downloads::NAME }) == '') {
+                $parts[] = Core\Taint::assertTrusted($name, 'a name of a part has only letters, digits, `_`, `-` and `.`');
+            }
+        }
+        return $parts;
+    }
+
+    // Counts the downloads in Bunny's access lines of the day `$day`. `$log` is the folder of one
+    // pull zone in Bunny's Permanent Log Storage, and each part of the day is a gzip file in `folderOf`.
+    // `$folder` is a folder that is never served, for the copy of one part while it is counted.
     // Only a request for `archive/<digest>.tar` that was answered with a status 200 to 299, by a
     // user agent that starts with `nvs/`, counts. A line that does not have this form is skipped.
     // A day is counted once: a second run for the same day counts nothing.
-    // It returns the number of downloads it counted. It throws a `RuntimeError` when the store fails.
-    // Memory: the lines of the day twice, as text and as a list of lines, and one hash for each
-    // address and version. All of it is deleted when the count ends.
-    public function countLog(Store $log, string $file, int $day, string $folder): int
+    // It returns the number of downloads it counted. It throws a `RuntimeError` when the store
+    // fails or a part is not gzip, and then it counts nothing for that day.
+    // Memory: one part at a time, compressed, uncompressed and as a list of lines, at most
+    // `PART_BYTES` uncompressed. And one hash for each address and archive of the day.
+    // All of it is deleted when the count ends.
+    public function countLog(Store $log, int $day, string $folder): int
     {
         if ($this->db->query('select 1 from downloads_counted where day = ?', [$day])->count() > 0) {
             return 0;
         }
+        // The salt is only in memory, so a hash of an address cannot be checked after the count.
+        string $salt = Random::token(32);
+        // One key for each archive and address: the digest, a line break, and the hash of the address.
+        array<bool> $seen = [];
         string $copy = Path::join($folder, 'downloads-' . Random::token(8) . '.log');
         try {
-            if (!$log->fetch(Downloads::logOf($day, $file), $copy)) {
-                return 0;
+            foreach (Downloads::partsOf($log->list(Downloads::folderOf($day)), $day) as string $name) {
+                ?bytes $part = $log->bytes(Downloads::folderOf($day) . $name);
+                if ($part == null) {
+                    continue;
+                }
+                if (IO::isFile($copy)) {
+                    IO::remove($copy);
+                }
+                IO::writeStream($copy, [Compress::decompress($part, Compress::Codec::Gzip, Downloads::PART_BYTES)]);
+                // Latin-1 reads every byte, so a line that is not UTF-8 is skipped below and does
+                // not stop the count.
+                foreach (Str::lines(IO::readText($copy, { charset: Charset::Latin1 })) as string $line) {
+                    ?array<string> $download = Downloads::parseBunny($line, $day);
+                    if ($download != null) {
+                        $seen[$download[0] . "\n" . Downloads::seen($salt, $download[1], $download[0], '')] = true;
+                    }
+                }
             }
-            // Latin-1 reads every byte, so a line that is not UTF-8 is skipped below and does
-            // not stop the count.
-            array<string> $lines = Str::lines(IO::readText($copy, { charset: Charset::Latin1 }));
-            return $this->countLines($lines, $day);
         } finally {
             if (IO::isFile($copy)) {
                 IO::remove($copy);
             }
         }
+        return $this->save($seen, $day);
     }
 
     // Returns the number of downloads of a version on the day `$day`.
@@ -108,23 +149,17 @@ final class Downloads
         return false;
     }
 
-    // Counts the lines of the day `$day` with a salt that is only in memory,
-    // and saves the counts and the day in one transaction.
-    private function countLines(array<string> $lines, int $day): int
+    // Saves the downloads of the day `$day` and the day in one transaction. `$seen` has one key
+    // for each archive and address. An archive of no release is not counted.
+    private function save(array<bool> $seen, int $day): int
     {
-        string $salt = Random::token(32);
-        array<bool> $seen = [];
-        array<int> $counts = [];
         // The package and version of each digest, such as `acme\http` and `1.0.0` with a line break between.
         // An empty text is a digest of no release.
         array<string> $releases = [];
+        array<int> $counts = [];
         int $total = 0;
-        foreach ($lines as string $line) {
-            ?array<string> $download = Downloads::parseBunny($line, $day);
-            if ($download == null) {
-                continue;
-            }
-            string $digest = $download[0];
+        foreach (Core\Arr::keys($seen) as string $key) {
+            string $digest = Str::before($key, "\n") ?? $key;
             if (!Core\Arr::hasKey($releases, $digest)) {
                 $releases[$digest] = $this->releaseOf($digest);
             }
@@ -132,12 +167,6 @@ final class Downloads
             if ($release == '') {
                 continue;
             }
-            array<string> $parts = Str::split($release, "\n");
-            string $hash = Downloads::seen($salt, $download[1], $parts[0], $parts[1]);
-            if (Core\Arr::hasKey($seen, $hash)) {
-                continue;
-            }
-            $seen[$hash] = true;
             $counts[$release] = ($counts[$release] ?? 0) + 1;
             $total++;
         }

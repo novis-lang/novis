@@ -4,6 +4,7 @@ namespace Registry;
 use Core\Http\Client;
 use Core\Http\Part;
 use Core\IO;
+use Core\Json;
 use Core\Path;
 use Core\Random;
 use Core\Str;
@@ -100,6 +101,52 @@ final class Store
         // and `Downloads` skips each access line that does not have the form it counts.
         IO::writeStream($file, [Core\Taint::assertTrustedBytes($response->bytes(), 'every reader checks the file it fetched')]);
         return true;
+    }
+
+    // Returns the names of the files in the folder `$folder` of an `http` store, such as `2026/03/`.
+    // The store lists a folder as Bunny Storage does: a `GET` request for the folder returns a JSON
+    // list, with `ObjectName` and `IsDirectory` for each entry. A folder that does not exist gives `[]`.
+    // It throws a `RuntimeError` for a `dir` store, and when the store gives another error.
+    public function list(string $folder): array<tainted string>
+    {
+        if ($this->kind != 'http') {
+            throw new RuntimeError('Only an `http` store lists a folder.');
+        }
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::get($this->location . $folder, { headers: [$this->header => $credential] });
+        if ($response->status() == 404) {
+            return [];
+        }
+        if ($response->status() < 200 || $response->status() > 299) {
+            throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $folder . '.');
+        }
+        array<tainted string> $names = [];
+        foreach ((Json::decode($response->text()) as array<mixed>) as mixed $item) {
+            var $entry = $item as array<mixed>;
+            if (!(($entry['IsDirectory'] ?? true) as bool)) {
+                $names[] = $entry['ObjectName'] as tainted string;
+            }
+        }
+        return $names;
+    }
+
+    // Returns the file at `$path` in an `http` store, or `null` when the store does not have it.
+    // It throws a `RuntimeError` for a `dir` store, and when the store gives another error.
+    // Memory: the file is in memory once.
+    public function bytes(string $path): ?bytes
+    {
+        if ($this->kind != 'http') {
+            throw new RuntimeError('Only an `http` store returns a file as bytes.');
+        }
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::get($this->location . $path, { headers: [$this->header => $credential] });
+        if ($response->status() == 404) {
+            return null;
+        }
+        if ($response->status() < 200 || $response->status() > 299) {
+            throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $path . '.');
+        }
+        return Core\Taint::assertTrustedBytes($response->bytes(), 'the reader checks every line of the file');
     }
 
     // Deletes the file at `$path` in this store. A file that is not there is not an error.

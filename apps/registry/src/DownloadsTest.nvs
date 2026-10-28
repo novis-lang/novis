@@ -2,18 +2,24 @@
 namespace Registry;
 
 use Core\Bytes;
+use Core\Compress;
 use Core\IO;
 use Core\Path;
 use Core\Random;
 use Core\Str;
 use Core\Test;
+use Core\Test\SentRequest;
 use Core\Time;
 use Core\Time\Duration;
 
 // Tests for the download count. Each test counts its own new package on its own day.
-// The access lines are in a `dir` store in a folder under `work`, which the test deletes at the end.
+// The access lines are in a fake Bunny Storage from `Test::answerHttp`. The password of the
+// storage is in a folder under `work`, which the test deletes at the end.
 final class DownloadsTest
 {
+    // The folder of one pull zone in the fake Bunny Storage.
+    private const string LOGS = 'https://storage.example.com/logs/pullzone-logs/registry/';
+
     #[Test(at: '2026-03-01T23:00:00Z')]
     public function oneAddressCountsOncePerVersionPerDay(): void
     {
@@ -52,10 +58,15 @@ final class DownloadsTest
             string $digest = Str::slice(IndexTest::publish($browser, $vendor), 7);
             string $key = Str::lower($vendor) . '\\http';
             string $url = 'https://cdn.example.com/archive/' . $digest . '.tar';
-            string $file = Path::join(Path::join($folder, 'log'), Downloads::logOf($day, '12345.log'));
-            Test::assertSame(Downloads::logOf($day, '12345.log'), '03-04-26/12345.log');
-            IO::makeDir(Path::dirname($file));
-            IO::writeStream($file, [
+            Test::assertSame(Downloads::folderOf($day), '2026/03/');
+
+            // The folder of the month has two parts of 4 March, a part of 5 March and a folder.
+            Test::answerHttp(DownloadsTest::LOGS . '2026/03/', 200, { body: '['
+                . '{"ObjectName":"04_100-0-a1b2c3d4.gzip","IsDirectory":false},'
+                . '{"ObjectName":"04_101-0-e5f6a7b8.gzip","IsDirectory":false},'
+                . '{"ObjectName":"05_100-0-c9d0e1f2.gzip","IsDirectory":false},'
+                . '{"ObjectName":"04_folder","IsDirectory":true}]' });
+            Test::answerHttp(DownloadsTest::LOGS . '2026/03/04_100-0-a1b2c3d4.gzip', 200, { body: DownloadsTest::part([
                 DownloadsTest::line('200', '2026-03-04T10:00:00Z', '192.0.2.1', $url, 'nvs/0.1.0'),
                 // The same address again counts nothing, also with a query after the path.
                 DownloadsTest::line('200', '2026-03-04T11:00:00Z', '192.0.2.1', $url . '?x=1', 'nvs/0.1.0'),
@@ -71,24 +82,48 @@ final class DownloadsTest
                 'not a line of the log' as bytes,
                 "\n" as bytes,
                 Bytes::join(['HIT|200|' as bytes, Bytes::fill(1, 255), "|\n" as bytes]),
+            ]) });
+            // The second part has an address of the first part again, which counts nothing.
+            Test::answerHttp(DownloadsTest::LOGS . '2026/03/04_101-0-e5f6a7b8.gzip', 200, { body: DownloadsTest::part([
+                DownloadsTest::line('200', '2026-03-04T13:00:00Z', '192.0.2.2', $url, 'nvs/0.1.0'),
                 DownloadsTest::line('200', '2026-03-04T13:00:00Z', '192.0.2.8', $url, 'nvs/0.1.0 é'),
-            ]);
+            ]) });
 
             var $downloads = new Downloads($db);
-            var $log = new Store('dir', Path::join($folder, 'log'));
-            Test::assertSame($downloads->countLog($log, '12345.log', $day, $folder), 3);
+            IO::makeDir($folder);
+            IO::write(Path::join($folder, 'logs.key'), "the storage password\n");
+            var $log = new Store('http', DownloadsTest::LOGS, 'AccessKey', Path::join($folder, 'logs.key'));
+            Test::assertSame($downloads->countLog($log, $day, $folder), 3);
             Test::assertSame($downloads->on($key, '1.0.0', $day), 3);
+            // The listing and the two parts of 4 March were read, each with the password of the storage.
+            array<string> $urls = [];
+            foreach (Test::sentHttp() as SentRequest $request) {
+                Test::assertSame($request->header('AccessKey'), 'the storage password');
+                $urls[] = $request->url();
+            }
+            Test::assertSame($urls, [
+                DownloadsTest::LOGS . '2026/03/',
+                DownloadsTest::LOGS . '2026/03/04_100-0-a1b2c3d4.gzip',
+                DownloadsTest::LOGS . '2026/03/04_101-0-e5f6a7b8.gzip',
+            ]);
             // The copy of the lines is deleted.
-            Test::assertSame(Core\Arr::count(IO::list($folder)), 1);
+            Test::assertSame(IO::list($folder), ['logs.key']);
             // A second run for the same day counts nothing.
-            Test::assertSame($downloads->countLog($log, '12345.log', $day, $folder), 0);
+            Test::assertSame($downloads->countLog($log, $day, $folder), 0);
             Test::assertSame($downloads->on($key, '1.0.0', $day), 3);
-            // A day with no file counts nothing.
-            Test::assertSame($downloads->countLog($log, '12345.log', $day - 1, $folder), 0);
+            // A month with no folder counts nothing.
+            Test::answerHttp(DownloadsTest::LOGS . '2026/02/', 404);
+            Test::assertSame($downloads->countLog($log, $day - 4, $folder), 0);
         } finally {
             $db->execute('delete from downloads_counted where day = ?', [$day]);
             DownloadsTest::remove($folder);
         }
+    }
+
+    // One part of Bunny's access lines, compressed with gzip.
+    private static function part(array<bytes> $lines): bytes
+    {
+        return Compress::compress(Bytes::join($lines), Compress::Codec::Gzip);
     }
 
     // One of Bunny's access lines, with its line break.

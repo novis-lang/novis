@@ -15,7 +15,7 @@ string $counted = '';
 if ($site->downloadLog != null) {
     try {
         int $yesterday = Registry\Downloads::dayOf(Core\Time::now()->toEpochSeconds()) - 1;
-        new Registry\Downloads($db)->countLog($site->downloadLog, $site->downloadFile, $yesterday, Registry\Index::work($site));
+        new Registry\Downloads($db)->countLog($site->downloadLog, $yesterday, Registry\Index::work($site));
     } catch (RuntimeError $error) {
         $counted = $error->message;
     }
