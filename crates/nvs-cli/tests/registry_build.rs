@@ -168,7 +168,7 @@ impl Case {
 
     /// `nvs --data <data> --no-init <args>` in `dir`.
     fn nvs(&self, dir: &Path, args: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_nvs"))
+        nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[])
             .arg("--data")
             .arg(self.data())
             .arg("--no-init")
@@ -692,7 +692,7 @@ fn publish_to(name: &str, publish: &str) -> Output {
     case.commit("one");
     let service = Service::start(publish.to_owned());
     let url = service.url();
-    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+    let mut child = nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[])
         .arg("--data")
         .arg(case.data())
         .args(["--no-init", "pkg", "login", "--registry", &url])
@@ -823,7 +823,10 @@ fn a_clone_over_512_mib_is_refused() {
 fn an_archive_over_16_mib_is_refused() {
     let case = Case::new("registry-build-large");
     case.package("", "1.0.0", false);
-    let toml = manifest("1.0.0") + "files = [\"assets/data.bin\"]\n";
+    let toml = manifest("1.0.0").replace(
+        "\n\n[capabilities]",
+        "\nfiles = [\"assets/data.bin\"]\n\n[capabilities]",
+    );
     case.write("package.toml", toml.as_bytes());
     fs::create_dir_all(case.repo().join("assets")).expect("the test makes the folder");
     let file = fs::File::create(case.repo().join("assets/data.bin")).expect("the test makes it");
@@ -1034,7 +1037,7 @@ impl Registry {
 
         let serve_data = case.root.join("serve-data");
         fs::create_dir_all(&serve_data).expect("the test makes the server's data folder");
-        let mut child = Command::new(nvs)
+        let mut child = nvs_repo::spawn(nvs, &[])
             .arg("--data")
             .arg(&serve_data)
             .arg("--no-init")
@@ -1308,7 +1311,7 @@ fn zero_bits(hash: &[u8]) -> u32 {
 
 /// `nvs pkg login` stores `token` for `url`. Its output.
 fn login(case: &Case, url: &str, token: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
+    let mut child = nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[])
         .arg("--data")
         .arg(case.data())
         .args(["--no-init", "pkg", "login", "--registry", url])

@@ -5718,14 +5718,15 @@ mod tests {
         // crate that can build both halves of this — a checked program and a
         // runtime context in one scope — is this one.
         //
-        // Two cases in one fixture, because the claim is about the *table* and
+        // Three cases in one fixture, because the claim is about the *table* and
         // not about one row of it. The first asks a path the fixture's own
         // `#[Route]` declares and reads the match back inside the program that
         // answered, which is the whole of "through the compiled route table";
-        // the second asks a path no route claims and still gets an answer,
+        // the second reads the test's fixed clock, and an advance of it, from
+        // inside the request; the last asks a path no route claims and still gets an answer,
         // which is `rule:routing/matched-once-before-the-handler`'s "nothing here dispatches" — a runner that
-        // sent a `404` of its own would pass the first and fail the second.
-        // Neither opens a socket: the fixture is answered by an isolate over
+        // sent a `404` of its own would pass the first and fail the last.
+        // None opens a socket: the fixture is answered by an isolate over
         // this run's own unit (`UnderTest`).
         let verdicts = verdicts("in-process-request.nvs");
         assert_eq!(
@@ -5735,6 +5736,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 ("itReachesTheCompiledTableWithNoSocket", "passed"),
+                ("itAnswersOnTheTestsFixedClock", "passed"),
                 ("itAnswersAPathTheTableDoesNotClaim", "passed"),
             ],
             "failures: {:?}",

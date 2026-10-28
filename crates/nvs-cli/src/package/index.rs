@@ -822,8 +822,7 @@ mod tests {
     #[test]
     fn the_registry_services_index_file_reads_back() {
         let fixture = Fixture::new("index-service");
-        let written =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../apps/registry/fixtures/index.json");
+        let written = nvs_repo::path("apps/registry/fixtures/index.json");
         let text = fs::read_to_string(&written).expect("the service's fixture reads");
         let json: serde_json::Value = serde_json::from_str(&text).expect("the fixture is JSON");
         fixture.append(&super::super::entry::Entry::Publish {
