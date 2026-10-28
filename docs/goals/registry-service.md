@@ -62,7 +62,7 @@ stages:
         rules: [packaging/an-owner-is-notified-without-email, packaging/a-package-cannot-reach-its-host]
   - id: 9
     title: the feeds, the inbox and the commands show every event, never by email
-    status: open
+    status: done
     context: [apps/registry/src/Push.nvs, apps/registry/src/Webhooks.nvs, crates/nvs-cli/src/package/publish.rs, crates/nvs-cli/src/package/login.rs, docs/rules/packaging/an-owner-is-notified-without-email.md]
     extra:
       context:
@@ -370,6 +370,23 @@ the message arrived, so a link preview that opens it proves the same. `nvs.toml`
 Why: a published signing scheme means an owner verifies with an existing library; a retry in a job
 never holds a request through a wait. Memory: one message body per waiting row, at most five tries.
 
+**A notice is a row saved with its change, and the feeds are signed notes under the log key.**
+Every `Events` call and `Publish`'s save write a `notices` row (`apps/registry/src/Notices.nvs`) in
+the same transaction, addressed to the vendor's owners and to the account the event is about.
+`Notices::send` claims each unsent row with an `update ... where sent_at is null` and sends it to
+`Push::notify` and `Webhooks::notify` for each recipient; `App::flush`, the publish route,
+`jobs/withhold.nvs` and the every-minute `jobs/webhooks.nvs` call it. `Feeds`
+(`apps/registry/src/Feeds.nvs`) writes `GET /feeds/vendors/{vendor}` (newest 100) and `GET
+/feeds/pending` as C2SP signed notes (name line, count line, one JSON object per line), signed with
+the Ed25519 seed read from `logKey`'s `PRIVATE+KEY+...` file; with `"logKey": ""` both answer `503`.
+`GET /api/inbox` is the account's rows; `/api/whoami` and `/api/publish` add `pending`, and the
+publish adds `warning` when no channel took its message. The pending list checks the newest 500
+unconfirmed releases (`Feeds::PENDING_SCAN`). The test accounts' webhook is
+`https://hooks.invalid/<account>`, so a route's message fails without the network. Why: a message
+saved with its change is never lost to a crash between them, sending after the commit never holds
+the write lock through a push service, and the log's key already has a published public half, so a
+feed copy can be checked anywhere with no new secret. Memory: one short row per event, on disk.
+
 **An account must show activity within 60 days, or it can no longer publish**
 (`rule:packaging/an-account-stays-active-by-proof-not-by-token`). The 60 days are fixed. Its packages
 stay available and its releases are untouched. Activity is a passkey sign-in, or the "Yes, I am here"
@@ -607,10 +624,10 @@ caller did not confirm.
 **Split:** `Feeds.nvs` and the Rust lane (`publish.rs`, `login.rs`) are disjoint: one writing subagent
 writes the Rust items after the session lands the feeds.
 
-- [ ] The signed feed per vendor, the website inbox, the public pending feed, and a device added or removed notifying every other channel of the account. `apps/registry/src/Feeds.nvs:1`
-- [ ] Tests: each event kind in the vendor feed and the inbox, and a device added notifying the other device and the webhook. `apps/registry/src/FeedsTest.nvs:1`
-- [ ] `nvs pkg publish` and `nvs pkg whoami` print the pending releases the caller did not confirm, and `nvs pkg publish` warns when no owner of the vendor has a working channel, with tests. `crates/nvs-cli/src/package/publish.rs:1`, `crates/nvs-cli/src/package/login.rs:1`
-- [ ] `rule:packaging/an-owner-is-notified-without-email` is `shipped`. `data/rules/packaging/an-owner-is-notified-without-email.json:1`
+- [x] The signed feed per vendor, the website inbox, the public pending feed, and a device added or removed notifying every other channel of the account. `apps/registry/src/Feeds.nvs:1`
+- [x] Tests: each event kind in the vendor feed and the inbox, and a device added notifying the other device and the webhook. `apps/registry/src/FeedsTest.nvs:1`
+- [x] `nvs pkg publish` and `nvs pkg whoami` print the pending releases the caller did not confirm, and `nvs pkg publish` warns when no owner of the vendor has a working channel, with tests. `crates/nvs-cli/src/package/publish.rs:1`, `crates/nvs-cli/src/package/login.rs:1`
+- [x] `rule:packaging/an-owner-is-notified-without-email` is `shipped`. `data/rules/packaging/an-owner-is-notified-without-email.json:1`
 
 ### 6. an account stays active by proof, never by token
 
@@ -655,31 +672,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 4, 5, 7, 8 and 11 are done. This session closed stage 8 (standing decision *A
-webhook message is signed as Standard Webhooks says*): `Webhooks` (`apps/registry/src/Webhooks.nvs`)
-adds a webhook, sends its code, signs every `POST`, and queues a failed one in `webhook_sends` for
-`jobs/webhooks.nvs` (a new every-minute `[[schedule]]`). `App.nvs` has `POST /api/webhooks`
-(passkey), `GET /api/channels/{id}/confirm/{code}` (no session), and `{id}/test` sends a webhook its
-code. Adding a device or a webhook, and deleting a channel, tells the webhooks as well as the push
-devices. `Channels::drop` and `remove` delete a webhook's secret and waiting messages. `nvs.toml`
-now writes `[capabilities.net] internal = []`. New tests, run once by name and green: the four
-cases in `apps/registry/src/WebhooksTest.nvs`. No other test was run.
+Stages 1, 2, 3, 4, 5, 7, 8, 9 and 11 are done. This session closed stage 9 (standing decision *A
+notice is a row saved with its change*): `Notices` (`apps/registry/src/Notices.nvs`) saves one row
+per event with its change and sends it to every owner's push devices and webhooks after the commit.
+`Feeds` (`apps/registry/src/Feeds.nvs`) serves `/feeds/vendors/{vendor}` and `/feeds/pending` as
+signed notes under the log key, and `/api/inbox`. `/api/whoami` and `/api/publish` return `pending`,
+and the publish returns `warning`. `nvs pkg whoami` and `nvs pkg publish` print them
+(`crates/nvs-cli/src/package/login.rs`, `publish.rs`). `Events::token` now takes the scope.
+`Push::register` no longer tells the other devices; the route calls `Notices::tell`.
+`rule:packaging/an-owner-is-notified-without-email` is `shipped`. Run once by name and green:
+`FeedsTest`'s three cases and the five new or extended tests in `package_login.rs`,
+`registry_build.rs` and `login.rs`. No other test was run.
 
-Watch in stage 12: `internal = []` refuses loopback for every registry test; no existing test
-reaches loopback (the Rust git server is outside the app), but a red that names `net.internal` is
-this. One run in three had `IndexTest::aPublishedReleaseIsInTheLogAndInTheIndexFile`'s `catchUp`
-return `false`. The sweep's `env-secret-proofs` red was stale for a third time: its own log says
-`exit 0`, and a rerun exits 0. Nightly run 40662443492 was cancelled by a newer push. No test is
-expected red.
+Watch in stage 12: every changing route now sends notices; the test webhook is
+`https://hooks.invalid/<account>`, so a registry test slow on DNS is this. A red naming
+`net.internal` is `internal = []`. One run in three had `IndexTest`'s `catchUp` return `false`. The
+sweep's `env-secret-proofs` is in no goal or floor (`looper check` finds no such check; its log is
+from 2026-10-22, `exit 0`), so it is looper's service state. Nightly 40662443492 was cancelled by a
+newer push. No test is expected red.
 
 ### Next
 
-Stage 9, the feeds and the inbox; it needs stages 5 and 8, both done. Follow its `**Split:**`
-line: land `Feeds.nvs` and the notifying of each event, then one writing subagent writes the Rust
-items in `publish.rs` and `login.rs`.
-- [ ] Notify each owner of each event: every row `Events.nvs` adds (publish, token, owner change, unlist, retraction) also calls `Push::notify` and `Webhooks::notify` for every owner of the vendor. `apps/registry/src/Events.nvs:1`, `apps/registry/src/Webhooks.nvs:84`
-- [ ] `Feeds.nvs`: the signed feed per vendor, the inbox, the public pending feed. `apps/registry/src/Feeds.nvs:1`
-- [ ] The route that adds a device and the one that adds a webhook each call both senders; fold them into one `Notices` helper if a third caller appears. `apps/registry/src/App.nvs:318`
+Stage 6, the activity rule; it needs stages 5 and 8, both done. Its reminder is one more `Notices`
+caller: send it with `Notices::tell`, never a third copy of the two senders.
+- [ ] The activity clock and its check in `Publish`. `apps/registry/src/Activity.nvs:1`, `apps/registry/src/Publish.nvs:38`
+- [ ] The reminder with its one-time code in push and webhook messages. `apps/registry/src/Notices.nvs:95`, `apps/registry/src/Push.nvs:1`, `apps/registry/src/Webhooks.nvs:83`
 
 ### Backlog
 
@@ -696,8 +713,10 @@ items in `publish.rs` and `login.rs`.
 - Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
   an `fs.read` grant for each secret file outside the app folder (`pushKey` among them); the
   committed `nvs.toml` has neither (standing decision *The build runs only where the operator grants it*).
-- `rule:packaging/an-owner-is-notified-without-email` stays `designed` until stage 9 sends each
-  event to every owner's channels.
+- `nvs pkg publish` prints the registry's new `Warning:` on stderr, and the older digest-mismatch
+  `Warning:` in `crates/nvs-cli/src/package/publish.rs` on stdout. Stage 10's proofs make them one stream.
+- The feeds answer `503` with `"logKey": ""`, so the committed `hosting.json` serves none locally.
+  Stage 10's guide says so.
 - `Webhooks::retry` catches only `RuntimeError`, so another throwable from one send stops the
   rest of that minute's sends. The next minute tries again.
 - A webhook added with a plain URL answers `400` with the `Core\Http::allowUrl` message, which may

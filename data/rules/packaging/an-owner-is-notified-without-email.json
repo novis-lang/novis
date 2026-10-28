@@ -1,6 +1,6 @@
 {
   "title": "Every owner is notified of each publish, token, owner change, unlist and retraction through Web Push or a webhook they verified, and an account with no verified channel cannot publish",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/web-push-sends-an-encrypted-message",
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
