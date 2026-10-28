@@ -8,9 +8,10 @@ use Core\Process;
 use Core\Str;
 use RuntimeError;
 
-// Runs `nvs registry log append` and `nvs registry index sign` as child processes.
+// Runs `nvs registry log append`, `nvs registry index sign`, `nvs registry log verify` and
+// `nvs registry log files` as child processes.
 // The program is the `nvs` setting of `hosting.json`, and `nvs.toml` must allow it under `[capabilities.process]`.
-final class NvsLog implements Log
+final class NvsLog implements Log, LogCheck
 {
     private Site $site;
     private string $folder;
@@ -52,6 +53,39 @@ final class NvsLog implements Log
                 $written[] = Str::trim($line);
             }
             return Core\Arr::slice($written, 1);
+        } catch (RuntimeError $error) {
+            return null;
+        }
+    }
+
+    // The command checks the checkpoint with the public half of the key that signs the next one.
+    // Memory: every entry of the log at once.
+    public function entries(): ?array<string>
+    {
+        return $this->lines(['registry', 'log', 'verify', $this->folder . '/log', '--key', $this->site->logKey, '--origin', $this->site->logName, '--entries']);
+    }
+
+    public function files(int $size): ?array<string>
+    {
+        return $this->lines(['registry', 'log', 'files', $size . '']);
+    }
+
+    // Runs `nvs` with `$arguments` and returns each line it printed, without the empty lines.
+    // If the command fails, the result is `null`.
+    private function lines(array<string> $arguments): ?array<string>
+    {
+        try {
+            var $done = Process::run($this->site->nvs, $arguments, { cwd: '..' });
+            if ($done->exitCode() != 0) {
+                return null;
+            }
+            array<string> $lines = [];
+            foreach (Str::split($done->stdout() as string, "\n") as string $line) {
+                if (Str::trim($line) != '') {
+                    $lines[] = Str::trim($line);
+                }
+            }
+            return $lines;
         } catch (RuntimeError $error) {
             return null;
         }

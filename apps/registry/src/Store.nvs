@@ -73,6 +73,34 @@ final class Store
         }
     }
 
+    // Copies the file at `$path` in this store to the local file `$file`.
+    // An `http` store gets a `GET` request with the same credential header as `put`.
+    // It returns `false` when the store has no file at `$path`, and throws a `RuntimeError`
+    // when the store gives another error.
+    // Memory: an `http` store's file is in memory once while it is written.
+    public function fetch(string $path, string $file): bool
+    {
+        if ($this->kind == 'dir') {
+            string $source = Path::join($this->location, $path);
+            if (!IO::isFile($source)) {
+                return false;
+            }
+            IO::copy($source, $file);
+            return true;
+        }
+        secret string $credential = Str::trim(IO::read($this->secret));
+        var $response = Client::get($this->location . $path, { headers: [$this->header => $credential] });
+        if ($response->status() == 404) {
+            return false;
+        }
+        if ($response->status() < 200 || $response->status() > 299) {
+            throw new RuntimeError('The store ' . $this->location . ' answered ' . $response->status() . ' for ' . $path . '.');
+        }
+        // The restore checks what it reads: the copy is sealed, and `nvs registry log verify` checks the log.
+        IO::writeStream($file, [Core\Taint::assertTrustedBytes($response->bytes(), 'the restore checks every file it reads')]);
+        return true;
+    }
+
     // Returns the full path of `$path` in a `dir` store, or `null` for an `http` store.
     public function fileOf(string $path): ?string
     {

@@ -35,11 +35,13 @@ tile and the checkpoint change, and are served with one of 60 seconds. The servi
 CDN, so it holds no CDN account key.
 
 **The database is copied to the backup store** after each publish and at an interval the settings set,
-five minutes by default, and not when nothing changed since the last copy. The copy is a
-`VACUUM INTO` a temporary file, sealed with `Core\Crypto::seal` under XChaCha20Poly1305 and a key the
-settings name, so the backup store never reads it. The log is the record of every release, so a lost
-interval loses at most the rows the log does not hold, such as a token created in it, which its owner
-creates again.
+five minutes by default, and not when nothing changed since the last copy, which a SHA-256 of the
+copy tells. The copy is every row of every table as JSON lines, read in one transaction, sealed with
+`Core\Crypto::seal` under XChaCha20Poly1305 and a key the settings name, so the backup store never
+reads it, and it replaces the one before. It is not a `VACUUM INTO`, because Core's SQLite driver
+refuses that statement: it writes a file no `fs` grant was checked for. The log is the record of
+every release, so a lost interval loses at most the rows the log does not hold, such as a token
+created in it, which its owner creates again.
 
 **A service that starts with no database restores itself.** When the backup store has a copy, the
 service opens it, takes the log from a public store, runs `nvs registry log verify`, rebuilds every
@@ -83,5 +85,6 @@ sent. The daily count holds one day's salted hashes, as the counting rule says.
 backup store and key, and the download-log source, and stop on a file a setting names that does not
 exist. `Stores` sends each publish's files from the work folder to every store, one rank at a time
 across the stores and the checkpoint last, and a publish of the same commit sends what a failed
-one left. The daily run that signs and sends every index file, the backup, the restore and the
-count from access lines are not built.
+one left. `jobs/daily.nvs` signs and sends every index file, `Backup` copies the database after a
+publish and from `jobs/backup.nvs`, and `Restore` runs from `Schema::open` on a database with no
+tables. The count from access lines is not built.

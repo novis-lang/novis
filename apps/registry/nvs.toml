@@ -26,6 +26,14 @@ cron = "0 3 * * *"
 script = "jobs/daily.nvs"
 scope = "host"
 
+# Every minute, the registry checks whether to copy its database to the backup store.
+# It copies when `backupMinutes` from `hosting.json` have passed and something changed.
+[[schedule]]
+name = "backup"
+cron = "* * * * *"
+script = "jobs/backup.nvs"
+scope = "host"
+
 # The program may open this database and no other.
 [capabilities.db]
 connect = ["registry"]

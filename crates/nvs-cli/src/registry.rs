@@ -17,8 +17,11 @@
 //! The key file is read under `rule:config/ownership-is-the-trust-boundary`'s check: it and its
 //! directory must be writable by no account but this one, an administrator and the system.
 //!
-//! `log verify` reads the checkpoint with a pinned verifier key and checks the whole directory
-//! from scratch ([`log::verify`]), every entry included.
+//! `log verify` reads the checkpoint with a pinned verifier key, or the verifier of a key file,
+//! and checks the whole directory from scratch ([`log::verify`]), every entry included. With
+//! `--entries` it prints every entry, which is how a service that restores itself rebuilds its
+//! releases from the log. `log files` prints the path of every file a log of a given size has, so
+//! the service copies a log from a file host it cannot list.
 //!
 //! `index sign` signs a directory's root file, `registry.json`, and every index file under its
 //! `index/` again ([`index::sign`]), each with the key file, the time and the size and root hash of
@@ -141,11 +144,27 @@ enum LogCommand {
         /// The log's directory.
         dir: PathBuf,
         /// The public key the checkpoint is signed with, `<name>+<id>+<key>`.
-        #[arg(long)]
-        vkey: String,
+        #[arg(long, required_unless_present = "key", conflicts_with = "key")]
+        vkey: Option<String>,
+        /// The file with the signing key. The command checks the checkpoint
+        /// with the public half of this key. Use it in place of `--vkey`.
+        #[arg(long, value_name = "FILE")]
+        key: Option<PathBuf>,
         /// The log's name, the first line of every checkpoint.
         #[arg(long)]
         origin: String,
+        /// Print every entry of the log, one JSON object per line, in place of
+        /// the summary. The line number, counted from 0, is the entry's number.
+        #[arg(long)]
+        entries: bool,
+    },
+    /// Print the path of every file a log of `size` entries has.
+    ///
+    /// Each line is a path in the log's directory. The list does not include
+    /// `checkpoint`. A registry uses it to copy a log from a file host.
+    Files {
+        /// The number of entries in the log, the second line of its checkpoint.
+        size: u64,
     },
 }
 
@@ -159,8 +178,18 @@ impl Args {
                 command: LogCommand::Append { dir, key, origin },
             } => append(&dir, &key, &origin),
             Command::Log {
-                command: LogCommand::Verify { dir, vkey, origin },
-            } => verify(&dir, &vkey, &origin),
+                command:
+                    LogCommand::Verify {
+                        dir,
+                        vkey,
+                        key,
+                        origin,
+                        entries,
+                    },
+            } => verify(&dir, vkey.as_deref(), key.as_deref(), &origin, entries),
+            Command::Log {
+                command: LogCommand::Files { size },
+            } => Ok(log::written_paths(0, size).join("\n")),
             Command::Index {
                 command: IndexCommand::Sign { dir, key, log, at },
             } => sign(&dir, &key, log.as_deref(), at),
@@ -230,11 +259,26 @@ fn append(dir: &Path, key: &Path, origin: &str) -> Result<String, String> {
     Ok(message)
 }
 
-/// `nvs registry log verify`.
-fn verify(dir: &Path, vkey: &str, origin: &str) -> Result<String, String> {
-    let verifier = Verifier::parse(vkey).map_err(|err| format!("--vkey: {err}"))?;
+/// `nvs registry log verify`. The checkpoint is opened with `vkey`, or with the verifier of the
+/// signer in the file `key`, which is how a registry checks a log it is about to extend: the
+/// checkpoint must be its own key's. With `entries`, the answer is every entry, one per line, in
+/// the log's order, and an entry is canonical JSON, so it has no newline of its own.
+/// What it spends: with `entries`, every entry of the log at once.
+fn verify(
+    dir: &Path,
+    vkey: Option<&str>,
+    key: Option<&Path>,
+    origin: &str,
+    entries: bool,
+) -> Result<String, String> {
+    let verifier = match (vkey, key) {
+        (Some(vkey), _) => Verifier::parse(vkey).map_err(|err| format!("--vkey: {err}"))?,
+        (None, Some(key)) => read_key(key)?.verifier(),
+        (None, None) => return Err("give `--vkey` or `--key`".to_owned()),
+    };
     let checkpoint = read_checkpoint(dir, origin, &[verifier])?
         .ok_or_else(|| format!("{} has no `{CHECKPOINT}` file", dir.display()))?;
+    let mut lines = Vec::new();
     log::verify(
         dir,
         checkpoint.size(),
@@ -244,10 +288,16 @@ fn verify(dir: &Path, vkey: &str, origin: &str) -> Result<String, String> {
             if entry.canonical() != record {
                 return Err("the entry is not in its canonical form".to_owned());
             }
+            if entries {
+                lines.push(String::from_utf8_lossy(record).into_owned());
+            }
             Ok(())
         },
     )
     .map_err(|err| err.to_string())?;
+    if entries {
+        return Ok(lines.join("\n"));
+    }
     Ok(format!(
         "The log `{origin}` has {} entries, and every file matches its checkpoint.",
         checkpoint.size()

@@ -1,0 +1,197 @@
+<?nvs
+namespace Registry;
+
+use Core\Charset;
+use Core\Crypto;
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Encoding;
+use Core\Hash;
+use Core\IO;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+use RuntimeError;
+
+// Writes a sealed copy of the database to the backup store of `hosting.json`.
+// The copy is every row of every table, one JSON object per line, in the order the tables were made.
+// It is sealed with XChaCha20-Poly1305 under the key in the file `backupKey`, so the backup store
+// cannot read it or change it. Each copy replaces the one before, as the file `registry.copy`.
+// The copy is not a SQLite file, because Novis does not allow `VACUUM INTO`: it would write a file
+// that no `fs` grant was checked for.
+final class Backup
+{
+    // The name of the copy in the backup store.
+    public const string FILE = 'registry.copy';
+
+    private Connection $db;
+    private Site $site;
+
+    public function constructor(Connection $db, Site $site)
+    {
+        $this->db = $db;
+        $this->site = $site;
+    }
+
+    // Runs after each publish. A copy that fails does not fail the publish, and the next
+    // scheduled run copies again.
+    public function afterPublish(): void
+    {
+        try {
+            $this->copy();
+        } catch (RuntimeError $error) {
+            // The schedule copies again within `backupMinutes`.
+        }
+    }
+
+    // Runs every minute, from `jobs/backup.nvs`. It copies when `backupMinutes` have passed since the
+    // last check and something changed. The schedule in `nvs.toml` is fixed, so this check is how the
+    // setting is honoured. It returns `true` when it wrote a copy.
+    public function onSchedule(): bool
+    {
+        int $now = Time::now()->toEpochSeconds();
+        foreach ($this->db->query('select checked_at from backups where id = 1', []) as Row $row) {
+            if ($now - ($row->int('checked_at') ?? 0) < $this->site->backupMinutes * 60) {
+                return false;
+            }
+        }
+        return $this->copy();
+    }
+
+    // Writes a copy when the database changed since the last copy. With no `backupKey`, it does nothing.
+    // It returns `true` when it wrote a copy, and throws a `RuntimeError` when the store fails.
+    // A change is found by the SHA-256 hash of the whole copy, so the request path pays nothing.
+    // Cost: each check reads every row and hashes it.
+    // Memory: the copy is in memory three times, as text, as sealed bytes and as base64 text,
+    // and it is on disk once as a temporary file, which is deleted when it is sent.
+    public function copy(): bool
+    {
+        if ($this->site->backupKey == '') {
+            return false;
+        }
+        string $plain = Backup::dump($this->db);
+        string $digest = Encoding::toHex(Hash::of($plain, Hash::Digest::Sha256));
+        int $now = Time::now()->toEpochSeconds();
+        bool $changed = true;
+        foreach ($this->db->query('select digest from backups where id = 1', []) as Row $row) {
+            $changed = $row->string('digest') != $digest;
+        }
+        if (!$changed) {
+            $this->remember($digest, $now);
+            return false;
+        }
+        string $file = Index::work($this->site) . '/' . Random::token(8) . '.copy';
+        try {
+            IO::write($file, Backup::seal($plain, $this->site->backupKey));
+            $this->site->backup->put(Backup::FILE, $file);
+        } finally {
+            if (IO::exists($file)) {
+                IO::remove($file);
+            }
+        }
+        $this->remember($digest, $now);
+        return true;
+    }
+
+    // Returns every row of every table of `$db` but `backups`, one JSON object per line,
+    // such as `{"table":"accounts","row":{"id":"…"}}`. The rows are read in one transaction,
+    // so the copy shows the database at one moment.
+    public static function dump(Connection $db): string
+    {
+        return $db->transaction(fn(Transaction $tx): string => {
+            string $text = '';
+            foreach (Backup::tables($tx) as string $table) {
+                foreach ($tx->stream('select * from ' . Db::quoteIdentifier($table) . ' order by rowid', []) as Row $row) {
+                    $text .= Backup::trusted(Json::encode({ table: $table, row: $row->toArray() })) . "\n";
+                }
+            }
+            return $text;
+        });
+    }
+
+    // Adds every row of the copy `$plain` that is not in the database yet. A table that the
+    // database does not have stops the restore with a `RuntimeError`.
+    public static function load(Transaction $tx, string $plain): void
+    {
+        array<string> $tables = Backup::tables($tx);
+        foreach (Str::split($plain, "\n") as string $line) {
+            if ($line == '') {
+                continue;
+            }
+            var $entry = Json::decode($line) as array<mixed>;
+            string $table = Backup::trusted($entry['table']);
+            if (!Core\Arr::contains($tables, $table)) {
+                throw new RuntimeError('The copy has the table `' . $table . '`, and the database does not.');
+            }
+            array<string> $columns = [];
+            array<string> $marks = [];
+            array<mixed> $values = [];
+            foreach (($entry['row'] as array<mixed>) as tainted string $column => mixed $value) {
+                $columns[] = Db::quoteIdentifier(Backup::trusted($column));
+                $marks[] = '?';
+                $values[] = $value;
+            }
+            $tx->execute(
+                'insert into ' . Db::quoteIdentifier($table) . ' (' . Str::join($columns, ', ') . ') values ('
+                    . Str::join($marks, ', ') . ') on conflict do nothing',
+                $values,
+            );
+        }
+    }
+
+    // Seals the text `$plain` with the key in the file `$keyFile`, and returns it as base64 text.
+    public static function seal(string $plain, string $keyFile): string
+    {
+        bytes $sealed = Crypto::seal(Encoding::encodeText($plain, Charset::Utf8), Backup::key($keyFile), Crypto::Cipher::XChaCha20Poly1305);
+        return Encoding::toBase64($sealed);
+    }
+
+    // Opens a copy that `seal` wrote. It throws a `RuntimeError` when the key is not the one that sealed
+    // it, or when somebody changed the copy.
+    public static function open(string $sealed, string $keyFile): string
+    {
+        bytes $plain = Crypto::open(Encoding::fromBase64(Str::trim($sealed)), Backup::key($keyFile), Crypto::Cipher::XChaCha20Poly1305);
+        return Encoding::decodeText($plain, Charset::Utf8);
+    }
+
+    // The key is 64 hex characters in the file, such as the output of `openssl rand -hex 32`.
+    private static function key(string $keyFile): secret bytes
+    {
+        secret string $text = Str::trim(IO::read($keyFile));
+        secret bytes $key = Encoding::fromHex(Core\Secret::reveal($text, 'the hex text becomes the secret key at once'));
+        if (Core\Bytes::length(Core\Secret::revealBytes($key, 'only the length is read')) != 32) {
+            throw new RuntimeError('hosting.json: the file of `backupKey` must have 64 hex characters.');
+        }
+        return $key;
+    }
+
+    // Returns the tables of the database in the order they were made, so a row comes after the rows
+    // it refers to. `backups` is not in the list.
+    private static function tables(Transaction $tx): array<string>
+    {
+        array<string> $tables = [];
+        var $rows = $tx->query("select name from sqlite_master where type = 'table' and name not like 'sqlite%' and name != 'backups' order by rowid", []);
+        foreach ($rows as Row $row) {
+            $tables[] = Backup::trusted($row->string('name'));
+        }
+        return $tables;
+    }
+
+    // Saves the hash of the last copy and the time of this check.
+    private function remember(string $digest, int $now): void
+    {
+        $this->db->execute(
+            'insert into backups (id, digest, checked_at) values (1, ?, ?) on conflict (id) do update set digest = excluded.digest, checked_at = excluded.checked_at',
+            [$digest, $now],
+        );
+    }
+
+    // A text from a row or a copy the registry wrote.
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

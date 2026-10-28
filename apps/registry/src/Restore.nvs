@@ -1,0 +1,219 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\IO;
+use Core\Json;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+use RuntimeError;
+
+// Fills a new, empty database from the newest copy in the backup store and from the log.
+// A registry that starts on a new computer with the same `hosting.json` comes back with every
+// release, and the next publish adds to the same log.
+final class Restore
+{
+    private Site $site;
+    private LogCheck $check;
+    private string $work;
+
+    // `$work` is the work folder. The log is its folder `log`.
+    public function constructor(Site $site, LogCheck $check, string $work)
+    {
+        $this->site = $site;
+        $this->check = $check;
+        $this->work = $work;
+    }
+
+    // Runs from `Schema::open` when the database has no tables.
+    public static function onStart(Connection $db): void
+    {
+        var $site = Site::load();
+        string $work = Index::work($site);
+        new Restore($site, new NvsLog($site, $work), $work)->into($db);
+    }
+
+    // Makes the tables of `$db` and adds the rows of the newest copy. Then it checks the log and adds
+    // each release of the log that the copy does not have. Everything happens in one transaction,
+    // so a restore that fails leaves an empty database, and the next request tries again.
+    // Another request that starts at the same moment waits, and then finds the tables.
+    // It returns `true` when it restored a copy. With no `backupKey`, it only makes the tables.
+    // It throws a `RuntimeError` when the copy or the log is not valid, and when the stores have a log
+    // but the backup store has no copy. A registry with an empty database would start a second log.
+    // Memory: the copy and every entry of the log, once each.
+    public function into(Connection $db): bool
+    {
+        return $db->transaction(fn(Transaction $tx): bool => {
+            Schema::setUp($tx);
+            // This statement writes, so this transaction has the write lock of the database from here on.
+            var $first = $tx->execute('insert into backups (id, digest, checked_at) values (1, ?, 0) on conflict (id) do nothing', ['']);
+            if ($first->affected() == 0 || $this->site->backupKey == '') {
+                return false;
+            }
+            string $file = $this->work . '/' . Random::token(8) . '.copy';
+            ?string $plain = null;
+            try {
+                if ($this->site->backup->fetch(Backup::FILE, $file)) {
+                    $plain = Backup::open(IO::read($file), $this->site->backupKey);
+                }
+            } finally {
+                if (IO::exists($file)) {
+                    IO::remove($file);
+                }
+            }
+            bool $logged = $this->takeLog();
+            if ($plain == null) {
+                if ($logged) {
+                    throw new RuntimeError('The stores have a log, and the backup store has no copy of the database. '
+                        . 'Put the newest copy in the backup store and start again.');
+                }
+                return false;
+            }
+            Backup::load($tx, $plain);
+            if ($logged) {
+                ?array<string> $entries = $this->check->entries();
+                if ($entries == null) {
+                    throw new RuntimeError('The log in ' . $this->work . '/log does not match its checkpoint. Nothing was restored.');
+                }
+                int $number = 0;
+                foreach ($entries as string $line) {
+                    var $entry = Json::decode($line) as array<mixed>;
+                    if (Restore::trusted($entry['kind']) == 'publish') {
+                        $this->release($tx, $entry, $number);
+                    }
+                    $number++;
+                }
+            }
+            return true;
+        });
+    }
+
+    // Copies the log from the first public store to the work folder, with the checkpoint last.
+    // A work folder that has a checkpoint keeps its own log, because the stores never have a newer one.
+    // It returns `false` when there is no log yet.
+    private function takeLog(): bool
+    {
+        string $folder = $this->work . '/log';
+        if (IO::isFile($folder . '/checkpoint')) {
+            return true;
+        }
+        Store $store = $this->site->stores[0];
+        IO::makeDir($folder);
+        string $checkpoint = $folder . '/checkpoint.' . Random::token(8) . '.partial';
+        if (!$store->fetch('log/checkpoint', $checkpoint)) {
+            return false;
+        }
+        // The second line of the checkpoint is the number of entries. `entries` checks the whole log later.
+        array<string> $lines = Str::split(IO::read($checkpoint), "\n");
+        ?array<string> $files = $this->check->files(Restore::trusted($lines[1] ?? '0') as int);
+        if ($files == null) {
+            IO::remove($checkpoint);
+            throw new RuntimeError('The list of the files of the log could not be made.');
+        }
+        foreach ($files as string $path) {
+            string $target = Path::join($folder, $path);
+            IO::makeDir(Path::dirname($target));
+            if (!$store->fetch('log/' . $path, $target)) {
+                IO::remove($checkpoint);
+                throw new RuntimeError('The store ' . $store->location . ' has no log/' . $path . '.');
+            }
+        }
+        IO::move($checkpoint, $folder . '/checkpoint');
+        return true;
+    }
+
+    // Gives the release of the log entry `$entry` its log number `$number`.
+    // A release that the copy does not have is made from the entry and from its package's index file.
+    private function release(Transaction $tx, array<mixed> $entry, int $number): void
+    {
+        string $key = Str::replace(Restore::trusted($entry['package']), '/', '\\');
+        string $version = Restore::trusted($entry['version']);
+        string $digest = Restore::trusted($entry['digest']);
+        string $commit = Restore::trusted($entry['commit']);
+        foreach ($tx->query('select log from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
+            // The copy was made before the release was in the log.
+            $tx->execute('update releases set log = ? where package = ? and version = ? and log is null', [$number, $key, $version]);
+            return;
+        }
+        var $index = $this->indexOf($key);
+        ?array<mixed> $listed = null;
+        foreach (($index['versions'] as array<mixed>) as mixed $item) {
+            var $candidate = $item as array<mixed>;
+            if (Restore::trusted($candidate['version']) == $version) {
+                $listed = $candidate;
+            }
+        }
+        if ($listed == null || Restore::trusted($listed['digest']) != $digest || Restore::trusted($listed['commit']) != $commit) {
+            throw new RuntimeError('The index file of ' . $key . ' does not list version ' . $version . ' as the log does.');
+        }
+        ?array<int> $parts = Publish::versionOf($version);
+        if ($parts == null) {
+            throw new RuntimeError('The log has the version ' . $version . ' of ' . $key . ', and it is not a version.');
+        }
+        int $now = Time::now()->toEpochSeconds();
+        string $name = Restore::trusted($index['name']);
+        string $vendor = Str::before($key, '\\') ?? $key;
+        // A vendor or a package that the copy does not have keeps its owners, so nobody else can take its name.
+        var $made = $tx->execute('insert into vendors (key, name, created_at) values (?, ?, ?) on conflict (key) do nothing', [$vendor, Str::before($name, '\\') ?? $name, $now]);
+        if ($made->affected() == 1) {
+            foreach (($index['owners'] as array<mixed>) as mixed $owner) {
+                string $id = Restore::trusted($owner);
+                $tx->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?) on conflict (id) do nothing', [$id, $now, $now]);
+                $tx->execute('insert into owners (vendor, account, added_at) values (?, ?, ?) on conflict do nothing', [$vendor, $id, $now]);
+            }
+        }
+        // The folder of the package in its repository is not in the log, so it stays empty.
+        $tx->execute(
+            'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
+            [$key, $name, $vendor, Restore::trusted($entry['repository']), '', $now],
+        );
+        ?string $account = null;
+        foreach ($tx->query('select account from owners where vendor = ? order by added_at, account limit 1', [$vendor]) as Row $row) {
+            $account = Restore::trusted($row->string('account'));
+        }
+        if ($account == null) {
+            throw new RuntimeError('The vendor of ' . $key . ' has no owner.');
+        }
+        // A release that the index file lists as waiting keeps its time. The archive and the API file
+        // are not on this computer, so their paths stay empty.
+        ?int $until = null;
+        mixed $state = $listed['state'];
+        if ($state is array<mixed>) {
+            $until = (($state as array<mixed>)['pending'] as array<mixed>)['selectable_at'] as int;
+        }
+        $tx->execute(
+            'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, '
+                . 'published_at, pending_until, dependencies, capabilities, log) values (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $key, $version, $parts[0], $parts[1], $parts[2], 'blake3:' . $digest, $commit, $account, '', '', '',
+                $now, $until, Restore::trusted(Json::encode($listed['dependencies'])), Restore::trusted(Json::encode($listed['capabilities'])), $number,
+            ],
+        );
+    }
+
+    // Reads the index file of the package `$key` from the work folder, or from the first public store.
+    // A signed index file has its JSON on the first line.
+    private function indexOf(string $key): array<mixed>
+    {
+        string $path = 'index/' . Index::slug($key) . '.json';
+        string $file = Path::join($this->work, $path);
+        if (!IO::isFile($file)) {
+            IO::makeDir(Path::dirname($file));
+            if (!$this->site->stores[0]->fetch($path, $file)) {
+                throw new RuntimeError('The store ' . $this->site->stores[0]->location . ' has no ' . $path . '.');
+            }
+        }
+        string $text = IO::read($file);
+        return Json::decode(Str::before($text, "\n") ?? $text) as array<mixed>;
+    }
+
+    // A text from the verified log, a copy or an index file the registry wrote.
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

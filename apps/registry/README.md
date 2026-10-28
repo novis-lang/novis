@@ -28,7 +28,12 @@ file that a setting names does not exist.
 
 `hosts` lists the file hosts that `registry.json` names. With no hosts, the registry sends the
 files itself, from the first `dir` store. `backup` is the store for copies of the database, and
-`backupKey` is the file with the key that encrypts them. `downloadLog` is the store with the access
+`backupKey` is the file with the key that encrypts them. The key is 64 hex characters, such as the
+output of `openssl rand -hex 32`. With `"backupKey": ""`, the registry makes no copies. The
+registry writes a copy, `registry.copy`, after each publish. It also writes one every
+`backupMinutes` minutes when something changed. When the registry starts with no database, it
+reads the newest copy and the log from the first store. Then it adds every release in the log
+that the copy does not have. `downloadLog` is the store with the access
 lines of the file hosts, or `null` when the registry sends the files itself. `logKey` is the key
 file that signs the log and the index files, and `nvs registry key` makes one. `logName` is the
 name of that key.

@@ -1,0 +1,16 @@
+<?nvs
+namespace Registry;
+
+// Reads the registry's log when the registry restores itself. `NvsLog` runs `nvs registry log verify`
+// and `nvs registry log files`. The tests replace it with a double.
+interface LogCheck
+{
+    // Checks every file of the log against its checkpoint, signed with the key of `logKey`.
+    // It returns every entry, one JSON object per text, in the order of the log.
+    // The position of an entry in the result is its number. If the log is not valid, the result is `null`.
+    public function entries(): ?array<string>;
+
+    // Returns the path of every file a log of `$size` entries has, such as `tile/0/000`,
+    // without `checkpoint`. If the command fails, the result is `null`.
+    public function files(int $size): ?array<string>;
+}

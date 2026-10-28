@@ -325,9 +325,13 @@ The service never purges a CDN: the deploy guide gives the files that change a 6
 lifetime.
 
 **The service backs itself up and restores itself.** After each publish, and every five minutes when
-something changed, the database is copied with `VACUUM INTO`, sealed with `Core\Crypto::seal`, and
-written to the backup store. A service that starts with no database restores the newest copy, takes
-the log from a public store, verifies it, and rebuilds every release's state from the log.
+something changed, the database is copied as JSON lines of every row (Core's SQLite driver refuses
+`VACUUM INTO`), sealed with `Core\Crypto::seal`, and written to the backup store as one file each
+copy replaces (`apps/registry/src/Backup.nvs`). A service that starts with no database restores the
+newest copy, takes the log from a public store, verifies it with `nvs registry log verify --key
+--entries`, and rebuilds every release's state from the log and the index files
+(`apps/registry/src/Restore.nvs`, run from `Schema::open` when `releases` is missing). It refuses to
+start when the stores have a log and the backup store has no copy, so it never starts a second log.
 
 **Downloads are counted from the file hosts' access lines** (`rule:packaging/search-sorts-by-the-readers-choice`).
 A daily task reads the previous day's lines from the source the settings name, counts per version per

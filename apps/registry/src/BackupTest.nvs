@@ -1,0 +1,225 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Driver;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\IO;
+use Core\Json;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use RuntimeError;
+
+// Tests for the sealed copy of the database and the restore from it.
+// Each test has its own folder under `work`, with its own stores and key files, and deletes it at the end.
+// The log is a test double.
+final class BackupTest
+{
+    #[Test]
+    public function aCopyOpensOnlyWithItsKey(): void
+    {
+        string $folder = BackupTest::folder();
+        try {
+            var $site = BackupTest::site($folder);
+            var $browser = new BrowserTest();
+            string $account = $browser->newAccount();
+            Test::assertTrue(new Backup(Schema::open(), $site)->copy());
+
+            string $sealed = IO::read($folder . '/backup/' . Backup::FILE);
+            // The store has no row of the database as text.
+            Test::assertTrue(!Str::contains($sealed, $account));
+            Test::assertTrue(!Core\Bytes::contains(Encoding::fromBase64(Str::trim($sealed)), $account as bytes));
+            // Another key does not open the copy.
+            string $other = $folder . '/other.key';
+            IO::write($other, Encoding::toHex(Random::bytes(32)));
+            Test::assertThrows(fn(): void => { Backup::open($sealed, $other); }, RuntimeError::class);
+            // A copy changed by one character does not open either.
+            string $changed = Str::slice($sealed, 0, 10) . (Str::slice($sealed, 10, 1) == 'A' ? 'B' : 'A') . Str::slice($sealed, 11);
+            Test::assertThrows(fn(): void => { Backup::open($changed, $site->backupKey); }, RuntimeError::class);
+            // The key opens it, and the copy has the new account.
+            Test::assertTrue(Str::contains(Backup::open($sealed, $site->backupKey), '"id":"' . $account . '"'));
+        } finally {
+            BackupTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRestoreBringsBackEveryRelease(): void
+    {
+        string $folder = BackupTest::folder();
+        try {
+            var $site = BackupTest::site($folder);
+            var $browser = new BrowserTest();
+            string $account = $browser->newAccount();
+            string $vendor = 'V' . Random::token(4);
+            string $key = Str::lower($vendor) . '\\http';
+            var $made = $browser->post('/api/tokens', { scope: $vendor, days: 30 });
+            tainted string $token = ($made->json() as array<mixed>)['token'] as tainted string;
+            string $repository = 'https://git.example.com/' . $vendor . '/http.git';
+
+            // Version 1.0.0 is in the log as entry 0, and then the database is copied.
+            BackupTest::publish($site, $token, $vendor, $repository, '1.0.0');
+            Test::assertTrue(new Index(Schema::open(), BackupTest::log(0), $site)->catchUp($key));
+            Test::assertTrue(new Backup(Schema::open(), $site)->copy());
+            // Version 1.1.0 is in the log as entry 1. The copy does not have it.
+            BackupTest::publish($site, $token, $vendor, $repository, '1.1.0');
+            Test::assertTrue(new Index(Schema::open(), BackupTest::log(1), $site)->catchUp($key));
+
+            // The log has both releases. The double returns its entries.
+            array<string> $entries = [];
+            foreach (Schema::open()->query('select version, digest, git_commit from releases where package = ? order by log', [$key]) as Row $row) {
+                $entries[] = BackupTest::trusted(Json::encode({
+                    v: 1,
+                    kind: 'publish',
+                    package: Index::slug($key),
+                    version: $row->string('version'),
+                    digest: Str::slice(BackupTest::trusted($row->string('digest')), 7),
+                    repository: $repository,
+                    commit: $row->string('git_commit'),
+                }));
+            }
+            Test::assertCount($entries, 2);
+            IO::makeDir($site->work . '/log');
+            IO::write($site->work . '/log/checkpoint', "test\n2\nroot\n");
+            var $check = Test::double<LogCheck>({
+                entries: fn(): ?array<string> => $entries,
+                files: fn(int $size): ?array<string> => [],
+            });
+
+            // A new, empty database gets both releases. It is in memory, so the test leaves no file.
+            var $restored = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+            Test::assertSame($restored->query("select count(*) from sqlite_master where type = 'table'", [])->value() as int, 0);
+            Test::assertTrue(new Restore($site, $check, $site->work)->into($restored));
+            var $rows = $restored->query('select version, log, pending_until, account, capabilities from releases where package = ? order by log', [$key])->all();
+            Test::assertCount($rows, 2);
+            int $until = Core\Time::now()->toEpochSeconds() + 7 * 86400;
+            int $number = 0;
+            foreach ($rows as Row $row) {
+                Test::assertSame($row->string('version'), $number == 0 ? '1.0.0' : '1.1.0');
+                Test::assertSame($row->int('log'), $number);
+                // A release by token alone still waits seven days.
+                Test::assertSame($row->int('pending_until'), $until);
+                Test::assertSame($row->string('account'), $account);
+                Test::assertTrue(Str::contains(BackupTest::trusted($row->string('capabilities')), 'net.connect'));
+                $number++;
+            }
+            // The account, its passkey and the vendor are back too.
+            Test::assertTrue(new Vendors($restored)->isOwner($vendor, $account));
+            Test::assertSame($restored->query('select count(*) as n from passkeys where account = ?', [$account])->value() as int, 1);
+            // A second restore of the same database does nothing.
+            Test::assertTrue(!new Restore($site, $check, $site->work)->into($restored));
+            Test::assertCalled($check, LogCheck::entries, { times: 1 });
+            $restored->close();
+        } finally {
+            BackupTest::remove($folder);
+        }
+    }
+
+    // A new folder for one test, under `work`.
+    private static function folder(): string
+    {
+        string $folder = Path::join(Index::work(Site::load()), 'test-backup-' . Random::token(8));
+        IO::makeDir($folder);
+        return $folder;
+    }
+
+    // The settings of `hosting.json`, with the work folder, the public store, the backup store
+    // and the key in `$folder`.
+    private static function site(string $folder): Site
+    {
+        var $loaded = Site::load();
+        string $key = $folder . '/backup.key';
+        IO::write($key, Encoding::toHex(Random::bytes(32)));
+        return new Site(
+            $loaded->origin,
+            $loaded->signUpWork,
+            $loaded->nvs,
+            $loaded->gitCaFile,
+            $loaded->projectAccount,
+            $folder . '/work',
+            [new Store('dir', $folder . '/files')],
+            [],
+            new Store('dir', $folder . '/backup'),
+            $key,
+            5,
+            null,
+            '',
+            '',
+            $loaded->logName,
+        );
+    }
+
+    // Publishes `$version` of `<vendor>\Http` with a build double that writes the archive.
+    private static function publish(Site $site, tainted string $token, string $vendor, string $repository, string $version): void
+    {
+        string $built = BackupTest::trusted(Json::encode({
+            schema: 1,
+            ok: true,
+            name: $vendor . '\\Http',
+            version: $version,
+            repository: $repository,
+            commit: Encoding::toHex(Random::bytes(20)),
+            directory: '',
+            digest: 'blake3:' . Encoding::toHex(Random::bytes(32)),
+            size: 23,
+            files: [{ path: 'src/A.nvs', size: 10 }],
+            dependencies: {},
+            capabilities: { required: ['net.connect'], optional: [] },
+            api: null,
+        }));
+        var $builder = Test::double<Builder>({ build: fn(array<string> $arguments): string => BackupTest::build($arguments, $built) });
+        var $done = new Publish(Schema::open(), $builder, $site)->publish($token, new PublishRequest($repository, BackupTest::commitOf($built), $version, ''));
+        Test::assertSame($done->status, 201);
+    }
+
+    // Writes an archive to the file after `--archive`, as the build does, and returns `$json`.
+    private static function build(array<string> $arguments, string $json): string
+    {
+        bool $next = false;
+        foreach ($arguments as string $argument) {
+            if ($next) {
+                IO::write($argument, 'the archive of the test');
+            }
+            $next = $argument == '--archive';
+        }
+        return $json;
+    }
+
+    private static function commitOf(string $built): string
+    {
+        return BackupTest::trusted((Json::decode($built) as array<mixed>)['commit']);
+    }
+
+    // A log double with `$size` entries that adds every line.
+    private static function log(int $size): Log
+    {
+        return Test::double<Log>({
+            size: fn(): int => $size,
+            append: fn(string $lines): ?array<string> => [],
+            sign: fn(int $at): bool => true,
+        });
+    }
+
+    // Deletes `$path` and everything in it.
+    private static function remove(string $path): void
+    {
+        if (!IO::isDir($path)) {
+            if (IO::exists($path)) {
+                IO::remove($path);
+            }
+            return;
+        }
+        foreach (IO::list($path) as string $name) {
+            BackupTest::remove(Path::join($path, $name));
+        }
+        IO::removeDir($path);
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the test wrote this text');
+    }
+}

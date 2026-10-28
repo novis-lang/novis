@@ -3,14 +3,21 @@ namespace Registry;
 
 use Core\Db;
 use Core\Db\Connection;
+use Core\Db\Transaction;
 
 // The tables of the registry. `open` creates each table that does not exist yet.
 final class Schema
 {
     // Opens the database `registry` from `nvs.toml` and creates the missing tables.
+    // A database with no tables is a new one. `Restore` fills it from the newest copy
+    // and the log before the first request uses it.
+    // Cost: one read of the list of tables for each call.
     public static function open(): Connection
     {
         var $db = Db::connect('registry');
+        if ($db->query("select 1 from sqlite_master where type = 'table' and name = 'releases'", [])->count() == 0) {
+            Restore::onStart($db);
+        }
         Schema::setUp($db);
         return $db;
     }
@@ -18,7 +25,8 @@ final class Schema
     // Every time is in seconds since 1970, from `Core\Time::now()`.
     // An account has no name, no email and no password. Its id is 32 hex characters.
     // `active_at` is the time of the last sign-in with a passkey.
-    public static function setUp(Connection $db): void
+    // `Restore` calls this inside its transaction, so a restore that fails leaves no table.
+    public static function setUp(Connection|Transaction $db): void
     {
         $db->execute(
             'create table if not exists accounts ('
@@ -89,6 +97,10 @@ final class Schema
         // The files in the work folder that some store does not have yet, such as `log/checkpoint`.
         // `rank` is the order they are sent in: the archives, the log, the index files, the checkpoint.
         $db->execute('create table if not exists unsent (path text primary key, rank integer not null)', []);
+        // One row, with `id` 1, about the copies of the database. `digest` is the SHA-256 hash of the
+        // last copy before it was sealed. `checked_at` is the time `Backup` last looked for a change.
+        // A copy does not contain this table.
+        $db->execute('create table if not exists backups (id integer primary key, digest text not null, checked_at integer not null)', []);
         // The downloads of each version per day. A day is the number of days since 1970.
         $db->execute(
             'create table if not exists downloads ('

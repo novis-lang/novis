@@ -273,7 +273,7 @@ final class Publish
 
     // Checks that a sent text is a version, such as `1.4.0`, and returns its three numbers.
     // A number has no leading zero and at most nine digits.
-    private static function versionOf(tainted string $text): ?array<int>
+    public static function versionOf(tainted string $text): ?array<int>
     {
         array<tainted string> $pieces = Str::split($text, '.');
         if (Core\Arr::count($pieces) != 3) {

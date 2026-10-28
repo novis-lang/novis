@@ -1,0 +1,6 @@
+<?nvs
+// The copy of the database. The `[[schedule]]` block in `nvs.toml` runs it every minute.
+// It writes a sealed copy to the backup store when `backupMinutes` have passed and something changed.
+autoload 'Registry' from '../src';
+
+new Registry\Backup(Registry\Schema::open(), Registry\Site::load())->onSchedule();
