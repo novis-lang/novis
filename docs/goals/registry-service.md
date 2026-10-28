@@ -455,6 +455,11 @@ reads no local file as bytes, so the test fakes Bunny Storage with `Core\Test::a
 Memory: one part at a time, compressed, uncompressed and as lines, and one hash per archive and
 address of the day.
 
+**`rule:packaging/the-registry-is-a-novis-program` ships with the website.** Its title says the
+service and the website are `apps/registry/`, and the website's pages are goal `registry-website`'s,
+so its record names that goal, whose stage 4 ships it. Why: a shipped rule is always currently
+true, and the half about the website is not true until those pages exist.
+
 **Lanes.** The Rust lane (`crates/nvs-cli/src/package/login.rs`, `build.rs`, `publish.rs`,
 `retract.rs`, `unlist.rs`) is disjoint from `apps/registry/`, so stage 3 can run beside stage 2's app
 items, and stage 4's and stage 9's Rust items can go to their own sessions. Its one shared file is
@@ -677,11 +682,11 @@ attacks. All follow AGENTS.md § *Text an end user reads*.
   - [x] The guide: settings, keys, two accounts, Bunny zones, cache times, `hosting.json`, `nvs.toml` grants, service units, moving hosts.
   - [ ] The client's tests run against the service: a Rust test serves a copy of `apps/registry` and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it.
 - [x] The headings `# nvs pkg login and nvs pkg whoami`, `# nvs pkg publish` and `# nvs pkg retract and nvs pkg unlist`. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
-- [ ] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
-- [ ] `about.md` and examples for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
-- [ ] The attacks: a stolen token publishing outside its scope, a publish of an internal repository URL, and a token-only retraction trying to skip the wait. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
-- [ ] `rule:packaging/the-registry-is-a-novis-program` is `shipped`, and `bun nv owners --closes registry-service` passes. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
+- [x] `about.md` and examples for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
+- [x] `about.md` and examples for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
+- [x] `about.md` and examples for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
+- [x] The attacks, one per heading: a stolen token publishing outside its scope with an internal repository URL, a token-only retraction trying to skip the wait, and a login with a token that is not a publish token. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
+- [x] `rule:packaging/the-registry-is-a-novis-program` names goal `registry-website`, which ships it with the website its title names, and `bun nv owners --closes registry-service` passes. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
 
 ### 12. the goal is verified once, and every failure is fixed
 
@@ -700,40 +705,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 9 and 11 are done, and stage 10 is under way. This session:
-- Checked Bunny's documentation (`bunny.net/docs/llms.txt` with `curl`). The v1 line format and
-  `MM-DD-YY/<zone>.log` were right, but that API needs the account-wide key, so the reader moved
-  to Permanent Log Storage (standing decision *Bunny's access lines are read from Permanent Log
-  Storage*). `Store::list` and `Store::bytes` are new; `Site` lost `downloadFile`, and
-  `downloadLog` must be `http`. `DownloadsTest` ran once by name and is green.
-- Wrote the deploy guide in `apps/registry/README.md`, with every Backlog item that named it.
-- Wrote the three headings at the end of `docs/reference/tools/35-packages.md`, moved the
-  dangling `only-a-major-may-break-the-api` `src` comment above `# nvs pkg api and nvs pkg diff`,
-  rendered `llms-full.txt`, and fixed a broken rustdoc link in `crates/nvs-cli/src/package/publish.rs`.
-  `bun nv verify --doc` is green.
+Stages 1 to 9 and 11 are done. Stage 10 has one open checkpoint: the client's tests against the
+service. This session:
+- Wrote `about.md`, three examples and one attack for each of `nvs pkg login and nvs pkg whoami`,
+  `nvs pkg publish` and `nvs pkg retract and nvs pkg unlist`. Four subagents ran side by side,
+  since their folders are disjoint. Tagged the Rust tests in `package_login.rs`,
+  `package_retract.rs` and `registry_build.rs` with `// covers:`. `service-proofs` passes.
+- Handed `rule:packaging/the-registry-is-a-novis-program` to goal `registry-website` (standing
+  decision *ships with the website*). `owners-closes` passes.
+- The sweep's `env-secret-proofs` is defined in no file in the tree, and its log reads exit 0, so
+  the red is looper's service state. Nightly 40662443492 was cancelled by a newer push.
 
 Watch in stage 12: `PublishTest::anInactiveAccountIsRefusedUntilAPasskeySignIn` reads the refusal
-by status only. The sweep's `env-secret-proofs` passes by hand (exit 0, and its log says exit 0);
-the red is looper's service state. Nightly 40662443492 was cancelled by a newer push. Every
-changing route sends notices to `https://hooks.invalid/<account>`, so a slow registry test may be
-DNS. One run in three had `IndexTest`'s `catchUp` return `false`. No test is expected red.
+by status only. Every changing route sends notices to `https://hooks.invalid/<account>`, so a slow
+registry test may be DNS. One run in three had `IndexTest`'s `catchUp` return `false`. The three
+new attacks under `tests/hostile/tools/packages/nvs-pkg-*` first run in the hostile suite there.
+No test is expected red.
 
 ### Next
 
-Stage 10's proofs. `bun nv proofs --id` shows each heading owes an `about.md`, one example, one
-case, and one attack of its own, so the three attacks go one per heading: a token outside its
-scope and an internal repository URL under `nvs-pkg-publish`, a token-only retraction under
-`nvs-pkg-retract-and-nvs-pkg-unlist`, and one for login (a token on the command line, or a token
-file another account can write) under `nvs-pkg-login-and-nvs-pkg-whoami`. Update stage 10's
-attack item to say so. Follow the `**Split:**` line: one writing subagent per heading, one after
-another.
-- [ ] `about.md`, examples and a case for `nvs pkg login and nvs pkg whoami`. `docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md:1`
-- [ ] The same for `nvs pkg publish`. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1`
-- [ ] The same for `nvs pkg retract and nvs pkg unlist`. `docs/examples/tools/packages/nvs-pkg-retract-and-nvs-pkg-unlist/about.md:1`
-- [ ] The attacks, one per heading. `tests/hostile/tools/packages/nvs-pkg-publish/01-a-token-outside-its-scope.nvs:1`
-- [ ] The client's tests against the service, stage 10's first item's last checkpoint: a Rust test serves a copy of `apps/registry`, with an account and token from `Registry\BrowserTest`'s passkey ceremony. `crates/nvs-cli/tests/package_login.rs:1`
+Stage 10's last checkpoint, then stage 12.
+- [ ] The client's tests against the service: a Rust test serves a copy of `apps/registry` with `nvs serve`, makes an account and a token, and runs `nvs pkg login`, `whoami`, `publish`, `retract` and `unlist` against it. The passkey ceremony is Novis in `Registry\BrowserTest::register` (`apps/registry/src/BrowserTest.nvs:117`), which works through `Core\Test::request` only, so the Rust test needs a Novis script run with `nvs run` against the served origin, or the ceremony in Rust over HTTP; pick the one that keeps the tested path the real one. `crates/nvs-cli/tests/package_login.rs:1`
+- [ ] Stage 12: `bun nv affected --run` with `run_in_background`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
+
+- A `Core` bug the examples hit: `mixed $m = null; $m as ?string` is not `null` (`== null` is
+  false), while `as ?int` is. A JSON `null` read `as ?string` does the same. The publish and whoami
+  examples compare the raw value with `== null`. Not this goal's to fix; it needs a gap owner.
+- The publish attack checks private addresses typed into the URL by hand. The real refusal is the
+  outbound address table when git connects; the registry's `repositoryOf` checks only `https://`
+  and the URL's characters.
 
 - Bunny Permanent Log Storage's line format is taken to be the logging API's v1 pipe format; the
   storage page does not state it. The guide could tell the operator to compare the first day's

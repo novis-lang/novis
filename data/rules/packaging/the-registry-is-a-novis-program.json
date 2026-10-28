@@ -11,5 +11,5 @@
     "core-classes/web-push-sends-an-encrypted-message"
   ],
   "guardedBy": [],
-  "goal": "registry-service"
+  "goal": "registry-website"
 }

@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: The registry website finds packages by what the registry witnessed
-summary: "The registry's website searches by text and sorts by the reader's choice, with a default that mixes witnessed work and downloads by a formula published in the repository, every package page shows its versions and their states, requested capabilities and their changes, the API diff, the commit, the owners and their history, advisories, supersedes and every ranking fact, the account pages and the withhold policy page exist, the website has its feature proofs, rule packaging/search-sorts-by-the-readers-choice is shipped, and the checks below pass."
+summary: "The registry's website searches by text and sorts by the reader's choice, with a default that mixes witnessed work and downloads by a formula published in the repository, every package page shows its versions and their states, requested capabilities and their changes, the API diff, the commit, the owners and their history, advisories, supersedes and every ranking fact, the account pages and the withhold policy page exist, the website has its feature proofs, rules packaging/search-sorts-by-the-readers-choice and packaging/the-registry-is-a-novis-program are shipped, and the checks below pass."
 context: [apps/registry/README.md, apps/registry/src/App.nvs, docs/rules/packaging/search-sorts-by-the-readers-choice.md]
 stages:
   - id: 1
@@ -166,6 +166,7 @@ attack.
 - [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-registry-website/about.md:1`
 - [ ] The attack: a package tries to rank higher with a backdated git history, and its order does not change. `tests/hostile/tools/packages/the-registry-website/01-a-backdated-history.nvs:1`
 - [ ] The rule is `shipped` with `SearchTest.nvs` in its `guardedBy`, and `bun nv owners --closes registry-website` passes. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`
+- [ ] `rule:packaging/the-registry-is-a-novis-program` is `shipped` with `apps/registry/src/App.nvs` in its `guardedBy`: goal `registry-service` built the service, and its title also says the website is part of `apps/registry/`, which this goal makes true. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
