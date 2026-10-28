@@ -1,0 +1,21 @@
+<?nvs
+namespace Registry;
+
+// The JSON `nvs pkg publish` sends: the repository, the full hash of the commit, the version,
+// and the folder of the package in the repository. An empty `directory` is the repository's root.
+#[Core\Json\Derive]
+final class PublishRequest
+{
+    public tainted string $repository;
+    public tainted string $commit;
+    public tainted string $version;
+    public tainted string $directory;
+
+    public function constructor(tainted string $repository, tainted string $commit, tainted string $version, tainted string $directory)
+    {
+        $this->repository = $repository;
+        $this->commit = $commit;
+        $this->version = $version;
+        $this->directory = $directory;
+    }
+}

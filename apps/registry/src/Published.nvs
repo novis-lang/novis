@@ -1,0 +1,20 @@
+<?nvs
+namespace Registry;
+
+// The result of a publish. `status` is the HTTP status of the answer.
+// A published version has its `digest`, and `text` is the sentence `nvs pkg publish` prints.
+// A refused publish has an empty `digest`, and `text` says why.
+final class Published
+{
+    public function constructor(
+        public readonly uint $status,
+        public readonly string $text,
+        public readonly string $digest = '',
+    )
+    {}
+
+    public static function refused(uint $status, string $text): Published
+    {
+        return new Published($status, $text);
+    }
+}

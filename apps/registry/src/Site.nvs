@@ -15,6 +15,12 @@ final class Site
         public readonly string $origin,
         // The number of zero bits the proof-of-work of a sign-up needs.
         public readonly int $signUpWork,
+        // The `nvs` program that builds each release, such as `/usr/local/bin/nvs`.
+        public readonly string $nvs,
+        // A PEM file with one more certificate authority for the git servers, or an empty string for none.
+        public readonly string $gitCaFile,
+        // The account that may publish the vendors `Core` and `Novis`, or an empty string for none.
+        public readonly string $projectAccount,
     )
     {}
 
@@ -22,14 +28,23 @@ final class Site
     public static function load(): Site
     {
         var $settings = Json::decode(IO::read('../hosting.json')) as array<mixed>;
-        string $origin = Core\Taint::assertTrusted($settings['origin'] as tainted string, 'the operator wrote hosting.json');
-        int $work = $settings['signUpWork'] as int;
-        return new Site($origin, $work);
+        return new Site(
+            Site::text($settings, 'origin'),
+            $settings['signUpWork'] as int,
+            Site::text($settings, 'nvs'),
+            Site::text($settings, 'gitCaFile'),
+            Site::text($settings, 'projectAccount'),
+        );
     }
 
     // The domain of the site, such as `registry.example.com`. A passkey belongs to this domain.
     public function domain(): string
     {
         return Str::lower(Uri::parse($this->origin)->host() ?? '');
+    }
+
+    private static function text(array<mixed> $settings, string $key): string
+    {
+        return Core\Taint::assertTrusted($settings[$key] as tainted string, 'the operator wrote hosting.json');
     }
 }

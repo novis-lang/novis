@@ -256,8 +256,8 @@ final class App
                 App::fail(400, 'A token works for 1 to 365 days.');
                 return;
             }
-            if (!new Vendors($db)->isOwner(Str::before($scope, '\\') ?? $scope, $account)) {
-                App::fail(403, 'You can make a token only for a vendor you own.');
+            if (!new Vendors($db)->mayPublish(Str::before($scope, '\\') ?? $scope, $account)) {
+                App::fail(403, 'You can make a token only for a vendor you own, or a new vendor that nobody owns yet.');
                 return;
             }
             array<string> $made = new Tokens($db)->create($account, $scope, $asked->days);
@@ -300,6 +300,28 @@ final class App
             return;
         }
         Response::json({ account: $token->account, scope: $token->scope, expiresAt: $token->expiresAt });
+    }
+
+    // Publishes a version. `nvs pkg publish` sends the repository, the commit, the version and the
+    // folder of the package. The registry builds the archive from that commit itself.
+    // The `authorization` header has the publish token. The session is not used.
+    #[Route(path: '/api/publish', method: Method::Post)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function publish(): void
+    {
+        var $site = Site::load();
+        try {
+            var $sent = Request::jsonAs<PublishRequest>();
+            var $done = new Publish(Schema::open(), new NvsBuilder($site), $site)->publish(Tokens::bearer(), $sent);
+            if ($done->digest == '') {
+                App::fail($done->status, $done->text);
+                return;
+            }
+            Response::setStatus(201);
+            Response::json({ digest: $done->digest, message: $done->text });
+        } catch (ParseError $error) {
+            App::fail(400, 'The body must be JSON with a repository, a commit, a version and a directory.');
+        }
     }
 
     // Signs the visitor out.

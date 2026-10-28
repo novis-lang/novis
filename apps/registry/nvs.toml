@@ -4,10 +4,11 @@
 driver = "sqlite"
 path = "registry.sqlite"
 
-# A request may read this file and no other file. `hosting.json` has the address of the site
-# and the other settings of this installation.
+# A request may read `hosting.json`, which has the address of the site and the other settings
+# of this installation. It may read and write the archives in `builds`, which `nvs registry build` writes.
 [capabilities.fs]
-read = ["hosting.json"]
+read = ["hosting.json", "builds"]
+write = ["builds"]
 
 # The program may open this database and no other.
 [capabilities.db]

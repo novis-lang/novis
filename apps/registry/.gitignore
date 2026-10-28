@@ -1,3 +1,4 @@
 registry.sqlite
 registry.sqlite-shm
 registry.sqlite-wal
+builds/

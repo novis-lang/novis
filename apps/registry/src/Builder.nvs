@@ -1,0 +1,11 @@
+<?nvs
+namespace Registry;
+
+// Builds the archive of one release from a git commit. `NvsBuilder` runs `nvs registry build`.
+// The tests replace it with a double that returns the JSON the build prints.
+interface Builder
+{
+    // Runs the build with these arguments, such as the repository, the commit and `--version 1.0.0`.
+    // It returns the JSON document the build prints, or an empty string when the build could not start.
+    public function build(array<string> $arguments): string;
+}

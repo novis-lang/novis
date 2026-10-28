@@ -1,4 +1,7 @@
 {
   "origin": "http://localhost:8000",
-  "signUpWork": 8
+  "signUpWork": 8,
+  "nvs": "nvs",
+  "gitCaFile": "",
+  "projectAccount": ""
 }

@@ -72,6 +72,13 @@ final class Vendors
         return false;
     }
 
+    // Returns `true` when the account owns the vendor, or nobody owns it yet.
+    // The first publish under a vendor that nobody owns takes it.
+    public function mayPublish(string $vendor, string $account): bool
+    {
+        return $this->find($vendor) == null || $this->isOwner($vendor, $account);
+    }
+
     // Returns the account ids of the owners of a vendor, the first owner first.
     public function owners(string $vendor): array<string>
     {

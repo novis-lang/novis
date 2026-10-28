@@ -1,0 +1,35 @@
+<?nvs
+namespace Registry;
+
+use Core\Process;
+use RuntimeError;
+
+// Runs `nvs registry build` as a child process. The program is the `nvs` setting of `hosting.json`,
+// and `nvs.toml` must allow it under `[capabilities.process]`.
+final class NvsBuilder implements Builder
+{
+    private Site $site;
+
+    public function constructor(Site $site)
+    {
+        $this->site = $site;
+    }
+
+    public function build(array<string> $arguments): string
+    {
+        array<string> $command = ['registry', 'build'];
+        foreach ($arguments as string $argument) {
+            $command[] = $argument;
+        }
+        // The certificate authority of a git server inside the operator's own network.
+        if ($this->site->gitCaFile != '') {
+            $command[] = '--ca-file';
+            $command[] = $this->site->gitCaFile;
+        }
+        try {
+            return Process::run($this->site->nvs, $command, { cwd: '..' })->stdout() as string;
+        } catch (RuntimeError $error) {
+            return '';
+        }
+    }
+}

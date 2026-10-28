@@ -91,8 +91,9 @@ final class Tokens
     }
 
     // Returns the token when it may publish this package, such as `Acme\Http`, and saves the time of its use.
-    // The token must be valid, its scope must be the package or its vendor,
-    // and its account must still own the vendor. Otherwise the result is `null`.
+    // The token must be valid, its scope must be the package or its vendor, and its account must
+    // still own the vendor. A vendor that nobody owns yet is allowed, because the first publish
+    // takes it. Otherwise the result is `null`.
     public function allows(?tainted string $presented, string $package): ?Token
     {
         ?Token $token = $this->find($presented);
@@ -100,7 +101,7 @@ final class Tokens
             return null;
         }
         string $vendor = Str::before($package, '\\') ?? $package;
-        if (!new Vendors($this->db)->isOwner($vendor, $token->account)) {
+        if (!new Vendors($this->db)->mayPublish($vendor, $token->account)) {
             return null;
         }
         $this->db->execute('update tokens set used_at = ? where id = ?', [Time::now()->toEpochSeconds(), $token->id]);

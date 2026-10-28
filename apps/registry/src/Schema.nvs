@@ -61,6 +61,29 @@ final class Schema
                 . 'revoked_at integer, used_at integer)',
             [],
         );
+        // `key` is the package name in lower case, such as `acme\http`. `name` is the name as it was
+        // first published. The repository and the folder in it are set by the first publish.
+        // A row is never deleted, so a name is never given to somebody else.
+        $db->execute(
+            'create table if not exists packages ('
+                . 'key text primary key, name text not null, vendor text not null references vendors (key), '
+                . 'repository text not null, directory text not null, created_at integer not null)',
+            [],
+        );
+        // One row per published version. A version is never published twice.
+        // `archive` and `api` are the files the build wrote. `pending_until` is the time a release
+        // by token alone is released, unless an owner confirms it earlier.
+        $db->execute(
+            'create table if not exists releases ('
+                . 'package text not null references packages (key), version text not null, '
+                . 'major integer not null, minor integer not null, patch integer not null, '
+                . 'digest text not null, size integer not null, git_commit text not null, '
+                . 'account text not null references accounts (id), token text not null, '
+                . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
+                . 'primary key (package, version))',
+            [],
+        );
+        $db->execute('create index if not exists packages_of_repository on packages (repository, directory)', []);
         $db->execute('create index if not exists passkeys_of_account on passkeys (account)', []);
         $db->execute('create index if not exists codes_of_account on recovery_codes (account)', []);
         $db->execute('create index if not exists owners_of_account on owners (account)', []);

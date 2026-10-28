@@ -1,0 +1,291 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\IO;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Time;
+use Core\Time\Duration;
+use ParseError;
+use RuntimeError;
+
+// Publishes one version of a package. The registry builds the archive itself from a git commit,
+// checks what only the registry can check, and saves the release. A version is never published twice.
+final class Publish
+{
+    // A release by token alone waits this many days, unless an owner confirms it with a passkey.
+    public const int PENDING_DAYS = 7;
+
+    private const string HEX = '0123456789abcdef';
+    private const string URL_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&'()*+,;=%";
+    private const string FOLDER_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._';
+
+    private Connection $db;
+    private Builder $builder;
+    private Site $site;
+
+    public function constructor(Connection $db, Builder $builder, Site $site)
+    {
+        $this->db = $db;
+        $this->builder = $builder;
+        $this->site = $site;
+    }
+
+    // Publishes the version that `$sent` names, with the token `$presented` from the `authorization` header.
+    public function publish(?tainted string $presented, PublishRequest $sent): Published
+    {
+        ?Token $token = new Tokens($this->db)->find($presented);
+        if ($token == null) {
+            return Published::refused(401, 'The token is not valid. It may be expired or revoked.');
+        }
+        if (!new Accounts($this->db)->isActive($token->account)) {
+            return Published::refused(403, 'This account did not sign in with a passkey in the last 60 days. Sign in on the website, then publish again.');
+        }
+        ?string $repository = Publish::repositoryOf($sent->repository);
+        if ($repository == null) {
+            return Published::refused(400, 'The repository must be an `https://` URL.');
+        }
+        ?string $commit = Publish::commitOf($sent->commit);
+        if ($commit == null) {
+            return Published::refused(400, 'The commit must be a full hash: 40 characters from 0 to 9 and a to f.');
+        }
+        ?array<int> $parts = Publish::versionOf($sent->version);
+        if ($parts == null) {
+            return Published::refused(400, 'The version must be three numbers, such as `1.4.0`.');
+        }
+        string $version = $parts[0] . '.' . $parts[1] . '.' . $parts[2];
+        ?string $directory = Publish::directoryOf($sent->directory);
+        if ($directory == null) {
+            return Published::refused(400, 'The directory must be a folder in the repository, such as `packages/http`. It cannot contain `..`.');
+        }
+
+        // The package this folder of this repository published before. Its last release before
+        // this version is the API the build compares with.
+        ?string $bound = $this->boundTo($repository, $directory);
+        string $folder = Publish::builds();
+        string $file = $folder . '/' . Random::token(16);
+        array<string> $arguments = [$repository, $commit, '--dir', $directory, '--version', $version, '--archive', $file . '.tar', '--api', $file . '.json'];
+        if ($bound != null) {
+            if ($this->hasVersion($bound, $version)) {
+                return Publish::taken($bound, $version);
+            }
+            ?array<string> $previous = $this->previous($bound, $parts);
+            if ($previous != null) {
+                $arguments[] = '--previous';
+                $arguments[] = $previous['api'];
+                $arguments[] = '--previous-version';
+                $arguments[] = $previous['version'];
+            }
+        }
+
+        array<mixed> $built = [];
+        try {
+            $built = Json::decode($this->builder->build($arguments)) as array<mixed>;
+        } catch (ParseError $error) {
+            return Published::refused(500, 'The build did not finish. Try again later.');
+        }
+        if (!($built['ok'] as bool)) {
+            return Published::refused(422, 'The registry did not publish this version. ' . Publish::trusted($built['refusal']));
+        }
+        Published $done = $this->record($presented, $token, $bound, $built, $file, $repository, $commit, $directory, $parts);
+        if ($done->digest == '') {
+            Publish::discard($file);
+        }
+        return $done;
+    }
+
+    // Checks what needs the database once the build has the name, and saves the release.
+    private function record(?tainted string $presented, Token $token, ?string $bound, array<mixed> $built, string $file, string $repository, string $commit, string $directory, array<int> $parts): Published
+    {
+        string $name = Publish::trusted($built['name']);
+        string $version = $parts[0] . '.' . $parts[1] . '.' . $parts[2];
+        string $vendor = Str::before($name, '\\') ?? '';
+        if ($vendor == '' || Tokens::scopeOf($name) == null) {
+            return Published::refused(422, 'The name `' . $name . '` is not a package name, such as `Acme\\Http`.');
+        }
+        string $key = Str::lower($name);
+        if ($bound != null && $bound != $key) {
+            return Published::refused(409, 'This folder of the repository published `' . $bound . '` before. A package keeps its name.');
+        }
+        if (!Tokens::covers($token->scope, $name)) {
+            return Published::refused(403, 'This token publishes only `' . $token->scope . '`. It cannot publish `' . $name . '`.');
+        }
+        if ((Str::lower($vendor) == 'core' || Str::lower($vendor) == 'novis') && $token->account != $this->site->projectAccount) {
+            return Published::refused(403, 'Only the Novis project publishes packages under `' . $vendor . '`.');
+        }
+        if (new Tokens($this->db)->allows($presented, $name) == null) {
+            return Published::refused(403, 'The vendor `' . $vendor . '` belongs to other accounts. An owner can add you on the website.');
+        }
+
+        foreach ($this->db->query('select name, repository, directory from packages where key = ?', [$key]) as Row $row) {
+            string $taken = Publish::trusted($row->string('name'));
+            if ($taken != $name) {
+                return Published::refused(409, 'The name `' . $taken . '` is taken. Names that differ only in upper and lower case are one package.');
+            }
+            if ($row->string('repository') != $repository || $row->string('directory') != $directory) {
+                return Published::refused(403, 'The repository of `' . $name . '` is `' . Publish::trusted($row->string('repository')) . '`. '
+                    . 'To change it, confirm the change with a passkey on the website.');
+            }
+            if ($this->hasVersion($key, $version)) {
+                return Publish::taken($key, $version);
+            }
+        }
+
+        var $vendors = new Vendors($this->db);
+        if (!$vendors->claim($vendor, $token->account)) {
+            return Published::refused(403, 'The vendor `' . $vendor . '` belongs to other accounts. An owner can add you on the website.');
+        }
+        int $now = Time::now()->toEpochSeconds();
+        int $until = $now + Publish::PENDING_DAYS * 86400;
+        string $digest = Publish::trusted($built['digest']);
+        bool $saved = $this->db->transaction(fn(): bool => {
+            $this->db->execute(
+                'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
+                [$key, $name, Str::lower($vendor), $repository, $directory, $now],
+            );
+            var $write = $this->db->execute(
+                'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, published_at, pending_until) '
+                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
+                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until],
+            );
+            return $write->affected() == 1;
+        });
+        if (!$saved) {
+            return Publish::taken($key, $version);
+        }
+        string $date = Time::now()->plus(Duration::days(Publish::PENDING_DAYS))->toIso();
+        return new Published(
+            201,
+            '`' . $name . '` ' . $version . ' is published. It is pending until ' . $date . '. An owner can release it now with a passkey on the website.',
+            $digest,
+        );
+    }
+
+    // Returns the key of the package that this folder of this repository published, or `null`.
+    private function boundTo(string $repository, string $directory): ?string
+    {
+        var $rows = $this->db->query('select key from packages where repository = ? and directory = ? order by created_at desc limit 1', [$repository, $directory]);
+        foreach ($rows as Row $row) {
+            return Publish::trusted($row->string('key'));
+        }
+        return null;
+    }
+
+    private function hasVersion(string $key, string $version): bool
+    {
+        foreach ($this->db->query('select 1 as found from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the version and the API file of the newest release of a package below this version.
+    // If there is none, the result is `null`.
+    private function previous(string $key, array<int> $parts): ?array<string>
+    {
+        var $rows = $this->db->query(
+            'select version, api from releases where package = ? and (major < ? or (major = ? and (minor < ? or (minor = ? and patch < ?)))) '
+                . 'order by major desc, minor desc, patch desc limit 1',
+            [$key, $parts[0], $parts[0], $parts[1], $parts[1], $parts[2]],
+        );
+        foreach ($rows as Row $row) {
+            return ['version' => Publish::trusted($row->string('version')), 'api' => Publish::trusted($row->string('api'))];
+        }
+        return null;
+    }
+
+    private static function taken(string $key, string $version): Published
+    {
+        return Published::refused(409, 'Version ' . $version . ' of `' . $key . '` was published before. Publish a new version.');
+    }
+
+    // The folder the build writes the archives to. It is made when it does not exist.
+    private static function builds(): string
+    {
+        if (!IO::isDir('../builds')) {
+            IO::makeDir('../builds');
+        }
+        return IO::canonicalize('../builds');
+    }
+
+    // Deletes the archive and the API file of a build that was not published.
+    private static function discard(string $file): void
+    {
+        array<string> $paths = [$file . '.tar', $file . '.json'];
+        foreach ($paths as string $path) {
+            try {
+                IO::remove($path);
+            } catch (RuntimeError $error) {
+                // A refused build wrote no file.
+            }
+        }
+    }
+
+    // Checks that a sent text is an `https://` URL with only the characters a URL has.
+    private static function repositoryOf(tainted string $text): ?string
+    {
+        if (!Str::startsWith($text, 'https://') || Str::length($text) > 2000 || Str::length($text) < 9) {
+            return null;
+        }
+        if (Str::trim($text, { characters: Publish::URL_CHARACTERS }) != '') {
+            return null;
+        }
+        return Core\Taint::assertTrusted($text, 'a repository is an https URL of URL characters');
+    }
+
+    // Checks that a sent text is a full commit hash: 40 characters from `0` to `9` and `a` to `f`.
+    private static function commitOf(tainted string $text): ?string
+    {
+        if (Str::length($text) != 40 || Str::trim($text, { characters: Publish::HEX }) != '') {
+            return null;
+        }
+        return Core\Taint::assertTrusted($text, 'a commit is 40 hex characters');
+    }
+
+    // Checks that a sent text is a version, such as `1.4.0`, and returns its three numbers.
+    // A number has no leading zero and at most nine digits.
+    private static function versionOf(tainted string $text): ?array<int>
+    {
+        array<tainted string> $pieces = Str::split($text, '.');
+        if (Core\Arr::count($pieces) != 3) {
+            return null;
+        }
+        array<int> $parts = [];
+        foreach ($pieces as tainted string $piece) {
+            if ($piece == '' || Str::length($piece) > 9 || Str::trim($piece, { characters: '0123456789' }) != '') {
+                return null;
+            }
+            if (Str::length($piece) > 1 && Str::startsWith($piece, '0')) {
+                return null;
+            }
+            $parts[] = Core\Taint::assertTrusted($piece, 'a version number is up to nine digits') as int;
+        }
+        return $parts;
+    }
+
+    // Checks that a sent text is a folder in a repository, such as `packages/http`, or empty for the root.
+    private static function directoryOf(tainted string $text): ?string
+    {
+        if ($text == '') {
+            return '';
+        }
+        if (Str::length($text) > 255) {
+            return null;
+        }
+        foreach (Str::split($text, '/') as tainted string $piece) {
+            if ($piece == '' || $piece == '.' || $piece == '..' || Str::trim($piece, { characters: Publish::FOLDER_CHARACTERS }) != '') {
+                return null;
+            }
+        }
+        return Core\Taint::assertTrusted($text, 'a folder is names of letters, digits, `-`, `.` and `_`');
+    }
+
+    // A text from the build's JSON or from a row the registry wrote.
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}
