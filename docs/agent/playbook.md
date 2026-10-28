@@ -185,6 +185,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **A script under an app's `jobs/` runs on every `Core\Test::request` of `nvs test <app folder>`,
+  so each request answers `500` with no body.** The folder's generated entry requires every file no
+  other file requires, and the request runs that entry. It shows as "`Response::json()`: the program
+  wrote no body" in every test that signs up; `apps/registry` was red from its first `jobs/` file
+  until the runner ran `public/index.nvs` alone. Prove it by moving `jobs/` aside for one run.
+  `until: gone docs/goals/registry-service.md:A test request runs the request entry`
 - **A scheduled script's `[[schedule]]` must be `scope = "host"` in an app with no shared store,
   and `nvs check <app folder>` reads every entry file at once.** `fleet` is E0611 at boot. A
   `jobs/` script with the same `autoload` line as `public/index.nvs` was E0315 until the checker

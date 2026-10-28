@@ -406,6 +406,21 @@ next to a local write and rare. Memory: one archive per publish while it is writ
 database copy the size of the database during a backup. A write outage, or a lost backup interval,
 delays publishers and loses at most the rows the log does not hold.
 
+**A test request runs the request entry.** `nvs test` over a folder writes an entry that requires
+every file no other file requires (`crates/nvs-cli/src/main.rs:3185`), and `Core\Test::request`
+runs that entry's script frame (`crates/nvs-cli/src/runner.rs:1307`). Since `apps/registry/jobs/`
+exists, each test request therefore runs `jobs/backup.nvs`, `daily.nvs` and `withhold.nvs` before
+`public/index.nvs`, and answers `500` with no body: every app test that signs up has been red
+since stage 11 (probed: with `jobs/` moved away, every request answers). The fix is the runner's,
+never the app's: when the folder has `public/index.nvs`, the file a tree with no
+`[[server.mount]]` serves (`crates/nvs-config/src/mount.rs:77`), a test request runs that file's
+script frame alone, and the generated entry still requires every file so each one is compiled and
+checked. A folder without one keeps the generated entry. The amendment goes into
+`rule:testing/a-directory-of-programs-is-one-test-program` and `rule:testing/in-process-request`,
+with a Rust test of a folder whose `jobs/` script would fail a request. Why: a test request must run
+what a served request runs, and a scheduled or operator script never runs per request. Cost: none on
+a request path; the runner keeps one more frame handle.
+
 ## Stages
 
 ### 1. the application exists, and an account is passkeys, recovery codes and a proof-of-work sign-up
@@ -507,7 +522,11 @@ the first stable API at once, and unlisting and withholding work as their rules 
   - [x] `Events` and the `events` table, appended by `Index::flush` and `catchUp` before an index file changes
   - [x] owner changes, tokens made and revoked, unlist, relist, retract, withhold, release and stable confirmations
   - [ ] the `repository` entry, with the passkey route that rebinds a package's repository; each release first keeps its own repository, because `Index::write` takes every version's from the package row
-- [ ] Tests under a fixed clock: a token release selectable after seven days and not before, a passkey release at once, a release behind a pending dependency, an unlist reversed, a withhold carrying its reason, and one log entry per event. `apps/registry/src/ReleasesTest.nvs:1`
+- [x] Tests under a fixed clock: a token release selectable after seven days and not before, a passkey release at once, a release behind a pending dependency, an unlist reversed, a withhold carrying its reason, and one log entry per event. `apps/registry/src/ReleasesTest.nvs:1`
+  - [x] the eight tests over a database of their own: the wait, the passkey release, the stable wait, the dependency, unlist, retract, withhold, one entry per change
+  - [x] the three route tests: a passkey release, a token unlist answered `202`, `451` from a withheld archive
+  - [x] `IndexTest` and `PublishTest` read the stable wait and the shifted log numbers
+- [ ] `nvs test` over a folder answers `Core\Test::request` with `public/index.nvs` alone, so the scripts under `jobs/` do not run per request (standing decision *A test request runs the request entry*). `crates/nvs-cli/src/runner.rs:1307`, `crates/nvs-cli/src/main.rs:3185`, `docs/rules/testing/a-directory-of-programs-is-one-test-program.md:1`
 - [ ] `rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`, `rule:packaging/an-owner-may-unlist` and `rule:packaging/the-operator-only-withholds` are `shipped`. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`, `data/rules/packaging/an-owner-may-unlist.json:1`, `data/rules/packaging/the-operator-only-withholds.json:1`
 
 ### 5. an owner is notified by Web Push, a channel is verified, and an account without one cannot publish
@@ -590,27 +609,30 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7 and 11 are done. Stage 4's service side and Rust lane landed: `Releases`
+Stages 1, 2, 3, 7 and 11 are done. Stage 4's service side, Rust lane and tests landed: `Releases`
 (states, the stable wait, the dependency walk), `Events` (the `events` table that
 `Index::flush` and `catchUp` append before any index file changes), the `release`, `stable`,
 `api`, `unlist`, `relist` and `retract` routes in `apps/registry/src/App.nvs`, the owner and
 token entries in `Vendors` and `Tokens`, `jobs/withhold.nvs` with `451` from the archive route,
-and `nvs pkg retract` and `nvs pkg unlist` (`crates/nvs-cli/src/package/retract.rs`,
-`unlist.rs`). The client's `State::Pending` takes `Option<u64>`; `{"pending": {}}` waits for an
-owner. Three standing decisions record the design. `nvs check apps/registry` is clean, and clippy
-too. Run once: `cargo test --test package_retract` (3 passed). No app test was run.
-The sweep's `env-secret-proofs` red is stale (rerun: nothing owed), and nightly run 40662443492
-was cancelled by a newer push.
+and `nvs pkg retract` and `nvs pkg unlist`. Stage 4's tests landed in
+`apps/registry/src/ReleasesTest.nvs` (11 tests); `IndexTest` publishes `0.0.9` (every version at
+`0.1.0` or higher waits for an owner, `0.9.0` too) and reads the log number the release saved,
+because waiting token entries in the shared database now go into the log first. Run once with
+`apps/registry/jobs/` moved aside: `ReleasesTest` 11 passed, and `IndexTest` red only on the
+log number this session then fixed. `nvs check apps/registry` is clean.
 
-Expected red: `IndexTest` at `apps/registry/src/IndexTest.nvs:47`. It publishes `1.0.0`, which is
-now the first stable release, so its state is `{"pending": {}}` and has no `selectable_at`. Any
-app test that pins a publish message for a version at `0.1.0` or higher reads the new sentence.
+Found: every app test that sends a request has been red since stage 11, because the folder's
+generated test entry runs `jobs/*.nvs` on each request (standing decision *A test request runs the
+request entry*). Expected red until the runner fix lands: every test that calls
+`BrowserTest::newAccount` or `Core\Test::request`, which is most of `AccountsTest`, `TokensTest`,
+`VendorsTest`, `PublishTest`, `IndexTest`, `DownloadsTest`, `BackupTest` and `ReleasesTest`'s
+three route tests. The sweep's `env-secret-proofs` red was stale (rerun exit 0), and nightly run
+40662443492 was cancelled by a newer push.
 
 ### Next
 
-Stage 4's tests, then its rules. The second subagent of the **Split:** line writes the tests.
-- [ ] `apps/registry/src/ReleasesTest.nvs` under `#[Test(at: ...)]` and `Core\Test::advance`: a token release selectable after seven days and not before, a passkey `release` at once, the stable wait and `stable`, a release behind a waiting dependency, an unlist reversed, a token unlist answered `202`, a retraction by token seven days out and by passkey at once, a withhold carrying its reason in `Index::document` and `451` from `/archive/…`, and one `events` row per change with owner and token changes too. Give each test its own in-memory database, as `StoresTest` does, because a test whose `Log` double accepts lines deletes every waiting row of the shared `registry.sqlite`. `apps/registry/src/Releases.nvs:1`, `apps/registry/src/Events.nvs:1`, `apps/registry/src/StoresTest.nvs:1`
-- [ ] `IndexTest` publishes `0.9.0`, or confirms `stable` first, so it keeps checking `selectable_at`. `apps/registry/src/IndexTest.nvs:47`
+The runner fix first, because no app test can pass without it; then stage 4's last items.
+- [ ] The runner fix of *A test request runs the request entry*: `Program::Directory` keeps the path of `public/index.nvs` when the folder has one, and `runner::UnderTest` runs that file's script frame (find how a `require` site calls a file's frame in the unit) where it now takes `unit.script()` (`crates/nvs-cli/src/runner.rs:1384`, `:3970`). Add a Rust test of a folder whose `jobs/x.nvs` throws at top level and whose `#[Test]` sends a request; amend the two rules. Then `nvs test apps/registry --config apps/registry/nvs.toml` once. `crates/nvs-cli/src/main.rs:3185`, `crates/nvs-cli/src/runner.rs:1307`
 - [ ] The `repository` entry and the passkey route that rebinds a package's repository. First give each release its own repository: `Index::write` lists every version with the package row's. `apps/registry/src/Index.nvs:@write`, `apps/registry/src/Publish.nvs:130`
 - [ ] The three rules `shipped`, each with its guards. `data/rules/packaging/a-release-waits-seven-days-unless-an-owner-confirms.json:1`
 
