@@ -48,7 +48,7 @@ stages:
         rules: [packaging/a-release-waits-seven-days-unless-an-owner-confirms, packaging/resolution-takes-the-highest-minimum, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, security/package-authority-is-granted-one-line-at-a-time]
   - id: 9
     title: "an external download is fetched, checked and placed, and `nvs pkg download` and `nvs pkg provide` work"
-    status: open
+    status: done
     context: [docs/rules/packaging/an-external-file-is-pinned-by-url-sha256-and-size.md, crates/nvs-config/src/capability.rs, crates/nvs-stdlib/src/http/transport.rs]
     extra:
       context:
@@ -317,7 +317,13 @@ sets to `vendor/package-files.toml`, generated like `vendor/packages.nvs`, and
 `nvs_config::package` reads it onto each `Package`, so its digest joins every unit's key. The
 lowered call carries the approved path as a prepared fact, as `Core\Cap::has` carries its mask,
 and the door then skips the operator's `fs.read` scope for that one path after it canonicalizes
-it again. A file placed in the folder and not in the set is refused. The literal's path must
+it again. The fact is a word, `nvs_config::capability::own_file_word`: a tag bit and 61 bits of
+the BLAKE3 hash of the path as `nvs_config::capability::resolved` gives it, so the nine
+`OWN_FILE_READS` members join `PREPARED_MEMBERS` and take one integer argument. The member sets
+the word on the context for its door call (`Ctx::with_own_file`), and the door asks it only
+after the scope refused, and only under a spawn's `grants:` narrowing that keeps `fs.read`. Why:
+latency, an immediate where a path string would be a staged temporary on every `Core\IO` read;
+security, a link changed since compiling changes the hash and the scope decides again. A file placed in the folder and not in the set is refused. The literal's path must
 exist when the program compiles, because the check canonicalizes it; a file that is not there
 needs the grant. The set is read only for a folder at `vendor/<vendor>/<name>/`, so a hand-copied
 package has none. Why: security first, the
@@ -439,12 +445,12 @@ placed at its path, and the two commands write an entry and fill the cache.
 - [x] `nvs pkg download <url> --to <path>` writes an entry, `nvs pkg provide <file>` fills the cache only for a matching entry, and a package reads its downloaded file through a relative path. `crates/nvs-cli/src/package/download.rs:1`
   - [x] `nvs pkg download` (`download::add_entry`) and `nvs pkg provide` (`download::provide`) in the `Command` enum
   - [x] a package reads its downloaded file through a relative path, which needs the read check below
-- [ ] The read check: `nvs pkg fetch` records each package's file set, and a read-only `Core` door called from a package's namespace passes for a file in that set with no grant line (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-cli/src/package/fetch.rs:1`
+- [x] The read check: `nvs pkg fetch` records each package's file set, and a read-only `Core` door called from a package's namespace passes for a file in that set with no grant line (`rule:packaging/a-package-carries-only-its-source-and-what-it-lists`). `crates/nvs-config/src/grants.rs:1`, `crates/nvs-cli/src/package/fetch.rs:1`
   - [x] `fetch::land` writes `vendor/package-files.toml` from the folders, as it writes `vendor/packages.nvs`
   - [x] `nvs_config::package` reads it onto each `Package`, and its digest joins the unit key beside `Grants::digest`
   - [x] the explicit read-only member list beside `nvs_stdlib::registry::CAPABILITIES`
   - [x] `nvs_types::capability::reject_ungranted_call`'s callers pass a literal path in the set (`crates/nvs-types/src/capability.rs:205`)
-  - [ ] the lowered call carries the approved path as a prepared fact, and the door skips the operator's scope for exactly that canonical path
+  - [x] the lowered call carries the approved path as a prepared fact, and the door skips the operator's scope for exactly that canonical path
 - [x] Tests: a package reads its own listed file and its downloaded file with an empty grant line, and is refused a write to it, a read through `..` or a symlink out of the set, an unlisted file placed in its folder, and another package's file. `crates/nvs-cli/tests/package_fetch.rs:1`, `crates/nvs-cli/tests/package_download.rs:1`
 - [x] Tests against loopback TLS listeners: a wrong hash, a body past its size, a redirect to an internal address, an `http:` URL, a dead first URL served by the second, a provided file, and an archive that stays unpacked. `crates/nvs-cli/tests/package_download.rs:1`
 
@@ -495,34 +501,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3, 7, 4 and 5 are done. In stage 9 only the read check's run-time half is left.
-The compile-time half landed (`ec1253745`): `fetch::land` writes `vendor/package-files.toml`
-(`fetch::package_files`, `crates/nvs-cli/src/package/fetch.rs`), `nvs_config::package::read`
-reads each vendored package's set onto `Package::files` (`own_files`,
-`crates/nvs-config/src/package.rs`), `Grants::set_files` puts the sets in the digest, and
-`nvs_types::capability::reads_own_file` drops a missing `fs.read` for a literal path in the set
-of a member on `nvs_stdlib::registry::OWN_FILE_READS`. The rule's **Not on disk** line names
-what is left. Four binary tests cover the reads: three in `crates/nvs-cli/tests/package_fetch.rs`
-(own listed file; write, `..`, unlisted and another package's file refused with `E0658`; a symlink
-out, which returns early on Windows without the link privilege and passes in WSL) and one in
-`package_download.rs` (the downloaded file).
+Stages 1, 2, 3, 7, 4, 5 and 9 are done. The read check's run-time half landed: a package's
+literal read of a file in its own set compiles with `PreparedFact::OwnFile`, the word
+`nvs_config::capability::own_file_word` makes from the resolved path
+(`crates/nvs-config/src/capability.rs`), filed by `own_file_word` in
+`crates/nvs-types/src/capability.rs`. The nine `OWN_FILE_READS` members are on
+`PREPARED_MEMBERS` (`crates/nvs-stdlib/src/registry.rs`), so each helper in
+`crates/nvs-stdlib/src/io.rs` takes the word as argument 0 and runs its door inside
+`Ctx::with_own_file` (`crates/nvs-runtime/src/ctx/isolate.rs`). The doors pass `fs.read` for
+that file alone after the scope refused (`own_file` and `allow` in
+`crates/nvs-runtime/src/capability.rs`). The rule's **Not on disk** line now names only the
+fetch's limits while it reads. The standing decision on the own-file read records the word.
 
-Tests: the new tests and `an_own_file_read_takes_a_path_first_and_needs_fs_read_alone` pass;
-build and clippy are clean. No test should go red.
+Tests: `a_package_reads_its_own_file_where_the_operator_scope_leaves_vendor_out`
+(`crates/nvs-cli/tests/package_fetch.rs`) is new and passes, with `package_fetch`,
+`package_download` and the `core_io` unit tests, whose calls now pass the leading word through
+`call_read`. Build and clippy are clean. No test should go red; the IR dump of a `Core\IO` read
+now shows a `prepared` argument, so a snapshot test of one would change.
 
-The sweep's reds were stale again: `bun nv proofs --gate --only 'Core\Env::secret'` exits 0, and
-Miri run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+The sweep's reds were stale: the `env-secret-proofs` log shows exit 0, and Miri run 40474302703
+ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
 ### Next
 
-**Stage 9's run-time half**, the last unticked checkpoint under the read check. With the default
-scope (the application's folder) a package's read already works; this is for an operator whose
-`fs.read` scope leaves out `vendor/`.
+**Stage 6**, `docs/goals/package-client.md` § 6: the feature proofs of `package.toml`,
+`nvs pkg add` and `nvs pkg fetch and nvs pkg vendor`. Follow its `**Split:**` line.
 
-- [ ] `reads_own_file` (`crates/nvs-types/src/capability.rs`) records the approved canonical path as a prepared fact, as `prepare_cap_has` records `PreparedFact::CapGrants` (`crates/nvs-types/src/capability.rs:177`), lowered at `crates/nvs-ir/src/lower/mod.rs:3126`.
-- [ ] The `Core\IO` doors on `OWN_FILE_READS` read it and skip the operator scope in `require_as` (`crates/nvs-runtime/src/capability.rs:94`) for exactly that path, after canonicalizing it again; the relative, device and alias refusals still run.
-- [ ] A test beside `crates/nvs-cli/tests/package_fetch.rs:561` with `[capabilities] fs.read` scoped away from `vendor/`: the listed read passes, a run-time-built path to the same file is refused.
-- [ ] Then tick stage 9, set its status done, and take stage 6 (`docs/goals/package-client.md:451`).
+- [ ] The three headings in `docs/reference/tools/35-packages.md`, beside `# nvs pkg api and nvs pkg diff` (`docs/reference/tools/35-packages.md:123`).
+- [ ] One writing subagent writes the three about pages and examples under `docs/examples/tools/packages/`, held to § *Text an end user reads* in `AGENTS.md` (`docs/goals/package-client.md:466`).
+- [ ] A second writes the attacks under `tests/hostile/tools/packages/` (`docs/goals/package-client.md:467`), then `// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor` goes into `crates/nvs-cli/tests/package_fetch.rs:1`.
+- [ ] `bun nv proofs --id` owes nothing for the three features (`docs/goals/package-client.md:468`).
 
 ### Backlog
 
