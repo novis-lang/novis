@@ -2923,13 +2923,11 @@ host: a weakening nobody is reminded of outlives the incident it was added for.
 A closed roster of application-layer security protocols lives in `Core`: signed and encrypted cookies
 (authenticated encryption only, with key rotation), CSRF tokens, TOTP, JWT — signed and verified under a
 shared key, and verified when another party issued it ([`security/jws-issued-subset`](security.md#security-jws-issued-subset)) — JWE
-([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), detached signatures over a canonical payload, and `Core\Passkey`,
+([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), detached signatures over a canonical payload, `Core\Passkey`,
 the server half of a WebAuthn registration and sign-in
-([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)). Nothing joins it without meeting the
-admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
-
-One more entry is admitted and not built: `Core\WebPush`, one encrypted push message
-([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)).
+([`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony)), and `Core\WebPush`, one encrypted and
+signed push message ([`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message)). Nothing joins it
+without meeting the admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
 Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
 a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong

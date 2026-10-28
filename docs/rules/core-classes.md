@@ -3,8 +3,6 @@
 
 # The Core classes
 
-*1 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-classes-cli-arguments"></a>
 
 ## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
@@ -3092,7 +3090,7 @@ in with it ([`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging
 
 <a id="core-classes-web-push-sends-an-encrypted-message"></a>
 
-## `Core\WebPush::send` encrypts a payload as RFC 8291 `aes128gcm` with the nonce derived inside, signs a VAPID token, and sends under `net.connect`  *(designed — owned by goal core-web-push)*
+## `Core\WebPush::send` encrypts a payload as RFC 8291 `aes128gcm` with the nonce derived inside, signs a VAPID token, and sends under `net.connect`
 
 `rule:core-classes/web-push-sends-an-encrypted-message`
 

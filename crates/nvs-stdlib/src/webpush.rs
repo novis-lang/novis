@@ -1154,9 +1154,8 @@ mod tests {
         let pair = vapid_of(&args, 0, "send").unwrap();
         let mut ctx = nvs_runtime::Ctx::buffered();
         // The token verifies under the key a browser is given, so the two halves agree.
-        let published =
-            nvs_runtime::call(nvs_core_webpush_application_server_key, &mut ctx, &args)
-                .expect("the public key");
+        let published = nvs_runtime::call(nvs_core_webpush_application_server_key, &mut ctx, &args)
+            .expect("the public key");
         let key = LENIENT.decode(published.as_text().expect("text")).unwrap();
         assert_eq!(key.len(), POINT_LEN);
         assert_eq!(key[0], 0x04, "an uncompressed point");
