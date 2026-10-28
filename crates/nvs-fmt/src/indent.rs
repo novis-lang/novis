@@ -238,22 +238,48 @@ impl<'a> Indent<'a> {
     /// The recursion ends because a body opens strictly before anything it
     /// contains, so each step asks about an earlier line than the last.
     ///
-    /// A line [`crate::statement`] starts is a line here too: the last of its
-    /// breaks between the author's line start and `pos` is where the line
-    /// opens, and that statement or brace is always one this module places.
+    /// A line [`crate::statement`] or a broken list ([`crate::list`]) starts is
+    /// a line here too: the last of their breaks between the author's line
+    /// start and `pos` is where the line opens, and that statement, brace, item
+    /// or closer is always one this module places. Without the list's breaks, a
+    /// chain inside an item the list moves would be measured from the line
+    /// above, and a second format would move it again
+    /// (`rule:tooling/fmt-is-idempotent`).
     pub(crate) fn opening_of(&self, pos: usize) -> String {
         let line_start = self.text[..pos].rfind('\n').map_or(0, |brk| brk + 1);
         let written = &self.text[line_start..];
         let width = written.len() - written.trim_start_matches([' ', '\t']).len();
         let first = line_start + width;
-        let moved = self.breaks[..self.breaks.partition_point(|&at| at <= pos)]
+        let statement = self.breaks[..self.breaks.partition_point(|&at| at <= pos)]
             .last()
-            .filter(|&&at| at > first);
-        if let Some(opening) = moved.and_then(|&at| self.of_line(at)) {
+            .copied();
+        let moved = statement.max(self.list_break(pos)).filter(|&at| at > first);
+        if let Some(opening) = moved.and_then(|at| self.of_line(at)) {
             return opening;
         }
         self.of_line(first)
             .unwrap_or_else(|| self.text[line_start..first].to_owned())
+    }
+
+    /// The last item or closer at or before `pos` of a broken list around
+    /// `pos`. The list starts a line there, whether or not its author did.
+    fn list_break(&self, pos: usize) -> Option<usize> {
+        let at = BytePos::try_from(pos).ok()?;
+        let path = self.index.at(at);
+        path.nodes()
+            .iter()
+            .filter(|node| list::writes_a_list(node.kind))
+            .filter_map(|&node| {
+                let list = list::List::of(self.index, self.text, self.trivia, node)?;
+                list.broken.then_some(())?;
+                list.items
+                    .iter()
+                    .copied()
+                    .chain([list.closer])
+                    .filter(|&start| start <= pos)
+                    .max()
+            })
+            .max()
     }
 
     /// Where the first code after the comment at `offset` starts, or [`None`]

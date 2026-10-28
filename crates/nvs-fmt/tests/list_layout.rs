@@ -202,6 +202,16 @@ fn only_the_innermost_list_breaks() {
     );
 }
 
+/// The field's chain is measured from the line the broken object gives the field, so
+/// one format reaches the layout a second one keeps.
+#[test]
+fn a_broken_chain_in_an_object_field_sits_one_level_in_from_the_field() {
+    formats_to(
+        "<?nvs\nResponse::json({ message: 'To ' . $verb\n    . ' it, confirm on ' . $origin . '.' });\n",
+        "<?nvs\nResponse::json({\n    message: 'To ' . $verb\n        . ' it, confirm on ' . $origin . '.',\n});\n",
+    );
+}
+
 #[test]
 fn a_broken_call_chain_breaks_the_list_that_holds_it() {
     formats_to(

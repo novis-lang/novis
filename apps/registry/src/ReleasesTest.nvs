@@ -223,7 +223,16 @@ final class ReleasesTest
             Test::assertTrue(new Index($db, $log, ReleasesTest::site($folder))->flush());
             Test::assertCalled($log, Log::append, { times: 1 });
             Test::assertSame(ReleasesTest::logged($folder), [
-                'ownership', 'ownership', 'token', 'token', 'release-confirmed', 'unlist', 'relist', 'retract', 'withhold', 'repository',
+                'ownership',
+                'ownership',
+                'token',
+                'token',
+                'release-confirmed',
+                'unlist',
+                'relist',
+                'retract',
+                'withhold',
+                'repository',
             ]);
             Test::assertSame($db->query('select count(*) from events', [])->value() as int, 0);
             Test::assertTrue(IO::isFile($folder . '/files/index/acme/http.json'));

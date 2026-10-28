@@ -254,15 +254,15 @@ final class Index
             mixed $state = 'released';
             if ($listed->withheld != null) {
                 $state = { withheld: { reason: $listed->withheld } };
-            } else if ($listed->retracted != null) {
+            } elseif ($listed->retracted != null) {
                 $state = $listed->fixedIn == null
                     ? { retracted: { reason: $listed->retracted } }
                     : { retracted: ['reason' => $listed->retracted, 'fixed_in' => $listed->fixedIn] };
-            } else if ($listed->unlisted) {
+            } elseif ($listed->unlisted) {
                 $state = 'unlisted';
-            } else if ($listed->waitsForOwner) {
+            } elseif ($listed->waitsForOwner) {
                 $state = { pending: {} };
-            } else if ($listed->pendingUntil != null && $listed->pendingUntil > $now) {
+            } elseif ($listed->pendingUntil != null && $listed->pendingUntil > $now) {
                 $state = { pending: ['selectable_at' => $listed->pendingUntil] };
             }
             $lines[] = {
@@ -278,7 +278,6 @@ final class Index
         }
         return Index::trusted(Json::encode({ schema: 1, name: $name, owners: $owners, versions: $lines }));
     }
-
 
     // The path of a package in the index, such as `acme/http` for `acme\http`.
     public static function slug(string $key): string

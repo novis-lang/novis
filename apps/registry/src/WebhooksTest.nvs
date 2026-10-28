@@ -67,7 +67,7 @@ final class WebhooksTest
 
         // Opening the link of a second webhook verifies it too. A wrong code does not.
         array<string> $second = $hooks->add($account, $url);
-        tainted string $secondCode =WebhooksTest::codeIn(Test::sentHttp()[1]);
+        tainted string $secondCode = WebhooksTest::codeIn(Test::sentHttp()[1]);
         Test::assertTrue(!$channels->confirm($second['id'], 'wrong'));
         Test::assertTrue($channels->confirm($second['id'], $secondCode));
         Test::assertSame(Core\Arr::count($channels->working($account, Channels::WEBHOOK)), 2);

@@ -592,8 +592,11 @@ final class App
             }
             // The version is saved. It is answered only once it is in the log and in the index.
             if (!new Index($db, new NvsLog($site, Index::work($site)), $site)->catchUp($done->package)) {
-                App::fail(500, 'The version is saved, and the registry could not send it to every file host. '
-                    . 'Publish the same commit again to finish.');
+                App::fail(
+                    500,
+                    'The version is saved, and the registry could not send it to every file host. '
+                        . 'Publish the same commit again to finish.',
+                );
                 return;
             }
             // A copy of the database that fails does not fail the publish. The log has the release.
@@ -868,8 +871,10 @@ final class App
             if (Session::account() == null && new Tokens($db)->allows(Tokens::bearer(), $key) != null) {
                 // A token cannot unlist. The answer names the page where an owner does it.
                 Response::setStatus(202);
-                Response::json({ message: 'To ' . ($listed ? 'list' : 'unlist') . ' it, sign in with a passkey and confirm on '
-                    . Site::load()->origin . '/packages/' . Index::slug($key) . '.' });
+                Response::json({
+                    message: 'To ' . ($listed ? 'list' : 'unlist') . ' it, sign in with a passkey and confirm on '
+                        . Site::load()->origin . '/packages/' . Index::slug($key) . '.',
+                });
                 return;
             }
             App::fail(403, 'Sign in with a passkey as an owner of the package first.');

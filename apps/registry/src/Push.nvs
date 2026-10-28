@@ -106,7 +106,7 @@ final class Push
             }
             if ($sent->gone()) {
                 $channels->drop($id);
-            } else if ($sent->status() >= 200 && $sent->status() < 300) {
+            } elseif ($sent->status() >= 200 && $sent->status() < 300) {
                 $channels->answered($id);
                 $took++;
             }

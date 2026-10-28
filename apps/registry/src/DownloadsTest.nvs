@@ -61,11 +61,13 @@ final class DownloadsTest
             Test::assertSame(Downloads::folderOf($day), '2026/03/');
 
             // The folder of the month has two parts of 4 March, a part of 5 March and a folder.
-            Test::answerHttp(DownloadsTest::LOGS . '2026/03/', 200, { body: '['
-                . '{"ObjectName":"04_100-0-a1b2c3d4.gzip","IsDirectory":false},'
-                . '{"ObjectName":"04_101-0-e5f6a7b8.gzip","IsDirectory":false},'
-                . '{"ObjectName":"05_100-0-c9d0e1f2.gzip","IsDirectory":false},'
-                . '{"ObjectName":"04_folder","IsDirectory":true}]' });
+            Test::answerHttp(DownloadsTest::LOGS . '2026/03/', 200, {
+                body: '['
+                    . '{"ObjectName":"04_100-0-a1b2c3d4.gzip","IsDirectory":false},'
+                    . '{"ObjectName":"04_101-0-e5f6a7b8.gzip","IsDirectory":false},'
+                    . '{"ObjectName":"05_100-0-c9d0e1f2.gzip","IsDirectory":false},'
+                    . '{"ObjectName":"04_folder","IsDirectory":true}]',
+            });
             Test::answerHttp(DownloadsTest::LOGS . '2026/03/04_100-0-a1b2c3d4.gzip', 200, { body: DownloadsTest::part([
                 DownloadsTest::line('200', '2026-03-04T10:00:00Z', '192.0.2.1', $url, 'nvs/0.1.0'),
                 // The same address again counts nothing, also with a query after the path.

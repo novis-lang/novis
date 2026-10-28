@@ -113,7 +113,9 @@ class Registry
             foreach (Core\Str::split($host, '.') as string $part) {
                 $n[] = $part as int;
             }
-            bool $private = $n[0] == 0 || $n[0] == 10 || $n[0] == 127
+            bool $private = $n[0] == 0
+                || $n[0] == 10
+                || $n[0] == 127
                 || ($n[0] == 169 && $n[1] == 254)
                 || ($n[0] == 172 && $n[1] >= 16 && $n[1] <= 31)
                 || ($n[0] == 192 && $n[1] == 168)

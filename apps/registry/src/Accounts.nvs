@@ -17,7 +17,6 @@ final class Accounts
     // The number of recovery codes a new account gets.
     public const int RECOVERY_CODES = 10;
 
-
     private Connection $db;
 
     public function constructor(Connection $db)
@@ -116,7 +115,6 @@ final class Accounts
         $this->db->execute('update passkeys set sign_count = ?, used_at = ? where id = ?', [$passkey->signCount(), $now, Encoding::toBase64Url($passkey->id())]);
         $this->db->execute('update accounts set active_at = ? where id = ?', [$now, $account]);
     }
-
 
     // Uses one recovery code. It returns the account of the code, and the code cannot be used again.
     // A code that is not known, or that was used before, returns `null`.

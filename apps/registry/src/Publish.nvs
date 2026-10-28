@@ -131,8 +131,11 @@ final class Publish
                 return Published::refused(409, 'The name `' . $taken . '` is taken. Names that differ only in upper and lower case are one package.');
             }
             if ($row->string('repository') != $repository || $row->string('directory') != $directory) {
-                return Published::refused(403, 'The repository of `' . $name . '` is `' . Publish::trusted($row->string('repository')) . '`. '
-                    . 'To change it, confirm the change with a passkey on the website.');
+                return Published::refused(
+                    403,
+                    'The repository of `' . $name . '` is `' . Publish::trusted($row->string('repository')) . '`. '
+                        . 'To change it, confirm the change with a passkey on the website.',
+                );
             }
             if ($this->hasVersion($key, $version)) {
                 return Publish::taken($key, $version);

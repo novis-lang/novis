@@ -42,7 +42,8 @@ final class Notices
         ?string $package,
         ?string $version,
         string $text,
-    ): void {
+    ): void
+    {
         $db->execute(
             'insert into notices (vendor, account, kind, package, version, text, at) values (?, ?, ?, ?, ?, ?, ?)',
             [$vendor == null ? null : Str::lower($vendor), $account, $kind, $package, $version, $text, Time::now()->toEpochSeconds()],
