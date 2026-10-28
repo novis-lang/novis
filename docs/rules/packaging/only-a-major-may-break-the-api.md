@@ -33,8 +33,9 @@ so. Shape is what a compiler can check without running code, and a promise about
 one that nothing holds.
 
 **A maintainer who keeps an old major alive publishes a new package**, `Acme\HttpNext` or `Acme\HttpV2`
-as they choose, and may set `supersedes = "acme/http"` so that `nvs pkg outdated` and
-`nvs pkg audit` point at it. Nothing requires this.
+as they choose, and may set `[package] supersedes = 'Acme\Http'` so that `nvs pkg outdated`,
+`nvs pkg audit` and the package page point at it. Nothing requires this. The key is read by
+`crates/nvs-cli/src/package/manifest.rs`, and `nvs registry build` prints it.
 
 The check is what keeps `rule:packaging/resolution-takes-the-highest-minimum` sound: a minimum is never
 a ceiling, so a higher version inside a major must always be acceptable, and the registry refuses one

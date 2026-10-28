@@ -489,7 +489,7 @@ fn shown(out: &Output) -> String {
 /// Asserts that the build failed with a document whose refusal contains `said`.
 fn refused(out: &Output, json: &Value, said: &str) {
     assert!(!out.status.success(), "it succeeded: {}", shown(out));
-    assert_eq!(json["schema"], 2, "{json}");
+    assert_eq!(json["schema"], 3, "{json}");
     assert_eq!(json["ok"], false, "{json}");
     let refusal = json["refusal"].as_str().unwrap_or_default();
     assert!(refusal.contains(said), "`{said}` is not in: {}", shown(out));
@@ -525,7 +525,7 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
 
     let (out, json) = case.build(&host, &commit, &["--archive", archive_arg]);
     assert!(out.status.success(), "{}", shown(&out));
-    assert_eq!(json["schema"], 2, "{json}");
+    assert_eq!(json["schema"], 3, "{json}");
     assert_eq!(json["ok"], true, "{json}");
     assert_eq!(json["name"], "Acme\\Http", "{json}");
     assert_eq!(json["version"], "1.0.0", "{json}");
@@ -540,6 +540,9 @@ fn a_build_prints_the_package_and_the_archive_has_its_digest() {
     );
     assert_eq!(json["docs"], "", "{json}");
     assert_eq!(json["summary"], "Acme HTTP kit.", "{json}");
+    assert_eq!(json["readme"], "Acme HTTP kit.\n", "{json}");
+    assert_eq!(json["downloads"], serde_json::json!([]), "{json}");
+    assert_eq!(json["supersedes"], Value::Null, "{json}");
     assert_eq!(json["dependencies"], serde_json::json!({}), "{json}");
     assert_eq!(
         json["capabilities"],

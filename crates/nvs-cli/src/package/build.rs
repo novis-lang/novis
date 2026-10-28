@@ -25,6 +25,8 @@
 //! requested capabilities in the index file's shape, the API report, and what the registry's
 //! search reads: `doc_coverage`, how many public declarations carry a doc comment, of how many;
 //! `docs`, their text; and `summary`, the readme's first paragraph ([`api::Docs`], [`summary`]).
+//! The package page reads three more: `readme`, the readme's text ([`readme`]); `downloads`, each
+//! `[[download]]` entry as written; and `supersedes`, the package this one replaces, or `null`.
 //! Or it prints `"ok": false` with the
 //! refusal as a sentence the service shows the publisher, and exit `1`. A compile error's
 //! diagnostics go to standard error, as `nvs pkg api` prints them. `--archive` and `--api` write
@@ -49,11 +51,15 @@ use super::manifest::{Manifest, Source, Version};
 use super::{api, diff, fetch};
 
 /// What the JSON document's `schema` is. A change to its keys raises it: `2` added
-/// `doc_coverage`, `docs` and `summary`.
-pub(crate) const SCHEMA: u64 = 2;
+/// `doc_coverage`, `docs` and `summary`, and `3` added `readme`, `downloads` and `supersedes`.
+pub(crate) const SCHEMA: u64 = 3;
 
 /// The most bytes [`summary`] keeps. A search result shows it on one or two lines.
 const MAX_SUMMARY: usize = 280;
+
+/// The most bytes of the readme [`readme`] keeps. The registry stores it with each release, so it
+/// is the most a release adds to the database for its page.
+const MAX_README: usize = 64 * 1024;
 
 /// One build's inputs, as `nvs registry build` takes them.
 #[derive(clap::Args, Debug)]
@@ -238,52 +244,92 @@ fn built(build: &Build, outbound: &Outbound) -> Result<Value, Refused> {
         }),
     );
     out.insert("docs".into(), Value::from(docs.text));
-    out.insert("summary".into(), Value::from(summary(&cloned.archive)?));
+    let readme = readme(&cloned.archive)?;
+    out.insert("summary".into(), Value::from(summary(&readme)));
+    out.insert("readme".into(), Value::from(readme));
+    out.insert(
+        "downloads".into(),
+        Value::Array(
+            cloned
+                .manifest
+                .downloads
+                .iter()
+                .map(|download| {
+                    serde_json::json!({
+                        "path": download.path,
+                        "urls": download.urls,
+                        "sha256": download.sha256,
+                        "size": download.size,
+                        "license": download.license,
+                    })
+                })
+                .collect(),
+        ),
+    );
+    out.insert(
+        "supersedes".into(),
+        cloned
+            .manifest
+            .supersedes
+            .as_ref()
+            .map_or(Value::Null, |name| Value::from(name.to_string())),
+    );
     Ok(Value::Object(out))
 }
 
-/// The first paragraph of the archive's readme, the root file named `README` with any extension:
-/// its first run of lines that are not empty and not a `#` heading, joined by spaces, and cut to
-/// [`MAX_SUMMARY`] bytes at a character's end. Empty when there is no readme.
+/// The archive's readme, the root file named `README` with any extension, as UTF-8 with each
+/// invalid sequence replaced, and cut to [`MAX_README`] bytes at a character's end. Empty when
+/// there is no readme. The package page shows it as text a publisher wrote.
 ///
 /// # Errors
 ///
 /// An archive that does not read, which the pack never writes.
-fn summary(archive: &[u8]) -> Result<String, Fault> {
+fn readme(archive: &[u8]) -> Result<String, Fault> {
     let bad = |err: io::Error| fault(format!("the archive does not read: {err}"));
     for entry in tar::Archive::new(archive).entries().map_err(bad)? {
-        let mut entry = entry.map_err(bad)?;
+        let entry = entry.map_err(bad)?;
         let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
         let stem = path.split('.').next().unwrap_or_default();
         if path.contains('/') || !stem.eq_ignore_ascii_case("readme") {
             continue;
         }
         let mut bytes = Vec::new();
-        io::Read::read_to_end(&mut entry, &mut bytes).map_err(bad)?;
-        let readme = String::from_utf8_lossy(&bytes);
-        let mut words = String::new();
-        for line in readme.lines().map(str::trim) {
-            if line.is_empty() || line.starts_with('#') {
-                if words.is_empty() {
-                    continue;
-                }
-                break;
-            }
-            if !words.is_empty() {
-                words.push(' ');
-            }
-            words.push_str(line);
-        }
-        if words.len() > MAX_SUMMARY {
-            let mut end = MAX_SUMMARY;
-            while !words.is_char_boundary(end) {
-                end -= 1;
-            }
-            words.truncate(end);
-        }
-        return Ok(words);
+        io::Read::read_to_end(&mut io::Read::take(entry, MAX_README as u64), &mut bytes)
+            .map_err(bad)?;
+        return Ok(cut(String::from_utf8_lossy(&bytes).into_owned(), MAX_README));
     }
     Ok(String::new())
+}
+
+/// The first paragraph of `readme`: its first run of lines that are not empty and not a `#`
+/// heading, joined by spaces, and cut to [`MAX_SUMMARY`] bytes at a character's end.
+fn summary(readme: &str) -> String {
+    let mut words = String::new();
+    for line in readme.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            if words.is_empty() {
+                continue;
+            }
+            break;
+        }
+        if !words.is_empty() {
+            words.push(' ');
+        }
+        words.push_str(line);
+    }
+    cut(words, MAX_SUMMARY)
+}
+
+/// `text` cut to at most `max` bytes, at a character's end.
+fn cut(mut text: String, max: usize) -> String {
+    if text.len() > max {
+        let mut end = max;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+    }
+    text
 }
 
 /// The version of the package `manifest` names, once it is one a registry can publish.

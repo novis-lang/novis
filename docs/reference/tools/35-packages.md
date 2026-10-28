@@ -150,13 +150,14 @@ Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1
 | `[package] name` | the package's name, which is also its namespace, such as `'Acme\Slug'` |
 | `[package] version` | the package's version, `MAJOR.MINOR.PATCH`, such as `"1.2.0"` |
 | `[package] files` | the files the package carries beside its `src` folder, such as `["data/words.txt"]` |
+| `[package] supersedes` | the package this package replaces, such as `'Acme\Http'` for `'Acme\HttpNext'`. The registry shows it on the package page |
 | `[dependencies]` | each package your code needs, with the lowest version it works with |
 | `[registries]` | the registry each vendor's packages come from |
 | `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
 | `[grants]` | the capabilities each namespace may use, in an application's file only |
 | `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
 
-`version`, `files`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
+`version`, `files`, `supersedes`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
 other key is error `E0659`, and the `nvs pkg` commands stop.
 
 A package's name has two parts, a vendor and a name: `Acme\Slug`. On the command line and in a URL,

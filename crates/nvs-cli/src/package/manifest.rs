@@ -227,6 +227,9 @@ pub(crate) struct Manifest {
     pub(crate) version: Option<Version>,
     /// `[package] files`, as written.
     pub(crate) files: Vec<String>,
+    /// `[package] supersedes`: the package this one replaces, such as the old major a maintainer
+    /// keeps alive under its first name (`rule:packaging/only-a-major-may-break-the-api`).
+    pub(crate) supersedes: Option<Name>,
     /// `[dependencies]`, in name order.
     pub(crate) dependencies: Vec<Dependency>,
     /// `[registries]`, in vendor order.
@@ -350,6 +353,8 @@ struct Header {
     version: Option<Spanned<String>>,
     #[serde(default)]
     files: Option<Spanned<Vec<String>>>,
+    #[serde(default)]
+    supersedes: Option<Spanned<String>>,
 }
 
 /// `[capabilities]`, whose names `nvs_config::package` checks.
@@ -421,6 +426,22 @@ fn parse_in(
                 .get_ref()
                 .parse::<Version>()
                 .map_err(|err| bad(id, written.span(), err, "write the version as `1.4.0`"))
+        })
+        .transpose()?;
+    let supersedes = header
+        .as_ref()
+        .and_then(|header| header.supersedes.as_ref())
+        .map(|written| {
+            let replaced = dependency_name(id, written)?;
+            if name.as_ref() == Some(&replaced) {
+                return Err(bad(
+                    id,
+                    written.span(),
+                    format!("the package `{replaced}` cannot supersede itself"),
+                    "name the package this one replaces",
+                ));
+            }
+            Ok(replaced)
         })
         .transpose()?;
     let files = header
@@ -497,6 +518,7 @@ fn parse_in(
         name,
         version,
         files,
+        supersedes,
         dependencies,
         registries,
         downloads: file.download.map(Spanned::into_inner).unwrap_or_default(),
@@ -536,6 +558,11 @@ fn only_a_package(id: SourceId, file: &File) -> Result<(), Diagnostic> {
             header
                 .and_then(|header| header.get_ref().files.as_ref())
                 .map(|files| ("files", files.span()))
+        })
+        .or_else(|| {
+            header
+                .and_then(|header| header.get_ref().supersedes.as_ref())
+                .map(|supersedes| ("supersedes", supersedes.span()))
         })
         .or_else(|| {
             file.capabilities
@@ -766,7 +793,7 @@ mod tests {
     fn a_package_file_reads_whole() {
         let rev = "a".repeat(40);
         let manifest = read(&format!(
-            "[package]\nname = 'Acme\\HttpKit'\nversion = \"1.4.0\"\nfiles = [\"a.html\"]\n\
+            "[package]\nname = 'Acme\\HttpKit'\nversion = \"1.4.0\"\nfiles = [\"a.html\"]\nsupersedes = 'Acme\\Http'\n\
              [dependencies]\n'Acme\\Log' = \"2.1.0\"\n'Beta\\Fork' = {{ git = \"https://git.example.com/f.git\", rev = \"{rev}\" }}\n\
              [registries]\nAcme = {{ url = \"file:registry/\" }}\n\
              [capabilities]\nrequired = [\"net.connect\"]\n\
@@ -782,6 +809,10 @@ mod tests {
             Some("1.4.0")
         );
         assert_eq!(manifest.files, ["a.html"]);
+        assert_eq!(
+            manifest.supersedes.as_ref().map(ToString::to_string).as_deref(),
+            Some("Acme\\Http")
+        );
         assert_eq!(manifest.dependencies.len(), 2);
         assert_eq!(
             manifest.dependencies[1].source,
@@ -830,6 +861,14 @@ mod tests {
             (
                 "[package]\nversion = \"1.0.0\"\n".to_owned(),
                 "`version` needs a package name",
+            ),
+            (
+                format!("{pkg}supersedes = 'Acme\\Http'\n"),
+                "the package `Acme\\Http` cannot supersede itself",
+            ),
+            (
+                format!("{pkg}supersedes = 'Acme'\n"),
+                "`Acme` is not a package name",
             ),
             (
                 "[capabilities]\nrequired = []\n".to_owned(),
