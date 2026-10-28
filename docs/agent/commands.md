@@ -657,7 +657,9 @@ merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. 
 
 **`main` reaches GitHub through `bun nv ci --push` alone.** looper's `after_retire` hook runs it at
 every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
-and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
+and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Last comes `bun nv vsix --hook`,
+which rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
+side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
 add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
 each failure, and commits. It pushes only a goal end's push that its pre-push checks refused, once
 they are green. No other session pushes or cancels a run. The push starts the runs,

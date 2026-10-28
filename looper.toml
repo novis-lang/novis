@@ -99,10 +99,14 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # terminal run, so every goal end leaves it current. It is attached, so the next session's timing checks
 # never share the machine with a release build. A failed build only warns. The timeout covers a cold
 # release build with thin LTO.
+# `tools/nv/cmd/vsix.ts`: last, it rebuilds `editors/vscode/nvs.vsix`, the file the user installs the
+# extension from, when the extension's tree changed since the last build, and builds nothing otherwise.
+# A failed build only warns. The timeout covers an `npm ci` into an empty `node_modules/` and a package.
 after_retire = [
   { run = ["bun", "nv", "site", "--roadmap", "--retired"], timeout = 120, on_fail = "pause" },
   { run = ["bun", "nv", "ci", "--push"], timeout = 2400, on_fail = "warn" },
   { run = ["bun", "nv", "relink", "--build", "--hook"], timeout = 3600, on_fail = "warn" },
+  { run = ["bun", "nv", "vsix", "--hook"], timeout = 1200, on_fail = "warn" },
 ]
 
 # `scope` is the words looper writes into `docs/agent/prose.md`. The files the prose check reads and its

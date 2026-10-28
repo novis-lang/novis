@@ -262,6 +262,9 @@ What a loop session owes on top of the block's § *Session workflow*:
 - **Every goal end rebuilds the local release binary, `target/release/nvs`.** looper's `after_retire`
   hook runs `bun nv relink --build --hook` once the goal is retired. A goal ended outside the loop runs
   `bun nv relink --build` once its file is deleted.
+- **Every goal end that changed the VS Code extension rebuilds its `.vsix`, `editors/vscode/nvs.vsix`.**
+  looper's `after_retire` hook runs `bun nv vsix --hook` last, and it builds only when
+  `editors/vscode/` changed since the last build. A goal ended outside the loop runs `bun nv vsix`.
 - **A repair fixes the cause, not the symptom.** The loop's tooling under `tools/` is in scope, and so
   is a check that is itself wrong; renaming a test, removing a check or loosening a bound until it
   passes is not a fix. A verdict already fixed on disk needs no change, and the status line says so.
