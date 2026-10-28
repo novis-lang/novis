@@ -32,23 +32,23 @@ foreach ($wrong as Core\Crypto\KeyPair $pair) {
         echo Core\WebPush::applicationServerKey($pair), "\n";
         echo "a wrong kind was accepted\n";
     } catch (LogicError $e) {
-        echo "the message contains the key: ", Leak::check($e->message, $pair), "\n";
+        echo 'the message contains the key: ', Leak::check($e->message, $pair), "\n";
     }
 }
 
 // 2. A `P256` key pair. The public key must not contain the private key.
 Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 string $public = Core\WebPush::applicationServerKey($vapid);
-echo "the public key contains the private key: ", Leak::check($public, $vapid), "\n";
+echo 'the public key contains the private key: ', Leak::check($public, $vapid), "\n";
 
 // 3. The bytes of a `P256` key are read as an `Ed25519` key. The error is caught.
 try {
     Core\Crypto\KeyPair $mixed = Core\Crypto\KeyPair::read($vapid->write(), Core\Crypto\KeyKind::Ed25519);
     echo Core\WebPush::applicationServerKey($mixed), "\n";
 } catch (LogicError $readError) {
-    echo "the message contains the key: ", Leak::check($readError->message, $vapid), "\n";
+    echo 'the message contains the key: ', Leak::check($readError->message, $vapid), "\n";
 } catch (RuntimeError $readFailed) {
-    echo "the message contains the key: ", Leak::check($readFailed->message, $vapid), "\n";
+    echo 'the message contains the key: ', Leak::check($readFailed->message, $vapid), "\n";
 }
 
 // 4. 20000 calls with a wrong key and with the right key, one after the other.

@@ -56,7 +56,12 @@ Attack::read('step 2', [
 
 // 3. Values of the wrong type: numbers, `null`, arrays and objects.
 Attack::read('step 3', [
-    'null', '0', '"text"', '[]', '{}', 'true',
+    'null',
+    '0',
+    '"text"',
+    '[]',
+    '{}',
+    'true',
     '{"endpoint":42,"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
     '{"endpoint":null,"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
     '{"endpoint":["' . $endpoint . '"],"keys":{"p256dh":"' . $point . '","auth":"' . $auth . '"}}',
@@ -117,10 +122,21 @@ Attack::read('step 6', $step6);
 // 7. Endpoints that are not `https:` URLs, or have no host.
 array<string> $step7 = [];
 array<string> $notHttps = [
-    '', 'http://push.example.com/send/abc', 'ftp://push.example.com/', 'javascript:alert(1)',
-    'https://', 'https:', 'https:/push.example.com', '//push.example.com/send', 'push.example.com',
-    'https:// push.example.com/', 'https://push.example.com/a b', 'https://push.example.com:99999/',
-    'file:///etc/passwd', 'data:text/plain,abc', 'httpsx://push.example.com/',
+    '',
+    'http://push.example.com/send/abc',
+    'ftp://push.example.com/',
+    'javascript:alert(1)',
+    'https://',
+    'https:',
+    'https:/push.example.com',
+    '//push.example.com/send',
+    'push.example.com',
+    'https:// push.example.com/',
+    'https://push.example.com/a b',
+    'https://push.example.com:99999/',
+    'file:///etc/passwd',
+    'data:text/plain,abc',
+    'httpsx://push.example.com/',
 ];
 foreach ($notHttps as string $bad) {
     $step7[] = Attack::json($bad, $point, $auth);
@@ -131,8 +147,12 @@ Attack::read('step 7', $step7);
 // These are `https:` URLs, so they are read. `Core\WebPush::send` checks the host before it connects.
 array<string> $step8 = [];
 array<string> $odd = [
-    'https://user:password@push.example.com/send/abc', 'https://127.0.0.1/send', 'https://[::1]/send',
-    'https://169.254.169.254/latest', 'https://0x7f000001/', 'HTTPS://PUSH.EXAMPLE.COM/send',
+    'https://user:password@push.example.com/send/abc',
+    'https://127.0.0.1/send',
+    'https://[::1]/send',
+    'https://169.254.169.254/latest',
+    'https://0x7f000001/',
+    'HTTPS://PUSH.EXAMPLE.COM/send',
     'https://push.example.com/' . Core\Str::repeat('a', 7000),
 ];
 foreach ($odd as string $url) {

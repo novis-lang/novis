@@ -12,8 +12,10 @@ class Bench
         array<Core\WebPush\Subscription> $subscriptions = [];
         uint $n = 0;
         while ($n < 4) {
-            $subscriptions[] = Core\WebPush::subscription('{"endpoint":"https://push.example.com/send/'
-                . Core\Str::repeat('a', 40 + $n) . '",' . $keys . '}');
+            $subscriptions[] = Core\WebPush::subscription(
+                '{"endpoint":"https://push.example.com/send/'
+                    . Core\Str::repeat('a', 40 + $n) . '",' . $keys . '}',
+            );
             $n = $n + 1;
         }
         uint $total = 0;

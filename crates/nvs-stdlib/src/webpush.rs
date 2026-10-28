@@ -1231,7 +1231,10 @@ mod tests {
         .expect("the subscription reads");
         let endpoint = nvs_runtime::call(nvs_core_webpush_subscription_endpoint, &mut ctx, &[to])
             .expect("an endpoint");
-        assert_eq!(endpoint.as_text(), Some("https://push.example.com/send/abc"));
+        assert_eq!(
+            endpoint.as_text(),
+            Some("https://push.example.com/send/abc")
+        );
         assert!(
             matches!(SUBSCRIPTION.instance[0].return_ty, CoreTy::TaintedStr),
             "the browser wrote the URL"
