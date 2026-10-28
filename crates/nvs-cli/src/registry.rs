@@ -3,8 +3,8 @@
 //! the command list: a user of packages never types them.
 //!
 //! `log append` reads entries as JSON lines on standard input, checks each against
-//! [`entry::Entry`]'s closed list before anything is written, appends their canonical form, and
-//! signs the new checkpoint with the key file. The log directory's newest checkpoint is the file
+//! [`crate::package::entry::Entry`]'s closed list before anything is written, appends their
+//! canonical form, and signs the new checkpoint with the key file. The log directory's newest checkpoint is the file
 //! `checkpoint` in it, C2SP's name, opened under the key's own verifier; a directory without one
 //! is an empty log. The tiles are written before the checkpoint replaces the old one, so a run that
 //! stops part way leaves the old checkpoint, and the next append from it writes the same tiles

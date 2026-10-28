@@ -45,7 +45,7 @@ stages:
     context: [docs/reference/tools/35-packages.md]
   - id: 7
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: log-proofs
@@ -298,44 +298,35 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 5, 2, 3, 6 and 4 are done. Stage 4: the heading `# The transparency log` is in
-`docs/reference/tools/35-packages.md`, with the `nvs registry` commands, the client's three checks
-and the seven-day bound, and the front matter names it. `about.md` and three examples read a
-checkpoint, check its Ed25519 signature with `Core\Crypto::verify` and recompute its RFC 6962
-root, from public artifacts the debug binary made. The two attacks are a forked log signed with
-the real key and a signed index file changed from `pending` to `released`, each with its edges.
-The five log tests in `package_client.rs` carry `// covers: tools:packages/the-transparency-log`.
-The rule is `shipped`, with no `goal`, guarded by `log.rs`, `note.rs`, `entry.rs`, `index.rs`,
-`tests/registry_log.rs` and `tests/package_client.rs`; its **Not on disk** line still holds.
-`bun nv rules --render` and `bun nv render --website` output is committed.
+Every stage is done, and the goal is reached. Stage 7's first `bun nv affected --run` had two
+causes: `apps/telemetry/known.toml` lacked the hidden `registry` command, which
+`telemetry::tests::the_collectors_known_lists_name_everything_this_client_sends` checks, and the
+two transparency-log attacks were not formatted (`nvs-fmt`'s identity test). Both are fixed; the
+renders had nothing to rewrite. `bun nv verify --doc` then named two links, `entry::Entry` in
+`registry.rs` and the ambiguous `Hash` in `log.rs`, both fixed.
 
-Green: `bun nv proofs --gate --only tools:packages/the-transparency-log` (`log-proofs`),
-`bun nv owners --closes registry-log`, `bun nv proofs --run --id` (3 examples, 2 attacks),
-`bun nv rules --check`, build and clippy.
+Green: the second `bun nv affected --run` (8064 tests, 3144 conformance cases, clippy),
+`bun nv verify --doc`, `bun nv owners --closes registry-log`, `bun nv ci --check`, and
+`log-proofs`.
 
-The sweep's reds were stale again: the `env-secret-proofs` log shows exit 0, and Miri run
-40474302703 is on `55b03e97a`, before `c33a8b8f7`, `e461612ce` and `22f1e4ec4`, which fixed its
-three failures.
+The sweep's reds were stale: the `env-secret-proofs` log shows exit 0, and Miri run 40474302703 is
+on `55b03e97a`, before the commits that fixed its three failures.
 
-Expected red: none known. `log.rs` and `note.rs` keep `expect(dead_code)` for `Tile::parse` and
-`Verifier::id`, which only tests call.
+The installed `looper` has no `verify` subcommand; `bun nv affected --run` is the gate it stands for.
+
+Expected red: none known.
 
 ### Next
 
-Stage 7, the gate. Start `looper verify` with `run_in_background` and end the turn. Group its
-failures by cause, fix them in one pass and run it again. Then the goal-end gates of AGENTS.md
-§ *In the loop*: `bun nv verify --doc`, `bun nv owners --closes registry-log`, `bun nv ci --check`.
-- [ ] `bun nv affected --run` has run once, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second run is green, and the goal-end gates pass. `tools/nv/cmd/verify.ts:1`
+Nothing: the goal is reached. The driver retires this file, and the chain goes on to `core-passkey`.
 
 ### Backlog
 

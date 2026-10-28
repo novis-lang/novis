@@ -35,7 +35,7 @@ use sha2::{Digest as _, Sha256};
 /// A SHA-256 hash in the tree.
 pub(crate) type Hash = [u8; 32];
 
-/// The bytes in one [`Hash`].
+/// The bytes in one [`type@Hash`].
 const HASH_SIZE: usize = 32;
 
 /// C2SP fixes a tile's height at 8: a full tile holds 256 hashes.
