@@ -20,7 +20,7 @@ stages:
         rules: [core-classes/passkey-verifies-a-webauthn-ceremony, core-api/reference-card]
   - id: 3
     title: the inputs are tainted, the challenge is single-use, and the class is on the protocol roster
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/taint.rs, docs/rules/security/protocol-roster.md, docs/rules/security/protocol-admission-test.md]
     extra:
       context:
@@ -117,9 +117,11 @@ by its labels. Signatures are verified by the code `Core\Crypto` already uses
 Ed25519 key with `Core\Crypto`'s code, builds the client data, the authenticator data and a `none`
 attestation object with `ciborium`, and signs. WebAuthn Level 3's published test vectors are added as
 fixed bytes for each algorithm the specification gives one for, as an independent check. Conformance
-cases build the client data in Novis from the options' challenge, sign assertions with `Core\Crypto`,
-and embed one fixed `none` attestation object the software authenticator printed. Why: no browser
-runs in a test, and a hand-copied ceremony could not carry a fresh challenge.
+cases build the whole ceremony in Novis: the client data from the options' challenge, the
+authenticator data and the `none` attestation object from hex and `Core\Bytes`, an Ed25519 COSE key
+around `Core\Crypto`'s raw public key, and the assertion signed with `Core\Crypto::sign`. No fixed
+attestation object is embedded, so one fresh key registers and then signs in. Why: no browser runs
+in a test, and a hand-copied ceremony could not carry a fresh challenge.
 
 **Trade-offs.** A web application gains passwordless sign-in with no package and no JavaScript library
 on the server. Latency: one signature check per sign-in, on the request that signs in. Memory: the
@@ -168,10 +170,10 @@ updated credential is returned.
 **Does:** what the browser sent is `tainted`, a challenge verifies once, and the class meets the
 roster's admission test.
 
-- [ ] The browser's response is `tainted` in each member's declaration, `credentialId` returns `tainted bytes`, and the verified credential is not tainted. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/registry.rs:185`
-- [ ] A challenge used twice, a wrong origin and a wrong relying party id each throw. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] Conformance cases for each refusal, built as the standing decision says. `tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst:1`
-- [ ] `rule:security/protocol-roster` names `Core\Passkey` as built, not only admitted, and its case joins `guardedBy` (`rule:security/protocol-admission-test`). `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
+- [x] The browser's response is `tainted` in each member's declaration, `credentialId` returns `tainted bytes`, and the verified credential is not tainted. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/registry.rs:185`
+- [x] A challenge used twice, a wrong origin and a wrong relying party id each throw. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] Conformance cases for each refusal, built as the standing decision says. `tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst:1`
+- [x] `rule:security/protocol-roster` names `Core\Passkey` as built, not only admitted, and its case joins `guardedBy` (`rule:security/protocol-admission-test`). `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
 
 ### 4. the registration members have their feature proofs
 
@@ -218,35 +220,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `crates/nvs-stdlib/src/passkey.rs` registers all five `Core\Passkey`
-members, `Core\Passkey\Credential` (`of` and four readers) and the enum
-`Core\Passkey\Credential::Algorithm`. The sign-in half: `signInOptions` saves its challenge under its
-own session key, `Core\Passkey::signInOptions` (`SIGN_IN_KEY`), so a registration and a sign-in in
-flight do not take each other's challenge. `credentialId`'s symbol is
-`nvs_core_passkey_credential_id_of`, because `nvs_core_passkey_credential_id` is `Credential::id`'s.
-It reads `id`, or `rawId` where there is no `id`, and is `Contagious`, so a tainted response gives
-tainted bytes. `verifySignIn` (`sign_in`, `crates/nvs-stdlib/src/passkey.rs:1042`) takes the
-challenge first, checks that the response's id is `$stored`'s, then the client data, the
-authenticator data and the signature. The counter rule is there too. ES256 assertions are DER, so
-`crypto::VerifyingKey` gained `P256Der` (`crates/nvs-stdlib/src/crypto.rs:2625`), which uses ring's
-`ECDSA_P256_SHA256_ASN1`. Eleven unit tests pass, including the software authenticator's sign-in for
-both algorithms, a forged and a misdirected signature, a counter that does not increase, and the
-member-level `the_members_sign_in_once_per_challenge`. The spec's authentication vectors were not
-added: neither sets UV, so they could only show the parse, and the software authenticator's DER
-signatures already cover it. `cargo clippy --all-targets -- -D warnings` is green.
+Stages 1, 2 and 3 are done. `crates/nvs-stdlib/src/passkey.rs` registers the five members,
+`Passkey\Credential` with `of` and four readers, and the enum; eleven Rust tests cover both
+ceremonies for both algorithms. Four cases under `tests/conformance/core/passkey-*` pass under
+`target/debug/nvs.exe test <file>`. `passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst`
+plays the browser: its `Device` class builds the client data, the authenticator data, a `none`
+attestation object and an Ed25519 COSE key (`a4010103272006215820` ‖ raw x) by hand and signs with
+`Core\Crypto::sign`, and a replay, a wrong origin, a wrong domain and a challenge after a failed
+check each throw for both ceremonies. The others pin `credentialId` of a request body as E0401 into
+plain `bytes`, every challenge member before `Core\Session::start`, and the counter rule with `of`'s
+three `LogicError`s. `conformance_coverage`'s two Passkey tests are green. `rule:security/protocol-roster`
+lists `Core\Passkey` as built; the passkey rule's `guardedBy` holds all four cases, and the rule
+stays `designed` until stage 5.
 
-**Expected red until stages 3 and 4:** `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
-`every_part_one_member_has_a_conformance_case` and `every_core_class_has_a_conformance_floor_of_three`
-(no conformance case uses the members yet), and the proofs gate's `Core\Passkey` rows.
+`bun nv try` ignores `--GET--`, so a session case runs only under `nvs test`. `Core\Json::encode`
+and `decode` give tainted text, so the cases build JSON by concatenation and pass the challenge
+through `Core\Taint::assertTrusted`.
+
+**Expected red until stages 4 and 5:** the proofs gate's `Core\Passkey` rows (`passkey-proofs`).
 
 ### Next
 
-**Stage 3: taint, single use and the roster.** Files: `tests/conformance/core/`,
-`docs/rules/security/protocol-roster.md` and `data/rules/security/protocol-roster.json`. No gate.
+**Stage 4: the registration members' feature proofs.** Files: `docs/examples/core/Passkey/`,
+`benches/members/core/Passkey/`, `tests/hostile/core/Passkey/verifyRegistration/`. Follow the
+stage's **Split:** line: one writing subagent per member, one after another, then the attack. Give
+each the shape of `docs/examples/core/Totp/check/` and § *Text an end user reads*. A server example
+that needs a ceremony can reuse the first conformance case's `Device` class.
 
-- [ ] The taint item needs only its check now. The declarations are in place: each response is `Neutral` into a checked object, and `credentialId` is `Contagious`. Confirm in a conformance case that `credentialId` of a request body is `tainted bytes` and that `verifySignIn`'s answer is not tainted. `crates/nvs-stdlib/src/passkey.rs:210`
-- [ ] Single use, a wrong origin and a wrong relying-party id are tested in Rust for both ceremonies (`the_members_register_once_per_challenge`, `the_members_sign_in_once_per_challenge`, `each_check_refuses_what_it_reads`, `each_sign_in_check_refuses_what_it_reads`). The stage still owes the conformance case. Build its client data in Novis from the options' challenge, and sign the assertion with `Core\Crypto` (Ed25519 is the simpler key to put into a COSE map by hand). `tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst:1`
-- [ ] The roster rows. `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
+- [ ] `registerOptions`: `bun nv proofs --id 'Core\Passkey::registerOptions'` lists what it owes. `docs/examples/core/Passkey/registerOptions/about.md:1`, `benches/members/core/Passkey/registerOptions.nvs:1`
+- [ ] `verifyRegistration`. `docs/examples/core/Passkey/verifyRegistration/about.md:1`, `benches/members/core/Passkey/verifyRegistration.nvs:1`
+- [ ] `credentialId`. `docs/examples/core/Passkey/credentialId/about.md:1`, `benches/members/core/Passkey/credentialId.nvs:1`
+- [ ] The attack: a replayed registration. `tests/hostile/core/Passkey/verifyRegistration/01-a-replayed-registration.nvs:1`
+- [ ] `bun nv proofs --comments` over every new `.nvs` and `about.md`, and `bun nv proofs --id` owes nothing for the three. `docs/examples/core/Passkey/registerOptions/about.md:1`
 
 ### Backlog
 

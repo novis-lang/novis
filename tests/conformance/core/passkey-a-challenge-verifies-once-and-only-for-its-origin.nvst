@@ -1,0 +1,172 @@
+--TEST--
+`Core\Passkey` verifies a registration and a sign-in that a key made in Novis signed, and each challenge verifies once: a replayed response, a wrong origin and a wrong relying-party id each throw, and the challenge is gone after a failed check too — `rule:core-classes/passkey-verifies-a-webauthn-ceremony` and `rule:security/protocol-roster`
+--GET--
+under=a-request
+--FILE--
+<?nvs
+// covers: Core\Passkey::registerOptions
+// covers: Core\Passkey::verifyRegistration
+// covers: Core\Passkey::signInOptions
+// covers: Core\Passkey::verifySignIn
+// This program plays the browser. It builds each response from the options'
+// challenge, with an Ed25519 key from `Core\Crypto`.
+final class Device {
+    public static function challenge(string $options): string {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        return Core\Taint::assertTrusted($read["challenge"] as string, "this program wrote the options");
+    }
+
+    // The client data JSON the browser writes for a ceremony.
+    public static function client(string $type, string $options, string $origin): bytes {
+        string $json = "{\"type\":\"" . $type . "\",\"challenge\":\"" . Device::challenge($options)
+            . "\",\"origin\":\"" . $origin . "\"}";
+        return Core\Encoding::encodeText($json, Core\Charset::Utf8);
+    }
+
+    // SHA-256 of the domain, the flags and the four-byte sign counter.
+    public static function head(string $rpId, int $flags, int $count): bytes {
+        return Core\Bytes::join([
+            Core\Hash::of($rpId, Core\Hash::Digest::Sha256),
+            Core\Bytes::pack("C", $flags),
+            Core\Bytes::pack("N", $count),
+        ]);
+    }
+
+    // The COSE key of an Ed25519 public key: kty 1, alg -8, crv 6 and x.
+    public static function cose(Core\Crypto\KeyPair $key): bytes {
+        bytes $x = $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        return Core\Bytes::join([Core\Encoding::fromHex("a4010103272006215820"), $x]);
+    }
+
+    // A registration response with a `none` attestation object.
+    public static function register(string $options, Core\Crypto\KeyPair $key, bytes $id, string $rpId, string $origin): string {
+        bytes $auth = Core\Bytes::join([
+            Device::head($rpId, 0x45, 0),
+            Core\Bytes::fill(16, 0),
+            Core\Bytes::pack("n", Core\Bytes::length($id)),
+            $id,
+            Device::cose($key),
+        ]);
+        bytes $object = Core\Bytes::join([
+            Core\Encoding::fromHex("a363666d74646e6f6e656761747453746d74a068617574684461746158"),
+            Core\Bytes::pack("C", Core\Bytes::length($auth)),
+            $auth,
+        ]);
+        string $client = Core\Encoding::toBase64Url(Device::client("webauthn.create", $options, $origin));
+        string $raw = Core\Encoding::toBase64Url($id);
+        return "{\"type\":\"public-key\",\"id\":\"" . $raw . "\",\"rawId\":\"" . $raw
+            . "\",\"response\":{\"clientDataJSON\":\"" . $client
+            . "\",\"attestationObject\":\"" . Core\Encoding::toBase64Url($object) . "\"}}";
+    }
+
+    // A sign-in response, signed over the authenticator data and the client data's hash.
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, string $rpId, string $origin, int $count): string {
+        bytes $auth = Device::head($rpId, 0x05, $count);
+        bytes $client = Device::client("webauthn.get", $options, $origin);
+        bytes $signed = Core\Bytes::join([$auth, Core\Hash::of($client, Core\Hash::Digest::Sha256)]);
+        bytes $signature = Core\Crypto::sign($signed, $key);
+        string $raw = Core\Encoding::toBase64Url($id);
+        return "{\"type\":\"public-key\",\"id\":\"" . $raw . "\",\"rawId\":\"" . $raw
+            . "\",\"response\":{\"clientDataJSON\":\"" . Core\Encoding::toBase64Url($client)
+            . "\",\"authenticatorData\":\"" . Core\Encoding::toBase64Url($auth)
+            . "\",\"signature\":\"" . Core\Encoding::toBase64Url($signature) . "\"}}";
+    }
+
+    // The part of an error message after the member's name.
+    public static function why(Throwable $e): string {
+        return Core\Str::after($e->message, "(): ") ?? $e->message;
+    }
+}
+
+string $rpId = "example.com";
+string $origin = "https://example.com";
+Core\Session::start();
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $id = Core\Random::bytes(16);
+
+// A registration with the right origin and domain returns the new passkey.
+string $options = Core\Passkey::registerOptions($rpId, "Example", Core\Random::bytes(16), "ada");
+tainted string $sent = Device::register($options, $key, $id, $rpId, $origin) as tainted string;
+Core\Passkey\Credential $stored = Core\Passkey::verifyRegistration($sent, $rpId, $origin);
+echo "registered: ", $stored->algorithm() == Core\Passkey\Credential::Algorithm::Ed25519 ? "Ed25519" : "another algorithm", "\n";
+
+// The application saves the four values and builds the credential again from them.
+$stored = Core\Passkey\Credential::of($stored->id(), $stored->publicKey(), $stored->algorithm(), $stored->signCount());
+
+// The same response a second time throws. Its challenge was used.
+try {
+    Core\Passkey::verifyRegistration($sent, $rpId, $origin);
+    echo "a replayed registration was accepted\n";
+} catch (RuntimeError $e) {
+    echo "replayed: ", Device::why($e), "\n";
+}
+
+// A response the browser made on another site throws.
+$options = Core\Passkey::registerOptions($rpId, "Example", Core\Random::bytes(16), "ada");
+try {
+    Core\Passkey::verifyRegistration(Device::register($options, $key, $id, $rpId, "https://other.example"), $rpId, $origin);
+    echo "another origin was accepted\n";
+} catch (RuntimeError $e) {
+    echo "other origin: ", Device::why($e), "\n";
+}
+
+// The check failed, and the challenge is still gone.
+try {
+    Core\Passkey::verifyRegistration(Device::register($options, $key, $id, $rpId, $origin), $rpId, $origin);
+    echo "a used challenge was accepted\n";
+} catch (RuntimeError $e) {
+    echo "after a failure: ", Device::why($e), "\n";
+}
+
+// A passkey made for another domain throws.
+$options = Core\Passkey::registerOptions($rpId, "Example", Core\Random::bytes(16), "ada");
+try {
+    Core\Passkey::verifyRegistration(Device::register($options, $key, $id, "other.example", $origin), $rpId, $origin);
+    echo "another domain was accepted\n";
+} catch (RuntimeError $e) {
+    echo "other domain: ", Device::why($e), "\n";
+}
+
+// `credentialId` reads the id the browser sent. It is `tainted`.
+// The credential `verifySignIn` returns is not.
+$options = Core\Passkey::signInOptions($rpId, [$stored]);
+$sent = Device::signIn($options, $key, $id, $rpId, $origin, 1) as tainted string;
+tainted bytes $claimed = Core\Passkey::credentialId($sent);
+echo "claimed id matches: ", Core\Bytes::compare($claimed, $stored->id()) == 0 ? "yes" : "no", "\n";
+Core\Passkey\Credential $signedIn = Core\Passkey::verifySignIn($sent, $stored, $rpId, $origin);
+bytes $plain = $signedIn->id();
+echo "signed in, counter ", $signedIn->signCount(), ", id of ", Core\Bytes::length($plain), " bytes\n";
+
+try {
+    Core\Passkey::verifySignIn($sent, $signedIn, $rpId, $origin);
+    echo "a replayed sign-in was accepted\n";
+} catch (RuntimeError $e) {
+    echo "replayed: ", Device::why($e), "\n";
+}
+
+$options = Core\Passkey::signInOptions($rpId);
+try {
+    Core\Passkey::verifySignIn(Device::signIn($options, $key, $id, $rpId, "https://other.example", 2), $signedIn, $rpId, $origin);
+    echo "another origin was accepted\n";
+} catch (RuntimeError $e) {
+    echo "other origin: ", Device::why($e), "\n";
+}
+
+$options = Core\Passkey::signInOptions($rpId);
+try {
+    Core\Passkey::verifySignIn(Device::signIn($options, $key, $id, "other.example", $origin, 2), $signedIn, $rpId, $origin);
+    echo "another domain was accepted\n";
+} catch (RuntimeError $e) {
+    echo "other domain: ", Device::why($e), "\n";
+}
+--EXPECT--
+registered: Ed25519
+replayed: no challenge is waiting in this session. Each challenge can be checked only once, so call the options method again.
+other origin: the origin is not `https://example.com`.
+after a failure: no challenge is waiting in this session. Each challenge can be checked only once, so call the options method again.
+other domain: the passkey is for another domain than `example.com`.
+claimed id matches: yes
+signed in, counter 1, id of 16 bytes
+replayed: no challenge is waiting in this session. Each challenge can be checked only once, so call the options method again.
+other origin: the origin is not `https://example.com`.
+other domain: the passkey is for another domain than `example.com`.

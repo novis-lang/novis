@@ -8,6 +8,11 @@
     "packaging/somebody-elses-specification-is-a-crate",
     "packaging/a-registry-account-is-a-passkey"
   ],
-  "guardedBy": [],
+  "guardedBy": [
+    "tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst",
+    "tests/conformance/core/passkey-credential-id-of-a-request-body-is-tainted-bytes.nvst",
+    "tests/conformance/core/passkey-every-ceremony-member-needs-a-started-session.nvst",
+    "tests/conformance/core/passkey-a-stored-credential-signs-in-while-its-counter-rises.nvst"
+  ],
   "goal": "core-passkey"
 }
