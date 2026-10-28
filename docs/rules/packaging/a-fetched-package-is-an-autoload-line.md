@@ -27,4 +27,5 @@ person already edited (`rule:packaging/package-toml-is-a-tool-input`). The line 
 package that already has a key naming its namespace, in either form, gets no line.
 
 **Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write the folders, the generated file and the
-grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` is not written yet.
+grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` and `nvs pkg update` write them through the same code
+(`crates/nvs-cli/src/package/minimum.rs`).

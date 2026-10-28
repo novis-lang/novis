@@ -23,4 +23,5 @@ registry can carry.
 - **A review queue before publication.** It delays every release and implies a safety promise no
   reviewer can keep.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a withheld version
+and prints its reason (`crates/nvs-cli/src/package/resolve.rs`).

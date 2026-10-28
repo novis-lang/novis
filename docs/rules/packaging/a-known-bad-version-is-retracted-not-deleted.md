@@ -29,4 +29,5 @@ narrowly scoped automatic patch floor, not a general range system.
 - **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
   of every fresh resolution before any owner saw it.
 
-**Not on disk.** The tree has no package system.
+**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a retracted version
+the lock does not already have and names its fix (`crates/nvs-cli/src/package/resolve.rs`).

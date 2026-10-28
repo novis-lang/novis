@@ -12,7 +12,9 @@
 //! (`rule:packaging/resolution-takes-the-highest-minimum`), and [`lock`] reads, writes and checks
 //! `package.lock` (`rule:packaging/the-lockfile-holds-every-digest`). [`fetch`] is `nvs pkg fetch`
 //! and `nvs pkg vendor`: the graph written under `vendor/`, with `vendor/packages.nvs` and one grant
-//! line per package (`rule:packaging/a-fetched-package-is-an-autoload-line`).
+//! line per package (`rule:packaging/a-fetched-package-is-an-autoload-line`). [`minimum`] is
+//! `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`, which choose a minimum among the
+//! released versions, and [`report`] is what an `add` or an `update` prints before it writes.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -26,7 +28,9 @@ mod git;
 mod index;
 mod lock;
 mod manifest;
+mod minimum;
 mod pack;
+mod report;
 mod resolve;
 
 /// Work with Novis packages.
@@ -120,6 +124,38 @@ enum Command {
         #[arg(long)]
         locked: bool,
     },
+    /// Add a package to `package.toml` and download it.
+    ///
+    /// PACKAGE is the package's name, such as `acme/http`. Without a version,
+    /// the newest released version is added. Write `acme/http@1.4.0` to add
+    /// one exact version.
+    ///
+    /// A new version is released seven days after it is published, or when an
+    /// owner confirms it. Before that, you can only add it with its exact
+    /// version.
+    ///
+    /// The command prints the capabilities that the package and every package
+    /// it needs request. Then it does what `nvs pkg fetch` does.
+    Add {
+        /// The package, such as `acme/http` or `acme/http@1.4.0`.
+        package: String,
+    },
+    /// Raise the minimum version of packages to their newest released version.
+    ///
+    /// Without PACKAGES, every package in `[dependencies]` is raised. A
+    /// minimum is only raised, never lowered.
+    ///
+    /// The command prints what changed since `package.lock`: the versions,
+    /// the capabilities each package requests, the owners and the
+    /// repositories. Then it does what `nvs pkg fetch` does.
+    Update {
+        /// The packages to raise, such as `acme/http`.
+        packages: Vec<String>,
+    },
+    /// List the packages that have a newer released version.
+    ///
+    /// The command changes no file. Use `nvs pkg update` to raise a minimum.
+    Outdated,
     /// Write every package into the `vendor` folder again.
     ///
     /// This command does what `nvs pkg fetch` does, with one difference.
@@ -146,6 +182,9 @@ impl Args {
                 to,
                 json,
             } => diff::run(&old, &new, from, to, json),
+            Command::Add { package } => minimum::add(&package),
+            Command::Update { packages } => minimum::update(&packages),
+            Command::Outdated => minimum::outdated(),
             Command::Fetch { locked } => fetch::run(fetch::Mode::Fetch, locked),
             Command::Vendor { locked } => fetch::run(fetch::Mode::Vendor, locked),
             Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),

@@ -65,7 +65,12 @@ pub(crate) enum Mode {
 
 /// `nvs pkg fetch` or `nvs pkg vendor`, in the working directory.
 pub(crate) fn run(mode: Mode, locked: bool) -> ExitCode {
-    match fetch(mode, locked) {
+    exit(fetch(mode, locked))
+}
+
+/// The exit code of a package command that ended with `result`, with its fault printed.
+pub(crate) fn exit(result: Result<(), Failed>) -> ExitCode {
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(Failed::Fault(fault)) => {
             eprintln!("error: {fault}");
@@ -76,7 +81,7 @@ pub(crate) fn run(mode: Mode, locked: bool) -> ExitCode {
 }
 
 /// Why the command stopped.
-enum Failed {
+pub(crate) enum Failed {
     /// A fault the command prints.
     Fault(Fault),
     /// A failure already printed, such as a diagnostic.
@@ -89,64 +94,133 @@ impl From<Fault> for Failed {
     }
 }
 
+/// The application a package command works on: its `package.toml`, read, and its lock.
+pub(crate) struct App {
+    /// The `package.toml`'s path.
+    pub(crate) path: PathBuf,
+    /// The folder it is in.
+    pub(crate) dir: PathBuf,
+    pub(crate) manifest: Manifest,
+    /// `package.lock`, if the folder has one.
+    pub(crate) old: Option<Lock>,
+    /// The addresses an `https:` git dependency may be cloned from.
+    outbound: Outbound,
+}
+
+impl App {
+    /// The application whose `package.toml` is the nearest one to the working directory.
+    ///
+    /// # Errors
+    ///
+    /// No `package.toml`, one the reader refuses, which is printed, an unreadable configuration
+    /// tree, and a lock that cannot be read.
+    pub(crate) fn open() -> Result<Self, Failed> {
+        let cwd = std::env::current_dir()
+            .map_err(|err| fault(format!("cannot read the working directory: {err}")))?;
+        let Some(path) = manifest::find(&cwd) else {
+            return Err(fault(format!(
+                "there is no `{}` in `{}` or a folder above it. Write one with a \
+                 `[dependencies]` table.",
+                nvs_config::grants::FILE,
+                cwd.display()
+            ))
+            .into());
+        };
+        let mut sources = SourceMap::new();
+        let manifest = manifest::read(&path, &mut sources).map_err(|d| reported(&d, &sources))?;
+        let dir = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
+        let outbound =
+            Outbound::new(crate::config::written_capabilities().map_err(Failed::Reported)?);
+        let old = Lock::read(&dir.join(lock::FILE))?;
+        Ok(Self {
+            path,
+            dir,
+            manifest,
+            old,
+            outbound,
+        })
+    }
+
+    /// The registries `manifest` names, reaching what the tree allows, with each git dependency
+    /// written out under the data folder.
+    pub(crate) fn registries<'a>(&self, manifest: &'a Manifest) -> Registries<'a> {
+        let data = nvs_config::data::current();
+        let keep = data.map(nvs_config::data::Folder::registry);
+        let registries = Registries::new(manifest, keep.as_deref()).reaching(self.outbound.clone());
+        match data {
+            // A git dependency is written out under the data folder, beside every other file
+            // Novis keeps, and removed once it is packed.
+            Some(data) => registries.clones_in(&data.tmp(), git::LIMITS),
+            None => registries,
+        }
+    }
+
+    /// `text` parsed as this application's `package.toml`, which is not written yet.
+    ///
+    /// # Errors
+    ///
+    /// A refusal of the reader, which is printed.
+    pub(crate) fn reread(&self, text: &str) -> Result<Manifest, Failed> {
+        let mut sources = SourceMap::new();
+        manifest::parse(&mut sources, &self.path, text).map_err(|d| reported(&d, &sources))
+    }
+}
+
+/// `diagnostic` printed on standard error, as a failure already reported.
+fn reported(diagnostic: &nvs_diagnostics::Diagnostic, sources: &SourceMap) -> Failed {
+    // Standard error that cannot be written to has nobody to tell.
+    let _ = Renderer::new().render(diagnostic, sources, &mut io::stderr().lock());
+    Failed::Reported(ExitCode::FAILURE)
+}
+
 /// [`run`], returning what stopped it.
 fn fetch(mode: Mode, locked: bool) -> Result<(), Failed> {
-    let cwd = std::env::current_dir()
-        .map_err(|err| fault(format!("cannot read the working directory: {err}")))?;
-    let Some(path) = manifest::find(&cwd) else {
-        return Err(fault(format!(
-            "there is no `{}` in `{}` or a folder above it. Write one with a `[dependencies]` \
-             table.",
-            nvs_config::grants::FILE,
-            cwd.display()
-        ))
-        .into());
-    };
-    let mut sources = SourceMap::new();
-    let manifest = manifest::read(&path, &mut sources).map_err(|diagnostic| {
-        // Standard error that cannot be written to has nobody to tell.
-        let _ = Renderer::new().render(&diagnostic, &sources, &mut io::stderr().lock());
-        Failed::Reported(ExitCode::FAILURE)
-    })?;
-    let app = path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
-    let outbound = Outbound::new(crate::config::written_capabilities().map_err(Failed::Reported)?);
-    let data = nvs_config::data::current();
-    let keep = data.map(nvs_config::data::Folder::registry);
-    let lock_path = app.join(lock::FILE);
-    let old = Lock::read(&lock_path)?;
-    if locked && old.is_none() {
+    let app = App::open()?;
+    if locked && app.old.is_none() {
         return Err(fault(format!(
             "`--locked` uses the versions in {}, and `{}` has none. Run the command without \
              `--locked` to write it.",
             lock::FILE,
-            app.display()
+            app.dir.display()
         ))
         .into());
     }
-    let mut registries = Registries::new(&manifest, keep.as_deref()).reaching(outbound);
-    if let Some(data) = data {
-        // A git dependency is written out under the data folder, beside every other file Novis
-        // keeps, and removed once it is packed.
-        registries = registries.clones_in(&data.tmp(), git::LIMITS);
-    }
-    let graph = resolve::resolve(&manifest, &mut registries, old.as_ref())?;
-    if let Some(old) = &old {
+    let mut registries = app.registries(&app.manifest);
+    let graph = resolve::resolve(&app.manifest, &mut registries, app.old.as_ref())?;
+    if let Some(old) = &app.old {
         old.check(&graph, locked)?;
     }
     for crossing in &graph.crossings {
         eprintln!("note: {crossing}");
     }
-    let vendor = app.join(VENDOR);
-    let written = write_packages(mode, &graph, &mut registries, &vendor)?;
-    if let Some(old) = &old {
-        remove_unneeded(old, &graph, &vendor)?;
+    land(&app, &app.manifest, mode, locked, &graph, &mut registries)
+}
+
+/// `graph`, resolved from `manifest` and checked against the lock, written: every package under
+/// `vendor/`, `vendor/packages.nvs`, the lock unless `locked`, and the grant lines.
+///
+/// # Errors
+///
+/// An archive that cannot be read or written, and a file that cannot be written.
+pub(crate) fn land(
+    app: &App,
+    manifest: &Manifest,
+    mode: Mode,
+    locked: bool,
+    graph: &Graph,
+    registries: &mut Registries<'_>,
+) -> Result<(), Failed> {
+    let vendor = app.dir.join(VENDOR);
+    let written = write_packages(mode, graph, registries, &vendor)?;
+    if let Some(old) = &app.old {
+        remove_unneeded(old, graph, &vendor)?;
     }
-    let new = Lock::of(&graph);
+    let new = Lock::of(graph);
     write_if_changed(&vendor.join(AUTOLOADS), &autoloads(&new))?;
-    if !locked && old.as_ref() != Some(&new) {
-        new.write(&lock_path)?;
+    if !locked && app.old.as_ref() != Some(&new) {
+        new.write(&app.dir.join(lock::FILE))?;
     }
-    let added = add_grants(&path, &manifest, &new)?;
+    let added = add_grants(&app.path, manifest, &new)?;
     for line in &added {
         println!("added to [grants]: {line}");
     }
@@ -341,14 +415,21 @@ fn add_grants(path: &Path, manifest: &Manifest, lock: &Lock) -> Result<Vec<Strin
     if lines.is_empty() {
         return Ok(lines);
     }
+    let text = fs::read_to_string(path)
+        .map_err(|err| fault(format!("cannot read `{}`: {err}", path.display())))?;
+    replace_file(path, &with_grants(&text, &lines))?;
+    Ok(lines)
+}
+
+/// The file at `path` replaced by `text`, written beside it first and renamed into place, so a
+/// failed write leaves the old file whole.
+pub(crate) fn replace_file(path: &Path, text: &str) -> Result<(), Fault> {
     let failed = |err: io::Error| fault(format!("cannot write `{}`: {err}", path.display()));
-    let text = fs::read_to_string(path).map_err(failed)?;
     let mut partial = path.as_os_str().to_owned();
     partial.push(".partial");
     let partial = PathBuf::from(partial);
-    fs::write(&partial, with_grants(&text, &lines)).map_err(failed)?;
-    fs::rename(&partial, path).map_err(failed)?;
-    Ok(lines)
+    fs::write(&partial, text).map_err(failed)?;
+    fs::rename(&partial, path).map_err(failed)
 }
 
 /// The grant line for `namespace`, granting nothing, with what the package requests as its
@@ -371,24 +452,46 @@ fn grant_line(namespace: &str, requests: &Capabilities) -> String {
 /// `text` with `lines` added at the end of its `[grants]` table, or in a new `[grants]` table at
 /// the end of the file when it has none. Every other line is kept as written.
 pub(crate) fn with_grants(text: &str, lines: &[String]) -> String {
-    let mut out: Vec<&str> = text.lines().collect();
-    let header = |line: &str| {
-        let line = line.trim();
-        line.strip_prefix('[')
-            .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphabetic() || c == '['))
-    };
-    let grants = out.iter().position(|line| {
-        let line = line.trim();
-        line.strip_prefix("[grants]")
+    with_lines(text, "grants", lines)
+}
+
+/// Whether `line` starts a table: `[name]` or `[[name]]`.
+fn is_header(line: &str) -> bool {
+    line.trim()
+        .strip_prefix('[')
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_alphabetic() || c == '['))
+}
+
+/// The lines of `table` in `lines`: the index of its header and the index just past its end.
+pub(crate) fn table_span(lines: &[&str], table: &str) -> Option<(usize, usize)> {
+    let at = lines.iter().position(|line| {
+        line.trim()
+            .strip_prefix(&format!("[{table}]"))
             .is_some_and(|rest| rest.trim().is_empty() || rest.trim().starts_with('#'))
-    });
+    })?;
+    let end = lines[at + 1..]
+        .iter()
+        .position(|line| is_header(line))
+        .map_or(lines.len(), |next| at + 1 + next);
+    Some((at, end))
+}
+
+/// `text` with its lines replaced by `out`, in the newline `text` uses.
+pub(crate) fn joined(text: &str, out: &[&str]) -> String {
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    let mut written = out.join(newline);
+    written.push_str(newline);
+    written
+}
+
+/// `text` with `lines` added at the end of its `[<table>]`, or in a new table at the end of the
+/// file when it has none. Every other line is kept as written.
+pub(crate) fn with_lines(text: &str, table: &str, lines: &[String]) -> String {
+    let mut out: Vec<&str> = text.lines().collect();
     let added: Vec<&str> = lines.iter().map(String::as_str).collect();
-    match grants {
-        Some(at) => {
-            let end = out[at + 1..]
-                .iter()
-                .position(|line| header(line))
-                .map_or(out.len(), |next| at + 1 + next);
+    let header = format!("[{table}]");
+    match table_span(&out, table) {
+        Some((at, end)) => {
             // The table's last line that is not blank, so the blank lines before the next table
             // stay after the added lines.
             let last = (at + 1..end)
@@ -401,14 +504,11 @@ pub(crate) fn with_grants(text: &str, lines: &[String]) -> String {
             if out.last().is_some_and(|line| !line.trim().is_empty()) {
                 out.push("");
             }
-            out.push("[grants]");
+            out.push(&header);
             out.extend(added);
         }
     }
-    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
-    let mut written = out.join(newline);
-    written.push_str(newline);
-    written
+    joined(text, &out)
 }
 
 #[cfg(test)]

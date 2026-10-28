@@ -1,4 +1,5 @@
-//! `nvs pkg fetch` and `nvs pkg vendor` through the binary
+//! `nvs pkg fetch`, `nvs pkg vendor`, `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`
+//! through the binary
 //! (`rule:packaging/a-fetched-package-is-an-autoload-line`,
 //! `rule:security/package-authority-is-granted-one-line-at-a-time`,
 //! `rule:packaging/nothing-runs-before-the-program`, `rule:packaging/the-lockfile-holds-every-digest`).
@@ -61,17 +62,32 @@ impl Tree {
         .expect("the test writes the manifest");
     }
 
-    /// `namespace` 1.0.0, requesting `fs.read`, with `files` under its `src`, packed by the binary
-    /// and listed in the registry.
+    /// `namespace` 1.0.0, released and requesting `fs.read`, with `files` under its `src`, packed
+    /// by the binary and listed in the registry.
     fn publish(&self, namespace: &str, files: &[(&str, &str)]) {
+        self.release(namespace, "1.0.0", "released", &["fs.read"], files);
+    }
+
+    /// `namespace` at `version` in `state`, written as the index writes it, requesting
+    /// `required`, with `files` under its `src`, packed by the binary and added to the package's
+    /// index.
+    fn release(
+        &self,
+        namespace: &str,
+        version: &str,
+        state: &str,
+        required: &[&str],
+        files: &[(&str, &str)],
+    ) {
         let slug = namespace.to_lowercase().replace('\\', "/");
-        let dir = self.root.join("packages").join(slug.replace('/', "-"));
+        let folder = format!("{}-{version}", slug.replace('/', "-"));
+        let dir = self.root.join("packages").join(&folder);
         fs::create_dir_all(dir.join("src")).expect("the test makes the package");
         fs::write(
             dir.join("package.toml"),
             format!(
-                "[package]\nname = '{namespace}'\nversion = \"1.0.0\"\n\n\
-                 [capabilities]\nrequired = [\"fs.read\"]\n"
+                "[package]\nname = '{namespace}'\nversion = \"{version}\"\n\n\
+                 [capabilities]\nrequired = {required:?}\n"
             ),
         )
         .expect("the test writes the package's manifest");
@@ -79,10 +95,7 @@ impl Tree {
         for (path, text) in files {
             fs::write(dir.join("src").join(path), text).expect("the test writes the source");
         }
-        let tar = self
-            .root
-            .join("packages")
-            .join(format!("{}.tar", slug.replace('/', "-")));
+        let tar = self.root.join("packages").join(format!("{folder}.tar"));
         let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .args(["pkg", "pack"])
             .arg(&dir)
@@ -100,21 +113,26 @@ impl Tree {
         let archive = self.registry().join("archive");
         fs::create_dir_all(&archive).expect("the test makes the archive folder");
         fs::write(archive.join(format!("{digest}.tar")), &bytes).expect("the test copies it");
-        let index = serde_json::json!({
-            "schema": 1,
-            "name": namespace,
-            "owners": ["owner"],
-            "versions": [{
-                "version": "1.0.0",
-                "digest": digest,
-                "state": "released",
-                "dependencies": {},
-                "capabilities": { "required": ["fs.read"], "optional": [] },
-                "repository": format!("https://git.example.com/{slug}"),
-                "commit": "0".repeat(40),
-            }],
+        let state: serde_json::Value =
+            serde_json::from_str(state).unwrap_or_else(|_| serde_json::json!(state));
+        let line = serde_json::json!({
+            "version": version,
+            "digest": digest,
+            "state": state,
+            "dependencies": {},
+            "capabilities": { "required": required, "optional": [] },
+            "repository": format!("https://git.example.com/{slug}"),
+            "commit": "0".repeat(40),
         });
         let path = self.registry().join(format!("index/{slug}.json"));
+        let mut index = fs::read_to_string(&path).map_or_else(
+            |_| serde_json::json!({ "schema": 1, "name": namespace, "owners": ["owner"], "versions": [] }),
+            |text| serde_json::from_str(&text).expect("the test wrote the index"),
+        );
+        index["versions"]
+            .as_array_mut()
+            .expect("an index lists its versions")
+            .push(line);
         fs::create_dir_all(path.parent().expect("an index file has a folder"))
             .expect("the test makes the index folder");
         fs::write(path, index.to_string()).expect("the test writes the index");
@@ -298,4 +316,146 @@ fn a_locked_run_refuses_a_missing_entry_and_an_edited_digest() {
             shown(&out)
         );
     }
+}
+
+/// A pending version that becomes selectable long after the test runs, as an index writes it.
+const PENDING: &str = r#"{ "pending": { "selectable_at": 99999999999 } }"#;
+
+#[test]
+fn add_chooses_only_a_released_version_and_takes_the_others_by_exact_version() {
+    let tree = Tree::new("package-add-states", "");
+    let main = &[("Main.nvs", MAIN)][..];
+    tree.release("Acme\\Http", "1.0.0", "released", &["fs.read"], main);
+    tree.release("Acme\\Http", "1.1.0", "unlisted", &["fs.read"], main);
+    let retracted = r#"{ "retracted": { "reason": "it drops headers", "fixed_in": "1.2.1" } }"#;
+    tree.release("Acme\\Http", "1.2.0", retracted, &["fs.read"], main);
+    let withheld = r#"{ "withheld": { "reason": "malware" } }"#;
+    tree.release("Acme\\Http", "1.3.0", withheld, &["fs.read"], main);
+    tree.release("Acme\\Http", "1.4.0", PENDING, &["fs.read"], main);
+
+    let out = tree.nvs(&["pkg", "add", "acme/http"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert!(
+        tree.read("package.toml")
+            .contains("'Acme\\Http' = \"1.0.0\""),
+        "{}",
+        tree.read("package.toml")
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout)
+            .contains("`Acme\\Http` 1.0.0 needs 0 other package(s)"),
+        "{}",
+        shown(&out)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("`Acme\\Http` 1.0.0: required fs.read"),
+        "{}",
+        shown(&out)
+    );
+
+    for version in ["1.4.0", "1.1.0"] {
+        let out = tree.nvs(&["pkg", "add", &format!("acme/http@{version}")]);
+        assert!(out.status.success(), "{version}: {}", shown(&out));
+        assert!(
+            tree.read("package.toml")
+                .contains(&format!("'Acme\\Http' = \"{version}\"")),
+            "{version}: {}",
+            tree.read("package.toml")
+        );
+        assert!(
+            tree.read("package.lock")
+                .contains(&format!("version = \"{version}\"")),
+            "{version}: {}",
+            tree.read("package.lock")
+        );
+        assert!(
+            tree.read("vendor/acme/http/package.toml")
+                .contains(&format!("version = \"{version}\"")),
+            "{version} is the version under vendor/"
+        );
+    }
+
+    for (version, says) in [
+        (
+            "1.2.0",
+            "`Acme\\Http` 1.2.0 is retracted: it drops headers. Raise the minimum to 1.2.1",
+        ),
+        (
+            "1.3.0",
+            "`Acme\\Http` 1.3.0 is withheld by the registry: malware",
+        ),
+    ] {
+        let manifest = tree.read("package.toml");
+        let out = tree.nvs(&["pkg", "add", &format!("acme/http@{version}")]);
+        assert!(!out.status.success(), "{version} was added");
+        assert!(shown(&out).contains(says), "{version}: {}", shown(&out));
+        assert_eq!(
+            tree.read("package.toml"),
+            manifest,
+            "a failed add writes nothing"
+        );
+    }
+}
+
+#[test]
+fn update_prints_a_capability_the_new_version_requests() {
+    let tree = Tree::new("package-update-report", HTTP);
+    tree.publish("Acme\\Http", &[("Main.nvs", MAIN)]);
+    let out = tree.nvs(&["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let main = &[("Main.nvs", MAIN)][..];
+    tree.release(
+        "Acme\\Http",
+        "1.1.0",
+        "released",
+        &["fs.read", "net.connect"],
+        main,
+    );
+    tree.release("Acme\\Http", "1.2.0", PENDING, &["fs.read"], main);
+
+    let (manifest, lock) = (tree.read("package.toml"), tree.read("package.lock"));
+    let out = tree.nvs(&["pkg", "outdated"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout).trim(),
+        "`Acme\\Http` 1.0.0 -> 1.1.0",
+        "the pending 1.2.0 is not offered"
+    );
+    assert_eq!(
+        tree.read("package.toml"),
+        manifest,
+        "outdated writes nothing"
+    );
+    assert_eq!(tree.read("package.lock"), lock, "outdated writes nothing");
+
+    let out = tree.nvs(&["pkg", "update"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for line in [
+        "`Acme\\Http`: the minimum is raised from 1.0.0 to 1.1.0.",
+        "`Acme\\Http` 1.1.0: required fs.read, net.connect",
+        "Changes since package.lock:\n  `Acme\\Http` 1.0.0 -> 1.1.0\n    now requests net.connect (required)\n",
+    ] {
+        assert!(stdout.contains(line), "{line}: {}", shown(&out));
+    }
+    assert!(
+        tree.read("package.toml")
+            .contains("'Acme\\Http' = \"1.1.0\""),
+        "{}",
+        tree.read("package.toml")
+    );
+    assert!(
+        tree.read("package.toml")
+            .contains("'Acme\\Http\\*' = []  # required: fs.read"),
+        "an update never changes a grant line: {}",
+        tree.read("package.toml")
+    );
+    assert!(tree.read("package.lock").contains("version = \"1.1.0\""));
+
+    let out = tree.nvs(&["pkg", "outdated"]);
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("Every package is at its newest"),
+        "{}",
+        shown(&out)
+    );
 }

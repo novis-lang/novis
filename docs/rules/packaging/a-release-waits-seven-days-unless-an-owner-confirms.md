@@ -29,4 +29,6 @@ confirmation with one is what shortens the window.
 - **Hiding a pending release until it is released.** A pending release has to be fetchable by exact
   version so it can be tested, and it has to be listed so anybody can check it.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry. The client reads a pending version and the time it becomes
+selectable from the index, and `nvs pkg add` and `nvs pkg update` choose it only by its exact version
+until then (`crates/nvs-cli/src/package/minimum.rs`).

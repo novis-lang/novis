@@ -181,7 +181,7 @@ impl<'a> Registries<'a> {
     }
 
     /// The index of `name`, read once, or `None` when its registry does not list it.
-    fn index(&mut self, name: &Name) -> Result<Option<&Index>, Fault> {
+    pub(crate) fn index(&mut self, name: &Name) -> Result<Option<&Index>, Fault> {
         let slug = name.slug();
         if !self.indexes.contains_key(&slug) {
             let index = self.registry(name)?.index(name)?;
@@ -193,7 +193,7 @@ impl<'a> Registries<'a> {
 
 /// The breaking line `version` is on: the leftmost part that is not zero, which is the part a
 /// break moves (`rule:packaging/below-1-0-the-breaking-slot-moves-left`).
-fn line(version: Version) -> (u64, u64, u64) {
+pub(crate) fn line(version: Version) -> (u64, u64, u64) {
     match version {
         Version {
             major: 0,

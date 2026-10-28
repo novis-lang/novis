@@ -1148,7 +1148,8 @@ person already edited ([`packaging/package-toml-is-a-tool-input`](packaging.md#p
 package that already has a key naming its namespace, in either form, gets no line.
 
 **Not on disk.** `nvs pkg fetch` and `nvs pkg vendor` write the folders, the generated file and the
-grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` is not written yet.
+grant lines (`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg add` and `nvs pkg update` write them through the same code
+(`crates/nvs-cli/src/package/minimum.rs`).
 
 <sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key).</sub>
 
@@ -1325,7 +1326,10 @@ itself, which is also why a security patch does not arrive on its own, and why r
 - **A root-only rule for `0.0.x` dependencies.** A `0.0.x` package promises nothing, and the compile
   error already names a break that matters.
 
-**Not on disk.** The tree has no package system and no resolver.
+**Not on disk.** Resolution, its crossings and the version states are
+`crates/nvs-cli/src/package/resolve.rs`. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`
+choose only a released version (`crates/nvs-cli/src/package/minimum.rs`), and `add` and `update`
+print the crossings in their report (`crates/nvs-cli/src/package/report.rs`).
 
 <sub>See also [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest).</sub>
 
@@ -1393,7 +1397,9 @@ registries in order would make the first one that answers the owner of every nam
 - **The first registry that has the name.** That order is exactly how dependency confusion works: the
   public registry answers for a private name it should never have been asked about.
 
-**Not on disk.** The tree has no package system.
+**Not on disk.** The client resolves each vendor from its one registry
+(`crates/nvs-cli/src/package/resolve.rs`), and `nvs pkg add` and `nvs pkg update` print the report
+(`crates/nvs-cli/src/package/report.rs`). The verifier key is read and not checked yet.
 
 <sub>See also [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
@@ -2039,7 +2045,9 @@ confirmation with one is what shortens the window.
 - **Hiding a pending release until it is released.** A pending release has to be fetchable by exact
   version so it can be tested, and it has to be listed so anybody can check it.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry. The client reads a pending version and the time it becomes
+selectable from the index, and `nvs pkg add` and `nvs pkg update` choose it only by its exact version
+until then (`crates/nvs-cli/src/package/minimum.rs`).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/an-owner-is-notified-without-email`](packaging.md#packaging-an-owner-is-notified-without-email), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires).</sub>
 
@@ -2157,7 +2165,9 @@ retracted instead, which is what tells the people who already use it.
 - **Deletion by the owner.** It breaks every lockfile that holds the digest, and a deleted name would
   invite somebody to publish different code under it.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry. The client resolves and fetches an unlisted version a minimum
+names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
+(`crates/nvs-cli/src/package/minimum.rs`).
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
@@ -2198,7 +2208,8 @@ narrowly scoped automatic patch floor, not a general range system.
 - **A token-sent retraction taking effect at once.** A stolen token could then pull a good release out
   of every fresh resolution before any owner saw it.
 
-**Not on disk.** The tree has no package system.
+**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a retracted version
+the lock does not already have and names its fix (`crates/nvs-cli/src/package/resolve.rs`).
 
 <sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
@@ -2233,7 +2244,8 @@ registry can carry.
 - **A review queue before publication.** It delays every release and implies a safety promise no
   reviewer can keep.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry and no `nvs pkg audit`. Resolution refuses a withheld version
+and prints its reason (`crates/nvs-cli/src/package/resolve.rs`).
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>
 

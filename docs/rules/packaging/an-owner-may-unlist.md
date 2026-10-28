@@ -15,4 +15,6 @@ retracted instead, which is what tells the people who already use it.
 - **Deletion by the owner.** It breaks every lockfile that holds the digest, and a deleted name would
   invite somebody to publish different code under it.
 
-**Not on disk.** There is no registry.
+**Not on disk.** There is no registry. The client resolves and fetches an unlisted version a minimum
+names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
+(`crates/nvs-cli/src/package/minimum.rs`).
