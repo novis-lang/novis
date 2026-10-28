@@ -1377,13 +1377,14 @@
   },
   "/reference/cli/the-vs-code-extension/": {
     "feature": "tools:editor/the-vs-code-extension",
-    "hash": "a43e04b74734879e",
+    "hash": "4afd1f36579d319b",
     "questions": [
       "How do I install Novis support in Visual Studio Code?",
       "Syntax colours and autocomplete for .nvs files in VS Code",
       "Point VS Code at a specific copy of the nvs binary",
       "Open a speedscope profile or a profile link from the debug viewer in VS Code",
       "Why are passwords blurred in my editor?",
+      "Class names and methods have the same colour in VS Code",
       "Start the Novis debugger from launch.json in VS Code"
     ]
   },
