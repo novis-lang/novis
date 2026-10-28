@@ -1,6 +1,6 @@
 {
   "title": "`Core\\WebPush::send` encrypts a payload as RFC 8291 `aes128gcm` with the nonce derived inside, signs a VAPID token, and sends under `net.connect`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/crypto-interop-tier",
     "security/protocol-roster",
@@ -8,6 +8,9 @@
     "security/net-address-policy",
     "packaging/an-owner-is-notified-without-email"
   ],
-  "guardedBy": [],
-  "goal": "core-web-push"
+  "guardedBy": [
+    "tests/conformance/core/web-push-a-subscription-that-is-not-a-browsers-throws.nvst",
+    "tests/conformance/core/web-push-send-throws-a-logic-error-before-it-reaches-a-host.nvst",
+    "tests/conformance/core/web-push-endpoint-of-a-request-body-is-tainted.nvst"
+  ]
 }
