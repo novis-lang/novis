@@ -1,0 +1,148 @@
+<?nvs
+namespace Registry;
+
+use Core\Crypto;
+use Core\Crypto\KeyKind;
+use Core\Http\Method;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+
+// Tests for the push devices and the other channels of an account.
+// The push service is a fake web service from `Test::answerHttp`. Each test signs up its own accounts.
+final class PushTest
+{
+    // The address of the fake push service.
+    private const string SERVICE = 'https://push.example.com/send/';
+
+    #[Test]
+    public function aDeviceIsVerifiedByItsCode(): void
+    {
+        Test::answerHttp(PushTest::SERVICE . '*', 201);
+        string $account = new BrowserTest()->newAccountWithoutChannel();
+        string $endpoint = PushTest::SERVICE . Random::token(8);
+        ?string $id = PushTest::push()->register($account, PushTest::subscription($endpoint));
+        Test::assertTrue($id != null);
+        string $channel = $id ?? '';
+
+        // The device got one encrypted message, signed with the key of the registry.
+        array<SentRequest> $sent = Test::sentHttp();
+        Test::assertSame(Core\Arr::count($sent), 1);
+        Test::assertTrue($sent[0]->method() == Method::Post);
+        Test::assertSame($sent[0]->url(), $endpoint);
+        Test::assertTrue(Str::startsWith($sent[0]->header('authorization') ?? '', 'vapid '));
+        Test::assertSame($sent[0]->header('content-encoding'), 'aes128gcm');
+
+        // The test cannot decrypt the message, so it asks for a new code.
+        var $channels = new Channels(Schema::open());
+        string $code = $channels->newCode($account, $channel) ?? '';
+        Test::assertTrue(!$channels->verify($account, $channel, 'wrong'));
+        Test::assertTrue(!$channels->hasVerified($account));
+        Test::assertTrue($channels->verify($account, $channel, $code));
+        Test::assertTrue($channels->hasVerified($account));
+        // A code works once.
+        Test::assertTrue(!$channels->verify($account, $channel, $code));
+    }
+
+    #[Test]
+    public function aGoneDeviceIsDropped(): void
+    {
+        string $gone = PushTest::SERVICE . Random::token(8);
+        Test::answerHttp($gone, 410);
+        string $account = new BrowserTest()->newAccountWithoutChannel();
+        var $channels = new Channels(Schema::open());
+        Test::assertTrue(PushTest::push()->register($account, PushTest::subscription($gone)) == null);
+        Test::assertSame(Core\Arr::count($channels->of($account)), 0);
+
+        // A verified device that the push service no longer knows is deleted at the next message.
+        string $later = PushTest::SERVICE . Random::token(8);
+        Test::answerHttp($later, 410);
+        array<string> $added = $channels->add($account, Channels::PUSH, PushTest::subscription($later));
+        Test::assertTrue($channels->verify($account, $added['id'], $added['code']));
+        Test::assertTrue($channels->hasVerified($account));
+        Test::assertSame(PushTest::push()->notify($account, 'A new version is published.'), 0);
+        Test::assertSame(Core\Arr::count($channels->of($account)), 0);
+        Test::assertTrue(!$channels->hasVerified($account));
+    }
+
+    #[Test]
+    public function aChannelThatFailsStopsCounting(): void
+    {
+        string $account = new BrowserTest()->newAccountWithoutChannel();
+        var $channels = new Channels(Schema::open());
+        array<string> $added = $channels->add($account, Channels::WEBHOOK, 'https://hooks.example.com/' . $account);
+        Test::assertTrue($channels->verify($account, $added['id'], $added['code']));
+        $channels->failed($added['id']);
+        Test::assertTrue(!$channels->hasVerified($account));
+        // It counts again once the owner verifies it with a new code.
+        string $code = $channels->newCode($account, $added['id']) ?? '';
+        Test::assertTrue($channels->verify($account, $added['id'], $code));
+        Test::assertTrue($channels->hasVerified($account));
+    }
+
+    #[Test]
+    public function anAccountWithNoVerifiedChannelCannotPublish(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccountWithoutChannel();
+        string $vendor = 'V' . Random::token(4);
+        tainted string $token = PublishTest::token($browser, $vendor);
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        var $done = PublishTest::publisher($builder)->publish($token, PublishTest::request($vendor, '1.0.0'));
+        Test::assertSame($done->status, 403);
+        Test::assertSame($done->digest, '');
+        Test::assertTrue(Str::contains($done->text, 'verified channel'));
+        // The registry refuses it before the build.
+        Test::assertCalled($builder, Builder::build, { times: 0 });
+    }
+
+    #[Test]
+    public function anAccountWithNoVerifiedChannelCannotBecomeAnOwner(): void
+    {
+        var $owner = new BrowserTest();
+        string $vendor = $owner->newVendor();
+        string $account = new BrowserTest()->newAccountWithoutChannel();
+        Test::assertSame($owner->post('/api/vendors/' . $vendor . '/owners', { account: $account })->status(), 403);
+        BrowserTest::verifiedChannel($account);
+        Test::assertSame($owner->post('/api/vendors/' . $vendor . '/owners', { account: $account })->status(), 201);
+    }
+
+    #[Test]
+    public function anOwnerVerifiesListsAndRemovesAChannel(): void
+    {
+        var $browser = new BrowserTest();
+        string $account = $browser->newAccountWithoutChannel();
+        var $channels = new Channels(Schema::open());
+        array<string> $added = $channels->add($account, Channels::WEBHOOK, 'https://hooks.example.com/' . $account);
+        string $path = '/api/channels/' . $added['id'];
+        Test::assertSame($browser->post($path . '/verify', { code: 'wrong' })->status(), 404);
+        Test::assertSame($browser->post($path . '/verify', { code: $added['code'] })->status(), 200);
+
+        // The list has the channel, with the time it was verified.
+        var $listed = ($browser->send(Method::Get, '/api/channels')->json() as array<mixed>)['channels'] as array<mixed>;
+        Test::assertSame(Core\Arr::count($listed), 1);
+        var $first = $listed[0] as array<mixed>;
+        Test::assertSame($first['id'] as tainted string, $added['id']);
+        Test::assertTrue($first['verifiedAt'] != null);
+
+        Test::assertSame($browser->send(Method::Delete, $path)->status(), 204);
+        Test::assertTrue(!$channels->hasVerified($account));
+        // With `"pushKey": ""` in `hosting.json`, no push device can be added.
+        Test::assertSame($browser->post('/api/push/devices', { subscription: PushTest::subscription(PushTest::SERVICE . 'x') })->status(), 503);
+    }
+
+    // A `Push` with a new key, as the registry makes it from `pushKey`.
+    private static function push(): Push
+    {
+        return new Push(Schema::open(), Crypto::generateKeyPair(KeyKind::P256), 'mailto:registry@example.com');
+    }
+
+    // The JSON of one browser subscription with this endpoint.
+    private static function subscription(string $endpoint): string
+    {
+        return '{"endpoint":"' . $endpoint . '","keys":{'
+            . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
+            . '"auth":"BTBZMqHH6r4Tts7J_aSIgg"}}';
+    }
+}

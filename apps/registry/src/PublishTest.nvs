@@ -320,19 +320,19 @@ final class PublishTest
         Test::assertSame($done->digest, '');
     }
 
-    private static function publisher(Builder $builder): Publish
+    public static function publisher(Builder $builder): Publish
     {
         return new Publish(Schema::open(), $builder, Site::load());
     }
 
     // A build double that returns this JSON for every build.
-    private static function builder(string $json): Builder
+    public static function builder(string $json): Builder
     {
         return Test::double<Builder>({ build: fn(array<string> $arguments): string => $json });
     }
 
     // The JSON a successful build of this package prints.
-    private static function built(string $name, string $digest): string
+    public static function built(string $name, string $digest): string
     {
         return PublishTest::json({
             schema: 1,
@@ -356,7 +356,7 @@ final class PublishTest
     }
 
     // Makes a token for this scope in the browser's account and returns it.
-    private static function token(BrowserTest $browser, string $scope): tainted string
+    public static function token(BrowserTest $browser, string $scope): tainted string
     {
         var $made = $browser->post('/api/tokens', { scope: $scope, days: 30 });
         Test::assertSame($made->status(), 201);
@@ -364,7 +364,7 @@ final class PublishTest
     }
 
     // A publish of the root folder of the vendor's repository.
-    private static function request(string $vendor, string $version): PublishRequest
+    public static function request(string $vendor, string $version): PublishRequest
     {
         return new PublishRequest(PublishTest::repository($vendor), PublishTest::commit(), $version, '');
     }
@@ -380,7 +380,7 @@ final class PublishTest
         return Encoding::toHex(Random::bytes(20));
     }
 
-    private static function digest(): string
+    public static function digest(): string
     {
         return 'blake3:' . Encoding::toHex(Random::bytes(32));
     }
