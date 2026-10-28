@@ -1,6 +1,7 @@
 <?nvs
 namespace Registry;
 
+use Core\Arr;
 use Core\Db;
 use Core\Db\Driver;
 use Core\Db\Row;
@@ -60,18 +61,27 @@ final class BackupTest
             tainted string $token = ($made->json() as array<mixed>)['token'] as tainted string;
             string $repository = 'https://git.example.com/' . $vendor . '/http.git';
 
-            // Version 1.0.0 is in the log as entry 0, and then the database is copied.
-            BackupTest::publish($site, $token, $vendor, $repository, '1.0.0');
+            // Version 0.0.1 goes into the log, and then the database is copied. The token's entry and
+            // the entries of other tests wait in the shared database, so they go into the log first.
+            // Below 0.1.0 no owner has to confirm the API, so each release waits only its seven days.
+            BackupTest::publish($site, $token, $vendor, $repository, '0.0.1');
             Test::assertTrue(new Index(Schema::open(), BackupTest::log(0), $site)->catchUp($key));
             Test::assertTrue(new Backup(Schema::open(), $site)->copy());
-            // Version 1.1.0 is in the log as entry 1. The copy does not have it.
-            BackupTest::publish($site, $token, $vendor, $repository, '1.1.0');
-            Test::assertTrue(new Index(Schema::open(), BackupTest::log(1), $site)->catchUp($key));
+            // Version 0.0.2 goes into the log after it. The copy does not have it.
+            BackupTest::publish($site, $token, $vendor, $repository, '0.0.2');
+            int $first = BackupTest::logNumber($key, '0.0.1');
+            Test::assertTrue(new Index(Schema::open(), BackupTest::log($first + 1), $site)->catchUp($key));
+            int $second = BackupTest::logNumber($key, '0.0.2');
+            Test::assertTrue($second > $first);
 
-            // The log has both releases. The double returns its entries.
+            // The double returns the log's entries: each release at its own number, and an entry
+            // of another kind at every other number.
             array<string> $entries = [];
-            foreach (Schema::open()->query('select version, digest, git_commit from releases where package = ? order by log', [$key]) as Row $row) {
-                $entries[] = BackupTest::trusted(Json::encode({
+            while (Arr::count($entries) <= $second) {
+                $entries[] = BackupTest::trusted(Json::encode({ v: 1, kind: 'token' }));
+            }
+            foreach (Schema::open()->query('select version, digest, git_commit, log from releases where package = ? order by log', [$key]) as Row $row) {
+                $entries[$row->int('log')] = BackupTest::trusted(Json::encode({
                     v: 1,
                     kind: 'publish',
                     package: Index::slug($key),
@@ -81,9 +91,8 @@ final class BackupTest
                     commit: $row->string('git_commit'),
                 }));
             }
-            Test::assertCount($entries, 2);
             IO::makeDir($site->work . '/log');
-            IO::write($site->work . '/log/checkpoint', "test\n2\nroot\n");
+            IO::write($site->work . '/log/checkpoint', "test\n" . Arr::count($entries) . "\nroot\n");
             var $check = Test::double<LogCheck>({
                 entries: fn(): ?array<string> => $entries,
                 files: fn(int $size): ?array<string> => [],
@@ -98,8 +107,8 @@ final class BackupTest
             int $until = Core\Time::now()->toEpochSeconds() + 7 * 86400;
             int $number = 0;
             foreach ($rows as Row $row) {
-                Test::assertSame($row->string('version'), $number == 0 ? '1.0.0' : '1.1.0');
-                Test::assertSame($row->int('log'), $number);
+                Test::assertSame($row->string('version'), $number == 0 ? '0.0.1' : '0.0.2');
+                Test::assertSame($row->int('log'), $number == 0 ? $first : $second);
                 // A release by token alone still waits seven days.
                 Test::assertSame($row->int('pending_until'), $until);
                 Test::assertSame($row->string('account'), $account);
@@ -202,6 +211,12 @@ final class BackupTest
             append: fn(string $lines): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
+    }
+
+    // The number of the log entry that the release `$version` of `$key` saved.
+    private static function logNumber(string $key, string $version): int
+    {
+        return Schema::open()->query('select log from releases where package = ? and version = ?', [$key, $version])->value() as int;
     }
 
     // Deletes `$path` and everything in it.
