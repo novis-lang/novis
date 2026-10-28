@@ -3,7 +3,7 @@
 
 # Packaging
 
-*11 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*9 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1784,7 +1784,7 @@ longer owns the vendor.
 
 <a id="packaging-the-registry-builds-the-archive-from-git"></a>
 
-## The registry builds each archive itself from a public git commit as a deterministic uncompressed tar, and `nvs pkg publish` uploads no file  *(designed — owned by goal registry-service)*
+## The registry builds each archive itself from a public git commit as a deterministic uncompressed tar, and `nvs pkg publish` uploads no file
 
 `rule:packaging/the-registry-builds-the-archive-from-git`
 
@@ -1825,7 +1825,13 @@ held after the digest is recorded.
 - **A compressed archive as the identity.** Compression output differs between library versions; the
   uncompressed tar is the same bytes on every machine.
 
-**Not on disk.** There is no registry and no `nvs pkg pack`.
+**On disk.** `nvs registry build` (`crates/nvs-cli/src/package/build.rs`) clones, packs and digests,
+and the service runs it through `Registry\Builder` for every publish (`apps/registry/src/Publish.nvs`).
+The service binds the repository URL and the directory at the first publish, and refuses a publish
+from another repository.
+
+**Not on disk.** No route changes a package's bound repository with a passkey yet, so a changed
+repository is always refused, and no `repository` log entry or owner notice is written for it.
 
 <sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/a-package-carries-only-its-source-and-what-it-lists`](packaging.md#packaging-a-package-carries-only-its-source-and-what-it-lists), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites), [`packaging/the-registry-is-a-novis-program`](packaging.md#packaging-the-registry-is-a-novis-program), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only).</sub>
 
@@ -2014,7 +2020,7 @@ request.
 
 <a id="packaging-publishing-never-overwrites"></a>
 
-## `nvs pkg publish` names a commit, the registry refuses what the package may not carry, and it never overwrites a published `name@version`  *(designed — owned by goal registry-service)*
+## `nvs pkg publish` names a commit, the registry refuses what the package may not carry, and it never overwrites a published `name@version`
 
 `rule:packaging/publishing-never-overwrites`
 
@@ -2057,7 +2063,16 @@ lets a mirror or a `vendor/` copy be checked against the log instead of trusted.
 - **Overwriting a version to fix a broken release.** Every lockfile that holds the old digest stops
   building, and a registry that may change bytes under a name has made the log's promise false.
 
-**Not on disk.** The tree has no package system and no `nvs pkg publish`.
+**On disk.** `nvs pkg publish` sends the commit, and the service's `POST /api/publish` is
+`Publish::publish` (`apps/registry/src/Publish.nvs`). It runs `nvs registry build`, which refuses
+everything one commit can show, and then refuses a version published before, an inactive account, a
+name outside the token's scope or the vendor's owners, a name that differs only by case, and a changed
+repository. `Index::catchUp` (`apps/registry/src/Index.nvs`) appends the `publish` entry, whose
+digest covers the manifest and its capabilities, before it writes and signs the index file that
+lists the version and its capabilities. The publish is answered only after that.
+
+**Not on disk.** The refusal for an account with no verified notification channel is not checked
+yet, because no channel exists yet.
 
 <sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/a-publish-token-is-scoped-and-expires`](packaging.md#packaging-a-publish-token-is-scoped-and-expires), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 

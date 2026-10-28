@@ -1,6 +1,6 @@
 {
   "title": "The registry builds each archive itself from a public git commit as a deterministic uncompressed tar, and `nvs pkg publish` uploads no file",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/a-package-carries-only-its-source-and-what-it-lists",
@@ -8,6 +8,8 @@
     "packaging/the-registry-is-a-novis-program",
     "packaging/a-git-dependency-is-root-only"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/PublishTest.nvs",
+    "crates/nvs-cli/tests/registry_build.rs"
+  ]
 }

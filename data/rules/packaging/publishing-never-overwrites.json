@@ -1,6 +1,6 @@
 {
   "title": "`nvs pkg publish` names a commit, the registry refuses what the package may not carry, and it never overwrites a published `name@version`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/the-registry-builds-the-archive-from-git",
     "packaging/a-publish-token-is-scoped-and-expires",
@@ -10,6 +10,9 @@
     "packaging/a-package-cannot-reach-its-host",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": [],
-  "goal": "registry-service"
+  "guardedBy": [
+    "apps/registry/src/IndexTest.nvs",
+    "apps/registry/src/PublishTest.nvs",
+    "crates/nvs-cli/tests/registry_build.rs"
+  ]
 }

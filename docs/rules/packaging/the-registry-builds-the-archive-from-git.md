@@ -35,6 +35,10 @@ held after the digest is recorded.
 - **A compressed archive as the identity.** Compression output differs between library versions; the
   uncompressed tar is the same bytes on every machine.
 
-**Not on disk.** `nvs registry build` and `nvs pkg publish` exist, and the service does not run
-the build yet. Binding the repository URL at the first publish, and changing it with a passkey, are
-the service's.
+**On disk.** `nvs registry build` (`crates/nvs-cli/src/package/build.rs`) clones, packs and digests,
+and the service runs it through `Registry\Builder` for every publish (`apps/registry/src/Publish.nvs`).
+The service binds the repository URL and the directory at the first publish, and refuses a publish
+from another repository.
+
+**Not on disk.** No route changes a package's bound repository with a passkey yet, so a changed
+repository is always refused, and no `repository` log entry or owner notice is written for it.

@@ -27,7 +27,7 @@ stages:
         rules: [packaging/the-registry-builds-the-archive-from-git, packaging/only-a-major-may-break-the-api, packaging/a-package-cannot-reach-its-host, packaging/a-git-dependency-is-root-only, packaging/a-package-is-its-digest]
   - id: 7
     title: the service's publish refuses what the rules refuse, and the release lands in the static index
-    status: open
+    status: done
     context: [apps/registry/src/App.nvs, apps/registry/src/Vendors.nvs, crates/nvs-cli/src/package/index.rs, docs/rules/packaging/publishing-never-overwrites.md, docs/rules/packaging/a-package-is-its-digest.md]
     extra:
       context:
@@ -407,7 +407,7 @@ a second writes `Index.nvs`'s download count and its test.
 - [x] Tests: one per refusal in the standing decision, a republished version refused, and a changed repository URL refused without a passkey. `apps/registry/src/PublishTest.nvs:1`
 - [x] The static index in the client's schema, signed with `nvs registry index sign`, the root file with the file hosts, and the salted daily count as the service serves a file itself. `apps/registry/src/Index.nvs:1`, `crates/nvs-cli/src/package/index.rs:1`
 - [x] Tests: the client's index reader parses and verifies what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
-- [ ] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
+- [x] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
 
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
 
@@ -520,20 +520,17 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done, and stage 7's first four items. `POST /api/publish` is `App::publish`:
-`Publish::publish` (`apps/registry/src/Publish.nvs`) builds through a `Builder` and saves the
-release, then `Index::catchUp` (`Index.nvs`) copies the archive, appends the `publish` entry
-through a `Log` (`NvsLog`), and writes and signs the index file and `registry.json` under
-`files/` (gitignored), as the standing decision *The index catches up per package* says.
-`Downloads.nvs` is the salted daily count, and `Files.nvs` sends the files on `App`'s four GET
-routes. `nvs registry build` now prints `dependencies` and `capabilities`, which `releases` stores
-as JSON beside a new `log` column. The four tests in `IndexTest.nvs`,
-`registry_build.rs`'s `a_build_prints_the_package_and_the_archive_has_its_digest`, and
-`index.rs`'s `the_registry_services_index_file_reads_back` pass (each run once by name), the
-app's type check is clean, and clippy is clean.
+Stages 1, 2, 3 and 7 are done. `rule:packaging/publishing-never-overwrites` and
+`rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`; each fragment's **Not on
+disk** names what is left (the verified-channel refusal, and the passkey route that changes a
+bound repository with its log entry). `bun nv rules --check` and `bun nv check` are clean.
+`App::publish` runs `Publish::publish` (`apps/registry/src/Publish.nvs`), then
+`Index::catchUp` (`Index.nvs`), which writes and signs the files under `files/` (gitignored), as
+the standing decision *The index catches up per package* says. `Downloads.nvs` is the salted daily
+count, and `Files.nvs` sends the files on `App`'s four GET routes.
 
-The sweep's reds were stale: `env-secret-proofs` passes when rerun, and nightly run 40662443492 was
-cancelled by a newer push.
+The sweep's reds were stale again: `env-secret-proofs` passes when rerun, and nightly run
+40662443492 was cancelled by a newer push.
 
 Expected red: none known. `PublishTest.nvs` and `TokensTest.nvs` were not rerun after the
 `releases` columns changed; `Publish::jsonOf` takes a missing `dependencies` key as `{}` (probed).
@@ -543,12 +540,14 @@ and git 2.32 or later on each runner.
 
 ### Next
 
-Stage 7's last item: ship both rules. Read each fragment's **Not on disk** paragraph, rewrite it for
-what is now on disk (the service's publish, its refusals, and the index), fill `guardedBy` with the
-tests that pin it (`apps/registry/src/PublishTest.nvs`, `IndexTest.nvs`,
-`crates/nvs-cli/tests/registry_build.rs`), set `"status": "shipped"`, and run `bun nv rules --check`.
-Then stage 11 (the stage order is 1, 2, 7, 11, 4, …).
-- [ ] Both rules `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `docs/rules/packaging/publishing-never-overwrites.md:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`, `docs/rules/packaging/the-registry-builds-the-archive-from-git.md:1`
+Stage 11 (its gate holds: `docs/goals/registry-log.md` is gone). Its first item is the settings and
+the stores, landed by the session before the split's subagents start. `Site::load`
+(`apps/registry/src/Site.nvs:39`) reads `files`, `hosts`, `logKey` and `logName` today; replace
+`files` with a list of stores (`dir` and `http`), add the backup store and the download-log source,
+read each secret path through `Core\Secret`, and stop the start on a missing path. `Index::write`
+(`apps/registry/src/Index.nvs`) and `Files.nvs` then write and read through `Stores.nvs`.
+- [ ] `hosting.json` and its reader. `apps/registry/hosting.json:1`, `apps/registry/src/Site.nvs:39`, `apps/registry/README.md:1`
+- [ ] `Stores.nvs`, with the checkpoint written last and a failed store failing the publish. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Index.nvs:1`, `apps/registry/src/Files.nvs:1`
 
 ### Backlog
 
