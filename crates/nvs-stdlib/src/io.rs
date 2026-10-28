@@ -4357,7 +4357,12 @@ mod tests {
     #[test]
     fn core_io_is_dir_answers_true_for_a_directory_alone_and_a_refusal_throws() {
         assert_eq!(
-            kinds_under(nvs_core_io_is_dir, "is-dir", &mut reading("1MiB"), call_with),
+            kinds_under(
+                nvs_core_io_is_dir,
+                "is-dir",
+                &mut reading("1MiB"),
+                call_with
+            ),
             [false, true, false]
         );
         let refused = call_with(
@@ -4398,7 +4403,12 @@ mod tests {
     #[test]
     fn core_io_is_writable_needs_fs_write_and_answers_false_for_a_missing_name() {
         assert_eq!(
-            kinds_under(nvs_core_io_is_writable, "is-writable", &mut writing(), call_with),
+            kinds_under(
+                nvs_core_io_is_writable,
+                "is-writable",
+                &mut writing(),
+                call_with
+            ),
             [true, true, false]
         );
         let refused = call_with(
@@ -5310,7 +5320,11 @@ mod tests {
         const LATIN1: i64 = 4;
         let (_dir, path) = scratch("read-text.txt");
         let read_text = |ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, charset: i64| {
-            let args = [Value::int(0), Value::text(spelled(path)), Value::int(charset)];
+            let args = [
+                Value::int(0),
+                Value::text(spelled(path)),
+                Value::int(charset),
+            ];
             let answered = nvs_runtime::call(nvs_core_io_read_text, ctx, &args);
             let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
             #[expect(unsafe_code, reason = "the list holds the one reference it built")]

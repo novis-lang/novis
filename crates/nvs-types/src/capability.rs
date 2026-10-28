@@ -355,7 +355,11 @@ fn own_file_word(
     // A relative literal was joined to its file's folder by `crate::paths`; an
     // absolute one is its own text.
     let path = env.exprs.written_path(literal).map_or_else(
-        || PathBuf::from(nvs_syntax::string_lit::cook_string_literal(env.src, literal)),
+        || {
+            PathBuf::from(nvs_syntax::string_lit::cook_string_literal(
+                env.src, literal,
+            ))
+        },
         PathBuf::from,
     );
     let listed = path.is_absolute()

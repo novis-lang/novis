@@ -869,8 +869,7 @@ impl Ctx {
     /// `resolved`, a path [`nvs_config::capability::resolved`] gave.
     #[must_use]
     pub(crate) fn owns_file(&self, resolved: &std::path::Path) -> bool {
-        self.has_own_file()
-            && self.own_file == nvs_config::capability::own_file_word(resolved)
+        self.has_own_file() && self.own_file == nvs_config::capability::own_file_word(resolved)
     }
 
     /// The same narrowing as a list — what a `grants:` left this context able to

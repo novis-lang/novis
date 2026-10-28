@@ -191,15 +191,13 @@ fn own_files(package: &Package, sources: &mut SourceMap) -> Result<Vec<String>, 
         )
         .with_help("run `nvs pkg fetch` to write this file again".to_owned())
     })?;
-    let (mut sets, _) = crate::file::parse_at::<BTreeMap<String, Vec<String>>>(
-        id,
-        sources.file(id).text(),
-    )
-    .map_err(|refused| {
-        refused
-            .with_code(code::E_BAD_PACKAGE_MANIFEST)
-            .with_help("run `nvs pkg fetch` to write this file again".to_owned())
-    })?;
+    let (mut sets, _) =
+        crate::file::parse_at::<BTreeMap<String, Vec<String>>>(id, sources.file(id).text())
+            .map_err(|refused| {
+                refused
+                    .with_code(code::E_BAD_PACKAGE_MANIFEST)
+                    .with_help("run `nvs pkg fetch` to write this file again".to_owned())
+            })?;
     let mut files = sets.remove(&package.name).unwrap_or_default();
     files.sort();
     files.dedup();
