@@ -46,6 +46,7 @@ fn diff(dir: &Path) -> (String, String, bool) {
 }
 
 /// A whole package file reads: its version is the one both sides of the diff print.
+// covers: tools:packages/package-toml
 #[test]
 fn a_full_package_toml_is_read() {
     let (_root, dir) = package(
@@ -62,6 +63,7 @@ fn a_full_package_toml_is_read() {
 }
 
 /// An unknown key stops the command with `E0659`, naming the key.
+// covers: tools:packages/package-toml
 #[test]
 fn an_unknown_key_is_refused() {
     let (_root, dir) = package(
@@ -75,6 +77,7 @@ fn an_unknown_key_is_refused() {
 }
 
 /// A package cannot take a built-in component's namespace, in any case.
+// covers: tools:packages/package-toml
 #[test]
 fn a_built_in_components_name_is_refused() {
     let (_root, dir) = package(
@@ -91,6 +94,7 @@ fn a_built_in_components_name_is_refused() {
 
 /// A git dependency on a branch is refused: only an exact commit is allowed
 /// (`rule:packaging/a-git-dependency-is-root-only`).
+// covers: tools:packages/package-toml
 #[test]
 fn a_git_dependency_on_a_branch_is_refused() {
     let (_root, dir) = package(

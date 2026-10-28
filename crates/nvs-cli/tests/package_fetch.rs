@@ -206,6 +206,7 @@ const MAIN: &str = "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n    \
 
 const HTTP: &str = "'Acme\\Http' = \"1.0.0\"\n";
 
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
 #[test]
 fn a_fetched_package_compiles_only_with_its_grant_line() {
     let tree = Tree::new("package-fetch-grant", HTTP);
@@ -258,6 +259,7 @@ fn a_fetched_package_compiles_only_with_its_grant_line() {
     assert!(out.status.success(), "{}", shown(&out));
 }
 
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
 #[test]
 fn nothing_a_package_holds_runs_during_fetch_or_vendor() {
     let tree = Tree::new("package-fetch-runs-nothing", HTTP);
@@ -356,6 +358,7 @@ fn a_locked_run_refuses_a_missing_entry_and_an_edited_digest() {
 /// A pending version that becomes selectable long after the test runs, as an index writes it.
 const PENDING: &str = r#"{ "pending": { "selectable_at": 99999999999 } }"#;
 
+// covers: tools:packages/nvs-pkg-add
 #[test]
 fn add_chooses_only_a_released_version_and_takes_the_others_by_exact_version() {
     let tree = Tree::new("package-add-states", "");
@@ -524,6 +527,7 @@ impl Tree {
     }
 }
 
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
 #[test]
 fn a_package_reads_its_own_listed_file_with_no_grant() {
     let tree = Tree::new("package-fetch-own-file", HTTP);

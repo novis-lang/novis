@@ -60,6 +60,7 @@ fn shown(out: &Output) -> String {
     )
 }
 
+// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
 #[test]
 fn a_git_dependency_is_fetched_at_its_commit() {
     let root = nvs_repo::scratch("package-git-fetch");
