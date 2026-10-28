@@ -63,7 +63,6 @@ final class Push
             $channels->drop($id);
             return null;
         }
-        $this->notify($account, 'A new device gets the messages of your account.', $id);
         return $id;
     }
 

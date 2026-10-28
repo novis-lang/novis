@@ -11,6 +11,7 @@ use Core\Str;
 // A change and its entry are saved in one transaction. `Index` adds the waiting entries to the log
 // under the write lock of the database, before it writes an index file that shows the change.
 // An entry that the log did not take waits for the next change, publish or daily run.
+// Each change also saves a message to the owners through `Notices`, in the same transaction.
 final class Events
 {
     // A version was unlisted, or the unlist was reversed, or an owner released it or froze its API
@@ -19,12 +20,25 @@ final class Events
     public static function release(Connection|Transaction $db, string $kind, string $key, string $version): void
     {
         Events::add($db, Json::encode({ v: 1, kind: $kind, package: Index::slug($key), version: $version }), $key);
+        string $release = '`' . Notices::nameOf($db, $key) . '` ' . $version;
+        string $text = match ($kind) {
+            'unlist' => $release . ' is unlisted. It can still be downloaded.',
+            'relist' => $release . ' is listed again.',
+            'stable-api-confirmed' => 'An owner confirmed the API of ' . $release . ' and released it.',
+            default => 'An owner released ' . $release . '.',
+        };
+        Notices::add($db, Notices::vendorOf($key), null, $kind, $key, $version, $text);
     }
 
     // A version was retracted or withheld. `$kind` is `retract` or `withhold`.
     public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason): void
     {
         Events::add($db, Json::encode({ v: 1, kind: $kind, package: Index::slug($key), version: $version, reason: $reason }), $key);
+        string $release = '`' . Notices::nameOf($db, $key) . '` ' . $version;
+        string $text = $kind == 'withhold'
+            ? 'The operator withheld ' . $release . '. The reason: ' . $reason
+            : 'A retraction of ' . $release . ' was sent. The reason: ' . $reason;
+        Notices::add($db, Notices::vendorOf($key), null, $kind, $key, $version, $text);
     }
 
     // An account became an owner of a vendor, or stopped being one. `$change` is `added` or `removed`.
@@ -35,19 +49,30 @@ final class Events
             string $key = Events::trusted($row->string('key'));
             Events::add($db, Json::encode({ v: 1, kind: 'ownership', package: Index::slug($key), account: $account, change: $change }), $key);
         }
+        string $text = $change == 'added'
+            ? 'The account ' . $account . ' is now an owner of `' . $vendor . '`.'
+            : 'The account ' . $account . ' is no longer an owner of `' . $vendor . '`.';
+        Notices::add($db, $vendor, $account, 'ownership', null, null, $text);
     }
 
     // An owner moved the package `$key` to the repository `$repository`.
     public static function repository(Connection|Transaction $db, string $key, string $repository): void
     {
         Events::add($db, Json::encode({ v: 1, kind: 'repository', package: Index::slug($key), repository: $repository }), $key);
+        string $text = 'The next version of `' . Notices::nameOf($db, $key) . '` must come from ' . $repository . '.';
+        Notices::add($db, Notices::vendorOf($key), null, 'repository', $key, null, $text);
     }
 
     // A token was made or revoked. `$id` is the id of the token, never the token itself.
-    // `$change` is `created` or `revoked`. No index file changes.
-    public static function token(Connection|Transaction $db, string $account, string $id, string $change): void
+    // `$change` is `created` or `revoked`. `$scope` is the vendor or the package the token can
+    // publish, and its vendor's owners get the message. No index file changes.
+    public static function token(Connection|Transaction $db, string $account, string $id, string $change, string $scope): void
     {
         Events::add($db, Json::encode({ v: 1, kind: 'token', account: $account, token: $id, change: $change }), null);
+        string $text = $change == 'created'
+            ? 'The account ' . $account . ' made a publish token for `' . $scope . '`.'
+            : 'The account ' . $account . ' revoked a publish token for `' . $scope . '`.';
+        Notices::add($db, Notices::vendorOf($scope), $account, 'token', null, null, $text);
     }
 
     // Saves one entry, as one line of JSON. `$key` is the package whose index file changes, or `null`.

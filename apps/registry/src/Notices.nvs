@@ -1,0 +1,140 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Str;
+use Core\Time;
+
+// The messages to the owners of a vendor about each event, such as a publish or a new token.
+// A message is saved in the same transaction as its change, and `send` sends it after that.
+// It goes to every push device and webhook of every owner, and of the account the event is about.
+// The feeds and the inbox read the same rows, so an owner sees every event there too.
+final class Notices
+{
+    private Connection $db;
+    private ?Push $push;
+    private Webhooks $webhooks;
+
+    // `$push` is `null` when the registry has no key for Web Push.
+    public function constructor(Connection $db, ?Push $push, Webhooks $webhooks)
+    {
+        $this->db = $db;
+        $this->push = $push;
+        $this->webhooks = $webhooks;
+    }
+
+    // Makes the senders from the settings in `hosting.json`.
+    public static function ofSite(Connection $db, Site $site): Notices
+    {
+        return new Notices($db, Push::ofSite($db, $site), new Webhooks($db, $site->origin));
+    }
+
+    // Saves a message about an event. `$vendor` is the vendor whose owners get it, or `null`.
+    // `$account` is the account the event is about, or `null`. That account gets the message too.
+    // `$package` and `$version` are the release the event is about, or `null`.
+    public static function add(
+        Connection|Transaction $db,
+        ?string $vendor,
+        ?string $account,
+        string $kind,
+        ?string $package,
+        ?string $version,
+        string $text,
+    ): void {
+        $db->execute(
+            'insert into notices (vendor, account, kind, package, version, text, at) values (?, ?, ?, ?, ?, ?, ?)',
+            [$vendor == null ? null : Str::lower($vendor), $account, $kind, $package, $version, $text, Time::now()->toEpochSeconds()],
+        );
+    }
+
+    // Returns the name of a package as it was first published, such as `Acme\Http` for `acme\http`.
+    public static function nameOf(Connection|Transaction $db, string $key): string
+    {
+        foreach ($db->query('select name from packages where key = ?', [$key]) as Row $row) {
+            return Notices::trusted($row->string('name'));
+        }
+        return $key;
+    }
+
+    // Returns the vendor of a package or of a token scope, such as `Acme` for `Acme\Http`.
+    public static function vendorOf(string $name): string
+    {
+        return Str::before($name, '\\') ?? $name;
+    }
+
+    // Sends every message that was not sent yet, the oldest first. A message is sent once: the
+    // request that sends it first saves that it did, so another request leaves the message out.
+    // It returns the number of devices and webhooks that took a message at the first try.
+    // A webhook that failed gets the message again later.
+    public function send(): int
+    {
+        array<array<?string>> $waiting = [];
+        foreach ($this->db->query('select id, vendor, account, text from notices where sent_at is null order by id', []) as Row $row) {
+            $waiting[] = [
+                'id' => '' . ($row->int('id') ?? 0),
+                'vendor' => Notices::optional($row->string('vendor')),
+                'account' => Notices::optional($row->string('account')),
+                'text' => Notices::trusted($row->string('text')),
+            ];
+        }
+        int $now = Time::now()->toEpochSeconds();
+        int $took = 0;
+        foreach ($waiting as array<?string> $notice) {
+            if ($this->db->execute('update notices set sent_at = ? where id = ? and sent_at is null', [$now, $notice['id']])->affected() != 1) {
+                continue;
+            }
+            foreach ($this->recipients($notice['vendor'], $notice['account']) as string $account) {
+                $took += $this->tell($account, $notice['text'] ?? '');
+            }
+        }
+        return $took;
+    }
+
+    // Sends a message to every push device and webhook of one account that works.
+    // `$except` is a channel to leave out, such as the device that was just added, or an empty string.
+    // It returns the number of devices and webhooks that took the message at the first try.
+    public function tell(string $account, string $text, string $except = ''): int
+    {
+        int $took = $this->push?->notify($account, $text, $except) ?? 0;
+        return $took + $this->webhooks->notify($account, $text, $except);
+    }
+
+    // Returns `true` when an owner of the vendor has a verified channel that works.
+    public function isReachable(string $vendor): bool
+    {
+        var $channels = new Channels($this->db);
+        foreach ($this->recipients(Str::lower($vendor), null) as string $account) {
+            if ($channels->hasVerified($account)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The owners of the vendor, and the account the event is about. Each account is in the list once.
+    private function recipients(?string $vendor, ?string $account): array<string>
+    {
+        array<string> $accounts = [];
+        if ($vendor != null) {
+            foreach ($this->db->query('select account from owners where vendor = ? order by added_at, account', [$vendor]) as Row $row) {
+                $accounts[] = Notices::trusted($row->string('account'));
+            }
+        }
+        if ($account != null && !Core\Arr::contains($accounts, $account)) {
+            $accounts[] = $account;
+        }
+        return $accounts;
+    }
+
+    private static function optional(mixed $value): ?string
+    {
+        return $value == null ? null : Notices::trusted($value);
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

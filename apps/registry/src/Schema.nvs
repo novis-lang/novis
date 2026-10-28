@@ -131,6 +131,16 @@ final class Schema
         // The entries of the log that wait to be added, one line of JSON each, in the order of `id`.
         // `package` is the package whose index file changes, or null. `Index` deletes a row once the log has it.
         $db->execute('create table if not exists events (id integer primary key, entry text not null, package text)', []);
+        // One message to the owners for each event, such as a publish, a token or an unlist.
+        // `vendor` is the vendor in lower case, or null for a token of a vendor nobody owns yet.
+        // `account` is the account the event is about, such as an owner who was removed, or null.
+        // `sent_at` is null until `Notices` sent the message. The feeds and the inbox read these rows,
+        // so a row is never deleted. Cost: one short row per event.
+        $db->execute(
+            'create table if not exists notices (id integer primary key, vendor text, account text, kind text not null, '
+                . 'package text, version text, text text not null, at integer not null, sent_at integer)',
+            [],
+        );
         // The files in the work folder that some store does not have yet, such as `log/checkpoint`.
         // `rank` is the order they are sent in: the archives, the log, the index files, the checkpoint.
         $db->execute('create table if not exists unsent (path text primary key, rank integer not null)', []);
@@ -160,5 +170,9 @@ final class Schema
         $db->execute('create index if not exists owners_of_account on owners (account)', []);
         $db->execute('create index if not exists tokens_of_account on tokens (account)', []);
         $db->execute('create index if not exists channels_of_account on channels (account)', []);
+        $db->execute('create index if not exists notices_of_vendor on notices (vendor, id)', []);
+        $db->execute('create index if not exists notices_of_account on notices (account, id)', []);
+        $db->execute('create index if not exists notices_unsent on notices (sent_at)', []);
+        $db->execute('create index if not exists releases_pending on releases (pending_until)', []);
     }
 }

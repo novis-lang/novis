@@ -21,6 +21,11 @@ final class App
     // The name of the site, as a device shows it next to the passkey.
     public const string NAME = 'Novis registry';
 
+    // The messages to the other devices and webhooks of an account when its channels change.
+    public const string DEVICE_ADDED = 'A new device gets the messages of your account.';
+    public const string WEBHOOK_ADDED = 'A new webhook gets the messages of your account.';
+    public const string CHANNEL_REMOVED = 'A device or a webhook was removed from your account.';
+
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
     #[Route(path: '/api/signup/work', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]
@@ -334,7 +339,7 @@ final class App
                 App::fail(410, 'The push service does not know this device. Allow notifications in the browser again.');
                 return;
             }
-            new Webhooks($db, Site::load()->origin)->notify($account, 'A new device gets the messages of your account.');
+            new Notices($db, $push, new Webhooks($db, Site::load()->origin))->tell($account, App::DEVICE_ADDED, $id);
             Response::setStatus(201);
             Response::json({ id: $id });
         } catch (ParseError $error) {
@@ -359,8 +364,7 @@ final class App
         try {
             var $asked = Request::jsonAs<WebhookRequest>();
             array<string> $added = new Webhooks($db, Site::load()->origin)->add($account, $asked->url);
-            Push::ofSite($db, Site::load())?->notify($account, 'A new webhook gets the messages of your account.');
-            new Webhooks($db, Site::load()->origin)->notify($account, 'A new webhook gets the messages of your account.', $added['id']);
+            Notices::ofSite($db, Site::load())->tell($account, App::WEBHOOK_ADDED, $added['id']);
             Response::setStatus(201);
             Response::json({ id: $added['id'], secret: $added['secret'] });
         } catch (ParseError $error) {
@@ -451,8 +455,7 @@ final class App
             App::fail(404, 'This account has no such channel.');
             return;
         }
-        Push::ofSite($db, Site::load())?->notify($account, 'A device or a webhook was removed from your account.');
-        new Webhooks($db, Site::load()->origin)->notify($account, 'A device or a webhook was removed from your account.');
+        Notices::ofSite($db, Site::load())->tell($account, App::CHANNEL_REMOVED);
         Response::setStatus(204);
     }
 
@@ -467,7 +470,58 @@ final class App
             App::fail(401, 'The token is not valid. It may be expired or revoked.');
             return;
         }
-        Response::json({ account: $token->account, scope: $token->scope, expiresAt: $token->expiresAt });
+        var $db = Schema::open();
+        Response::json({
+            account: $token->account,
+            scope: $token->scope,
+            expiresAt: $token->expiresAt,
+            pending: Feeds::pendingOf($db, $token->account),
+        });
+    }
+
+    // The signed feed of a vendor: every event, such as a publish or a new token, the newest first.
+    // Anybody can read it. It is a signed note that the public key of the log checks.
+    #[Route(path: '/feeds/vendors/{vendor}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function vendorFeed(tainted string $vendor): void
+    {
+        var $db = Schema::open();
+        ?Feeds $feeds = Feeds::ofSite($db, Site::load());
+        if ($feeds == null) {
+            App::fail(503, 'This registry has no key for its log.');
+            return;
+        }
+        ?string $name = Vendors::nameOf($vendor);
+        ?string $feed = $name == null ? null : $feeds->vendor($name);
+        if ($feed == null) {
+            App::fail(404, 'There is no such vendor.');
+            return;
+        }
+        Response::text($feed);
+    }
+
+    // The signed public list of every pending release. Anybody can read it.
+    #[Route(path: '/feeds/pending', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function pendingFeed(): void
+    {
+        var $db = Schema::open();
+        ?Feeds $feeds = Feeds::ofSite($db, Site::load());
+        if ($feeds == null) {
+            App::fail(503, 'This registry has no key for its log.');
+            return;
+        }
+        Response::text($feeds->pending());
+    }
+
+    // The inbox: the events of every vendor the account owns, and the events about the account.
+    #[Route(path: '/api/inbox', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function inbox(): void
+    {
+        var $db = Schema::open();
+        string $account = Session::account() ?? '';
+        Response::json({ events: Feeds::inbox($db, $account), pending: Feeds::pendingOf($db, $account) });
     }
 
     // Publishes a version. `nvs pkg publish` sends the repository, the commit, the version and the
@@ -494,8 +548,16 @@ final class App
             }
             // A copy of the database that fails does not fail the publish. The log has the release.
             new Backup($db, $site)->afterPublish();
+            var $notices = Notices::ofSite($db, $site);
+            int $took = $notices->send();
+            string $account = new Tokens($db)->find(Tokens::bearer())?->account ?? '';
             Response::setStatus($done->status);
-            Response::json({ digest: $done->digest, message: $done->text });
+            Response::json({
+                digest: $done->digest,
+                message: $done->text,
+                pending: Feeds::pendingOf($db, $account),
+                warning: $took > 0 || $done->status != 201 ? null : App::unheard($notices, $done->package),
+            });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a repository, a commit, a version and a directory.');
         }
@@ -786,10 +848,25 @@ final class App
 
     // Adds the waiting entries to the log and sends the index files they change.
     // A failure does not undo the change. The entries wait for the next run, and the result is `false`.
+    // Then it sends the waiting messages to the owners. A message that fails does not change the result.
     private static function flush(Core\Db\Connection $db): bool
     {
         var $site = Site::load();
-        return new Index($db, new NvsLog($site, Index::work($site)), $site)->flush();
+        bool $sent = new Index($db, new NvsLog($site, Index::work($site)), $site)->flush();
+        Notices::ofSite($db, $site)->send();
+        return $sent;
+    }
+
+    // The warning `nvs pkg publish` prints when no owner of the vendor got the message about a release.
+    private static function unheard(Notices $notices, string $key): string
+    {
+        string $vendor = Notices::vendorOf($key);
+        if (!$notices->isReachable($vendor)) {
+            return 'No owner of `' . $vendor . '` has a working device or webhook. Nobody was told about this release. '
+                . 'Add a device or a webhook on the website.';
+        }
+        return 'No device or webhook of an owner of `' . $vendor . '` took the message about this release. '
+            . 'A webhook gets it again later. Check them on the website.';
     }
 
     // A version from a path or a body, such as `1.4.0`, or `null` when it is not one.

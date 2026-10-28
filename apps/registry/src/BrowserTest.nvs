@@ -88,10 +88,11 @@ final class BrowserTest
     }
 
     // Adds a webhook to the account and verifies it with its code, as an owner does on the website.
+    // A name under `.invalid` never has an address, so each message to it fails at once with no network.
     public static function verifiedChannel(string $account): void
     {
         var $channels = new Channels(Schema::open());
-        array<string> $added = $channels->add($account, Channels::WEBHOOK, 'https://hooks.example.com/' . $account);
+        array<string> $added = $channels->add($account, Channels::WEBHOOK, 'https://hooks.invalid/' . $account);
         Test::assertTrue($channels->verify($account, $added['id'], $added['code']));
     }
 

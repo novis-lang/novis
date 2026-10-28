@@ -71,7 +71,7 @@ final class Tokens
                 'insert into tokens (id, hash, account, scope, created_at, expires_at) values (?, ?, ?, ?, ?, ?)',
                 [$id, Tokens::hashOf($token), $account, $scope, $now, $now + $days * 86400],
             );
-            Events::token($tx, $account, $id, 'created');
+            Events::token($tx, $account, $id, 'created', $scope);
         });
         return ['id' => $id, 'token' => $token];
     }
@@ -148,7 +148,9 @@ final class Tokens
                 return false;
             }
             // The id matched a row, so it is a token id the registry made.
-            Events::token($tx, $account, Core\Taint::assertTrusted($id, 'the id matched a token'), 'revoked');
+            string $known = Core\Taint::assertTrusted($id, 'the id matched a token');
+            string $scope = Core\Taint::assertTrusted($tx->query('select scope from tokens where id = ?', [$known])->value() as tainted string, 'the registry wrote this scope');
+            Events::token($tx, $account, $known, 'revoked', $scope);
             return true;
         });
     }

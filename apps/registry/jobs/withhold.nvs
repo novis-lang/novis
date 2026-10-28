@@ -40,4 +40,5 @@ if (!new Registry\Index($db, new Registry\NvsLog($site, Registry\Index::work($si
 if (!new Registry\Stores($db, $site)->remove(Registry\Releases::archiveOf($db, $package, $version))) {
     throw new RuntimeError('A store did not delete the archive. Run this again to delete it.');
 }
+Registry\Notices::ofSite($db, $site)->send();
 echo 'Version ', $version, ' of ', $package, ' is withheld.', "\n";

@@ -1,0 +1,193 @@
+<?nvs
+namespace Registry;
+
+use Core\Bytes;
+use Core\Crypto;
+use Core\Crypto\KeyKind;
+use Core\Crypto\KeyPair;
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Encoding;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+use Core\Time;
+
+// Tests for the messages to the owners, the signed feeds and the inbox.
+// Each test has its own database in memory, because `Notices::send` sends every waiting message.
+// The webhooks and the push service are fake web services from `Test::answerHttp`.
+final class FeedsTest
+{
+    // The start of each webhook URL. The address is reserved for examples, so it is not internal.
+    private const string HOOKS = 'https://203.0.113.9/hooks/';
+
+    // The address of the fake push service.
+    private const string PUSH = 'https://push.example.com/send/';
+
+    // The name of the log in the tests.
+    private const string LOG = 'registry.example.com';
+
+    #[Test(at: '2026-04-01T12:00:00Z')]
+    public function eachEventIsInTheVendorFeedAndTheInbox(): void
+    {
+        Test::answerHttp(FeedsTest::HOOKS . '*', 200);
+        var $db = FeedsTest::database();
+        string $owner = FeedsTest::account($db);
+        string $other = FeedsTest::account($db);
+        string $stranger = FeedsTest::account($db);
+        FeedsTest::webhook($db, $owner);
+        string $vendor = 'V' . Random::token(4);
+        string $key = Str::lower($vendor . '\\Http');
+
+        // The owner publishes with a token, adds an owner, and changes the release in every way.
+        string $token = new Tokens($db)->create($owner, $vendor, 30)['token'];
+        var $builder = PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest()));
+        Test::assertSame(new Publish($db, $builder, Site::load())->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+        var $vendors = new Vendors($db);
+        Test::assertTrue($vendors->addOwner($vendor, $other));
+        var $releases = new Releases($db);
+        Test::assertTrue($releases->unlist($key, '1.0.0', false));
+        Test::assertTrue($releases->unlist($key, '1.0.0', true));
+        Test::assertTrue($releases->confirm($key, '1.0.0', true));
+        Test::assertTrue($releases->rebind($key, 'https://git.example.com/' . $vendor . '/moved.git', ''));
+        Test::assertTrue($releases->retract($key, '1.0.0', 'It deletes files.', null, Time::now()->toEpochSeconds()));
+        Test::assertTrue($releases->withhold($key, '1.0.0', 'Malware.'));
+        Test::assertTrue($vendors->removeOwner($vendor, $other));
+
+        // The feed has one line for each event, the newest first, and the key of the log signs it.
+        var $signer = Crypto::generateKeyPair(KeyKind::Ed25519);
+        string $feed = new Feeds($db, $signer, FeedsTest::LOG)->vendor($vendor) ?? '';
+        array<string> $lines = FeedsTest::verified($feed, $signer);
+        Test::assertSame($lines[0], FeedsTest::LOG . '/feeds/vendors/' . Str::lower($vendor));
+        Test::assertSame(
+            FeedsTest::kinds($lines),
+            ['ownership', 'withhold', 'retract', 'repository', 'release-confirmed', 'stable-api-confirmed', 'relist', 'unlist', 'ownership', 'publish', 'token'],
+        );
+        Test::assertTrue(new Feeds($db, $signer, FeedsTest::LOG)->vendor('Nobody' . Random::token(4)) == null);
+
+        // The owner's inbox has the same events. The removed owner has only the two events about
+        // its own account. An account that owns nothing has an empty inbox.
+        Test::assertSame(Core\Arr::count(Feeds::inbox($db, $owner)), 11);
+        Test::assertSame(Core\Arr::count(Feeds::inbox($db, $other)), 2);
+        Test::assertSame(Core\Arr::count(Feeds::inbox($db, $stranger)), 0);
+
+        // Each message is sent once to the webhook of the owner.
+        var $notices = new Notices($db, null, new Webhooks($db, 'https://registry.example.com'));
+        int $before = Core\Arr::count(Test::sentHttp()) as int;
+        Test::assertSame($notices->send(), 11);
+        Test::assertSame(Core\Arr::count(Test::sentHttp()) as int, $before + 11);
+        Test::assertSame($notices->send(), 0);
+        Test::assertSame(Core\Arr::count(Test::sentHttp()) as int, $before + 11);
+    }
+
+    #[Test(at: '2026-04-01T12:00:00Z')]
+    public function aPendingReleaseIsInThePublicList(): void
+    {
+        Test::answerHttp(FeedsTest::HOOKS . '*', 200);
+        var $db = FeedsTest::database();
+        string $owner = FeedsTest::account($db);
+        string $stranger = FeedsTest::account($db);
+        FeedsTest::webhook($db, $owner);
+        string $vendor = 'V' . Random::token(4);
+        string $token = new Tokens($db)->create($owner, $vendor, 30)['token'];
+        var $publish = new Publish($db, PublishTest::builder(PublishTest::built($vendor . '\\Http', PublishTest::digest())), Site::load());
+        Test::assertSame($publish->publish($token, PublishTest::request($vendor, '1.0.0'))->status, 201);
+
+        // The first version at 1.0.0 waits for an owner, so it has no time.
+        var $key = Crypto::generateKeyPair(KeyKind::Ed25519);
+        array<string> $lines = FeedsTest::verified(new Feeds($db, $key, FeedsTest::LOG)->pending(), $key);
+        Test::assertSame($lines[0], FeedsTest::LOG . '/feeds/pending');
+        Test::assertSame($lines[1], '1');
+        var $listed = Json::decode($lines[2]) as array<mixed>;
+        Test::assertSame($listed['package'] as string, $vendor . '\\Http');
+        Test::assertSame($listed['version'] as string, '1.0.0');
+        Test::assertTrue($listed['until'] == null);
+        Test::assertSame(Core\Arr::count(Feeds::pendingOf($db, $owner)), 1);
+        Test::assertSame(Core\Arr::count(Feeds::pendingOf($db, $stranger)), 0);
+
+        // Once the owner confirms it, the list is empty.
+        Test::assertTrue(new Releases($db)->confirm(Str::lower($vendor . '\\Http'), '1.0.0', true));
+        Test::assertSame(FeedsTest::verified(new Feeds($db, $key, FeedsTest::LOG)->pending(), $key)[1], '0');
+    }
+
+    #[Test]
+    public function aNewDeviceIsToldToTheOtherDeviceAndTheWebhook(): void
+    {
+        Test::answerHttp(FeedsTest::PUSH . '*', 201);
+        Test::answerHttp(FeedsTest::HOOKS . '*', 200);
+        var $db = FeedsTest::database();
+        string $account = FeedsTest::account($db);
+        var $push = new Push($db, Crypto::generateKeyPair(KeyKind::P256), 'mailto:registry@example.com');
+        var $channels = new Channels($db);
+        string $first = FeedsTest::PUSH . Random::token(8);
+        string $device = $push->register($account, PushTest::subscription($first)) ?? '';
+        Test::assertTrue($channels->verify($account, $device, $channels->newCode($account, $device) ?? ''));
+        string $hook = FeedsTest::webhook($db, $account);
+
+        // A second device is added. The first device and the webhook get a message, and the new device does not.
+        string $second = FeedsTest::PUSH . Random::token(8);
+        string $added = $push->register($account, PushTest::subscription($second)) ?? '';
+        Test::assertTrue($channels->verify($account, $added, $channels->newCode($account, $added) ?? ''));
+        int $before = Core\Arr::count(Test::sentHttp()) as int;
+        var $notices = new Notices($db, $push, new Webhooks($db, 'https://registry.example.com'));
+        Test::assertSame($notices->tell($account, App::DEVICE_ADDED, $added), 2);
+        array<SentRequest> $sent = Core\Arr::slice(Test::sentHttp(), $before);
+        Test::assertSame(Core\Arr::count($sent), 2);
+        Test::assertSame($sent[0]->url(), $first);
+        Test::assertSame($sent[1]->url(), $hook);
+        Test::assertSame((Json::decode($sent[1]->body() as string) as array<mixed>)['text'] as string, App::DEVICE_ADDED);
+    }
+
+    // Checks the signature line of a feed with the public key, and returns the lines before it.
+    private static function verified(string $feed, KeyPair $key): array<string>
+    {
+        array<string> $parts = Str::split($feed, "\n\n— ");
+        Test::assertSame(Core\Arr::count($parts), 2);
+        string $text = $parts[0] . "\n";
+        string $signature = Str::trim(Str::after($parts[1], FeedsTest::LOG . ' ') ?? '');
+        bytes $signed = Encoding::fromBase64($signature);
+        Crypto::verify($text as bytes, Bytes::slice($signed, 4, (Bytes::length($signed) as int) - 4), $key->publicKey());
+        return Str::split($parts[0], "\n");
+    }
+
+    // The kind of each event line of a feed. The first two lines are the name and the count.
+    private static function kinds(array<string> $lines): array<string>
+    {
+        array<string> $kinds = [];
+        foreach (Core\Arr::slice($lines, 2) as string $line) {
+            $kinds[] = Core\Taint::assertTrusted((Json::decode($line) as array<mixed>)['kind'] as tainted string, 'the test reads its own feed');
+        }
+        return $kinds;
+    }
+
+    // Adds a verified webhook to the account and returns its URL.
+    private static function webhook(Connection $db, string $account): string
+    {
+        string $url = FeedsTest::HOOKS . Random::token(8);
+        var $channels = new Channels($db);
+        array<string> $added = $channels->add($account, Channels::WEBHOOK, $url);
+        $db->execute('insert into webhooks (channel, secret) values (?, ?)', [$added['id'], 'whsec_' . Encoding::toBase64(Random::bytes(24))]);
+        Test::assertTrue($channels->verify($account, $added['id'], $added['code']));
+        return $url;
+    }
+
+    // A new database in memory with every table of the registry.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        return $db;
+    }
+
+    // Adds a new active account to the database and returns its id.
+    private static function account(Connection $db): string
+    {
+        string $account = Random::token(16);
+        int $now = Time::now()->toEpochSeconds();
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?)', [$account, $now, $now]);
+        return $account;
+    }
+}

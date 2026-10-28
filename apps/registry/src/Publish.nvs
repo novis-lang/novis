@@ -158,21 +158,40 @@ final class Publish
                     . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
                 [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $repository, $directory, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities],
             );
-            return $write->affected() == 1;
+            if ($write->affected() != 1) {
+                return false;
+            }
+            Notices::add(
+                $this->db,
+                $vendor,
+                $token->account,
+                'publish',
+                $key,
+                $version,
+                'The account ' . $token->account . ' published `' . $name . '` ' . $version . ' with a token.' . $this->waitOf($key, $version),
+            );
+            return true;
         });
         if (!$saved) {
             return Publish::taken($key, $version);
         }
-        string $date = Time::now()->plus(Duration::days(Publish::PENDING_DAYS))->toIso();
-        string $wait = new Releases($this->db)->needsStable($key, $version)
-            ? ' It is the first version at 0.1.0 or higher, so it waits until an owner confirms its API with a passkey on the website.'
-            : ' It is pending until ' . $date . '. An owner can release it now with a passkey on the website.';
+        string $wait = $this->waitOf($key, $version);
         return new Published(
             201,
             '`' . $name . '` ' . $version . ' is published.' . $wait,
             $digest,
             $key,
         );
+    }
+
+    // The sentence that says how long a new release waits, with a space before it.
+    private function waitOf(string $key, string $version): string
+    {
+        if (new Releases($this->db)->needsStable($key, $version)) {
+            return ' It is the first version at 0.1.0 or higher, so it waits until an owner confirms its API with a passkey on the website.';
+        }
+        string $date = Time::now()->plus(Duration::days(Publish::PENDING_DAYS))->toIso();
+        return ' It is pending until ' . $date . '. An owner can release it now with a passkey on the website.';
     }
 
     // Returns the key of the package that this folder of this repository published, or `null`.

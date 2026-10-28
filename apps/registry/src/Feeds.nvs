@@ -1,0 +1,185 @@
+<?nvs
+namespace Registry;
+
+use Core\Bytes;
+use Core\Crypto;
+use Core\Crypto\KeyKind;
+use Core\Crypto\KeyPair;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Encoding;
+use Core\Hash;
+use Core\IO;
+use Core\Json;
+use Core\Str;
+use Core\Time;
+use RuntimeError;
+
+// The lists of events that every owner can read, whatever channels the owner set up.
+// The feed of a vendor and the public list of pending releases are signed notes, the format of
+// the checkpoints of the log. Each is signed with the key from `logKey` in `hosting.json`, so the
+// public key of the log checks them. The inbox is the same events for one account, after sign-in.
+final class Feeds
+{
+    // The number of events in a feed and in the inbox, the newest first.
+    public const int EVENTS = 100;
+
+    // The number of the newest releases that the pending list looks at.
+    // A release that waits behind more newer releases than this is not in the list.
+    public const int PENDING_SCAN = 500;
+
+    // The start of a key file, as `nvs registry log append` reads it.
+    private const string KEY_PREFIX = 'PRIVATE+KEY+';
+
+    // The PKCS#8 header of an Ed25519 private key. The 32 bytes of the seed follow it.
+    private const string ED25519_PKCS8 = '302e020100300506032b657004220420';
+
+    private Connection $db;
+    private KeyPair $key;
+    private string $name;
+
+    // `$key` is an Ed25519 key, and `$name` the name of the log, as in its key file.
+    public function constructor(Connection $db, KeyPair $key, string $name)
+    {
+        $this->db = $db;
+        $this->key = $key;
+        $this->name = $name;
+    }
+
+    // Reads the key from the file that `logKey` names. With `"logKey": ""`, the result is `null`.
+    // A file that is not a key of the log throws a `RuntimeError`.
+    public static function ofSite(Connection $db, Site $site): ?Feeds
+    {
+        if ($site->logKey == '') {
+            return null;
+        }
+        string $text = Str::trim(IO::read($site->logKey));
+        array<string> $parts = Str::split($text, '+');
+        if (Core\Arr::count($parts) < 5 || !Str::startsWith($text, Feeds::KEY_PREFIX)) {
+            throw new RuntimeError('The file in `logKey` is not a key of the log.');
+        }
+        string $name = $parts[2];
+        bytes $key = Encoding::fromBase64(Str::slice($text, Str::length(Feeds::KEY_PREFIX . $name . '+' . $parts[3] . '+') as int));
+        if (Bytes::length($key) != 33 || Encoding::toHex(Bytes::slice($key, 0, 1)) != '01') {
+            throw new RuntimeError('The file in `logKey` is not an Ed25519 key of the log.');
+        }
+        bytes $pkcs8 = Bytes::join([Encoding::fromHex(Feeds::ED25519_PKCS8), Bytes::slice($key, 1, 32)]);
+        return new Feeds($db, KeyPair::read($pkcs8, KeyKind::Ed25519), $name);
+    }
+
+    // The signed feed of a vendor: one line of JSON for each event, the newest first.
+    // The result is `null` when there is no such vendor.
+    public function vendor(string $vendor): ?string
+    {
+        string $key = Str::lower($vendor);
+        if ($this->db->query('select 1 from vendors where key = ?', [$key])->count() == 0) {
+            return null;
+        }
+        array<string> $lines = [];
+        foreach ($this->db->query('select id, kind, package, version, text, at from notices where vendor = ? order by id desc limit ?', [$key, Feeds::EVENTS]) as Row $row) {
+            $lines[] = Feeds::trusted(Json::encode(Feeds::event($row)));
+        }
+        return $this->sign($this->name . '/feeds/vendors/' . $key, $lines);
+    }
+
+    // The signed public list of every pending release, the newest first.
+    // Each line has the package, the version, and the time it is released, or `null` when it
+    // waits for an owner.
+    public function pending(): string
+    {
+        array<string> $lines = [];
+        foreach (Feeds::pendingOf($this->db, null) as mixed $release) {
+            $lines[] = Feeds::trusted(Json::encode($release));
+        }
+        return $this->sign($this->name . '/feeds/pending', $lines);
+    }
+
+    // The events of every vendor that the account owns, and the events about the account,
+    // the newest first. The website shows this list as the inbox.
+    public static function inbox(Connection $db, string $account): array<mixed>
+    {
+        array<mixed> $events = [];
+        foreach ($db->query(
+            'select id, kind, package, version, text, at from notices '
+                . 'where account = ? or vendor in (select vendor from owners where account = ?) order by id desc limit ?',
+            [$account, $account, Feeds::EVENTS],
+        ) as Row $row) {
+            $events[] = Feeds::event($row);
+        }
+        return $events;
+    }
+
+    // The pending releases of the vendors the account owns, or of every vendor when `$account` is
+    // `null`, the newest first. `nvs pkg whoami` and `nvs pkg publish` print the list of an account.
+    // Cost: one check of each of the newest `PENDING_SCAN` releases that an owner did not confirm.
+    public static function pendingOf(Connection $db, ?string $account): array<mixed>
+    {
+        string $owned = $account == null ? '' : 'and p.vendor in (select vendor from owners where account = ?) ';
+        array<mixed> $parameters = $account == null ? [] : [$account];
+        $parameters[] = Feeds::PENDING_SCAN;
+        array<array<string>> $candidates = [];
+        foreach ($db->query(
+            'select r.package, r.version, p.name from releases r join packages p on p.key = r.package '
+                . 'left join release_states s on s.package = r.package and s.version = r.version '
+                . 'where r.pending_until is not null and s.withheld is null ' . $owned
+                . 'order by r.published_at desc, r.package, r.version desc limit ?',
+            $parameters,
+        ) as Row $row) {
+            $candidates[] = [
+                'key' => Feeds::trusted($row->string('package')),
+                'version' => Feeds::trusted($row->string('version')),
+                'name' => Feeds::trusted($row->string('name')),
+            ];
+        }
+        int $now = Time::now()->toEpochSeconds();
+        var $releases = new Releases($db);
+        array<mixed> $pending = [];
+        foreach ($candidates as array<string> $candidate) {
+            ?int $at = $releases->selectableAt($db, $candidate['key'], $candidate['version']);
+            if ($at == null || $at > $now) {
+                $pending[] = {
+                    package: $candidate['name'],
+                    version: $candidate['version'],
+                    until: $at == null ? null : Time::fromEpoch($at)->toIso(),
+                };
+            }
+        }
+        return $pending;
+    }
+
+    // Writes a signed note: the first line names the list, each next line is one entry, and the
+    // signature line follows an empty line. The signature is Ed25519 over the text before the empty line.
+    private function sign(string $origin, array<string> $lines): string
+    {
+        string $text = $origin . "\n" . Core\Arr::count($lines) . "\n";
+        foreach ($lines as string $line) {
+            $text .= $line . "\n";
+        }
+        bytes $public = $this->key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        bytes $id = Bytes::slice(
+            Hash::of(Bytes::join([($this->name . "\n") as bytes, Encoding::fromHex('01'), $public]), Hash::Digest::Sha256),
+            0,
+            4,
+        );
+        bytes $signature = Crypto::sign($text as bytes, $this->key);
+        return $text . "\n— " . $this->name . ' ' . Encoding::toBase64(Bytes::join([$id, $signature])) . "\n";
+    }
+
+    // One event as JSON fields. `at` is the time of the event.
+    private static function event(Row $row): mixed
+    {
+        return {
+            id: $row->int('id') ?? 0,
+            at: Time::fromEpoch($row->int('at') ?? 0)->toIso(),
+            kind: Feeds::trusted($row->string('kind')),
+            package: $row->string('package') == null ? null : Feeds::trusted($row->string('package')),
+            version: $row->string('version') == null ? null : Feeds::trusted($row->string('version')),
+            text: Feeds::trusted($row->string('text')),
+        };
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

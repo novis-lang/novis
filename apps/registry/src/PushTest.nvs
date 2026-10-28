@@ -139,7 +139,7 @@ final class PushTest
     }
 
     // The JSON of one browser subscription with this endpoint.
-    private static function subscription(string $endpoint): string
+    public static function subscription(string $endpoint): string
     {
         return '{"endpoint":"' . $endpoint . '","keys":{'
             . '"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",'
