@@ -117,10 +117,8 @@ stamps and 6 stale question pages (routes, `nvs check`, `nvs serve`, `nvs servic
 `7a7f63b04`, and it was recording the ledger in the root, so they are its open work. If the next
 goal end's push is refused on them, they are this goal's to fix.
 
-Before the 97fcf96ce watch, `bun nv proofs --gate --limit 0` named 67 stale perf figures, from `io.rs` and
-`http.rs`. The main loop recorded all 67 in the root at `58b4def64` while this session measured
-them too. This session's copy was taken back out, so the ledger holds only the main loop's lines.
-Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root.
+Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
+the main loop may be recording the same figures.
 `--record-perf` needs the binary under the worktree's own `target/`, so a `CARGO_TARGET_DIR` there
 builds a binary the recorder cannot find.
 
