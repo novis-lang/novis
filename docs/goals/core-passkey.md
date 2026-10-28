@@ -35,7 +35,7 @@ stages:
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 6
     title: "the credential's members have their feature proofs, and every Passkey page has its questions"
-    status: open
+    status: done
     context: [docs/examples/core/Passkey/verifySignIn/about.md, tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs, website/src/data/questions.json]
   - id: 7
     title: the goal is verified once, and every failure is fixed
@@ -226,12 +226,12 @@ belongs on a `passkey.rs` test that already builds a credential from stored part
 are the session's own: `bun nv site --questions --owed core` and `--owed types` print what to write
 them from, in the shape of `/reference/core/totp/check/`'s.
 
-- [ ] The four readers. `docs/examples/core/Passkey-Credential/id/about.md:1`, `benches/members/core/Passkey-Credential/id.nvs:1`
-- [ ] `of`, with its Rust-side marker. `docs/examples/core/Passkey-Credential/of/about.md:1`, `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] The enum. `docs/examples/types/Passkey-Credential-Algorithm/about.md:1`
-- [ ] The perf record of the five benches, `bun nv proofs --record-perf --group 'Core\Passkey\Credential'`. `data/perf/members.ndjson:1`
-- [ ] The questions of the thirteen pages, each stamped with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`. `website/src/data/questions.json:1`
-- [ ] `bun nv proofs --gate --group 'Core\Passkey\Credential'` owes nothing (`credential-proofs`). `docs/examples/core/Passkey-Credential/of/about.md:1`
+- [x] The four readers. `docs/examples/core/Passkey-Credential/id/about.md:1`, `benches/members/core/Passkey-Credential/id.nvs:1`
+- [x] `of`, with its Rust-side marker. `docs/examples/core/Passkey-Credential/of/about.md:1`, `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] The enum. `docs/examples/types/Passkey-Credential-Algorithm/about.md:1`
+- [x] The perf record of the five benches, `bun nv proofs --record-perf --group 'Core\Passkey\Credential'`. `data/perf/members.ndjson:1`
+- [x] The questions of the thirteen pages, each stamped with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`. `website/src/data/questions.json:1`
+- [x] `bun nv proofs --gate --group 'Core\Passkey\Credential'` owes nothing (`credential-proofs`). `docs/examples/core/Passkey-Credential/of/about.md:1`
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -251,36 +251,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 5 are done. `Core\Passkey`'s five members owe nothing (`passkey-proofs` and
-`owners-closes` are green), and the rule is `shipped`.
+Stages 1 to 6 are done. `Core\Passkey`'s five members and `Passkey\Credential`'s six features
+owe nothing (`passkey-proofs`, `credential-proofs` and `owners-closes` are green), and the rule is
+`shipped`. The thirteen Passkey pages have their questions, stamped, and `bun nv site --questions
+--status` owes none. The four readers' Rust-side proof is `the_members_sign_in_once_per_challenge`
+in `passkey.rs`, which now calls each reader.
 
-The gate stage, now stage 7, has run. `bun nv affected --run` is green: 8080 tests, 3148 cases,
-1196 benches with none red. Its failures were fixed as one pass. Each cause and its commit:
-`Passkey\Credential` was missing from `ext_world.rs`'s `REFUSED` list, two Passkey corpus files were
-not in `nvs fmt`'s layout, and the website grammar and `docs/rules/ide.md` were stale renders. The
-IDE commits that landed beside this goal left the editor chapter without the colour themes'
-setting and command, and left `parses` out of `index.rs`'s codeLens queries. `bun nv verify --doc`
-and `bun nv owners --closes core-passkey` are green.
+Stage 7's first gate run, its fixes and `bun nv ci --check`'s licence and perf reds landed in the
+sessions before. What remains is its last item: one more gate run over stage 6's work, then the
+goal-end gates. This session started that `bun nv affected --run`.
 
-`bun nv ci --check` then found what no earlier gate reaches. `THIRD-PARTY-LICENSES.txt` lacked
-`ciborium` and `coset`, and the `Core\Session` and `Core\Crypto` perf figures were stale after this
-goal changed both modules. Both are fixed and committed. Two reds remain, and they are stage 6.
-`Passkey\Credential`'s six features owe every proof, because stages 4 and 5 gated `Core\Passkey`
-alone. The thirteen Passkey pages owe their website questions.
-
-**Expected red:** `credential-proofs`, and `bun nv ci --check`'s `feature proofs` and
-`website stale guard` legs, until stage 6 is done. Nothing else.
+**Expected red:** nothing. The `env-secret-proofs` red the sweep named was a log from Oct 22 that
+ends `exit 0`, and no check of that name is defined now. The nightly CI run 40662443492 was
+cancelled whole, with no job failed.
 
 ### Next
 
-**Stage 6: the credential's proofs and the Passkey questions.** Follow the stage's split: two
-writing subagents for the proofs, then the session writes the questions. Then stage 7's last item:
-one `bun nv affected --run`, `bun nv verify --doc`, `bun nv owners --closes core-passkey`,
-`bun nv ci --check`, then `DONE`. `bun nv proofs --id 'Core\Passkey\Credential::of'` prints every
-path a feature owes.
+**Stage 7's last item.** If the gate run is red, fix every failure in one pass and run it again.
+Then `bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check`, each
+green, then `DONE`.
 
-- [ ] The credential's six features have their proofs, and `credential-proofs` is green. `docs/examples/core/Passkey-Credential/of/about.md:1`
-- [ ] The thirteen pages have their questions, stamped. `website/src/data/questions.json:1`
 - [ ] Stage 7's last gate run, and the goal-end gates, each green. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
@@ -304,3 +294,6 @@ path a feature owes.
 - A `foreach` over an inline array literal, `foreach (['a', 'b'] as string $email)`, fails with
   E0401 "expected `string`, found `mixed`". The same array in an `array<string>` variable works.
   This is a checker question for whichever goal owns array literal inference.
+- Stage 6's examples worked around three checker limits. Two `catch` clauses of one `try` cannot
+  both name `$e`, a variable cannot be declared again in a later loop body of the same function
+  (both E0406), and an enum case has no `->name`. Each is a question for the goal that owns it.
