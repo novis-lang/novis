@@ -1,0 +1,169 @@
+<?nvs
+namespace Registry;
+
+use Core\Encoding;
+use Core\IO;
+use Core\Json;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+use Core\Time\Duration;
+
+// Tests for the index files and the download count. The build and the log are test doubles.
+// Each test publishes its own new package, so the tests do not see each other's files.
+final class IndexTest
+{
+    // The bytes the build double writes as the archive.
+    private const string ARCHIVE = 'the archive of the test';
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aPublishedReleaseIsInTheLogAndInTheIndexFile(): void
+    {
+        var $browser = new BrowserTest();
+        string $account = $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        string $digest = IndexTest::publish($browser, $vendor);
+        string $key = Str::lower($vendor) . '\\http';
+        var $log = IndexTest::log(41, $key);
+        var $index = new Index(Schema::open(), $log, Site::load());
+        Test::assertTrue($index->catchUp($key));
+
+        string $folder = Index::folder(Site::load());
+        string $hex = Str::slice($digest, 7);
+        Test::assertSame(IO::read($folder . '/archive/' . $hex . '.tar'), IndexTest::ARCHIVE);
+        var $file = Json::decode(IO::read($folder . '/index/' . Index::slug($key) . '.json')) as array<mixed>;
+        Test::assertSame($file['name'] as tainted string, $vendor . '\\Http');
+        Test::assertSame(($file['owners'] as array<mixed>)[0] as tainted string, $account);
+        var $version = ($file['versions'] as array<mixed>)[0] as array<mixed>;
+        Test::assertSame($version['version'] as tainted string, '1.0.0');
+        Test::assertSame($version['digest'] as tainted string, $hex);
+        Test::assertSame($version['log'] as int, 41);
+        // A release by token alone waits seven days.
+        int $until = Time::now()->toEpochSeconds() + 7 * 86400;
+        Test::assertSame((($version['state'] as array<mixed>)['pending'] as array<mixed>)['selectable_at'] as int, $until);
+        Test::assertTrue(IO::isFile($folder . '/registry.json'));
+        Test::assertCalled($log, Log::append, { times: 1 });
+        Test::assertCalled($log, Log::sign, { times: 1 });
+
+        // A second run adds nothing to the log, and it signs the files again.
+        Test::assertTrue($index->catchUp($key));
+        Test::assertCalled($log, Log::append, { times: 1 });
+        Test::assertCalled($log, Log::sign, { times: 2 });
+    }
+
+    #[Test]
+    public function aReleaseTheLogDidNotAddIsNotInTheIndexFile(): void
+    {
+        var $browser = new BrowserTest();
+        $browser->newAccount();
+        string $vendor = 'V' . Random::token(4);
+        IndexTest::publish($browser, $vendor);
+        string $key = Str::lower($vendor) . '\\http';
+        var $failing = Test::double<Log>({
+            size: fn(): int => 0,
+            append: fn(string $lines): bool => false,
+            sign: fn(int $at): bool => true,
+        });
+        Test::assertTrue(!new Index(Schema::open(), $failing, Site::load())->catchUp($key));
+        string $path = Index::folder(Site::load()) . '/index/' . Index::slug($key) . '.json';
+        Test::assertTrue(!IO::exists($path));
+        Test::assertNeverCalled($failing, Log::sign);
+
+        // The next run adds the release.
+        Test::assertTrue(new Index(Schema::open(), IndexTest::log(7, $key), Site::load())->catchUp($key));
+        var $file = Json::decode(IO::read($path)) as array<mixed>;
+        Test::assertSame((($file['versions'] as array<mixed>)[0] as array<mixed>)['log'] as int, 7);
+    }
+
+    // `crates/nvs-cli/src/package/index.rs` signs the same file and reads it with the client's reader.
+    #[Test]
+    public function theIndexFileIsTheOneTheClientReads(): void
+    {
+        string $repository = 'https://git.example.com/acme/http.git';
+        array<Listed> $versions = [
+            new Listed('1.0.0', Str::repeat('a', 64), null, '{}', '{"required":[],"optional":[]}', $repository, Str::repeat('1', 40), 0),
+            new Listed('1.1.0', Str::repeat('b', 64), 1800000000, '{"Acme\\\\Log":"1.2.0"}', '{"required":["net.connect"],"optional":["fs.read"]}', $repository, Str::repeat('2', 40), 3),
+        ];
+        string $written = Index::document('Acme\\Http', ['0123456789abcdef0123456789abcdef'], $versions, 1790000000);
+        Test::assertSame($written, Str::trim(IO::read('../fixtures/index.json')));
+    }
+
+    #[Test(at: '2026-03-01T23:00:00Z')]
+    public function oneAddressCountsOncePerVersionPerDay(): void
+    {
+        var $downloads = new Downloads(Schema::open());
+        string $key = 'v' . Str::lower(Random::token(4)) . '\\http';
+        int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 1);
+        $downloads->count($key, '1.0.0', '192.0.2.2');
+        $downloads->count($key, '1.1.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
+        Test::assertSame($downloads->on($key, '1.1.0', $day), 1);
+
+        // After midnight the same address counts again, and the salt of the day before is deleted.
+        Test::advance(Duration::hours(2));
+        $downloads->count($key, '1.0.0', '192.0.2.1');
+        Test::assertSame($downloads->on($key, '1.0.0', $day + 1), 1);
+        Test::assertSame($downloads->on($key, '1.0.0', $day), 2);
+        Test::assertTrue(!$downloads->hasSalt($day));
+        Test::assertTrue($downloads->hasSalt($day + 1));
+    }
+
+    // Publishes version 1.0.0 of `<vendor>\Http` with a build double that writes the archive.
+    // It returns the digest the build double printed.
+    private static function publish(BrowserTest $browser, string $vendor): string
+    {
+        var $made = $browser->post('/api/tokens', { scope: $vendor, days: 30 });
+        Test::assertSame($made->status(), 201);
+        tainted string $token = ($made->json() as array<mixed>)['token'] as tainted string;
+        string $digest = 'blake3:' . Encoding::toHex(Random::bytes(32));
+        string $commit = Encoding::toHex(Random::bytes(20));
+        string $repository = 'https://git.example.com/' . $vendor . '/http.git';
+        string $built = Core\Taint::assertTrusted(Json::encode({
+            schema: 1,
+            ok: true,
+            name: $vendor . '\\Http',
+            version: '1.0.0',
+            repository: $repository,
+            commit: $commit,
+            directory: '',
+            digest: $digest,
+            size: 23,
+            files: [{ path: 'src/A.nvs', size: 10 }],
+            dependencies: {},
+            capabilities: { required: ['net.connect'], optional: [] },
+            api: null,
+        }), 'the test wrote this value');
+        var $builder = Test::double<Builder>({ build: fn(array<string> $arguments): string => IndexTest::build($arguments, $built) });
+        var $done = new Publish(Schema::open(), $builder, Site::load())->publish($token, new PublishRequest($repository, $commit, '1.0.0', ''));
+        Test::assertSame($done->status, 201);
+        return $digest;
+    }
+
+    // Writes the archive to the file after `--archive`, as the build does, and returns `$json`.
+    private static function build(array<string> $arguments, string $json): string
+    {
+        bool $next = false;
+        foreach ($arguments as string $argument) {
+            if ($next) {
+                IO::write($argument, IndexTest::ARCHIVE);
+            }
+            $next = $argument == '--archive';
+        }
+        return $json;
+    }
+
+    // A log double with `$size` entries. It adds only lines that publish the package `$key`.
+    private static function log(int $size, string $key): Log
+    {
+        string $package = '"package":"' . Index::slug($key) . '"';
+        return Test::double<Log>({
+            size: fn(): int => $size,
+            append: fn(string $lines): bool => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package),
+            sign: fn(int $at): bool => true,
+        });
+    }
+}

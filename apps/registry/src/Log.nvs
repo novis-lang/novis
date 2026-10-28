@@ -1,0 +1,18 @@
+<?nvs
+namespace Registry;
+
+// The registry's log and the signatures of its index files. `NvsLog` runs `nvs registry log append`
+// and `nvs registry index sign`. The tests replace it with a double.
+interface Log
+{
+    // Returns the number of entries in the log. A log with no checkpoint yet has 0.
+    public function size(): int;
+
+    // Adds the entries, one JSON object per line, and signs a new checkpoint.
+    // It returns `true` when every entry was added. If one entry is not valid, nothing is added.
+    public function append(string $lines): bool;
+
+    // Signs `registry.json` and every index file again, with the time `$at` in seconds since 1970.
+    // It returns `true` when every file was signed.
+    public function sign(int $at): bool;
+}

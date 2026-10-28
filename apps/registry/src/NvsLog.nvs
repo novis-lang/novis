@@ -1,0 +1,64 @@
+<?nvs
+namespace Registry;
+
+use Core\Charset;
+use Core\Encoding;
+use Core\IO;
+use Core\Process;
+use Core\Str;
+use RuntimeError;
+
+// Runs `nvs registry log append` and `nvs registry index sign` as child processes.
+// The program is the `nvs` setting of `hosting.json`, and `nvs.toml` must allow it under `[capabilities.process]`.
+final class NvsLog implements Log
+{
+    private Site $site;
+    private string $folder;
+
+    // `$folder` is the folder with the public files. The log is its folder `log`.
+    public function constructor(Site $site, string $folder)
+    {
+        $this->site = $site;
+        $this->folder = $folder;
+    }
+
+    // The checkpoint is the log's name, the size and the root hash, one per line.
+    public function size(): int
+    {
+        string $checkpoint = $this->folder . '/log/checkpoint';
+        if (!IO::exists($checkpoint)) {
+            return 0;
+        }
+        array<tainted string> $lines = Str::split(IO::read($checkpoint), "\n");
+        return Core\Taint::assertTrusted($lines[1], 'the log command wrote the checkpoint') as int;
+    }
+
+    public function append(string $lines): bool
+    {
+        try {
+            var $child = Process::spawn(
+                $this->site->nvs,
+                ['registry', 'log', 'append', $this->folder . '/log', '--key', $this->site->logKey, '--origin', $this->site->logName],
+                { cwd: '..' },
+            );
+            $child->writeStdin(Encoding::encodeText($lines, Charset::Utf8));
+            return $child->wait()->exitCode() == 0;
+        } catch (RuntimeError $error) {
+            return false;
+        }
+    }
+
+    public function sign(int $at): bool
+    {
+        try {
+            var $done = Process::run(
+                $this->site->nvs,
+                ['registry', 'index', 'sign', $this->folder, '--key', $this->site->logKey, '--at', $at . ''],
+                { cwd: '..' },
+            );
+            return $done->exitCode() == 0;
+        } catch (RuntimeError $error) {
+            return false;
+        }
+    }
+}

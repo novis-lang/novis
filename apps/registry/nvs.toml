@@ -6,9 +6,10 @@ path = "registry.sqlite"
 
 # A request may read `hosting.json`, which has the address of the site and the other settings
 # of this installation. It may read and write the archives in `builds`, which `nvs registry build` writes.
+# It may read and write `files`, the public files that `nvs pkg` reads. The tests read `fixtures`.
 [capabilities.fs]
-read = ["hosting.json", "builds"]
-write = ["builds"]
+read = ["hosting.json", "builds", "files", "fixtures"]
+write = ["builds", "files"]
 
 # The program may open this database and no other.
 [capabilities.db]

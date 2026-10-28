@@ -1,0 +1,82 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\Encoding;
+use Core\Hash;
+use Core\Math;
+use Core\Random;
+use Core\Time;
+use RuntimeError;
+
+// Counts the downloads of each version per day. One address counts once per version per day.
+// The address is never saved. Only a hash of it with the salt of the day is saved,
+// and the salt and the hashes are deleted after that day.
+final class Downloads
+{
+    // The seconds in one day.
+    public const int DAY = 86400;
+
+    private Connection $db;
+
+    public function constructor(Connection $db)
+    {
+        $this->db = $db;
+    }
+
+    // Returns the day of a time, as the number of days since 1970.
+    public static function dayOf(int $seconds): int
+    {
+        return Math::intDiv($seconds, Downloads::DAY);
+    }
+
+    // Counts one download of a version. `$address` is the address of the computer that downloads.
+    public function count(string $key, string $version, ?tainted string $address): void
+    {
+        int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
+        string $salt = $this->saltOf($day);
+        tainted string $seen = Encoding::toHex(Hash::of($salt . "\n" . ($address ?? '') . "\n" . $key . "\n" . $version, Hash::Digest::Sha256));
+        $this->db->transaction(fn(Transaction $tx): void => {
+            var $first = $tx->execute('insert into downloads_seen (day, hash) values (?, ?) on conflict (day, hash) do nothing', [$day, $seen]);
+            if ($first->affected() == 1) {
+                $tx->execute(
+                    'insert into downloads (package, version, day, count) values (?, ?, ?, 1) '
+                        . 'on conflict (package, version, day) do update set count = count + 1',
+                    [$key, $version, $day],
+                );
+            }
+        });
+    }
+
+    // Returns the number of downloads of a version on the day `$day`.
+    public function on(string $key, string $version, int $day): int
+    {
+        foreach ($this->db->query('select count from downloads where package = ? and version = ? and day = ?', [$key, $version, $day]) as Row $row) {
+            return $row->int('count') ?? 0;
+        }
+        return 0;
+    }
+
+    // Returns `true` when the salt of the day `$day` is still saved.
+    public function hasSalt(int $day): bool
+    {
+        foreach ($this->db->query('select 1 as found from download_salts where day = ?', [$day]) as Row $row) {
+            return true;
+        }
+        return false;
+    }
+
+    // Returns the salt of the day. The salts and hashes of the days before are deleted first.
+    private function saltOf(int $day): string
+    {
+        $this->db->execute('delete from download_salts where day < ?', [$day]);
+        $this->db->execute('delete from downloads_seen where day < ?', [$day]);
+        $this->db->execute('insert into download_salts (day, salt) values (?, ?) on conflict (day) do nothing', [$day, Random::token(32)]);
+        foreach ($this->db->query('select salt from download_salts where day = ?', [$day]) as Row $row) {
+            return Core\Taint::assertTrusted($row->string('salt') as tainted string, 'the registry wrote the salt');
+        }
+        throw new RuntimeError('the salt of the day was not saved');
+    }
+}

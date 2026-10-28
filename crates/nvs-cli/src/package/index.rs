@@ -814,6 +814,59 @@ mod tests {
         assert_eq!(registry.index(&missing, &mut seen, None), Ok(None));
     }
 
+    /// The index file the registry service writes, `apps/registry/fixtures/index.json`, which
+    /// the service's `IndexTest.nvs` pins, reads back once `nvs registry index sign`'s signing
+    /// adds the time and the checkpoint.
+    #[test]
+    fn the_registry_services_index_file_reads_back() {
+        let fixture = Fixture::new("index-service");
+        let written = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../apps/registry/fixtures/index.json");
+        let text = fs::read_to_string(&written).expect("the service's fixture reads");
+        let json: serde_json::Value = serde_json::from_str(&text).expect("the fixture is JSON");
+        fixture.append(&super::super::entry::Entry::Publish {
+            package: "acme/http".to_owned(),
+            version: "1.0.0".to_owned(),
+            digest: "a".repeat(64),
+            repository: "https://git.example.com/acme/http.git".to_owned(),
+            commit: "1".repeat(40),
+        });
+        let path = fixture.files().join("index/acme/http.json");
+        fs::create_dir_all(path.parent().expect("an index file has a folder"))
+            .expect("the test makes the index folder");
+        fixture.write_signed(&path, &json);
+
+        let index = read(&fixture).expect("it answers").expect("it exists");
+        assert_eq!(index.owners, ["0123456789abcdef0123456789abcdef"]);
+        let first = index
+            .release("1.0.0".parse().expect("a version"))
+            .expect("listed");
+        assert_eq!(first.state, State::Released);
+        assert_eq!(first.log, Some(0));
+        assert!(first.dependencies.is_empty());
+        assert_eq!(first.capabilities, Capabilities::default());
+        let second = index
+            .release("1.1.0".parse().expect("a version"))
+            .expect("listed");
+        assert_eq!(
+            second.state,
+            State::Pending {
+                selectable_at: 1_800_000_000
+            }
+        );
+        assert_eq!(second.digest.to_hex().as_str(), "b".repeat(64));
+        assert_eq!(second.log, Some(3));
+        assert_eq!(second.repository, "https://git.example.com/acme/http.git");
+        assert_eq!(second.commit, "2".repeat(40));
+        let log = Name::checked("Acme\\Log").expect("a valid name");
+        assert_eq!(
+            second.dependencies,
+            [(log, "1.2.0".parse().expect("a version"))]
+        );
+        assert_eq!(second.capabilities.required, ["net.connect"]);
+        assert_eq!(second.capabilities.optional, ["fs.read"]);
+    }
+
     /// A first file host that does not exist is skipped, and the second one answers.
     #[test]
     fn a_missing_first_file_host_reads_from_the_second() {

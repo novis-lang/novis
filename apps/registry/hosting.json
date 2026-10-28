@@ -3,5 +3,9 @@
   "signUpWork": 8,
   "nvs": "nvs",
   "gitCaFile": "",
-  "projectAccount": ""
+  "projectAccount": "",
+  "files": "files",
+  "hosts": [],
+  "logKey": "",
+  "logName": "localhost"
 }

@@ -1,0 +1,187 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Db\Transaction;
+use Core\IO;
+use Core\Json;
+use Core\Path;
+use Core\Str;
+use Core\Time;
+use RuntimeError;
+
+// Writes the files that `nvs pkg` reads: `registry.json`, one index file per package and one
+// archive per version. A release is added to the log before an index file lists it.
+final class Index
+{
+    private Connection $db;
+    private Log $log;
+    private Site $site;
+
+    public function constructor(Connection $db, Log $log, Site $site)
+    {
+        $this->db = $db;
+        $this->log = $log;
+        $this->site = $site;
+    }
+
+    // Returns the folder with the public files. It is made when it does not exist.
+    public static function folder(Site $site): string
+    {
+        string $path = Path::join(Path::thisDir('..'), $site->files);
+        if (!IO::isDir($path)) {
+            IO::makeDir($path);
+        }
+        return IO::canonicalize($path);
+    }
+
+    // Adds every release of the package `$key` that is not in the log yet, such as `acme\http`.
+    // Each archive is copied first. Then the releases are added to the log, and then the index file
+    // and `registry.json` are written and signed. It returns `false` when a step fails.
+    // A release that is not in the log yet is added the next time this runs for its package.
+    public function catchUp(string $key): bool
+    {
+        string $folder = Index::folder($this->site);
+        try {
+            $this->db->transaction(fn(Transaction $tx): void => {
+                // This statement writes, so the transaction has the write lock of the database
+                // from here on. Two publishes add to the log one after the other.
+                $tx->execute('update releases set log = log where package = ? and log is null', [$key]);
+                var $rows = $tx->query(
+                    'select version, digest, git_commit, archive from releases where package = ? and log is null order by published_at, major, minor, patch',
+                    [$key],
+                );
+                string $repository = $this->repositoryOf($key);
+                int $next = $this->log->size();
+                string $lines = '';
+                foreach ($rows as Row $row) {
+                    string $version = Index::trusted($row->string('version'));
+                    string $digest = Index::hexOf(Index::trusted($row->string('digest')));
+                    IO::makeDir($folder . '/archive');
+                    IO::copy(Index::trusted($row->string('archive')), $folder . '/archive/' . $digest . '.tar');
+                    $lines .= Index::trusted(Json::encode({
+                        v: 1,
+                        kind: 'publish',
+                        package: Index::slug($key),
+                        version: $version,
+                        digest: $digest,
+                        repository: $repository,
+                        commit: Index::trusted($row->string('git_commit')),
+                    })) . "\n";
+                    $tx->execute('update releases set log = ? where package = ? and version = ?', [$next, $key, $version]);
+                    $next++;
+                }
+                if ($lines != '' && !$this->log->append($lines)) {
+                    throw new RuntimeError('the log did not add the releases');
+                }
+            });
+        } catch (RuntimeError $error) {
+            return false;
+        }
+        return $this->write($key, $folder);
+    }
+
+    // Writes the index file of the package `$key` and `registry.json`, and signs them.
+    private function write(string $key, string $folder): bool
+    {
+        string $name = '';
+        foreach ($this->db->query('select name, vendor from packages where key = ?', [$key]) as Row $row) {
+            $name = Index::trusted($row->string('name'));
+        }
+        array<string> $owners = [];
+        var $rows = $this->db->query('select account from owners where vendor = ? order by account', [Str::lower(Str::before($key, '\\') ?? '')]);
+        foreach ($rows as Row $row) {
+            $owners[] = Index::trusted($row->string('account'));
+        }
+        string $repository = $this->repositoryOf($key);
+        array<Listed> $versions = [];
+        $rows = $this->db->query(
+            'select version, digest, pending_until, dependencies, capabilities, git_commit, log from releases '
+                . 'where package = ? and log is not null order by major, minor, patch',
+            [$key],
+        );
+        foreach ($rows as Row $row) {
+            $versions[] = new Listed(
+                Index::trusted($row->string('version')),
+                Index::hexOf(Index::trusted($row->string('digest'))),
+                $row->int('pending_until'),
+                Index::trusted($row->string('dependencies')),
+                Index::trusted($row->string('capabilities')),
+                $repository,
+                Index::trusted($row->string('git_commit')),
+                $row->int('log') ?? 0,
+            );
+        }
+        try {
+            string $path = $folder . '/index/' . Index::slug($key) . '.json';
+            IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
+            IO::write($path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
+            IO::write($folder . '/registry.json', Json::encode({ schema: 1, hosts: $this->site->hosts }));
+        } catch (RuntimeError $error) {
+            return false;
+        }
+        return $this->log->sign(Time::now()->toEpochSeconds());
+    }
+
+    // Returns the text of one index file before it is signed. `$now` is the time in seconds since 1970.
+    // A version whose pending time has passed is released.
+    public static function document(string $name, array<string> $owners, array<Listed> $versions, int $now): string
+    {
+        array<mixed> $lines = [];
+        foreach ($versions as Listed $listed) {
+            mixed $state = 'released';
+            if ($listed->pendingUntil != null && $listed->pendingUntil > $now) {
+                $state = { pending: ['selectable_at' => $listed->pendingUntil] };
+            }
+            $lines[] = {
+                version: $listed->version,
+                digest: $listed->digest,
+                state: $state,
+                dependencies: Index::objectOf($listed->dependencies),
+                capabilities: Index::objectOf($listed->capabilities),
+                repository: $listed->repository,
+                commit: $listed->commit,
+                log: $listed->log,
+            };
+        }
+        return Index::trusted(Json::encode({ schema: 1, name: $name, owners: $owners, versions: $lines }));
+    }
+
+    private function repositoryOf(string $key): string
+    {
+        foreach ($this->db->query('select repository from packages where key = ?', [$key]) as Row $row) {
+            return Index::trusted($row->string('repository'));
+        }
+        return '';
+    }
+
+    // The path of a package in the index, such as `acme/http` for `acme\http`.
+    public static function slug(string $key): string
+    {
+        return Str::replace(Str::lower($key), '\\', '/');
+    }
+
+    // The digest as 64 hex characters, without the `blake3:` that the build writes.
+    private static function hexOf(string $digest): string
+    {
+        return Str::startsWith($digest, 'blake3:') ? Str::slice($digest, 7) : $digest;
+    }
+
+    // JSON text from the database as a value. An empty map stays a JSON object.
+    private static function objectOf(string $json): mixed
+    {
+        mixed $value = Json::decode($json);
+        if (Arr::count($value as array<mixed>) == 0) {
+            return {};
+        }
+        return $value;
+    }
+
+    // A text from a row the registry wrote.
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

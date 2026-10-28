@@ -2,7 +2,8 @@
 namespace Registry;
 
 // The result of a publish. `status` is the HTTP status of the answer.
-// A published version has its `digest`, and `text` is the sentence `nvs pkg publish` prints.
+// A published version has its `digest` and its `package` in lower case, such as `acme\http`,
+// and `text` is the sentence `nvs pkg publish` prints.
 // A refused publish has an empty `digest`, and `text` says why.
 final class Published
 {
@@ -10,6 +11,7 @@ final class Published
         public readonly uint $status,
         public readonly string $text,
         public readonly string $digest = '',
+        public readonly string $package = '',
     )
     {}
 

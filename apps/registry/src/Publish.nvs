@@ -141,15 +141,17 @@ final class Publish
         int $now = Time::now()->toEpochSeconds();
         int $until = $now + Publish::PENDING_DAYS * 86400;
         string $digest = Publish::trusted($built['digest']);
+        string $dependencies = Publish::jsonOf($built['dependencies'] ?? null, '{}');
+        string $capabilities = Publish::jsonOf($built['capabilities'] ?? null, '{"required":[],"optional":[]}');
         bool $saved = $this->db->transaction(fn(): bool => {
             $this->db->execute(
                 'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
                 [$key, $name, Str::lower($vendor), $repository, $directory, $now],
             );
             var $write = $this->db->execute(
-                'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, published_at, pending_until) '
-                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
-                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until],
+                'insert into releases (package, version, major, minor, patch, digest, size, git_commit, account, token, archive, api, published_at, pending_until, dependencies, capabilities) '
+                    . 'values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (package, version) do nothing',
+                [$key, $version, $parts[0], $parts[1], $parts[2], $digest, $built['size'] as int, $commit, $token->account, $token->id, $file . '.tar', $file . '.json', $now, $until, $dependencies, $capabilities],
             );
             return $write->affected() == 1;
         });
@@ -161,6 +163,7 @@ final class Publish
             201,
             '`' . $name . '` ' . $version . ' is published. It is pending until ' . $date . '. An owner can release it now with a passkey on the website.',
             $digest,
+            $key,
         );
     }
 
@@ -281,6 +284,16 @@ final class Publish
             }
         }
         return Core\Taint::assertTrusted($text, 'a folder is names of letters, digits, `-`, `.` and `_`');
+    }
+
+    // A part of the build's JSON as JSON text, such as the dependencies. An empty map is `$empty`,
+    // because JSON writes an empty array as `[]`.
+    private static function jsonOf(mixed $value, string $empty): string
+    {
+        if ($value == null || Core\Arr::count($value as array<mixed>) == 0) {
+            return $empty;
+        }
+        return Publish::trusted(Json::encode($value));
     }
 
     // A text from the build's JSON or from a row the registry wrote.

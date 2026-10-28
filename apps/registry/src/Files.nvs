@@ -1,0 +1,78 @@
+<?nvs
+namespace Registry;
+
+use Core\Db\Row;
+use Core\IO;
+use Core\Request;
+use Core\Response;
+use Core\Str;
+
+// Sends the public files of the registry when the registry is its own file host.
+// A deployment can serve the same files from other hosts that `registry.json` lists.
+final class Files
+{
+    private const string HEX = '0123456789abcdef';
+    private const string NAME_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._';
+
+    // Sends the file at `$path` in the folder of the public files, such as `index/acme/http.json`.
+    // A path with `..`, an empty part or another character gets a 404.
+    public static function send(tainted string $path): void
+    {
+        ?string $checked = Files::pathOf($path);
+        if ($checked == null) {
+            Files::missing();
+            return;
+        }
+        string $file = Index::folder(Site::load()) . '/' . $checked;
+        if (!IO::isFile($file)) {
+            Files::missing();
+            return;
+        }
+        Response::sendFile($file);
+    }
+
+    // Sends an archive, such as `<digest>.tar`. A download by `nvs` is counted for its version.
+    public static function sendArchive(tainted string $name): void
+    {
+        if (Str::length($name) != 68 || !Str::endsWith($name, '.tar') || Str::trim(Str::slice($name, 0, 64), { characters: Files::HEX }) != '') {
+            Files::missing();
+            return;
+        }
+        string $digest = Core\Taint::assertTrusted(Str::slice($name, 0, 64), 'a digest is 64 hex characters');
+        var $db = Schema::open();
+        var $rows = $db->query('select package, version from releases where digest = ? and log is not null', ['blake3:' . $digest]);
+        foreach ($rows as Row $row) {
+            if (Str::startsWith(Request::header('user-agent') ?? '', 'nvs/')) {
+                new Downloads($db)->count(Files::trusted($row->string('package')), Files::trusted($row->string('version')), Request::clientIp());
+            }
+            Files::send('archive/' . $digest . '.tar');
+            return;
+        }
+        Files::missing();
+    }
+
+    // Checks that a sent path has only parts of letters, digits, `-`, `.` and `_`, and no `..`.
+    private static function pathOf(tainted string $path): ?string
+    {
+        if (Str::length($path) > 255) {
+            return null;
+        }
+        foreach (Str::split($path, '/') as tainted string $part) {
+            if ($part == '' || $part == '.' || $part == '..' || Str::trim($part, { characters: Files::NAME_CHARACTERS }) != '') {
+                return null;
+            }
+        }
+        return Core\Taint::assertTrusted($path, 'a path of plain names inside the folder of the public files');
+    }
+
+    private static function missing(): void
+    {
+        Response::setStatus(404);
+        Response::json({ error: 'There is no such file.' });
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}

@@ -21,6 +21,17 @@ final class Site
         public readonly string $gitCaFile,
         // The account that may publish the vendors `Core` and `Novis`, or an empty string for none.
         public readonly string $projectAccount,
+        // The folder the registry writes its public files to: `registry.json`, `index`, `archive`
+        // and `log`. A relative path is relative to the folder of `hosting.json`.
+        public readonly string $files,
+        // The file hosts that `registry.json` lists, in the order a client tries them.
+        // With none, a client reads every file from the address of the site.
+        public readonly array<string> $hosts,
+        // The file with the private key that signs the log and the index files.
+        // `nvs registry key` makes one.
+        public readonly string $logKey,
+        // The name of the log, the first line of every checkpoint. It is the name of the key.
+        public readonly string $logName,
     )
     {}
 
@@ -34,6 +45,10 @@ final class Site
             Site::text($settings, 'nvs'),
             Site::text($settings, 'gitCaFile'),
             Site::text($settings, 'projectAccount'),
+            Site::text($settings, 'files'),
+            Site::texts($settings['hosts'] as array<mixed>),
+            Site::text($settings, 'logKey'),
+            Site::text($settings, 'logName'),
         );
     }
 
@@ -46,5 +61,14 @@ final class Site
     private static function text(array<mixed> $settings, string $key): string
     {
         return Core\Taint::assertTrusted($settings[$key] as tainted string, 'the operator wrote hosting.json');
+    }
+
+    private static function texts(array<mixed> $list): array<string>
+    {
+        array<string> $texts = [];
+        foreach ($list as mixed $item) {
+            $texts[] = Core\Taint::assertTrusted($item as tainted string, 'the operator wrote hosting.json');
+        }
+        return $texts;
     }
 }

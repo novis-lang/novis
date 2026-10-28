@@ -1,0 +1,25 @@
+<?nvs
+namespace Registry;
+
+// One version as an index file lists it.
+final class Listed
+{
+    public function constructor(
+        // The version, such as `1.4.0`.
+        public readonly string $version,
+        // The digest of the archive: 64 characters from `0` to `9` and `a` to `f`.
+        public readonly string $digest,
+        // The time the version is released, in seconds since 1970. `null` means it is released.
+        public readonly ?int $pendingUntil,
+        // The dependencies as JSON, such as `{"Acme\\Log":"1.0.0"}`.
+        public readonly string $dependencies,
+        // The capabilities as JSON, such as `{"required":["net.connect"],"optional":[]}`.
+        public readonly string $capabilities,
+        // The repository and the commit the registry built the archive from.
+        public readonly string $repository,
+        public readonly string $commit,
+        // The number of the entry in the log that publishes this version.
+        public readonly int $log,
+    )
+    {}
+}

@@ -72,7 +72,9 @@ final class Schema
         );
         // One row per published version. A version is never published twice.
         // `archive` and `api` are the files the build wrote. `pending_until` is the time a release
-        // by token alone is released, unless an owner confirms it earlier.
+        // by token alone is released, unless an owner confirms it earlier. `dependencies` and
+        // `capabilities` are JSON from the build. `log` is the number of the release's entry in
+        // the log, and it is null until the release is in the log and in the index.
         $db->execute(
             'create table if not exists releases ('
                 . 'package text not null references packages (key), version text not null, '
@@ -80,7 +82,22 @@ final class Schema
                 . 'digest text not null, size integer not null, git_commit text not null, '
                 . 'account text not null references accounts (id), token text not null, '
                 . 'archive text not null, api text not null, published_at integer not null, pending_until integer, '
+                . 'dependencies text not null, capabilities text not null, log integer, '
                 . 'primary key (package, version))',
+            [],
+        );
+        // The downloads of each version per day. A day is the number of days since 1970.
+        $db->execute(
+            'create table if not exists downloads ('
+                . 'package text not null, version text not null, day integer not null, count integer not null, '
+                . 'primary key (package, version, day))',
+            [],
+        );
+        // One random salt per day. A download is counted once per day for each hash of the salt,
+        // the address and the version. The rows of a day are deleted after that day.
+        $db->execute('create table if not exists download_salts (day integer primary key, salt text not null)', []);
+        $db->execute(
+            'create table if not exists downloads_seen (day integer not null, hash text not null, primary key (day, hash))',
             [],
         );
         $db->execute('create index if not exists packages_of_repository on packages (repository, directory)', []);

@@ -14,3 +14,8 @@ nvs test . --config nvs.toml                   # runs the tests
 passkeys work only on it. `signUpWork` is the number of zero bits the proof-of-work of a sign-up
 needs. Each extra bit doubles the work. The file in this folder is for one computer, and a
 deployment writes its own.
+
+`files` is the folder for the files that `nvs pkg` reads: `registry.json`, the index files, the
+archives and the log. `hosts` lists the file hosts that `registry.json` names. With no hosts, the
+registry sends the files itself. `logKey` is the key file that signs the log and the index files,
+and `nvs registry key` makes one. `logName` is the name of that key.

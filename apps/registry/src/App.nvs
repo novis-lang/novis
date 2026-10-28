@@ -312,9 +312,16 @@ final class App
         var $site = Site::load();
         try {
             var $sent = Request::jsonAs<PublishRequest>();
-            var $done = new Publish(Schema::open(), new NvsBuilder($site), $site)->publish(Tokens::bearer(), $sent);
+            var $db = Schema::open();
+            var $done = new Publish($db, new NvsBuilder($site), $site)->publish(Tokens::bearer(), $sent);
             if ($done->digest == '') {
                 App::fail($done->status, $done->text);
+                return;
+            }
+            // The version is saved. It is answered only once it is in the log and in the index.
+            if (!new Index($db, new NvsLog($site, Index::folder($site)), $site)->catchUp($done->package)) {
+                App::fail(500, 'The version is saved, and the registry could not add it to the index. '
+                    . 'The registry adds it the next time this package is published.');
                 return;
             }
             Response::setStatus(201);
@@ -322,6 +329,38 @@ final class App
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a repository, a commit, a version and a directory.');
         }
+    }
+
+    // Sends `registry.json`, the file that lists the file hosts.
+    #[Route(path: '/registry.json', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function root(): void
+    {
+        Files::send('registry.json');
+    }
+
+    // Sends the index file of a package, such as `/index/acme/http.json`.
+    #[Route(path: '/index/{vendor}/{file}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function index(tainted string $vendor, tainted string $file): void
+    {
+        Files::send('index/' . $vendor . '/' . $file);
+    }
+
+    // Sends a file of the log, such as `/log/checkpoint`.
+    #[Route(path: '/log/{path...}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function log(tainted string $path): void
+    {
+        Files::send('log/' . $path);
+    }
+
+    // Sends the archive of a version, such as `/archive/<digest>.tar`, and counts the download.
+    #[Route(path: '/archive/{file}', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function archive(tainted string $file): void
+    {
+        Files::sendArchive($file);
     }
 
     // Signs the visitor out.
