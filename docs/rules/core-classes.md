@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*2 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 118 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3032,7 +3032,7 @@ payload" is not a property the checker can see, so it is not one the return type
 
 <a id="core-classes-passkey-verifies-a-webauthn-ceremony"></a>
 
-## `Core\Passkey` creates WebAuthn options and verifies registration and sign-in for ES256 and Ed25519, with a single-use challenge, no attestation check, and the credential stored by the application  *(designed — owned by goal core-passkey)*
+## `Core\Passkey` creates WebAuthn options and verifies registration and sign-in for ES256 and Ed25519, with a single-use challenge, no attestation check, and the credential stored by the application
 
 `rule:core-classes/passkey-verifies-a-webauthn-ceremony`
 
