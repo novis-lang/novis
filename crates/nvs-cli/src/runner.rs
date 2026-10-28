@@ -1359,6 +1359,11 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         refuse_a_forged_write(ctx, &self.routes, &mut inbound);
         let unit = Arc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
+        // `rule:testing/determinism-declared-on-the-test`'s fixed clock, read now so the request
+        // sees the test's `at:` and every `Core\Test::advance` made before it. The child gets a
+        // copy, so nothing the request does moves the test's clock. The `seed:` generator does not
+        // cross: a copy of its state would draw the same values in every request a test makes.
+        let clock = ctx.fixed_clock();
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
         // child's statics and its error class are armed from inside, because
@@ -1366,6 +1371,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         let program: nvs_runtime::script::Program =
             Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
                 unit.install_in(ctx);
+                if let Some(nanos) = clock {
+                    ctx.set_fixed_clock(nanos);
+                }
                 if !routes.rows().is_empty() {
                     ctx.set_routes(std::sync::Arc::clone(&routes));
                 }

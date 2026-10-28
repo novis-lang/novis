@@ -24,6 +24,23 @@ class Api
         Core\Test::assertEquals($answered->body(), 'Api::show');
     }
 
+    #[Core\Route(path: '/clock', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function clock(): string
+    {
+        return 'clock';
+    }
+
+    // `rule:testing/determinism-declared-on-the-test`'s fixed clock reaches the request, and so
+    // does every `Core\Test::advance` made before it.
+    #[Core\Test(at: '2026-01-01T00:00:00Z')]
+    public function itAnswersOnTheTestsFixedClock(): void
+    {
+        Core\Test::assertEquals(Core\Test::request(Core\Http\Method::Get, '/clock')->body(), '1767225600');
+        Core\Test::advance(Core\Time\Duration::hours(1));
+        Core\Test::assertEquals(Core\Test::request(Core\Http\Method::Get, '/clock')->body(), '1767229200');
+    }
+
     #[Core\Test]
     public function itAnswersAPathTheTableDoesNotClaim(): void
     {
@@ -38,6 +55,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
         echo 'unclaimed';
+    } elseif ($matched->is(Api::clock)) {
+        echo Core\Time::now()->toEpochSeconds();
     } else {
         Core\Response::setStatus(201);
         echo $matched->is(Api::show) ? 'Api::show' : 'another route';
