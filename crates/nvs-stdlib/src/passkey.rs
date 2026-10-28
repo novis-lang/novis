@@ -123,6 +123,18 @@ const MAX_ID: usize = 1023;
 /// WebAuthn's longest user handle, in octets.
 const MAX_USER_ID: usize = 64;
 
+/// More than one `{"type":"public-key","id":…}` entry of the options costs beside its id: its
+/// `serde_json` map with two keys and two values, and its text. [`credential_ids`] charges it.
+const ENTRY_COST: usize = 256;
+
+/// More than the options cost beside their ids and the program's text: the challenge, the fixed
+/// keys and values, their `serde_json` nodes and the user handle.
+const OPTIONS_COST: usize = 2048;
+
+/// What the options cost for each byte of a text the program passed: one in the `serde_json` tree,
+/// and up to six in the JSON, where a control character is written `\u0000`.
+const TEXT_COST: usize = 7;
+
 /// The authenticator data's user-present flag.
 const USER_PRESENT: u8 = 0x01;
 
@@ -1134,10 +1146,22 @@ fn credential_instance(registered: &Registered, site: &str) -> Result<Value, Fau
 /// The credential ids of the `array<Passkey\Credential>` at `slot`, base64url, for the options'
 /// `excludeCredentials` and `allowCredentials`.
 ///
+/// The options are Rust memory the request's heap budget does not count until the finished text
+/// is copied into it: this list, the `serde_json` tree written from it and the text. So the
+/// request's memory limit is checked before the first id and after each one, against `spent` (what
+/// the rest of the options cost) plus each id three times and [`ENTRY_COST`] per entry, and a list
+/// the request cannot afford stops the request before the tree is built.
+///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for a slot or an element of another type, which the checker has refused.
-fn credential_ids(args: &[Value], slot: usize, member: &str) -> Result<Vec<String>, Fault> {
+/// A [`Fault::fatal`] for a slot or an element of another type, which the checker has refused, and
+/// for a list past the request's memory limit.
+fn credential_ids(
+    args: &[Value],
+    slot: usize,
+    member: &str,
+    mut spent: usize,
+) -> Result<Vec<String>, Fault> {
     let raw = args[slot].array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
             "{NAME}::{member} expected an array of `{CREDENTIAL_NAME}`, got tag {}",
@@ -1147,7 +1171,13 @@ fn credential_ids(args: &[Value], slot: usize, member: &str) -> Result<Vec<Strin
     let list = crate::arr::borrowed(raw);
     let mut ids = Vec::new();
     let mut from = 0;
-    while let Some(live) = list.next_slot(from) {
+    loop {
+        if !nvs_runtime::budget::affords(spent) {
+            nvs_runtime::affordable(Some(spent), &format!("{NAME}::{member}"))?;
+        }
+        let Some(live) = list.next_slot(from) else {
+            break;
+        };
         from = live + 1;
         let element = list.value_at(live).expect("a live slot holds a value");
         let held = crate::instance::receiver(element, &CREDENTIAL, member)?;
@@ -1157,6 +1187,10 @@ fn credential_ids(args: &[Value], slot: usize, member: &str) -> Result<Vec<Strin
                 "{CREDENTIAL_NAME} expected a `bytes` in its `id` slot"
             ))
         })?;
+        let encoded = id.len().div_ceil(3).saturating_mul(4);
+        spent = spent
+            .saturating_add(encoded.saturating_mul(3))
+            .saturating_add(ENTRY_COST);
         ids.push(URL_SAFE_NO_PAD.encode(id));
     }
     Ok(ids)
@@ -1192,7 +1226,9 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        let excluded = credential_ids(args, 4, "registerOptions")?;
+        let texts = rp_id.len() + rp_name.len() + 2 * user_name.len();
+        let spent = texts.saturating_mul(TEXT_COST).saturating_add(OPTIONS_COST);
+        let excluded = credential_ids(args, 4, "registerOptions", spent)?;
 
         let challenge = issue_challenge(ctx, REGISTER_KEY, "registerOptions")?;
         let options = serde_json::json!({
@@ -1264,7 +1300,8 @@ nvs_runtime::nvs_helper! {
                 format!("{who}(): $rpId is empty. Pass the domain of your site."),
             ));
         }
-        let allowed = credential_ids(args, 1, "signInOptions")?;
+        let spent = rp_id.len().saturating_mul(TEXT_COST).saturating_add(OPTIONS_COST);
+        let allowed = credential_ids(args, 1, "signInOptions", spent)?;
 
         let challenge = issue_challenge(ctx, SIGN_IN_KEY, "signInOptions")?;
         let options = serde_json::json!({
@@ -1883,6 +1920,50 @@ mod tests {
         ctx.take_pending()
             .expect("a refusal is a throw a program can catch")
             .into_owned()
+    }
+
+    /// The options are built in memory the request's budget does not count, so the limit is
+    /// checked against what they will cost before they are built: long names, and many long ids.
+    #[test]
+    fn options_past_the_memory_limit_stop_before_they_are_built() {
+        let mut ctx = session_ctx();
+        ctx.set_config(crate::tests::granting("[limits]\nmemory = \"8M\"\n"));
+        let long = "n".repeat(2 * 1024 * 1024);
+        let named = [
+            Value::text(RP_ID),
+            Value::text(&long),
+            Value::bytes(NvsStr::new(b"user-1")),
+            Value::text("ada@example.org"),
+            Value::array(nvs_runtime::NvsArray::new()),
+        ];
+        assert!(
+            nvs_runtime::call(nvs_core_passkey_register_options, &mut ctx, &named).is_err(),
+            "a 2 MiB name costs past 8 MiB of options"
+        );
+
+        let mut ctx = session_ctx();
+        ctx.set_config(crate::tests::granting("[limits]\nmemory = \"8M\"\n"));
+        let (key, _signer) = authenticator(-8);
+        let mut existing = nvs_runtime::NvsArray::new();
+        for at in 0..2048_u32 {
+            let mut id = vec![0_u8; MAX_ID];
+            id[..4].copy_from_slice(&at.to_be_bytes());
+            let of_args = [
+                Value::bytes(NvsStr::new(&id)),
+                Value::bytes(NvsStr::new(&key)),
+                Value::int(Algorithm::Ed25519.tag()),
+                Value::int(0),
+            ];
+            existing.append(
+                nvs_runtime::call(nvs_core_passkey_credential_of, &mut ctx, &of_args)
+                    .expect("a credential under the limit is built"),
+            );
+        }
+        let listed = [Value::text(RP_ID), Value::array(existing)];
+        assert!(
+            nvs_runtime::call(nvs_core_passkey_sign_in_options, &mut ctx, &listed).is_err(),
+            "2048 ids of 1023 bytes cost past 8 MiB of options"
+        );
     }
 
     // covers: Core\Passkey::registerOptions, Core\Passkey::verifyRegistration
