@@ -34,10 +34,18 @@ stages:
     status: done
     context: [docs/examples/core/Totp/check/about.md, tests/hostile/core/Totp/check/01-guess-every-code.nvs]
   - id: 6
+    title: "the credential's members have their feature proofs, and every Passkey page has its questions"
+    status: open
+    context: [docs/examples/core/Passkey/verifySignIn/about.md, tests/hostile/core/Passkey/verifySignIn/01-a-replayed-assertion.nvs, website/src/data/questions.json]
+  - id: 7
     title: the goal is verified once, and every failure is fixed
     status: open
     gate: true
 checks:
+  - id: credential-proofs
+    stage: 6
+    name: Core\Passkey\Credential owes no feature proof
+    run: [bun, nv, proofs, --gate, --group, "Core\\Passkey\\Credential"]
   - id: passkey-proofs
     stage: 5
     name: Core\Passkey owes no feature proof
@@ -204,7 +212,28 @@ bench, held to § *Text an end user reads* in `AGENTS.md`. A last one writes the
 - [x] `bun nv proofs --group 'Core\Passkey'` owes nothing. `docs/examples/core/Passkey/verifySignIn/about.md:1`
 - [x] `rule:core-classes/passkey-verifies-a-webauthn-ceremony` is `shipped` with its cases in `guardedBy`, and `bun nv owners --closes core-passkey` passes. `data/rules/core-classes/passkey-verifies-a-webauthn-ceremony.json:3`
 
-### 6. the goal is verified once, and every failure is fixed
+### 6. the credential's members have their feature proofs, and every Passkey page has its questions
+
+**Does:** `Passkey\Credential::of`, `id`, `publicKey`, `algorithm`, `signCount` and the enum
+`Passkey\Credential::Algorithm` have their proofs, and the website's thirteen Passkey pages have
+their questions. Stages 4 and 5 gated `--group 'Core\Passkey'` alone, which does not reach the
+credential's group, and `bun nv ci --check` named both gaps.
+
+**Split:** the four readers are one value read back, so one writing subagent writes all four
+(about page, three examples, bench, attack each), and a second writes `of` and the enum. Each
+reader's two conformance cases and `of`'s Rust-side `covers:` marker go with them; `of`'s marker
+belongs on a `passkey.rs` test that already builds a credential from stored parts. The questions
+are the session's own: `bun nv site --questions --owed core` and `--owed types` print what to write
+them from, in the shape of `/reference/core/totp/check/`'s.
+
+- [ ] The four readers. `docs/examples/core/Passkey-Credential/id/about.md:1`, `benches/members/core/Passkey-Credential/id.nvs:1`
+- [ ] `of`, with its Rust-side marker. `docs/examples/core/Passkey-Credential/of/about.md:1`, `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] The enum. `docs/examples/types/Passkey-Credential-Algorithm/about.md:1`
+- [ ] The perf record of the five benches, `bun nv proofs --record-perf --group 'Core\Passkey\Credential'`. `data/perf/members.ndjson:1`
+- [ ] The questions of the thirteen pages, each stamped with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <url>`. `website/src/data/questions.json:1`
+- [ ] `bun nv proofs --gate --group 'Core\Passkey\Credential'` owes nothing (`credential-proofs`). `docs/examples/core/Passkey-Credential/of/about.md:1`
+
+### 7. the goal is verified once, and every failure is fixed
 
 **Does:** the stages before this one checked with a build alone, so this stage verifies the
 whole goal once and fixes every failure in one pass.
@@ -213,49 +242,59 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [ ] After stage 6, one more `bun nv affected --run`, then `bun nv verify --doc`, `bun nv owners --closes core-passkey` and `bun nv ci --check`, each green. `tools/nv/cmd/ci.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. All five members have an about page, three examples, a bench and an
-attack, and `bun nv proofs --gate --group 'Core\Passkey'` owes nothing (`passkey-proofs` is green).
-The rule is `shipped`, guarded by `passkey.rs` and its four cases, and
-`bun nv owners --closes core-passkey` passes (`owners-closes` is green). The rendered
-`docs/rules/security.md` now lists `Core\Passkey` as built, as its fragment already did.
+Stages 1 to 5 are done. `Core\Passkey`'s five members owe nothing (`passkey-proofs` and
+`owners-closes` are green), and the rule is `shipped`.
 
-The perf tool subtracted a floor taken without `--config`, while `spawnProof` runs a bench beside an
-`nvs.toml` under that file and so skips the repository's root `nvs.toml`. Such a bench read about
-11 ms over N too low, and `credentialId` read 0. `floorFor` (`tools/nv/proofs/perf.ts`) now times
-the empty program under each bench's own config. The five Passkey figures are taken with it, and
-`credentialId`'s bench runs 16384 rounds.
+The gate stage, now stage 7, has run. `bun nv affected --run` is green: 8080 tests, 3148 cases,
+1196 benches with none red. Its failures were fixed as one pass. Each cause and its commit:
+`Passkey\Credential` was missing from `ext_world.rs`'s `REFUSED` list, two Passkey corpus files were
+not in `nvs fmt`'s layout, and the website grammar and `docs/rules/ide.md` were stale renders. The
+IDE commits that landed beside this goal left the editor chapter without the colour themes'
+setting and command, and left `parses` out of `index.rs`'s codeLens queries. `bun nv verify --doc`
+and `bun nv owners --closes core-passkey` are green.
 
-**Expected red:** none from this goal. The proofs of other classes whose benches sit beside an
-`nvs.toml` (Session, Cache, Db and the like) still carry figures taken against the old floor. Their
-`impl_hash` has not changed, so no gate goes red for it.
+`bun nv ci --check` then found what no earlier gate reaches. `THIRD-PARTY-LICENSES.txt` lacked
+`ciborium` and `coset`, and the `Core\Session` and `Core\Crypto` perf figures were stale after this
+goal changed both modules. Both are fixed and committed. Two reds remain, and they are stage 6.
+`Passkey\Credential`'s six features owe every proof, because stages 4 and 5 gated `Core\Passkey`
+alone. The thirteen Passkey pages owe their website questions.
+
+**Expected red:** `credential-proofs`, and `bun nv ci --check`'s `feature proofs` and
+`website stale guard` legs, until stage 6 is done. Nothing else.
 
 ### Next
 
-**Stage 6: verify the goal once.** Start `bun nv affected --run` with `run_in_background`, end the
-turn, group its failures by cause, fix them in one pass, and run it again. Then the goal-end gates:
-`bun nv verify --doc`, `bun nv owners --closes core-passkey`, `bun nv ci --check`. The run also
-shows whether plain `bun nv proofs --run` (without `--nvs`) still fails to build its coverage
-binary. `tools/nv/cmd/verify.ts:1`
+**Stage 6: the credential's proofs and the Passkey questions.** Follow the stage's split: two
+writing subagents for the proofs, then the session writes the questions. Then stage 7's last item:
+one `bun nv affected --run`, `bun nv verify --doc`, `bun nv owners --closes core-passkey`,
+`bun nv ci --check`, then `DONE`. `bun nv proofs --id 'Core\Passkey\Credential::of'` prints every
+path a feature owes.
 
-- [ ] `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass, then a green second run. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates, each red fixed. `tools/nv/cmd/ci.ts:1`
+- [ ] The credential's six features have their proofs, and `credential-proofs` is green. `docs/examples/core/Passkey-Credential/of/about.md:1`
+- [ ] The thirteen pages have their questions, stamped. `website/src/data/questions.json:1`
+- [ ] Stage 7's last gate run, and the goal-end gates, each green. `tools/nv/cmd/ci.ts:1`
 
 ### Backlog
 
 - The registry's sign-in uses this goal's work in goal `registry-service` (`docs/goals/registry-service.md`).
 - Web Push, with its AES-128-GCM kept inside the class, is goal `core-web-push`'s (`docs/goals/core-web-push.md`).
 - `bun nv proofs --run` without `--nvs` failed to build its coverage binary under `target/covws` in
-  stage 4. The cause is not known. Stage 6 runs it, and that run shows whether it is still broken.
+  stage 4. The cause is not known, and no run this goal makes has needed it since.
   `tools/nv/proofs/run.ts:1`
+- `Core\Crypto::generateKey`, `Core\Crypto\PublicKey::read`, `write` and `kind` record `0.0` ns/op.
+  Their benches run too few rounds to rise above the floor, which is what `credentialId`'s did.
+  Raising each bench's N fixes it. `benches/members/core/Crypto/generateKey.nvs:1`
+- The nightly CI run 40662443492 was cancelled whole after 14 minutes, with no job failed. The next
+  nightly shows the tree's state. `tools/nv/cmd/ci.ts:1`
 - `bun nv scaling --budget --write` is refused by 45 benches over their shares: the Spreadsheet
   package's (by 1 or 32 statements), `Core\Metrics`, `Core\Cap::has` and the pipeline operator. No
   gate runs the budget, so the Passkey benches have no share yet. Whoever owns the budget lowers
