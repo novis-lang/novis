@@ -13,7 +13,7 @@ stages:
         rules: [core-classes/passkey-verifies-a-webauthn-ceremony, packaging/somebody-elses-specification-is-a-crate, packaging/a-c-dependency-answers-two-questions, core-classes/session-is-started-explicitly, core-api/reference-card]
   - id: 2
     title: an authentication is verified against a stored credential
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/crypto.rs]
     extra:
       context:
@@ -157,11 +157,11 @@ session from Rust (`file.rs:NN`, one line each), starting at `crates/nvs-stdlib/
 **Does:** the browser's assertion is verified against the credential the application stored, and the
 updated credential is returned.
 
-- [ ] `signInOptions` and `credentialId`. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `verifySignIn`: the assertion's client data, authenticator data and signature over both. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/crypto.rs:2642`
-- [ ] A sign counter that does not increase, when either value is not zero, throws. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] The reference cards of `signInOptions`, `credentialId` and `verifySignIn` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] Rust tests: the software authenticator's sign-in for each algorithm, a wrong signature, and a counter that goes back. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] `signInOptions` and `credentialId`. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] `verifySignIn`: the assertion's client data, authenticator data and signature over both. `crates/nvs-stdlib/src/passkey.rs:1`, `crates/nvs-stdlib/src/crypto.rs:2642`
+- [x] A sign counter that does not increase, when either value is not zero, throws. `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] The reference cards of `signInOptions`, `credentialId` and `verifySignIn` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/passkey.rs:1`
+- [x] Rust tests: the software authenticator's sign-in for each algorithm, a wrong signature, and a counter that goes back. `crates/nvs-stdlib/src/passkey.rs:1`
 
 ### 3. the inputs are tainted, the challenge is single-use, and the class is on the protocol roster
 
@@ -218,32 +218,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `crates/nvs-stdlib/src/passkey.rs` registers `Core\Passkey` (rank 975, with
-`registerOptions` and `verifyRegistration`), `Core\Passkey\Credential` (rank 976: `of` and four
-readers) and the enum `Core\Passkey\Credential::Algorithm` (`ES256` = 0, `Ed25519` = 1). The
-challenge is saved through `crate::session::put_bytes`/`take_bytes` under the key
-`Core\Passkey::registerOptions`, and `take_challenge` removes it before any check. `key_point` returns
-the algorithm and the point a signature check reads (`04‖x‖y` for ES256, `x` for Ed25519). Six unit
-tests pass, including both WebAuthn L3 vectors (§ 16.2 none ES256, § 16.11 packed Ed25519). Neither
-vector sets the UV flag, so they assert that the parse matches the spec and that the full check stops
-at user verification. The scratch copy of the spec was deleted.
+Stages 1 and 2 are done. `crates/nvs-stdlib/src/passkey.rs` registers all five `Core\Passkey`
+members, `Core\Passkey\Credential` (`of` and four readers) and the enum
+`Core\Passkey\Credential::Algorithm`. The sign-in half: `signInOptions` saves its challenge under its
+own session key, `Core\Passkey::signInOptions` (`SIGN_IN_KEY`), so a registration and a sign-in in
+flight do not take each other's challenge. `credentialId`'s symbol is
+`nvs_core_passkey_credential_id_of`, because `nvs_core_passkey_credential_id` is `Credential::id`'s.
+It reads `id`, or `rawId` where there is no `id`, and is `Contagious`, so a tainted response gives
+tainted bytes. `verifySignIn` (`sign_in`, `crates/nvs-stdlib/src/passkey.rs:1042`) takes the
+challenge first, checks that the response's id is `$stored`'s, then the client data, the
+authenticator data and the signature. The counter rule is there too. ES256 assertions are DER, so
+`crypto::VerifyingKey` gained `P256Der` (`crates/nvs-stdlib/src/crypto.rs:2625`), which uses ring's
+`ECDSA_P256_SHA256_ASN1`. Eleven unit tests pass, including the software authenticator's sign-in for
+both algorithms, a forged and a misdirected signature, a counter that does not increase, and the
+member-level `the_members_sign_in_once_per_challenge`. The spec's authentication vectors were not
+added: neither sets UV, so they could only show the parse, and the software authenticator's DER
+signatures already cover it. `cargo clippy --all-targets -- -D warnings` is green.
 
-**Expected red until stage 4:** `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
+**Expected red until stages 3 and 4:** `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
 `every_part_one_member_has_a_conformance_case` and `every_core_class_has_a_conformance_floor_of_three`
-(no conformance case uses the new members yet), and probably the proofs gate's `Core\Passkey` rows.
+(no conformance case uses the members yet), and the proofs gate's `Core\Passkey` rows.
 
 ### Next
 
-**Stage 2: the sign-in ceremony**, one file set: `crates/nvs-stdlib/src/passkey.rs` and
-`crates/nvs-stdlib/src/crypto.rs`. No gate.
+**Stage 3: taint, single use and the roster.** Files: `tests/conformance/core/`,
+`docs/rules/security/protocol-roster.md` and `data/rules/security/protocol-roster.json`. No gate.
 
-- [ ] `signInOptions` with its own session key, `Core\Passkey::signInOptions`, through `issue_challenge`. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `credentialId`: the response's `id` (or `rawId`), base64url-decoded, returned as `tainted bytes`. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] `verifySignIn`: `take_challenge` first, then `client_data(…, "webauthn.get", …)`, `auth_data` and `check_auth`, then the signature over `authData ‖ SHA-256(clientDataJSON)`. A WebAuthn ES256 signature is **DER**, and `crypto::verify_signature`'s `VerifyingKey::P256` uses ring's `ECDSA_P256_SHA256_FIXED`, so add the ASN.1 form beside it in `crates/nvs-stdlib/src/crypto.rs:2643`, or convert DER to `r‖s` in `passkey.rs`. `crates/nvs-stdlib/src/passkey.rs:1`
-- [ ] The counter rule, the reference cards and the Rust tests that stage 2 lists. The spec vectors' authentication halves are in WebAuthn L3 § 16.2 and § 16.11. `crates/nvs-stdlib/src/passkey.rs:1`
+- [ ] The taint item needs only its check now. The declarations are in place: each response is `Neutral` into a checked object, and `credentialId` is `Contagious`. Confirm in a conformance case that `credentialId` of a request body is `tainted bytes` and that `verifySignIn`'s answer is not tainted. `crates/nvs-stdlib/src/passkey.rs:210`
+- [ ] Single use, a wrong origin and a wrong relying-party id are tested in Rust for both ceremonies (`the_members_register_once_per_challenge`, `the_members_sign_in_once_per_challenge`, `each_check_refuses_what_it_reads`, `each_sign_in_check_refuses_what_it_reads`). The stage still owes the conformance case. Build its client data in Novis from the options' challenge, and sign the assertion with `Core\Crypto` (Ed25519 is the simpler key to put into a COSE map by hand). `tests/conformance/core/passkey-a-challenge-verifies-once-and-only-for-its-origin.nvst:1`
+- [ ] The roster rows. `docs/rules/security/protocol-roster.md:7`, `data/rules/security/protocol-roster.json:10`
 
 ### Backlog
 
-- Stage 3's single-use test is partly in place: `the_members_register_once_per_challenge` asserts that a second verification throws. `crates/nvs-stdlib/src/passkey.rs:1`
 - The registry's sign-in uses this goal's work in goal `registry-service` (`docs/goals/registry-service.md`).
 - Web Push, with its AES-128-GCM kept inside the class, is goal `core-web-push`'s (`docs/goals/core-web-push.md`).

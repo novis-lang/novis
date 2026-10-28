@@ -303,8 +303,8 @@ use p256::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, PrivateKe
 use rand::Rng;
 use ring::rand::SystemRandom;
 use ring::signature::{
-    ECDSA_P256_SHA256_FIXED, ECDSA_P256_SHA256_FIXED_SIGNING, ED25519, EcdsaKeyPair,
-    Ed25519KeyPair, KeyPair as _, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
+    ECDSA_P256_SHA256_ASN1, ECDSA_P256_SHA256_FIXED, ECDSA_P256_SHA256_FIXED_SIGNING, ED25519,
+    EcdsaKeyPair, Ed25519KeyPair, KeyPair as _, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
     RSA_PSS_2048_8192_SHA256, RSA_PSS_SHA256, RsaEncoding, RsaKeyPair, RsaPublicKeyComponents,
     UnparsedPublicKey,
 };
@@ -2619,6 +2619,13 @@ pub(crate) enum VerifyingKey<'a> {
         /// The point, uncompressed.
         point: &'a [u8],
     },
+    /// ECDSA over P-256 and SHA-256 as [`Self::P256`], with the signature in the
+    /// ASN.1 DER form a WebAuthn assertion carries rather than JWS's `r ‖ s`.
+    /// [`crate::passkey`] is its one reader.
+    P256Der {
+        /// The point, uncompressed.
+        point: &'a [u8],
+    },
     /// Ed25519, over the 32 octets a JWK carries as `x`.
     Ed25519 {
         /// The point, in the curve's only encoding.
@@ -2658,6 +2665,9 @@ pub(crate) fn verify_signature(
         .verify(&RSA_PSS_2048_8192_SHA256, message, signature),
         VerifyingKey::P256 { point } => {
             UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, point).verify(message, signature)
+        }
+        VerifyingKey::P256Der { point } => {
+            UnparsedPublicKey::new(&ECDSA_P256_SHA256_ASN1, point).verify(message, signature)
         }
         VerifyingKey::Ed25519 { point } => {
             UnparsedPublicKey::new(&ED25519, point).verify(message, signature)

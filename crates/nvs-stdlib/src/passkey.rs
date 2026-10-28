@@ -10,8 +10,11 @@
 //!
 //! [`nvs_core_passkey_register_options`] draws [`CHALLENGE_LEN`] octets through
 //! [`crate::random::draw`] and saves them in the started session under [`REGISTER_KEY`], behind
-//! the second they were issued at. [`nvs_core_passkey_verify_registration`] **takes them out before
-//! it reads a byte of the response**, so a replayed response, a second check of one response and a
+//! the second they were issued at; [`nvs_core_passkey_sign_in_options`] does the same under
+//! [`SIGN_IN_KEY`], so a registration and a sign-in in flight in one session do not take each
+//! other's challenge. [`nvs_core_passkey_verify_registration`] and
+//! [`nvs_core_passkey_verify_sign_in`] **take theirs out before they read a byte of the
+//! response**, so a replayed response, a second check of one response and a
 //! check that fails all find no challenge the next time. A challenge older than
 //! [`TIMEOUT_SECONDS`] is refused; that is the `timeout` the options tell the browser, so a ceremony
 //! the browser has abandoned cannot be completed later. The session is
@@ -45,6 +48,15 @@
 //! [`crate::crypto::read_p256_point`], which is where every P-256 point in this crate is checked.
 //! An Ed25519 point has no cheaper check than the signature it will verify, so a point that is not
 //! one fails at sign-in.
+//!
+//! # A sign-in is one signature, checked by `Core\Crypto`'s code
+//!
+//! The assertion's signature covers `authenticatorData ‖ SHA-256(clientDataJSON)` and is checked
+//! by [`crate::crypto::verify_signature`]. An ES256 assertion signs in ASN.1 DER, and JWS signs
+//! in `r ‖ s`, so the key is [`crate::crypto::VerifyingKey::P256Der`] and not the variant a JWT
+//! reads. The sign counter is the authenticator's clone detector: a count that does not rise
+//! throws, unless both the stored and the sent count are zero, which is what a device that keeps
+//! no counter sends every time.
 //!
 //! # A credential is an instance with four readers
 //!
@@ -97,6 +109,9 @@ const SAVED_LEN: usize = 8 + CHALLENGE_LEN;
 /// so a program reading its own session's keys sees where this one came from.
 const REGISTER_KEY: &str = r"Core\Passkey::registerOptions";
 
+/// The session key a sign-in's challenge is saved under, named as [`REGISTER_KEY`] is.
+const SIGN_IN_KEY: &str = r"Core\Passkey::signInOptions";
+
 /// The longest response a member reads, in octets. A registration response with the longest
 /// credential id WebAuthn allows and a large attestation certificate chain is under a quarter of
 /// this, so the bound refuses only what no browser sends.
@@ -137,7 +152,7 @@ const LENIENT: GeneralPurpose = GeneralPurpose::new(
         .with_decode_padding_mode(DecodePaddingMode::Indifferent),
 );
 
-/// `rule:core-classes/passkey-verifies-a-webauthn-ceremony`'s class: the registration half.
+/// `rule:core-classes/passkey-verifies-a-webauthn-ceremony`'s class: both ceremonies.
 ///
 /// Its module doc owns what is kept between the two requests of a ceremony and what each check
 /// reads from.
@@ -177,6 +192,46 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(CREDENTIAL_NAME),
             symbol: "nvs_core_passkey_verify_registration",
             doc: Some(&VERIFY_REGISTRATION_DOC),
+        },
+        CoreMethod {
+            name: "signInOptions",
+            names: &["rpId", "allowed"],
+            // Contagious: the relying-party id is copied into the JSON the member returns.
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Array(&CoreTy::Instance(CREDENTIAL_NAME)),
+            ],
+            defaults: &[Const::EmptyArray],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_passkey_sign_in_options",
+            doc: Some(&SIGN_IN_OPTIONS_DOC),
+        },
+        CoreMethod {
+            name: "credentialId",
+            names: &["response"],
+            // Contagious: the id is the browser's claim, and stays `tainted` until a
+            // verification checks the signature it came with.
+            params: &[CoreTy::Text(Qual::Contagious)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_passkey_credential_id_of",
+            doc: Some(&CREDENTIAL_ID_DOC),
+        },
+        CoreMethod {
+            name: "verifySignIn",
+            names: &["response", "stored", "rpId", "origin"],
+            // Neutral as `verifyRegistration`'s are: the answer is a credential whose signature
+            // this member has checked.
+            params: &[
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Instance(CREDENTIAL_NAME),
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Text(Qual::Neutral),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(CREDENTIAL_NAME),
+            symbol: "nvs_core_passkey_verify_sign_in",
+            doc: Some(&VERIFY_SIGN_IN_DOC),
         },
     ],
     instance: &[],
@@ -261,7 +316,8 @@ pub(crate) const ALGORITHM: CoreEnum = CoreEnum {
 /// `Core\Passkey`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Passkey sign-in (WebAuthn). A passkey replaces a password. `registerOptions` and \
-            `verifyRegistration` add a passkey to an account. In the browser, JavaScript calls \
+            `verifyRegistration` add a passkey to an account. `signInOptions` and \
+            `verifySignIn` sign the user in with it. In the browser, JavaScript calls \
             `navigator.credentials` with the options.",
 };
 
@@ -347,6 +403,95 @@ const VERIFY_REGISTRATION_DOC: MethodDoc = MethodDoc {
                challenge is older than five minutes. It is also thrown when a check fails. The \
                checks are the challenge, the origin, the domain, the user verification and the \
                key algorithm.",
+    }],
+};
+
+/// `Core\Passkey::signInOptions`'s reference card — `rule:core-api/reference-card`.
+const SIGN_IN_OPTIONS_DOC: MethodDoc = MethodDoc {
+    short: "Returns the options for `navigator.credentials.get()` as JSON. The options contain a \
+            new random challenge. The challenge is saved in the session, so call \
+            `Core\\Session::start()` first.",
+    params: &[
+        ParamDoc {
+            name: "rpId",
+            desc: "The domain of your site, such as `example.com`. Use the same domain as for \
+                   `registerOptions`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "allowed",
+            desc: "The passkeys of the account that signs in. Leave it empty when you do not know \
+                   the account yet. The browser then shows every passkey it has for your site.",
+            shape: &[],
+        },
+    ],
+    ret: "A JSON string. In the browser, pass it to \
+          `PublicKeyCredential.parseRequestOptionsFromJSON()`, and pass the result to \
+          `navigator.credentials.get()`.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The request has not started a session.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$rpId` is empty.",
+        },
+    ],
+};
+
+/// `Core\Passkey::credentialId`'s reference card — `rule:core-api/reference-card`.
+const CREDENTIAL_ID_DOC: MethodDoc = MethodDoc {
+    short: "Returns the passkey id in the browser's answer to `signInOptions`. Use it to find the \
+            saved passkey. The id is not checked yet, so the result is `tainted`.",
+    params: &[ParamDoc {
+        name: "response",
+        desc: "The credential that `navigator.credentials.get()` returned, as JSON. In the \
+               browser, `JSON.stringify(credential)` makes it.",
+        shape: &[],
+    }],
+    ret: "The passkey id, from 1 to 1023 bytes.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The answer is not JSON, or its `id` is missing, is not base64url or is too long.",
+    }],
+};
+
+/// `Core\Passkey::verifySignIn`'s reference card — `rule:core-api/reference-card`.
+const VERIFY_SIGN_IN_DOC: MethodDoc = MethodDoc {
+    short: "Checks the browser's answer to `signInOptions` against the saved passkey. It returns \
+            the passkey with its new sign counter. Save it again. A challenge can be checked only \
+            once, so a second call with the same answer throws an error.",
+    params: &[
+        ParamDoc {
+            name: "response",
+            desc: "The credential that `navigator.credentials.get()` returned, as JSON.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "stored",
+            desc: "The saved passkey with the id that `credentialId` returned.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "rpId",
+            desc: "The same domain that you passed to `signInOptions`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "origin",
+            desc: "The address of your site in the browser, such as `https://example.com`. The \
+                   answer must name exactly this origin.",
+            shape: &[],
+        },
+    ],
+    ret: "The passkey with its new sign counter.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The request has not started a session, no sign-in is waiting, or the challenge \
+               is older than five minutes. It is also thrown when a check fails. The checks are \
+               the passkey id, the challenge, the origin, the domain, the user verification, the \
+               signature and the sign counter.",
     }],
 };
 
@@ -512,6 +657,13 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_passkey_verify_registration" => {
             (nvs_core_passkey_verify_registration as *const ()).cast()
         }
+        "nvs_core_passkey_sign_in_options" => {
+            (nvs_core_passkey_sign_in_options as *const ()).cast()
+        }
+        "nvs_core_passkey_credential_id_of" => {
+            (nvs_core_passkey_credential_id_of as *const ()).cast()
+        }
+        "nvs_core_passkey_verify_sign_in" => (nvs_core_passkey_verify_sign_in as *const ()).cast(),
         "nvs_core_passkey_credential_of" => (nvs_core_passkey_credential_of as *const ()).cast(),
         "nvs_core_passkey_credential_id" => (nvs_core_passkey_credential_id as *const ()).cast(),
         "nvs_core_passkey_credential_public_key" => {
@@ -868,6 +1020,96 @@ fn registration(
     })
 }
 
+/// The id of a sign-in response, from `id`, or from `rawId` where a response has no `id`.
+fn claimed_id(response: &serde_json::Value) -> Result<Vec<u8>, String> {
+    let field = if response.get("id").is_some() {
+        "id"
+    } else {
+        "rawId"
+    };
+    let id = decoded(response, field)?;
+    if id.is_empty() || id.len() > MAX_ID {
+        return Err(format!(
+            "the passkey's id is {} bytes. It must be from 1 to {MAX_ID} bytes.",
+            id.len()
+        ));
+    }
+    Ok(id)
+}
+
+/// Every check of a sign-in response against the `stored` credential and a challenge already
+/// taken out of the session, and the sign counter the authenticator sent.
+fn sign_in(
+    response: &str,
+    challenge: &[u8],
+    stored: &Registered,
+    rp_id: &str,
+    origin: &str,
+) -> Result<u32, String> {
+    let response: serde_json::Value =
+        serde_json::from_str(response).map_err(|_| "the response is not JSON.".to_owned())?;
+    if response.get("type").and_then(serde_json::Value::as_str) != Some("public-key") {
+        return Err("the response's `type` is not `public-key`.".to_owned());
+    }
+    if claimed_id(&response)? != stored.id {
+        return Err("the response is for another passkey than `$stored`.".to_owned());
+    }
+    let inner = response
+        .get("response")
+        .ok_or_else(|| "the response has no `response` object.".to_owned())?;
+
+    let client = decoded(inner, "clientDataJSON")?;
+    client_data(&client, "webauthn.get", challenge, origin)?;
+    let signed = decoded(inner, "authenticatorData")?;
+    let auth = auth_data(&signed)?;
+    check_auth(&auth, rp_id)?;
+
+    let signature = decoded(inner, "signature")?;
+    let (algorithm, point) = key_point(&stored.key)?;
+    let key = match algorithm {
+        Algorithm::Es256 => crate::crypto::VerifyingKey::P256Der { point: &point },
+        Algorithm::Ed25519 => crate::crypto::VerifyingKey::Ed25519 { point: &point },
+    };
+    let mut message = signed.clone();
+    message.extend_from_slice(&Sha256::digest(&client));
+    crate::crypto::verify_signature(&key, &message, &signature)
+        .ok_or_else(|| "the signature was not made by this passkey.".to_owned())?;
+
+    let (sent, kept) = (auth.sign_count, stored.sign_count);
+    if (sent != 0 || kept != 0) && sent <= kept {
+        return Err(format!(
+            "the sign counter is {sent}, and the saved passkey has {kept}. The counter must \
+             increase, so the passkey may have been copied."
+        ));
+    }
+    Ok(sent)
+}
+
+/// The four slots of the [`CREDENTIAL`] `value`, read back.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a value or a slot of another type, which the checker and
+/// [`nvs_core_passkey_credential_of`] have refused.
+fn stored_credential(value: Value, member: &str) -> Result<Registered, Fault> {
+    let held = crate::instance::receiver(value, &CREDENTIAL, member)?;
+    let broken = |slot: &str| Fault::fatal(format!("{CREDENTIAL_NAME} has a broken `{slot}` slot"));
+    let id = crate::instance::slot(held, ID_SLOT);
+    let key = crate::instance::slot(held, KEY_SLOT);
+    Ok(Registered {
+        id: id.as_bytes().ok_or_else(|| broken("id"))?.to_vec(),
+        key: key.as_bytes().ok_or_else(|| broken("publicKey"))?.to_vec(),
+        algorithm: crate::instance::slot(held, ALGORITHM_SLOT)
+            .as_int()
+            .and_then(Algorithm::from_tag)
+            .ok_or_else(|| broken("algorithm"))?,
+        sign_count: crate::instance::slot(held, COUNT_SLOT)
+            .as_int()
+            .and_then(|count| u32::try_from(count).ok())
+            .ok_or_else(|| broken("signCount"))?,
+    })
+}
+
 /// A [`CREDENTIAL`] instance holding `registered`.
 ///
 /// # Errors
@@ -1010,6 +1252,88 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Passkey::signInOptions(string $rpId, array<Passkey\Credential> $allowed = []):
+    /// string` — the JSON a browser's `PublicKeyCredential.parseRequestOptionsFromJSON()` reads,
+    /// with a fresh challenge saved in the session.
+    fn nvs_core_passkey_sign_in_options(ctx, args: [2]) {
+        let who = "Core\\Passkey::signInOptions";
+        let rp_id = text_at(args, 0, who, "rpId")?;
+        if rp_id.is_empty() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("{who}(): $rpId is empty. Pass the domain of your site."),
+            ));
+        }
+        let allowed = credential_ids(args, 1, "signInOptions")?;
+
+        let challenge = issue_challenge(ctx, SIGN_IN_KEY, "signInOptions")?;
+        let options = serde_json::json!({
+            "challenge": URL_SAFE_NO_PAD.encode(challenge),
+            "rpId": rp_id,
+            "timeout": TIMEOUT_SECONDS * 1000,
+            "allowCredentials": allowed
+                .iter()
+                .map(|id| serde_json::json!({ "type": "public-key", "id": id }))
+                .collect::<Vec<_>>(),
+            "userVerification": "required",
+        });
+        let options = options.to_string();
+        nvs_runtime::affordable(Some(options.len()), who)?;
+        Ok(Value::text(&options))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Passkey::credentialId(string $response): bytes` — the id the browser claims, for the
+    /// program to look up the stored credential with. Nothing about it is checked but its form:
+    /// [`nvs_core_passkey_verify_sign_in`] compares it against the credential it is given.
+    fn nvs_core_passkey_credential_id_of(_ctx, args: [1]) {
+        let who = "Core\\Passkey::credentialId";
+        let response = text_at(args, 0, who, "response")?;
+        if response.len() > MAX_RESPONSE {
+            return Err(Fault::thrown(format!(
+                "{who}(): the response is {} bytes, and the limit is {MAX_RESPONSE}.",
+                response.len()
+            )));
+        }
+        let id = serde_json::from_str(response)
+            .map_err(|_| "the response is not JSON.".to_owned())
+            .and_then(|response| claimed_id(&response))
+            .map_err(|why| Fault::thrown(format!("{who}(): {why}")))?;
+        nvs_runtime::affordable(Some(id.len()), who)?;
+        Ok(Value::bytes(NvsStr::new(&id)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Passkey::verifySignIn(string $response, Passkey\Credential $stored, string $rpId,
+    /// string $origin): Passkey\Credential` — every check of
+    /// `rule:core-classes/passkey-verifies-a-webauthn-ceremony` for a sign-in, after the challenge
+    /// is taken out of the session, and `$stored` again with the counter the device sent.
+    ///
+    /// The signature's failure is one sentence for every way of not verifying, as
+    /// [`crate::crypto::verify_signature`]'s is.
+    fn nvs_core_passkey_verify_sign_in(ctx, args: [4]) {
+        let who = "Core\\Passkey::verifySignIn";
+        let response = text_at(args, 0, who, "response")?;
+        let rp_id = text_at(args, 2, who, "rpId")?;
+        let origin = text_at(args, 3, who, "origin")?;
+
+        let challenge = take_challenge(ctx, SIGN_IN_KEY, "verifySignIn")?;
+        if response.len() > MAX_RESPONSE {
+            return Err(Fault::thrown(format!(
+                "{who}(): the response is {} bytes, and the limit is {MAX_RESPONSE}.",
+                response.len()
+            )));
+        }
+        let mut stored = stored_credential(args[1], "verifySignIn")?;
+        stored.sign_count = sign_in(response, &challenge, &stored, rp_id, origin)
+            .map_err(|why| Fault::thrown(format!("{who}(): {why}")))?;
+        credential_instance(&stored, who)
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Passkey\Credential::of(bytes $id, bytes $publicKey, Passkey\Credential::Algorithm
     /// $algorithm, int $signCount): Passkey\Credential` — a stored credential, built again and
     /// checked as registration checked it.
@@ -1096,10 +1420,35 @@ mod tests {
             .collect()
     }
 
-    /// A key a software authenticator made: its COSE encoding.
-    fn cose(algorithm: i64) -> Vec<u8> {
+    /// The private half of a software authenticator's key.
+    enum Signer {
+        /// A P-256 pair that signs in ASN.1 DER, as an authenticator does.
+        Es256(EcdsaKeyPair),
+        /// An Ed25519 pair.
+        Ed25519(Ed25519KeyPair),
+        /// The RSA key below, which signs nothing here.
+        None,
+    }
+
+    impl Signer {
+        /// This key's signature over `message`.
+        fn sign(&self, message: &[u8]) -> Vec<u8> {
+            match self {
+                Self::Es256(pair) => pair
+                    .sign(&SystemRandom::new(), message)
+                    .expect("a P-256 signature is made")
+                    .as_ref()
+                    .to_vec(),
+                Self::Ed25519(pair) => pair.sign(message).as_ref().to_vec(),
+                Self::None => unreachable!("the RSA key is refused before it signs"),
+            }
+        }
+    }
+
+    /// A key a software authenticator made: its COSE encoding and its private half.
+    fn authenticator(algorithm: i64) -> (Vec<u8>, Signer) {
         let rng = SystemRandom::new();
-        let map = match algorithm {
+        let (map, signer) = match algorithm {
             -7 => {
                 let pkcs8 = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &rng)
                     .expect("a P-256 key generates");
@@ -1107,18 +1456,19 @@ mod tests {
                     EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8.as_ref(), &rng)
                         .expect("the key it generated reads");
                 let point = pair.public_key().as_ref();
-                vec![
+                let map = vec![
                     (Cbor::from(1), Cbor::from(2)),
                     (Cbor::from(3), Cbor::from(-7)),
                     (Cbor::from(-1), Cbor::from(1)),
                     (Cbor::from(-2), Cbor::Bytes(point[1..33].to_vec())),
                     (Cbor::from(-3), Cbor::Bytes(point[33..].to_vec())),
-                ]
+                ];
+                (map, Signer::Es256(pair))
             }
             -8 => {
                 let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("an Ed25519 key generates");
                 let pair = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("the key reads");
-                vec![
+                let map = vec![
                     (Cbor::from(1), Cbor::from(1)),
                     (Cbor::from(3), Cbor::from(-8)),
                     (Cbor::from(-1), Cbor::from(6)),
@@ -1126,21 +1476,62 @@ mod tests {
                         Cbor::from(-2),
                         Cbor::Bytes(pair.public_key().as_ref().to_vec()),
                     ),
-                ]
+                ];
+                (map, Signer::Ed25519(pair))
             }
             // RS256: an RSA key, which this class does not register. The modulus is not a real
             // one, because the algorithm is refused before it is read.
-            _ => vec![
-                (Cbor::from(1), Cbor::from(3)),
-                (Cbor::from(3), Cbor::from(algorithm)),
-                (Cbor::from(-1), Cbor::Bytes(vec![0xc5; 256])),
-                (Cbor::from(-2), Cbor::Bytes(vec![1, 0, 1])),
-            ],
+            _ => (
+                vec![
+                    (Cbor::from(1), Cbor::from(3)),
+                    (Cbor::from(3), Cbor::from(algorithm)),
+                    (Cbor::from(-1), Cbor::Bytes(vec![0xc5; 256])),
+                    (Cbor::from(-2), Cbor::Bytes(vec![1, 0, 1])),
+                ],
+                Signer::None,
+            ),
         };
         let mut written = Vec::new();
         ciborium::ser::into_writer(&Cbor::Map(map), &mut written).expect("a map writes");
-        written
+        (written, signer)
     }
+
+    /// A key a software authenticator made: its COSE encoding.
+    fn cose(algorithm: i64) -> Vec<u8> {
+        authenticator(algorithm).0
+    }
+
+    /// The sign-in response a browser would send for a software authenticator's key, with the
+    /// sign counter `count`.
+    fn assertion(challenge: &[u8], signer: &Signer, count: u32, flags: u8, id: &[u8]) -> String {
+        let client = serde_json::json!({
+            "type": "webauthn.get",
+            "challenge": URL_SAFE_NO_PAD.encode(challenge),
+            "origin": ORIGIN,
+            "crossOrigin": false,
+        })
+        .to_string();
+        let mut auth = Sha256::digest(RP_ID.as_bytes()).to_vec();
+        auth.push(flags);
+        auth.extend_from_slice(&count.to_be_bytes());
+        let mut message = auth.clone();
+        message.extend_from_slice(&Sha256::digest(client.as_bytes()));
+        serde_json::json!({
+            "id": URL_SAFE_NO_PAD.encode(id),
+            "rawId": URL_SAFE_NO_PAD.encode(id),
+            "type": "public-key",
+            "response": {
+                "clientDataJSON": URL_SAFE_NO_PAD.encode(client),
+                "authenticatorData": URL_SAFE_NO_PAD.encode(auth),
+                "signature": URL_SAFE_NO_PAD.encode(signer.sign(&message)),
+                "userHandle": URL_SAFE_NO_PAD.encode(b"user-1"),
+            },
+        })
+        .to_string()
+    }
+
+    /// The flags a passkey with user verification sets at sign-in.
+    const SIGNED: u8 = USER_PRESENT | USER_VERIFIED;
 
     /// The registration response a browser would send for a software authenticator's key, with
     /// `none` attestation.
@@ -1214,6 +1605,134 @@ mod tests {
                 algorithm
             );
         }
+    }
+
+    #[test]
+    fn a_software_authenticators_sign_in_is_verified_for_each_algorithm() {
+        for (cose_alg, algorithm) in [(-7, Algorithm::Es256), (-8, Algorithm::Ed25519)] {
+            let challenge = [9_u8; CHALLENGE_LEN];
+            let (key, signer) = authenticator(cose_alg);
+            let id = [3_u8; 20];
+            let mut stored = Registered {
+                id: id.to_vec(),
+                key,
+                algorithm,
+                sign_count: 7,
+            };
+            let sent = assertion(&challenge, &signer, 8, SIGNED, &id);
+            assert_eq!(sign_in(&sent, &challenge, &stored, RP_ID, ORIGIN), Ok(8));
+
+            // A device that keeps no counter sends zero every time, and so does the saved passkey.
+            stored.sign_count = 0;
+            let sent = assertion(&challenge, &signer, 0, SIGNED, &id);
+            assert_eq!(sign_in(&sent, &challenge, &stored, RP_ID, ORIGIN), Ok(0));
+        }
+    }
+
+    #[test]
+    fn a_wrong_signature_is_refused() {
+        let challenge = [9_u8; CHALLENGE_LEN];
+        for cose_alg in [-7, -8] {
+            let (key, signer) = authenticator(cose_alg);
+            let (_, other) = authenticator(cose_alg);
+            let (algorithm, _) = key_point(&key).expect("the key reads");
+            let stored = Registered {
+                id: vec![3; 20],
+                key,
+                algorithm,
+                sign_count: 0,
+            };
+
+            let forged = assertion(&challenge, &other, 1, SIGNED, &[3; 20]);
+            let refused = sign_in(&forged, &challenge, &stored, RP_ID, ORIGIN)
+                .expect_err("another key's signature is refused");
+            assert!(refused.contains("signature"), "{refused}");
+
+            // A signature over another challenge does not verify over this one's client data.
+            let mut sent: serde_json::Value =
+                serde_json::from_str(&assertion(&challenge, &signer, 1, SIGNED, &[3; 20]))
+                    .expect("JSON");
+            let replayed = assertion(&[8; CHALLENGE_LEN], &signer, 1, SIGNED, &[3; 20]);
+            let replayed: serde_json::Value = serde_json::from_str(&replayed).expect("JSON");
+            sent["response"]["signature"] = replayed["response"]["signature"].clone();
+            let refused = sign_in(&sent.to_string(), &challenge, &stored, RP_ID, ORIGIN)
+                .expect_err("a signature over other client data is refused");
+            assert!(refused.contains("signature"), "{refused}");
+        }
+    }
+
+    #[test]
+    fn a_counter_that_does_not_increase_throws() {
+        let challenge = [9_u8; CHALLENGE_LEN];
+        let (key, signer) = authenticator(-7);
+        let stored = Registered {
+            id: vec![3; 20],
+            key,
+            algorithm: Algorithm::Es256,
+            sign_count: 7,
+        };
+        for count in [7, 3, 0] {
+            let sent = assertion(&challenge, &signer, count, SIGNED, &[3; 20]);
+            let refused = sign_in(&sent, &challenge, &stored, RP_ID, ORIGIN)
+                .expect_err("a counter that does not rise is refused");
+            assert!(refused.contains("sign counter is"), "{count}: {refused}");
+        }
+    }
+
+    #[test]
+    fn each_sign_in_check_refuses_what_it_reads() {
+        let challenge = [9_u8; CHALLENGE_LEN];
+        let (key, signer) = authenticator(-8);
+        let stored = Registered {
+            id: vec![3; 20],
+            key,
+            algorithm: Algorithm::Ed25519,
+            sign_count: 0,
+        };
+        let good = assertion(&challenge, &signer, 1, SIGNED, &[3; 20]);
+
+        let cases: [(String, &[u8], &str, &str, &str); 5] = [
+            (
+                assertion(&challenge, &signer, 1, SIGNED, &[4; 20]),
+                &challenge,
+                RP_ID,
+                ORIGIN,
+                "another passkey",
+            ),
+            (
+                good.clone(),
+                &[8; CHALLENGE_LEN],
+                RP_ID,
+                ORIGIN,
+                "challenge",
+            ),
+            (
+                good.clone(),
+                &challenge,
+                RP_ID,
+                "https://example.org:8443",
+                "origin",
+            ),
+            (good.clone(), &challenge, "example.com", ORIGIN, "domain"),
+            (
+                assertion(&challenge, &signer, 1, USER_PRESENT, &[3; 20]),
+                &challenge,
+                RP_ID,
+                ORIGIN,
+                "verify the user",
+            ),
+        ];
+        for (sent, challenge, rp_id, origin, named) in cases {
+            let refused = sign_in(&sent, challenge, &stored, rp_id, origin)
+                .expect_err("a response that fails one check is refused");
+            assert!(refused.contains(named), "{named}: {refused}");
+        }
+
+        // A registration's client data is not a sign-in's.
+        let created = response(&challenge, &stored.key, FLAGS, &[3; 20]);
+        let refused = sign_in(&created, &challenge, &stored, RP_ID, ORIGIN)
+            .expect_err("a registration response is not a sign-in");
+        assert!(refused.contains("webauthn.get"), "{refused}");
     }
 
     #[test]
@@ -1415,6 +1934,78 @@ mod tests {
         assert!(thrown(&mut ctx).contains("no challenge is waiting"));
 
         for value in options_args.into_iter().chain(verify_args) {
+            released(value);
+        }
+    }
+
+    #[test]
+    fn the_members_sign_in_once_per_challenge() {
+        let mut ctx = session_ctx();
+        let (key, signer) = authenticator(-7);
+        let id = [4_u8; 16];
+        let of_args = [
+            Value::bytes(NvsStr::new(&id)),
+            Value::bytes(NvsStr::new(&key)),
+            Value::int(Algorithm::Es256.tag()),
+            Value::int(7),
+        ];
+        let stored = nvs_runtime::call(nvs_core_passkey_credential_of, &mut ctx, &of_args)
+            .expect("a stored credential is built again");
+        let listed = nvs_runtime::call(nvs_core_passkey_credential_of, &mut ctx, &of_args)
+            .expect("a stored credential is built again");
+        let mut allowed = nvs_runtime::NvsArray::new();
+        allowed.append(listed);
+        let options_args = [Value::text(RP_ID), Value::array(allowed)];
+        let options = nvs_runtime::call(nvs_core_passkey_sign_in_options, &mut ctx, &options_args)
+            .expect("a started session gets options");
+        let json: serde_json::Value =
+            serde_json::from_str(options.as_text().expect("the options are text")).expect("JSON");
+        released(options);
+        assert_eq!(json["rpId"], RP_ID);
+        assert_eq!(json["userVerification"], "required");
+        assert_eq!(
+            json["allowCredentials"][0]["id"],
+            URL_SAFE_NO_PAD.encode(id)
+        );
+        let challenge = LENIENT
+            .decode(json["challenge"].as_str().expect("a challenge"))
+            .expect("base64url");
+
+        let sent = assertion(&challenge, &signer, 9, SIGNED, &id);
+        let id_args = [Value::text(&sent)];
+        let claimed = nvs_runtime::call(nvs_core_passkey_credential_id_of, &mut ctx, &id_args)
+            .expect("the response names its id");
+        assert_eq!(claimed.as_bytes(), Some(&id[..]));
+        released(claimed);
+
+        let verify_args = [
+            Value::text(&sent),
+            stored,
+            Value::text(RP_ID),
+            Value::text(ORIGIN),
+        ];
+        let signed = nvs_runtime::call(nvs_core_passkey_verify_sign_in, &mut ctx, &verify_args)
+            .expect("the answer to this session's challenge verifies");
+        let held = signed.obj_ptr().expect("a credential is an object");
+        assert_eq!(crate::instance::slot(held, COUNT_SLOT).as_int(), Some(9));
+        assert_eq!(
+            crate::instance::slot(held, ID_SLOT).as_bytes(),
+            Some(&id[..])
+        );
+        released(signed);
+
+        assert!(
+            nvs_runtime::call(nvs_core_passkey_verify_sign_in, &mut ctx, &verify_args).is_err(),
+            "a challenge is accepted once"
+        );
+        assert!(thrown(&mut ctx).contains("no challenge is waiting"));
+
+        for value in of_args
+            .into_iter()
+            .chain(options_args)
+            .chain(id_args)
+            .chain(verify_args)
+        {
             released(value);
         }
     }
