@@ -3983,47 +3983,133 @@ fn tool_send(
     body: Option<transport::Body>,
     within: Duration,
 ) -> Result<ToolReply, String> {
-    let resolve = |url: &str| -> Result<Vec<IpAddr>, Fault> {
-        use std::net::ToSocketAddrs as _;
-        let reference = UriRef::parse(url)
-            .map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
-        let tls = reference
-            .scheme()
-            .is_some_and(|scheme| scheme.as_str().eq_ignore_ascii_case("https"));
-        let authority = reference
-            .authority()
-            .ok_or_else(|| Fault::thrown(format!("{member}: `{url}` names no host")))?;
-        let port = authority
-            .port_to_u16()
-            .ok()
-            .flatten()
-            .unwrap_or(if tls { 443 } else { 80 });
-        let host = Authority::host(&authority)
-            .trim_start_matches('[')
-            .trim_end_matches(']');
-        let mut addresses: Vec<IpAddr> = (host, port)
-            .to_socket_addrs()
-            .map_err(|error| {
-                Fault::thrown(format!("{member}: `{host}` does not resolve: {error}"))
-            })?
-            .map(|address| address.ip())
-            .collect();
-        addresses.dedup();
-        addresses.truncate(8);
-        if addresses.is_empty() {
-            return Err(Fault::thrown(format!("{member}: `{host}` has no address")));
+    let anywhere = |_: IpAddr| None;
+    let call = tool_call(member, verb, url, headers, body, within, &anywhere)?;
+    let reply = transport::send(&call, &mut |hop, downgrade| {
+        tool_hop(member, hop, downgrade, &anywhere)
+    })
+    .map_err(said)?;
+    Ok(ToolReply {
+        status: reply.status,
+        body: reply.body,
+    })
+}
+
+/// What decides whether the `nvs` tool may connect to an address: the reason it may not, or `None`.
+pub type ToolRefusal<'a> = &'a dyn Fn(IpAddr) -> Option<String>;
+
+/// The bounds of one [`tool_stream`] call.
+#[derive(Debug, Clone, Copy)]
+pub struct ToolBounds {
+    /// How long the whole call may take, the body included.
+    pub within: Duration,
+    /// The most body bytes the reply may give.
+    pub bytes: u64,
+}
+
+/// A reply the `nvs` tool's own [`tool_stream`] request came back with. The body is read from
+/// the connection as the reader asks for it.
+pub struct ToolStream {
+    /// The status line's code.
+    pub status: i64,
+    /// Every header, names lower-cased, in arrival order.
+    pub headers: Vec<(String, String)>,
+    body: transport::Incoming,
+    /// The body bytes the reply may still give under [`ToolBounds::bytes`].
+    left: u64,
+    bytes: u64,
+    member: String,
+}
+
+impl std::io::Read for ToolStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        while self.body.held().is_empty() {
+            if !self.body.pull().map_err(|fault| std::io::Error::other(said(fault)))? {
+                return Ok(0);
+            }
         }
-        Ok(addresses)
+        let held = self.body.held();
+        let taken = held.len().min(buf.len());
+        let counted = u64::try_from(taken).unwrap_or(u64::MAX);
+        if counted > self.left {
+            return Err(std::io::Error::other(format!(
+                "{}: the reply passed {} bytes",
+                self.member, self.bytes
+            )));
+        }
+        self.left -= counted;
+        buf[..taken].copy_from_slice(&held[..taken]);
+        self.body.consume(taken);
+        Ok(taken)
+    }
+}
+
+impl std::fmt::Debug for ToolStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolStream")
+            .field("status", &self.status)
+            .field("headers", &self.headers)
+            .field("left", &self.left)
+            .finish_non_exhaustive()
+    }
+}
+
+/// One request the `nvs` tool sends for itself and reads as a stream, such as a git clone, under
+/// [`tool_get`]'s terms with three differences.
+///
+/// Every address the URL's host resolves to is judged by `refused` before anything connects, and
+/// again at each redirect, so a caller can refuse an internal host. The body is read as the
+/// reader asks for it, so it can be larger than memory. `bounds` limits the time of the whole
+/// call and the bytes of the body. With `body`, a content type and its bytes, the request is a
+/// `POST` that follows no redirect. Without one it is a `GET`. Memory: one read buffer and
+/// whatever the reader has not taken yet, released when the reply is dropped.
+///
+/// # Errors
+///
+/// [`tool_get`]'s, and the reason `refused` gives for an address.
+pub fn tool_stream(
+    member: &str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Option<(&str, Vec<u8>)>,
+    bounds: ToolBounds,
+    refused: ToolRefusal<'_>,
+) -> Result<ToolStream, String> {
+    let (verb, body) = match body {
+        Some((content_type, body)) => ("POST", Some(held(Some(content_type.to_owned()), body))),
+        None => ("GET", None),
     };
-    let said = |fault: Fault| match fault {
-        Fault::Thrown(_, message) => message.into_owned(),
-        other => format!("{other:?}"),
-    };
-    let call = transport::Call {
+    let call = tool_call(member, verb, url, headers, body, bounds.within, refused)?;
+    let reply = transport::send_streamed(&call, &mut |hop, downgrade| {
+        tool_hop(member, hop, downgrade, refused)
+    })
+    .map_err(said)?;
+    Ok(ToolStream {
+        status: reply.status,
+        headers: reply.headers,
+        body: reply.body,
+        left: bounds.bytes,
+        bytes: bounds.bytes,
+        member: member.to_owned(),
+    })
+}
+
+/// The call [`tool_send`] and [`tool_stream`] send: `url`'s addresses judged by `refused`, TLS
+/// verified strictly, sent once, no connection kept, and `within` over all of it.
+fn tool_call<'a>(
+    member: &'a str,
+    verb: &'a str,
+    url: &str,
+    headers: Vec<(String, String)>,
+    body: Option<transport::Body>,
+    within: Duration,
+    refused: ToolRefusal<'_>,
+) -> Result<transport::Call<'a>, String> {
+    Ok(transport::Call {
         member,
         verb,
         url: url.to_owned(),
-        addresses: resolve(url).map_err(said)?,
+        addresses: tool_addresses(member, url, refused).map_err(said)?,
         deadline: Instant::now() + within,
         connect_timeout: within,
         idle: within,
@@ -4047,20 +4133,70 @@ fn tool_send(
         traceparent: None,
         span: std::cell::RefCell::new(span::HttpSpan::opened(verb, Duration::ZERO)),
         proxy: None,
-    };
-    let reply = transport::send(&call, &mut |hop, downgrade| {
-        if downgrade {
-            return Err(Fault::thrown(format!(
-                "{member}: the redirect to `{hop}` leaves HTTPS"
-            )));
-        }
-        resolve(hop)
     })
-    .map_err(said)?;
-    Ok(ToolReply {
-        status: reply.status,
-        body: reply.body,
-    })
+}
+
+/// The addresses of the redirect target `hop`, or a fault for a hop into plaintext.
+fn tool_hop(
+    member: &str,
+    hop: &str,
+    downgrade: bool,
+    refused: ToolRefusal<'_>,
+) -> Result<Vec<IpAddr>, Fault> {
+    if downgrade {
+        return Err(Fault::thrown(format!(
+            "{member}: the redirect to `{hop}` leaves HTTPS"
+        )));
+    }
+    tool_addresses(member, hop, refused)
+}
+
+/// Up to eight addresses the system resolver finds for `url`'s host. One that `refused` names is
+/// a fault, so a name that resolves to an internal address among public ones reaches nothing.
+fn tool_addresses(
+    member: &str,
+    url: &str,
+    refused: ToolRefusal<'_>,
+) -> Result<Vec<IpAddr>, Fault> {
+    use std::net::ToSocketAddrs as _;
+    let reference =
+        UriRef::parse(url).map_err(|_| Fault::thrown(format!("{member}: `{url}` is not a URL")))?;
+    let tls = reference
+        .scheme()
+        .is_some_and(|scheme| scheme.as_str().eq_ignore_ascii_case("https"));
+    let authority = reference
+        .authority()
+        .ok_or_else(|| Fault::thrown(format!("{member}: `{url}` names no host")))?;
+    let port = authority
+        .port_to_u16()
+        .ok()
+        .flatten()
+        .unwrap_or(if tls { 443 } else { 80 });
+    let host = Authority::host(&authority)
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    let mut addresses: Vec<IpAddr> = (host, port)
+        .to_socket_addrs()
+        .map_err(|error| Fault::thrown(format!("{member}: `{host}` does not resolve: {error}")))?
+        .map(|address| address.ip())
+        .collect();
+    addresses.dedup();
+    addresses.truncate(8);
+    if addresses.is_empty() {
+        return Err(Fault::thrown(format!("{member}: `{host}` has no address")));
+    }
+    if let Some(why) = addresses.iter().find_map(|address| refused(*address)) {
+        return Err(Fault::thrown(format!("{member}: `{host}` {why}")));
+    }
+    Ok(addresses)
+}
+
+/// The text of a tool call's fault.
+fn said(fault: Fault) -> String {
+    match fault {
+        Fault::Thrown(_, message) => message.into_owned(),
+        other => format!("{other:?}"),
+    }
 }
 
 /// A response an extension's outbound request came back with, whole.

@@ -2804,8 +2804,10 @@ version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdcd9cdfd8745aa38f926a4a380c13d76b200d7338de57fc492982cd5a6652ba"
 dependencies = [
+ "base64 0.22.1",
  "bstr",
  "gix-command",
+ "gix-credentials",
  "gix-error",
  "gix-packetline",
  "gix-path",
@@ -2814,6 +2816,7 @@ dependencies = [
  "gix-trace",
  "gix-url",
  "gix-utils",
+ "parking_lot",
 ]
 
 [[package]]
@@ -4275,6 +4278,7 @@ dependencies = [
  "blake3",
  "clap",
  "gix",
+ "gix-transport",
  "globset",
  "hyper",
  "jiff",

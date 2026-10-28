@@ -36,7 +36,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use super::git::{self, Limits};
+use super::git::{self, Limits, Outbound};
 use super::index::{Capabilities, Fault, Index, Registry, Release, State, fault};
 use super::lock::Lock;
 use super::manifest::{Manifest, Name, Source, Version};
@@ -119,6 +119,8 @@ pub(crate) struct Registries<'a> {
     scratch: PathBuf,
     /// The limits a git dependency is cloned inside.
     limits: Limits,
+    /// The addresses an `https:` git dependency may be cloned from.
+    outbound: Outbound,
     /// Each git dependency's archive, by slug.
     cloned: BTreeMap<String, Vec<u8>>,
 }
@@ -137,8 +139,15 @@ impl<'a> Registries<'a> {
             indexes: BTreeMap::new(),
             scratch: std::env::temp_dir(),
             limits: git::LIMITS,
+            outbound: Outbound::default(),
             cloned: BTreeMap::new(),
         }
+    }
+
+    /// These registries, with each `https:` git dependency cloned only where `outbound` allows.
+    pub(crate) fn reaching(mut self, outbound: Outbound) -> Self {
+        self.outbound = outbound;
+        self
     }
 
     /// These registries, with each git dependency written out under `scratch` and cloned inside
@@ -328,6 +337,7 @@ fn cloned(
         &registries.base,
         &registries.scratch,
         registries.limits,
+        &registries.outbound,
     )?;
     let package = &cloned.manifest;
     if package.name.as_ref().map(Name::slug) != Some(name.slug()) {
