@@ -87,17 +87,72 @@ final class Index
                     }
                 }
                 // The log has the releases now, so the transaction must keep their numbers.
-                // Nothing below throws: a failure returns `false`, and the next run sends again.
-                return $this->write($key, $folder, $stores) && $stores->send();
+                // So a failure below returns `false` and does not throw, and the next run sends again.
+                try {
+                    // `sign` signs every index file, and only the files of this package changed.
+                    // The daily run sends every index file.
+                    $stores->queue($this->write($key, $folder), Stores::INDEX);
+                    $this->sign($folder, $stores);
+                } catch (RuntimeError $error) {
+                    return false;
+                }
+                return $stores->send();
             });
         } catch (RuntimeError $error) {
             return false;
         }
     }
 
-    // Writes the index file of the package `$key` and `registry.json`, signs them, and adds them
-    // to the files to send. It returns `false` when a step fails.
-    private function write(string $key, string $folder, Stores $stores): bool
+    // Runs once a day, from `jobs/daily.nvs`. It adds every release that is not in the log yet.
+    // Then it writes every index file again, signs every file, and sends every index file and
+    // `registry.json` to every store. So a version whose seven days have passed is released.
+    // It returns `false` when a step fails. The next run does every step again.
+    // Memory: one index file at a time.
+    public function daily(): bool
+    {
+        array<string> $waiting = [];
+        foreach ($this->db->query('select distinct package from releases where log is null', []) as Row $row) {
+            $waiting[] = Index::trusted($row->string('package'));
+        }
+        bool $done = true;
+        foreach ($waiting as string $key) {
+            if (!$this->catchUp($key)) {
+                $done = false;
+            }
+        }
+        string $folder = Index::work($this->site);
+        var $stores = new Stores($this->db, $this->site);
+        try {
+            bool $sent = $this->db->transaction(fn(Transaction $tx): bool => {
+                // This statement writes, so the transaction has the write lock of the database,
+                // as in `catchUp`. A publish waits until the stores have the files.
+                $tx->execute('update releases set log = log where log is null', []);
+                foreach ($tx->query('select distinct package from releases where log is not null order by package', []) as Row $row) {
+                    $stores->queue($this->write(Index::trusted($row->string('package')), $folder), Stores::INDEX);
+                }
+                $this->sign($folder, $stores);
+                return $stores->send();
+            });
+            return $done && $sent;
+        } catch (RuntimeError $error) {
+            return false;
+        }
+    }
+
+    // Writes `registry.json`, signs it and every index file, and adds `registry.json` to the files to send.
+    // It throws a `RuntimeError` when a step fails.
+    private function sign(string $folder, Stores $stores): void
+    {
+        IO::write($folder . '/registry.json', Json::encode({ schema: 1, hosts: $this->site->hosts }));
+        if (!$this->log->sign(Time::now()->toEpochSeconds())) {
+            throw new RuntimeError('the index files could not be signed');
+        }
+        $stores->queue('registry.json', Stores::INDEX);
+    }
+
+    // Writes the index file of the package `$key`, before it is signed.
+    // It returns its path in the work folder, such as `index/acme/http.json`.
+    private function write(string $key, string $folder): string
     {
         string $name = '';
         foreach ($this->db->query('select name, vendor from packages where key = ?', [$key]) as Row $row) {
@@ -127,22 +182,10 @@ final class Index
                 $row->int('log') ?? 0,
             );
         }
-        try {
-            string $path = 'index/' . Index::slug($key) . '.json';
-            IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
-            IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
-            IO::write($folder . '/registry.json', Json::encode({ schema: 1, hosts: $this->site->hosts }));
-            if (!$this->log->sign(Time::now()->toEpochSeconds())) {
-                return false;
-            }
-            // `sign` signs every index file, and only the files of this package changed.
-            // The daily run sends every index file.
-            $stores->queue($path, Stores::INDEX);
-            $stores->queue('registry.json', Stores::INDEX);
-        } catch (RuntimeError $error) {
-            return false;
-        }
-        return true;
+        string $path = 'index/' . Index::slug($key) . '.json';
+        IO::makeDir($folder . '/index/' . Index::slug(Str::before($key, '\\') ?? $key));
+        IO::write($folder . '/' . $path, Index::document($name, $owners, $versions, Time::now()->toEpochSeconds()));
+        return $path;
     }
 
     // Returns the text of one index file before it is signed. `$now` is the time in seconds since 1970.

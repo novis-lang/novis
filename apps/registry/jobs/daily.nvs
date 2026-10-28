@@ -1,0 +1,10 @@
+<?nvs
+// The daily work of the registry. The `[[schedule]]` block in `nvs.toml` runs it once a day.
+// It signs every index file again and sends the index files to every store.
+autoload 'Registry' from '../src';
+
+var $site = Registry\Site::load();
+var $index = new Registry\Index(Registry\Schema::open(), new Registry\NvsLog($site, Registry\Index::work($site)), $site);
+if (!$index->daily()) {
+    throw new RuntimeError('The daily work did not finish. The next run does it again.');
+}

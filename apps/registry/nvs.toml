@@ -13,6 +13,19 @@ path = "registry.sqlite"
 read = ["hosting.json", "builds", "work", "files", "backup", "fixtures"]
 write = ["builds", "work", "files", "backup"]
 
+# The scheduled work runs the scripts in `jobs`.
+[capabilities.script]
+spawn = ["jobs/"]
+
+# Once a day, the registry signs every index file again and sends the index files to every store.
+# It also adds to the log every release that a failed publish left out.
+# The registry runs on one computer, because its database is one SQLite file.
+[[schedule]]
+name = "daily"
+cron = "0 3 * * *"
+script = "jobs/daily.nvs"
+scope = "host"
+
 # The program may open this database and no other.
 [capabilities.db]
 connect = ["registry"]
