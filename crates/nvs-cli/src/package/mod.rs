@@ -26,7 +26,9 @@
 //! and checked with the registry (`rule:packaging/a-publish-token-is-scoped-and-expires`).
 //! [`publish`] is `nvs pkg publish`, which sends a commit for the registry to build, and
 //! [`build`] is that build, `nvs registry build`
-//! (`rule:packaging/the-registry-builds-the-archive-from-git`).
+//! (`rule:packaging/the-registry-builds-the-archive-from-git`). [`retract`] is `nvs pkg retract`
+//! (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`) and [`unlist`] is
+//! `nvs pkg unlist` (`rule:packaging/an-owner-may-unlist`), each one request to the registry.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -52,6 +54,8 @@ mod proof;
 mod publish;
 mod report;
 mod resolve;
+mod retract;
+mod unlist;
 
 /// Work with Novis packages.
 #[derive(clap::Args)]
@@ -269,6 +273,50 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Retract a version of your package that is broken or unsafe.
+    ///
+    /// Run this command in the folder of your package. A retracted version
+    /// can still be downloaded, so a `package.lock` that names it still
+    /// works. `nvs pkg add` and `nvs pkg update` do not choose it.
+    ///
+    /// With a publish token, the retraction starts seven days later. An
+    /// owner can make it start at once with a passkey on the registry's
+    /// website. Run `nvs pkg login` first to store a publish token.
+    Retract {
+        /// The version to retract, such as `1.4.0`.
+        version: manifest::Version,
+        /// Why the version is retracted. The package index shows this text
+        /// with the version. It can have at most 500 characters.
+        #[arg(long, value_name = "TEXT")]
+        reason: String,
+        /// The version that fixes the problem, such as `1.4.1`. It must be
+        /// a published version of the package.
+        #[arg(long, value_name = "VERSION")]
+        fixed_in: Option<manifest::Version>,
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+    },
+    /// Hide your package or one version of it from search and listings.
+    ///
+    /// Run this command in the folder of your package. Without VERSION,
+    /// every version is hidden. An unlisted version can still be
+    /// downloaded, so a `package.lock` that names it still works.
+    ///
+    /// Only an owner who signs in with a passkey can unlist. With a publish
+    /// token, the command prints the page on the registry's website where
+    /// an owner confirms it.
+    Unlist {
+        /// The version to hide, such as `1.4.0`. Without it, every version
+        /// is hidden.
+        version: Option<manifest::Version>,
+        /// Show the package or the version in search and listings again.
+        #[arg(long)]
+        undo: bool,
+        /// The registry's URL. The default is `https://registry.novis-lang.org`.
+        #[arg(long, value_name = "URL")]
+        registry: Option<String>,
+    },
 }
 
 impl Args {
@@ -298,6 +346,17 @@ impl Args {
                 repository,
                 dry_run,
             } => publish::run(registry.as_deref(), repository.as_deref(), dry_run),
+            Command::Retract {
+                version,
+                reason,
+                fixed_in,
+                registry,
+            } => retract::run(registry.as_deref(), version, &reason, fixed_in),
+            Command::Unlist {
+                version,
+                undo,
+                registry,
+            } => unlist::run(registry.as_deref(), version, undo),
         }
     }
 }
