@@ -34,7 +34,7 @@ stages:
         rules: [packaging/a-git-dependency-is-root-only, packaging/a-package-is-its-digest, security/net-address-policy]
   - id: 4
     title: "`nvs pkg fetch` and `nvs pkg vendor` write the tree, `vendor/packages.nvs` and a grant line per package"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/autoload.rs, crates/nvs-config/src/grants.rs, docs/rules/packaging/a-fetched-package-is-an-autoload-line.md, docs/rules/packaging/nothing-runs-before-the-program.md, docs/rules/security/package-authority-is-granted-one-line-at-a-time.md, docs/rules/packaging/package-toml-is-a-tool-input.md]
     extra:
       context:
@@ -259,6 +259,20 @@ A `401` is an ordinary failed status, so `gix` starts no credential helper. Why:
 because a package command reaches the network on a URL somebody else wrote. Memory: one `POST`
 body, a few KiB, while it is sent.
 
+**`fetch` keeps a folder that already has the locked files, and `vendor` writes every folder again**
+(stage 4). Both resolve, check the lock and take `--locked`. A package folder is
+`vendor/<vendor>/<name>/`, the slug as a path, so its folder does not move when its version does.
+`fetch` repacks a folder in place and skips its archive when the digest is the locked one, so a
+second fetch reads no archive; `vendor` downloads and replaces every folder, for a tree a person
+changed by hand. Only the folders of packages the old lock had are removed, because `vendor/` may
+hold hand-vendored code. The grant line is the subtree form, `'Acme\Http\*' = []`, with what the
+package requests as its comment, because a package's code is its namespace and every one below
+it; a package with a key naming its namespace in either form gets no line, which is how an edited
+line is never rewritten. The lines are added to the file's text, so comments stay. A git
+dependency's clone is written under the data folder's `tmp/`. Why: simplicity, one pipeline for
+both commands; security, every archive path is checked before it is written. Memory: one archive
+at a time.
+
 **Lanes.** Stage 1 comes first. After it, stage 2 (`pack.rs`) and stage 3 (`index.rs`, `resolve.rs`,
 `lock.rs`) touch disjoint files and run in either order. Stage 7 shares `resolve.rs` with stage 3 and
 runs after it. Stage 4 runs after 3 and 7 and behind the `namespace-grants` gate, stage 5 after 4
@@ -325,10 +339,14 @@ as stage 2 packs a directory, and a git dependency anywhere below the root is re
 **Does:** the resolved graph lands under `vendor/` with one generated autoload file and one grant line
 for every package, an empty one included.
 
-- [ ] `vendor/packages.nvs`, generated from the lock and committed (`rule:packaging/a-fetched-package-is-an-autoload-line`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-hir/src/autoload.rs:259`
-- [ ] `nvs pkg add` and `nvs pkg fetch` write a line into `[grants]` in the application's `package.toml` for every package in the graph, direct and transitive, with nothing granted until a person writes it and an edited line left as it is (`rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
-- [ ] Tests: a fetched package compiles only with its grant line, an edited line survives a second fetch, and an effectful top-level statement produces no effect from `fetch`, `build` or `vendor` (`rule:packaging/nothing-runs-before-the-program`). `crates/nvs-cli/tests/package_client.rs:1`
-- [ ] `--locked` on `nvs pkg fetch` and `nvs pkg vendor` through `Lock::check(graph, true)`, and the binary's tests of a locked run with a missing entry and an edited digest. `crates/nvs-cli/src/package/lock.rs:140`, `crates/nvs-cli/tests/package_client.rs:1`
+- [x] `vendor/packages.nvs`, generated from the lock and committed (`rule:packaging/a-fetched-package-is-an-autoload-line`). `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-hir/src/autoload.rs:259`
+  - [x] `fetch` reads the manifest, builds `Registries` reaching the tree's `[capabilities]`, resolves, checks and writes the lock
+  - [x] each archive is unpacked under `vendor/<vendor>/<name>/` through path and limit checks
+  - [x] `vendor/packages.nvs` is written from the lock
+- [x] `nvs pkg add` and `nvs pkg fetch` write a line into `[grants]` in the application's `package.toml` for every package in the graph, direct and transitive, with nothing granted until a person writes it and an edited line left as it is (`rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:packaging/package-toml-is-a-tool-input`). `fetch::add_grants` is the writer, and stage 5's `add` calls it. `crates/nvs-cli/src/package/fetch.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
+- [x] Tests: a fetched package compiles only with its grant line, an edited line survives a second fetch, and an effectful top-level statement produces no effect from `fetch` or `vendor` (`rule:packaging/nothing-runs-before-the-program`). `nvs build`'s half is stage 6's attack. `crates/nvs-cli/tests/package_fetch.rs:1`
+- [x] `--locked` on `nvs pkg fetch` and `nvs pkg vendor` through `Lock::check(graph, true)`, and the binary's tests of a locked run with a missing entry and an edited digest. `crates/nvs-cli/src/package/lock.rs:140`, `crates/nvs-cli/tests/package_fetch.rs:1`
+  - [x] a git dependency through the binary. `crates/nvs-cli/tests/package_git.rs:1`
 
 ### 5. `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated` select only what is released and print what a change brings
 
@@ -338,7 +356,7 @@ one is handled as its rule says, and every change prints its authority before it
 - [ ] A pending version is never selected by `add` or `update`, and `nvs pkg add acme/http@1.4.0` fetches it (`rule:packaging/a-release-waits-seven-days-unless-an-owner-confirms`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] An unlisted version still resolves and fetches, a withheld one fails naming its advisory, and a retracted one is never newly selected (`rule:packaging/an-owner-may-unlist`, `rule:packaging/the-operator-only-withholds`, `rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `crates/nvs-cli/src/package/resolve.rs:1`
 - [ ] The output: every capability requested by the package and its subgraph, capability changes since the lock, the transitive count, owner and repository changes, and the majors crossed with who asked for the older one. `crates/nvs-cli/src/package/report.rs:1`
-- [ ] Tests: one fixture registry entry per version state, and the report of an update that adds a capability. `crates/nvs-cli/tests/package_client.rs:1`
+- [ ] Tests: one fixture registry entry per version state, and the report of an update that adds a capability. `crates/nvs-cli/tests/package_fetch.rs:1`
 
 ### 9. an external download is fetched, checked and placed, and `nvs pkg download` and `nvs pkg provide` work
 
@@ -365,7 +383,7 @@ in `AGENTS.md`.
 
 - [ ] The headings `# package.toml`, `# nvs pkg add` and `# nvs pkg fetch and nvs pkg vendor` in the chapter. `docs/reference/tools/35-packages.md:1`
 - [ ] The about pages and examples. `docs/examples/tools/packages/package-toml/about.md:1`, `docs/examples/tools/packages/nvs-pkg-add/about.md:1`, `docs/examples/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/about.md:1`
-- [ ] The attacks: a vendor answered by a second registry, and a transitive git dependency. `tests/hostile/tools/packages/package-toml/01-a-vendor-answered-by-a-second-registry.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/01-a-transitive-git-dependency.nvs:1`
+- [ ] The attacks: a vendor answered by a second registry, a transitive git dependency, and a package whose top-level statement has an effect, which `nvs build` does not run. Add `// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor` to `crates/nvs-cli/tests/package_fetch.rs` once the heading exists. `tests/hostile/tools/packages/package-toml/01-a-vendor-answered-by-a-second-registry.nvs:1`, `tests/hostile/tools/packages/nvs-pkg-fetch-and-nvs-pkg-vendor/01-a-transitive-git-dependency.nvs:1`
 - [ ] `bun nv proofs --id` owes nothing for `tools:packages/package-toml`, `tools:packages/nvs-pkg-add` and `tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor`. `docs/reference/tools/35-packages.md:1`
 
 ### 8. the other client commands have their feature proofs, and the rules are shipped
@@ -401,37 +419,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done; the `api-compat` and `namespace-grants` gates hold. A root git
-dependency is cloned from `file:` or `https:` at its exact commit and packed, and one below the
-root is refused.
+Stages 1, 2, 3, 7 and 4 are done. `nvs pkg fetch` and `nvs pkg vendor` (`crates/nvs-cli/src/package/fetch.rs:93`) resolve,
+check and write `package.lock`, unpack each package under `vendor/<vendor>/<name>/`
+(`fetch::unpack`), write `vendor/packages.nvs` (`fetch::autoloads`), and add one grant line per new
+package (`fetch::add_grants`, `fetch::with_grants`). `--locked` refuses a missing lock, a missing
+entry and an edited digest. The tree's `[capabilities]` reach the clone through
+`config::written_capabilities` (`crates/nvs-cli/src/config.rs:865`). The `dead_code` allowances on the client modules
+are gone; three fields keep one each, for serde or for stage 9's `[[download]]`.
 
-`git::clone` (`git.rs:110`) fetches `https:` in `fetched` (`git.rs:185`) through `Checked`
-(`git.rs:514`), gix-transport's `Http` over `nvs_stdlib::tool_stream`. The last case,
-`an_https_remote_is_cloned_at_its_exact_commit` (`git.rs:931`), serves the test repository over
-protocol v2 from a loopback HTTPS `Host` with a hand-written pack, and the fetched archive equals
-the `file:` clone's. It runs in a child process of the test binary, because the server cases in
-`nvs-cli` build the process's one TLS client too. `cargo test --bin nvs -- package::git` passes 6
-cases. `mod.rs` keeps `dead_code` allowed on the client modules (`mod.rs:23`) until `fetch` and
-`add` call them. No test should go red.
+Tests: 3 unit cases in `fetch.rs`, 3 binary cases in `tests/package_fetch.rs`, and 1 in
+`tests/package_git.rs`, all passing. The rule fragments' **Not on disk** lines say what `fetch`
+and `vendor` ship. No test should go red.
 
-The sweep's reds are stale: `bun nv proofs --gate --only "Core\\Env::secret"` exits 0 on this
-tree, and Miri run 40474302703 ran on `55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
+The sweep's reds were stale: the `env-secret-proofs` log exits 0, and Miri run 40474302703 ran on
+`55b03e97a`, before the fixes `22f1e4ec4` and `e461612ce`.
 
 ### Next
 
-**Stage 4: `nvs pkg fetch` and `nvs pkg vendor`**, in a new `crates/nvs-cli/src/package/fetch.rs`,
-the `Command` enum in `crates/nvs-cli/src/package/mod.rs:61`, and a new
-`crates/nvs-cli/tests/package_client.rs`. Write the stage's checkpoints into the goal file first.
+**Stage 5: `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`**, in `resolve.rs`, a new
+`crates/nvs-cli/src/package/report.rs`, the `Command` enum (`crates/nvs-cli/src/package/mod.rs:41`) and
+`tests/package_fetch.rs`. Write the stage's checkpoints into the goal file first.
 
-- [ ] `fetch` reads the application's `package.toml`, builds `Registries` with `reaching(Outbound::new(<the tree's [capabilities]>))` (`resolve.rs:148`), resolves (`resolve.rs:211`), and checks or writes `package.lock` (`lock.rs:140`, `lock.rs:275`). `--locked` is `Lock::check(graph, true)`.
-- [ ] Each archive is unpacked under `vendor/<vendor>/<package>/`, and `vendor/packages.nvs` is generated from the lock as `autoload` lines (`crates/nvs-hir/src/autoload.rs:259`). Archives over 1 MiB need the backlog's ceiling fix in `index.rs:137` first.
-- [ ] One `[grants]` line per package in the graph is written into the application's `package.toml`, and a line a person edited is left as it is. `crates/nvs-config/src/grants.rs:88`
-- [ ] The binary's tests in `tests/package_client.rs`: a fetched package compiles only with its grant line, an edited line survives a second fetch, nothing runs during `fetch` or `vendor`, and `--locked` with a missing entry and an edited digest. A git dependency through the binary goes in `tests/package_git.rs`. Pass `--data` with an `nvs_repo::scratch_private` folder, as the playbook says. `crates/nvs-cli/tests/check.rs:1`
-- [ ] Remove the `dead_code` allowance from each module `fetch` now calls (`mod.rs:23`).
+- [ ] `add <slug>[@<version>]` writes the `[dependencies]` line into the file's text as `with_grants` does (`crates/nvs-cli/src/package/fetch.rs:373`), then runs the fetch pipeline; a pending version is selected only by its exact version (`crates/nvs-cli/src/package/resolve.rs:436`).
+- [ ] `update` resolves without the lock's retracted allowance and writes the lock; `outdated` lists each package's newest released version and changes nothing. `crates/nvs-cli/src/package/resolve.rs:218`
+- [ ] `report.rs`: the capabilities the package and its subgraph request, the changes since the old lock (capabilities, owners, repository), the transitive count, and each crossing (`crates/nvs-cli/src/package/resolve.rs:76`).
+- [ ] Tests: one fixture registry entry per version state, and an update that adds a capability, in `tests/package_fetch.rs` with its `Tree` helper (`crates/nvs-cli/tests/package_fetch.rs:16`).
 
 ### Backlog
 
-- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 4 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
+- An `https:` file host is read through `nvs_stdlib::tool_get`, whose reply ceiling is 1 MiB, so an archive over 1 MiB fails there. Stage 9 reads archives with the ceiling at `pack::MAX_ARCHIVE_BYTES`, through the checked connection the download uses. `crates/nvs-cli/src/package/index.rs:137`, `crates/nvs-stdlib/src/http.rs:3933`
 - Verifying each archive's inclusion in the transparency log is goal `registry-log`'s (`docs/goals/registry-log.md`).
 - `nvs pkg audit` and the advisory feed are goal `package-audit`'s (`docs/goals/package-audit.md`).
 - The editor reads the `[grants]` table: the grants hover follows a namespace's line, and the

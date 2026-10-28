@@ -153,7 +153,6 @@ const MAIN: &str = "<?nvs\nnamespace Acme\\Http;\n\nfinal class Main\n{\n    \
 
 const HTTP: &str = "'Acme\\Http' = \"1.0.0\"\n";
 
-// covers: tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor
 #[test]
 fn a_fetched_package_compiles_only_with_its_grant_line() {
     let tree = Tree::new("package-fetch-grant", HTTP);
