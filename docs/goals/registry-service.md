@@ -32,6 +32,13 @@ stages:
     extra:
       context:
         rules: [packaging/publishing-never-overwrites, packaging/the-registry-builds-the-archive-from-git, packaging/a-package-is-its-digest, packaging/a-package-name-is-vendor-slash-name]
+  - id: 11
+    title: the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
+    status: open
+    context: [apps/registry/hosting.json, apps/registry/src/Site.nvs, apps/registry/src/Stores.nvs, apps/registry/src/Index.nvs, docs/rules/packaging/registry-hosting-is-configuration.md]
+    extra:
+      context:
+        rules: [packaging/registry-hosting-is-configuration, packaging/search-sorts-by-the-readers-choice, packaging/the-registry-keeps-an-append-only-log]
   - id: 4
     title: a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
     status: open
@@ -67,13 +74,6 @@ stages:
     extra:
       context:
         rules: [packaging/an-account-stays-active-by-proof-not-by-token, packaging/an-owner-is-notified-without-email, packaging/a-registry-account-is-a-passkey]
-  - id: 11
-    title: the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
-    status: open
-    context: [apps/registry/hosting.json, apps/registry/src/Stores.nvs, apps/registry/src/Backup.nvs, apps/registry/src/Downloads.nvs, docs/rules/packaging/registry-hosting-is-configuration.md]
-    extra:
-      context:
-        rules: [packaging/registry-hosting-is-configuration, packaging/search-sorts-by-the-readers-choice, packaging/the-registry-keeps-an-append-only-log]
   - id: 10
     title: the service has its deploy guide and its proofs, and its rules are shipped
     status: open
@@ -223,21 +223,36 @@ contract per side keeps the app's `Core\Test::double` and the Rust tests pinned 
 **The index catches up per package, under the database's write lock.** After `Publish` saves a
 release, `App::publish` calls `Index::catchUp($key)` (`apps/registry/src/Index.nvs`), which runs
 in one transaction whose first statement writes, so two publishes append to the log one at a
-time. It copies each unlogged release's archive to `<files>/archive/<hex>.tar`, appends one
-`publish` entry per release through `Log` (`NvsLog` runs `nvs registry log append`), stores each
-release's record number in `releases.log`, then writes `index/<vendor>/<name>.json` and
-`registry.json` unsigned and signs every file through `nvs registry index sign --at` with Core's
-clock. The publish is answered `201` only after all of that; a failure answers `500` and the saved
-release stays unlogged until the next catch-up of its package (stage 11's daily task adds a sweep of
-every package). The tests double `Log` as they double `Builder`. `Index::document` is pure, and
-`apps/registry/fixtures/index.json` pins its output: `IndexTest.nvs` compares it byte for byte, and
-`crates/nvs-cli/src/package/index.rs`'s `the_registry_services_index_file_reads_back` signs it
-and reads it with the client's reader. `hosting.json` gained `files` (the folder, relative to the
-app), `hosts`, `logKey` and `logName`; with no hosts, `App`'s `GET /registry.json`, `/index/…`,
-`/log/…` and `/archive/…` routes send the files (`apps/registry/src/Files.nvs`), and an archive
-fetched with a `nvs/` user agent is counted by `Downloads`. Why: the log is the one serial
-resource, the database already serializes writers, and a per-package catch-up keeps one stuck
-release from blocking another package. Memory: one archive copy per publish, on disk.
+time. It copies each unlogged release's archive to `<work>/archive/<hex>.tar`, appends one
+`publish` entry per release through `Log` (`NvsLog` runs `nvs registry log append`, which prints
+the files it wrote), stores each release's record number in `releases.log`, then writes
+`index/<vendor>/<name>.json` and `registry.json` and signs every file through `nvs registry index
+sign --at` with Core's clock. The work folder (`hosting.json`'s `work`) is never served, so an
+unsigned file is never visible. The publish is answered `201` only after all of that; a failure
+answers `500` and the saved release stays unlogged until the next catch-up of its package (stage
+11's daily task adds a sweep of every package). The tests double `Log` as they double `Builder`.
+`Index::document` is pure, and `apps/registry/fixtures/index.json` pins its output:
+`IndexTest.nvs` compares it byte for byte, and `crates/nvs-cli/src/package/index.rs`'s
+`the_registry_services_index_file_reads_back` signs it and reads it with the client's reader. With
+no hosts, `App`'s `GET /registry.json`, `/index/…`, `/log/…` and `/archive/…` routes send the files
+from the first `dir` store (`apps/registry/src/Files.nvs`), and an archive fetched with a `nvs/`
+user agent is counted by `Downloads`. Why: the log is the one serial resource, the database already
+serializes writers, and a per-package catch-up keeps one stuck release from blocking another
+package. Memory: one archive copy per publish, on disk.
+
+**Every new file waits in `unsent` until every store has it, and the send runs under the same
+write lock.** `Index::catchUp` queues each archive, each tile `log append` printed, the index file,
+`registry.json` and `log/checkpoint` with a rank (`Stores::ARCHIVE` … `Stores::CHECKPOINT`), and
+`Stores::send` (`apps/registry/src/Stores.nvs`) puts every file of one rank to every store before
+any file of the next, then deletes the rows. Only the published package's index file is queued; the
+other index files are re-signed in the work folder and reach the stores in the daily task. A failed
+store returns `false` after the log numbers are committed, so nothing is appended twice, and the
+same commit published again answers `200` (`Publish::again`) and sends what is left. Why: two
+publishes that sent at once could put an older checkpoint after a newer one, and a file lock cannot
+wait under a test's virtual clock, where `Core\Time::sleep` returns at once. Cost: another request
+that writes waits while a publish's files reach the stores, a few seconds per publish, which is rare.
+A store that fails at the checkpoint rank can leave an earlier store with the new checkpoint; the
+retry makes them agree.
 
 **A publish is refused** when a file's namespace is outside the package's name, when the archive holds
 an `nvs.toml`, when the manifest names a git dependency, when the clone is over 512 MiB, when the
@@ -409,6 +424,26 @@ a second writes `Index.nvs`'s download count and its test.
 - [x] Tests: the client's index reader parses and verifies what the service writes, and one address counts once per day across a day change. `apps/registry/src/IndexTest.nvs:1`
 - [x] `rule:packaging/publishing-never-overwrites` and `rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`. `data/rules/packaging/publishing-never-overwrites.json:1`, `data/rules/packaging/the-registry-builds-the-archive-from-git.json:1`
 
+### 11. the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
+
+**Does:** the service reads its stores, file hosts, backup and download-log source from
+`hosting.json`, writes each publish to every store before it answers, backs up a sealed copy of its
+database, restores itself on a start with no database, and counts downloads from access lines.
+
+**Split:** after the session lands `Stores.nvs` and the settings reader, one writing subagent writes
+`Backup.nvs` and its test, then a second writes `Downloads.nvs` and its test.
+
+- [x] `hosting.json` and its reader: `dir` and `http` stores, the file hosts, the backup store and the download-log source, each secret a path read through `Core\Secret`, and a missing path stopping the start (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/hosting.json:1`, `apps/registry/src/Stores.nvs:1`
+- [ ] The publish writes the archive, the tiles, the index files and the checkpoint last to every public store, and fails when one store fails; the daily task signs every index file again. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Publish.nvs:1`
+  - [x] `nvs registry log append` prints each file it wrote, `checkpoint` last (`crates/nvs-cli/src/registry.rs`).
+  - [x] `Index::catchUp` queues every new file in `unsent`, and `Stores::send` sends them rank by rank under the write lock.
+  - [x] A failed store fails the publish, and the same commit published again answers `200` and sends what is left.
+  - [ ] The daily task: `nvs registry index sign` over every file, every index file queued and sent, and every package with an unlogged release caught up.
+- [ ] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
+- [ ] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
+- [ ] Tests against loopback listeners: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
+- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
+
 ### 4. a release waits seven days unless an owner confirms it, an owner unlists, and the operator only withholds
 
 **Does:** a token-only release is pending for seven days, an owner's passkey releases it or freezes
@@ -470,22 +505,6 @@ writes the Rust items after the session lands the feeds.
 - [ ] Tests under a fixed clock moved by `Core\Test::advance`: token use on day 59 does not count, a reminder answer does, and on day 61 only a passkey sign-in revives. `apps/registry/src/ActivityTest.nvs:1`
 - [ ] `rule:packaging/an-account-stays-active-by-proof-not-by-token` is `shipped`. `data/rules/packaging/an-account-stays-active-by-proof-not-by-token.json:1`
 
-### 11. the hosting is one settings file, a publish is durable before it is visible, and the service backs itself up and restores itself
-
-**Does:** the service reads its stores, file hosts, backup and download-log source from
-`hosting.json`, writes each publish to every store before it answers, backs up a sealed copy of its
-database, restores itself on a start with no database, and counts downloads from access lines.
-
-**Split:** after the session lands `Stores.nvs` and the settings reader, one writing subagent writes
-`Backup.nvs` and its test, then a second writes `Downloads.nvs` and its test.
-
-- [ ] `hosting.json` and its reader: `dir` and `http` stores, the file hosts, the backup store and the download-log source, each secret a path read through `Core\Secret`, and a missing path stopping the start (`rule:packaging/registry-hosting-is-configuration`). `apps/registry/hosting.json:1`, `apps/registry/src/Stores.nvs:1`
-- [ ] The publish writes the archive, the tiles, the index files and the checkpoint last to every public store, and fails when one store fails; the daily task signs every index file again. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Publish.nvs:1`
-- [ ] The sealed database copy after each publish and every five minutes when something changed, and the restore on a start with no database, which rebuilds release state from the verified log. `apps/registry/src/Backup.nvs:1`
-- [ ] The daily count from Bunny's access lines through the counting function, keeping no line. `apps/registry/src/Downloads.nvs:1`
-- [ ] Tests against loopback listeners: an `http` store receiving each file in order, a publish failed by a store that answers `500` with no checkpoint moved, a backup the store cannot open without the key, a restore that brings back every release's state, and access lines that count one address once and skip a user agent that is not `nvs`. `apps/registry/src/StoresTest.nvs:1`, `apps/registry/src/BackupTest.nvs:1`, `apps/registry/src/DownloadsTest.nvs:1`
-- [ ] `rule:packaging/registry-hosting-is-configuration` is `shipped`. `data/rules/packaging/registry-hosting-is-configuration.json:1`
-
 ### 10. the service has its deploy guide and its proofs, and its rules are shipped
 
 **Does:** the service can be deployed from its guide, the commands are features with their proofs, and
@@ -520,51 +539,50 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 3 and 7 are done. `rule:packaging/publishing-never-overwrites` and
-`rule:packaging/the-registry-builds-the-archive-from-git` are `shipped`; each fragment's **Not on
-disk** names what is left (the verified-channel refusal, and the passkey route that changes a
-bound repository with its log entry). `bun nv rules --check` and `bun nv check` are clean.
-`App::publish` runs `Publish::publish` (`apps/registry/src/Publish.nvs`), then
-`Index::catchUp` (`Index.nvs`), which writes and signs the files under `files/` (gitignored), as
-the standing decision *The index catches up per package* says. `Downloads.nvs` is the salted daily
-count, and `Files.nvs` sends the files on `App`'s four GET routes.
+Stages 1, 2, 3 and 7 are done; stage 11 is live and now sits before stage 4 in the file, as the
+lane order says. Its first item landed: `hosting.json` names `work`, `stores`, `hosts`, `backup`,
+`backupKey`, `backupMinutes` and `downloadLog`, and `Site::load` (`apps/registry/src/Site.nvs`)
+reads them through `Store::of` (`Store.nvs`) and throws naming any file a setting names that does
+not exist. Of the second item, three checkpoints are done: `nvs registry log append` prints the
+files it wrote, `Index::catchUp` queues every new file in the `unsent` table, and `Stores::send`
+(`Stores.nvs`) sends them rank by rank under the write lock, as the new standing decision *Every new
+file waits in `unsent`* says. A publish of the same commit again answers `200`
+(`Publish::again`, tested by `theSameCommitAgainIsARetry`). `Files.nvs` serves from the first
+`dir` store. All 35 registry tests passed; `registry_log.rs` passed. A separate commit ran
+`cargo fmt` over eight `nvs-cli` package files that CI's lint would have refused.
 
-The sweep's reds were stale again: `env-secret-proofs` passes when rerun, and nightly run
-40662443492 was cancelled by a newer push.
+The sweep's reds were stale: the `env-secret-proofs` log on disk is from 2026-10-22 and reads
+`exit 0`, and the check passes when run; nightly run 40662443492 was cancelled by a newer push.
 
-Expected red: none known. `PublishTest.nvs` and `TokensTest.nvs` were not rerun after the
-`releases` columns changed; `Publish::jsonOf` takes a missing `dependencies` key as `{}` (probed).
-A local `registry.sqlite` made before this change lacks the new columns: delete it (it is
-gitignored test data, and the tests make it again). `registry_build.rs` needs `git http-backend`
-and git 2.32 or later on each runner.
+Expected red: none known. A local `apps/registry/files/` from before this change holds unsigned
+test files; it is gitignored test data and may be deleted.
 
 ### Next
 
-Stage 11 (its gate holds: `docs/goals/registry-log.md` is gone). Its first item is the settings and
-the stores, landed by the session before the split's subagents start. `Site::load`
-(`apps/registry/src/Site.nvs:39`) reads `files`, `hosts`, `logKey` and `logName` today; replace
-`files` with a list of stores (`dir` and `http`), add the backup store and the download-log source,
-read each secret path through `Core\Secret`, and stop the start on a missing path. `Index::write`
-(`apps/registry/src/Index.nvs`) and `Files.nvs` then write and read through `Stores.nvs`.
-- [ ] `hosting.json` and its reader. `apps/registry/hosting.json:1`, `apps/registry/src/Site.nvs:39`, `apps/registry/README.md:1`
-- [ ] `Stores.nvs`, with the checkpoint written last and a failed store failing the publish. `apps/registry/src/Stores.nvs:1`, `apps/registry/src/Index.nvs:1`, `apps/registry/src/Files.nvs:1`
+Stage 11's daily task, then the split's two subagents. The daily task re-signs every index file
+(`Log::sign`), queues every `index/**.json` and `registry.json` with `Stores::INDEX`, sends, and
+runs `Index::catchUp` for every package with an unlogged release. Run it from the schedule
+`rule:config/scheduled-work-is-a-config-block` describes, in the app's `nvs.toml`. Then the
+backup subagent (`Backup.nvs`, using `Site::backup`, `backupKey` and `backupMinutes`) and the
+download-log subagent (`Downloads.nvs`, using `Site::downloadLog` and `downloadFormat`).
+- [ ] The daily task. `apps/registry/src/Index.nvs:1`, `apps/registry/src/Stores.nvs:1`, `apps/registry/nvs.toml:1`
+- [ ] `Backup.nvs` and its test. `apps/registry/src/Backup.nvs:1`, `apps/registry/src/Site.nvs:33`
+- [ ] `Downloads.nvs`'s access-line count and its test. `apps/registry/src/Downloads.nvs:1`
 
 ### Backlog
 
+- `StoresTest.nvs` must not share `unsent` with the parallel tests: another test's `send` takes
+  the queued rows of a test and deletes them. Give the stores test its own database (a second
+  `[db.*]` in `nvs.toml`) or its own `Stores` over a scratch connection, and a store folder of its
+  own under `work/`.
 - Stage 5 adds the verified-channel refusal to `Publish::record` and `App::addOwner`
   (`apps/registry/src/Publish.nvs`); there is no channel to verify before it.
-- Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program; the
-  committed `nvs.toml` has none (standing decision *The build runs only where the operator grants it*).
+- Stage 10's deploy guide names the `[capabilities.process] exec` grant of the `nvs` program, and
+  an `fs.read` grant for each secret file outside the app folder; the committed `nvs.toml` has
+  neither (standing decision *The build runs only where the operator grants it*).
 - Changing a package's bound repository with a passkey is a route stage 4 or `registry-website` adds;
   `Publish` refuses the change with a 403 until then.
 - Stage 4 writes the log entries for owner changes and for making and revoking a token; stage 5 notifies
   the owners and adds the verified-channel check to `addOwner` (`apps/registry/src/App.nvs`).
 - Search, package pages, account pages and the policy page are goal `registry-website`'s (`docs/goals/registry-website.md`).
-- Stage 11, the hosting settings, the durable publish, the backup and the restore, follows stage 7 (`apps/registry/src/Stores.nvs`).
-  It replaces `hosting.json`'s `files` folder with the stores, adds the daily task that re-signs
-  every index file and catches up every package with an unlogged release, and reads the access
-  lines into `Downloads::count`. `Index::write` signs every file on each publish; the daily task
-  and the stores may narrow that to the changed files.
-- `Index::write` writes an index file unsigned, then signs it in place, so for a moment a client
-  can read an unsigned file and skips that host. Stage 11's stores write the signed file only.
 - The advisory feed and `nvs pkg audit` are goal `package-audit`'s (`docs/goals/package-audit.md`).
