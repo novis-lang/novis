@@ -1,0 +1,34 @@
+<?nvs
+// Shows the errors that `of` throws when the saved values do not fit together.
+
+class Load
+{
+    // Creates the passkey. If a value is wrong, it returns the error message.
+    public static function check(bytes $id, bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm, int $signCount): string
+    {
+        try {
+            Core\Passkey\Credential::of($id, $publicKey, $algorithm, $signCount);
+            return 'the passkey is ready';
+        } catch (LogicError $e) {
+            return Core\Str::after($e->message, '(): ') ?? $e->message;
+        }
+    }
+}
+
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+bytes $key = Core\Encoding::fromHex(
+    'a4010103272006215820d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a',
+);
+
+// The saved values are correct, so this prints `the passkey is ready`.
+echo Load::check($id, $key, Core\Passkey\Credential::Algorithm::Ed25519, 3), "\n";
+
+// The key is an Ed25519 key, but the record says ES256.
+echo Load::check($id, $key, Core\Passkey\Credential::Algorithm::ES256, 3), "\n";
+
+// The key was cut short, so it is not a COSE key.
+echo Load::check($id, Core\Bytes::slice($key, 0, 20), Core\Passkey\Credential::Algorithm::Ed25519, 3), "\n";
+
+// The id is empty, and the sign counter is below 0.
+echo Load::check(Core\Encoding::fromHex(''), $key, Core\Passkey\Credential::Algorithm::Ed25519, 3), "\n";
+echo Load::check($id, $key, Core\Passkey\Credential::Algorithm::Ed25519, -1), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to save the id of a passkey as text, and how to read it back.
+
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16'),
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+
+// `toBase64Url` converts the bytes to text. This prints `ax8MmiTTXneBpMLw6TtdFg`.
+// The browser sends the same text in the `id` field of its answer.
+string $text = Core\Encoding::toBase64Url($passkey->id());
+echo $text, "\n";
+
+// `fromBase64Url` converts the text back to bytes.
+// The passkey is created again from the saved values, and its id is the same. This prints `same id`.
+Core\Passkey\Credential $loaded = Core\Passkey\Credential::of(
+    Core\Encoding::fromBase64Url($text),
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+echo $loaded->id() == $passkey->id() ? 'same id' : 'another id', "\n";

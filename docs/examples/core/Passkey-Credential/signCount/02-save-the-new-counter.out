@@ -1,0 +1,4 @@
+signed in, saved counter: 5
+signed in, saved counter: 9
+signed in, saved counter: 12
+Core\Passkey::verifySignIn(): the sign counter is 10, and the saved passkey has 12. The counter must increase, so the passkey may have been copied.

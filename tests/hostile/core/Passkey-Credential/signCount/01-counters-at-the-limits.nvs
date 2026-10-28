@@ -1,0 +1,84 @@
+<?nvs
+// Attack: somebody saves sign counters outside the allowed range, and a copied passkey sends counts that wrap around to 0.
+// Each bad counter should throw an error, and no copy should sign in.
+// requires: redis
+// hostile: timeout-ms 60000
+
+// This class plays the browser and the device. It signs each answer with the count it is given.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+
+    // Signs in with this count. It returns the new counter, or `-1` when the check throws.
+    public static function try(Core\Passkey\Credential $saved, Core\Crypto\KeyPair $key, int $count): int
+    {
+        string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+        try {
+            return Core\Passkey::verifySignIn(Device::signIn($options, $key, $saved->id(), $count), $saved, 'example.com', 'https://example.com')->signCount();
+        } catch (RuntimeError $e) {
+            return -1;
+        }
+    }
+}
+
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+bytes $id = Core\Random::bytes(16);
+
+// 1. Saved counters below 0 and above 4294967295, up to the largest and smallest `int`.
+// Each error is caught, so the next counter still runs.
+array<int> $bad = [-1, 4294967296, 9223372036854775807, -9223372036854775807 - 1];
+foreach ($bad as int $count) {
+    try {
+        Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, $count);
+        echo $count, ': accepted as ', $passkey->signCount(), "\n";
+    } catch (LogicError $e) {
+        echo $count, ": error\n";
+    }
+}
+
+// 2. The largest counter is allowed, and adding 1 to it gives a normal `int`.
+Core\Passkey\Credential $top = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 4294967295);
+echo 'largest: ', $top->signCount(), ', plus one: ', $top->signCount() + 1, "\n";
+
+// 3. A copied passkey sends counts that wrap around after the largest counter: 0, 1 and the largest again.
+// The count must rise, so none of them signs in.
+Core\Session::start();
+array<int> $wrapped = [0, 1, 4294967295];
+foreach ($wrapped as int $count) {
+    echo 'saved 4294967295, sent ', $count, ': ', Device::try($top, $key, $count), "\n";
+}
+
+// 4. A device at 4294967294 signs in once with the largest count, and then cannot sign in again.
+Core\Passkey\Credential $near = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 4294967294);
+echo 'saved 4294967294, sent 4294967295: ', Device::try($near, $key, 4294967295), "\n";
+
+// 5. One counter read a million times.
+int $sum = 0;
+int $n = 0;
+while ($n < 1000000) {
+    $sum = $sum + $top->signCount() % 2;
+    $n = $n + 1;
+}
+echo 'reads: ', $sum, "\n";

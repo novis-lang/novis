@@ -1,0 +1,32 @@
+<?nvs
+// Shows the public keys of the two kinds of passkey, `ES256` and `Ed25519`.
+
+// This class makes a COSE key from a key of `Core\Crypto`. In real use, the device sends this key.
+final class Device
+{
+    public static function ed25519(): bytes
+    {
+        bytes $raw = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        return Core\Bytes::join([Core\Encoding::fromHex('a4010103272006215820'), $raw]);
+    }
+
+    public static function es256(): bytes
+    {
+        bytes $raw = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+        return Core\Bytes::join([
+            Core\Encoding::fromHex('a5010203262001215820'),
+            Core\Bytes::slice($raw, 1, 32),
+            Core\Encoding::fromHex('225820'),
+            Core\Bytes::slice($raw, 33, 32),
+        ]);
+    }
+}
+
+bytes $id = Core\Random::bytes(16);
+Core\Passkey\Credential $phone = Core\Passkey\Credential::of($id, Device::es256(), Core\Passkey\Credential::Algorithm::ES256, 0);
+Core\Passkey\Credential $laptop = Core\Passkey\Credential::of($id, Device::ed25519(), Core\Passkey\Credential::Algorithm::Ed25519, 0);
+
+// An ES256 key has two numbers of 32 bytes. An Ed25519 key has one.
+// This prints `ES256: 77 bytes` and `Ed25519: 42 bytes`.
+echo 'ES256: ', Core\Bytes::length($phone->publicKey()), " bytes\n";
+echo 'Ed25519: ', Core\Bytes::length($laptop->publicKey()), " bytes\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to read the signature algorithm of a saved passkey.
+
+class Label
+{
+    // `match` gives a name for each case of the enum.
+    public static function of(Core\Passkey\Credential $passkey): string
+    {
+        return match ($passkey->algorithm()) {
+            Core\Passkey\Credential::Algorithm::ES256 => 'ES256, a P-256 key',
+            Core\Passkey\Credential::Algorithm::Ed25519 => 'Ed25519, an Ed25519 key',
+        };
+    }
+}
+
+// The application saved these values when the user registered the passkey.
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16'),
+    Core\Encoding::fromHex('a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+
+// This prints `Ed25519, an Ed25519 key`.
+echo Label::of($passkey), "\n";

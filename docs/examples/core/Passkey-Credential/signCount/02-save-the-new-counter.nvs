@@ -1,0 +1,57 @@
+<?nvs
+// Shows how to save the new sign counter after each sign-in.
+// requires: redis
+
+// This class plays the browser and the device. In real use, the browser makes this answer.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id, int $count): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', $count),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+}
+
+// The application saved this passkey with the sign counter 4.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+Core\Passkey\Credential $saved = Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 4);
+Core\Session::start();
+
+// The device signs in three times. Its counts are 5, 9 and 12.
+// After each sign-in, the application saves the passkey that `verifySignIn` returns.
+array<int> $counts = [5, 9, 12];
+foreach ($counts as int $count) {
+    string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+    tainted string $answer = Device::signIn($options, $key, $saved->id(), $count);
+    $saved = Core\Passkey::verifySignIn($answer, $saved, 'example.com', 'https://example.com');
+    echo 'signed in, saved counter: ', $saved->signCount(), "\n";
+}
+
+// A copy of the passkey sends the count 10. That is lower than the saved count 12,
+// so `verifySignIn` throws a `RuntimeError`.
+string $next = Core\Passkey::signInOptions('example.com', [$saved]);
+try {
+    Core\Passkey::verifySignIn(Device::signIn($next,$key, $saved->id(), 10), $saved, 'example.com', 'https://example.com');
+    echo "the copy signed in\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}

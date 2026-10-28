@@ -1,0 +1,34 @@
+<?nvs
+// Reads the public key of a saved passkey, as an application does before it saves the passkey.
+// bench: iterations 4096
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        // Four passkeys with Ed25519 keys of 42 bytes. Each round reads the key of another one.
+        array<Core\Passkey\Credential> $passkeys = [];
+        int $n = 0;
+        while ($n < 4) {
+            bytes $publicKey = Core\Bytes::join([
+                Core\Encoding::fromHex('a4010103272006215820'),
+                Core\Bytes::pack('J', $n),
+                Core\Bytes::fill(24, 9),
+            ]);
+            $passkeys[] = Core\Passkey\Credential::of(Core\Encoding::fromHex('0a0b0c0d'), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+            $n = $n + 1;
+        }
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            bytes $key = $passkeys[($total + $i) % 4]->publicKey();
+            // Each key is 42 bytes, so each round adds a multiple of 4 and the next round reads the next passkey.
+            $total = $total + (Core\Bytes::length($key) as int) * 2;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

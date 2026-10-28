@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read the public key of a saved passkey.
+
+// The application saved these values when the user registered the passkey.
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16'),
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+
+// `publicKey()` returns the bytes that were passed to `of`. This prints `42 bytes`.
+echo Core\Bytes::length($passkey->publicKey()), " bytes\n";
+
+// The first 10 bytes say that this is an Ed25519 key. The last 32 bytes are the key itself.
+echo Core\Encoding::toHex(Core\Bytes::slice($passkey->publicKey(), 0, 10)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($passkey->publicKey(), 10)), "\n";

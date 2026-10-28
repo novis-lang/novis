@@ -1,0 +1,35 @@
+<?nvs
+// Creates a saved passkey again from its four values, as the page that signs a user in does.
+// bench: iterations 4096
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // Two ES256 passkeys and two Ed25519 passkeys. Each round creates another one.
+        string $x = '6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296';
+        string $y = '4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5';
+        bytes $es = Core\Encoding::fromHex('a5010203262001215820' . $x . '225820' . $y);
+        bytes $ed = Core\Encoding::fromHex('a4010103272006215820d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a');
+        array<bytes> $keys = [$es, $ed, $es, $ed];
+        array<Core\Passkey\Credential::Algorithm> $algorithms = [
+            Core\Passkey\Credential::Algorithm::ES256,
+            Core\Passkey\Credential::Algorithm::Ed25519,
+            Core\Passkey\Credential::Algorithm::ES256,
+            Core\Passkey\Credential::Algorithm::Ed25519,
+        ];
+        array<bytes> $ids = [Core\Random::bytes(16), Core\Random::bytes(16), Core\Random::bytes(32), Core\Random::bytes(64)];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $k = (($total + $i) % 4) as int;
+            Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($ids[$k], $keys[$k], $algorithms[$k], $i as int);
+            $total = $total + Core\Bytes::length($passkey->id()) as uint;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

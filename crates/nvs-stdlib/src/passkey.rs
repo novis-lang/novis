@@ -2023,6 +2023,8 @@ mod tests {
     }
 
     // covers: Core\Passkey::signInOptions, Core\Passkey::credentialId, Core\Passkey::verifySignIn
+    // covers: Core\Passkey\Credential::of, Core\Passkey\Credential::id, Core\Passkey\Credential::publicKey
+    // covers: Core\Passkey\Credential::algorithm, Core\Passkey\Credential::signCount
     #[test]
     fn the_members_sign_in_once_per_challenge() {
         let mut ctx = session_ctx();
@@ -2071,13 +2073,20 @@ mod tests {
         ];
         let signed = nvs_runtime::call(nvs_core_passkey_verify_sign_in, &mut ctx, &verify_args)
             .expect("the answer to this session's challenge verifies");
-        let held = signed.obj_ptr().expect("a credential is an object");
-        assert_eq!(crate::instance::slot(held, COUNT_SLOT).as_int(), Some(9));
-        assert_eq!(
-            crate::instance::slot(held, ID_SLOT).as_bytes(),
-            Some(&id[..])
-        );
-        released(signed);
+        let mut read = |reader: nvs_runtime::NvsFn| {
+            nvs_runtime::call(reader, &mut ctx, &[signed]).expect("a credential reads its slot")
+        };
+        let count = read(nvs_core_passkey_credential_sign_count);
+        assert_eq!(count.as_int(), Some(9));
+        let read_id = read(nvs_core_passkey_credential_id);
+        assert_eq!(read_id.as_bytes(), Some(&id[..]));
+        let read_key = read(nvs_core_passkey_credential_public_key);
+        assert_eq!(read_key.as_bytes(), Some(&key[..]));
+        let read_algorithm = read(nvs_core_passkey_credential_algorithm);
+        assert_eq!(read_algorithm.as_int(), Some(Algorithm::Es256.tag()));
+        for value in [count, read_id, read_key, read_algorithm, signed] {
+            released(value);
+        }
 
         assert!(
             nvs_runtime::call(nvs_core_passkey_verify_sign_in, &mut ctx, &verify_args).is_err(),

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to save the algorithm as a number, and how to read the number back.
+
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+
+// `as int` converts the case to its number. This prints `1`.
+int $saved = $passkey->algorithm() as int;
+echo $saved, "\n";
+
+// `as Core\Passkey\Credential::Algorithm` converts the number back to the case.
+// The passkey is created again from the saved values. This prints `Ed25519`.
+Core\Passkey\Credential::Algorithm $algorithm = $saved as Core\Passkey\Credential::Algorithm;
+Core\Passkey\Credential $loaded = Core\Passkey\Credential::of($id, $publicKey, $algorithm, 0);
+echo $loaded->algorithm() == Core\Passkey\Credential::Algorithm::Ed25519 ? 'Ed25519' : 'ES256', "\n";

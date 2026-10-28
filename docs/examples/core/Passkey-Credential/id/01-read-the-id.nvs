@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the id of a saved passkey.
+
+// The application saved these values when the user registered the passkey.
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    $id,
+    $publicKey,
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    0,
+);
+
+// `id()` returns the bytes that were passed to `of`.
+// This prints `16 bytes`, and the id as hexadecimal digits.
+echo Core\Bytes::length($passkey->id()), " bytes\n";
+echo Core\Encoding::toHex($passkey->id()), "\n";

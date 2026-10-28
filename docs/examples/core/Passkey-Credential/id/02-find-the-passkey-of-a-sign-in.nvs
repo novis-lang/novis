@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to find the saved passkey that a sign-in answer belongs to.
+
+// The application saved two passkeys. Both use the same made-up public key here.
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+array<Core\Passkey\Credential> $saved = [
+    Core\Passkey\Credential::of(Core\Encoding::fromHex('c2e93b5d166b1f0c9a24d35e7781a4f0'), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 3),
+    Core\Passkey\Credential::of(Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16'), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 8),
+];
+
+// This is the answer a browser sends. The values in `response` are shortened here.
+string $answer = '{"id":"ax8MmiTTXneBpMLw6TtdFg","type":"public-key",'
+    . '"response":{"clientDataJSON":"eyJ0","authenticatorData":"SZYN","signature":"MEUC"}}';
+bytes $sent = Core\Passkey::credentialId($answer);
+
+// The loop compares the id in the answer with the id of each saved passkey.
+?Core\Passkey\Credential $found = null;
+foreach ($saved as Core\Passkey\Credential $passkey) {
+    if ($passkey->id() == $sent) {
+        $found = $passkey;
+    }
+}
+
+// This prints `found the passkey with the counter 8`.
+// The next step checks the answer with `Core\Passkey::verifySignIn`.
+echo $found == null ? 'no passkey' : 'found the passkey with the counter ' . $found->signCount(), "\n";

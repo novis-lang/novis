@@ -1,0 +1,46 @@
+<?nvs
+// Shows the sign counter of a device that does not count its sign-ins.
+// requires: redis
+
+// This class plays the browser and the device. This device always sends the count 0.
+// It follows the WebAuthn standard, and you do not write this code yourself.
+final class Device
+{
+    public static function signIn(string $options, Core\Crypto\KeyPair $key, bytes $id): tainted string
+    {
+        var $read = Core\Json::decode($options) as array<mixed>;
+        string $challenge = Core\Taint::assertTrusted($read['challenge'] as string, 'this program wrote the options');
+        bytes $client = Core\Encoding::encodeText(
+            '{"type":"webauthn.get","challenge":"' . $challenge . '","origin":"https://example.com"}',
+            Core\Charset::Utf8,
+        );
+        bytes $data = Core\Bytes::join([
+            Core\Hash::of('example.com', Core\Hash::Digest::Sha256),
+            Core\Bytes::pack('C', 0x05),
+            Core\Bytes::pack('N', 0),
+        ]);
+        bytes $signature = Core\Crypto::sign(Core\Bytes::join([$data, Core\Hash::of($client, Core\Hash::Digest::Sha256)]), $key);
+        return '{"type":"public-key","id":"' . Core\Encoding::toBase64Url($id)
+            . '","response":{"clientDataJSON":"' . Core\Encoding::toBase64Url($client)
+            . '","authenticatorData":"' . Core\Encoding::toBase64Url($data)
+            . '","signature":"' . Core\Encoding::toBase64Url($signature) . '"}}';
+    }
+}
+
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a4010103272006215820'),
+    $key->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
+]);
+Core\Passkey\Credential $saved = Core\Passkey\Credential::of(Core\Random::bytes(16), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+Core\Session::start();
+
+// The saved count and the new count are both 0, so each sign-in succeeds.
+// The counter stays 0. This prints `signed in, counter 0` three times.
+int $n = 0;
+while ($n < 3) {
+    string $options = Core\Passkey::signInOptions('example.com', [$saved]);
+    $saved = Core\Passkey::verifySignIn(Device::signIn($options, $key, $saved->id()), $saved, 'example.com', 'https://example.com');
+    echo 'signed in, counter ', $saved->signCount(), "\n";
+    $n = $n + 1;
+}

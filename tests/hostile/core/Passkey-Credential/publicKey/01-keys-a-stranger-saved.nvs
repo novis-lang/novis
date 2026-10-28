@@ -1,0 +1,63 @@
+<?nvs
+// Attack: somebody changed the saved public keys. The keys are empty, cut short, huge, deeply nested
+// or for another curve. Each one should throw an error, and a good key should still read back unchanged.
+// hostile: timeout-ms 60000
+
+class Try
+{
+    // Creates a passkey with this key and returns `ok` or `error`. The error is caught, so the next key still runs.
+    public static function key(bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm): string
+    {
+        try {
+            Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(Core\Encoding::fromHex('0a0b'), $publicKey, $algorithm, 0);
+            return $passkey->publicKey() == $publicKey ? 'ok' : 'changed';
+        } catch (LogicError $e) {
+            return 'error';
+        }
+    }
+}
+
+bytes $raw = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $x = Core\Bytes::slice($raw, 1, 32);
+bytes $y = Core\Bytes::slice($raw, 33, 32);
+bytes $es256 = Core\Bytes::join([Core\Encoding::fromHex('a5010203262001215820'), $x, Core\Encoding::fromHex('225820'), $y]);
+bytes $ed25519 = Core\Encoding::fromHex('a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac');
+Core\Passkey\Credential::Algorithm $es = Core\Passkey\Credential::Algorithm::ES256;
+Core\Passkey\Credential::Algorithm $ed = Core\Passkey\Credential::Algorithm::Ed25519;
+
+// 1. The two good keys.
+echo 'good keys: ', Try::key($es256, $es), ' ', Try::key($ed25519, $ed), "\n";
+
+// 2. Keys that are not COSE: empty, one byte, text and 16 MB of zeros.
+array<bytes> $broken = [Core\Bytes::fill(0, 0), Core\Encoding::fromHex('a0'), Core\Encoding::encodeText('not a key', Core\Charset::Utf8), Core\Bytes::fill(16777216, 0)];
+foreach ($broken as bytes $key) {
+    echo 'broken: ', Try::key($key, $es), ' ', Try::key($key, $ed), "\n";
+}
+
+// 3. Good keys cut short by one byte, and with one extra byte at the end.
+echo 'cut short: ', Try::key(Core\Bytes::slice($es256, 0, 76), $es), ' ', Try::key(Core\Bytes::slice($ed25519, 0, 41), $ed), "\n";
+echo 'one byte more: ', Try::key(Core\Bytes::join([$es256, Core\Encoding::fromHex('00')]), $es), ' ', Try::key(Core\Bytes::join([$ed25519, Core\Encoding::fromHex('00')]), $ed), "\n";
+
+// 4. An ES256 key that is not a point on the curve: zeros, and a changed y.
+echo 'not on the curve: ', Try::key(Core\Bytes::join([Core\Encoding::fromHex('a5010203262001215820'), Core\Bytes::fill(32, 0), Core\Encoding::fromHex('225820'), Core\Bytes::fill(32, 0)]), $es), ' ';
+echo Try::key(Core\Bytes::join([Core\Encoding::fromHex('a5010203262001215820'), $x, Core\Encoding::fromHex('225820'), $x]), $es), "\n";
+
+// 5. CBOR nested 100000 levels deep, and a map that says it has four billion entries.
+echo 'deep: ', Try::key(Core\Bytes::fill(100000, 0x81), $es), "\n";
+echo 'huge map: ', Try::key(Core\Encoding::fromHex('bbffffffff01010327'), $es), "\n";
+
+// 6. A key of the other algorithm, and an X25519 key that looks like an Ed25519 key.
+echo 'other algorithm: ', Try::key($es256, $ed), ' ', Try::key($ed25519, $es), "\n";
+echo 'X25519: ', Try::key(Core\Encoding::fromHex('a4010103272004215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'), $ed), "\n";
+
+// 7. After all of this, a good key is read a million times and returns the same bytes each time.
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(Core\Encoding::fromHex('0a0b'), $es256, $es, 0);
+int $same = 0;
+int $n = 0;
+while ($n < 1000000) {
+    if (Core\Bytes::length($passkey->publicKey()) == 77) {
+        $same = $same + 1;
+    }
+    $n = $n + 1;
+}
+echo 'reads: ', $same, ', ', $passkey->publicKey() == $es256 ? 'unchanged' : 'changed', "\n";

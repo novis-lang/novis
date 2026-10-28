@@ -1,0 +1,57 @@
+<?nvs
+// Shows how to save a passkey as text, for example in a database row, and create it again.
+
+class Saved
+{
+    // The algorithm is saved as its name, so the row is easy to read.
+    public static function algorithmName(Core\Passkey\Credential::Algorithm $algorithm): string
+    {
+        return match ($algorithm) {
+            Core\Passkey\Credential::Algorithm::ES256 => 'ES256',
+            Core\Passkey\Credential::Algorithm::Ed25519 => 'Ed25519',
+        };
+    }
+
+    // Any other name in the row throws an error.
+    public static function algorithm(string $name): Core\Passkey\Credential::Algorithm
+    {
+        return match ($name) {
+            'ES256' => Core\Passkey\Credential::Algorithm::ES256,
+            'Ed25519' => Core\Passkey\Credential::Algorithm::Ed25519,
+            default => throw new LogicError("unknown passkey algorithm {$name}"),
+        };
+    }
+}
+
+// This passkey has an ES256 key. Its point is the generator of the P-256 curve.
+Core\Passkey\Credential $registered = Core\Passkey\Credential::of(
+    Core\Encoding::fromHex('c2e93b5d166b1f0c'),
+    Core\Encoding::fromHex(
+        'a5010203262001215820'
+        . '6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296'
+        . '225820'
+        . '4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5',
+    ),
+    Core\Passkey\Credential::Algorithm::ES256,
+    0,
+);
+
+// Each value becomes text. The bytes are saved in base64url.
+array<string> $row = [
+    'id' => Core\Encoding::toBase64Url($registered->id()),
+    'public_key' => Core\Encoding::toBase64Url($registered->publicKey()),
+    'algorithm' => Saved::algorithmName($registered->algorithm()),
+    'sign_count' => $registered->signCount() as string,
+];
+echo $row['id'], ' ', $row['algorithm'], ' ', $row['sign_count'], "\n";
+
+// Later, the row is read back, and `of` creates the passkey from it.
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    Core\Encoding::fromBase64Url($row['id']),
+    Core\Encoding::fromBase64Url($row['public_key']),
+    Saved::algorithm($row['algorithm']),
+    $row['sign_count'] as int,
+);
+
+// This prints `true`. The key that was read back is the key that was saved.
+echo $passkey->publicKey() == $registered->publicKey() ? 'true' : 'false', "\n";

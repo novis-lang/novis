@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to save the public key as text, and what happens when the saved text was changed.
+
+// This makes an ES256 passkey with a new key. In real use, the device sends the key.
+bytes $raw = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
+bytes $publicKey = Core\Bytes::join([
+    Core\Encoding::fromHex('a5010203262001215820'),
+    Core\Bytes::slice($raw, 1, 32),
+    Core\Encoding::fromHex('225820'),
+    Core\Bytes::slice($raw, 33, 32),
+]);
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::ES256, 0);
+
+// `toBase64Url` converts the key to text, and `fromBase64Url` converts it back.
+// The passkey is created again with the same key. This prints `same key`.
+string $text = Core\Encoding::toBase64Url($passkey->publicKey());
+Core\Passkey\Credential $loaded = Core\Passkey\Credential::of($id, Core\Encoding::fromBase64Url($text),Core\Passkey\Credential::Algorithm::ES256, 0);
+echo $loaded->publicKey() == $passkey->publicKey() ? 'same key' : 'another key', "\n";
+
+// The last byte of the saved key was changed. The bytes are not a valid ES256 key now,
+// so `of` throws a `LogicError`.
+bytes $changed = Core\Bytes::join([
+    Core\Bytes::slice($passkey->publicKey(), 0, 76),
+    Core\Bytes::pack('C', 255 - Core\Bytes::at($passkey->publicKey(), 76)),
+]);
+try {
+    Core\Passkey\Credential::of($id, $changed, Core\Passkey\Credential::Algorithm::ES256, 0);
+    echo "the changed key was accepted\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

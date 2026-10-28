@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to check an algorithm number that was read from a database.
+
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+
+// `1` is the number of `Ed25519`. No case has the number `7` or `-1`.
+array<int> $numbers = [1, 7, -1];
+foreach ($numbers as int $number) {
+    // `as ?Core\Passkey\Credential::Algorithm` gives `null` when no case has the number.
+    ?Core\Passkey\Credential::Algorithm $algorithm = $number as ?Core\Passkey\Credential::Algorithm;
+    if ($algorithm == null) {
+        echo $number, ": not an algorithm\n";
+        continue;
+    }
+    Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, $algorithm, 0);
+    echo $number, ': ', $passkey->algorithm() == Core\Passkey\Credential::Algorithm::Ed25519 ? 'Ed25519' : 'ES256', "\n";
+}

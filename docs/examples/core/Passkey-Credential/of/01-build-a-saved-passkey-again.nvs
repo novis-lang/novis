@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to create a passkey again from the four values that you saved with the account.
+
+// These four values were saved when the user registered the passkey.
+// The public key is an Ed25519 key in the COSE format that WebAuthn uses.
+bytes $id = Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16');
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a',
+);
+Core\Passkey\Credential::Algorithm $algorithm = Core\Passkey\Credential::Algorithm::Ed25519;
+int $signCount = 12;
+
+// `of` checks that the public key is an Ed25519 key, and returns the passkey.
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, $algorithm, $signCount);
+
+// The methods of the passkey return the saved values. This prints the id, `42 bytes` and `12`.
+echo Core\Encoding::toHex($passkey->id()), "\n";
+echo Core\Bytes::length($passkey->publicKey()), " bytes\n";
+echo $passkey->signCount(), "\n";

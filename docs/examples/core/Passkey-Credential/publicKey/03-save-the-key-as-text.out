@@ -1,0 +1,2 @@
+same key
+Core\Passkey\Credential::of(): the ES256 key is not a point on the P-256 curve.

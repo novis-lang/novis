@@ -1,0 +1,5 @@
+the passkey is ready
+$publicKey is not a key of $algorithm.
+the public key is not a COSE key.
+$id is 0 bytes. It must be from 1 to 1023 bytes.
+$signCount is -1. It must be from 0 to 4294967295.

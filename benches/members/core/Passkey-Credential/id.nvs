@@ -1,0 +1,32 @@
+<?nvs
+// Reads the id of a saved passkey, as a sign-in does to find the passkey of an account.
+// bench: iterations 4096
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(int $rounds): int
+    {
+        // Four passkeys with ids of 16 bytes. Each round reads the id of another one.
+        bytes $publicKey = Core\Encoding::fromHex(
+            'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+        );
+        array<Core\Passkey\Credential> $passkeys = [];
+        int $n = 0;
+        while ($n < 4) {
+            bytes $id = Core\Bytes::join([Core\Bytes::pack('J', $n), Core\Bytes::fill(8, 7)]);
+            $passkeys[] = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+            $n = $n + 1;
+        }
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            bytes $read = $passkeys[($total + $i) % 4]->id();
+            $total = $total + Core\Bytes::length($read) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(4096), "\n";

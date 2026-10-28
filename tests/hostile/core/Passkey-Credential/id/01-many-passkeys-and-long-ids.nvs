@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a program creates passkeys with empty, very long and strange ids, keeps 100000 of them,
+// and reads one id a million times. Each id should come back unchanged, and nothing should crash or leak.
+// hostile: timeout-ms 60000
+
+bytes $publicKey = Core\Encoding::fromHex(
+    'a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac',
+);
+
+class Try
+{
+    // Creates a passkey with this id and returns the length of its id, or `error`.
+    // The error is caught, so the next step still runs.
+    public static function length(bytes $id, bytes $publicKey): string
+    {
+        try {
+            Core\Passkey\Credential $passkey = Core\Passkey\Credential::of($id, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+            return $passkey->id() == $id ? Core\Bytes::length($passkey->id()) . ' bytes' : 'changed';
+        } catch (LogicError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. Ids of 0, 1, 1023, 1024 and 16 MB bytes. Only 1 and 1023 bytes are allowed.
+array<uint> $sizes = [0, 1, 1023, 1024, 16777216];
+foreach ($sizes as uint $size) {
+    echo $size, ': ', Try::length(Core\Bytes::fill($size, 7), $publicKey), "\n";
+}
+
+// 2. Ids with every byte value, NUL bytes, and text that is not UTF-8.
+bytes $all = Core\Bytes::join([Core\Bytes::fill(4, 0), Core\Random::bytes(255), Core\Encoding::fromHex('fffefdc0af')]);
+echo 'strange bytes: ', Try::length($all, $publicKey), "\n";
+
+// 3. One passkey, and its id read a million times. Each read should return the same bytes.
+bytes $first = Core\Random::bytes(1023);
+Core\Passkey\Credential $one = Core\Passkey\Credential::of($first, $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+int $same = 0;
+int $n = 0;
+while ($n < 1000000) {
+    if (Core\Bytes::length($one->id()) == 1023) {
+        $same = $same + 1;
+    }
+    $n = $n + 1;
+}
+echo 'reads: ', $same, "\n";
+
+// 4. 100000 passkeys kept at once, each with an id of 1023 bytes, and each id read once.
+array<Core\Passkey\Credential> $kept = [];
+uint $total = 0;
+$n = 0;
+while ($n < 100000) {
+    Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(Core\Bytes::join([Core\Bytes::pack('N', $n), Core\Bytes::fill(1019, 1)]), $publicKey, Core\Passkey\Credential::Algorithm::Ed25519, 0);
+    $total = $total + Core\Bytes::length($passkey->id());
+    $kept[] = $passkey;
+    $n = $n + 1;
+}
+echo 'kept: ', Core\Arr::count($kept), ' passkeys, ', $total, " bytes of ids\n";
+$kept = [];
+
+// 5. After all of this, the first passkey still has its own id.
+echo $one->id() == $first ? 'the first id is unchanged' : 'the first id changed', "\n";

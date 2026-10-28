@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read the sign counter of a saved passkey.
+
+// The application saved these values after the last sign-in.
+Core\Passkey\Credential $passkey = Core\Passkey\Credential::of(
+    Core\Encoding::fromHex('6b1f0c9a24d35e7781a4c2f0e93b5d16'),
+    Core\Encoding::fromHex('a4010103272006215820fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
+    Core\Passkey\Credential::Algorithm::Ed25519,
+    41,
+);
+
+// `signCount()` returns the number that was passed to `of`. This prints `41`.
+echo $passkey->signCount(), "\n";
+
+// The next sign-in must send a higher count. This prints `the next count must be 42 or higher`.
+echo 'the next count must be ', $passkey->signCount() + 1, " or higher\n";
