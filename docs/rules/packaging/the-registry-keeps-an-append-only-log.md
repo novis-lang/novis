@@ -56,8 +56,10 @@ what it said.
 **Outside witnesses can co-sign checkpoints later with no format change**, and none are required now.
 The C2SP formats are what make that true, and they are what other transparency logs already speak.
 
-The byte work is `nvs registry log append` and `nvs registry log verify`, the commands the service calls
-(`rule:packaging/the-registry-is-a-novis-program`).
+The byte work is `nvs registry log append`, `nvs registry log verify` and `nvs registry index sign`,
+the commands the service calls (`rule:packaging/the-registry-is-a-novis-program`). The client's
+checks are `crates/nvs-cli/src/package/proof.rs` for the log and
+`crates/nvs-cli/src/package/index.rs` for the signed files.
 
 **Memory:** a stored checkpoint and the last root file are a few hundred bytes per registry. A fetch
 holds one inclusion proof per archive and one consistency proof per checkpoint while it runs. The
@@ -91,4 +93,6 @@ module and of C2SP's and Go's tile paths, vendored under `crates/nvs-cli/tests/f
 The cost is that this tree owns the code for as long as the log exists. The risk is bounded: a
 proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every other verifier.
 
-**Not on disk.** There is no registry, no signed checkpoint, and no command that appends to the log.
+**Not on disk.** There is no registry service to run the commands, the default registry has no
+verifier key yet, so nothing is read from it, and `nvs pkg audit` does not compare a second copy of
+the checkpoint.

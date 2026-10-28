@@ -15,5 +15,7 @@ schema of its files is `rule:packaging/a-package-is-its-digest`'s.
 ```
 
 Each fixture makes its own log key, and an application names it with `Fixture::key`. Each index
-line's `log` is its publish record's number. The root file lists `files/` as its one file host. A test that needs more hosts, such as one that
+line's `log` is its publish record's number. The root file and each index file are signed notes
+under the same key, with the log's newest checkpoint and the time `Fixture::signing_at` sets, now
+by default. The root file lists `files/` as its one file host. A test that needs more hosts, such as one that
 does not exist, rewrites the list with `Fixture::hosts`.

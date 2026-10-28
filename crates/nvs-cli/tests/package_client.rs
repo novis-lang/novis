@@ -15,8 +15,11 @@
 //! (`rule:packaging/the-registry-keeps-an-append-only-log`): an index line whose record publishes
 //! another digest is refused, a log that does not continue the checkpoint the data folder kept is
 //! refused as forked, and a log that only grew is accepted. Each registry's log is signed by
-//! `nvs registry log append` under a key `nvs registry key` makes. The proofs themselves are unit
-//! tests in `src/package/log.rs`; these tests show the binary refuses what they do not prove.
+//! `nvs registry log append` under a key `nvs registry key` makes, and its files by
+//! `nvs registry index sign`. An unsigned index file is refused, and one signed eight days ago is
+//! refused by `nvs pkg add` and read by `nvs pkg fetch --locked`. The proofs themselves are unit
+//! tests in `src/package/log.rs`, and each refusal of a signed file is a unit test in
+//! `src/package/index.rs`; these tests show the binary refuses what they do not prove.
 
 use std::cell::{Cell, RefCell};
 use std::fs;
@@ -506,6 +509,24 @@ impl Logged {
         fs::create_dir_all(path.parent().expect("an index file has a folder"))
             .expect("the test makes the index folder");
         fs::write(path, index.to_string()).expect("the test writes the index");
+        self.sign(None);
+    }
+
+    /// The root file and the index signed by the binary with the log's key, at the Unix time
+    /// `at`, or now.
+    fn sign(&self, at: Option<u64>) {
+        let mut sign = Command::new(env!("CARGO_BIN_EXE_nvs"));
+        sign.args(["registry", "index", "sign"])
+            .arg(self.registry())
+            .arg("--key")
+            .arg(self.keys.join("log.key"));
+        if let Some(at) = at {
+            sign.args(["--at", &at.to_string()]);
+        }
+        let out = sign
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
     }
 
     /// `Acme\Http` at `version`, packed, published in the log and listed in the index.
@@ -592,6 +613,59 @@ fn a_forked_log_is_refused() {
     assert!(stderr.contains(&logged.url()), "{stderr}");
     assert!(
         !second.join("vendor/acme/http").exists(),
+        "the package was written"
+    );
+}
+
+/// An index file signed eight days ago is not used by `nvs pkg add`, which names the registry
+/// and the time, and `nvs pkg fetch --locked` still builds from the lock with it.
+#[test]
+fn an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch() {
+    let logged = Logged::new("package-client-index-old");
+    logged.publish("1.0.0");
+    let app = logged.app("app", "1.0.0");
+    let out = logged.nvs(&app, &["pkg", "fetch"]);
+    assert!(out.status.success(), "{}", shown(&out));
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the clock is past 1970")
+        .as_secs();
+    logged.sign(Some(now - 8 * 24 * 60 * 60));
+    let out = logged.nvs(&app, &["pkg", "add", "acme/http"]);
+    assert!(!out.status.success(), "added from an old index file");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("more than seven days ago"), "{stderr}");
+    assert!(stderr.contains(&logged.url()), "{stderr}");
+    assert!(stderr.contains(" UTC"), "{stderr}");
+
+    fs::remove_dir_all(app.join("vendor")).expect("the test removes the tree");
+    let out = logged.nvs(&app, &["pkg", "fetch", "--locked"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    assert!(app.join("vendor/acme/http/src/Main.nvs").is_file());
+}
+
+/// An index file with no signature is not used, and nothing is fetched.
+#[test]
+fn an_unsigned_index_file_is_refused() {
+    let logged = Logged::new("package-client-index-unsigned");
+    logged.publish("1.0.0");
+    let path = logged.registry().join("index/acme/http.json");
+    let note = fs::read_to_string(&path).expect("the index was signed");
+    let text = note
+        .split("\n\n")
+        .next()
+        .expect("a note has text")
+        .to_owned();
+    fs::write(&path, text).expect("the test removes the signature");
+    let app = logged.app("app", "1.0.0");
+
+    let out = logged.nvs(&app, &["pkg", "fetch"]);
+    assert!(!out.status.success(), "fetched with an unsigned index");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("signature"), "{stderr}");
+    assert!(
+        !app.join("vendor/acme/http").exists(),
         "the package was written"
     );
 }

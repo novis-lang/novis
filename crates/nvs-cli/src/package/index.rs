@@ -19,6 +19,18 @@
 //! file per registry URL, so the client still finds the file hosts when the registry's URL does not
 //! answer.
 //!
+//! **The root file and every index file are signed notes** whose text is the file's JSON on one
+//! line, as `nvs registry index sign` writes them ([`sign`]). The JSON carries `signed_at`, a Unix
+//! time, and `checkpoint`, the size and base64 root hash of the log the file was signed with. A
+//! file is used once it opens with the registry's pinned verifier key, is signed at most
+//! [`AHEAD`] past this computer's clock, and names a checkpoint the log the client checked
+//! continues ([`super::proof::Seen::covers`]). An index file that fails any of these is skipped and
+//! the next file host is tried, except a validly signed checkpoint the log does not continue,
+//! which is the fork error. A command that selects a version passes an oldest time, and an index
+//! file signed before it is skipped the same way ([`MAX_AGE`]). The root file has no next host:
+//! one that fails is an error, and it is never refused for its age, so the kept copy still finds
+//! the file hosts through an outage.
+//!
 //! An `https:` URL is read through [`nvs_stdlib::tool_stream`], one TLS stack with
 //! `Core\Http\Client`, and the read stops one byte past the file's limit, so an archive is read up
 //! to [`pack::MAX_ARCHIVE_BYTES`] and no further.
@@ -33,10 +45,15 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use serde::Deserialize;
 
+use super::log::Hash;
 use super::manifest::{Name, Version};
+use super::note::{self, Checkpoint, Signer, Verifier};
 use super::pack;
+use super::proof::{Seen, Skip};
 
 /// The one file a registry's URL serves.
 pub(crate) const ROOT_FILE: &str = "registry.json";
@@ -49,6 +66,13 @@ const MAX_ROOT_BYTES: u64 = 64 * 1024;
 
 /// The most bytes an index file may have.
 const MAX_INDEX_BYTES: u64 = 1024 * 1024;
+
+/// How far past this computer's clock a file may be signed, in seconds: one hour.
+pub(crate) const AHEAD: u64 = 60 * 60;
+
+/// How long ago an index file may be signed for a command that selects a version, in seconds:
+/// seven days. The registry signs every index file again each day.
+pub(crate) const MAX_AGE: u64 = 7 * 24 * 60 * 60;
 
 /// How long one `https:` read may take before the size of the file is counted.
 const WITHIN: Duration = Duration::from_secs(30);
@@ -191,6 +215,8 @@ struct RootFile {
     schema: u64,
     #[serde(default)]
     hosts: Vec<String>,
+    signed_at: u64,
+    checkpoint: CheckpointLine,
 }
 
 /// One package's index file, as written.
@@ -202,6 +228,106 @@ struct IndexFile {
     #[serde(default)]
     owners: Vec<String>,
     versions: Vec<ReleaseLine>,
+    signed_at: u64,
+    checkpoint: CheckpointLine,
+}
+
+/// The checkpoint a signed file names, as written.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckpointLine {
+    size: u64,
+    root: String,
+}
+
+/// When a root file or an index file was signed, and the log it was signed with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Stamp {
+    /// The Unix time it was signed at, in seconds.
+    pub(crate) signed_at: u64,
+    /// The size of the log's checkpoint.
+    pub(crate) size: u64,
+    /// The root hash of the log's checkpoint.
+    pub(crate) root: Hash,
+}
+
+impl Stamp {
+    /// The stamp `signed_at` and `checkpoint` write, once it is signed at most [`AHEAD`] past
+    /// `now`.
+    fn read(signed_at: u64, checkpoint: &CheckpointLine, now: u64) -> Result<Self, String> {
+        let root = BASE64
+            .decode(&checkpoint.root)
+            .ok()
+            .and_then(|root| Hash::try_from(root).ok())
+            .ok_or("its checkpoint's root is not a base64 hash of 32 bytes")?;
+        if signed_at > now.saturating_add(AHEAD) {
+            return Err(format!(
+                "it is signed at {}, more than an hour after this computer's clock",
+                time(signed_at)
+            ));
+        }
+        Ok(Self {
+            signed_at,
+            size: checkpoint.size,
+            root,
+        })
+    }
+}
+
+/// The Unix time `seconds` as a UTC date and time, such as `2026-10-28 14:05 UTC`.
+pub(crate) fn time(seconds: u64) -> String {
+    let seconds = i64::try_from(seconds).unwrap_or(i64::MAX);
+    let (year, month, day) = crate::telemetry::civil(seconds.div_euclid(86_400));
+    let minutes = seconds.rem_euclid(86_400) / 60;
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02} UTC",
+        minutes / 60,
+        minutes % 60
+    )
+}
+
+/// `file`, a root file or an index file as JSON or as a note `signer` signed before, signed
+/// again by `signer` at `at` with `checkpoint`: its JSON on one line, with `signed_at` and
+/// `checkpoint` set, as a signed note.
+///
+/// # Errors
+///
+/// The file is neither a JSON object nor a note `signer` signed.
+pub(crate) fn sign(
+    file: &[u8],
+    signer: &Signer,
+    checkpoint: &Checkpoint,
+    at: u64,
+) -> Result<String, String> {
+    let json = match serde_json::from_slice::<serde_json::Value>(file) {
+        Ok(json) => json,
+        Err(_) => {
+            let opened = note::open(file, &[signer.verifier()])
+                .map_err(|err| format!("it is not JSON, and not a note this key signed: {err}"))?;
+            serde_json::from_str(opened.text)
+                .map_err(|err| format!("its text is not JSON: {err}"))?
+        }
+    };
+    let serde_json::Value::Object(mut object) = json else {
+        return Err("it is not a JSON object".to_owned());
+    };
+    object.insert("signed_at".to_owned(), at.into());
+    object.insert(
+        "checkpoint".to_owned(),
+        serde_json::json!({
+            "size": checkpoint.size(),
+            "root": BASE64.encode(checkpoint.root()),
+        }),
+    );
+    let text = format!("{}\n", serde_json::Value::Object(object));
+    note::sign(&text, signer).map_err(|err| err.to_string())
+}
+
+/// The JSON text of the note `bytes`, once it opens with `verifier`.
+fn opened<'a>(bytes: &'a [u8], verifier: &Verifier) -> Result<&'a str, String> {
+    note::open(bytes, std::slice::from_ref(verifier))
+        .map(|opened| opened.text)
+        .map_err(|err| format!("its signature does not check with the registry's key: {err}"))
 }
 
 /// One version in an index file, as written.
@@ -314,18 +440,31 @@ pub(crate) struct Registry {
     pub(crate) kept: String,
     /// Whether the root file is the kept copy, because the registry's URL did not answer.
     pub(crate) from_kept: bool,
+    /// The root file's stamp, which the caller checks against the log.
+    pub(crate) stamp: Stamp,
+    /// The pinned key every file of this registry is signed with.
+    verifier: Verifier,
+    /// This computer's clock when the registry was opened, as a Unix time.
+    now: u64,
 }
 
 impl Registry {
     /// The registry at `url`, its root file read from the URL, or from the copy kept in `keep`
-    /// when the URL does not answer. A root file read from the URL replaces the kept copy.
-    /// A relative `file:` URL resolves against `base`.
+    /// when the URL does not answer, and opened with `verifier` at the time `now`. A root file
+    /// read from the URL replaces the kept copy. A relative `file:` URL resolves against `base`.
     ///
     /// # Errors
     ///
-    /// A URL that does not answer with no kept copy, a root file that is missing, is not valid,
-    /// or has a newer schema, and a file host that is not a URL.
-    pub(crate) fn open(url: &str, base: &Path, keep: Option<&Path>) -> Result<Self, Fault> {
+    /// A URL that does not answer with no kept copy, a root file that is missing, does not open
+    /// with `verifier`, is signed in the future, is not valid, or has a newer schema, and a file
+    /// host that is not a URL.
+    pub(crate) fn open(
+        url: &str,
+        base: &Path,
+        keep: Option<&Path>,
+        verifier: &Verifier,
+        now: u64,
+    ) -> Result<Self, Fault> {
         let place = Place::new(url, base)?;
         let name = kept_name(&place);
         let kept = keep.map(|dir| dir.join(format!("{name}.json")));
@@ -345,9 +484,13 @@ impl Registry {
                 }
             },
         };
-        let root: RootFile = serde_json::from_slice(&bytes)
+        let refused =
+            |why: String| fault(format!("the `{ROOT_FILE}` of `{url}` is not used: {why}"));
+        let text = opened(&bytes, verifier).map_err(refused)?;
+        let root: RootFile = serde_json::from_str(text)
             .map_err(|err| fault(format!("the `{ROOT_FILE}` of `{url}` is not valid: {err}")))?;
         schema(root.schema, &format!("the `{ROOT_FILE}` of `{url}`"))?;
+        let stamp = Stamp::read(root.signed_at, &root.checkpoint, now).map_err(refused)?;
         let hosts = if root.hosts.is_empty() {
             vec![place]
         } else {
@@ -364,6 +507,9 @@ impl Registry {
             hosts,
             kept: name,
             from_kept,
+            stamp,
+            verifier: verifier.clone(),
+            now,
         })
     }
 
@@ -392,23 +538,62 @@ impl Registry {
         self.hosts[host].get(path, limit)
     }
 
-    /// The index of `name`, from the first file host that answers, or `None` when that host has
-    /// no such package.
+    /// The index of `name`, from the first file host whose index file opens with the pinned key,
+    /// names a checkpoint `seen` continues, and is signed no earlier than `oldest`, or `None` when
+    /// a host answers that it has no such package.
     ///
     /// # Errors
     ///
-    /// No file host answered, or the index file is not valid.
-    pub(crate) fn index(&self, name: &Name) -> Result<Option<Index>, Fault> {
+    /// No file host gave a file that checks, a signed index file that is not valid, and the fork
+    /// error.
+    pub(crate) fn index(
+        &self,
+        name: &Name,
+        seen: &mut Seen,
+        oldest: Option<u64>,
+    ) -> Result<Option<Index>, Fault> {
         let path = format!("index/{}.json", name.slug());
         let mut failures = Vec::new();
         for host in &self.hosts {
-            match host.get(&path, MAX_INDEX_BYTES) {
-                Ok(Some(bytes)) => return parse_index(&bytes, name, host).map(Some),
+            let bytes = match host.get(&path, MAX_INDEX_BYTES) {
+                Ok(Some(bytes)) => bytes,
                 Ok(None) => return Ok(None),
-                Err(failure) => failures.push(format!("{host}: {failure}")),
+                Err(failure) => {
+                    failures.push(format!("{host}: {failure}"));
+                    continue;
+                }
+            };
+            match self.checked(&bytes, name, host, seen, oldest) {
+                Ok(index) => return Ok(Some(index)),
+                Err(Skip::Host(why)) => failures.push(format!("{host}: {why}")),
+                Err(Skip::Stop(fork)) => return Err(fork),
             }
         }
-        Err(unanswered(&format!("the index of `{name}`"), &failures))
+        Err(self.unanswered(&format!("the index of `{name}`"), &failures))
+    }
+
+    /// The index file `bytes` from `host`, once its signature, time and checkpoint check.
+    fn checked(
+        &self,
+        bytes: &[u8],
+        name: &Name,
+        host: &Place,
+        seen: &mut Seen,
+        oldest: Option<u64>,
+    ) -> Result<Index, Skip> {
+        let text = opened(bytes, &self.verifier).map_err(Skip::Host)?;
+        let what = format!("the index of `{name}` on {host}");
+        let file: IndexFile = serde_json::from_str(text)
+            .map_err(|err| Skip::Stop(fault(format!("{what} is not valid: {err}"))))?;
+        let stamp = Stamp::read(file.signed_at, &file.checkpoint, self.now).map_err(Skip::Host)?;
+        seen.covers(self, &stamp)?;
+        if oldest.is_some_and(|oldest| stamp.signed_at < oldest) {
+            return Err(Skip::Host(format!(
+                "it is signed at {}, more than seven days ago, so no version is selected from it",
+                time(stamp.signed_at)
+            )));
+        }
+        parse_index(file, name, host).map_err(Skip::Stop)
     }
 
     /// The archive of `name` at `version`, whose BLAKE3 digest is `digest`, from the first file
@@ -442,21 +627,21 @@ impl Registry {
                 Err(failure) => failures.push(format!("{host}: {failure}")),
             }
         }
-        Err(unanswered(
-            &format!("the archive of `{name}` {version}"),
-            &failures,
-        ))
+        Err(self.unanswered(&format!("the archive of `{name}` {version}"), &failures))
     }
-}
 
-/// The fault when no file host gave `what`, with each host's failure on its own line.
-fn unanswered(what: &str, failures: &[String]) -> Fault {
-    let mut message = format!("cannot read {what} from any file host of the registry:");
-    for failure in failures {
-        message.push_str("\n  ");
-        message.push_str(failure);
+    /// The fault when no file host gave `what`, with each host's failure on its own line.
+    fn unanswered(&self, what: &str, failures: &[String]) -> Fault {
+        let mut message = format!(
+            "cannot read {what} from any file host of the registry `{}`:",
+            self.url
+        );
+        for failure in failures {
+            message.push_str("\n  ");
+            message.push_str(failure);
+        }
+        fault(message)
     }
-    fault(message)
 }
 
 /// The kept root file's name for `place`: a hash, because a URL is not a file name. A directory
@@ -499,11 +684,10 @@ fn schema(found: u64, what: &str) -> Result<(), Fault> {
     Ok(())
 }
 
-/// The index file `bytes` read from `host`, checked to be the index of `name`.
-fn parse_index(bytes: &[u8], name: &Name, host: &Place) -> Result<Index, Fault> {
+/// The index file `file` read from `host`, checked to be the index of `name`.
+fn parse_index(file: IndexFile, name: &Name, host: &Place) -> Result<Index, Fault> {
     let what = format!("the index of `{name}` on {host}");
     let bad = |detail: String| fault(format!("{what} is not valid: {detail}"));
-    let file: IndexFile = serde_json::from_slice(bytes).map_err(|err| bad(err.to_string()))?;
     schema(file.schema, &what)?;
     let named = Name::checked(&file.name).map_err(|(message, _)| bad(message))?;
     if named.slug() != name.slug() {
@@ -575,14 +759,46 @@ mod tests {
         Name::checked("Acme\\Http").expect("a valid name")
     }
 
+    /// This computer's clock, as a Unix time.
+    fn now() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the clock is past 1970")
+            .as_secs()
+    }
+
+    /// The fixture's registry, opened with its key, the kept root file in `keep`.
+    fn open(fixture: &Fixture, keep: Option<&Path>) -> Result<Registry, Fault> {
+        Registry::open(
+            &fixture.url(),
+            Path::new("."),
+            keep,
+            &fixture.verifier(),
+            now(),
+        )
+    }
+
+    /// The log of `registry`, opened with the fixture's key and no kept checkpoint.
+    fn seen(fixture: &Fixture, registry: &Registry) -> Seen {
+        Seen::open(registry, &fixture.verifier(), None).expect("the log opens")
+    }
+
+    /// The index of `Acme\Http` in the fixture's registry, read with no oldest time.
+    fn read(fixture: &Fixture) -> Result<Option<Index>, Fault> {
+        let registry = open(fixture, None).expect("it opens");
+        let mut seen = seen(fixture, &registry);
+        registry.index(&http(), &mut seen, None)
+    }
+
     /// The fixture's index and archive read back, and the archive's digest is the one packed.
     #[test]
     fn a_fixture_registry_reads_back() {
         let fixture = Fixture::new("index-reads-back");
         let digest = fixture.publish("Acme\\Http", "1.4.0", &[], "\"released\"");
-        let registry = Registry::open(&fixture.url(), Path::new("."), None).expect("it opens");
+        let registry = open(&fixture, None).expect("it opens");
+        let mut seen = seen(&fixture, &registry);
         let index = registry
-            .index(&http())
+            .index(&http(), &mut seen, None)
             .expect("it answers")
             .expect("it exists");
         let release = index
@@ -595,7 +811,7 @@ mod tests {
             .expect("the archive reads");
         assert_eq!(blake3::hash(&bytes), digest);
         let missing = Name::checked("Acme\\Gone").expect("a valid name");
-        assert_eq!(registry.index(&missing), Ok(None));
+        assert_eq!(registry.index(&missing, &mut seen, None), Ok(None));
     }
 
     /// A first file host that does not exist is skipped, and the second one answers.
@@ -605,9 +821,94 @@ mod tests {
         fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
         let missing = fixture.root().join("no-such-host");
         fixture.hosts(&[url_of(&missing), url_of(&fixture.files())]);
-        let registry = Registry::open(&fixture.url(), Path::new("."), None).expect("it opens");
-        let index = registry.index(&http()).expect("the second host answers");
+        let index = read(&fixture).expect("the second host answers");
         assert!(index.is_some());
+    }
+
+    /// The first file host's index file with a bad signature, signed by another key, or with no
+    /// signature is skipped, and the second host's signed file is read.
+    #[test]
+    fn a_badly_signed_index_file_reads_the_next_host() {
+        let fixture = Fixture::new("index-bad-signature");
+        fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
+        let good = fs::read(fixture.files().join("index/acme/http.json")).expect("it is signed");
+        let good = String::from_utf8(good).expect("a note is text");
+        let (other, _) = Signer::generate("registry.example.com").expect("a key is made");
+        let checkpoint = Checkpoint::empty("registry.example.com").expect("a valid origin");
+        let text = good.split("\n\n").next().expect("a note has text");
+        let unsigned = text.to_owned();
+        let changed = good.replace("\"released\"", "{\"withheld\":{\"reason\":\"x\"}}");
+        let foreign = sign(text.as_bytes(), &other, &checkpoint, now()).expect("it signs");
+        let bad = fixture.root().join("bad-host");
+        fs::create_dir_all(bad.join("index/acme")).expect("the test makes the host");
+        fixture.hosts(&[url_of(&bad), url_of(&fixture.files())]);
+        for (file, why) in [
+            (unsigned, "no blank line"),
+            (changed, "does not check"),
+            (foreign, "does not check"),
+        ] {
+            fs::write(bad.join("index/acme/http.json"), &file).expect("the test writes it");
+            let index = read(&fixture).expect("the second host answers");
+            let release = &index.expect("it exists").releases[0];
+            assert_eq!(release.state, State::Released, "{why}");
+        }
+    }
+
+    /// An index file signed two hours past this computer's clock is not used.
+    #[test]
+    fn an_index_file_signed_in_the_future_is_refused() {
+        let fixture = Fixture::new("index-future");
+        fixture.signing_at(now() + 2 * 60 * 60);
+        fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
+        let failed = read(&fixture).expect_err("it is refused");
+        assert!(
+            failed
+                .0
+                .contains("more than an hour after this computer's clock"),
+            "{failed}"
+        );
+    }
+
+    /// An index file signed eight days ago is not used to select a version, and is read when
+    /// nothing is selected from it.
+    #[test]
+    fn an_old_index_file_is_refused_only_for_selecting() {
+        let fixture = Fixture::new("index-old");
+        fixture.signing_at(now() - 8 * 24 * 60 * 60);
+        fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
+        let registry = open(&fixture, None).expect("it opens");
+        let mut seen = seen(&fixture, &registry);
+        let oldest = Some(now() - MAX_AGE);
+        let failed = registry
+            .index(&http(), &mut seen, oldest)
+            .expect_err("it is too old to select from");
+        assert!(failed.0.contains("more than seven days ago"), "{failed}");
+        assert!(failed.0.contains(&fixture.url()), "{failed}");
+        assert!(registry.index(&http(), &mut seen, None).is_ok());
+    }
+
+    /// An index file signed with a checkpoint the log does not continue is the fork error, and
+    /// one signed with a checkpoint past the log's end reads the next host.
+    #[test]
+    fn an_index_file_names_a_checkpoint_the_log_continues() {
+        let fixture = Fixture::new("index-checkpoint");
+        fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
+        fixture.publish("Acme\\Http", "1.1.0", &[], "\"released\"");
+        let path = fixture.files().join("index/acme/http.json");
+        let text = fs::read_to_string(&path).expect("it is signed");
+        let json = text.split("\n\n").next().expect("a note has text");
+        let signer = fixture.signer();
+        let forked = Checkpoint::new("registry.example.com", 1, [7; 32]).expect("valid");
+        let note = sign(json.as_bytes(), signer, &forked, now()).expect("it signs");
+        fs::write(&path, note).expect("the test writes it");
+        let failed = read(&fixture).expect_err("forked");
+        assert!(failed.0.contains("was forked"), "{failed}");
+
+        let ahead = Checkpoint::new("registry.example.com", 9, [7; 32]).expect("valid");
+        let note = sign(json.as_bytes(), signer, &ahead, now()).expect("it signs");
+        fs::write(&path, note).expect("the test writes it");
+        let failed = read(&fixture).expect_err("past the log's end");
+        assert!(failed.0.contains("a log of 9 records"), "{failed}");
     }
 
     /// An archive whose bytes do not give the index's digest is read from the next host, and with
@@ -621,7 +922,7 @@ mod tests {
         fs::create_dir_all(bad.join("archive")).expect("the test makes the directory");
         fs::write(bad.join(&archive), b"not the archive").expect("the test writes the archive");
         fixture.hosts(&[url_of(&bad)]);
-        let registry = Registry::open(&fixture.url(), Path::new("."), None).expect("it opens");
+        let registry = open(&fixture, None).expect("it opens");
         let version = "1.0.0".parse().expect("a version");
         let failed = registry
             .archive(&http(), version, &digest)
@@ -631,7 +932,7 @@ mod tests {
             "{failed}"
         );
         fixture.hosts(&[url_of(&bad), url_of(&fixture.files())]);
-        let registry = Registry::open(&fixture.url(), Path::new("."), None).expect("it opens");
+        let registry = open(&fixture, None).expect("it opens");
         let bytes = registry
             .archive(&http(), version, &digest)
             .expect("the second host has it");
@@ -646,29 +947,34 @@ mod tests {
         fixture.publish("Acme\\Http", "1.0.0", &[], "\"released\"");
         fixture.hosts(&[url_of(&fixture.files())]);
         let keep = fixture.root().join("data-registry");
-        let fresh = Registry::open(&fixture.url(), Path::new("."), Some(&keep)).expect("it opens");
+        let fresh = open(&fixture, Some(&keep)).expect("it opens");
         assert!(!fresh.from_kept);
         fs::remove_file(fixture.registry().join(ROOT_FILE)).expect("the test removes the file");
         fs::remove_dir(fixture.registry()).expect("the test removes the registry's directory");
-        let kept = Registry::open(&fixture.url(), Path::new("."), Some(&keep)).expect("kept");
+        let kept = open(&fixture, Some(&keep)).expect("kept");
         assert!(kept.from_kept);
+        let mut seen = seen(&fixture, &kept);
         assert!(
-            kept.index(&http())
+            kept.index(&http(), &mut seen, None)
                 .expect("the file host answers")
                 .is_some()
         );
-        let none = Registry::open(&fixture.url(), Path::new("."), None).expect_err("no copy");
+        let none = open(&fixture, None).expect_err("no copy");
         assert!(none.0.starts_with("cannot read the registry"), "{none}");
     }
 
-    /// A root file with a newer schema is refused with a message that says what to do.
+    /// A root file with a newer schema is refused with a message that says what to do, and an
+    /// unsigned one is refused.
     #[test]
     fn a_newer_schema_is_refused() {
         let fixture = Fixture::new("index-schema");
-        fs::write(fixture.registry().join(ROOT_FILE), "{\"schema\": 2}")
-            .expect("the test writes the root file");
-        let failed = Registry::open(&fixture.url(), Path::new("."), None).expect_err("refused");
+        let root = fixture.registry().join(ROOT_FILE);
+        fixture.write_signed(&root, &serde_json::json!({ "schema": 2 }));
+        let failed = open(&fixture, None).expect_err("refused");
         assert!(failed.0.contains("schema 2"), "{failed}");
+        fs::write(&root, "{\"schema\": 1}").expect("the test writes the root file");
+        let failed = open(&fixture, None).expect_err("refused");
+        assert!(failed.0.contains("signature"), "{failed}");
     }
 
     /// A relative `file:` URL resolves against the base directory.

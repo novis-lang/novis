@@ -19,6 +19,10 @@
 //! `[dependencies]`, and `outdated` resolves, prints each package with a
 //! newer released version, and writes nothing.
 //!
+//! **Each of the three reads only index files signed in the last seven days**
+//! ([`resolve::Registries::selecting`], `rule:packaging/the-registry-keeps-an-append-only-log`), so
+//! a host that serves an old copy cannot hide a fixed version for longer.
+//!
 //! Cost: what `nvs pkg fetch` holds, and the file's text. Nothing here runs on the request path.
 
 use std::fs;
@@ -74,7 +78,7 @@ fn adding(package: &str) -> Result<(), Failed> {
         Some(Source::Registry { minimum }) => Some(*minimum),
         None => None,
     };
-    let mut registries = app.registries(&app.manifest);
+    let mut registries = app.registries(&app.manifest).selecting();
     let index = listed(&mut registries, &name)?;
     let name = index.name.clone();
     let version = match exact {
@@ -140,7 +144,7 @@ fn updating(packages: &[String]) -> Result<(), Failed> {
     }
     let mut text = read(&app)?;
     let mut raised = Vec::new();
-    let mut registries = app.registries(&app.manifest);
+    let mut registries = app.registries(&app.manifest).selecting();
     let now = now();
     for (name, minimum) in targets {
         let index = listed(&mut registries, &name)?;
@@ -170,7 +174,7 @@ pub(crate) fn outdated() -> ExitCode {
 /// [`outdated`], returning what stopped it.
 fn listing() -> Result<(), Failed> {
     let app = App::open()?;
-    let mut registries = app.registries(&app.manifest);
+    let mut registries = app.registries(&app.manifest).selecting();
     let graph = resolve::resolve(&app.manifest, &mut registries, app.old.as_ref())?;
     let now = now();
     let mut found = false;
@@ -230,7 +234,7 @@ fn read(app: &App) -> Result<String, Fault> {
 /// `manifest`, resolved and checked against the lock, with what it brings printed, then written
 /// as `text` with the tree and the lock. `targets` are the packages the command named.
 fn change(app: &App, manifest: &Manifest, text: &str, targets: &[Name]) -> Result<(), Failed> {
-    let mut registries = app.registries(manifest);
+    let mut registries = app.registries(manifest).selecting();
     let graph = resolve::resolve(manifest, &mut registries, app.old.as_ref())?;
     if let Some(old) = &app.old {
         old.check(&graph, false)?;

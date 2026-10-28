@@ -28,5 +28,3 @@ registries in order would make the first one that answers the owner of every nam
 
 The client resolves each vendor from its one registry (`crates/nvs-cli/src/package/resolve.rs`), and
 `nvs pkg add` and `nvs pkg update` print the report (`crates/nvs-cli/src/package/report.rs`).
-
-**Not on disk.** The verifier key is read and not checked yet.

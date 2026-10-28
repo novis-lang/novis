@@ -225,7 +225,7 @@ impl Tree {
         let path = self.registry().join(format!("index/{slug}.json"));
         let mut index = fs::read_to_string(&path).map_or_else(
             |_| serde_json::json!({ "schema": 1, "name": namespace, "owners": ["owner"], "versions": [] }),
-            |text| serde_json::from_str(&text).expect("the test wrote the index"),
+            |note| serde_json::from_str(signed_text(&note)).expect("the test wrote the index"),
         );
         index["versions"]
             .as_array_mut()
@@ -234,6 +234,19 @@ impl Tree {
         fs::create_dir_all(path.parent().expect("an index file has a folder"))
             .expect("the test makes the index folder");
         fs::write(path, index.to_string()).expect("the test writes the index");
+        self.sign();
+    }
+
+    /// The root file and every index file signed by the binary with the log's key.
+    fn sign(&self) {
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "index", "sign"])
+            .arg(self.registry())
+            .arg("--key")
+            .arg(self.keys.join("log.key"))
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
     }
 
     /// `nvs <args>` in the application's folder, with the tree's own data folder.
@@ -251,6 +264,11 @@ impl Tree {
     fn read(&self, path: &str) -> String {
         fs::read_to_string(self.app().join(path)).unwrap_or_default()
     }
+}
+
+/// The text of the signed note `note`: the JSON line before its signatures.
+fn signed_text(note: &str) -> &str {
+    note.split("\n\n").next().unwrap_or(note)
 }
 
 /// Both streams, for a message on failure.

@@ -34,7 +34,7 @@ stages:
         rules: [packaging/the-registry-keeps-an-append-only-log, config/ownership-is-the-trust-boundary, packaging/the-lockfile-holds-every-digest]
   - id: 6
     title: every index file is signed with a time, and the client checks it against a pinned key and an age bound
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/note.rs, crates/nvs-cli/src/package/manifest.rs, docs/rules/packaging/a-vendor-resolves-from-one-registry.md]
     extra:
       context:
@@ -175,12 +175,24 @@ shorter than the kept one, or whose tiles do not lead to its own root is skipped
 checkpoint the kept one is not a prefix of is the fork error, and no other host is tried. Why:
 security first, one place to check, and no new folder to secure.
 
-**A registry with no verifier key gives no archive.** The `key` of a `[registries]` line is
-required once an archive is read, and the default registry's key is
+**A registry with no verifier key gives nothing.** The `key` of a `[registries]` line is
+required once the registry is opened (`Registries::registry`), and the default registry's key is
 `manifest::DEFAULT_KEY`, `None` until goal `registry-service` makes the production key. No key
-was generated here, because its private half belongs to the service's operator. Index-only
-commands such as `nvs pkg outdated` still run without a key until stage 6 makes every index read
-need one. `nvs registry key <file> --name <n>` makes a key file and prints the verifier key.
+was generated here, because its private half belongs to the service's operator.
+`nvs registry key <file> --name <n>` makes a key file and prints the verifier key.
+
+**How a signed file is checked (stage 6).** The note's text is the file's JSON on one line, with
+`signed_at` (Unix seconds) and `checkpoint: {size, root}` (root in base64, as a C2SP checkpoint
+writes it), so the format stays one JSON object and `deny_unknown_fields` still holds. The log is
+opened when the registry is, so every index read pays one checkpoint read and its consistency
+proof, and `Seen::covers` proves each named checkpoint once per command. A file signed with a
+checkpoint past the log's end is the host's fault and the next host is tried; one the log does
+not continue is the fork error. A signed file whose JSON is not valid stops the command, since the
+registry signed it. The root file has no next host, so a bad one is an error, and it has no age
+bound, so the kept copy still finds the hosts through an outage. `nvs registry index sign` takes
+`--log` for a root file kept apart from its log and `--at` for a chosen time, which the tests use
+to sign eight days back. Why: security first, and a selecting command's failure lists each host's
+reason with the registry's URL and the signing time in UTC.
 
 ## Stages
 
@@ -249,13 +261,20 @@ the one the client saw is refused.
 index file that is unsigned, signed by another key, bound to an inconsistent checkpoint or too old to
 select from.
 
-- [ ] `nvs registry index sign <dir>` with the key file, the time and the newest checkpoint, hidden from the user's command list (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/note.rs:1`, `crates/nvs-cli/src/main.rs:373`
-- [ ] The pinned verifier key: the default registry's constant, and a key beside each other registry's URL in `package.toml` (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
+- [x] `nvs registry index sign <dir>` with the key file, the time and the newest checkpoint, hidden from the user's command list (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/note.rs:1`, `crates/nvs-cli/src/main.rs:373`
+  - [x] `index::sign` re-signs plain JSON or an old note with `signed_at` and `checkpoint`.
+  - [x] `nvs registry index sign <dir> --key <file> [--log <dir>] [--at <seconds>]` in `registry.rs`.
+- [x] The pinned verifier key: the default registry's constant, and a key beside each other registry's URL in `package.toml` (`rule:packaging/a-vendor-resolves-from-one-registry`). `crates/nvs-cli/src/package/index.rs:1`, `crates/nvs-cli/src/package/manifest.rs:1`
   - [x] `Manifest::registry_key` and `manifest::DEFAULT_KEY` (stage 3 needed them for the log).
-  - [ ] Every index read needs the key, not only an archive read.
-- [ ] The reader checks each file's signature, its checkpoint against the stored one and its time, and tries the next file host on a refusal; an inconsistent checkpoint stays the fork error. `crates/nvs-cli/src/package/index.rs:1`
-- [ ] `nvs pkg add`, `update` and `outdated` refuse a file signed more than seven days ago, naming the registry and the time; a build from the lock and `nvs pkg fetch --locked` do not. `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] The fixture registry is signed with `nvs registry index sign`, and tests cover an unsigned file, another key, a changed state with the old signature, a file eight days old refused for `add` and accepted for `--locked`, a file two hours ahead, and the second file host used after a bad signature. `crates/nvs-cli/tests/package_client.rs:1`
+  - [x] Every index read needs the key, not only an archive read.
+- [x] The reader checks each file's signature, its checkpoint against the stored one and its time, and tries the next file host on a refusal; an inconsistent checkpoint stays the fork error. `crates/nvs-cli/src/package/index.rs:1`
+  - [x] `Registry::open` opens the root file, and `Registries::registry` checks its checkpoint with `Seen::covers`.
+  - [x] `Registry::index` skips a host on a bad signature, a time ahead or a checkpoint past the log, and stops on a fork.
+- [x] `nvs pkg add`, `update` and `outdated` refuse a file signed more than seven days ago, naming the registry and the time; a build from the lock and `nvs pkg fetch --locked` do not. `crates/nvs-cli/src/package/resolve.rs:1`
+- [x] The fixture registry is signed with `nvs registry index sign`, and tests cover an unsigned file, another key, a changed state with the old signature, a file eight days old refused for `add` and accepted for `--locked`, a file two hours ahead, and the second file host used after a bad signature. `crates/nvs-cli/tests/package_client.rs:1`
+  - [x] `fixture.rs` signs in-process, and the three binary harnesses run `nvs registry index sign`.
+  - [x] Unit tests in `index.rs`: bad, foreign and changed signatures, two hours ahead, eight days old, forked and too-long checkpoints.
+  - [x] Binary tests: `an_old_index_file_is_refused_for_add_and_read_for_a_locked_fetch`, `an_unsigned_index_file_is_refused`.
 
 ### 4. the log has its feature proofs, and its rule is shipped
 
@@ -287,36 +306,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done. Stage 3: `crates/nvs-cli/src/package/proof.rs` is the client's
-side of the log. `Seen::open` reads the kept checkpoint (`<data>/registry/<hash>.checkpoint`, under
-the ownership check), takes the first file host whose `log/checkpoint` opens with the pinned key
-and extends it, and gives the fork error otherwise. `Seen::include` proves an index line's `log`
-record publishes that slug, version, digest, repository and commit. Both run in
-`Registries::archive` (`crates/nvs-cli/src/package/resolve.rs`). `log::Fetched` reads tiles from
-a host. Each index line needs `"log"`, and a `[registries]` line needs `key` once an archive is
-read. `manifest::DEFAULT_KEY` is `None`. The hidden `nvs registry key <file> --name <n>` makes a
-key. `kept_name` names a `file:` registry by its canonical path, which the fork test found.
+Stages 1, 5, 2, 3 and 6 are done. Stage 6: every root file and index file is a signed note
+whose text is its JSON with `signed_at` and `checkpoint` (`index::sign`), and the hidden
+`nvs registry index sign <dir> --key <file> [--log <dir>] [--at <seconds>]` writes them
+(`crates/nvs-cli/src/registry.rs`). `Registries::registry` now needs the key, opens the root file
+with it (`Registry::open`), opens the log (`Seen::open`) and checks the root's checkpoint
+(`Seen::covers`). `Registry::index` checks each index file's signature, time (an hour ahead at
+most), checkpoint and, with `Registries::selecting`, the seven-day bound, and tries the next host.
+`minimum.rs` makes `add`, `update` and `outdated` selecting, and `fetch` is never selecting. The
+rules `a-package-is-its-digest`, `a-vendor-resolves-from-one-registry` and the log's own say so.
 
-Run once by name, all green: `package::` unit tests (68), `--test package_fetch` (9),
-`--test package_download` (9), `--test package_client` (16, three new). `log.rs` and `note.rs`
-still keep `expect(dead_code)` and the build shows them fulfilled: `Tile::parse` and
-`Verifier::id` are still uncalled outside tests. Stage 6 or 4 removes the lines once nothing is dead.
+Run once by name, all green: `package::` unit tests (72, four new), `--test package_fetch` (9),
+`--test package_download` (9), `--test package_client` (18, two new). `log.rs` and `note.rs`
+still keep `expect(dead_code)`, fulfilled: `Tile::parse` and `Verifier::id` are uncalled outside
+tests. Stage 4 removes them only if something calls them; otherwise they stay.
 
-The sweep's reds were stale again: the `env-secret-proofs` log is Oct 22's with exit 0, and the Miri
+The sweep's reds were stale again: the `env-secret-proofs` gate exits 0 when rerun, and the Miri
 reds are run 40474302703, which `c33a8b8f7` and `e461612ce` fixed.
 
-Expected red: none known. A test elsewhere that builds an index file by hand without `"log"`, or
-fetches from a registry with no `key`, would go red. The grep found only the three files fixed here.
+Expected red: none known. Any other test that writes an unsigned `registry.json` or index file and
+runs `nvs pkg` would go red. The three binary harnesses and `fixture.rs` are all the grep found.
 
 ### Next
 
-Stage 6, the signed index files, on `crates/nvs-cli/src/package/index.rs`,
-`crates/nvs-cli/src/registry.rs`, `crates/nvs-cli/src/package/fixture.rs` and
-`crates/nvs-cli/tests/package_client.rs`. Gate: stage 3's kept checkpoint exists (`proof.rs`).
-- [ ] `nvs registry index sign <dir> --key <file>`: each index file and the root file as a signed note whose text is the JSON with `signed_at` and the checkpoint's `size` and `root`. `crates/nvs-cli/src/registry.rs:1`
-- [ ] `Registry::open` and `Registry::index` open each file with the pinned key (`Manifest::registry_key`), check its checkpoint against `Seen`'s, refuse a time more than an hour ahead, and try the next host. Move the key requirement from `Registries::archive` to `Registries::registry`. `crates/nvs-cli/src/package/index.rs:385`
-- [ ] The seven-day bound for `add`, `update` and `outdated`, and none for `fetch --locked`. `crates/nvs-cli/src/package/resolve.rs:1`
-- [ ] The fixture and the binary tests' registries sign their files, and the tests stage 6 lists. `crates/nvs-cli/src/package/fixture.rs:1`
+Stage 4, the feature proofs and the shipped rule, on `docs/reference/tools/35-packages.md`,
+`docs/examples/tools/packages/the-transparency-log/`, `tests/hostile/tools/packages/the-transparency-log/`
+and `data/rules/packaging/the-registry-keeps-an-append-only-log.json`. Follow the stage's
+**Split:** line. Run `bun nv proofs --id 'tools:packages/the-transparency-log'` first for what it owes.
+- [ ] The heading `# The transparency log`. `docs/reference/tools/35-packages.md:1`
+- [ ] `about.md` and the examples. `docs/examples/tools/packages/the-transparency-log/about.md:1`
+- [ ] The two attacks, a forked log and a changed index file. `tests/hostile/tools/packages/the-transparency-log/01-a-forked-log.nvs:1`
+- [ ] The rule `shipped`, with the stage 1, 5, 2, 3 and 6 tests in `guardedBy`, and its **Not on disk** line checked. `data/rules/packaging/the-registry-keeps-an-append-only-log.json:1`
 
 ### Backlog
 

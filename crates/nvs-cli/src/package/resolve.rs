@@ -37,10 +37,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use super::git::{self, Limits, Outbound};
-use super::index::{Capabilities, Fault, Index, Registry, Release, State, fault};
+use super::index::{self, Capabilities, Fault, Index, Registry, Release, State, fault};
 use super::lock::Lock;
 use super::manifest::{Manifest, Name, Source, Version};
-use super::proof::{self, Seen};
+use super::proof::{self, Seen, Skip};
 
 /// Who asked for a version.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -116,8 +116,12 @@ pub(crate) struct Registries<'a> {
     keep: Option<PathBuf>,
     open: BTreeMap<String, Registry>,
     indexes: BTreeMap<String, Option<Index>>,
-    /// Each registry's log, by URL, once an archive is read from it.
+    /// Each registry's log, by URL, checked when the registry is opened.
     logs: BTreeMap<String, Seen>,
+    /// This computer's clock when the command started, as a Unix time.
+    now: u64,
+    /// The earliest time an index file may be signed at, for a command that selects a version.
+    oldest: Option<u64>,
     /// Where a git dependency is written out while it is packed: the data folder's `tmp/`, or
     /// nothing when there is no data folder, and a git dependency then fails.
     scratch: Option<PathBuf>,
@@ -144,12 +148,24 @@ impl<'a> Registries<'a> {
             open: BTreeMap::new(),
             indexes: BTreeMap::new(),
             logs: BTreeMap::new(),
+            now: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_secs()),
+            oldest: None,
             scratch: None,
             limits: git::LIMITS,
             outbound: Outbound::default(),
             cloned: BTreeMap::new(),
             fetched: BTreeMap::new(),
         }
+    }
+
+    /// These registries for a command that selects a version: an index file signed more than
+    /// [`index::MAX_AGE`] ago is not used. A build from the lock never calls this, so it works
+    /// with any old index.
+    pub(crate) fn selecting(mut self) -> Self {
+        self.oldest = Some(self.now.saturating_sub(index::MAX_AGE));
+        self
     }
 
     /// These registries, with each `https:` git dependency cloned only where `outbound` allows.
@@ -189,11 +205,6 @@ impl<'a> Registries<'a> {
             let url = self.manifest.registry(name.vendor()).to_owned();
             self.registry(name)?;
             let registry = &self.open[&url];
-            if !self.logs.contains_key(&url) {
-                let verifier = proof::verifier(&url, self.manifest.registry_key(name.vendor()))?;
-                let seen = Seen::open(registry, &verifier, self.keep.as_deref())?;
-                self.logs.insert(url.clone(), seen);
-            }
             self.logs[&url].include(registry, name, release)?;
             let archive = registry.archive(name, release.version, &release.digest)?;
             self.fetched.insert(slug.clone(), archive);
@@ -206,28 +217,57 @@ impl<'a> Registries<'a> {
         self.fetched.remove(&name.slug());
     }
 
-    /// The registry `name`'s vendor resolves from, opened on the first call.
+    /// The registry `name`'s vendor resolves from, opened on the first call with its pinned key,
+    /// and its log checked against the checkpoint this computer kept ([`Seen::open`]) and against
+    /// the root file's.
+    ///
+    /// # Errors
+    ///
+    /// A registry with no key, [`Registry::open`]'s, [`Seen::open`]'s, and a root file whose
+    /// checkpoint the log does not continue.
     pub(crate) fn registry(&mut self, name: &Name) -> Result<&Registry, Fault> {
         let url = self.manifest.registry(name.vendor()).to_owned();
         if !self.open.contains_key(&url) {
-            let registry = Registry::open(&url, &self.base, self.keep.as_deref())?;
+            let verifier = proof::verifier(&url, self.manifest.registry_key(name.vendor()))?;
+            let keep = self.keep.as_deref();
+            let registry = Registry::open(&url, &self.base, keep, &verifier, self.now)?;
             if registry.from_kept {
                 eprintln!(
                     "note: the registry `{url}` did not answer, so its file hosts are read from \
                      the copy of `{}` kept from the last run",
-                    super::index::ROOT_FILE
+                    index::ROOT_FILE
                 );
             }
+            let mut seen = Seen::open(&registry, &verifier, keep)?;
+            seen.covers(&registry, &registry.stamp)
+                .map_err(|skip| match skip {
+                    Skip::Host(why) => fault(format!(
+                        "the `{}` of `{url}` is not used: {why}",
+                        index::ROOT_FILE
+                    )),
+                    Skip::Stop(stop) => stop,
+                })?;
+            self.logs.insert(url.clone(), seen);
             self.open.insert(url.clone(), registry);
         }
         Ok(&self.open[&url])
     }
 
     /// The index of `name`, read once, or `None` when its registry does not list it.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::registry`]'s and [`Registry::index`]'s.
     pub(crate) fn index(&mut self, name: &Name) -> Result<Option<&Index>, Fault> {
         let slug = name.slug();
         if !self.indexes.contains_key(&slug) {
-            let index = self.registry(name)?.index(name)?;
+            let url = self.manifest.registry(name.vendor()).to_owned();
+            self.registry(name)?;
+            let seen = self
+                .logs
+                .get_mut(&url)
+                .expect("an open registry has its log");
+            let index = self.open[&url].index(name, seen, self.oldest)?;
             self.indexes.insert(slug.clone(), index);
         }
         Ok(self.indexes[&slug].as_ref())

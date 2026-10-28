@@ -34,7 +34,7 @@ mod fetch;
 #[cfg(test)]
 mod fixture;
 mod git;
-mod index;
+pub(crate) mod index;
 mod lock;
 pub(crate) mod log;
 mod manifest;

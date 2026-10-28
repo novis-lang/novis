@@ -417,6 +417,14 @@ impl Tree {
         fs::create_dir_all(path.parent().expect("an index file has a folder"))
             .expect("the test makes the index folder");
         fs::write(path, index.to_string()).expect("the test writes the index");
+        let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+            .args(["registry", "index", "sign"])
+            .arg(self.registry())
+            .arg("--key")
+            .arg(self.keys.join("log.key"))
+            .output()
+            .expect("the `nvs` binary this test was built beside runs");
+        assert!(out.status.success(), "{}", shown(&out));
     }
 
     /// `nvs <args>` in the application's folder, with the tree's own data folder.

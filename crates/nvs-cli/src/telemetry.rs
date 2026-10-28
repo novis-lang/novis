@@ -433,7 +433,7 @@ fn weekday(day: i64) -> i64 {
 }
 
 /// The calendar year, month and day of `day`.
-fn civil(day: i64) -> (i64, i64, i64) {
+pub(crate) fn civil(day: i64) -> (i64, i64, i64) {
     // The proleptic Gregorian calendar in 400-year eras, counted from 0000-03-01 so a leap day
     // is the last day of its year.
     let z = day + 719_468;

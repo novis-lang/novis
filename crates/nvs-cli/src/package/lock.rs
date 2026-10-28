@@ -475,8 +475,6 @@ mod tests {
         let mut registries = Registries::new(&app, None);
         assert!(resolve(&app, &mut registries, None).is_err());
         let release = registries
-            .registry(&Name::checked("Acme\\Log").expect("a name"))
-            .expect("it opens")
             .index(&Name::checked("Acme\\Log").expect("a name"))
             .expect("it answers")
             .expect("it exists")

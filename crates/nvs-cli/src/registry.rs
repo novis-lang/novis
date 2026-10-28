@@ -17,6 +17,13 @@
 //! `log verify` reads the checkpoint with a pinned verifier key and checks the whole directory
 //! from scratch ([`log::verify`]), every entry included.
 //!
+//! `index sign` signs a directory's root file, `registry.json`, and every index file under its
+//! `index/` again ([`index::sign`]), each with the key file, the time and the size and root hash of
+//! the log's checkpoint, `log/checkpoint` in the directory unless `--log` names another log. The
+//! service runs it after each publish and once a day over every file, so no client refuses an
+//! index file as older than seven days. Each file is replaced through a rename, so a run that stops
+//! part way leaves every file signed, some of them by the run before.
+//!
 //! `key` makes a new key: it writes the signer key to a file that did not exist, readable and
 //! writable by this account alone on Unix, and prints the verifier key that clients pin as the
 //! `key` of the registry's `[registries]` line. The key's name is the origin of every checkpoint
@@ -30,8 +37,8 @@ use std::process::ExitCode;
 use nvs_config::trust::{self, Untrusted};
 
 use crate::package::entry::Entry;
-use crate::package::log;
 use crate::package::note::{Checkpoint, Signer, Verifier};
+use crate::package::{index, log};
 
 /// The file in a log directory that holds its newest checkpoint.
 const CHECKPOINT: &str = "checkpoint";
@@ -62,6 +69,35 @@ enum Command {
     Log {
         #[command(subcommand)]
         command: LogCommand,
+    },
+    /// Work with the registry's index files, which list every package's versions.
+    Index {
+        #[command(subcommand)]
+        command: IndexCommand,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum IndexCommand {
+    /// Sign `registry.json` and every index file again.
+    ///
+    /// The command signs `registry.json` and each file under `index/` in the
+    /// directory. Each file gets the time and the log's newest checkpoint.
+    /// Clients do not use an index file signed more than seven days ago to
+    /// choose a version, so run this command at least once a day.
+    Sign {
+        /// The directory with `registry.json` and `index/`.
+        dir: PathBuf,
+        /// The file with the signing key, `PRIVATE+KEY+<name>+...`. Only your
+        /// account may be able to change it and its folder.
+        #[arg(long, value_name = "FILE")]
+        key: PathBuf,
+        /// The log's directory. The default is `log` in the directory.
+        #[arg(long, value_name = "DIR")]
+        log: Option<PathBuf>,
+        /// The time to sign with, in Unix seconds. The default is now.
+        #[arg(long, value_name = "SECONDS")]
+        at: Option<u64>,
     },
 }
 
@@ -110,6 +146,9 @@ impl Args {
             Command::Log {
                 command: LogCommand::Verify { dir, vkey, origin },
             } => verify(&dir, &vkey, &origin),
+            Command::Index {
+                command: IndexCommand::Sign { dir, key, log, at },
+            } => sign(&dir, &key, log.as_deref(), at),
         };
         match done {
             Ok(message) => {
@@ -192,6 +231,62 @@ fn verify(dir: &Path, vkey: &str, origin: &str) -> Result<String, String> {
         "The log `{origin}` has {} entries, and every file matches its checkpoint.",
         checkpoint.size()
     ))
+}
+
+/// `nvs registry index sign`.
+fn sign(dir: &Path, key: &Path, log: Option<&Path>, at: Option<u64>) -> Result<String, String> {
+    let signer = read_key(key)?;
+    let verifier = signer.verifier();
+    let log = log.map_or_else(|| dir.join("log"), Path::to_path_buf);
+    let checkpoint = read_checkpoint(&log, verifier.name(), std::slice::from_ref(&verifier))?
+        .ok_or_else(|| format!("{} has no `{CHECKPOINT}` file", log.display()))?;
+    let at = at.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_secs())
+    });
+    let mut files = Vec::new();
+    let root = dir.join(index::ROOT_FILE);
+    if root.is_file() {
+        files.push(root);
+    }
+    json_files(&dir.join("index"), &mut files)?;
+    for file in &files {
+        let failed = |err: String| format!("{}: {err}", file.display());
+        let bytes = fs::read(file).map_err(|err| failed(err.to_string()))?;
+        let note = index::sign(&bytes, &signer, &checkpoint, at).map_err(failed)?;
+        let partial = file.with_extension("json.partial");
+        fs::write(&partial, note)
+            .and_then(|()| fs::rename(&partial, file))
+            .map_err(|err| failed(err.to_string()))?;
+    }
+    Ok(format!(
+        "Signed {} files with the log of {} entries.",
+        files.len(),
+        checkpoint.size()
+    ))
+}
+
+/// Every `.json` file under `dir`, added to `files` in path order. A missing `dir` has none.
+fn json_files(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(format!("{}: {err}", dir.display())),
+    };
+    let mut paths = entries
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("{}: {err}", dir.display()))?;
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            json_files(&path, files)?;
+        } else if path.extension().is_some_and(|ext| ext == "json") {
+            files.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// The signer in the key file at `path`, read once the file passes the ownership check.

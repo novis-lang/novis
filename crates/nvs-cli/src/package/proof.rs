@@ -6,8 +6,12 @@
 //! **The log is under each file host's `log/`**, in C2SP's layout: `log/checkpoint` and
 //! `log/tile/...`, as `nvs registry log append` writes a log directory. A checkpoint is opened with
 //! the registry's pinned verifier key, the `key` of its `[registries]` line, and its origin is
-//! that key's name. A registry with no key has no log the client can check, so no archive is read
-//! from it.
+//! that key's name. A registry with no key has no log or file the client can check, so nothing is
+//! read from it.
+//!
+//! **Every signed root file and index file names a checkpoint**, and [`Seen::covers`] proves the
+//! log continues it, once per checkpoint named. A file signed with a checkpoint the log does not
+//! continue is the fork error too.
 //!
 //! **The newest checkpoint seen is kept**, one file per registry, `<name>.checkpoint` beside the
 //! kept root file under the data folder's `registry/`, read once that folder passes
@@ -36,8 +40,8 @@ use std::path::Path;
 use nvs_config::trust::{self, Untrusted};
 
 use super::entry::Entry;
-use super::index::{Fault, Registry, Release, fault};
-use super::log::{self, Fetched};
+use super::index::{Fault, Registry, Release, Stamp, fault};
+use super::log::{self, Fetched, Hash};
 use super::manifest::Name;
 use super::note::{Checkpoint, Verifier};
 
@@ -58,8 +62,7 @@ const MAX_TILE_BYTES: u64 = 256 * (2 + log::MAX_ENTRY_BYTES as u64);
 pub(crate) fn verifier(url: &str, key: Option<&str>) -> Result<Verifier, Fault> {
     let Some(key) = key else {
         return Err(fault(format!(
-            "the registry `{url}` has no verifier key, so `nvs pkg` cannot check that a package \
-             is in its log. Add `key = \"<verifier key>\"` to its line under `[registries]` in \
+            "the registry `{url}` has no verifier key, so `nvs pkg` cannot check its files. Add `key = \"<verifier key>\"` to its line under `[registries]` in \
              `package.toml`."
         )));
     };
@@ -76,14 +79,17 @@ pub(crate) struct Seen {
     checkpoint: Checkpoint,
     /// The file host that served the checkpoint, which the proofs are read from.
     host: usize,
+    /// Each checkpoint a signed file named that this log continues, so each is proved once.
+    covered: Vec<(u64, Hash)>,
 }
 
-/// Why a file host's log was not used.
-enum Skip {
+/// Why a file a file host served was not used.
+pub(crate) enum Skip {
     /// The host did not answer, or served something that does not check. The next host is tried.
     Host(String),
-    /// The registry signed a log the kept checkpoint is not a prefix of.
-    Fork(Fault),
+    /// The registry signed something wrong, such as a log the kept checkpoint is not a prefix of.
+    /// The command stops, and no other host is tried.
+    Stop(Fault),
 }
 
 impl Seen {
@@ -114,12 +120,16 @@ impl Seen {
                     if let (Some(path), false) = (&kept_path, same) {
                         keep_checkpoint(path, &note)?;
                     }
-                    return Ok(Self { checkpoint, host });
+                    return Ok(Self {
+                        checkpoint,
+                        host,
+                        covered: Vec::new(),
+                    });
                 }
                 Err(Skip::Host(why)) => {
                     failures.push(format!("{}: {why}", registry.host_name(host)));
                 }
-                Err(Skip::Fork(fork)) => return Err(fork),
+                Err(Skip::Stop(fork)) => return Err(fork),
             }
         }
         let mut message = format!(
@@ -131,6 +141,51 @@ impl Seen {
             message.push_str(&failure);
         }
         Err(fault(message))
+    }
+
+    /// Checks that this log continues the checkpoint a signed root file or index file of
+    /// `registry` names in `stamp`: it is this log at that size, proved by this log's tiles.
+    ///
+    /// # Errors
+    ///
+    /// [`Skip::Host`] for a checkpoint past this log's end and for tiles that do not lead to this
+    /// log's root, and [`Skip::Stop`] with the fork error for a checkpoint this log does not
+    /// continue.
+    pub(crate) fn covers(&mut self, registry: &Registry, stamp: &Stamp) -> Result<(), Skip> {
+        let (size, old) = (self.checkpoint.size(), stamp.size);
+        if self.covered.contains(&(old, stamp.root)) {
+            return Ok(());
+        }
+        if old > size {
+            return Err(Skip::Host(format!(
+                "it is signed with a log of {old} records, and the log has {size} records"
+            )));
+        }
+        let mut tiles = tiles(registry, self.host, size);
+        let consistent = if old == size {
+            stamp.root == *self.checkpoint.root()
+        } else if old == 0 {
+            stamp.root == log::empty_root()
+        } else {
+            let proof = log::prove_tree(size, old, &mut tiles)
+                .map_err(|err| Skip::Host(format!("cannot read the log: {err}")))?;
+            log::check_tree(&proof, size, self.checkpoint.root(), old, &stamp.root).is_ok()
+        };
+        if consistent {
+            self.covered.push((old, stamp.root));
+            return Ok(());
+        }
+        if log::tree_hash(size, &mut tiles).ok().as_ref() != Some(self.checkpoint.root()) {
+            return Err(Skip::Host(
+                "the log's tiles do not match its checkpoint".to_owned(),
+            ));
+        }
+        Err(Skip::Stop(fault(format!(
+            "the log of the registry `{}` was forked: a file it signed names a checkpoint of {old} \
+             records that its log of {size} records does not continue. Nothing was fetched. Tell \
+             the people who run the registry.",
+            registry.url
+        ))))
     }
 
     /// Checks that the log publishes `release` of `name`: the record its index line names is a
@@ -235,7 +290,7 @@ fn from_host(
             "its tiles do not match its checkpoint".to_owned(),
         ));
     }
-    Err(Skip::Fork(fault(format!(
+    Err(Skip::Stop(fault(format!(
         "the log of the registry `{}` was forked: its checkpoint of {size} records does not \
          continue the log of {old} records this computer saw before. Nothing was fetched. Tell \
          the people who run the registry.",

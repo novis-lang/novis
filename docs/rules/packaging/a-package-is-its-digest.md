@@ -39,7 +39,9 @@ deliberate change to every package's identity.
 **The registry's files have one schema**, which the client defines
 (`crates/nvs-cli/src/package/index.rs`) and the registry's service writes. Each file carries
 `"schema": 1`, and a client refuses a schema it does not read, and every key it does not know. The
-registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
+root file and each index file are signed notes whose text is the JSON on one line, with
+`signed_at`, a Unix time, and `checkpoint`, the `size` and base64 `root` of the log it was signed
+with (`rule:packaging/the-registry-keeps-an-append-only-log`). The registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
 them (`rule:packaging/registry-hosting-is-configuration`); with no `hosts`, the files are under the
 registry's URL. Under each file host:
 
@@ -58,7 +60,9 @@ registry's URL. Under each file host:
   answer or when the bytes it serves do not have the digest.
 
 ```json
-{"schema": 1, "hosts": ["https://files.example.com"]}
+{"schema": 1, "hosts": ["https://files.example.com"], "signed_at": 1793000000, "checkpoint": {"size": 42, "root": "<base64>"}}
+
+— registry.example.com <base64 signature>
 ```
 
 `nvs pkg fetch` checks every archive it reads against the digest the index and the lock name
