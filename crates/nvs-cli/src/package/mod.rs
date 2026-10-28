@@ -16,7 +16,9 @@
 //! `nvs pkg add`, `nvs pkg update` and `nvs pkg outdated`, which choose a minimum among the
 //! released versions, and [`report`] is what an `add` or an `update` prints before it writes.
 //! [`download`] fetches, checks and places a package's `[[download]]` files
-//! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`).
+//! (`rule:packaging/an-external-file-is-pinned-by-url-sha256-and-size`). [`log`] is the
+//! registry's transparency log in C2SP tlog-tiles, with its inclusion and consistency proofs
+//! (`rule:packaging/the-registry-keeps-an-append-only-log`).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -30,6 +32,7 @@ mod fixture;
 mod git;
 mod index;
 mod lock;
+mod log;
 mod manifest;
 mod minimum;
 mod pack;

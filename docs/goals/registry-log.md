@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/package/mod.rs, docs/rules/packaging/the-registry-k
 stages:
   - id: 1
     title: tiles, and inclusion and consistency proofs
-    status: open
+    status: done
     context: [Cargo.toml, deny.toml, crates/nvs-cli/Cargo.toml, docs/rules/packaging/somebody-elses-specification-is-a-crate.md, docs/rules/packaging/a-c-dependency-answers-two-questions.md]
     extra:
       context:
@@ -84,7 +84,9 @@ now.
 passes, the module is written in this tree, and `rule:packaging/the-registry-keeps-an-append-only-log`
 argues the exception against `rule:packaging/somebody-elses-specification-is-a-crate`. Ed25519 signing
 and verifying go through `ring`, which `Core\Jwt` and `Core\Crypto` already use (`Cargo.toml:798`), and
-`nvs-cli` gains `ring.workspace = true`.
+`nvs-cli` gains `ring.workspace = true`. Stage 1 settled it: neither crate passes. Both are at 0.2
+with one maintainer and on `sha2` 0.10. `tlog_tiles` pulls in `url` and ICU, and `signed_note` a
+second `ed25519-dalek`. So `log.rs` and `note.rs` are both written here, and the rule argues it.
 
 **Two modules.** Tiles and proofs are `crates/nvs-cli/src/package/log.rs`; the signed note is
 `crates/nvs-cli/src/package/note.rs`, so goal `package-audit` signs its advisory feed with the same
@@ -161,11 +163,18 @@ through any outage.
 tlog-tiles text, and returns one line per crate with its verdict. A second one lists the C2SP and Go
 test vectors with their URLs and commits.
 
-- [ ] The dependency choice, recorded in `rule:packaging/the-registry-keeps-an-append-only-log` with its reason, and `cargo deny check` green. `Cargo.toml:798`, `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:1`
-- [ ] The vendored tlog vectors, each file naming its source and commit. `crates/nvs-cli/tests/fixtures/tlog/tiles.json:1`
-- [ ] Leaf and node hashing, the tile layout and its paths, and append (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/log.rs:1`
-- [ ] Inclusion and consistency proofs, produced and checked. `crates/nvs-cli/src/package/log.rs:1`
-- [ ] Tests: each vector's hashes, proofs and tile paths, and a proof with one hash changed refused. `crates/nvs-cli/src/package/log.rs:1`
+- [x] The dependency choice, recorded in `rule:packaging/the-registry-keeps-an-append-only-log` with its reason, and `cargo deny check` green. `Cargo.toml:798`, `docs/rules/packaging/the-registry-keeps-an-append-only-log.md:1`
+  - [x] Both candidate crates checked against `deny.toml` and the two rules.
+  - [x] The verdict and its reason in the rule, rendered, and `cargo deny check` green.
+- [x] The vendored tlog vectors, each file naming its source and commit. `crates/nvs-cli/tests/fixtures/tlog/tiles.json:1`
+  - [x] `rfc6962.json` from transparency-dev's `merkle`, copied from the pinned source.
+  - [x] `tiles.json` from C2SP and Go's `tilePaths`, with C2SP's grammar's invalid paths.
+- [x] Leaf and node hashing, the tile layout and its paths, and append (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/log.rs:1`
+  - [x] Hashing and the stored hash index.
+  - [x] `Tile::path` and `Tile::parse`, and the tile a hash is read from.
+  - [x] `append`, which never changes a written file.
+- [x] Inclusion and consistency proofs, produced and checked. `crates/nvs-cli/src/package/log.rs:1`
+- [x] Tests: each vector's hashes, proofs and tile paths, and a proof with one hash changed refused. `crates/nvs-cli/src/package/log.rs:1`
 
 ### 5. a checkpoint is a signed note under an Ed25519 key
 
@@ -239,21 +248,31 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. No stage is started. `crates/nvs-cli/src/package/mod.rs` does not exist yet, so every
-stage's gate is open; goal `api-compat` creates it.
+Stage 1 is done. `crates/nvs-cli/src/package/log.rs` has RFC 6962 hashing, the stored hash index,
+C2SP tile paths (`Tile::path`, `Tile::parse`), `Log` (a `HashReader` over a log directory at a known
+size), `append` (writes every changed tile and entry bundle, and refuses to change a written file),
+and `prove_record`/`check_record` and `prove_tree`/`check_tree`. Its 10 tests pass, run once by name.
+No crate was added: the rule argues why the formats are written here. The module carries
+`#![cfg_attr(not(test), expect(dead_code, ...))]` until stage 2's command calls it. Remove the line
+then: `expect` fails the build once nothing in the module is dead.
+
+The sweep's reds were stale. `env-secret-proofs` is no check of any goal now, and its log from Oct 22
+shows exit 0. Nightly run 40474302703's three Miri reds tested `55b03e97`, and `cea10a7cd` fixed them.
+
+No test is expected to go red.
 
 ### Next
 
-Stage 1, the tiles and proofs, on `Cargo.toml`, `crates/nvs-cli/src/package/log.rs` and
-`crates/nvs-cli/tests/fixtures/tlog/`. Gate: `crates/nvs-cli/src/package/mod.rs` exists.
-- [ ] The dependency choice recorded, `cargo deny check` green (`rule:packaging/somebody-elses-specification-is-a-crate`). `Cargo.toml:798`
-- [ ] The vendored tlog vectors with their sources. `crates/nvs-cli/tests/fixtures/tlog/tiles.json:1`
-- [ ] Hashing, tiles and append (`rule:packaging/the-registry-keeps-an-append-only-log`). `crates/nvs-cli/src/package/log.rs:1`
-- [ ] Inclusion and consistency proofs. `crates/nvs-cli/src/package/log.rs:1`
-- [ ] Their tests over the vectors. `crates/nvs-cli/src/package/log.rs:1`
+Stage 5, the signed note, on `crates/nvs-cli/Cargo.toml`, `crates/nvs-cli/src/package/note.rs` and
+`crates/nvs-cli/tests/fixtures/tlog/note.json`. Gate: `crates/nvs-cli/src/package/mod.rs` exists.
+- [ ] `ring.workspace = true` in `nvs-cli` (`ring` 0.17 is `Cargo.toml:868`). `crates/nvs-cli/Cargo.toml:121`
+- [ ] The vendored signed-note vectors: C2SP `signed-note.md` and Go's `golang.org/x/mod/sumdb/note/note_test.go` (fixed keys, key ids and signatures), each pinned to a commit as `rfc6962.json`'s `source` field is. `crates/nvs-cli/tests/fixtures/tlog/note.json:1`
+- [ ] The checkpoint body (origin, size, base64 root), the note, its key id and verify. `log::Hash` and `log::empty_root` are the root's type and the empty tree's root. `crates/nvs-cli/src/package/note.rs:1`
+- [ ] Its tests, including a changed byte, an unknown key id and a second signature from an unknown key. `crates/nvs-cli/src/package/note.rs:1`
 
 ### Backlog
 
-- Stage 5, the signed note, is a lane beside stage 1 (`crates/nvs-cli/src/package/note.rs`).
+- Stage 2 calls `log::append` with the size the last checkpoint names, and its `verify` re-reads every
+  bundle against `Log`'s level-0 hashes (`crates/nvs-cli/src/package/log.rs:1`).
 - Stage 6, the signed index files, follows stage 3 (`crates/nvs-cli/src/package/index.rs`).
 - The second published copy of the checkpoint is compared by `nvs pkg audit` in goal `package-audit` (`docs/goals/package-audit.md`).

@@ -79,4 +79,16 @@ daily signing writes every index file again, one small file per package per stor
   is in the index file, whose format is the registry's.
 - **The key the registry serves.** Whoever controls the files would then also choose the key.
 
-**Not on disk.** There is no registry and no log.
+**The formats are written in this tree**, the exception
+`rule:packaging/somebody-elses-specification-is-a-crate` allows when it is argued. The tiles, the
+hashing and both proofs are `crates/nvs-cli/src/package/log.rs`, on the `sha2` the tree already
+links, with no new crate. The only crates for the formats, `tlog_tiles` and `signed_note`, are not
+first-class: each is at 0.2 with one maintainer. They also sit on the older `sha2` 0.10 line. And
+`tlog_tiles` pulls in `url` and its ICU stack, and `signed_note` a second `ed25519-dalek` beside the
+one already linked. That is some twenty crates for about five hundred lines that follow Go's
+`golang.org/x/mod/sumdb/tlog`. The code is held to the vectors of transparency-dev's `merkle`
+module and of C2SP's and Go's tile paths, vendored under `crates/nvs-cli/tests/fixtures/tlog/`.
+The cost is that this tree owns the code for as long as the log exists. The risk is bounded: a
+proof's arithmetic is fixed by RFC 6962, and a wrong proof fails against every other verifier.
+
+**Not on disk.** There is no registry, no signed checkpoint, and no command that appends to the log.

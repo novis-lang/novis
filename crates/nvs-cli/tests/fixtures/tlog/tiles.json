@@ -1,0 +1,28 @@
+{
+  "source": "https://github.com/C2SP/C2SP/blob/fea9004f73fbec8cf7a8b1936430e2487eb23b55/tlog-tiles.md (the worked index 1234067 and the path grammar) and https://github.com/golang/mod/blob/b5136e5ba156da612a1efc6e49b55988a134a5e0/sumdb/tlog/tlog_test.go (tilePaths). Go's paths carry a tile height element and C2SP's do not, so each Go row is written here with that element removed and its height-8 width. `level` null is an entry bundle. The first three `invalid` rows are Go's; the rest are this tree's, each breaking one rule of the C2SP path grammar.",
+  "paths": [
+    { "path": "tile/0/x001/x234/067", "level": 0, "index": 1234067, "width": 256 },
+    { "path": "tile/entries/x001/x234/067", "level": null, "index": 1234067, "width": 256 },
+    { "path": "tile/0/001", "level": 0, "index": 1, "width": 256 },
+    { "path": "tile/0/001.p/5", "level": 0, "index": 1, "width": 5 },
+    { "path": "tile/5/x123/x456/078", "level": 5, "index": 123456078, "width": 256 },
+    { "path": "tile/5/x123/x456/078.p/2", "level": 5, "index": 123456078, "width": 2 },
+    { "path": "tile/0/x003/x057/500", "level": 0, "index": 3057500, "width": 256 },
+    { "path": "tile/entries/x003/x057/500.p/255", "level": null, "index": 3057500, "width": 255 }
+  ],
+  "invalid": [
+    "tile/5/123/456/078",
+    "tile/-1/123/456/078",
+    "tile/data/x003/x057/500",
+    "tile/05/001",
+    "tile/64/001",
+    "tile/0/01",
+    "tile/0/x000/001",
+    "tile/0/001.p/0",
+    "tile/0/001.p/256",
+    "tile/0/001.p/05",
+    "tile/0/001.p/",
+    "tile/0/x1/001",
+    "tile/0"
+  ]
+}
