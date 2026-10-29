@@ -292,6 +292,7 @@
     "Core\\Ldap\\LdapError::Kind": "c6ec09a71fb9d31c",
     "Core\\Log::Level": "6c1289976c043719",
     "Core\\Mime::Type": "c2de0908a2f01886",
+    "Core\\Passkey\\Credential::Algorithm": "79dc3255d0c50e60",
     "Core\\Queue::State": "9790f63b8c97f935",
     "Core\\Reflect::TypeKind": "55a2186a90add963",
     "Core\\Response::Redirect": "723bc710af8b1941",

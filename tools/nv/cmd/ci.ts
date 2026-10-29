@@ -110,7 +110,7 @@ export const PRE_PUSH: PrePush[] = [
   { name: "build", argv: ["cargo", "build"] },
   { name: "feature proofs", argv: ["bun", "nv", "proofs", "--gate", "--limit", "0", "--nvs", DEBUG_NVS] },
   { name: "website render", argv: ["bun", "nv", "render", "--website", "--check"], env: { NVS_BIN: DEBUG_NVS } },
-  { name: "website stale guard", argv: ["bun", "nv", "site", "--check", "structure", "snippets", "stale", "questions", "prose", "--nvs", DEBUG_NVS] },
+  { name: "website stale guard", argv: ["bun", "nv", "site", "--check", "structure", "snippets", "stale", "questions", "syntax", "guides", "tools", "in-depth", "roadmap", "prose", "--nvs", DEBUG_NVS] },
 ];
 
 /** Where a refused push leaves its red checks, under the root. */

@@ -17936,7 +17936,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "ff497012594ec456",
+    "hash": "815bb869b74c1e43",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",
