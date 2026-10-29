@@ -18,7 +18,7 @@ stages:
     context: [docs/examples/core/Arr/withoutFirst/about.md, benches/members/core/Arr/withoutFirst.nvs, tests/hostile/core/Arr/withoutFirst/01-copies-written-to-break-the-walk.nvs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: without-null-proofs
@@ -171,35 +171,30 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done and committed. Both members have every feature proof, and
-`bun nv proofs --gate --limit 0` owes nothing across the whole roster. `withoutNull` has a Rust test
-(`without_null_removes_null_and_keeps_every_other_key` in `crates/nvs-stdlib/src/arr.rs`). All 57
-`Core\Arr` perf figures are recorded again, and `bun nv site --check stale questions` and
-`bun nv owners --closes arr-key-order-and-nulls` pass. `core.json` and `llms-full.txt` are rendered.
+Every stage is done and the goal is reached. The first `bun nv affected --run` had one red:
+`every_core_class_has_a_conformance_floor_of_three` in `crates/nvs-stdlib/tests/conformance_coverage.rs`,
+because `Core\Arr::withoutNull` was tested by one case. Two new cases test other things: the order of
+the entries, nested `null` and no renumbering, and a result that is a separate copy and is passed as
+`array<int>`. The second run was green (23 of 23 steps, 3159 cases). `bun nv verify --doc`,
+`bun nv owners --closes arr-key-order-and-nulls`, `bun nv ci --check` and both proofs checks pass.
 
-Stage 3's attack found that `withoutNull` over an `array<mixed>` did not compile (E0401, expected
-`array<null|mixed>`). `assignable` in `crates/nvs-types/src/expr/assign.rs` now accepts any value
-into a union with a `mixed` member. The conformance case for `withoutNull` covers it.
+The decisions are written outside this file: the `?T` binding in `crates/nvs-types/src/generics.rs`'s
+module doc, `keys` on `sortByKey`'s doc comment in `crates/nvs-stdlib/src/arr.rs`, and the `mixed`
+union arm in `assignable` in `crates/nvs-types/src/expr/assign.rs`.
 
-Expected red at the gate: any `nvs meta --json` golden in `crates/nvs-cli/tests/meta.rs` or registry
-count that lists `Core\Arr`'s members, and any hover `.lspt` or stub golden that quotes
-`sortByKey`'s card.
+No test is expected to go red.
 
 ### Next
 
-**Stage 4: the gate**, as its `**Split:**` line says.
-
-- [ ] Start `bun nv affected --run` with `run_in_background`, end the turn, and group its failures by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Check first the `assign.rs` change's reach: `nvs-types` tests and every conformance case that writes `?mixed`. `crates/nvs-types/src/expr/assign.rs:212`
-- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv ci --check`. `docs/goals/arr-key-order-and-nulls.md:1`
+- [ ] Retire the goal: the driver deletes this file and runs the `after_retire` hooks. `docs/goals/README.md:1`
 
 ### Backlog
 
