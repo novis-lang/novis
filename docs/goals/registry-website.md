@@ -31,7 +31,7 @@ stages:
     context: [docs/reference/tools/35-packages.md]
   - id: 5
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: registry-tests
@@ -249,49 +249,32 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 5, the gate stage, is next. The advisory item of stage 2 moved to goal
-`package-audit`'s stage 5 (the standing decision says why): `package-audit` is after this goal on the
-chain, so its gate could never hold here.
+Every stage is done, and the goal is reached. The first `bun nv affected --run` failed one test,
+`nvs-fmt`'s `the_identity_printer_reproduces_every_corpus_file`: three `.nvs` files this goal wrote
+were not in the formatter's layout. `bun nv nvs-fmt` rewrote them, and verify's `cargo fmt` step
+rewrote three Rust files; all six changes are layout only. The second run is 23 of 23 green.
 
-This session wrote `# The registry website` in `docs/reference/tools/35-packages.md`, its `about.md`,
-one example, the attack `01-a-backdated-git-history.nvs`, and the Rust test
-`the_website_shows_a_published_package_and_search_finds_it_once_released` in
-`crates/nvs-cli/tests/registry_build.rs`, which publishes through the real service and reads both pages
-and the search. `bun nv proofs --gate --only tools:packages/the-registry-website` owes nothing. Both
-rules are `shipped`, and `bun nv owners --closes registry-website` is clean. Search now skips an
-unlisted version (`Ranking::facts`), with `SearchTest::anUnlistedReleaseIsNotFoundOrCounted`.
+`registry-tests` (83 pass), `website-proofs` and `owners-closes` pass, and so do `bun nv verify
+--doc` and `bun nv ci --check`. The decisions only this file held, with their reasons and the
+declined options, are now in `rule:packaging/search-sorts-by-the-readers-choice`.
 
-The check `registry-tests` ran without `--config`, so the app had no grants and 48 tests failed. It
-now names `apps/registry/nvs.toml`. With it, nine tests failed for two real causes, both fixed: the
-build doubles of `BackupTest` and `IndexTest` printed schema 1 with no `doc_coverage`, and
-`Backup::dump` wrote the blobs of FTS5's shadow tables, so every backup failed once `search` existed.
-All 83 tests of the app pass now.
+The sweep's `env-secret-proofs` was stale and is green when run fresh. The nightly run 40662443492
+is the old cancelled run.
 
-The acceptance sweep's `env-secret-proofs` is stale: its log is dated Oct 22 and records `exit 0`.
-The nightly run 40662443492 is the same stale, cancelled run the last two handoffs named.
-
-Tests that may go red in stage 5: none expected. `registry_build.rs` lost its inline setup to
-`publisher`, and both its service tests pass. Nothing outside `apps/registry` and that file changed
-in code.
+Tests expected to go red: none.
 
 ### Next
 
-Stage 5, the gate stage: verify the goal once, and fix every failure in one pass.
-- [ ] `looper verify` with `run_in_background`, then end the turn to wait. `tools/nv/cmd/verify.ts:1`
-- [ ] Group the failures by cause and fix them in one pass. `apps/registry/src/App.nvs:1`, `crates/nvs-cli/tests/registry_build.rs:1`
-- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes registry-website`, `bun nv ci --check`. `docs/goals/registry-website.md:1`
-- [ ] Before `DONE`, move each decision only this file holds into `rule:packaging/search-sorts-by-the-readers-choice` or a module doc. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:1`
+Nothing: the goal is reached, and the driver retires it. `docs/goals/registry-website.md:1`
 
 ### Backlog
 
-- A search row restored from a backup is checked only indirectly: `aRestoreBringsBackEveryRelease`
-  restores releases, not `search`. A test that a restored registry still finds a package belongs to
-  whoever next changes `Backup.nvs`.
+- The test that a restored registry still finds a package moved to goal `package-audit`'s Backlog.

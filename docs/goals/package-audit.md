@@ -202,3 +202,7 @@ Stage 3, the unmatched-namespace warning, on `crates/nvs-cli/src/package/audit.r
 ### Backlog
 
 - Stage 1, the advisory reader, follows goal `registry-log` (`crates/nvs-cli/src/package/advisory.rs`).
+- From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
+  `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. Stage 5 touches the
+  registry app; if it changes `apps/registry/src/Backup.nvs`, add a test that a restored registry
+  still finds a package.
