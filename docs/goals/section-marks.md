@@ -22,7 +22,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-db/src/pg.rs, crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs]
   - id: 10
     title: "the TDS driver and the rest of the database crate's marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-db/src/tds/plan.rs, crates/nvs-db/src/conn.rs]
   - id: 4
     title: "the type checker's, parser's and code generator's marks name their documents"
@@ -196,9 +196,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] Every file under `crates/nvs-db/src/tds/`. `crates/nvs-db/src/tds/plan.rs:1`, `crates/nvs-db/src/tds/rpc.rs:1`
-- [ ] `conn.rs`, `sql.rs`, `lib.rs`, `span.rs`, `direct.rs`, `ddl.rs` and `tests/pool_reuse.rs`. `crates/nvs-db/src/conn.rs:1`
-- [ ] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
+- [x] Every file under `crates/nvs-db/src/tds/`. `crates/nvs-db/src/tds/plan.rs:1`, `crates/nvs-db/src/tds/rpc.rs:1`
+- [x] `conn.rs`, `sql.rs`, `lib.rs`, `span.rs`, `direct.rs`, `ddl.rs` and `tests/pool_reuse.rs`. `crates/nvs-db/src/conn.rs:1`
+- [x] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
 
 ### 4. the type checker's, parser's and code generator's marks name their documents
 
@@ -302,25 +302,20 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9 and 3 are done. The record holds 3438 marks in 647 files. Three commits landed
-stage 3's 503 marks: `6f76a8d19` (PostgreSQL), `af81ce2aa` (MySQL, MariaDB and the handshake
-tests) and `d397d31fb` (SQLite). Four writing subagents on disjoint files did the edits. The
-session rewrote the 41 marks left in strings and read every diff. Build, clippy and rustfmt are
-green. Only comments and test or internal `io::Error` messages changed, and no expectation file
-pins any of them, so no test is expected to go red.
+Stages 1, 2, 9, 3 and 10 are done, and no file under `crates/nvs-db/` has a bare mark. The
+record holds 3112 marks in 627 files. Two commits landed stage 10's 326 marks: `d7ebab43b` (the
+TDS driver) and `5d6754029` (`conn.rs`, `sql.rs`, `lib.rs`, `span.rs`, `direct.rs`, `ddl.rs` and
+`tests/pool_reuse.rs`). Four writing subagents on disjoint files did the comments. The session
+rewrote the 36 marks left in strings and read every diff. Build, clippy and rustfmt are green.
 
-None of stage 3's marks cited a wire protocol. All of them cited the deleted database record,
-`git show 7e99949d9^:docs/decisions/0067.md`. Its sections map to these rules, which stage 10
-reuses: § 1 `core-classes/db-one-api`; § 2 `db-connection-is-named`; § 3
-`db-safe-connection-defaults` (TLS) or `db-capabilities` (the address); § 4
-`db-statement-members`, `db-connection-busy-state` (busy, poison) or `db-streaming` (the refusal
-naming both fixes); § 5 `db-parameters`; § 6 and § 9 `db-column-types`; § 7 `db-transactions`;
-§ 8 `db-error`; § 10 `db-compile-time-query-checking`; § 11 `observability/a-query-is-a-trace-event`;
-§ 13 `security/db-pool-reset-is-a-boundary`.
+Every stage 10 mark cited the database record 0067, except one in a `ddl.rs` plan-step reason,
+which cited the schema record 0145 § 6 and now says "this grades up". No expectation file pins
+that reason. The `[MS-TDS] §` marks were already named. One test was renamed:
+`a_declarations_markers_are_the_ones_the_marker_rewriter_wrote` in `tds/rpc.rs`. Only comments,
+test messages and that one reason string changed, so no test is expected to go red.
 
-A `{ retries: n }` written into a `format!` string does not compile. Write "the retry option"
-there. A longer test message can push a line past rustfmt's width: run `rustfmt --edition 2024`
-on the file after the string pass.
+The subagents wrapped rewritten comments unevenly, and four came back past 100 columns. Check
+`git diff -U0 | grep '^+' | awk 'length > 101'` before the build.
 
 `bun nv rules --check` is red on one line this goal did not write:
 `docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
@@ -328,12 +323,16 @@ That goal's first session fixes it.
 
 ### Next
 
-Stage 10, the TDS driver and the rest of `nvs-db`: 326 marks in 20 files, which fits one
-session. The TDS files may cite `[MS-TDS]`, which keeps its number and gains its name. Read
-each file's history before assuming the database record. Split across four writing subagents
-on disjoint files, with the brief and the section map above.
-- [ ] TDS: `tds/plan.rs` 60, `tds/rpc.rs` 28, `tds/mod.rs` 24, `tds/token.rs` 21, `tds/rows.rs` 16, `tds/value.rs` 14, and the seven smaller `tds/` files 34. `crates/nvs-db/src/tds/plan.rs:1`
-- [ ] `conn.rs` 42, `sql.rs` 33, `tests/pool_reuse.rs` 27, `lib.rs` 16, `span.rs` 9, `direct.rs` 1, `ddl.rs` 1. `crates/nvs-db/src/conn.rs:1`
+Stage 4, `nvs-types`, `nvs-syntax` and `nvs-codegen`: 605 marks in 68 files, about one
+session. Goal `namespace-grants` is gone, so its shared files are free. These crates cite many
+records, not just the database one, so each file's history decides the record: the method is in
+Standing decisions. Split across four writing subagents on disjoint files, about 150 marks each,
+and rewrite the marks left in strings after they end. `nvs-types/tests/` messages may be pinned
+by nothing but the test itself; search before changing a diagnostic's text.
+- [ ] `src/routes.rs` 68 and `tests/routes.rs` 59, with `src/links.rs` 18. `crates/nvs-types/src/routes.rs:1`
+- [ ] `tests/intrinsics.rs` 39, `src/intrinsics.rs` 28, `src/expr_table.rs` 31, `tests/single_value_types.rs` 27, `tests/commands.rs` 23. `crates/nvs-types/src/intrinsics.rs:1`
+- [ ] `src/expr/` (operators 33, quals 13, calls 12, members 11, literals 8 and the rest), `src/derive.rs` 17, `src/retrieval.rs` 12. `crates/nvs-types/src/expr/operators.rs:1`
+- [ ] The rest of the three crates' entries in the record, from `crates/nvs-types/tests/classes.rs` 12 down, with `nvs-syntax` and `nvs-codegen`. `crates/nvs-codegen/src/lib.rs:1`
 - [ ] `bun nv rules --record-marks` in each slice's commit. Stash the other slice's files while you record and commit one. `tools/data/bare-section-marks.json:1`
 
 ### Backlog
