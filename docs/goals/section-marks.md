@@ -14,7 +14,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/db/execute.rs]
   - id: 9
     title: "the rest of the standard library's marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/response.rs]
   - id: 3
     title: "the PostgreSQL, MySQL and SQLite drivers' marks name their documents"
@@ -175,9 +175,9 @@ in batches, one after another, as the standing decision says.
 
 **Split:** as stage 2.
 
-- [ ] The HTTP, URI and request files: `uri.rs`, `request.rs`, `response.rs`, `socket.rs`, `http.rs`, `router.rs`, `sse.rs` and `http/`. `crates/nvs-stdlib/src/uri.rs:1`, `crates/nvs-stdlib/src/request.rs:18`, `crates/nvs-stdlib/src/http.rs:5`
-- [ ] The rest of the crate's entries in the record, largest first: `ratelimit.rs`, `cache.rs`, `log.rs`, `script.rs`, `encoding.rs`, `crypto.rs`, `command.rs` and the files below them. `crates/nvs-stdlib/src/ratelimit.rs:1`
-- [ ] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
+- [x] The HTTP, URI and request files: `uri.rs`, `request.rs`, `response.rs`, `socket.rs`, `http.rs`, `router.rs`, `sse.rs` and `http/`. `crates/nvs-stdlib/src/uri.rs:1`, `crates/nvs-stdlib/src/request.rs:18`, `crates/nvs-stdlib/src/http.rs:5`
+- [x] The rest of the crate's entries in the record, largest first: `ratelimit.rs`, `cache.rs`, `log.rs`, `script.rs`, `encoding.rs`, `crypto.rs`, `command.rs` and the files below them. `crates/nvs-stdlib/src/ratelimit.rs:1`
+- [x] The crate's counts at zero. `tools/data/bare-section-marks.json:1`
 
 ### 3. the PostgreSQL, MySQL and SQLite drivers' marks name their documents
 
@@ -302,32 +302,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. All 697 of stage 2's marks are gone, so the record holds 4469 marks in
-708 files, and every queue, topic, bus and `db/` file under `crates/nvs-stdlib/` is at zero. Eight
-writing subagents on disjoint files did the lookup and the edits in one pass. The session then
-rewrote the 64 marks they left in strings, which were test messages and two errors a user reads,
-and read every diff. `bun nv rules --marks <paths>` (`tools/nv/cmd/rules.ts:239`) lists a file's
-bare marks with their lines. Build, clippy and rustfmt are green. Only messages changed, so no test
-is expected to go red. The SQLite decode error's new wording (`crates/nvs-stdlib/src/db/execute.rs:1362`)
-is pinned by no expectation file.
+Stages 1, 2 and 9 are done, so every file under `crates/nvs-stdlib/` is at zero. The record holds
+3941 marks in 652 files. Seven writing subagents on disjoint files did the lookup and the edits.
+The session rewrote the marks they left in strings and read every diff. Two commits landed:
+`1cbbe0801` (HTTP, 253 marks) and `10e48b6fd` (the rest, 275). Build, clippy and rustfmt are green.
 
-Most `db/` marks cited the `Core\Db` record; its sections map to the `core-classes/db-*` rules,
-`security/db-pool-reset-is-a-boundary` (§ 13) and `observability/a-query-is-a-trace-event` (§ 11).
-The queue's map to the `concurrency/` queue rules and `core-classes/queue-storage-is-a-table`.
-`docs/adr/` was deleted at `4eac41113`, not `8b0d14919`; `git log --diff-filter=D -1 -- '<path>'`
-finds any record's deleting commit, and its parent has the record.
+Two `Core\Uri` errors are pinned by conformance cases. Only their source line break moved, so the
+text is unchanged. The `Core\Jwt` claim error (`crates/nvs-stdlib/src/jwt.rs:1589`) and the
+`Core\Session` not-started error (`crates/nvs-stdlib/src/session.rs:988`) showed a rule id to the
+program's user. They are now plain text, and no expectation file pins either. Only messages and
+comments changed, so no test is expected to go red.
+
+A standard's name and its `§ N` on different source lines read as a bare mark, in a comment or in
+a string continued with `\`. Every one of these was fixed by moving the line break.
 
 `bun nv rules --check` is red on one line this goal did not write:
 `docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
 That goal's first session fixes it.
 
+The acceptance sweep before this session named `env-secret-proofs` and a cancelled nightly run.
+The check passes when run now, and its log shows exit 0. The nightly run was started by hand and
+cancelled after 14 minutes, and every CI push since is green. Neither needed a change.
+
 ### Next
 
-Stage 9, the rest of `crates/nvs-stdlib/`: 528 marks, which fits one session. `namespace-grants`
-is retired, so `cap.rs` and `registry.rs` are free. Split the files across about seven writing
-subagents with the brief stage 2 used, then rewrite the strings they leave.
-- [ ] HTTP: `response.rs` 51, `uri.rs` 43, `socket.rs` 41, `request.rs` 37, `http.rs` 31, `router.rs` 29, `sse.rs` 11, `http/`. `crates/nvs-stdlib/src/response.rs:1`
-- [ ] The rest, largest first: `ratelimit.rs` 35, `script.rs` 27, `cache.rs` 27, `log.rs` 23, `command.rs` 18, `html.rs` 14, `registry.rs` 12, `encoding.rs` 12, `tests/capability.rs` 10, and every smaller entry. `crates/nvs-stdlib/src/ratelimit.rs:1`
+Stage 3, the PostgreSQL, MySQL and SQLite drivers: 503 marks, which fits one session. Most cite a
+wire protocol's documentation, which keeps its number and gains its name. Check that each name
+is in `NAMED_STANDARD` before the subagents start, and add a missing one there with a case.
+Split across about six writing subagents with stage 9's brief: `pg.rs` alone is 175.
+- [ ] PostgreSQL: `pg.rs` 175. `crates/nvs-db/src/pg.rs:1`
+- [ ] MySQL and MariaDB: `mysql.rs` 155, `tests/handshake.rs` 48, `maria.rs` 11. `crates/nvs-db/src/mysql.rs:1`
+- [ ] SQLite: `sqlite.rs` 114. `crates/nvs-db/src/sqlite.rs:1`
 - [ ] `bun nv rules --record-marks` in each slice's commit. When the files of two slices are edited together, stash one slice's files while you record and commit the other. `tools/data/bare-section-marks.json:1`
 
 ### Backlog
@@ -337,8 +342,9 @@ subagents with the brief stage 2 used, then rewrite the strings they leave.
 - `Core\Db\Schema::fromArray`'s error shows `rule:core-classes/schema-vocabulary-is-closed` to the
   program's user. It is not a mark, and a conformance case pins it, so it changes with its
   expectation file. `crates/nvs-stdlib/src/db/schema.rs:58`
-- `transaction.rs` cites "R2" and "R9", old numbered `Core` API conventions. They are not marks,
-  so stage 8's check does not see them. `crates/nvs-stdlib/src/db/transaction.rs:745`
+- `transaction.rs` and `uri.rs` cite "R2", "R5", "R9", "R10" and "R17", old numbered `Core` API
+  conventions. They are not marks, so stage 8's check does not see them.
+  `crates/nvs-stdlib/src/db/transaction.rs:745`, `crates/nvs-stdlib/src/uri.rs:23`
 - `nvs_runtime::pool`'s head comment has bare § 13 marks, which `db/registry.rs` now cites by
   heading. Stage 12 rewrites them. `crates/nvs-runtime/src/pool.rs:4`
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
