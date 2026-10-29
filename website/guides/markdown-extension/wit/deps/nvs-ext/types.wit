@@ -1,12 +1,14 @@
 package nvs:ext@1.0.0;
 
 /// The types every extension shares: the error an export returns, the
-/// `value` handle a `mixed` parameter crosses as, and one record per `Core`
-/// value class that may cross.
+/// `value` handle a `mixed` parameter crosses as, the `bytes` handle a
+/// third-party export's `bytes` crosses as, and one record per `Core` value
+/// class that may cross.
 ///
 /// Every field is a type the Novis-to-WIT table gives (`bool`, `s64`, `u64`,
 /// `f64`, `string`, `list<u8>`, `list`, `option`, `record`, `enum`,
-/// `variant`), so a record is exactly what its Novis value copies to.
+/// `variant`), so a record is exactly what its Novis value copies to. A
+/// record's byte field stays `list<u8>`, because each one is small.
 /// `crates/nvs-stdlib/tests/ext_world.rs` holds the `Core` classes that have
 /// no record here, each with the reason it cannot cross.
 interface types {
@@ -68,6 +70,25 @@ interface types {
 
         /// The class of an `object`. The guest cannot read its properties.
         class-name: func() -> option<string>;
+    }
+
+    /// A byte string the host holds. Every method copies in one call.
+    ///
+    /// A third-party export takes a `bytes` as a `borrow<bytes>`, valid until
+    /// the call returns, and returns one as an `own<bytes>` it made empty and
+    /// filled with `append`.
+    resource bytes {
+        /// An empty byte string, which the guest fills and returns.
+        constructor();
+        size: func() -> u64;
+        /// The whole byte string, refused past the request's memory.
+        read: func() -> list<u8>;
+        /// At most `length` bytes from `offset`, at most 1 MiB per call,
+        /// fewer at its end and none past it.
+        range: func(offset: u64, length: u64) -> list<u8>;
+        /// Adds bytes to the end, charged to the request as it grows. Only a
+        /// byte string the guest made takes it.
+        append: func(data: list<u8>);
     }
 
     /// `Core\BigInt`. `magnitude` is big-endian with no leading zero byte,
