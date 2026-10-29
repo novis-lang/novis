@@ -119,7 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-
+1. **Refactoring from the command line.** *Working on it now.* `nvs code rename` renames a class or a method everywhere it is used. `nvs code move` moves a file and updates every `require` that loads it. `nvs code find` finds a class or a method by its name. `nvs code calls` lists the callers of a method, and `nvs code reach` lists the routes and tests that use it.
 <!-- roadmap:end -->
 
 ## Contributing
