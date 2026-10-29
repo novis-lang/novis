@@ -18,7 +18,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/uri.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/response.rs]
   - id: 3
     title: "the PostgreSQL, MySQL and SQLite drivers' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-db/src/pg.rs, crates/nvs-db/src/mysql.rs, crates/nvs-db/src/sqlite.rs]
   - id: 10
     title: "the TDS driver and the rest of the database crate's marks name their documents"
@@ -186,9 +186,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] The PostgreSQL driver. `crates/nvs-db/src/pg.rs:1`
-- [ ] The MySQL and MariaDB drivers, and the handshake tests. `crates/nvs-db/src/mysql.rs:1`, `crates/nvs-db/src/maria.rs:1`, `crates/nvs-db/tests/handshake.rs:1`
-- [ ] The SQLite driver, and these files' counts at zero. `crates/nvs-db/src/sqlite.rs:1`
+- [x] The PostgreSQL driver. `crates/nvs-db/src/pg.rs:1`
+- [x] The MySQL and MariaDB drivers, and the handshake tests. `crates/nvs-db/src/mysql.rs:1`, `crates/nvs-db/src/maria.rs:1`, `crates/nvs-db/tests/handshake.rs:1`
+- [x] The SQLite driver, and these files' counts at zero. `crates/nvs-db/src/sqlite.rs:1`
 
 ### 10. the TDS driver and the rest of the database crate's marks name their documents
 
@@ -302,38 +302,39 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 9 are done, so every file under `crates/nvs-stdlib/` is at zero. The record holds
-3941 marks in 652 files. Seven writing subagents on disjoint files did the lookup and the edits.
-The session rewrote the marks they left in strings and read every diff. Two commits landed:
-`1cbbe0801` (HTTP, 253 marks) and `10e48b6fd` (the rest, 275). Build, clippy and rustfmt are green.
+Stages 1, 2, 9 and 3 are done. The record holds 3438 marks in 647 files. Three commits landed
+stage 3's 503 marks: `6f76a8d19` (PostgreSQL), `af81ce2aa` (MySQL, MariaDB and the handshake
+tests) and `d397d31fb` (SQLite). Four writing subagents on disjoint files did the edits. The
+session rewrote the 41 marks left in strings and read every diff. Build, clippy and rustfmt are
+green. Only comments and test or internal `io::Error` messages changed, and no expectation file
+pins any of them, so no test is expected to go red.
 
-Two `Core\Uri` errors are pinned by conformance cases. Only their source line break moved, so the
-text is unchanged. The `Core\Jwt` claim error (`crates/nvs-stdlib/src/jwt.rs:1589`) and the
-`Core\Session` not-started error (`crates/nvs-stdlib/src/session.rs:988`) showed a rule id to the
-program's user. They are now plain text, and no expectation file pins either. Only messages and
-comments changed, so no test is expected to go red.
+None of stage 3's marks cited a wire protocol. All of them cited the deleted database record,
+`git show 7e99949d9^:docs/decisions/0067.md`. Its sections map to these rules, which stage 10
+reuses: § 1 `core-classes/db-one-api`; § 2 `db-connection-is-named`; § 3
+`db-safe-connection-defaults` (TLS) or `db-capabilities` (the address); § 4
+`db-statement-members`, `db-connection-busy-state` (busy, poison) or `db-streaming` (the refusal
+naming both fixes); § 5 `db-parameters`; § 6 and § 9 `db-column-types`; § 7 `db-transactions`;
+§ 8 `db-error`; § 10 `db-compile-time-query-checking`; § 11 `observability/a-query-is-a-trace-event`;
+§ 13 `security/db-pool-reset-is-a-boundary`.
 
-A standard's name and its `§ N` on different source lines read as a bare mark, in a comment or in
-a string continued with `\`. Every one of these was fixed by moving the line break.
+A `{ retries: n }` written into a `format!` string does not compile. Write "the retry option"
+there. A longer test message can push a line past rustfmt's width: run `rustfmt --edition 2024`
+on the file after the string pass.
 
 `bun nv rules --check` is red on one line this goal did not write:
 `docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
 That goal's first session fixes it.
 
-The acceptance sweep before this session named `env-secret-proofs` and a cancelled nightly run.
-The check passes when run now, and its log shows exit 0. The nightly run was started by hand and
-cancelled after 14 minutes, and every CI push since is green. Neither needed a change.
-
 ### Next
 
-Stage 3, the PostgreSQL, MySQL and SQLite drivers: 503 marks, which fits one session. Most cite a
-wire protocol's documentation, which keeps its number and gains its name. Check that each name
-is in `NAMED_STANDARD` before the subagents start, and add a missing one there with a case.
-Split across about six writing subagents with stage 9's brief: `pg.rs` alone is 175.
-- [ ] PostgreSQL: `pg.rs` 175. `crates/nvs-db/src/pg.rs:1`
-- [ ] MySQL and MariaDB: `mysql.rs` 155, `tests/handshake.rs` 48, `maria.rs` 11. `crates/nvs-db/src/mysql.rs:1`
-- [ ] SQLite: `sqlite.rs` 114. `crates/nvs-db/src/sqlite.rs:1`
-- [ ] `bun nv rules --record-marks` in each slice's commit. When the files of two slices are edited together, stash one slice's files while you record and commit the other. `tools/data/bare-section-marks.json:1`
+Stage 10, the TDS driver and the rest of `nvs-db`: 326 marks in 20 files, which fits one
+session. The TDS files may cite `[MS-TDS]`, which keeps its number and gains its name. Read
+each file's history before assuming the database record. Split across four writing subagents
+on disjoint files, with the brief and the section map above.
+- [ ] TDS: `tds/plan.rs` 60, `tds/rpc.rs` 28, `tds/mod.rs` 24, `tds/token.rs` 21, `tds/rows.rs` 16, `tds/value.rs` 14, and the seven smaller `tds/` files 34. `crates/nvs-db/src/tds/plan.rs:1`
+- [ ] `conn.rs` 42, `sql.rs` 33, `tests/pool_reuse.rs` 27, `lib.rs` 16, `span.rs` 9, `direct.rs` 1, `ddl.rs` 1. `crates/nvs-db/src/conn.rs:1`
+- [ ] `bun nv rules --record-marks` in each slice's commit. Stash the other slice's files while you record and commit one. `tools/data/bare-section-marks.json:1`
 
 ### Backlog
 
