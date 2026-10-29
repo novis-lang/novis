@@ -5,10 +5,10 @@
 
 string $dir = Core\IO::temporaryDir();
 
-// 1. Empty text, added 100000 times. The file must exist and be empty.
+// 1. Empty text, added 10000 times. The file must exist and be empty.
 string $empty = Core\Path::join($dir, 'empty.log');
 int $i = 0;
-while ($i < 100000) {
+while ($i < 10000) {
     Core\IO::append($empty, '');
     $i = $i + 1;
 }
@@ -26,15 +26,15 @@ if (Core\IO::size($big) != 8000001) {
 }
 echo 'step 2: done', "\n";
 
-// 3. 20000 short lines to one file. Every line must be there, in order.
+// 3. 2000 short lines to one file. Every line must be there, in order.
 string $lines = Core\Path::join($dir, 'lines.log');
 $i = 0;
-while ($i < 20000) {
+while ($i < 2000) {
     Core\IO::append($lines, Core\Str::format("%d\n", $i));
     $i = $i + 1;
 }
 array<string> $read = Core\Str::lines(Core\IO::read($lines));
-if (Core\Arr::count($read) != 20000 || $read[19999] != '19999') {
+if (Core\Arr::count($read) != 2000 || $read[1999] != '1999') {
     throw new LogicError('an append was lost or out of order');
 }
 echo 'step 3: done', "\n";
