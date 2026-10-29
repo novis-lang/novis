@@ -30,11 +30,11 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-types/src/routes.rs, crates/nvs-types/src/lib.rs]
   - id: 11
     title: "the IR, HIR and diagnostics crates' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-ir/src/lib.rs, crates/nvs-diagnostics/src/lib.rs]
   - id: 5
     title: "the server and host crates' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-server/src/lib.rs, crates/nvs-host/src/lib.rs]
   - id: 12
     title: "the runtime crate's marks name their documents"
@@ -216,9 +216,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] `nvs-ir`. `crates/nvs-ir/src/ir.rs:1`, `crates/nvs-ir/src/lower/convert.rs:1`
-- [ ] `nvs-hir`. `crates/nvs-hir/src/lib.rs:1`
-- [ ] `nvs-diagnostics`, and the three crates' counts at zero. `crates/nvs-diagnostics/src/lib.rs:1`
+- [x] `nvs-ir`. `crates/nvs-ir/src/ir.rs:1`, `crates/nvs-ir/src/lower/convert.rs:1`
+- [x] `nvs-hir`. `crates/nvs-hir/src/lib.rs:1`
+- [x] `nvs-diagnostics`, and the three crates' counts at zero. `crates/nvs-diagnostics/src/lib.rs:1`
 
 ### 5. the server and host crates' marks name their documents
 
@@ -226,9 +226,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] `nvs-server`'s schedule, serve and mount files. `crates/nvs-server/src/schedule.rs:1`, `crates/nvs-server/src/serve.rs:1`, `crates/nvs-server/src/mount.rs:1`
-- [ ] The rest of `nvs-server`'s entries in the record. `crates/nvs-server/src/lib.rs:1`
-- [ ] `nvs-host`, and both crates' counts at zero. `crates/nvs-host/src/lib.rs:1`
+- [x] `nvs-server`'s schedule, serve and mount files. `crates/nvs-server/src/schedule.rs:1`, `crates/nvs-server/src/serve.rs:1`, `crates/nvs-server/src/mount.rs:1`
+- [x] The rest of `nvs-server`'s entries in the record. `crates/nvs-server/src/lib.rs:1`
+- [x] `nvs-host`, and both crates' counts at zero. `crates/nvs-host/src/lib.rs:1`
 
 ### 12. the runtime crate's marks name their documents
 
@@ -302,23 +302,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9, 3, 10 and 4 are done. No file under `nvs-db`, `nvs-types`, `nvs-syntax` or
-`nvs-codegen` has a bare mark. The record holds 2507 marks in 559 files. One commit landed
-stage 4's 605 marks in 68 files. Four writing subagents on disjoint files did the comments, and
-the session rewrote the 8 marks left in strings and read the diffs. Build, clippy and rustfmt
-are green.
+Stages 1, 2, 9, 3, 10, 4, 11 and 5 are done. No file under `nvs-db`, `nvs-types`,
+`nvs-syntax`, `nvs-codegen`, `nvs-ir`, `nvs-hir`, `nvs-diagnostics`, `nvs-server` or `nvs-host`
+has a bare mark. The record holds 1853 marks in 508 files. Two commits landed stage 11 (202
+marks in 28 files) and stage 5 (452 marks in 23 files). Four writing subagents on disjoint files
+did the comments, and the session rewrote the 41 marks left in strings and read the diffs.
+Build, clippy and rustfmt are green.
 
-The marks cited many records: routing 0077, 0096 and 0102, intrinsics 0057, single-value types
-0047, attributes 0046, and others. A few cited the deleted Core spec; those now name the thing.
-Two diagnostic help texts changed, and both follow *Text an end user reads*:
-`E_ROUTE_WITHOUT_ACCESS` (E0762) and `E_DUPLICATE_ROUTE` in `nvs-types/src/routes.rs`. E0762's
-expectation file
-`docs/examples/lang/attributes/core-route-and-core-access-the-route-table/06-a-route-needs-an-access-decision.out`
-changed with it, and matches the debug binary's output. `bun nv render` and `bun nv render
---website` rewrote its copies in `docs/reference/lang/90-attributes.md` and
-`website/public/llms-full.txt`. Two tests in `nvs-types/tests/routes.rs` were renamed:
-`only_the_three_route_options_are_admitted` and `only_the_two_access_options_are_admitted`. No
-test is expected to go red.
+To commit two stages from one tree: `git stash push -- <stage B's crates>`, `git checkout HEAD
+-- tools/data/bare-section-marks.json`, `bun nv rules --record-marks`, commit A, `git stash
+pop`, record again, commit B.
+
+No diagnostic text changed. The strings that changed are test and panic messages and six of the
+scheduler's operator notes in `nvs-server/src/schedule.rs`, which now name the setting
+(`overlap = "skip"`, `scope = "fleet"`). Nothing pins their wording. `bounds.rs`'s
+`Connection::default` doc now states the 8mb/5m worked example, which no rule holds. Two
+headings that were themselves marks were renamed, in `secure.rs` and `socket.rs`; nothing cited
+them. No test is expected to go red.
 
 `bun nv rules --marks` takes file paths only, so pass `git ls-files <dir>`.
 
@@ -328,16 +328,15 @@ That goal's first session fixes it.
 
 ### Next
 
-Stage 11, `nvs-ir`, `nvs-hir` and `nvs-diagnostics`: 202 marks in 28 files. That is a third of
-a session, so take stage 5 (`nvs-server` and `nvs-host`, 452 marks in 23 files) in the same
-session. The two stages' files are disjoint. Split across four writing subagents on disjoint
-files, about 160 marks each, and write each brief with its file list in it. The history method
-is in Standing decisions. `nvs-diagnostics/src/code/` holds diagnostic text a user reads, so a
-mark in a string there is rewritten by the session, after a search for an expectation file that
-pins it. Commit each stage on its own, with `bun nv rules --record-marks`.
-- [ ] `nvs-ir`: `src/ir.rs` 22, `src/lower/convert.rs` 21, `src/lib.rs` 18, `src/lower/expr.rs` 12 and the rest. `crates/nvs-ir/src/ir.rs:1`
-- [ ] `nvs-hir` and `nvs-diagnostics`: `code/types_e07.rs` 21, `requires.rs` 19, `code/types.rs` 14, `autoload.rs` 10 and the rest. `crates/nvs-diagnostics/src/code/types_e07.rs:1`
-- [ ] Stage 5's two crates, largest count first. `crates/nvs-server/src/lib.rs:1`, `crates/nvs-host/src/lib.rs:1`
+Stage 12, `nvs-runtime`: 397 marks. Take stage 6 (`nvs-config` 291, `nvs-test` 9,
+`nvs-render` 5, `nvs-ldap` 1) in the same session; the files are disjoint and `namespace-grants`
+is gone, so no file is held. Split across four writing subagents on disjoint files, about 175
+marks each, with each brief naming its file list, the history method in Standing decisions, and
+"comments only, report each mark in a string". The briefs this session used worked unchanged.
+Commit each stage on its own, as § *State* says.
+- [ ] `nvs-runtime`: `capability.rs` 49, `routes.rs` 39, `metrics.rs` 37, `pool.rs` 28 (the § 13 marks in the Backlog), `graph.rs` 25 and the rest. `crates/nvs-runtime/src/capability.rs:1`
+- [ ] `nvs-runtime/src/ctx/`: `hooks.rs` 25, `mod.rs` 24, `inbound.rs` 23 and the rest. `crates/nvs-runtime/src/ctx/mod.rs:1`
+- [ ] Stage 6: `nvs-config`'s `http.rs` 37, `export.rs` 32, `mount.rs` 28, `schedule.rs` 28, `server.rs` 20 (its line 817 is a bare § 5), then the three small crates. `crates/nvs-config/src/http.rs:1`
 
 ### Backlog
 
