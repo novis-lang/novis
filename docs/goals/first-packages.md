@@ -27,7 +27,7 @@ stages:
         rules: [core-api/tier-placement, packaging/a-package-name-is-vendor-slash-name, security/jws-issued-subset]
   - id: 4
     title: "`Novis\\Rest` has its tests and its proofs, and passes `nvs pkg publish --dry-run`"
-    status: open
+    status: done
     context: [packages/rest/package.toml, tools/nv/proofs/roster.ts, docs/reference/tools/35-packages.md]
     extra:
       context:
@@ -218,7 +218,11 @@ one class after another.
   - [x] perf recorded, and `bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing
 - [x] `nvs pkg publish --dry-run` prints its digest. `packages/rest/package.toml:1`
   - [x] `LICENSE` and `README.md` next to `package.toml`, committed, since the dry run packs the commit
-- [ ] The grants hover follows the entry's tree and `[grants]`, and its gap record is deleted, so `bun nv owners --closes first-packages` passes. `crates/nvs-lsp/src/grants.rs:35`, `data/gaps/nvs-lsp/the-grants-hover-reads-the-entrys-tree-and-every-grant.json:1`
+- [x] The grants hover follows the entry's tree and `[grants]`, and its gap record is deleted, so `bun nv owners --closes first-packages` passes. `crates/nvs-lsp/src/grants.rs:35`
+  - [x] `Analysed::program` is the lender's entry, and the hover reads that entry's tree
+  - [x] the hover lists `net.internal`, each extension's `grants` and `package.toml`'s `[grants]`
+  - [x] the `.lspt` runner surveys its case's lenders, and a new hover case pins the text
+  - [x] the rule says so, the gap record is deleted, and `bun nv owners --closes first-packages` passes
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -237,21 +241,16 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1-3 are done: `info.version`, the Windows bundle's resource, and `packages/rest/`, which is
-`Novis\Rest` 0.1.0 with seven classes under `src/`. `Session` is only type-checked, since
-`Core\Session` needs a store.
+Stages 1-4 are done. `packages/rest/` is `Novis\Rest` 0.1.0, seven classes, 27 tests green
+under `nvs test packages/rest`, and every class's proofs under `package/Novis-Rest-<Class>`, so
+`bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing. `Session` runs its examples,
+attack and bench as requests against Redis, and its tests are skipped in
+`data/proofs/skip/package/Novis-Rest-Session.json`. `nvs pkg publish --dry-run` prints its digest.
 
-Stage 4 is done but for its last item. `packages/rest/tests/` has 27 tests, green under `nvs test
-packages/rest`. Every class has `about.md`, three examples, one attack and a bench under
-`package/Novis-Rest-<Class>`, and `bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing.
-`Session`'s tests are skipped in `data/proofs/skip/package/Novis-Rest-Session.json`: it needs a
-request and a store, so its examples, attack and bench run as requests against Redis, and
-`benches/members/package/nvs.toml` names that store for every package bench. `nvs pkg publish
---dry-run` in `packages/rest` prints its digest, now that `LICENSE` and `README.md` are committed.
-The attacks found two bounds `Token` lacked, now fixed with tests: an `expires_in` below 0 or above
-ten years throws, and an error description is cut to 200 characters.
-
-`bun nv owners --closes first-packages` is red on one record this goal owns, the grants hover's.
+The route hover's grants follow the program a file belongs to (`Analysed::program`), read from
+its entry, with `net.internal`, each extension's `grants` and `package.toml`'s `[grants]`. The
+`.lspt` runner now surveys lenders as the server does; all 576 cases pass, and
+`bun nv owners --closes first-packages` passes.
 
 Expected red, left to stage 5 (nothing is pushed before it): `bun nv proofs --gate` owes perf for
 every `lang:attributes/*` feature (`docs/reference/lang/90-attributes.md` changed in 5a5c9bbfc; the
@@ -262,14 +261,11 @@ red was stale (rerun green), and nightly run 40662443492 was cancelled by newer 
 
 ### Next
 
-Stage 4's last item, then stage 5. The grants hover (`crates/nvs-lsp/src/grants.rs:35`,
-`of_program`) reads the `nvs.toml` of the hovered file's directory. It should read the entry's tree,
-so a handler autoloaded from another directory shows the program's grants, and list the `[grants]`
-of the `package.toml` the entry finds (`rule:security/grants-are-keyed-on-a-namespace`), with
-`net.internal`'s exceptions and an extension's own `grants`. Read the gap record and
-`rule:ide/a-route-hover-shows-the-programs-grants` (`docs/rules/ide.md`) first. Pin it in an
-`.lspt` case, then delete the record. Stage 5 then fixes the expected reds above in its one pass.
-- [ ] The grants hover follows the entry's tree and `[grants]`, and its gap record is deleted. `crates/nvs-lsp/src/grants.rs:35`
+Stage 5, the gate. Start `bun nv affected --run` (in the loop, `looper verify`) with
+`run_in_background` and end the turn to wait. Fix the expected reds above in the one pass: re-record
+the `lang:attributes/*` perf, and refresh the stale site questions with `bun nv site`. Then the
+goal-end gates: `bun nv verify --doc`, `bun nv owners --closes first-packages`, `bun nv ci --check`.
+- [ ] `bun nv affected --run` over the goal, every failure fixed in one pass. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog
 
