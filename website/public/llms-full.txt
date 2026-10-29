@@ -59069,13 +59069,14 @@ Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1
 | `[package] name` | the package's name, which is also its namespace, such as `'Acme\Slug'` |
 | `[package] version` | the package's version, `MAJOR.MINOR.PATCH`, such as `"1.2.0"` |
 | `[package] files` | the files the package carries beside its `src` folder, such as `["data/words.txt"]` |
+| `[package] supersedes` | the package this package replaces, such as `'Acme\Http'` for `'Acme\HttpNext'`. The registry shows it on the package page |
 | `[dependencies]` | each package your code needs, with the lowest version it works with |
 | `[registries]` | the registry each vendor's packages come from |
 | `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
 | `[grants]` | the capabilities each namespace may use, in an application's file only |
 | `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
 
-`version`, `files`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
+`version`, `files`, `supersedes`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
 other key is error `E0659`, and the `nvs pkg` commands stop.
 
 A package's name has two parts, a vendor and a name: `Acme\Slug`. On the command line and in a URL,
@@ -59593,6 +59594,52 @@ The registry saved the change. It updates the package index on its next run.
 The people who run the registry cannot delete or change a version. They can only withhold a version
 that contains malware, or that a court orders them to remove. A withheld version cannot be
 downloaded, and the package index shows the reason.
+
+### The registry website
+
+The registry's website finds packages and shows what the registry knows about each one. It is a
+Novis program, and its code is in the folder `apps/registry/` of the Novis repository.
+
+A search matches the words you type in the name of a package, in the first paragraph of its readme
+and in its doc comments. Then you choose the order:
+
+| Order | The first package is |
+|---|---|
+| `default` | the one with the highest score (see below) |
+| `date` | the one with the newest release |
+| `activity` | the one with the most months with a release |
+| `downloads` | the one with the most downloads in the last 90 days |
+| `name` | the first one in alphabetical order |
+
+The same search is `GET /api/search?q=<words>&sort=<order>`, which returns JSON:
+
+    curl 'https://registry.novis-lang.org/api/search?q=http+client&sort=downloads'
+
+The score is a number from 0 to 1. Half of it comes from facts that the registry saw itself. These
+are the months with a release, the age of the newest release, the time since the first publish, the
+size of the public API, the share of it with a doc comment, and the retractions that name a fixed
+version. The other half comes from the downloads of the last 90 days. The whole formula is the file
+`apps/registry/src/Ranking.nvs`, and every package page links to it.
+
+The dates and the commits in a git repository do not change the score, because anybody can write
+them.
+
+The page of a package, `/packages/<vendor>/<name>`, shows:
+
+- each version with its state: released, pending, unlisted, retracted or withheld;
+- the commit that each version was built from, and the package it replaces;
+- the owners of the vendor, and when each one was added or removed;
+- each retraction and withhold, with its reason;
+- every fact the score uses, and the score itself;
+- the readme of the newest version, as plain text.
+
+The page of a version, `/packages/<vendor>/<name>/<version>`, also shows the capabilities that the
+version needs and what changed from the version before. It shows the changes to the API, every file
+in the archive with its size, and every file the package downloads from another host.
+
+Your account page, `/account`, shows your passkeys, your tokens and your vendors. It also shows your
+devices and webhooks, your messages and the days left before you must sign in to publish again. The
+page `/policy` says what the people who run the registry can do with a package.
 
 <a id="tools-editor"></a>
 ## C.7 The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension

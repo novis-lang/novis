@@ -1,0 +1,73 @@
+<?nvs
+// Shows how the registry's `default` order gives each package a score, and how `downloads` orders the same packages.
+
+// The facts that the registry saw for one package.
+final class Facts
+{
+    public function constructor(
+        public readonly string $name,
+        // The months with at least one release.
+        public readonly int $months,
+        // The days since the newest release.
+        public readonly int $daysSinceRelease,
+        // The days since the first publish.
+        public readonly int $ageDays,
+        // The public classes, methods and other declarations of the highest version.
+        public readonly int $declarations,
+        // The declarations that have a doc comment.
+        public readonly int $documented,
+        // The retracted versions whose retraction names the version that fixes them.
+        public readonly int $fixes,
+        // The downloads of the last 90 days.
+        public readonly int $downloads,
+    ) {}
+}
+
+final class Score
+{
+    // Returns `$value` over `$full`, between 0 and 1.
+    public static function share(int $value, int $full): float
+    {
+        return Core\Math::clamp(Core\Math::fdiv($value, $full), 0.0, 1.0);
+    }
+
+    // Returns the score from 0 to 1. Half is the work, and half is the use.
+    public static function of(Facts $f): float
+    {
+        float $api = Core\Math::min(Core\Math::log(1.0 + $f->declarations, { base: 2.0 }) / Core\Math::log(201.0, { base: 2.0 }), 1.0);
+        float $docs = $f->declarations == 0 ? 0.0 : Core\Math::fdiv($f->documented, $f->declarations);
+        float $work = 0.25 * Score::share($f->months, 24)
+            + 0.20 * (1.0 - Score::share($f->daysSinceRelease - 180, 1095 - 180))
+            + 0.15 * Score::share($f->ageDays, 730)
+            + 0.15 * $api
+            + 0.15 * $docs
+            + 0.10 * Score::share($f->fixes, 2);
+        float $use = Core\Math::min(Core\Math::log(1.0 + $f->downloads, { base: 10.0 }) / 6.0, 1.0);
+        return 0.5 * $work + 0.5 * $use;
+    }
+
+    // Returns the score with two digits after the point, such as `0.42`.
+    public static function text(float $value): string
+    {
+        int $hundredths = Core\Math::round($value * 100.0) as int;
+        return Core\Math::intDiv($hundredths, 100) . '.' . Core\Str::padStart('' . ($hundredths % 100), 2, '0');
+    }
+}
+
+// `Acme\Http` is a maintained client. `Acme\Pad` is one new function with many downloads.
+array<Facts> $packages = [
+    new Facts('Acme\Pad', 1, 3, 3, 1, 0, 0, 200000),
+    new Facts('Acme\Http', 30, 20, 900, 150, 120, 1, 5000),
+];
+
+// The `default` order puts the higher score first, so `Acme\Http` comes first.
+array<Facts> $byScore = Core\Arr::sort($packages, { comparator: fn(Facts $a, Facts $b): int => Score::of($b) <=> Score::of($a) });
+foreach ($byScore as Facts $f) {
+    echo 'default:   ', $f->name, ' ', Score::text(Score::of($f)), "\n";
+}
+
+// The `downloads` order uses only the downloads, so `Acme\Pad` comes first.
+array<Facts> $byDownloads = Core\Arr::sort($packages, { comparator: fn(Facts $a, Facts $b): int => $b->downloads <=> $a->downloads });
+foreach ($byDownloads as Facts $f) {
+    echo 'downloads: ', $f->name, ' ', $f->downloads, "\n";
+}

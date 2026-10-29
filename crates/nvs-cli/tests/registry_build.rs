@@ -1213,6 +1213,18 @@ impl Browser {
 
     /// `method path` with `body` as JSON and the session cookies. The status and the JSON reply.
     fn send(&mut self, method: &str, path: &str, body: &str) -> (u16, Value) {
+        let (status, body) = self.exchange(method, path, body);
+        (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
+    }
+
+    /// `GET path` with the session cookies. The status and the page as text.
+    fn page(&mut self, path: &str) -> (u16, String) {
+        let (status, body) = self.exchange("GET", path, "");
+        (status, String::from_utf8_lossy(&body).into_owned())
+    }
+
+    /// `method path` with `body` as JSON and the session cookies. The status and the reply's bytes.
+    fn exchange(&mut self, method: &str, path: &str, body: &str) -> (u16, Vec<u8>) {
         let mut stream = TcpStream::connect(&self.addr).expect("the registry accepts");
         stream
             .set_read_timeout(Some(BOUND))
@@ -1278,7 +1290,7 @@ impl Browser {
             reader.read_to_end(&mut body).expect("the body reads");
             body
         };
-        (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
+        (status, body)
     }
 
     /// A sign-up: the proof-of-work solved, a new passkey for the options, and the account the
@@ -1378,6 +1390,29 @@ fn login(case: &Case, url: &str, token: &str) -> Output {
 /// passkey and makes a token for `Acme`, then `nvs pkg login`, `whoami`, `publish`, `retract` and
 /// `unlist` each get the service's real answer. The service builds the release from the case's
 /// git host, and the client's own digest of the commit agrees with it.
+/// An account signed up with a passkey in `browser`, with a verified channel, and `nvs pkg login`
+/// done in the case with a token for the vendor `Acme`. The browser and the account.
+fn publisher(case: &Case, registry: &Registry) -> (Browser, String) {
+    let mut browser = Browser::new(registry);
+    let account = browser.sign_up();
+    let (status, made) = browser.send(
+        "POST",
+        "/api/tokens",
+        &serde_json::json!({ "scope": "Acme", "days": 30 }).to_string(),
+    );
+    assert_eq!(status, 201, "{made}: {}", registry.said());
+    let token = made["token"].as_str().expect("a token").to_owned();
+    registry.verify_channel(case, &account);
+    let out = login(case, &registry.url(), &token);
+    assert!(
+        out.status.success(),
+        "{}\nthe server: {}",
+        shown(&out),
+        registry.said()
+    );
+    (browser, account)
+}
+
 // covers: tools:packages/nvs-pkg-login-and-nvs-pkg-whoami, tools:packages/nvs-pkg-publish, tools:packages/nvs-pkg-retract-and-nvs-pkg-unlist
 #[test]
 fn the_publishing_commands_work_against_the_registry_service() {
@@ -1387,20 +1422,9 @@ fn the_publishing_commands_work_against_the_registry_service() {
     let host = Host::start(&case);
     let registry = Registry::start(&case);
     let url = registry.url();
-    let mut browser = Browser::new(&registry);
-    let account = browser.sign_up();
-    let (status, made) = browser.send(
-        "POST",
-        "/api/tokens",
-        &serde_json::json!({ "scope": "Acme", "days": 30 }).to_string(),
-    );
-    assert_eq!(status, 201, "{made}: {}", registry.said());
-    let token = made["token"].as_str().expect("a token").to_owned();
-    registry.verify_channel(&case, &account);
+    let (_browser, account) = publisher(&case, &registry);
     let shown_all = |out: &Output| format!("{}\nthe server: {}", shown(out), registry.said());
 
-    let out = login(&case, &url, &token);
-    assert!(out.status.success(), "{}", shown_all(&out));
     let out = case.nvs(&case.repo(), &["pkg", "whoami", "--registry", &url]);
     assert!(out.status.success(), "{}", shown_all(&out));
     let said = String::from_utf8_lossy(&out.stdout);
@@ -1464,4 +1488,65 @@ fn the_publishing_commands_work_against_the_registry_service() {
         )),
         "{said}"
     );
+}
+
+// covers: tools:packages/the-registry-website
+#[test]
+fn the_website_shows_a_published_package_and_search_finds_it_once_released() {
+    let case = Case::new("registry-website");
+    case.package("", "1.0.0", false);
+    let commit = case.commit("1.0.0");
+    let host = Host::start(&case);
+    let registry = Registry::start(&case);
+    let url = registry.url();
+    let (mut browser, _account) = publisher(&case, &registry);
+    let repository = host.url();
+    let out = case.nvs(
+        &case.repo(),
+        &[
+            "pkg",
+            "publish",
+            "--registry",
+            &url,
+            "--repository",
+            &repository,
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}\nthe server: {}",
+        shown(&out),
+        registry.said()
+    );
+
+    // The first version at 1.0.0 waits for an owner, so the page shows it and search does not.
+    let (status, page) = browser.page("/packages/acme/http");
+    assert_eq!(status, 200, "{page}\nthe server: {}", registry.said());
+    for fact in ["Acme\\Http", "waits for an owner", &commit, "Order in a search", "Owners"] {
+        assert!(page.contains(fact), "the package page lacks `{fact}`: {page}");
+    }
+    let (status, found) = browser.send("GET", "/api/search?q=http", "");
+    assert_eq!(status, 200, "{found}");
+    assert_eq!(found["packages"], serde_json::json!([]), "{found}");
+
+    // The version page shows what the registry's own build of the commit found.
+    let (status, page) = browser.page("/packages/acme/http/1.0.0");
+    assert_eq!(status, 200, "{page}");
+    for fact in ["src/Client.nvs", "package.toml", "LICENSE", "net.connect"] {
+        assert!(page.contains(fact), "the version page lacks `{fact}`: {page}");
+    }
+
+    // An owner who signed in with a passkey confirms the API, and search finds the package.
+    let (status, confirmed) = browser.send("POST", "/api/packages/acme/http/1.0.0/stable", "");
+    assert_eq!(status, 200, "{confirmed}\nthe server: {}", registry.said());
+    let (status, found) = browser.send("GET", "/api/search?q=http&sort=downloads", "");
+    assert_eq!(status, 200, "{found}");
+    assert_eq!(found["sort"], "downloads", "{found}");
+    assert_eq!(found["packages"][0]["name"], "Acme\\Http", "{found}");
+    assert_eq!(found["packages"][0]["declarations"], 2, "{found}");
+    let (status, page) = browser.page("/packages/acme/http");
+    assert_eq!(status, 200, "{page}");
+    assert!(page.contains("released"), "{page}");
+    let (status, page) = browser.page("/packages/acme/nothing");
+    assert_eq!(status, 404, "{page}");
 }

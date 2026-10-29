@@ -1,0 +1,4 @@
+default:   Acme\Http 0.76
+default:   Acme\Pad 0.56
+downloads: Acme\Pad 200000
+downloads: Acme\Http 5000

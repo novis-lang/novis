@@ -697,3 +697,51 @@ The registry saved the change. It updates the package index on its next run.
 The people who run the registry cannot delete or change a version. They can only withhold a version
 that contains malware, or that a court orders them to remove. A withheld version cannot be
 downloaded, and the package index shows the reason.
+
+<!-- src: `rule:packaging/search-sorts-by-the-readers-choice`, `rule:packaging/the-registry-is-a-novis-program` -->
+
+# The registry website
+
+The registry's website finds packages and shows what the registry knows about each one. It is a
+Novis program, and its code is in the folder `apps/registry/` of the Novis repository.
+
+A search matches the words you type in the name of a package, in the first paragraph of its readme
+and in its doc comments. Then you choose the order:
+
+| Order | The first package is |
+|---|---|
+| `default` | the one with the highest score (see below) |
+| `date` | the one with the newest release |
+| `activity` | the one with the most months with a release |
+| `downloads` | the one with the most downloads in the last 90 days |
+| `name` | the first one in alphabetical order |
+
+The same search is `GET /api/search?q=<words>&sort=<order>`, which returns JSON:
+
+    curl 'https://registry.novis-lang.org/api/search?q=http+client&sort=downloads'
+
+The score is a number from 0 to 1. Half of it comes from facts that the registry saw itself. These
+are the months with a release, the age of the newest release, the time since the first publish, the
+size of the public API, the share of it with a doc comment, and the retractions that name a fixed
+version. The other half comes from the downloads of the last 90 days. The whole formula is the file
+`apps/registry/src/Ranking.nvs`, and every package page links to it.
+
+The dates and the commits in a git repository do not change the score, because anybody can write
+them.
+
+The page of a package, `/packages/<vendor>/<name>`, shows:
+
+- each version with its state: released, pending, unlisted, retracted or withheld;
+- the commit that each version was built from, and the package it replaces;
+- the owners of the vendor, and when each one was added or removed;
+- each retraction and withhold, with its reason;
+- every fact the score uses, and the score itself;
+- the readme of the newest version, as plain text.
+
+The page of a version, `/packages/<vendor>/<name>/<version>`, also shows the capabilities that the
+version needs and what changed from the version before. It shows the changes to the API, every file
+in the archive with its size, and every file the package downloads from another host.
+
+Your account page, `/account`, shows your passkeys, your tokens and your vendors. It also shows your
+devices and webhooks, your messages and the days left before you must sign in to publish again. The
+page `/policy` says what the people who run the registry can do with a package.

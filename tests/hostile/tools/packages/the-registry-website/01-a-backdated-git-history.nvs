@@ -1,0 +1,97 @@
+<?nvs
+// Attack: a publisher writes a git history with old dates and many commits, to move a new package up in search.
+// The score uses only what the registry saw itself, so every step below should leave the score the same.
+
+// The time of each publish, in seconds since 1970. A fixed time gives the same output on every run.
+int $now = 1793000600;
+
+// What the registry keeps for a package. It saves the time of each publish by its own clock.
+final class Package
+{
+    // The time of each publish, by the registry's clock.
+    public array<int> $published = [];
+
+    public function constructor()
+    {
+    }
+
+    // Saves one publish. It reads only `version` and `commit` from the request, and uses `$now` as the time.
+    public function publish(string $request, int $now): void
+    {
+        array<mixed> $sent = Core\Json::decode($request) as array<mixed>;
+        tainted string $version = ($sent['version'] ?? '') as tainted string;
+        tainted string $commit = ($sent['commit'] ?? '') as tainted string;
+        if ($version == '' || Core\Str::length($commit) != 40) {
+            throw new RuntimeError('422, the request needs a version and a commit');
+        }
+        $this->published[] = $now;
+    }
+
+    // Returns the days since the first publish.
+    public function ageDays(int $now): int
+    {
+        if (Core\Arr::count($this->published) == 0) {
+            return 0;
+        }
+        return Core\Math::intDiv($now - $this->published[0], 86400);
+    }
+
+    // Returns the number of different months with at least one publish.
+    public function months(): uint
+    {
+        array<bool> $seen = [];
+        foreach ($this->published as int $at) {
+            // The month is the start of the date, such as `2026-10`.
+            $seen[Core\Str::slice(Core\Time::fromEpoch($at)->toIso(), 0, 7)] = true;
+        }
+        return Core\Arr::count($seen);
+    }
+}
+
+Package $package = new Package();
+string $commit = Core\Str::repeat('5b', 20);
+
+// 1. The commits of the repository are dated 2019, and the request says the package is from 2019.
+try {
+    $package->publish('{"version":"1.0.0","commit":"' . $commit . '","first_commit_at":1546300800,"published_at":1546300800}', $now);
+    echo '1. the age is ', $package->ageDays($now), " days\n";
+} catch (Throwable $e) {
+    echo '1. stopped: ', $e->message, "\n";
+}
+
+// 2. The repository has 5000 commits, one in each month since 2010, and the request says so.
+try {
+    $package->publish('{"version":"1.0.1","commit":"' . $commit . '","commits":5000,"months":190}', $now + 60);
+    echo '2. the months with a release are ', $package->months(), "\n";
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. The publisher sends 30 versions in one day, to look active.
+// Each publish catches its own error, so the next one still runs.
+for (int $i = 2; $i < 32; $i++) {
+    try {
+        $package->publish('{"version":"1.0.' . $i . '","commit":"' . $commit . '"}', $now + 60 * $i);
+    } catch (Throwable $e) {
+        echo '3. stopped: ', $e->message, "\n";
+    }
+}
+echo '3. the months with a release are ', $package->months(), "\n";
+
+// 4. A request with no commit and a time of its own.
+try {
+    $package->publish('{"version":"1.0.40","published_at":1546300800}', $now);
+    echo "4. the publish without a commit was accepted\n";
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. A request that is not JSON.
+try {
+    $package->publish('{"version":"1.0.41","commit":', $now);
+    echo "5. the broken request was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+echo 'the age is ', $package->ageDays($now + 3600), ' days, and the months with a release are ', $package->months(), "\n";
