@@ -33,7 +33,12 @@
 //! manifest declares a `secret` return (`rule:security/secret-does-not-cross-an-extension`).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+use std::time::Duration;
 
+use nvs_ext::call::{Host, Meter};
+use nvs_ext::convert::Value;
 use nvs_ext::load::{Entry, Extension, Loader, pin};
 use nvs_ext::pack::{Inputs, append_section, pack};
 use nvs_ext::section::MANIFEST;
@@ -375,7 +380,6 @@ fn every_echo_export_of_the_ledger_returns_its_argument() {
         ("echo-uint", Val::U64(u64::MAX)),
         ("echo-float", Val::Float64(2.5)),
         ("echo-string", string("caf\u{e9}")),
-        ("echo-bytes", Val::List(vec![Val::U8(0), Val::U8(255)])),
         ("echo-list", Val::List(vec![Val::S64(1), Val::S64(2)])),
         (
             "echo-map",
@@ -396,6 +400,36 @@ fn every_echo_export_of_the_ledger_returns_its_argument() {
             ok(value),
             "{name}"
         );
+    }
+}
+
+/// `future` polled on this thread until it finishes. A guest call yields at every epoch tick, and
+/// polling again resumes it.
+fn block_on<T>(future: impl Future<Output = T>) -> T {
+    let mut future = std::pin::pin!(future);
+    let mut cx = Context::from_waker(Waker::noop());
+    loop {
+        if let Poll::Ready(out) = future.as_mut().poll(&mut cx) {
+            return out;
+        }
+        std::thread::yield_now();
+    }
+}
+
+/// `echo-bytes` takes a `borrow<bytes>` of `nvs:ext/types`, which only the host defines, so it is
+/// called through the host and not with the imports as traps.
+#[test]
+fn the_ledger_echoes_bytes_through_the_hosts_resource() {
+    let host = Host::new(1, |_| Ok(())).expect("the host starts");
+    let extension = load(host.engine(), "ledger", &build("ledger"));
+    for sent in [vec![0, 255], Vec::new()] {
+        let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+        let out = block_on(request.call_values(
+            &extension,
+            "echoBytes",
+            vec![Value::Bytes(sent.clone())],
+        ));
+        assert_eq!(out.expect("the echo succeeds"), Some(Value::Bytes(sent)));
     }
 }
 

@@ -1,7 +1,7 @@
 # Loads the extension `Shop\Ledger` and sets its one setting, `currency`.
 [[extension]]
 path = "../../../../tests/conformance/ext/fixtures/ledger.nvsx"
-sha256 = "c5e90c9279ae338fb0aad7ce61c5798d917af19ebbf3ccc7afe8cf40b71bff6c"
+sha256 = "506a37674d4de4e9fdb2128a3e3ea10c1f5e8b5cd751aee377dcb396d82daeed"
 
 [ext.ledger]
 currency = "USD"

@@ -8,6 +8,10 @@
 (module
   (import "nvs:ext/types@1.0.0" "[method]value.kind" (func $kind (param i32) (result i32)))
   (import "nvs:ext/types@1.0.0" "[resource-drop]value" (func $drop (param i32)))
+  (import "nvs:ext/types@1.0.0" "[constructor]bytes" (func $bytes_new (result i32)))
+  (import "nvs:ext/types@1.0.0" "[method]bytes.read" (func $bytes_read (param i32 i32)))
+  (import "nvs:ext/types@1.0.0" "[method]bytes.append" (func $bytes_append (param i32 i32 i32)))
+  (import "nvs:ext/types@1.0.0" "[resource-drop]bytes" (func $bytes_drop (param i32)))
   (import "[export]shop:ledger/api" "[resource-new]route" (func $route_new (param i32) (result i32)))
   (import "[export]shop:ledger/api" "[resource-rep]route" (func $route_rep (param i32) (result i32)))
 
@@ -70,8 +74,16 @@
   (func (export "shop:ledger/api#echo-string") (param $ptr i32) (param $len i32) (result i32)
     (call $ok_pair (local.get $ptr) (local.get $len)))
 
-  (func (export "shop:ledger/api#echo-bytes") (param $ptr i32) (param $len i32) (result i32)
-    (call $ok_pair (local.get $ptr) (local.get $len)))
+  ;; `read` writes the argument's pointer and length at `$ret` + 8, and `append` copies them into a
+  ;; new `bytes`. The borrow is dropped before the export returns, and the new handle is the payload.
+  (func (export "shop:ledger/api#echo-bytes") (param $data i32) (result i32) (local $out i32)
+    (call $bytes_read (local.get $data) (i32.add (global.get $ret) (i32.const 8)))
+    (local.set $out (call $bytes_new))
+    (call $bytes_append (local.get $out)
+      (i32.load offset=8 (global.get $ret)) (i32.load offset=12 (global.get $ret)))
+    (call $bytes_drop (local.get $data))
+    (i32.store offset=4 (global.get $ret) (local.get $out))
+    (call $ok))
 
   (func (export "shop:ledger/api#echo-list") (param $ptr i32) (param $len i32) (result i32)
     (call $ok_pair (local.get $ptr) (local.get $len)))

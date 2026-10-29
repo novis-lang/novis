@@ -7,6 +7,10 @@
 //! or less, and at 24 when it aligns to 8. A string or a list is a pointer and a length. `realloc` is
 //! a bump allocator from 1024, which is where the host writes a string or a list it passes in. The
 //! guest's own types are exported by the component, the way a built extension names them.
+//!
+//! `echo-bytes` takes the host's `bytes` resource, as every third-party `bytes` crosses: it reads
+//! the borrow, copies it into a new `bytes` with `append` and returns that. [`to_wit`] has no call
+//! to lend through, so [`echo`] sends the `bytes` row through `call_values`.
 
 use std::future::Future;
 use std::path::PathBuf;
@@ -28,9 +32,15 @@ const GUEST: &str = r#"(component
     (type $e (variant (case "invalid" string) (case "parse" string) (case "runtime" string)))
     (export "error" (type (eq $e)))
     (type $i (record (field "seconds" s64) (field "nanos" s64)))
-    (export "instant" (type (eq $i)))))
+    (export "instant" (type (eq $i)))
+    (export "bytes" (type $bytes (sub resource)))
+    (export "[constructor]bytes" (func (result (own $bytes))))
+    (export "[method]bytes.read" (func (param "self" (borrow $bytes)) (result (list u8))))
+    (export "[method]bytes.append"
+      (func (param "self" (borrow $bytes)) (param "data" (list u8))))))
   (alias export $types "error" (type $error))
   (alias export $types "instant" (type $instant))
+  (alias export $types "bytes" (type $bytes))
   (type $item-def (record (field "item-name" string) (field "count" (option s64))))
   (export $item "item" (type $item-def))
   (type $unit-def (enum "metres" "nautical-miles"))
@@ -95,6 +105,32 @@ const GUEST: &str = r#"(component
   (core instance $i (instantiate $m))
   (alias core export $i "memory" (core memory $mem))
   (alias core export $i "realloc" (core func $realloc))
+  (core func $new (canon lower (func $types "[constructor]bytes")))
+  (core func $read
+    (canon lower (func $types "[method]bytes.read") (memory $mem) (realloc $realloc)))
+  (core func $append (canon lower (func $types "[method]bytes.append") (memory $mem)))
+  (core func $drop (canon resource.drop $bytes))
+  (core module $b
+    (import "host" "memory" (memory 1))
+    (import "host" "new" (func $new (result i32)))
+    (import "host" "read" (func $read (param i32 i32)))
+    (import "host" "append" (func $append (param i32 i32 i32)))
+    (import "host" "drop" (func $drop (param i32)))
+    (func (export "echo-bytes") (param $v i32) (result i32) (local $out i32)
+      (call $read (local.get $v) (i32.const 64))
+      (local.set $out (call $new))
+      (call $append (local.get $out) (i32.load (i32.const 64)) (i32.load (i32.const 68)))
+      (call $drop (local.get $v))
+      (i32.store8 (i32.const 16) (i32.const 0))
+      (i32.store (i32.const 20) (local.get $out))
+      (i32.const 16)))
+  (core instance $bi (instantiate $b
+    (with "host" (instance
+      (export "memory" (memory $mem))
+      (export "new" (func $new))
+      (export "read" (func $read))
+      (export "append" (func $append))
+      (export "drop" (func $drop))))))
   (func $bool (param "value" bool) (result (result bool (error $error)))
     (canon lift (core func $i "echo-bool") (memory $mem) (realloc $realloc)))
   (func $int (param "value" s64) (result (result s64 (error $error)))
@@ -105,8 +141,8 @@ const GUEST: &str = r#"(component
     (canon lift (core func $i "echo-f64") (memory $mem) (realloc $realloc)))
   (func $string (param "value" string) (result (result string (error $error)))
     (canon lift (core func $i "echo-span") (memory $mem) (realloc $realloc)))
-  (func $bytes (param "value" (list u8)) (result (result (list u8) (error $error)))
-    (canon lift (core func $i "echo-span") (memory $mem) (realloc $realloc)))
+  (func $echo-bytes (param "value" (borrow $bytes)) (result (result (own $bytes) (error $error)))
+    (canon lift (core func $bi "echo-bytes") (memory $mem) (realloc $realloc)))
   (func $list (param "value" (list string)) (result (result (list string) (error $error)))
     (canon lift (core func $i "echo-span") (memory $mem) (realloc $realloc)))
   (func $keyed (param "value" (list (tuple string s64)))
@@ -128,7 +164,7 @@ const GUEST: &str = r#"(component
     (export "echo-uint" (func $uint))
     (export "echo-float" (func $float))
     (export "echo-string" (func $string))
-    (export "echo-bytes" (func $bytes))
+    (export "echo-bytes" (func $echo-bytes))
     (export "echo-list" (func $list))
     (export "echo-keyed" (func $keyed))
     (export "echo-optional" (func $optional))
@@ -244,6 +280,12 @@ fn echo(
     text: &str,
     value: &Value,
 ) -> Value {
+    if text == "bytes" {
+        let out = block_on(request.call_values(extension, method, vec![value.clone()]));
+        return out
+            .expect("the call succeeds")
+            .expect("the call returns a value");
+    }
     let ty = extension
         .manifest
         .novis_type(text)

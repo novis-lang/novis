@@ -17,7 +17,7 @@ stages:
         rules: [packaging/a-value-crosses-as-its-wit-type, packaging/values-cross-as-handles, packaging/a-guest-runs-under-the-requests-budget]
   - id: 3
     title: "the ledger fixture and the conformance cases cross bytes as the resource"
-    status: open
+    status: done
     context: [crates/nvs-ext/tests/fixtures.rs, tests/conformance/ext/fixtures/ledger/api.wit, tests/conformance/ext/fixtures/ledger/module.wat, tests/conformance/ext/fixtures/ledger/manifest.json, tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst]
   - id: 4
     title: "the templates, the guide and the figures use the resource"
@@ -188,10 +188,10 @@ result in place of a plain vector. The templates hide that behind one helper eac
 
 **Does:** the ledger fixture's byte exports use the resource, and the row-table case passes.
 
-- [ ] `echoBytes` and every other `bytes` export of the fixture take and return the resource. `tests/conformance/ext/fixtures/ledger/api.wit:1`, `tests/conformance/ext/fixtures/ledger/module.wat:1`
-- [ ] The fixture packed again with `NVS_WRITE_FIXTURES=1 cargo test --test fixtures`, and the diff read. `tests/conformance/ext/fixtures/ledger.nvsx:1`, `crates/nvs-ext/tests/fixtures.rs:17`
-- [ ] The row-table case passes unchanged, run once by name. `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst:1`
-- [ ] A refused fixture: a third-party export with `list<u8>` for `bytes` does not load. `tests/conformance/ext/fixtures/ledger/manifest.json:17`, `crates/nvs-ext/tests/fixtures.rs:29`
+- [x] `echoBytes` and every other `bytes` export of the fixture take and return the resource. `tests/conformance/ext/fixtures/ledger/api.wit:1`, `tests/conformance/ext/fixtures/ledger/module.wat:1`
+- [x] The fixture packed again with `NVS_WRITE_FIXTURES=1 cargo test --test fixtures`, and the diff read. `tests/conformance/ext/fixtures/ledger.nvsx:1`, `crates/nvs-ext/tests/fixtures.rs:17`
+- [x] The row-table case passes unchanged, run once by name. `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst:1`
+- [x] A refused fixture: a third-party export with `list<u8>` for `bytes` does not load. `tests/conformance/ext/fixtures/ledger/manifest.json:17`, `crates/nvs-ext/tests/fixtures.rs:29`
 
 ### 4. the templates, the guide and the figures use the resource
 
@@ -227,44 +227,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done (`216cacdfd`). `crates/nvs-ext/tests/bytes.rs`'s seven tests pass, run
-once by name, and build and clippy are green.
+Stages 1, 2 and 3 are done. The ledger fixture's `echo-bytes` takes a `borrow<bytes>` and
+returns a `bytes` it fills with `append`, and its new pin is in the three `nvs.toml` files that
+name it. `fixtures.rs` calls `echo-bytes` through the host, and `convert.rs`'s `echo` sends the
+`bytes` row through `call_values`. `call.rs` needed no change: it builds its `Extension`
+without the loader. `bytes.rs`'s `a_list_of_u8_in_a_third_party_signature_does_not_load` is the
+refused case. Those tests and the row-table case pass, and build, clippy and rustfmt are green.
 
-**How it is built.** `nvs_ext::handle` has a second table, `Handles::blobs`, with its own reps, and
-`link_bytes` defines the resource. `lend_bytes` moves a `Value::Bytes` into it, or holds a
-`Value::Lent`, and `take_bytes` moves a returned buffer out. `append` takes a `WasmList<u8>` and
-copies from guest memory once. Its charge goes through `crate::call::grow`, and `Live::end_call`
-gives it back after the result has converted. `Handles::end_call` clears every `bytes` handle, so
-one a guest keeps past its call traps. `Crossing` has two default methods, `lend_bytes` and
-`take_bytes`, that give the `list<u8>`. `Call::lends_bytes` is `manifest.builtin.is_none()` on
-the dynamic path, so a built-in's method with no typed binding keeps the list. A `Core` record's
-byte field always goes through `convert::bytes_to_list`. The loader reads the imported resource
-from `nvs:ext/types` (`Loader::imported_bytes`), and `BytesAs` in `Side` says which form each
-position takes. `nvs run` lends a third-party `bytes` argument by number
-(`crates/nvs-cli/src/extensions.rs:840`).
+`nvs_ext::handle` holds the resource (`Handles::blobs`, `link_bytes`), and the bench calls
+`echoBytes` through `Request::call_values`, so the `after` row needs no bench change.
+`the-boundary-is-the-cost` has the before figures only, and stage 4 adds the after row's.
 
-**The 16 MiB test uses the budget, not an allocator.** It runs the echo under a 40 MiB limit, which
-one `Val` per byte (over 512 MiB) cannot fit. Stage 4's bench row gives the heap figures.
-
-**`the-boundary-is-the-cost` has the before figures only.** Stage 4 adds the after row's.
-
-The sweep's reds this session were the same stale ones: `env-secret-proofs`'s log exits 0, and
-nightly 40847802941 ran on 8d39c49bb, before `ef7e629e2`, `df208a541` and `dafe6c98d` fixed its
-three causes.
+The sweep's reds were stale again: `bun nv proofs --gate --only 'CoreEnv::secret'` exits 0, and
+nightly 40847802941 ran on `8d39c49bb`, before `ef7e629e2`, `df208a541` and `dafe6c98d`.
 
 ### Next
 
-**Stage 3, one group**, on the fixtures and the test guests that still declare `list<u8>`. No gate.
+**Stage 4, one group**, as its `**Split:**` line says: three writing subagents for the two templates
+and the guide pages, and the session writes the bench row and the rule's figures. No gate.
 
-- [ ] The ledger fixture's `bytes` exports take and return the resource. `tests/conformance/ext/fixtures/ledger/api.wit:1`, `tests/conformance/ext/fixtures/ledger/module.wat:1`
-- [ ] Pack it again with `NVS_WRITE_FIXTURES=1 cargo test --test fixtures`, and replace each old pin across the tree. `crates/nvs-ext/tests/fixtures.rs:17`
-- [ ] `crates/nvs-ext/tests/convert.rs`'s `echo-bytes` guest takes the resource. Its `echo` calls `Request::call` with `to_wit`, which has no call to lend through, so the bytes row goes through `call_values`. `crates/nvs-ext/tests/convert.rs:108`, `crates/nvs-ext/tests/convert.rs:240`
-- [ ] `crates/nvs-ext/tests/call.rs`'s guest declares `size(data: list<u8>)` under a `bytes` manifest, so it no longer loads. Its `size` takes a `borrow<bytes>`. `crates/nvs-ext/tests/call.rs:69`, `crates/nvs-ext/tests/call.rs:89`
-- [ ] The row-table case passes, run once by name. `tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst:1`
-- [ ] The refused fixture item is covered by `bytes.rs`'s `a_list_of_u8_in_a_third_party_signature_does_not_load`, so stage 3 ticks it after it checks that the fixture side needs nothing more. `crates/nvs-ext/tests/bytes.rs:369`
+- [ ] The Rust template's two helpers: a `bytes` parameter read into a `Vec<u8>`, and a `Vec<u8>` returned in 1 MiB parts. `crates/nvs-cli/templates/ext/rust/src/lib.rs:1`
+- [ ] The C template's same two helpers. `crates/nvs-cli/templates/ext/c/greeting.c:1`
+- [ ] `nvs ext new` still writes a project that builds and passes its own test, in both languages. `crates/nvs-cli/src/ext/new.rs:1`
+- [ ] The Rust guide's type table, Step 4 and *Files and the network*. `website/src/content/docs/guides/extensions/rust.mdx:86`, `website/src/content/docs/guides/extensions/rust.mdx:250`
+- [ ] *What a call costs* says a byte string crosses in one copy. `website/src/content/docs/guides/extensions/index.mdx:34`
+- [ ] The `after` row: `cargo bench -p nvs-ext --bench ext_bytes -- --record after`, then the figures in the cost rule. `benches/results/ext-bytes.json:3`, `docs/rules/packaging/the-boundary-is-the-cost.md:9`
+- [ ] `bun nv proofs --id` for the extension feature, and `bun nv owners --closes extension-bytes`. `tools/nv/cmd/proofs.ts:1`
 
-Expected red until stage 3 lands: every test of `crates/nvs-ext/tests/convert.rs` and
-`crates/nvs-ext/tests/call.rs` whose fixture no longer loads, `crates/nvs-ext/tests/fixtures.rs`,
-the row-table conformance case, and the `ext_bytes` bench, which loads the ledger fixture.
+No test is expected red.
 
 ### Backlog
