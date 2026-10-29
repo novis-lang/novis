@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a server sends a nonce on every reply, so the client might send requests without end.
+// It also sends nonces with line breaks and other bad characters. Each request should be sent at most twice.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+use Core\Test;
+
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret)
+    ->withDPoP(Novis\Rest\DPoP::generate());
+
+// Step 1: the token endpoint asks for a nonce on every reply. The client stops after two requests.
+Test::answerHttp('https://login.example.com/oauth/token', 400, {
+    json: ['error' => 'use_dpop_nonce'],
+    headers: ['DPoP-Nonce' => 'n-1'],
+});
+try {
+    $client->requestToken(['grant_type' => 'client_credentials']);
+    echo "token accepted\n";
+} catch (RuntimeError $error) {
+    echo 'token refused after ', Core\Arr::count(Test::sentHttp()), " requests\n";
+}
+
+// Step 2: an API asks for a nonce on every reply. The client returns the second reply.
+Test::answerHttp('https://api.example.com/orders', 401, { headers: ['DPoP-Nonce' => 'n-2'] });
+Core\Time\Instant $expires = Core\Time::now()->plus(Core\Time\Duration::seconds(600));
+Novis\Rest\Token $token = new Novis\Rest\Token('at-1', 'DPoP', $expires, null, '');
+uint $before = Core\Arr::count(Test::sentHttp());
+echo $client->get('https://api.example.com/orders', $token)->status(), ' after ';
+echo Core\Arr::count(Test::sentHttp()) - $before, " requests\n";
+
+// Step 3: nonces with a line break, a quote, a NUL byte, a space, a letter outside ASCII,
+// nothing at all, and 257 and 100000 characters. Each one should throw an error.
+array<string> $nonces = [
+    "n-3\r\nSet-Cookie: session=stolen",
+    'n-"4"',
+    "n-5\x00",
+    'n 6',
+    'n-ö',
+    '',
+    Core\Str::repeat('a', 257),
+    Core\Str::repeat('b', 100000),
+];
+Novis\Rest\DPoP $dpop = Novis\Rest\DPoP::generate();
+uint $index = 0;
+foreach ($nonces as string $nonce) {
+    string $url = 'https://api.example.com/nonce/' . $index;
+    $index = $index + 1;
+    // A nonce that the test server itself does not allow is caught here, so the next one still runs.
+    try {
+        Test::answerHttp($url, 401, { headers: ['DPoP-Nonce' => $nonce] });
+    } catch (Throwable $notSent) {
+        echo 'nonce ', $index, " not sent\n";
+        continue;
+    }
+    try {
+        bool $isNew = $dpop->rememberNonce(Core\Http\Client::get($url));
+        echo 'nonce ', $index, ' kept ', $isNew ? 'new' : 'known', "\n";
+    } catch (RuntimeError $error) {
+        echo 'nonce ', $index, " refused\n";
+    }
+}
+
+// Step 4: a URL with a query of one million characters. The proof leaves the query out.
+string $long = 'https://api.example.com/search?q=' . Core\Str::repeat('x', 1000000);
+string $proof = $dpop->proof(Core\Http\Method::Get, $long, null);
+echo Core\Str::length($proof) < 2000 ? "short proof\n" : "long proof\n";

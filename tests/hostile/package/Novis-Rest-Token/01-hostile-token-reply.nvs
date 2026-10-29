@@ -1,0 +1,66 @@
+<?nvs
+// Attack: a token server sends replies that try to inject headers or break the token.
+// Each reply should throw a `RuntimeError` or give a safe token, and the program keeps running.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+class Attack
+{
+    // Sends the reply to `fromResponse`. An error is caught, so the next step still runs.
+    public static function reply(string $step, uint $status, mixed $json): void
+    {
+        string $url = 'https://login.example.com/' . $step;
+        Core\Test::answerHttp($url, $status, { json: $json });
+        Core\Http\Response $response = Core\Http\Client::post($url, { form: ['grant_type' => 'client_credentials'] });
+        try {
+            Novis\Rest\Token $token = Novis\Rest\Token::fromResponse($response);
+            echo $step, ' ran: ', $token->type, ', expired ', $token->isExpired() ? 'true' : 'false', "\n";
+        } catch (Throwable $error) {
+            string $kind = $error is RuntimeError ? 'RuntimeError' : 'another error';
+            echo $step, ' stopped with ', $kind, ': ', $error->message, "\n";
+        }
+    }
+}
+
+// 1. The token has a line break and a second header after it.
+Attack::reply('step1', 200, ['access_token' => "at-1\r\nX-Admin: 1", 'token_type' => 'Bearer']);
+
+// 2. The refresh token has a line break, and the scope has a quote and a line break.
+Attack::reply('step2a', 200, ['access_token' => 'at-2', 'token_type' => 'Bearer', 'refresh_token' => "rt\nX: 1"]);
+Attack::reply('step2b', 200, ['access_token' => 'at-2', 'token_type' => 'Bearer', 'scope' => "read\"\r\nX: 1"]);
+
+// 3. The token type is a long text with a space and a line break.
+Attack::reply('step3', 200, ['access_token' => 'at-3', 'token_type' => "Bearer\r\nX: 1 " . Core\Str::repeat('B', 5000)]);
+
+// 4. The token is a number, the type is a list, and the lifetime is a string.
+Attack::reply('step4a', 200, ['access_token' => 12345, 'token_type' => 'Bearer']);
+Attack::reply('step4b', 200, ['access_token' => 'at-4', 'token_type' => ['Bearer']]);
+Attack::reply('step4c', 200, ['access_token' => 'at-4', 'token_type' => 'Bearer', 'expires_in' => '600']);
+
+// 5. The lifetime is negative, zero, and the largest whole number.
+Attack::reply('step5a', 200, ['access_token' => 'at-5', 'token_type' => 'Bearer', 'expires_in' => -9223372036854775807]);
+Attack::reply('step5b', 200, ['access_token' => 'at-5', 'token_type' => 'Bearer', 'expires_in' => 0]);
+Attack::reply('step5c', 200, ['access_token' => 'at-5', 'token_type' => 'Bearer', 'expires_in' => 9223372036854775807]);
+
+// 6. The token or its type is missing or empty, or the reply is an empty object.
+Attack::reply('step6a', 200, ['token_type' => 'Bearer']);
+Attack::reply('step6b', 200, ['access_token' => 'at-6']);
+Attack::reply('step6c', 200, ['access_token' => '', 'token_type' => 'Bearer']);
+Attack::reply('step6d', 200, {});
+
+// 7. The token is one million characters long.
+Attack::reply('step7', 200, ['access_token' => Core\Str::repeat('a', 1000000), 'token_type' => 'Bearer']);
+
+// 8. An error reply with a line break in the code, and control characters in the description.
+Attack::reply('step8a', 400, ['error' => "bad\r\nX: 1", 'error_description' => 'x']);
+Attack::reply('step8b', 400, ['error' => 'invalid_grant', 'error_description' => "a\u{0}b\u{7f}c\t\r\nX: 1"]);
+
+// 9. A reply with status `200` that is a JSON list, a JSON string, or no JSON at all.
+Attack::reply('step9a', 200, ['at-9', 'Bearer']);
+Attack::reply('step9b', 200, 'at-9');
+Core\Test::answerHttp('https://login.example.com/step9c', 200, { body: 'access_token=at-9&token_type=Bearer' });
+try {
+    Novis\Rest\Token::fromResponse(Core\Http\Client::post('https://login.example.com/step9c', { form: ['a' => 'b'] }));
+    echo "step9c ran\n";
+} catch (Throwable $error9) {
+    echo 'step9c stopped: ', $error9->message, "\n";
+}

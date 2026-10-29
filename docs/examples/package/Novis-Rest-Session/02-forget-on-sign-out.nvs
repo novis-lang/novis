@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a sign-out page deletes the user's tokens from the session.
+// requires: redis
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// A real program loads its keys from its configuration and gets the token from a login service.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+Core\Time\Instant $inOneHour = Core\Time::now()->plus(Core\Time\Duration::seconds(3600));
+Novis\Rest\Token $token = new Novis\Rest\Token('at-4d2e', 'Bearer', $inOneHour, 'rt-9a1c', 'read write');
+
+Core\Session::start();
+Novis\Rest\Session::save($token, $keys);
+
+// The user is signed in. This prints `before: signed in`.
+echo 'before: ', Novis\Rest\Session::load($keys) == null ? 'signed out' : 'signed in', "\n";
+
+// `forget` deletes the access token, the refresh token and the other values.
+Novis\Rest\Session::forget();
+
+// Now `load` returns `null`. This prints `after: signed out`.
+echo 'after: ', Novis\Rest\Session::load($keys) == null ? 'signed out' : 'signed in', "\n";
+
+// Other values in the session stay. This prints `cart: 3 items`.
+Core\Session::set('cart', '3 items');
+Novis\Rest\Session::forget();
+echo 'cart: ', Core\Session::get('cart') ?? 'empty', "\n";

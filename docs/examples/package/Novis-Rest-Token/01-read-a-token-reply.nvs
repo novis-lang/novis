@@ -1,0 +1,29 @@
+<?nvs
+// Shows how a program reads the reply of a token endpoint into a `Novis\Rest\Token`.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: [
+        'access_token' => 'at-7f3c',
+        'token_type' => 'bearer',
+        'expires_in' => 600,
+        'refresh_token' => 'rt-91aa',
+        'scope' => 'orders:read',
+    ],
+});
+
+Core\Http\Response $response = Core\Http\Client::post('https://login.example.com/oauth/token', {
+    form: ['grant_type' => 'client_credentials'],
+});
+
+// `fromResponse` checks the reply and returns a token. The type is always written `Bearer`.
+Novis\Rest\Token $token = Novis\Rest\Token::fromResponse($response);
+echo 'type: ', $token->type, "\n";
+echo 'scope: ', $token->scope, "\n";
+
+// The token is valid for 600 seconds, so this prints `false`.
+echo 'expired: ', $token->isExpired() ? 'true' : 'false', "\n";
+
+// The server sent a refresh token, so this prints `true`.
+echo 'can refresh: ', $token->refreshToken != null ? 'true' : 'false', "\n";

@@ -1,0 +1,38 @@
+<?nvs
+// Measures reading and checking the metadata document of a login server, as a program does when it starts.
+// bench: iterations 256
+// bench: complexity constant
+autoload 'Novis\Rest' from '../../../packages/rest/src';
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        // Every request below is answered from this table, so nothing is sent over a network.
+        array<string> $tenants = ['shop', 'blog', 'docs'];
+        foreach ($tenants as string $tenant) {
+            string $served = 'https://login.example.com/' . $tenant;
+            Core\Test::answerHttp($served . '/.well-known/openid-configuration', 200, {
+                json: [
+                    'issuer' => $served,
+                    'token_endpoint' => $served . '/token',
+                    'authorization_endpoint' => $served . '/authorize',
+                    'jwks_uri' => $served . '/keys',
+                    'dpop_signing_alg_values_supported' => ['ES256', 'EdDSA'],
+                ],
+            });
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The server in each round is chosen by the round before, so no round can be left out.
+            string $issuer = 'https://login.example.com/' . $tenants[(($total + $i) % 3) as int];
+            Novis\Rest\Discovery $found = Novis\Rest\Discovery::fetch($issuer);
+            $total = $total + Core\Str::length($found->tokenEndpoint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

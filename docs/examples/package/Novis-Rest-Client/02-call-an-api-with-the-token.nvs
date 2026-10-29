@@ -1,0 +1,34 @@
+<?nvs
+// Shows how a program calls an API with the access token it got from the server.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+#[Core\Json\Derive]
+class Orders
+{
+    public int $count;
+
+    public function constructor(int $count)
+    {
+        $this->count = $count;
+    }
+}
+
+// `Core\Test::answerHttp` gives fixed replies, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'expires_in' => 600],
+});
+Core\Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+Novis\Rest\Token $token = $client->requestToken(['grant_type' => 'client_credentials']);
+
+// `get` sends a `GET` request with the token in the `Authorization` header.
+Core\Http\Response $response = $client->get('https://api.example.com/orders', $token);
+
+// This prints `200 3`.
+Orders $orders = $response->jsonAs<Orders>();
+echo $response->status(), ' ', $orders->count, "\n";
+
+// The second request is the API call. This prints `Bearer at-1`.
+echo Core\Test::sentHttp()[1]->header('Authorization') ?? 'no header', "\n";

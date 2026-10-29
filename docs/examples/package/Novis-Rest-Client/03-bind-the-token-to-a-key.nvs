@@ -1,0 +1,32 @@
+<?nvs
+// Shows how a client signs every request with its own key, so a stolen token is useless.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives fixed replies, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'DPoP', 'expires_in' => 600],
+});
+Core\Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+
+// `DPoP::generate` creates a new key pair. `withDPoP` returns a client that uses it.
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret)
+    ->withDPoP(Novis\Rest\DPoP::generate());
+
+// The server binds the token to the key. This prints `DPoP`.
+Novis\Rest\Token $token = $client->requestToken(['grant_type' => 'client_credentials']);
+echo $token->type, "\n";
+
+// Each request has a `DPoP` header with a signed proof. This prints `200 true`.
+Core\Http\Response $response = $client->get('https://api.example.com/orders', $token);
+?string $proof = Core\Test::sentHttp()[1]->header('DPoP');
+echo $response->status(), ' ', $proof != null ? 'true' : 'false', "\n";
+
+// A client without the key cannot use this token. The call throws a `RuntimeError`,
+// and this prints its message.
+try {
+    Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret)
+        ->get('https://api.example.com/orders', $token);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

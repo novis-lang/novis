@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens when the token server replies with an error.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// The server does not know this client, so it replies with status `401`.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 401, {
+    json: ['error' => 'invalid_client', 'error_description' => 'Unknown client'],
+});
+
+secret string $clientSecret = 'wrong';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+
+// `request` throws a `RuntimeError`. Its message has the status, the error code and the description.
+try {
+    Novis\Rest\ClientCredentials::request($client, 'orders:read');
+    echo "got a token\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a server program gets an access token with its own id and secret.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'expires_in' => 600, 'scope' => 'read'],
+});
+
+// A real program loads the secret from its configuration.
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+
+// `requestToken` sends the form to the token endpoint. This prints `Bearer read`.
+Novis\Rest\Token $token = $client->requestToken(['grant_type' => 'client_credentials', 'scope' => 'read']);
+echo $token->type, ' ', $token->scope, "\n";

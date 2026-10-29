@@ -1,0 +1,22 @@
+<?nvs
+// Shows what happens when the token endpoint replies with an error.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// The server does not accept the client secret, so it replies with status `401`.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 401, {
+    json: ['error' => 'invalid_client', 'error_description' => 'The client secret is wrong.'],
+});
+Core\Http\Response $response = Core\Http\Client::post('https://login.example.com/oauth/token', {
+    form: ['grant_type' => 'client_credentials'],
+});
+
+// `fromResponse` throws a `RuntimeError`. Its message has the status, the error code and the description.
+try {
+    Novis\Rest\Token::fromResponse($response);
+    echo "got a token\n";
+} catch (RuntimeError $error) {
+    echo 'no token: ', $error->message, "\n";
+}
+
+// A program that logs failed replies can call `errorOf` directly. It returns the same text.
+echo 'log: ', Novis\Rest\Token::errorOf($response), "\n";

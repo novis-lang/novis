@@ -1,0 +1,6 @@
+response_type = code
+client_id = notes-app
+redirect_uri = https://notes.example.com/signed-in
+scope = openid profile
+code_challenge_method = S256
+true

@@ -1,0 +1,25 @@
+<?nvs
+// Shows how `ClientCredentials::token` keeps a token and returns it again without a request.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-2', 'token_type' => 'Bearer', 'expires_in' => 600],
+});
+
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+
+// The key encrypts the token in the cache. A real program loads it from its configuration.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// The first call sends a request. The second call returns the same token from the cache.
+Novis\Rest\Token $first = Novis\Rest\ClientCredentials::token($client, 'orders:read', $keys);
+Novis\Rest\Token $second = Novis\Rest\ClientCredentials::token($client, 'orders:read', $keys);
+echo 'requests: ', Core\Arr::count(Core\Test::sentHttp()), "\n";
+
+// Both tokens expire at the same second, so this prints `true`.
+echo $first->expiresAt->toEpochSeconds() == $second->expiresAt->toEpochSeconds() ? 'true' : 'false', "\n";
+
+// Another scope needs another token, so this call sends a second request.
+Novis\Rest\ClientCredentials::token($client, 'orders:write', $keys);
+echo 'requests: ', Core\Arr::count(Core\Test::sentHttp()), "\n";

@@ -1,0 +1,34 @@
+<?nvs
+// Saves a user's token in the session and loads it again, as a page does after a sign-in.
+// bench: iterations 256
+// bench: complexity constant
+// requires: redis
+autoload 'Novis\Rest' from '../../../packages/rest/src';
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<secret bytes> $keys = [Core\Crypto::generateKey()];
+        Core\Time\Instant $later = Core\Time::now()->plus(Core\Time\Duration::seconds(3600));
+        array<Novis\Rest\Token> $tokens = [
+            new Novis\Rest\Token('at-7f3c9b21', 'Bearer', $later, 'rt-51d0e8aa', 'read'),
+            new Novis\Rest\Token('at-0a4e', 'DPoP', $later, null, 'read write'),
+            new Novis\Rest\Token('at-c81d77', 'Bearer', $later, 'rt-9e', 'openid profile'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Novis\Rest\Session::save($tokens[($total % 3) as int], $keys);
+            ?Novis\Rest\Token $loaded = Novis\Rest\Session::load($keys);
+            uint $length = $loaded == null ? 0 : Core\Str::length($loaded->scope) as uint;
+            $total = $total + 1 + $length * 3;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+Core\Session::start();
+Core\Session::set('user', 17);
+echo Bench::run(256), "\n";

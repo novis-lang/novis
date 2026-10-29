@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a user comes back from the sign-in page with a forged `state` or `code`.
+// Then the server sends a changed token. Each attempt should throw a `RuntimeError` or do no harm.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+string $tokens = 'https://login.example.com/oauth/token';
+Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret($tokens, 'notes-app');
+string $back = 'https://notes.example.com/signed-in';
+secret string $verifier = 'verifier-from-start';
+string $saved = 'k2Jd8fQx';
+
+// Each method catches the error, so the next step still runs.
+final class Attempt
+{
+    public static function state(tainted string $returned, string $saved, string $label): void
+    {
+        try {
+            Novis\Rest\AuthorizationCode::checkState($returned, $saved);
+            echo 'accepted ', $label, "\n";
+        } catch (RuntimeError $error) {
+            echo 'refused ', $label, "\n";
+        }
+    }
+
+    public static function code(Novis\Rest\Client $client, tainted string $code, string $back, secret string $verifier, string $label): void
+    {
+        try {
+            Novis\Rest\AuthorizationCode::exchange($client, $code, $back, $verifier);
+            echo 'accepted ', $label, "\n";
+        } catch (RuntimeError $error) {
+            echo 'refused ', $label, "\n";
+        }
+    }
+
+    // Each refresh asks its own token endpoint, so it gets its own reply.
+    public static function refresh(string $path, array<mixed> $reply, string $label): void
+    {
+        string $endpoint = 'https://login.example.com/oauth/' . $path;
+        Core\Test::answerHttp($endpoint, 200, { json: $reply });
+        Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret($endpoint, 'notes-app');
+        Novis\Rest\Token $old = new Novis\Rest\Token('at-1', 'Bearer', Core\Time::now(), 'rt-1', 'openid');
+        try {
+            Novis\Rest\AuthorizationCode::refresh($client, $old);
+            echo 'accepted ', $label, "\n";
+        } catch (RuntimeError $error) {
+            echo 'refused ', $label, "\n";
+        }
+    }
+}
+
+// 1. A `state` that differs in its last character, and one with a space at the end.
+Attempt::state('k2Jd8fQy', $saved, 'one character changed');
+Attempt::state('k2Jd8fQx ', $saved, 'a space added');
+
+// 2. An empty `state`, while the saved value is also empty.
+Attempt::state('', '', 'an empty state');
+
+// 3. A `state` with a NUL byte, a line break, and one million characters.
+Attempt::state("k2Jd8fQx\0", $saved, 'a NUL byte');
+Attempt::state("k2Jd8fQx\r\n", $saved, 'a line break');
+Attempt::state(Core\Str::repeat('k', 1000000), $saved, 'one million characters');
+
+// 4. A `code` with a line break and a second form field after it.
+Core\Test::answerHttp($tokens, 200, { json: ['access_token' => 'at-1', 'token_type' => 'Bearer'] });
+Attempt::code($client, "code-1\r\ngrant_type=client_credentials", $back, $verifier, 'a code with a line break');
+Attempt::code($client, "code-1\0", $back, $verifier, 'a code with a NUL byte');
+Attempt::code($client, Core\Str::repeat('c', 3000), $back, $verifier, 'a code that is too long');
+
+// 5. A `code` with `&` and `=`. These characters are allowed, but they stay part of the code.
+Attempt::code($client, 'code-1&grant_type=client_credentials', $back, $verifier, 'a code with a second field');
+array<Core\Test\SentRequest> $sent = Core\Test::sentHttp();
+string $body = $sent[Core\Arr::count($sent) - 1]->body() as string;
+echo Core\Str::contains($body, '&grant_type=client_credentials') ? 'the field was added' : 'the field stayed in the code', "\n";
+
+// 6. A refresh reply with a token type this client does not know.
+Attempt::refresh('type', ['access_token' => 'at-2', 'token_type' => 'none'], 'the token type none');
+
+// 7. A refresh reply whose access token adds a second header line.
+Attempt::refresh('access', ['access_token' => "at-2\r\nX-Admin: 1", 'token_type' => 'Bearer'], 'a token with a line break');
+
+// 8. A refresh reply whose refresh token has a line break.
+Attempt::refresh('refresh', ['access_token' => 'at-2', 'token_type' => 'Bearer', 'refresh_token' => "rt-2\nX: 1"], 'a refresh token with a line break');

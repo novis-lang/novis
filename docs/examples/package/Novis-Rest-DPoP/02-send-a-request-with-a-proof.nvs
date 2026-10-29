@@ -1,0 +1,25 @@
+<?nvs
+// Shows a client that adds a DPoP proof to every request it sends.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+
+// `withDPoP` returns a copy of the client that signs a proof for each request.
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret)
+    ->withDPoP(Novis\Rest\DPoP::generate());
+
+// A token of type `DPoP` only works together with a proof from the same key.
+Core\Time\Instant $expires = Core\Time::now()->plus(Core\Time\Duration::seconds(600));
+Novis\Rest\Token $token = new Novis\Rest\Token('at-1', 'DPoP', $expires, null, '');
+// This prints `200`.
+Core\Http\Response $response = $client->get('https://api.example.com/orders', $token);
+echo $response->status(), "\n";
+
+// The request has two headers. `Authorization` has the token and `DPoP` has the proof.
+// This prints `DPoP at-1`, and then `3 parts in the proof`.
+Core\Test\SentRequest $sent = Core\Test::sentHttp()[0];
+echo $sent->header('Authorization'), "\n";
+string $proof = $sent->header('DPoP') ?? '';
+echo Core\Arr::count(Core\Str::split($proof, '.')), " parts in the proof\n";

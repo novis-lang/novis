@@ -1,0 +1,30 @@
+<?nvs
+// Measures signing a DPoP proof, as a client does for every request it sends with a token.
+// bench: iterations 256
+// bench: complexity constant
+autoload 'Novis\Rest' from '../../../packages/rest/src';
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Novis\Rest\DPoP $dpop = Novis\Rest\DPoP::generate();
+        secret string $token = 'at-1';
+        array<string> $urls = [
+            'https://api.example.com/orders',
+            'https://api.example.com/prices?page=2',
+            'https://api.example.com/stock',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The URL in each round is chosen by the round before, so no round can be left out.
+            string $proof = $dpop->proof(Core\Http\Method::Get, $urls[($total % 3) as int], $token);
+            $total = $total + Core\Str::length($proof);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

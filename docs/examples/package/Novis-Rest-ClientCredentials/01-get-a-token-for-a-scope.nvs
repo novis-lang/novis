@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a server program gets a token for a scope with the client credentials grant.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'bearer', 'expires_in' => 600, 'scope' => 'orders:read'],
+});
+
+// A real program loads the secret from its configuration.
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+
+// `request` sends the grant, the scope, the client id and the secret.
+// The server wrote `bearer`, and the token type is always `Bearer` or `DPoP`.
+Novis\Rest\Token $token = Novis\Rest\ClientCredentials::request($client, 'orders:read');
+echo $token->type, ' ', $token->scope, "\n";
+
+// The token is valid for 600 seconds, so this prints `false`.
+echo $token->isExpired() ? 'true' : 'false', "\n";

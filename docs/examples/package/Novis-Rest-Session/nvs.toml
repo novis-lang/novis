@@ -1,0 +1,10 @@
+# A session keeps its data in a store. These examples use the Redis server
+# on this computer at port 16379, and allow the program to use it.
+[capabilities.cache]
+shared = true
+
+[session]
+backend = "shared"
+
+[cache.shared]
+url = "redis://127.0.0.1:16379"

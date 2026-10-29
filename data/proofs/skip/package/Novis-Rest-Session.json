@@ -1,0 +1,4 @@
+{
+  "feature": "Novis\\Rest\\Session",
+  "tests": "`Novis\\Rest\\Session` calls `Core\\Session`, which needs a request and a session store, and `nvs test` gives a test neither; its examples and its attack run as requests against the Redis store that `Core\\Session`'s own examples use."
+}

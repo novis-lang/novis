@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a proof includes the nonce that a server sends.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// Some servers reply with a `DPoP-Nonce` header. A nonce is a value that the next proofs must contain.
+Core\Test::answerHttp('https://api.example.com/orders', 401, {
+    json: ['error' => 'use_dpop_nonce'],
+    headers: ['DPoP-Nonce' => 'n-1'],
+});
+Core\Http\Response $response = Core\Http\Client::get('https://api.example.com/orders');
+
+// `rememberNonce` keeps the nonce. It returns `true` the first time, and `false` for the same nonce again.
+Novis\Rest\DPoP $dpop = Novis\Rest\DPoP::generate();
+echo $dpop->rememberNonce($response) ? 'new' : 'known', "\n";
+echo $dpop->rememberNonce($response) ? 'new' : 'known', "\n";
+
+// Every proof from now on has the claim `nonce`. This prints `n-1`.
+string $claims = Core\Str::split($dpop->proof(Core\Http\Method::Get, 'https://api.example.com/orders', null), '.')[1];
+string $json = Core\Encoding::decodeText(Core\Encoding::fromBase64Url($claims), Core\Charset::Utf8);
+echo (Core\Json::decode($json) as array<mixed>)['nonce'] as string, "\n";

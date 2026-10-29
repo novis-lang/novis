@@ -1,0 +1,117 @@
+<?nvs
+// Attack: a token server sends replies that try to add headers to later requests, or to flood
+// the client. Every bad reply should throw a `RuntimeError`, and no bad value should reach a request.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+class Server
+{
+    private static uint $count = 0;
+
+    // Returns a new token endpoint URL, so each attempt below gets its own fake reply.
+    public static function next(): string
+    {
+        Server::$count = Server::$count + 1;
+        return Core\Str::format('https://login.example.com/oauth/token/%d', Server::$count);
+    }
+
+    // Requests a token from `$url` and returns `true` when the call throws a `RuntimeError`.
+    public static function throws(string $url, bool $withDPoP): bool
+    {
+        secret string $clientSecret = 's3cret';
+        Novis\Rest\Client $client = Novis\Rest\Client::confidential($url, 'shop', $clientSecret);
+        if ($withDPoP) {
+            $client = $client->withDPoP(Novis\Rest\DPoP::generate());
+        }
+        try {
+            $client->requestToken(['grant_type' => 'client_credentials']);
+            return false;
+        } catch (RuntimeError $error) {
+            return true;
+        }
+    }
+
+    // Throws a `LogicError` when `$ok` is `false`, so the attack stops and fails.
+    public static function must(bool $ok, string $step): void
+    {
+        if (!$ok) {
+            throw new LogicError('the client did not handle ' . $step . ' safely');
+        }
+    }
+
+    // Gives `$reply` as the JSON reply and returns `true` when the request throws.
+    public static function throwsOn(array<mixed> $reply): bool
+    {
+        string $url = Server::next();
+        Core\Test::answerHttp($url, 200, { json: $reply });
+        return Server::throws($url, false);
+    }
+}
+
+// 0. A good reply works, so the attempts below fail only because of what they change.
+Server::must(!Server::throwsOn(['access_token' => 'at-1', 'token_type' => 'Bearer', 'scope' => 'read']), 'step 0');
+echo "step 0: accepted\n";
+
+// 1. Each access token has a line break, a second header, a space or nothing. Each request must throw.
+array<string> $tokens = ["at\r\nX-Injected: 1", "at\nHost: evil.example.com", "at\u{0}", 'at 1', '', "at\u{2028}"];
+foreach ($tokens as string $value) {
+    Server::must(Server::throwsOn(['access_token' => $value, 'token_type' => 'Bearer']), 'step 1');
+}
+echo "step 1: all thrown\n";
+
+// 2. A refresh token, a token type and a scope with a line break, and an unknown token type.
+//    Each request must throw.
+Server::must(Server::throwsOn(['access_token' => 'at-1', 'token_type' => 'Bearer', 'refresh_token' => "rt\r\nX-Injected: 1"]), 'step 2');
+Server::must(Server::throwsOn(['access_token' => 'at-1', 'token_type' => "Bearer\r\nX-Injected: 1"]), 'step 2');
+Server::must(Server::throwsOn(['access_token' => 'at-1', 'token_type' => 'Bearer', 'scope' => "read\r\nX-Injected: 1"]), 'step 2');
+Server::must(Server::throwsOn(['access_token' => 'at-1', 'token_type' => 'Basic']), 'step 2');
+echo "step 2: all thrown\n";
+
+// 3. A reply that is not JSON, a JSON list, a number for the token and cut-off JSON.
+//    Each request must throw.
+array<string> $bodies = ['<html>no</html>', '[1, 2, 3]', '{"access_token": 7, "token_type": "Bearer"}', '{"access_token":'];
+foreach ($bodies as string $body) {
+    string $url = Server::next();
+    Core\Test::answerHttp($url, 200, { body: $body });
+    Server::must(Server::throws($url, false), 'step 3');
+}
+echo "step 3: all thrown\n";
+
+// 4. An error reply with a very long description full of line breaks.
+//    The request throws, and the message must have no line break.
+string $errorUrl = Server::next();
+Core\Test::answerHttp($errorUrl, 400, {
+    json: ['error' => 'invalid_grant', 'error_description' => Core\Str::repeat("bad\r\nX-Injected: 1\u{0}", 100000)],
+});
+secret string $clientSecret = 's3cret';
+try {
+    Novis\Rest\Client::confidential($errorUrl, 'shop', $clientSecret)->requestToken(['grant_type' => 'client_credentials']);
+    Server::must(false, 'step 4');
+} catch (RuntimeError $error) {
+    Server::must(!Core\Str::contains($error->message, "\n"), 'step 4');
+    echo "step 4: thrown, with no line break\n";
+}
+
+// 5. An access token of ten million characters. The client may accept it or throw.
+echo 'step 5: ', Server::throwsOn(['access_token' => Core\Str::repeat('a', 10000000), 'token_type' => 'Bearer']) ? 'thrown' : 'accepted', "\n";
+
+// 6. The server sends the same nonce with every error reply.
+//    A DPoP client must send the request twice at most.
+string $nonceUrl = Server::next();
+Core\Test::answerHttp($nonceUrl, 400, {
+    json: ['error' => 'use_dpop_nonce'],
+    headers: ['DPoP-Nonce' => 'n-1'],
+});
+uint $before = Core\Arr::count(Core\Test::sentHttp());
+Server::must(Server::throws($nonceUrl, true), 'step 6');
+uint $sent = Core\Arr::count(Core\Test::sentHttp()) - $before;
+Server::must($sent <= 2, 'step 6');
+echo 'step 6: ', $sent, " requests\n";
+
+// 7. A nonce with a line break and a second header. The request must throw.
+string $badNonceUrl = Server::next();
+Core\Test::answerHttp($badNonceUrl, 400, {
+    json: ['error' => 'use_dpop_nonce'],
+    headers: ['DPoP-Nonce' => "n-1\r\nX-Injected: 1"],
+});
+Server::must(Server::throws($badNonceUrl, true), 'step 7');
+echo "step 7: thrown\n";

@@ -1,0 +1,3 @@
+expired with 30 seconds margin: true
+expired with 10 seconds margin: false
+expired after a reply without expires_in: false

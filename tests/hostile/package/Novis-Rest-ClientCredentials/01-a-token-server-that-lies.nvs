@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a token server replies with errors, broken JSON and values with characters that are not allowed.
+// Every call should throw a `RuntimeError`, and no bad character should reach a message or a token.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// Each step has its own token server, so each one gets its own reply.
+final class Attack
+{
+    public static function client(string $step): Novis\Rest\Client
+    {
+        secret string $clientSecret = 's3cret';
+        return Novis\Rest\Client::confidential(Attack::url($step), 'shop', $clientSecret);
+    }
+
+    public static function url(string $step): string
+    {
+        return 'https://login.example.com/' . $step . '/token';
+    }
+
+    // Each call is caught, so the attack after it still runs. It prints what the call gave.
+    public static function attempt(string $step): void
+    {
+        try {
+            Novis\Rest\Token $token = Novis\Rest\ClientCredentials::request(Attack::client($step), 'read');
+            echo $step, ' got a token: ', $token->type, ' ', $token->scope, "\n";
+        } catch (RuntimeError $error) {
+            echo $step, ' threw: ', $error->message, ' (';
+            echo Core\Regex::matches($error->message, '^[\x20-\x7E]*$') ? 'printable' : 'NOT PRINTABLE', ")\n";
+        } catch (Throwable $other) {
+            echo $step, ' threw another error: ', $other::class, "\n";
+        }
+    }
+}
+
+// 1. An error code with a line break and a fake header in it.
+Core\Test::answerHttp(Attack::url('1'), 400, { json: ['error' => "invalid_scope\r\nX-Injected: 1"] });
+Attack::attempt('1');
+
+// 2. An error description with control characters, a zero byte and text that turns right to left.
+Core\Test::answerHttp(Attack::url('2'), 401, {
+    json: ['error' => 'invalid_client', 'error_description' => "bad\0client\u{0001}\u{202E}txt\n"],
+});
+Attack::attempt('2');
+
+// 3. An error description of one million characters.
+Core\Test::answerHttp(Attack::url('3'), 400, {
+    json: ['error' => 'invalid_request', 'error_description' => Core\Str::repeat('a', 1000000)],
+});
+try {
+    Novis\Rest\ClientCredentials::request(Attack::client('3'), 'read');
+    echo "3 got a token\n";
+} catch (RuntimeError $error) {
+    echo '3 threw a message of ', Core\Str::length($error->message), " characters\n";
+}
+
+// 4. An error reply that is not JSON, and one where `error` is a number.
+Core\Test::answerHttp(Attack::url('4a'), 500, { body: '<html>{"error":' });
+Attack::attempt('4a');
+Core\Test::answerHttp(Attack::url('4b'), 400, { json: ['error' => 42] });
+Attack::attempt('4b');
+
+// 5. A token reply whose scope has a quote, a backslash, a line break or a letter outside ASCII.
+array<string> $scopes = ['read "write"', 'read\\admin', "read\nadmin", "read\u{00E9}"];
+int $n = 0;
+foreach ($scopes as string $scope) {
+    $n = $n + 1;
+    Core\Test::answerHttp(Attack::url('5-' . $n), 200, {
+        json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'expires_in' => 600, 'scope' => $scope],
+    });
+    Attack::attempt('5-' . $n);
+}
+
+// 6. A token reply whose token type is long, empty, has a line break or is unknown.
+array<string> $types = [Core\Str::repeat('Bearer', 1000), '', "Bearer\r\nX: 1", 'mac'];
+$n = 0;
+foreach ($types as string $type) {
+    $n = $n + 1;
+    Core\Test::answerHttp(Attack::url('6-' . $n), 200, { json: ['access_token' => 'at-1', 'token_type' => $type] });
+    Attack::attempt('6-' . $n);
+}
+
+// 7. A token reply with a negative lifetime, and one with the largest lifetime.
+Core\Test::answerHttp(Attack::url('7a'), 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'expires_in' => -600],
+});
+Attack::attempt('7a');
+Core\Test::answerHttp(Attack::url('7b'), 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'expires_in' => 9223372036854775807],
+});
+Attack::attempt('7b');
+
+// 8. The cached method with a token that expires in 10 seconds. The second call needs a new token.
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+Core\Test::answerHttp(Attack::url('8'), 200, {
+    json: ['access_token' => 'at-2', 'token_type' => 'Bearer', 'expires_in' => 10],
+});
+uint $before = Core\Arr::count(Core\Test::sentHttp());
+Novis\Rest\ClientCredentials::token(Attack::client('8'), 'cache', $keys);
+Novis\Rest\ClientCredentials::token(Attack::client('8'), 'cache', $keys);
+echo '8 sent ', Core\Arr::count(Core\Test::sentHttp()) - $before, " requests\n";

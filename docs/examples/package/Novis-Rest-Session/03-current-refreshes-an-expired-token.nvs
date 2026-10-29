@@ -1,0 +1,31 @@
+<?nvs
+// Shows how `current` gets a new token when the saved one has expired.
+// requires: redis
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-new', 'token_type' => 'Bearer', 'expires_in' => 600],
+});
+
+secret string $clientSecret = 's3cret';
+Novis\Rest\Client $client = Novis\Rest\Client::confidential('https://login.example.com/oauth/token', 'shop', $clientSecret);
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+
+// The saved token expires now, so a request cannot use it any more.
+Novis\Rest\Token $old = new Novis\Rest\Token('at-old', 'Bearer', Core\Time::now(), 'rt-5b7f', 'read');
+Core\Session::start();
+Novis\Rest\Session::save($old, $keys);
+
+// `current` sends the refresh token to the server and saves the new token.
+// This prints `new token: yes` and `expired: no`.
+?Novis\Rest\Token $token = Novis\Rest\Session::current($client, $keys);
+if ($token != null) {
+    secret string $expected = 'at-new';
+    echo 'new token: ', $token->accessToken == $expected ? 'yes' : 'no', "\n";
+    echo 'expired: ', $token->isExpired() ? 'yes' : 'no', "\n";
+}
+
+// The server sent no new refresh token, so the old one is kept. This prints `refresh token: yes`.
+?Novis\Rest\Token $saved = Novis\Rest\Session::load($keys);
+echo 'refresh token: ', $saved == null || $saved->refreshToken == null ? 'no' : 'yes', "\n";

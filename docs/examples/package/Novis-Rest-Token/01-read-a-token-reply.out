@@ -1,0 +1,4 @@
+type: Bearer
+scope: orders:read
+expired: false
+can refresh: true

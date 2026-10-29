@@ -1,0 +1,36 @@
+<?nvs
+// Reads the reply of a token endpoint into a token, as a program does each time it gets a new token.
+// bench: iterations 2048
+// bench: complexity constant
+autoload 'Novis\Rest' from '../../../packages/rest/src';
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Http\Response> $replies = [
+            Bench::reply('a', ['access_token' => 'at-7f3c', 'token_type' => 'Bearer', 'expires_in' => 600]),
+            Bench::reply('b', ['access_token' => 'at-2b19', 'token_type' => 'bearer', 'scope' => 'orders:write']),
+            Bench::reply('c', ['access_token' => 'at-91aa', 'token_type' => 'DPoP', 'refresh_token' => 'rt-1']),
+            Bench::reply('d', ['access_token' => 'at-55e0', 'token_type' => 'Bearer', 'expires_in' => 60, 'scope' => 'read']),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Novis\Rest\Token $token = Novis\Rest\Token::fromResponse($replies[($total % 4) as int]);
+            $total = $total + Core\Str::length($token->scope) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+
+    // Gets a fixed reply from a fake server, so the bench uses no network.
+    private static function reply(string $path, mixed $json): Core\Http\Response
+    {
+        string $url = 'https://login.example.com/' . $path;
+        Core\Test::answerHttp($url, 200, { json: $json });
+        return Core\Http\Client::post($url, { form: ['grant_type' => 'client_credentials'] });
+    }
+}
+
+echo Bench::run(2048), "\n";

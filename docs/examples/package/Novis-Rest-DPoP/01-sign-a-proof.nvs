@@ -1,0 +1,33 @@
+<?nvs
+// Shows what a DPoP proof contains for one request.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `generate` creates a new key pair. Every proof from `$dpop` is signed with it.
+Novis\Rest\DPoP $dpop = Novis\Rest\DPoP::generate();
+
+// A real program gets the access token from the server.
+secret string $token = 'at-1';
+string $proof = $dpop->proof(Core\Http\Method::Get, 'https://api.example.com/orders?page=2', $token);
+
+// A proof is a JWT: three parts separated by dots. `Part::read` reads one part as JSON.
+class Part
+{
+    public static function read(string $jwt, int $index): array<mixed>
+    {
+        string $base64 = Core\Str::split($jwt, '.')[$index];
+        string $json = Core\Encoding::decodeText(Core\Encoding::fromBase64Url($base64), Core\Charset::Utf8);
+        return Core\Json::decode($json) as array<mixed>;
+    }
+}
+
+// The header has the type, the signature method and the public key. This prints `dpop+jwt ES256`.
+array<mixed> $header = Part::read($proof, 0);
+echo $header['typ'] as string, ' ', $header['alg'] as string, "\n";
+
+// `htm` is the method and `htu` is the URL without its query. This prints `GET https://api.example.com/orders`.
+array<mixed> $claims = Part::read($proof, 1);
+echo $claims['htm'] as string, ' ', $claims['htu'] as string, "\n";
+
+// `ath` is a hash of the access token. The token itself is not in the proof.
+string $hash = Core\Encoding::toBase64Url(Core\Hash::of('at-1', Core\Hash::Digest::Sha256));
+echo ($claims['ath'] as string) == $hash ? "ath matches\n" : "ath differs\n";

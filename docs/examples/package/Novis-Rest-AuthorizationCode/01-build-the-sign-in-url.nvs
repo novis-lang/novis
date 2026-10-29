@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program builds the URL that sends a user to the server's sign-in page.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret('https://login.example.com/oauth/token', 'notes-app');
+
+// `start` returns the URL, a new random `state` and a secret `codeVerifier`.
+// Keep `state` and `codeVerifier` in the user's session until the user comes back.
+var $start = Novis\Rest\AuthorizationCode::start(
+    $client,
+    'https://login.example.com/oauth/authorize',
+    'https://notes.example.com/signed-in',
+    'openid profile',
+);
+
+// The URL has the client id, the scope and a PKCE challenge.
+// PKCE makes sure that only this program can use the code the server sends back.
+Core\Uri $uri = Core\Uri::parse($start->url);
+array<string> $names = ['response_type', 'client_id', 'redirect_uri', 'scope', 'code_challenge_method'];
+foreach ($names as string $name) {
+    string $value = Core\Taint::assertTrusted($uri->queryParameter($name) as string, 'the example built this URL');
+    echo $name, ' = ', $value, "\n";
+}
+
+// The `state` in the URL is the one `start` returned. This prints `true`.
+?tainted string $state = $uri->queryParameter('state') as ?string;
+echo $state == $start->state ? 'true' : 'false', "\n";

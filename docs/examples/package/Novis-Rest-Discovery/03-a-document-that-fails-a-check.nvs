@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a program handles a metadata document that `fetch` does not accept.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// This document names another issuer. Somebody may have changed it.
+Core\Test::answerHttp('https://login.example.com/.well-known/openid-configuration', 200, {
+    json: [
+        'issuer' => 'https://other.example.com',
+        'token_endpoint' => 'https://other.example.com/token',
+    ],
+});
+
+// `fetch` throws a `RuntimeError`, so the program never uses the wrong token endpoint.
+try {
+    Novis\Rest\Discovery::fetch('https://login.example.com');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+
+// An issuer that is not an `https:` URL throws before any request is sent.
+try {
+    Novis\Rest\Discovery::fetch('http://login.example.com');
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

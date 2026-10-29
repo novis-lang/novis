@@ -1,0 +1,35 @@
+<?nvs
+// Shows how a program checks the user's return from the sign-in page and gets a token for the code.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-1', 'token_type' => 'Bearer', 'refresh_token' => 'rt-1', 'scope' => 'openid profile'],
+});
+
+Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret('https://login.example.com/oauth/token', 'notes-app');
+string $redirectUri = 'https://notes.example.com/signed-in';
+
+// A real program reads these two values from the session it saved in `start`.
+string $savedState = 'k2Jd8fQx';
+secret string $savedVerifier = 'verifier-from-start';
+
+// A real program reads `state` and `code` from the query of the request.
+// Values from a request are tainted, which means they are not checked yet.
+tainted string $returnedState = 'k2Jd8fQx';
+tainted string $returnedCode = 'code-42';
+
+// `checkState` throws a `RuntimeError` when the two values are different.
+Novis\Rest\AuthorizationCode::checkState($returnedState, $savedState);
+
+// `exchange` sends the code and the verifier to the token endpoint. This prints `Bearer openid profile`.
+Novis\Rest\Token $token = Novis\Rest\AuthorizationCode::exchange($client, $returnedCode, $redirectUri, $savedVerifier);
+echo $token->type, ' ', $token->scope, "\n";
+
+// A `state` from another sign-in throws an error.
+tainted string $otherState = 'other-state';
+try {
+    Novis\Rest\AuthorizationCode::checkState($otherState, $savedState);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

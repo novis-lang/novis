@@ -1,0 +1,3 @@
+DPoP
+200 true
+this token is bound to a DPoP key, so the client needs `withDPoP`

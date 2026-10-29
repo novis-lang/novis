@@ -1,0 +1,29 @@
+<?nvs
+// Builds the sign-in URL for a user, as a web program does each time a user clicks "Sign in".
+// bench: iterations 256
+// bench: complexity constant
+autoload 'Novis\Rest' from '../../../packages/rest/src';
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret('https://login.example.com/oauth/token', 'notes-app');
+        array<string> $scopes = ['email', 'openid profile', 'offline_access'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $start = Novis\Rest\AuthorizationCode::start(
+                $client,
+                'https://login.example.com/oauth/authorize',
+                'https://notes.example.com/signed-in',
+                $scopes[(($total + $i) % 3) as int],
+            );
+            $total = $total + Core\Str::length($start->url);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

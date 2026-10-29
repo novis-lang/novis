@@ -1,0 +1,25 @@
+<?nvs
+// Shows how a program decides when it needs a new token.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// This token expires 20 seconds from now.
+Core\Time\Instant $soon = Core\Time::now()->plus(Core\Time\Duration::seconds(20));
+Novis\Rest\Token $token = new Novis\Rest\Token('at-7f3c', 'Bearer', $soon, null, 'orders:read');
+
+// `isExpired` uses a margin of 30 seconds by default. 20 seconds is less, so this prints `true`.
+echo 'expired with 30 seconds margin: ', $token->isExpired() ? 'true' : 'false', "\n";
+
+// With a margin of 10 seconds, the token is still good. This prints `false`.
+echo 'expired with 10 seconds margin: ', $token->isExpired(10) ? 'true' : 'false', "\n";
+
+// This server sends no `expires_in`. The second argument says how long such a token lasts.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-2b19', 'token_type' => 'Bearer'],
+});
+Core\Http\Response $response = Core\Http\Client::post('https://login.example.com/oauth/token', {
+    form: ['grant_type' => 'client_credentials'],
+});
+Novis\Rest\Token $short = Novis\Rest\Token::fromResponse($response, 60);
+
+// The token lasts 60 seconds. That is more than the margin, so this prints `false`.
+echo 'expired after a reply without expires_in: ', $short->isExpired() ? 'true' : 'false', "\n";

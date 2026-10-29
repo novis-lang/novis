@@ -1,0 +1,27 @@
+<?nvs
+// Shows that `fetch` reads the OAuth 2 document when the server has no OpenID Connect document.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// The OpenID Connect document does not exist, so the server replies `404`.
+Core\Test::answerHttp('https://login.example.com/shop/.well-known/openid-configuration', 404);
+
+// The OAuth 2 document puts `/shop` after the `.well-known` part of the address.
+Core\Test::answerHttp('https://login.example.com/.well-known/oauth-authorization-server/shop', 200, {
+    json: [
+        'issuer' => 'https://login.example.com/shop',
+        'token_endpoint' => 'https://login.example.com/shop/token',
+        'dpop_signing_alg_values_supported' => ['ES256', 'EdDSA'],
+    ],
+});
+
+Novis\Rest\Discovery $server = Novis\Rest\Discovery::fetch('https://login.example.com/shop');
+echo $server->tokenEndpoint, "\n";
+
+// This document has no authorization endpoint, so this prints `none`.
+echo $server->authorizationEndpoint ?? 'none', "\n";
+
+// This prints `ES256 EdDSA`.
+echo Core\Str::join($server->dpopAlgorithms, ' '), "\n";
+
+// `fetch` made two requests. This prints `2`.
+echo Core\Arr::count(Core\Test::sentHttp()), "\n";

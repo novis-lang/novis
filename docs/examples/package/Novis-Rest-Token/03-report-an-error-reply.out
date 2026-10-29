@@ -1,0 +1,2 @@
+no token: the server replied with status 401: invalid_client: The client secret is wrong.
+log: the server replied with status 401: invalid_client: The client secret is wrong.

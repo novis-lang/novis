@@ -1,0 +1,113 @@
+<?nvs
+// Attack: a request plants forged token values in the session and reads them with wrong keys.
+// Every read should return `null` or throw an error, and never return a forged token.
+// hostile: timeout-ms 60000
+// requires: redis
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+array<secret bytes> $keys = [Core\Crypto::generateKey()];
+Core\Time\Instant $later = Core\Time::now()->plus(Core\Time\Duration::seconds(3600));
+Novis\Rest\Token $token = new Novis\Rest\Token('at-real', 'Bearer', $later, 'rt-real', 'read');
+
+class Probe
+{
+    // Prints `null` when `load` finds no token, and the type and scope when it finds one.
+    public static function show(string $step, array<secret bytes> $keys): void
+    {
+        ?Novis\Rest\Token $found = Novis\Rest\Session::load($keys);
+        echo $step, ': ', $found == null ? 'null' : 'a token ' . $found->type . ' ' . $found->scope, "\n";
+    }
+
+    // Saves a real token, then replaces one value with `Core\Session::set`.
+    public static function plant(Novis\Rest\Token $token, array<secret bytes> $keys, string $name, mixed $value): void
+    {
+        Novis\Rest\Session::save($token, $keys);
+        Core\Session::set($name, $value);
+    }
+}
+
+// 1. The request loads a token before the session is started. This throws a `RuntimeError`.
+try {
+    Novis\Rest\Session::load($keys);
+    echo "read a session that was never started\n";
+} catch (RuntimeError $e) {
+    echo "not started: RuntimeError\n";
+}
+
+Core\Session::start();
+
+// 2. The request plants every value but the access token with `set()`. The result is `null`.
+Core\Session::set('novis-rest.type', 'Bearer');
+Core\Session::set('novis-rest.expires', 4102444800);
+Core\Session::set('novis-rest.scope', 'admin');
+Probe::show('no access token', $keys);
+
+// 3. The request plants the access token as plain text. `getSecret` does not read it, so the result is `null`.
+Core\Session::set('novis-rest.access', 'at-forged');
+Probe::show('plain access token', $keys);
+Core\Session::set("\x00secret\x00novis-rest.access", 'at-forged');
+Probe::show('plain text as a secret', $keys);
+
+// 4. The request reads a real token with a different key. The result is `null`.
+Novis\Rest\Session::save($token, $keys);
+array<secret bytes> $otherKeys = [Core\Crypto::generateKey()];
+Probe::show('other key', $otherKeys);
+
+// 5. The key list is empty. This throws a `LogicError`.
+try {
+    array<secret bytes> $empty = [];
+    Novis\Rest\Session::load($empty);
+    echo "read with no key\n";
+} catch (LogicError $emptyError) {
+    echo "empty key list: LogicError\n";
+}
+
+// 6. The request replaces the type with another scheme or adds a header line. Each result is `null`.
+Probe::plant($token, $keys, 'novis-rest.type', 'Basic');
+Probe::show('type Basic', $keys);
+Probe::plant($token, $keys, 'novis-rest.type', "Bearer\r\nX-Admin: 1");
+Probe::show('type with a header line', $keys);
+Probe::plant($token, $keys, 'novis-rest.type', "Bearer\n");
+Probe::show('type with a line break', $keys);
+Probe::plant($token, $keys, 'novis-rest.type', 7);
+Probe::show('type as a number', $keys);
+
+// 7. The request adds a quote or a line break to the scope. Each result is `null`.
+Probe::plant($token, $keys, 'novis-rest.scope', 'read" admin');
+Probe::show('scope with a quote', $keys);
+Probe::plant($token, $keys, 'novis-rest.scope', "read\nadmin");
+Probe::show('scope with a line break', $keys);
+Probe::plant($token, $keys, 'novis-rest.scope', ['read', 'admin']);
+Probe::show('scope as a list', $keys);
+
+// 8. The request replaces the expiry with text, a list and the largest number. Each result is `null` or an error.
+Probe::plant($token, $keys, 'novis-rest.expires', 'never');
+Probe::show('expiry as text', $keys);
+Probe::plant($token, $keys, 'novis-rest.expires', [1, 2]);
+Probe::show('expiry as a list', $keys);
+// Each error is caught, so the steps after it still run.
+try {
+    Probe::plant($token, $keys, 'novis-rest.expires', 9223372036854775807);
+    Probe::show('largest expiry', $keys);
+} catch (Throwable $largestError) {
+    echo 'largest expiry: ', $largestError::class, "\n";
+}
+try {
+    Probe::plant($token, $keys, 'novis-rest.expires', -9223372036854775807 - 1);
+    Probe::show('smallest expiry', $keys);
+} catch (Throwable $smallestError) {
+    echo 'smallest expiry: ', $smallestError::class, "\n";
+}
+
+// 9. The request tries to copy the saved refresh token over the access token.
+// A refresh token should never be sent as an access token.
+Novis\Rest\Session::save($token, $keys);
+Core\Session::set("\x00secret\x00novis-rest.access", Core\Session::get("\x00secret\x00novis-rest.refresh"));
+?Novis\Rest\Token $swapped = Novis\Rest\Session::load($keys);
+secret string $refreshText = 'rt-real';
+echo 'swapped tokens: ', $swapped == null ? 'null' : ($swapped->accessToken == $refreshText ? 'the refresh token' : 'another token'), "\n";
+
+// 10. The request forgets the tokens, then asks `current` for one. The result is `null`.
+Novis\Rest\Session::forget();
+Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret('https://login.example.com/oauth/token', 'shop');
+echo 'after forget: ', Novis\Rest\Session::current($client, $keys) == null ? 'null' : 'a token', "\n";

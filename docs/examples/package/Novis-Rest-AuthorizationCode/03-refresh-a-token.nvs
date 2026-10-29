@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a program gets a new access token with the refresh token it already has.
+autoload 'Novis\Rest' from '../../../../packages/rest/src';
+
+// `Core\Test::answerHttp` gives a fixed reply, so this example uses no network.
+// This reply has no refresh token and no scope.
+Core\Test::answerHttp('https://login.example.com/oauth/token', 200, {
+    json: ['access_token' => 'at-2', 'token_type' => 'Bearer', 'expires_in' => 3600],
+});
+
+Novis\Rest\Client $client = Novis\Rest\Client::withoutSecret('https://login.example.com/oauth/token', 'notes-app');
+
+// A real program saved this token after `exchange`. It has expired.
+Novis\Rest\Token $old = new Novis\Rest\Token('at-1', 'Bearer', Core\Time::now(), 'rt-1', 'openid profile');
+echo $old->isExpired() ? 'expired' : 'valid', "\n";
+
+// `refresh` sends the refresh token and returns a new token. This prints `valid`.
+Novis\Rest\Token $fresh = Novis\Rest\AuthorizationCode::refresh($client, $old);
+echo $fresh->isExpired() ? 'expired' : 'valid', "\n";
+
+// The server sent no new refresh token and no scope, so the new token keeps the old ones.
+echo $fresh->refreshToken != null ? 'has a refresh token' : 'no refresh token', "\n";
+echo $fresh->scope, "\n";
+
+// A token without a refresh token cannot be refreshed. `refresh` throws a `RuntimeError`.
+Novis\Rest\Token $plain = new Novis\Rest\Token('at-3', 'Bearer', Core\Time::now(), null, '');
+try {
+    Novis\Rest\AuthorizationCode::refresh($client, $plain);
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
