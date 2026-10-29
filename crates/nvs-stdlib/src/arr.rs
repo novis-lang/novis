@@ -1501,13 +1501,26 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
                    number, zero or a positive number. It replaces the natural order.",
             shape: &[],
         },
+        ParamDoc {
+            name: "keys",
+            desc: "The keys to put first, in this order. The other keys follow in their current \
+                   order. A listed key that `$a` does not have is skipped. With `Desc`, the \
+                   other keys come first, then the listed keys from last to first.",
+            shape: &[],
+        },
     ],
     ret: "The same entries under the same keys, ordered by key; the natural order is bytewise, \
           so `\"10\"` precedes `\"9\"`.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The comparator returned `NaN`.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The comparator returned `NaN`.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call gives both `keys` and `comparator`.",
+        },
+    ],
 };
 
 /// `Core\Arr::fill`'s reference card — `rule:core-api/reference-card`.
@@ -2202,14 +2215,18 @@ const SORT_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Arr::sortByKey`'s `{ order?: Order, comparator?: callable }` —
-/// [`SORT_OPTIONS`] without the two options a key sort has no use for.
+/// `Core\Arr::sortByKey`'s `{ order?: Order, comparator?: callable, keys?:
+/// array<int|string> }` — [`SORT_OPTIONS`] without the two options a key sort
+/// has no use for, and with `keys`, the one order a key sort has that a value
+/// sort does not.
 ///
 /// `by` is absent because the thing compared is already the key, and
 /// `preserveKeys` is absent because a sort *by* key that renumbered would
-/// have thrown away what it just sorted on. Both are the published signature,
-/// not a narrowing this module chose; [`nvs_core_arr_sort_by_key`]'s
-/// docs own why the row is shaped that way.
+/// have thrown away what it just sorted on. `keys` is typed like `fillKeys`'
+/// parameter and, like `comparator`, defaults to `Const::Null` for "not
+/// given". All three are the published signature, not a narrowing this module
+/// chose; [`nvs_core_arr_sort_by_key`]'s docs own why the row is shaped that
+/// way.
 const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "order",
@@ -2219,6 +2236,11 @@ const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "comparator",
         ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "keys",
+        ty: CoreTy::Array(&CoreTy::Union(ARRAY_KEY)),
         default: Const::Null,
     },
 ];
@@ -4709,9 +4731,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::sortByKey(array<T> $a, { order?: Order, comparator?: callable }): array<T>`
-    /// — the second ordering member, replacing `ksort`, `krsort`
-    /// and `uksort`.
+    /// `Core\Arr::sortByKey(array<T> $a, { order?: Order, comparator?: callable,
+    /// keys?: array<int|string> }): array<T>` — the second ordering member,
+    /// replacing `ksort`, `krsort` and `uksort`.
     ///
     /// A second entry point into [`nvs_core_arr_sort`]'s machinery rather than
     /// a second sort: the same two stable sorts over an index permutation —
@@ -4720,7 +4742,7 @@ nvs_runtime::nvs_helper! {
     /// of a `by` callable's answers. What differs is only what the comparison
     /// reads.
     ///
-    /// # Why the bag is two options and not four
+    /// # Why the bag has no `preserveKeys` and no `by`
     ///
     /// **There is no `preserveKeys`.** A sort by key that renumbered would
     /// have discarded the very thing it ordered on, so this member preserves
@@ -4744,7 +4766,22 @@ nvs_runtime::nvs_helper! {
     /// `order` reverses the comparison rather than the result, so equal keys
     /// keep their insertion order under either — the same rule, and the same
     /// stability, as the value sort.
-    fn nvs_core_arr_sort_by_key(ctx, args: [3]) {
+    ///
+    /// # `keys` is a sort that never compares
+    ///
+    /// `keys` states an order as a rank: each listed key ranks by its first
+    /// place in the list, and every unlisted key ranks after all of them, equal
+    /// to the others. Stability and `order` then mean what they mean for every
+    /// other sort, so `Desc` puts the unlisted keys first in their current
+    /// order and the listed ones from last to first. A listed key the subject
+    /// lacks is skipped. [`ranked_by_list`] does it with no comparison and no
+    /// callback, in O(n + k).
+    ///
+    /// **`keys` with `comparator` throws `LogicError`.** Each one says how keys
+    /// are ordered, so a call with both has two answers. No `Core` options bag
+    /// has a way to make two options exclusive at the checker, so the call is
+    /// where it is refused.
+    fn nvs_core_arr_sort_by_key(ctx, args: [4]) {
         let base = held_subject(args, "sortByKey")?;
         let descending = match args[1].as_int() {
             Some(0) => false,
@@ -4764,6 +4801,25 @@ nvs_runtime::nvs_helper! {
             }
         };
         let comparator = optional_callback(&args[2], "sortByKey", "comparator")?;
+        let listed = match args[3].tag() {
+            Some(Tag::Null) => None,
+            // Unreachable from source: `keys` is `array<int|string>` in
+            // `SORT_BY_KEY_OPTIONS`, so anything else is `E0401` at the
+            // checker — [`nvs_core_arr_count`]'s guard states the judgement.
+            _ => Some(borrowed(args[3].array_ptr().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Arr::sortByKey expected {:?} or nothing for `keys`, got tag {}",
+                    Tag::Array,
+                    args[3].tag_byte()
+                ))
+            })?)),
+        };
+        if listed.is_some() && comparator.is_some() {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                "Core\\Arr::sortByKey takes `keys` or `comparator`, not both",
+            ));
+        }
 
         // Every entry, in insertion order. Each key is a reference of this
         // frame's own, released by its `NvsStr` drop; each value is borrowed
@@ -4783,7 +4839,10 @@ nvs_runtime::nvs_helper! {
             );
         }
 
-        let mut permutation: Vec<usize> = (0..keys.len()).collect();
+        let mut permutation: Vec<usize> = match &listed {
+            Some(listed) => ranked_by_list(listed, &keys, descending)?,
+            None => (0..keys.len()).collect(),
+        };
         let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
             let ordering = match comparator {
                 Some(comparator) => {
@@ -4823,10 +4882,11 @@ nvs_runtime::nvs_helper! {
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
-        if comparator.is_some() {
-            merge_sort(&mut permutation, &mut compare)?;
-        } else {
-            crate::sort::by_bytes(&mut permutation, &keys, descending);
+        // A `keys` call's permutation is already in its final order.
+        match (&listed, comparator) {
+            (Some(_), _) => {}
+            (None, Some(_)) => merge_sort(&mut permutation, &mut compare)?,
+            (None, None) => crate::sort::by_bytes(&mut permutation, &keys, descending),
         }
 
         let mut out = NvsArray::with_capacity(permutation.len());
@@ -4844,6 +4904,64 @@ nvs_runtime::nvs_helper! {
         }
         Ok(Value::array(out))
     }
+}
+
+/// The order of `keys` under `sortByKey`'s `keys` option, as indexes into
+/// `keys`: the listed keys `keys` has, in the list's order, then every other
+/// key in its current order. `descending` reverses the ranking, so the other
+/// keys come first and the listed ones from last to first.
+///
+/// One map from each listed key to its rank, one walk of `keys` that drops
+/// each entry into its rank's place or the unlisted run, and no comparison.
+/// The map is `std`'s SipHash one because a listed key may come from a
+/// request. **Memory:** one handle per listed entry, that map, and one place
+/// per distinct listed key, per call, freed when the call returns.
+fn ranked_by_list(
+    listed: &NvsArray,
+    keys: &[NvsStr],
+    descending: bool,
+) -> Result<Vec<usize>, Fault> {
+    // The listed array is the caller's argument and outlives the call, so its
+    // strings are borrowed for the length of the call, through these handles.
+    let mut values: Vec<Value> = Vec::with_capacity(listed.count());
+    let mut from = 0usize;
+    while let Some(slot) = listed.next_slot(from) {
+        from = slot + 1;
+        values.push(
+            listed
+                .value_at(slot)
+                .expect("next_slot only names live entries"),
+        );
+    }
+    let mut rank_of: std::collections::HashMap<std::borrow::Cow<'_, [u8]>, usize> =
+        std::collections::HashMap::with_capacity(values.len());
+    for value in &values {
+        let bytes = match key_bytes(value, "sortByKey")? {
+            KeyBytes::Borrowed(bytes) => std::borrow::Cow::Borrowed(bytes),
+            rendered @ KeyBytes::Rendered { .. } => std::borrow::Cow::Owned(rendered.to_vec()),
+        };
+        // A key listed twice keeps its first place.
+        let next = rank_of.len();
+        rank_of.entry(bytes).or_insert(next);
+    }
+
+    let mut places: Vec<Option<usize>> = vec![None; rank_of.len()];
+    let mut unlisted: Vec<usize> = Vec::with_capacity(keys.len());
+    for (index, key) in keys.iter().enumerate() {
+        match rank_of.get(key.as_bytes()) {
+            Some(&rank) => places[rank] = Some(index),
+            None => unlisted.push(index),
+        }
+    }
+    let mut order = Vec::with_capacity(keys.len());
+    if descending {
+        order.extend(unlisted);
+        order.extend(places.into_iter().rev().flatten());
+    } else {
+        order.extend(places.into_iter().flatten());
+        order.extend(unlisted);
+    }
+    Ok(order)
 }
 
 /// One optional callback option: the callable it names, or `None` for the
@@ -7227,7 +7345,7 @@ mod tests {
         let sorted = call(
             super::nvs_core_arr_sort_by_key,
             &mut ctx,
-            &[subject, Value::int(0), Value::null()],
+            &[subject, Value::int(0), Value::null(), Value::null()],
         )
         .expect("a byte compare never fails");
         assert_eq!(
@@ -7239,7 +7357,7 @@ mod tests {
         call(
             super::nvs_core_arr_sort_by_key,
             &mut ctx,
-            &[subject, Value::int(0), comparator],
+            &[subject, Value::int(0), comparator, Value::null()],
         )
         .expect_err("NaN has no ordering");
 

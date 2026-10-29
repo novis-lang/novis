@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/generics.rs, crates/nvs-stdlib/src/registry.rs, docs/rules/types/arrays.md]
   - id: 2
     title: "`sortByKey` takes a `keys` option"
-    status: open
+    status: done
     context: [docs/examples/core/Arr/sortByKey/about.md, tests/conformance/core/arr-sort-by-key-orders-keys-bytewise-and-takes-a-comparator.nvst]
   - id: 3
     title: "both members have their feature proofs, and every stale figure and page is current"
@@ -135,11 +135,11 @@ removes every `null` entry and returns `array<T>`.
 
 **Does:** `sortByKey($a, { keys: [...] })` orders keys as the standing decision says, natively.
 
-- [ ] The `keys` option in `SORT_BY_KEY_OPTIONS`, and its doc comment rewritten for three options. `crates/nvs-stdlib/src/arr.rs:2182`
-- [ ] `nvs_core_arr_sort_by_key` takes the fourth argument: with `keys`, the rank map and the two emitting walks; with `keys` and `comparator`, a `LogicError` that names both options. `crates/nvs-stdlib/src/arr.rs:4687`
-- [ ] The reference card `SORT_BY_KEY_DOC` names `keys` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/arr.rs:1461`
-- [ ] A conformance case: listed keys first in list order, the rest in their current order, a missing listed key skipped, a key listed twice, an `int` key, and `order: Desc`. `tests/conformance/core/arr-sort-by-key-puts-listed-keys-first.nvst:1`
-- [ ] A conformance case: `keys` with `comparator` throws `LogicError`. `tests/conformance/core/arr-sort-by-key-refuses-keys-with-a-comparator.nvst:1`
+- [x] The `keys` option in `SORT_BY_KEY_OPTIONS`, and its doc comment rewritten for three options. `crates/nvs-stdlib/src/arr.rs:2182`
+- [x] `nvs_core_arr_sort_by_key` takes the fourth argument: with `keys`, the rank map and the two emitting walks; with `keys` and `comparator`, a `LogicError` that names both options. `crates/nvs-stdlib/src/arr.rs:4687`
+- [x] The reference card `SORT_BY_KEY_DOC` names `keys` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/arr.rs:1461`
+- [x] A conformance case: listed keys first in list order, the rest in their current order, a missing listed key skipped, a key listed twice, an `int` key, and `order: Desc`. `tests/conformance/core/arr-sort-by-key-puts-listed-keys-first.nvst:1`
+- [x] A conformance case: `keys` with `comparator` throws `LogicError`. `tests/conformance/core/arr-sort-by-key-refuses-keys-with-a-comparator.nvst:1`
 
 ### 3. both members have their feature proofs, and every stale figure and page is current
 
@@ -176,19 +176,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal has not started. `Core\Arr::sortByKey` takes `order` and `comparator`
-(`crates/nvs-stdlib/src/arr.rs:2190`). `Core\Arr::withoutNull` does not exist. `bind` pairs a declared
-union's members with the whole actual type (`crates/nvs-types/src/generics.rs:304`).
+Stages 1 and 2 are done and committed. `bind` narrows a declared `?T` against a union through
+`narrowed_pair` (`crates/nvs-types/src/generics.rs`), with four Rust tests that pass.
+`Core\Arr::withoutNull` exists (`crates/nvs-stdlib/src/arr.rs:3629`, card at `:1281`).
+`sortByKey` takes `keys` (`SORT_BY_KEY_OPTIONS` at `:2230`, `ranked_by_list` at `:4919`). The helper
+takes four arguments, and `keys` with `comparator` throws `LogicError`. All three new conformance
+cases pass, and so does the existing `arr-sort-by-key-orders-keys-bytewise-and-takes-a-comparator.nvst`.
+
+Expected red until stage 3: the proofs gate for `Core\Arr::withoutNull` (no about page, examples,
+bench or attack yet), perf figures and `website/src/data/core.json` / `llms-full.txt` (a new member
+and a new option), and any `nvs meta --json` or registry-count snapshot.
 
 ### Next
 
-**Stage 1: the binding rule and `withoutNull`**, one file set: `crates/nvs-types/src/generics.rs`,
-`crates/nvs-stdlib/src/arr.rs`. No gate.
+**Stage 3: the feature proofs**, as its `**Split:**` line says. Two writing subagents, side by side:
 
-- [ ] The union-against-union arm in `bind`, and its module doc. `crates/nvs-types/src/generics.rs:298`
-- [ ] Rust tests for the three bindings. `crates/nvs-types/src/generics.rs:488`
-- [ ] The `withoutNull` row, helper, `address` arm and reference card. `crates/nvs-stdlib/src/arr.rs:431`
-- [ ] The conformance case for the narrowed type. `tests/conformance/core/arr-without-null-removes-null-and-narrows-the-type.nvst:1`
+- [ ] `withoutNull`'s about page, three examples and bench, shaped like `withoutFirst`'s. `docs/examples/core/Arr/withoutFirst/about.md:1`
+- [ ] `sortByKey`'s about-page paragraph and `04-some-keys-first.nvs`. `docs/examples/core/Arr/sortByKey/about.md:1`
+- [ ] The session writes both attacks. `tests/hostile/core/Arr/withoutLast/01-copies-written-to-break-the-walk.nvs:1`
+- [ ] Then `bun nv proofs --record-perf`, `bun nv site --check stale questions`, `bun nv owners --closes arr-key-order-and-nulls`. `website/site.lock.json:1`
 
 ### Backlog
 

@@ -1,0 +1,18 @@
+--TEST--
+Core\Arr::sortByKey throws LogicError when a call gives both keys and comparator
+--FILE--
+<?nvs
+array<int> $a = ["b" => 2, "a" => 1];
+
+try {
+    Core\Arr::sortByKey($a, {keys: ["a"], comparator: fn (string $x, string $y): int => Core\Str::compare($x, $y)});
+    echo "sorted\n";
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// Either option on its own is allowed.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($a, {keys: ["a"]})), ","), "\n";
+--EXPECT--
+Core\Arr::sortByKey takes `keys` or `comparator`, not both
+a,b

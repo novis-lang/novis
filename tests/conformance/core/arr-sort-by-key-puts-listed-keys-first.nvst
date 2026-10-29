@@ -1,0 +1,37 @@
+--TEST--
+Core\Arr::sortByKey's keys option puts the listed keys first in the listed order, and the rest after them in their current order
+--FILE--
+<?nvs
+array<string> $row = ["name" => "Ada", "zip" => "1010", "id" => "7", "city" => "Wien"];
+
+// The listed keys come first, then the others in their current order.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($row, {keys: ["id", "name"]})), ","), "\n";
+
+// The values stay with their keys.
+echo Core\Str::join(Core\Arr::sortByKey($row, {keys: ["id", "name"]}), ","), "\n";
+
+// A listed key the array does not have is skipped.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($row, {keys: ["email", "city"]})), ","), "\n";
+
+// A key listed twice keeps its first place.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($row, {keys: ["zip", "id", "zip"]})), ","), "\n";
+
+// An `int` in the list names the same key as its decimal string.
+array<string> $list = ["a", "b", "c", "d"];
+echo Core\Str::join(Core\Arr::sortByKey($list, {keys: [2, "0"]}), ","), "\n";
+
+// `Desc` reverses the order: the other keys first, then the listed keys from last to first.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($row, {keys: ["id", "name"], order: Core\Arr::Order::Desc})), ","), "\n";
+
+// An empty list keeps the current order, and the subject is unchanged.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::sortByKey($row, {keys: []})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys($row), ","), "\n";
+--EXPECT--
+id,name,zip,city
+7,Ada,1010,Wien
+city,name,zip,id
+zip,id,name,city
+c,a,b,d
+zip,city,name,id
+name,zip,id,city
+name,zip,id,city
