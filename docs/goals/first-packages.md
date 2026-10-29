@@ -34,7 +34,7 @@ stages:
         rules: [packaging/the-registry-builds-the-archive-from-git, packaging/a-package-is-its-digest]
   - id: 5
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: rest-tests
@@ -233,9 +233,9 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
@@ -252,22 +252,28 @@ its entry, with `net.internal`, each extension's `grants` and `package.toml`'s `
 `.lspt` runner now surveys lenders as the server does; all 576 cases pass, and
 `bun nv owners --closes first-packages` passes.
 
-Expected red, left to stage 5 (nothing is pushed before it): `bun nv proofs --gate` owes perf for
-every `lang:attributes/*` feature (`docs/reference/lang/90-attributes.md` changed in 5a5c9bbfc; the
-playbook's first bullet says how to re-record). `bun nv site --check questions` is stale on
-`tools/api-document/index.mdx` and on the questions of `/reference/cli/nvs-build-compile/` and
-`/reference/cli/nvs-build-openapi/` (from c330003ac and 5a5c9bbfc). The sweep's `env-secret-proofs`
-red was stale (rerun green), and nightly run 40662443492 was cancelled by newer pushes.
+Stage 5 is done, and the goal is reached. The gate's failures, each fixed: the attributes
+chapter's `details.md` still said `info.version` is always `0.0.0` (5a5c9bbfc edited the generated
+chapter), `packages/` had no row in CONTRIBUTING.md's layout listing, and `bundle.rs`'s `identity`
+read as a climbing path to the test impact check. The site pages and questions for
+`nvs build --openapi` and `--compile` are current, the CLI chapter's `operationId` is `Class.method`,
+and `lang:attributes` perf is re-recorded. The second `bun nv affected --run` is green, and so are
+`bun nv verify --doc`, `bun nv owners --closes first-packages`, `bun nv ci --check`, `rest-tests`
+and `rest-dry-run`.
+
+The first gate run saw `nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded`
+(`crates/nvs-cli/tests/ext_command.rs:752`) fail once beside the other binaries and pass alone,
+with no assertion text in the log. It passed in every run since. Expect it may go red again under load.
 
 ### Next
 
-Stage 5, the gate. Start `bun nv affected --run` (in the loop, `looper verify`) with
-`run_in_background` and end the turn to wait. Fix the expected reds above in the one pass: re-record
-the `lang:attributes/*` perf, and refresh the stale site questions with `bun nv site`. Then the
-goal-end gates: `bun nv verify --doc`, `bun nv owners --closes first-packages`, `bun nv ci --check`.
-- [ ] `bun nv affected --run` over the goal, every failure fixed in one pass. `tools/nv/cmd/verify.ts:1`
+Nothing: the goal is reached. The loop retires it and goes on to `arr-key-order-and-nulls`.
 
 ### Backlog
+
+- `nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded` failed once under verify's load
+  and passed alone, and its log held no assertion text. Its second `nvs ext test` runs from the
+  scratch folder's parent, which every test shares (`crates/nvs-cli/tests/ext_command.rs:745`).
 
 - `Core\Test::answerHttp` called twice for one URL keeps the first answer, and the docs do not say
   so (`docs/examples/core/Test/answerHttp/about.md`). Several `Novis\Rest` attacks give each step its
