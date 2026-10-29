@@ -26,7 +26,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-db/src/tds/plan.rs, crates/nvs-db/src/conn.rs]
   - id: 4
     title: "the type checker's, parser's and code generator's marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-types/src/routes.rs, crates/nvs-types/src/lib.rs]
   - id: 11
     title: "the IR, HIR and diagnostics crates' marks name their documents"
@@ -206,9 +206,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] `nvs-types`'s routes, intrinsics and expression files. `crates/nvs-types/src/routes.rs:1`, `crates/nvs-types/tests/routes.rs:1`, `crates/nvs-types/src/expr/operators.rs:1`
-- [ ] The rest of `nvs-types`'s entries in the record. `crates/nvs-types/src/lib.rs:1`
-- [ ] `nvs-syntax` and `nvs-codegen`, and the three crates' counts at zero. `crates/nvs-syntax/src/lib.rs:1`, `crates/nvs-codegen/src/lib.rs:1`
+- [x] `nvs-types`'s routes, intrinsics and expression files. `crates/nvs-types/src/routes.rs:1`, `crates/nvs-types/tests/routes.rs:1`, `crates/nvs-types/src/expr/operators.rs:1`
+- [x] The rest of `nvs-types`'s entries in the record. `crates/nvs-types/src/lib.rs:1`
+- [x] `nvs-syntax` and `nvs-codegen`, and the three crates' counts at zero. `crates/nvs-syntax/src/lib.rs:1`, `crates/nvs-codegen/src/lib.rs:1`
 
 ### 11. the IR, HIR and diagnostics crates' marks name their documents
 
@@ -302,20 +302,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9, 3 and 10 are done, and no file under `crates/nvs-db/` has a bare mark. The
-record holds 3112 marks in 627 files. Two commits landed stage 10's 326 marks: `d7ebab43b` (the
-TDS driver) and `5d6754029` (`conn.rs`, `sql.rs`, `lib.rs`, `span.rs`, `direct.rs`, `ddl.rs` and
-`tests/pool_reuse.rs`). Four writing subagents on disjoint files did the comments. The session
-rewrote the 36 marks left in strings and read every diff. Build, clippy and rustfmt are green.
+Stages 1, 2, 9, 3, 10 and 4 are done. No file under `nvs-db`, `nvs-types`, `nvs-syntax` or
+`nvs-codegen` has a bare mark. The record holds 2507 marks in 559 files. One commit landed
+stage 4's 605 marks in 68 files. Four writing subagents on disjoint files did the comments, and
+the session rewrote the 8 marks left in strings and read the diffs. Build, clippy and rustfmt
+are green.
 
-Every stage 10 mark cited the database record 0067, except one in a `ddl.rs` plan-step reason,
-which cited the schema record 0145 § 6 and now says "this grades up". No expectation file pins
-that reason. The `[MS-TDS] §` marks were already named. One test was renamed:
-`a_declarations_markers_are_the_ones_the_marker_rewriter_wrote` in `tds/rpc.rs`. Only comments,
-test messages and that one reason string changed, so no test is expected to go red.
+The marks cited many records: routing 0077, 0096 and 0102, intrinsics 0057, single-value types
+0047, attributes 0046, and others. A few cited the deleted Core spec; those now name the thing.
+Two diagnostic help texts changed, and both follow *Text an end user reads*:
+`E_ROUTE_WITHOUT_ACCESS` (E0762) and `E_DUPLICATE_ROUTE` in `nvs-types/src/routes.rs`. E0762's
+expectation file
+`docs/examples/lang/attributes/core-route-and-core-access-the-route-table/06-a-route-needs-an-access-decision.out`
+changed with it, and matches the debug binary's output. `bun nv render` and `bun nv render
+--website` rewrote its copies in `docs/reference/lang/90-attributes.md` and
+`website/public/llms-full.txt`. Two tests in `nvs-types/tests/routes.rs` were renamed:
+`only_the_three_route_options_are_admitted` and `only_the_two_access_options_are_admitted`. No
+test is expected to go red.
 
-The subagents wrapped rewritten comments unevenly, and four came back past 100 columns. Check
-`git diff -U0 | grep '^+' | awk 'length > 101'` before the build.
+`bun nv rules --marks` takes file paths only, so pass `git ls-files <dir>`.
 
 `bun nv rules --check` is red on one line this goal did not write:
 `docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
@@ -323,17 +328,16 @@ That goal's first session fixes it.
 
 ### Next
 
-Stage 4, `nvs-types`, `nvs-syntax` and `nvs-codegen`: 605 marks in 68 files, about one
-session. Goal `namespace-grants` is gone, so its shared files are free. These crates cite many
-records, not just the database one, so each file's history decides the record: the method is in
-Standing decisions. Split across four writing subagents on disjoint files, about 150 marks each,
-and rewrite the marks left in strings after they end. `nvs-types/tests/` messages may be pinned
-by nothing but the test itself; search before changing a diagnostic's text.
-- [ ] `src/routes.rs` 68 and `tests/routes.rs` 59, with `src/links.rs` 18. `crates/nvs-types/src/routes.rs:1`
-- [ ] `tests/intrinsics.rs` 39, `src/intrinsics.rs` 28, `src/expr_table.rs` 31, `tests/single_value_types.rs` 27, `tests/commands.rs` 23. `crates/nvs-types/src/intrinsics.rs:1`
-- [ ] `src/expr/` (operators 33, quals 13, calls 12, members 11, literals 8 and the rest), `src/derive.rs` 17, `src/retrieval.rs` 12. `crates/nvs-types/src/expr/operators.rs:1`
-- [ ] The rest of the three crates' entries in the record, from `crates/nvs-types/tests/classes.rs` 12 down, with `nvs-syntax` and `nvs-codegen`. `crates/nvs-codegen/src/lib.rs:1`
-- [ ] `bun nv rules --record-marks` in each slice's commit. Stash the other slice's files while you record and commit one. `tools/data/bare-section-marks.json:1`
+Stage 11, `nvs-ir`, `nvs-hir` and `nvs-diagnostics`: 202 marks in 28 files. That is a third of
+a session, so take stage 5 (`nvs-server` and `nvs-host`, 452 marks in 23 files) in the same
+session. The two stages' files are disjoint. Split across four writing subagents on disjoint
+files, about 160 marks each, and write each brief with its file list in it. The history method
+is in Standing decisions. `nvs-diagnostics/src/code/` holds diagnostic text a user reads, so a
+mark in a string there is rewritten by the session, after a search for an expectation file that
+pins it. Commit each stage on its own, with `bun nv rules --record-marks`.
+- [ ] `nvs-ir`: `src/ir.rs` 22, `src/lower/convert.rs` 21, `src/lib.rs` 18, `src/lower/expr.rs` 12 and the rest. `crates/nvs-ir/src/ir.rs:1`
+- [ ] `nvs-hir` and `nvs-diagnostics`: `code/types_e07.rs` 21, `requires.rs` 19, `code/types.rs` 14, `autoload.rs` 10 and the rest. `crates/nvs-diagnostics/src/code/types_e07.rs:1`
+- [ ] Stage 5's two crates, largest count first. `crates/nvs-server/src/lib.rs:1`, `crates/nvs-host/src/lib.rs:1`
 
 ### Backlog
 
@@ -347,5 +351,8 @@ by nothing but the test itself; search before changing a diagnostic's text.
   `crates/nvs-stdlib/src/db/transaction.rs:745`, `crates/nvs-stdlib/src/uri.rs:23`
 - `nvs_runtime::pool`'s head comment has bare § 13 marks, which `db/registry.rs` now cites by
   heading. Stage 12 rewrites them. `crates/nvs-runtime/src/pool.rs:4`
+- `stmt.rs`'s head comment had a broken `rule:types/grammar`.2's left over from a chapter
+  commit, now fixed. Others of that shape (a rule token followed by `.N`) are not marks, so the
+  check does not see them. `git grep -nE "rule:[a-z/-]+\`\.[0-9]"` finds them.
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
   marks. `docs/agent/conventions.md:367`
