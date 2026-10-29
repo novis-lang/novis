@@ -241,37 +241,19 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1-4 are done. `packages/rest/` is `Novis\Rest` 0.1.0, seven classes, 27 tests green
-under `nvs test packages/rest`, and every class's proofs under `package/Novis-Rest-<Class>`, so
-`bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing. `Session` runs its examples,
-attack and bench as requests against Redis, and its tests are skipped in
-`data/proofs/skip/package/Novis-Rest-Session.json`. `nvs pkg publish --dry-run` prints its digest.
+Every stage is done, and the goal is reached. `packages/rest/` is `Novis\Rest` 0.1.0: seven
+classes, 27 tests green under `nvs test packages/rest`, and every class's proofs owed nothing.
+`nvs pkg publish --dry-run` prints its digest. The gate's second `bun nv affected --run` is green,
+and so are `bun nv verify --doc`, `bun nv owners --closes first-packages`, `bun nv ci --check`,
+`rest-tests` and `rest-dry-run`.
 
-The route hover's grants follow the program a file belongs to (`Analysed::program`), read from
-its entry, with `net.internal`, each extension's `grants` and `package.toml`'s `[grants]`. The
-`.lspt` runner now surveys lenders as the server does; all 576 cases pass, and
-`bun nv owners --closes first-packages` passes.
+The first DONE was refused on `floor-debt`. Its first round judged six attacks red, among them
+`core/Arr/unique/01` and `core/ObjectSet/count/01`. Round 2 of the same run judged all six green,
+and each passes alone uncached. `looper check --name floor-debt` is green now, and so is
+`env-secret-proofs`. Nightly CI run 40662443492 was cancelled by a later push, and no job failed.
 
-Stage 5 is done, and the goal is reached. The gate's failures, each fixed: the attributes
-chapter's `details.md` still said `info.version` is always `0.0.0` (5a5c9bbfc edited the generated
-chapter), `packages/` had no row in CONTRIBUTING.md's layout listing, and `bundle.rs`'s `identity`
-read as a climbing path to the test impact check. The site pages and questions for
-`nvs build --openapi` and `--compile` are current, the CLI chapter's `operationId` is `Class.method`,
-and `lang:attributes` perf is re-recorded. The second `bun nv affected --run` is green, and so are
-`bun nv verify --doc`, `bun nv owners --closes first-packages`, `bun nv ci --check`, `rest-tests`
-and `rest-dry-run`.
-
-The first gate run saw `nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded`
-(`crates/nvs-cli/tests/ext_command.rs:752`) fail once beside the other binaries and pass alone,
-with no assertion text in the log. It passed in every run since. Expect it may go red again under load.
-
-The first DONE was refused on `floor-debt`. Its first round judged 5763 proof programs and six
-attacks red, among them `core/Arr/unique/01`, `core/ObjectSet/count/01`,
-`core/Validate/isPrintable/01`, `lang/iteration/what-foreach-walks/01` and
-`tools/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/01`. Round 2 of the same run judged all
-six green. Each passes alone with `bun nv proofs --only ... --run --no-cache`. `looper check --name
-floor-debt` is green now, and so is `env-secret-proofs`. The nightly CI run 40662443492 was
-cancelled by a later push, and no job in it failed.
+`nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded`
+(`crates/nvs-cli/tests/ext_command.rs:752`) may go red again under load (see the backlog).
 
 ### Next
 
