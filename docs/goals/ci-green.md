@@ -104,16 +104,16 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `2d2c1b42d`. It carries the `docs` and IO-append fixes. Website 40807904476
-is green on it. CI 40807904339 is red in one job, fixed and committed, not pushed:
+`origin/main` is at `48f915494`, which carries the Windows `Response::text` attack fix
+`253382e65`. CI 40820447284 and Website 40820447292 are green on it. Nothing is fixed and
+unpushed. The next watch waits for the next goal end's push.
 
-- `proofs / windows-x86_64`: `tests/hostile/core/Http-Response/text/01-large-and-broken-text-bodies.nvs`
-  passed its 30s limit in step 1, having printed nothing. Each `text()` checks the whole 32 MB
-  body as UTF-8 (`crates/nvs-stdlib/src/http.rs:nvs_core_http_response_text`), and step 1 did
-  10000 reads, 4.7s here. `253382e65` cuts it to 1000, 1.1s here. A third attack timing out on
-  Windows with no output: time it with `proofs --run --id ... --show` and count its per-call work.
-
-The next watch runs with `--next`: the red run would end it at once.
+Before that push, the main loop's open goal owes this at `HEAD`, and its own gate catches it.
+The main loop was told with `loop say`. `proofs --gate` owes perf for `lang:attributes/*`
+(`docs/reference/lang/90-attributes.md` changed in `5a5c9bbfc`) and every `Novis\Rest` class.
+`site --check stale questions` is red on `tools/api-document/index.mdx` and on the questions of
+`/reference/cli/nvs-build-compile/` and `/reference/cli/nvs-build-openapi/`. If the next push
+goes out with these, its `proofs` and site jobs go red: record and stamp them then.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
