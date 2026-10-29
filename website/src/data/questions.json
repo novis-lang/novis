@@ -336,12 +336,12 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "b5559edfaa377c75",
+    "hash": "9bacc7feffea4f9a",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
       "Why does my service not start, and how do I see the error?",
-      "Which folders can the service account write to?",
+      "Which folders can the service account write to, such as logs or debug recordings?",
       "Why does the installer stop with E0607 for my config file?",
       "Install nvs serve as a Windows service"
     ]
