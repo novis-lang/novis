@@ -835,12 +835,16 @@ impl nvs_runtime::extension::Extensions for Calls {
         let mut lent = Vec::new();
         let mut crossing = Vec::with_capacity(args.len());
         for (at, arg) in args.iter().enumerate() {
-            let mixed = declared
+            // A `mixed` argument, and a third-party export's `bytes` argument, are lent by
+            // number, so the guest reads the program's own copy.
+            let lends = declared
                 .and_then(|declared| declared.params.get(at))
-                .is_some_and(|param| {
-                    matches!(manifest.novis_type(&param.ty), Ok(NovisType::Mixed))
+                .is_some_and(|param| match manifest.novis_type(&param.ty) {
+                    Ok(NovisType::Mixed) => true,
+                    Ok(NovisType::Bytes) => manifest.builtin.is_none(),
+                    _ => false,
                 });
-            let lending = if mixed {
+            let lending = if lends {
                 lent_source(ctx, *arg, &mut lent)
             } else {
                 None

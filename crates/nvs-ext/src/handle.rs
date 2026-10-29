@@ -33,13 +33,27 @@
 //! [`Value::Case`] carries its case and not its enum. A key is an `int` or a `string` value of its
 //! own. `field("5")` finds the key `5` too, as `$a["5"]` does in Novis.
 //!
+//! **A `bytes` of a third-party export crosses as the `bytes` resource**
+//! (`rule:packaging/a-value-crosses-as-its-wit-type`), a second table of [`Handles`] with its own
+//! reps. An argument is lent as a `borrow<bytes>` on the program's own byte string, moved into the
+//! table and not copied, or on a [`Value::Lent`] source. The guest reads it with `size`, `read` and
+//! `range`, each a typed host function that copies once. A result is a `bytes` the guest made with
+//! the constructor and filled with `append`, and [`take_bytes`] moves its buffer out as the
+//! program's value. Only a `bytes` the guest made takes `append`, so a guest never changes an
+//! argument. `read` asks [`crate::call::Budget::left`] first, as `as-bytes` does, and `append`
+//! charges the request before it copies, so a result past the budget ends the call at the memory
+//! limit. Every `bytes` handle goes with its call too, and its charge is given back then: the
+//! result has moved to the program by that time, and the program's memory holds it from there.
+//!
 //! What it spends: one table entry per handle the guest holds, each a root index and a path, and
 //! at most [`MOST`] at once, so a guest looping over `element` cannot grow host memory past a
-//! bound its request did not pay for. A key's handle copies the key.
+//! bound its request did not pay for. A key's handle copies the key. A `bytes` handle is one entry
+//! more, at most [`MOST`] of them as well, and a result's buffer is charged to its request while
+//! the call runs.
 
 use std::collections::HashMap;
 
-use wasmtime::component::{Linker, Resource, ResourceAny, ResourceType, Val};
+use wasmtime::component::{Linker, Resource, ResourceAny, ResourceType, Val, WasmList};
 use wasmtime::{AsContextMut, StoreContextMut};
 
 use crate::call::Guest;
@@ -55,13 +69,28 @@ pub const RANGE_MOST: usize = 1 << 20;
 #[derive(Debug)]
 pub struct Handle;
 
-/// One instance's table of `value` handles.
+/// The host's side of `nvs:ext/types`'s `bytes` resource.
+#[derive(Debug)]
+pub struct Bytes;
+
+/// One instance's table of `value` and `bytes` handles.
 #[derive(Debug, Default)]
 pub struct Handles {
     roots: Vec<Value>,
     live: HashMap<u32, Entry>,
     next: u32,
     lent: Vec<ResourceAny>,
+    blobs: HashMap<u32, Blob>,
+    next_blob: u32,
+    grown: u64,
+}
+
+/// One `bytes` handle: a [`Value::Bytes`] or a [`Value::Lent`] source, and whether the guest made
+/// it, which only `append` reads.
+#[derive(Debug)]
+struct Blob {
+    value: Value,
+    made: bool,
 }
 
 #[derive(Debug)]
@@ -79,10 +108,33 @@ impl Handles {
         std::mem::take(&mut self.lent)
     }
 
-    /// Ends the call: every root and every handle it made stops being valid.
-    pub(crate) fn end_call(&mut self) {
+    /// Ends the call: every root and every handle it made stops being valid. Returns the bytes
+    /// `append` charged to the request during the call, which the caller gives back.
+    pub(crate) fn end_call(&mut self) -> u64 {
         self.roots.clear();
         self.live.clear();
+        self.blobs.clear();
+        std::mem::take(&mut self.grown)
+    }
+
+    fn insert_blob(&mut self, blob: Blob) -> Result<u32, String> {
+        if self.blobs.len() >= MOST {
+            return Err(format!(
+                "the extension holds more than {MOST} `bytes` handles at once"
+            ));
+        }
+        let rep = self.next_blob;
+        self.next_blob = rep
+            .checked_add(1)
+            .ok_or("the extension has used every `bytes` handle an instance may make")?;
+        self.blobs.insert(rep, blob);
+        Ok(rep)
+    }
+
+    fn blob(&self, rep: u32) -> wasmtime::Result<&Blob> {
+        self.blobs
+            .get(&rep)
+            .ok_or_else(|| wasmtime::format_err!("the `bytes` handle is not one this call holds"))
     }
 
     fn insert(&mut self, entry: Entry) -> Result<u32, String> {
@@ -186,7 +238,55 @@ pub(crate) fn lend(mut store: StoreContextMut<'_, Guest>, value: Value) -> Resul
     Ok(Val::Resource(any))
 }
 
-/// Defines `nvs:ext/types`'s `value` resource and its accessors in `linker`.
+/// Lends the byte string `value`, a [`Value::Bytes`] or a [`Value::Lent`] source, to the call about
+/// to start as a `borrow<bytes>`. A [`Value::Bytes`] moves into the table and is not copied.
+///
+/// # Errors
+///
+/// When `value` is no byte string, the table is full, or wasmtime cannot lower the borrow.
+pub(crate) fn lend_bytes(
+    mut store: StoreContextMut<'_, Guest>,
+    value: Value,
+) -> Result<Val, String> {
+    if !matches!(value, Value::Bytes(_) | Value::Lent { .. }) {
+        return Err(format!("{value:?} is not a value of the type Bytes"));
+    }
+    let rep = store
+        .data_mut()
+        .handles
+        .insert_blob(Blob { value, made: false })?;
+    // Lent from a host-owned resource, as `lend` does, and dropped when the call returns.
+    let any = Resource::<Bytes>::new_own(rep)
+        .try_into_resource_any(store.as_context_mut())
+        .map_err(|err| err.to_string())?;
+    store.data_mut().handles.lent.push(any);
+    Ok(Val::Resource(any))
+}
+
+/// The byte string of the `own<bytes>` the guest returned as `resource`, moved out of the table
+/// and not copied.
+///
+/// # Errors
+///
+/// When `resource` is no `bytes`, or no byte string this call holds.
+pub(crate) fn take_bytes(
+    mut store: StoreContextMut<'_, Guest>,
+    resource: ResourceAny,
+) -> Result<Vec<u8>, String> {
+    let rep = resource
+        .try_into_resource::<Bytes>(store.as_context_mut())
+        .map_err(|err| format!("the extension did not return a `bytes`: {err}"))?
+        .rep();
+    match store.data_mut().handles.blobs.remove(&rep) {
+        Some(Blob {
+            value: Value::Bytes(bytes),
+            ..
+        }) => Ok(bytes),
+        _ => Err("the extension returned a `bytes` handle this call does not hold".to_owned()),
+    }
+}
+
+/// Defines `nvs:ext/types`'s `value` and `bytes` resources and their methods in `linker`.
 ///
 /// # Errors
 ///
@@ -330,6 +430,83 @@ pub(crate) fn link(linker: &mut Linker<Guest>) -> wasmtime::Result<()> {
             },))
         },
     )?;
+    link_bytes(&mut types)
+}
+
+/// Defines `nvs:ext/types`'s `bytes` resource and its five methods in `types`.
+fn link_bytes(types: &mut wasmtime::component::LinkerInstance<'_, Guest>) -> wasmtime::Result<()> {
+    types.resource("bytes", ResourceType::host::<Bytes>(), |mut store, rep| {
+        store.data_mut().handles.blobs.remove(&rep);
+        Ok(())
+    })?;
+    types.func_wrap("[constructor]bytes", |mut store, (): ()| {
+        let blob = Blob {
+            value: Value::Bytes(Vec::new()),
+            made: true,
+        };
+        match store.data_mut().handles.insert_blob(blob) {
+            Ok(rep) => Ok((Resource::<Bytes>::new_own(rep),)),
+            Err(err) => Err(wasmtime::format_err!("{err}")),
+        }
+    })?;
+    types.func_wrap(
+        "[method]bytes.size",
+        |store, (this,): (Resource<Bytes>,)| {
+            Ok((match &store.data().handles.blob(this.rep())?.value {
+                Value::Bytes(bytes) => u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+                Value::Lent { size, .. } => *size,
+                _ => 0,
+            },))
+        },
+    )?;
+    types.func_wrap_async(
+        "[method]bytes.read",
+        |store, (this,): (Resource<Bytes>,)| {
+            let read = store
+                .data()
+                .handles
+                .blob(this.rep())
+                .and_then(|blob| bytes_from(&store, &blob.value, 0, None));
+            Box::new(async move { Ok((read?.await?.unwrap_or_default(),)) })
+        },
+    )?;
+    types.func_wrap_async(
+        "[method]bytes.range",
+        |store, (this, offset, length): (Resource<Bytes>, u64, u64)| {
+            let read = store
+                .data()
+                .handles
+                .blob(this.rep())
+                .and_then(|blob| bytes_from(&store, &blob.value, offset, Some(length)));
+            Box::new(async move { Ok((read?.await?.unwrap_or_default(),)) })
+        },
+    )?;
+    types.func_wrap(
+        "[method]bytes.append",
+        |mut store, (this, data): (Resource<Bytes>, WasmList<u8>)| {
+            if !store.data().handles.blob(this.rep())?.made {
+                wasmtime::bail!("`append` takes only a `bytes` the extension made");
+            }
+            let more = u64::try_from(data.len()).unwrap_or(u64::MAX);
+            crate::call::grow(&**store.data().budget(), "an `append`", more)?;
+            let handles = &mut store.data_mut().handles;
+            handles.grown = handles.grown.saturating_add(more);
+            let Some(Blob {
+                value: Value::Bytes(buffer),
+                ..
+            }) = handles.blobs.get_mut(&this.rep())
+            else {
+                wasmtime::bail!("a `bytes` the extension made holds a byte string");
+            };
+            // Taken out while the guest's memory is borrowed, so the bytes are copied once.
+            let mut buffer = std::mem::take(buffer);
+            buffer.extend_from_slice(data.as_le_slice(&store));
+            if let Some(blob) = store.data_mut().handles.blobs.get_mut(&this.rep()) {
+                blob.value = Value::Bytes(buffer);
+            }
+            Ok(())
+        },
+    )?;
     Ok(())
 }
 
@@ -354,8 +531,18 @@ fn bytes_of(
     offset: u64,
     length: Option<u64>,
 ) -> wasmtime::Result<impl Future<Output = wasmtime::Result<Option<Vec<u8>>>> + Send + 'static> {
+    bytes_from(store, read(store, this)?, offset, length)
+}
+
+/// What `bytes_of` gives for the value `value`, which a `bytes` handle's `read` and `range` give too.
+fn bytes_from(
+    store: &StoreContextMut<'_, Guest>,
+    value: &Value,
+    offset: u64,
+    length: Option<u64>,
+) -> wasmtime::Result<impl Future<Output = wasmtime::Result<Option<Vec<u8>>>> + Send + 'static> {
     let budget = store.data().budget();
-    let (copied, lent) = match read(store, this)? {
+    let (copied, lent) = match value {
         Value::Bytes(bytes) => {
             if length.is_none() {
                 let whole = u64::try_from(bytes.len()).unwrap_or(u64::MAX);

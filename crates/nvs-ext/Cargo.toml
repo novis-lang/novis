@@ -112,6 +112,11 @@ required-features = ["engine"]
 name = "image_guest"
 required-features = ["engine", "pack"]
 
+# A third-party export's `bytes` crossing as the host's `bytes` resource.
+[[test]]
+name = "bytes"
+required-features = ["engine", "pack"]
+
 [[test]]
 name = "builtin"
 required-features = ["engine", "pack"]

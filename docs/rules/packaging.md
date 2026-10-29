@@ -3178,39 +3178,61 @@ Codegen emits it as a direct call of one runtime helper with the export named in
 
 Every parameter and return of an extension's export has a Novis type, and one closed table gives its
 WIT type. A value is copied whole in each direction by the canonical ABI, so an author receives native
-types from `wit-bindgen` and writes no marshalling code.
+types from `wit-bindgen` and writes no marshalling code. The one exception is a `bytes` in a
+third-party export, which crosses as the host's `bytes` resource and is copied by its methods.
 
-| Novis | WIT |
-|---|---|
-| `bool`, `int`, `uint`, `float` | `bool`, `s64`, `u64`, `f64` |
-| `string` | `string` — UTF-8 both ways, and invalid UTF-8 from a guest traps |
-| `bytes` | `list<u8>` |
-| `array<T>` (a list) | `list<T>` |
-| `array<K, V>` | `list<tuple<K, V>>`, in order |
-| a shape `{a: T, b?: U}` | `record { a: T, b: option<U> }` |
-| an enum | `enum`, its cases in kebab-case |
-| `?T` | `option<T>` |
-| a closed union of shapes | `variant`, one case per shape |
-| a `Core` value class | the record `nvs:ext/types` defines for it |
-| `resource` | a resource the extension exports, alive until the request ends |
-| `mixed` | `borrow<value>` ([`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles)) |
+| Novis | WIT, a built-in world | WIT, a third-party export |
+|---|---|---|
+| `bool`, `int`, `uint`, `float` | `bool`, `s64`, `u64`, `f64` | the same |
+| `string` | `string` — UTF-8 both ways, and invalid UTF-8 from a guest traps | the same |
+| `bytes` | `list<u8>` | `borrow<bytes>` as a parameter, `own<bytes>` as a result |
+| `array<T>` (a list) | `list<T>` | the same |
+| `array<K, V>` | `list<tuple<K, V>>`, in order | the same |
+| a shape `{a: T, b?: U}` | `record { a: T, b: option<U> }` | the same |
+| an enum | `enum`, its cases in kebab-case | the same |
+| `?T` | `option<T>` | the same |
+| a closed union of shapes | `variant`, one case per shape | the same |
+| a `Core` value class | the record `nvs:ext/types` defines for it | the same |
+| `resource` | a resource the extension exports, alive until the request ends | the same |
+| `mixed` | `borrow<value>` ([`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles)) | the same |
 
 A type not in the table cannot appear in an extension signature, and a manifest naming one does not
 load. Every export returns `result<T, error>` on the WIT side, and the error throws the class
 [`packaging/a-guest-crash-throws`](packaging.md#packaging-a-guest-crash-throws) maps it to. `uint` is `u64` with no conversion, the same
 parametric signatures the built-ins use.
 
+**A third-party `bytes` is the host's `bytes` resource**, at every position the manifest names it:
+a parameter, a result, a list element, a shape field, an `option` and a union case. The host lends
+an argument by number, and the guest copies it in with `read`, or a block at a time with `range`.
+The guest returns a result as a `bytes` it made empty and filled with `append`, and the host takes
+that buffer as the program's value without copying it again. Each method is a typed host function,
+so each copies once. `read` and `range` are refused past the request's memory, and every `append`
+is charged to the request before it copies, so a result past the budget ends the call at the memory
+limit ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)). A third-party export whose WIT
+has `list<u8>` where its manifest names `bytes` does not load, and the error names the resource.
+
+This is because a third-party export is called on wasmtime's dynamic path, its types known only at
+run time, and that path lifts and lowers a `list<u8>` as one `Val` per byte: about 122 host bytes
+allocated for each byte crossed ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)). A built-in world is
+called typed, so its `list<u8>` already crosses in one copy, and it keeps the list. A `Core` record
+keeps its byte field as `list<u8>` in both kinds, because `big-int`'s magnitude and `public-key`'s
+`spki` are small by construction and a record is copied whole.
+
 What it costs is the copy: a guest that needs one field of a large array still receives the array,
 at about 12 ns per KiB. Coarse APIs are the rule already ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)),
-and `mixed` keeps the pull-only path for the case that needs it.
+and `mixed` keeps the pull-only path for the case that needs it. A third-party `bytes` costs one
+handle table entry while it is in flight, and a small one pays two or three typed host calls, about
+30 ns. A result's buffer is charged to its request until the call returns.
 
 **On disk.** The world is written: `wit/nvs-ext/types.wit` holds the `error` variant, the `value`
-resource and one record per `Core` value class that crosses, and `crates/nvs-stdlib/tests/ext_world.rs`
-names every other value class with the reason it cannot. A manifest declares its enums, closed
-unions of shapes and resources by name, the loader holds each against the export's `enum`,
-`variant`, record or resource, and `nvs_ext::convert` converts every row to its WIT value and back,
-`mixed` by lending it as a handle and a resource as a number the request keeps, which
-`nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). `nvs run` crosses every
+and `bytes` resources and one record per `Core` value class that crosses, and
+`crates/nvs-stdlib/tests/ext_world.rs` names every other value class with the reason it cannot. A
+manifest declares its enums, closed unions of shapes and resources by name, the loader holds each
+against the export's `enum`, `variant`, record or resource, and `nvs_ext::convert` converts every
+row to its WIT value and back, `mixed` by lending it as a handle and a resource as a number the
+request keeps, which `nvs_ext::call::Request::end` drops (`crates/nvs-ext/tests/convert.rs`). A
+third-party `bytes` is lent and taken by `nvs_ext::handle` (`crates/nvs-ext/tests/bytes.rs`), and
+`nvs run` lends a `bytes` argument by number, as it does a `mixed` one. `nvs run` crosses every
 row (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`,
 `tests/conformance/ext/an-extension-resource-is-held-by-the-program-and-passed-back.nvst`); a
 `Core` value class is read and rebuilt by `nvs_stdlib::ext_record`, with its constructor's checks.
@@ -3223,6 +3245,13 @@ as an object whose one slot is the request's number for it (`nvs_types::ext_lib`
   author would write marshalling code, and a record of ten fields would cost ten crossings. The
   common call is coarse, and a copy serves it faster.
 - **Typed values and handles at the author's choice.** That is two ways to pass one argument.
+- **A patched wasmtime with a byte-list `Val`.** It would keep `list<u8>` for every extension, but
+  wasmtime is the sandbox, and a fork of it would be carried through every dependency update.
+  Security and request isolation come first.
+- **A closed set of typed call shapes for third-party exports.** The shapes multiply with each
+  parameter, and they cover only some signatures.
+- **The `bytes` resource in the built-in worlds.** Their exports are called typed, so their byte
+  lists already cross in one copy.
 
 <sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed).</sub>
 
@@ -3232,36 +3261,42 @@ as an object whose one slot is the request's number for it (`nvs_types::ext_lib`
 
 `rule:packaging/values-cross-as-handles`
 
-A `mixed` parameter is the one value that crosses as a handle: the guest receives an opaque `value`
-resource — an index into a per-call handle table the host bounds-checks — and reads it through
-accessor functions. Every other type crosses as its WIT type, copied whole
-([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)). A guest cannot forge a host pointer; it can only
-present an index, which is validated, and a guest reading past the end of the host heap gets nothing
-rather than adjacent memory.
+Two values cross as handles. A `mixed` parameter crosses as an opaque `value` resource, and a
+third-party export's `bytes` crosses as the `bytes` resource
+([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)). Each is an index into a per-call handle table
+the host bounds-checks, and the guest reads it through accessor functions. Every other type crosses
+as its WIT type, copied whole. A guest cannot forge a host pointer; it can only present an index,
+which is validated, and a guest reading past the end of the host heap gets nothing rather than
+adjacent memory.
 
 The host stays authoritative for refcounting and copy-on-write, and the guest never sees a refcount.
 Behind a handle a large array or string is not copied wholesale — the guest pulls what it reads — and
 for byte strings it may request a bulk copy into its own linear memory, which is memcpy-bound at
-roughly 12 ns per KiB.
+roughly 12 ns per KiB. A `bytes` handle the guest makes itself is the one handle it writes: it adds
+to it with `append`, each part charged to the request, and returns it as its result.
 
 This is also why an extension exposes no per-pixel or per-element accessor across the boundary: each
 accessor call is a fixed cost, a bulk copy is nearly free, and the design that wins moves whole buffers
 a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
 [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-**Partly on disk.** `nvs_ext::handle` is the per-call table and the `value` accessors, and
-`nvs_ext::call::Request::call_values` lends a `mixed` argument through it; a handle kept past its
-call traps when it is read (`crates/nvs-ext/tests/convert.rs`). `nvs run` calls an extension from a
-program, and the row-table case passes `mixed` values to the fixture's `kindOf`
+What it spends: one table entry per handle in flight, at most 65,536 of each kind at once, and a
+`bytes` result's buffer, charged to its request until the call returns.
+
+**Partly on disk.** `nvs_ext::handle` is the per-call table, the `value` accessors and the `bytes`
+methods, and `nvs_ext::call::Request::call_values` lends a `mixed` argument and a third-party
+`bytes` through it; a handle kept past its call traps when it is read
+(`crates/nvs-ext/tests/convert.rs`, `crates/nvs-ext/tests/bytes.rs`). `nvs run` calls an extension
+from a program, and the row-table case passes `mixed` values to the fixture's `kindOf`
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). A `bytes`
-value or an open `Core\IO\File` passed as `mixed` is lent by number and not copied, and the host
-serves each `range` the guest reads from the program's own copy between two polls of the call
-([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). `as-bytes` and `range` are typed host
-functions that return a `list<u8>` whole, so a block a guest reads through a handle is one bulk copy
-(`crates/nvs-ext/src/handle.rs:262-285`). A `bytes` parameter or result of an export does not
-go through a handle. Every built-in component's exports are called typed (`crates/nvs-ext/src/typed.rs`),
-so their bytes cross in one copy each way. A third-party export's cross as one wasmtime `Val` per byte,
-because its types are known only at run time (`crates/nvs-ext/src/convert.rs:53`).
+value or an open `Core\IO\File` passed as `mixed`, and a `bytes` argument of a third-party export,
+is lent by number and not copied, and the host serves each `range` the guest reads from the
+program's own copy between two polls of the call
+([`core-classes/spreadsheet-reads-as-a-stream`](core-classes.md#core-classes-spreadsheet-reads-as-a-stream)). `as-bytes`, `range`, `read` and `append` are
+typed host functions that copy a `list<u8>` whole, so a block a guest reads or writes through a
+handle is one bulk copy (`crates/nvs-ext/src/handle.rs`). Every built-in component's exports are
+called typed (`crates/nvs-ext/src/typed.rs`), so their `bytes` cross as `list<u8>` in one copy
+each way and never through a handle.
 
 <sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
@@ -3572,8 +3607,11 @@ In-guest compute is measured against the same crate built native in
 a whole call that returns the pixels takes about twice as long in the guest as native, and returning
 the pixels adds little to returning the size header alone. That holds because the image world is
 called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way, as every
-built-in world's do. A third-party export is called on the dynamic path, which crosses a byte list as
-one wasmtime `Val` per byte and costs more than the compute (`crates/nvs-ext/src/convert.rs:53`).
+built-in world's do. A third-party export is called on the dynamic path, which would cross a byte
+list as one wasmtime `Val` per byte. `crates/nvs-ext/benches/ext_bytes.rs` measured that in
+`benches/results/ext-bytes.json`: a 16 MiB echo took 876 ms and allocated 122 host bytes per byte
+crossed. So a third-party `bytes` crosses as the host's `bytes` resource instead, copied once each
+way by typed host calls ([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)).
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party

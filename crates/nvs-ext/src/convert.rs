@@ -37,8 +37,9 @@
 //! host bug or a guest that wasmtime let lift something the export did not declare, and the message
 //! names the type that was expected.
 //!
-//! **Two rows cross as handles, and only a call has them.** [`to_wit_with`] and [`from_wit_with`]
-//! take the call's [`Crossing`]; [`to_wit`] and [`from_wit`] have no call and refuse both rows.
+//! **Two rows always cross as handles, and only a call has them.** [`to_wit_with`] and
+//! [`from_wit_with`] take the call's [`Crossing`]; [`to_wit`] and [`from_wit`] have no call and
+//! refuse both rows.
 //!
 //! - `mixed` is lent, not converted: [`Crossing::lend`] puts the value in the call's handle table
 //!   (`crate::handle`) and returns the `borrow<value>` the guest receives. A `mixed` value is any
@@ -50,11 +51,18 @@
 //!   `borrow` of it. A number the request does not keep, or one kept for another resource type, is
 //!   refused.
 //!
-//! What it costs: one copy of the value each way, on top of the canonical ABI's own. wasmtime's
-//! dynamic [`Val`] holds one `Val` per element, a byte of `bytes` included, so a `bytes` value costs
-//! one `Val` per byte here. Only a third-party extension comes here, because its types are known
+//! **A `bytes` crosses as the call says.** [`Crossing::lend_bytes`] and [`Crossing::take_bytes`]
+//! give its WIT value. A third-party export's call lends a `borrow<bytes>` of `nvs:ext/types` on
+//! the byte string and takes the `own<bytes>` the guest returns (`crate::handle`), at every
+//! position: a parameter, a result, a list element, a shape field and an option. The guest copies
+//! the bytes in and out through the resource's typed methods, so no `Val` holds a byte. A built-in
+//! world's call, and a conversion with no call, give the `list<u8>` instead, one `Val` per byte. A
+//! `Core` record's byte field is always `list<u8>`, because each one is small.
+//!
+//! What it costs: one copy of the value each way, on top of the canonical ABI's own, and one `Val`
+//! per element of a list. Only a third-party extension comes here, because its types are known
 //! only at run time. Every built-in world has generated bindings, and `crate::typed` calls its
-//! exports typed, so a `bytes` value crosses there in one copy each way.
+//! exports typed, so a `bytes` value crosses there in one copy each way too.
 
 use wasmtime::component::{ResourceAny, Val};
 
@@ -134,6 +142,48 @@ pub trait Crossing {
     ///
     /// Why the resource could not be kept.
     fn keep(&mut self, name: &str, resource: ResourceAny) -> Result<Value, String>;
+
+    /// The WIT value the byte string `value` crosses into the guest as. The default is the
+    /// `list<u8>` a built-in world takes, and a third-party export's call lends a `borrow<bytes>`.
+    ///
+    /// # Errors
+    ///
+    /// Why `value` could not cross.
+    fn lend_bytes(&mut self, value: Value) -> Result<Val, String> {
+        bytes_to_list(value)
+    }
+
+    /// The byte string the WIT value `val` the guest returned is. The default reads the
+    /// `list<u8>` a built-in world returns, and a third-party export's call takes an `own<bytes>`.
+    ///
+    /// # Errors
+    ///
+    /// Why `val` is not a byte string.
+    fn take_bytes(&mut self, val: Val) -> Result<Vec<u8>, String> {
+        list_to_bytes(val)
+    }
+}
+
+/// The `list<u8>` of the byte string `value`, one [`Val`] per byte.
+pub(crate) fn bytes_to_list(value: Value) -> Result<Val, String> {
+    match value {
+        Value::Bytes(bytes) => Ok(Val::List(bytes.into_iter().map(Val::U8).collect())),
+        other => Err(mismatch(&NovisType::Bytes, &other)),
+    }
+}
+
+/// The byte string of the `list<u8>` `val`.
+pub(crate) fn list_to_bytes(val: Val) -> Result<Vec<u8>, String> {
+    match val {
+        Val::List(items) => items
+            .into_iter()
+            .map(|item| match item {
+                Val::U8(byte) => Ok(byte),
+                other => Err(wit_mismatch(&NovisType::Bytes, &other)),
+            })
+            .collect(),
+        other => Err(wit_mismatch(&NovisType::Bytes, &other)),
+    }
 }
 
 /// The crossing of a conversion with no call around it, which refuses every handle.
@@ -193,8 +243,8 @@ pub fn to_wit_with(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Res
         (NovisType::Uint, Value::Int(n)) if let Ok(n) = u64::try_from(n) => Val::U64(n),
         (NovisType::Float, Value::Float(x)) => Val::Float64(x),
         (NovisType::String, Value::String(s)) => Val::String(s),
-        (NovisType::Bytes, Value::Bytes(bytes)) => {
-            Val::List(bytes.into_iter().map(Val::U8).collect())
+        (NovisType::Bytes, value @ (Value::Bytes(_) | Value::Lent { .. })) => {
+            call.lend_bytes(value)?
         }
         (NovisType::Optional(_), Value::Null) => Val::Option(None),
         (NovisType::Optional(inner), value) => {
@@ -248,7 +298,11 @@ pub fn to_wit_with(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Res
                     return Err(format!("the `{class}` has no field `{name}`"));
                 };
                 let value = fields.swap_remove(at).1;
-                record.push(((*name).to_owned(), to_wit_with(ty, value, call)?));
+                let val = match ty {
+                    NovisType::Bytes => bytes_to_list(value)?,
+                    ty => to_wit_with(ty, value, call)?,
+                };
+                record.push(((*name).to_owned(), val));
             }
             Val::Record(record)
         }
@@ -346,15 +400,7 @@ pub fn from_wit_with(ty: &NovisType, val: Val, call: &mut dyn Crossing) -> Resul
         (NovisType::Uint, Val::U64(n)) => Value::Uint(n),
         (NovisType::Float, Val::Float64(x)) => Value::Float(x),
         (NovisType::String, Val::String(s)) => Value::String(s),
-        (NovisType::Bytes, Val::List(items)) => Value::Bytes(
-            items
-                .into_iter()
-                .map(|item| match item {
-                    Val::U8(byte) => Ok(byte),
-                    other => Err(wit_mismatch(ty, &other)),
-                })
-                .collect::<Result<_, _>>()?,
-        ),
+        (NovisType::Bytes, val) => Value::Bytes(call.take_bytes(val)?),
         (NovisType::Optional(_), Val::Option(None)) => Value::Null,
         (NovisType::Optional(inner), Val::Option(Some(val))) => from_wit_with(inner, *val, call)?,
         (NovisType::List(item), Val::List(items)) => Value::Array(
@@ -396,7 +442,11 @@ pub fn from_wit_with(ty: &NovisType, val: Val, call: &mut dyn Crossing) -> Resul
                     .iter()
                     .zip(record)
                     .map(|((name, ty), (_, val))| {
-                        Ok(((*name).to_owned(), from_wit_with(ty, val, call)?))
+                        let value = match ty {
+                            NovisType::Bytes => Value::Bytes(list_to_bytes(val)?),
+                            ty => from_wit_with(ty, val, call)?,
+                        };
+                        Ok(((*name).to_owned(), value))
                     })
                     .collect::<Result<_, String>>()?,
             }

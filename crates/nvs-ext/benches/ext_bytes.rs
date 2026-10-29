@@ -93,11 +93,7 @@ unsafe impl GlobalAlloc for Counting {
 static GLOBAL: Counting = Counting;
 
 /// The sizes each call echoes, with the name each row has.
-const SIZES: [(&str, usize); 3] = [
-    ("1 KiB", 1 << 10),
-    ("1 MiB", 1 << 20),
-    ("16 MiB", 16 << 20),
-];
+const SIZES: [(&str, usize); 3] = [("1 KiB", 1 << 10), ("1 MiB", 1 << 20), ("16 MiB", 16 << 20)];
 /// Untimed calls at each size before the timed ones.
 const WARMUP: usize = 2;
 /// Timed calls at each size. The median is the figure.
@@ -197,7 +193,10 @@ fn main() {
         let peak = median(runs.iter().map(|run| run.peak).collect());
         #[allow(clippy::cast_precision_loss, reason = "figures for a person to read")]
         let per_byte = |figure: u64| figure as f64 / size as f64;
-        #[allow(clippy::cast_precision_loss, reason = "milliseconds for a person to read")]
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "milliseconds for a person to read"
+        )]
         let ms = ns as f64 / 1e6;
         println!(
             "{name:<7} {ms:>10.3} ms  allocated {allocated:>12} B ({:.1} per byte)  peak {peak:>12} B ({:.1} per byte)",

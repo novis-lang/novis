@@ -9,8 +9,11 @@ In-guest compute is measured against the same crate built native in
 a whole call that returns the pixels takes about twice as long in the guest as native, and returning
 the pixels adds little to returning the size header alone. That holds because the image world is
 called typed (`crates/nvs-ext/src/typed.rs`), so its byte lists cross in one copy each way, as every
-built-in world's do. A third-party export is called on the dynamic path, which crosses a byte list as
-one wasmtime `Val` per byte and costs more than the compute (`crates/nvs-ext/src/convert.rs:53`).
+built-in world's do. A third-party export is called on the dynamic path, which would cross a byte
+list as one wasmtime `Val` per byte. `crates/nvs-ext/benches/ext_bytes.rs` measured that in
+`benches/results/ext-bytes.json`: a 16 MiB echo took 876 ms and allocated 122 host bytes per byte
+crossed. So a third-party `bytes` crosses as the host's `bytes` resource instead, copied once each
+way by typed host calls (`rule:packaging/a-value-crosses-as-its-wit-type`).
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party

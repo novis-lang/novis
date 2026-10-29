@@ -42,6 +42,13 @@
 //! request keeps, and a `borrow` of it in a parameter, so passing it never gives it away. The `err`
 //! side of every result is the world's `error` variant, read by its three cases.
 //!
+//! **A `bytes` is held by the kind of extension.** A built-in's is `list<u8>`, because its exports
+//! are called typed and cross a list in one copy. A third-party's is the `bytes` resource the
+//! component imports from `nvs:ext/types`, matched by its type as an exported resource is: an
+//! `own` in a result and a `borrow` in a parameter, at every position. A third-party export with
+//! `list<u8>` there does not load, and the refusal names the resource. A `Core` record's byte field
+//! is `list<u8>` in both kinds.
+//!
 //! **A WASI import matches by interface and `0.2`**, any patch: wasmtime's linker resolves a `0.2.x`
 //! import to the `0.2` release the host defines. Of the world's WASI interfaces, only those
 //! [`crate::wasi::LINKED`] names load, because an interface the host does not define would fail
@@ -521,6 +528,11 @@ impl Loader {
                 manifest.interface
             )));
         };
+        let imported = self.imported_bytes(component);
+        let bytes = match manifest.builtin {
+            Some(_) => BytesAs::List,
+            None => BytesAs::Resource(imported.as_ref()),
+        };
         for method in &manifest.methods {
             let export = method.export_name();
             let func = interface
@@ -539,7 +551,7 @@ impl Loader {
                 Some(ComponentItem::Resource(ty)) => Some(ty),
                 _ => None,
             };
-            check_signature(manifest, method, &func, &resource).map_err(|reason| {
+            check_signature(manifest, method, &func, &resource, bytes).map_err(|reason| {
                 refuse(format!(
                     "the method `{}` does not match `{}#{export}`: {reason}",
                     method.name, manifest.interface
@@ -547,6 +559,26 @@ impl Loader {
             })?;
         }
         Ok(())
+    }
+
+    /// The `bytes` resource `component` imports from `nvs:ext/types`, or `None` where it imports
+    /// none.
+    fn imported_bytes(&self, component: &Component) -> Option<ResourceType> {
+        let ty = component.component_type();
+        ty.imports(&self.engine)
+            .find_map(|(name, import)| match import.ty {
+                ComponentItem::ComponentInstance(types) if export_names(name, "nvs:ext/types") => {
+                    Some(types)
+                }
+                _ => None,
+            })
+            .and_then(|types| match types.get_export(&self.engine, "bytes") {
+                Some(export) => match export.ty {
+                    ComponentItem::Resource(ty) => Some(ty),
+                    _ => None,
+                },
+                None => None,
+            })
     }
 
     /// Whether a component built against `built` loads on this host: the same major, and a minor
@@ -849,20 +881,32 @@ pub(crate) fn export_names(name: &str, interface: &str) -> bool {
 }
 
 /// Whether `func` is the WIT function `method`'s Novis signature gives, the named types resolved
-/// against `manifest` and a resource against `resource`, the interface's export of that name.
+/// against `manifest`, a resource against `resource`, the interface's export of that name, and a
+/// `bytes` as `bytes` says.
 fn check_signature(
     manifest: &Manifest,
     method: &Method,
     func: &ComponentFunc,
     resource: &dyn Fn(&str) -> Option<ResourceType>,
+    bytes: BytesAs<'_>,
 ) -> Result<(), String> {
     let taken = Side {
         resource,
         returned: false,
+        bytes,
     };
     let returned = Side {
         resource,
         returned: true,
+        bytes,
+    };
+    // A refusal over a third-party `bytes` names the resource it crosses as.
+    let hint = |ty: &NovisType, returned: bool| match bytes {
+        BytesAs::Resource(_) if has_bytes(ty) => format!(
+            ", and a `bytes` crosses as `{}<bytes>` of `nvs:ext/types`",
+            if returned { "own" } else { "borrow" }
+        ),
+        _ => String::new(),
     };
     let params: Vec<(&str, Type)> = func.params().collect();
     if params.len() != method.params.len() {
@@ -883,8 +927,10 @@ fn check_signature(
         let ty = manifest.novis_type(&param.ty)?;
         if !crosses_as(&ty, wit, &taken) {
             return Err(format!(
-                "the parameter `{}` is `{}`, which does not cross as the export's type",
-                param.name, param.ty
+                "the parameter `{}` is `{}`, which does not cross as the export's type{}",
+                param.name,
+                param.ty,
+                hint(&ty, false)
             ));
         }
     }
@@ -902,8 +948,11 @@ fn check_signature(
     };
     if !ok {
         return Err(format!(
-            "it returns `{}`, which does not cross as the export's result",
-            method.returns
+            "it returns `{}`, which does not cross as the export's result{}",
+            method.returns,
+            returns
+                .as_ref()
+                .map_or_else(String::new, |ty| hint(ty, true))
         ));
     }
     if !result.err().is_some_and(|err| is_error(&err)) {
@@ -926,11 +975,37 @@ fn is_error(ty: &Type) -> bool {
             .all(|(name, case)| case.name == *name && matches!(case.ty, Some(Type::String)))
 }
 
-/// Where a type crosses: the interface's resource of each name, and whether the type is a
-/// result's, which returns a resource as an `own`, or a parameter's, which takes it as a `borrow`.
+/// Where a type crosses: the interface's resource of each name, whether the type is a result's,
+/// which returns a resource as an `own`, or a parameter's, which takes it as a `borrow`, and what
+/// a `bytes` crosses as.
+#[derive(Clone, Copy)]
 struct Side<'a> {
     resource: &'a dyn Fn(&str) -> Option<ResourceType>,
     returned: bool,
+    bytes: BytesAs<'a>,
+}
+
+/// What a `bytes` crosses as: `list<u8>` in a built-in's export and in a `Core` record, and the
+/// `bytes` resource the component imports, if it imports one, in a third-party export.
+#[derive(Clone, Copy)]
+enum BytesAs<'a> {
+    List,
+    Resource(Option<&'a ResourceType>),
+}
+
+/// Whether a value of `ty` holds a `bytes` that crosses as the export's own WIT type: one outside
+/// a `Core` record, whose byte fields are always `list<u8>`.
+fn has_bytes(ty: &NovisType) -> bool {
+    match ty {
+        NovisType::Bytes => true,
+        NovisType::List(item) | NovisType::Optional(item) => has_bytes(item),
+        NovisType::Keyed(key, value) => has_bytes(key) || has_bytes(value),
+        NovisType::Shape(fields) => fields.iter().any(|(_, _, ty)| has_bytes(ty)),
+        NovisType::Union { cases, .. } => cases
+            .iter()
+            .any(|(_, fields)| fields.iter().any(|(_, _, ty)| has_bytes(ty))),
+        _ => false,
+    }
 }
 
 /// Whether a value of the Novis type `ty` crosses as `wit` on `side`.
@@ -948,7 +1023,14 @@ fn crosses_as(ty: &NovisType, wit: &Type, side: &Side<'_>) -> bool {
         | (NovisType::Float, Type::Float64)
         | (NovisType::String, Type::String)
         | (NovisType::Mixed, Type::Borrow(_)) => true,
-        (NovisType::Bytes, Type::List(list)) => matches!(list.ty(), Type::U8),
+        (NovisType::Bytes, wit) => match side.bytes {
+            BytesAs::List => matches!(wit, Type::List(list) if matches!(list.ty(), Type::U8)),
+            BytesAs::Resource(bytes) => match wit {
+                Type::Own(wit) if side.returned => bytes.is_some_and(|ty| ty == wit),
+                Type::Borrow(wit) if !side.returned => bytes.is_some_and(|ty| ty == wit),
+                _ => false,
+            },
+        },
         (NovisType::List(item), Type::List(list)) => crosses_as(item, &list.ty(), side),
         (NovisType::Keyed(key, value), Type::List(list)) => match list.ty() {
             Type::Tuple(tuple) => {
@@ -976,10 +1058,14 @@ fn crosses_as(ty: &NovisType, wit: &Type, side: &Side<'_>) -> bool {
                 })
         }
         (NovisType::Core(core), Type::Record(record)) => {
+            let list = Side {
+                bytes: BytesAs::List,
+                ..*side
+            };
             let wit: Vec<_> = record.fields().collect();
             wit.len() == core.fields.len()
                 && core.fields.iter().zip(&wit).all(|((name, ty), field)| {
-                    field.name == *name && crosses_as(ty, &field.ty, side)
+                    field.name == *name && crosses_as(ty, &field.ty, &list)
                 })
         }
         _ => false,

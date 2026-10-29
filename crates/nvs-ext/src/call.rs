@@ -50,7 +50,8 @@
 //!
 //! **Novis values.** [`Request::call_values`] takes a call's Novis values, converts each by the
 //! type the manifest declares for its parameter (`crate::convert`), lends a `mixed` one as a handle
-//! (`crate::handle`), and converts the result back. An argument that is not a value of its type is
+//! and a third-party export's `bytes` as the `bytes` resource (`crate::handle`), and converts the
+//! result back. An argument that is not a value of its type is
 //! [`Error::Invalid`]: it throws `LogicError` and keeps the instance. A result that does not convert
 //! is the extension's fault, a [`Failure::Trap`]. When the call returns, the borrows it was lent
 //! are dropped and every handle it made stops being valid, whatever the outcome. It parses the
@@ -1060,10 +1061,12 @@ impl Request {
         if let Some(world) = world {
             return self.call_typed(extension, declared, world, args).await;
         }
+        let lends_bytes = manifest.builtin.is_none();
         let lower = |store: &mut Store<Guest>, _: At<'_>| {
             let mut call = Call {
                 store,
                 ids: &self.ids,
+                lends_bytes,
             };
             declared
                 .params
@@ -1091,6 +1094,7 @@ impl Request {
                     let mut call = Call {
                         store,
                         ids: &self.ids,
+                        lends_bytes,
                     };
                     convert::from_wit_with(&ty, val, &mut call)
                         .map(Some)
@@ -1125,6 +1129,7 @@ impl Request {
             let mut call = Call {
                 store,
                 ids: &self.ids,
+                lends_bytes: false,
             };
             world
                 .lower(&declared.name, &params, args, &mut call)
@@ -1144,6 +1149,7 @@ impl Request {
             let mut call = Call {
                 store,
                 ids: &self.ids,
+                lends_bytes: false,
             };
             out.into_value(&ty, &mut call)
                 .map(Some)
@@ -1358,17 +1364,23 @@ fn declared<'e>(extension: &'e Extension, method: &str) -> Result<&'e Method, Fa
 }
 
 impl Live {
-    /// Drops the borrows the call's `mixed` arguments were lent as, and ends every handle the call
-    /// made.
+    /// Drops the borrows the call's `mixed` and `bytes` arguments were lent as, ends every handle
+    /// the call made, and gives back what its `append`s charged.
     async fn end_call(&mut self) -> Result<(), String> {
         let lent = self.store.data_mut().handles.take_lent();
         let mut dropped = Ok(());
         for borrow in lent {
             if let Err(err) = borrow.resource_drop_async(&mut self.store).await {
-                dropped = Err(format!("a `value` handle did not drop: {err}"));
+                dropped = Err(format!("a lent handle did not drop: {err}"));
             }
         }
-        self.store.data_mut().handles.end_call();
+        let grown = self.store.data_mut().handles.end_call();
+        if grown > 0 {
+            self.store
+                .data()
+                .budget
+                .charge(-i64::try_from(grown).unwrap_or(i64::MAX));
+        }
         dropped
     }
 
@@ -1452,16 +1464,37 @@ impl Got {
     }
 }
 
-/// One call's [`Crossing`]: the store of the instance it runs on, and the request's resource
-/// numbers.
+/// One call's [`Crossing`]: the store of the instance it runs on, the request's resource numbers,
+/// and whether a `bytes` crosses as the `bytes` resource, which is a third-party export's way.
 struct Call<'s> {
     store: &'s mut Store<Guest>,
     ids: &'s AtomicU64,
+    lends_bytes: bool,
 }
 
 impl Crossing for Call<'_> {
     fn lend(&mut self, value: Value) -> Result<Val, String> {
         handle::lend(self.store.as_context_mut(), value)
+    }
+
+    fn lend_bytes(&mut self, value: Value) -> Result<Val, String> {
+        if self.lends_bytes {
+            handle::lend_bytes(self.store.as_context_mut(), value)
+        } else {
+            convert::bytes_to_list(value)
+        }
+    }
+
+    fn take_bytes(&mut self, val: Val) -> Result<Vec<u8>, String> {
+        match val {
+            Val::Resource(resource) if self.lends_bytes && resource.owned() => {
+                handle::take_bytes(self.store.as_context_mut(), resource)
+            }
+            val if !self.lends_bytes => convert::list_to_bytes(val),
+            other => Err(format!(
+                "the extension returned {other:?} where a `bytes` is an `own<bytes>`"
+            )),
+        }
     }
 
     fn pass(&mut self, name: &str, id: u64) -> Result<Val, String> {
@@ -1552,6 +1585,16 @@ impl std::error::Error for Unaffordable {}
 /// The call then ends at the memory limit. A request with no memory limit refuses nothing here.
 pub(crate) fn afford(budget: &dyn Budget, what: &'static str, bytes: u64) -> wasmtime::Result<()> {
     if budget.left().is_some_and(|left| bytes > left) {
+        return Err(wasmtime::Error::new(Unaffordable { what, bytes }));
+    }
+    Ok(())
+}
+
+/// Charges `bytes` of host memory, a size the guest chose, to the request before it is allocated,
+/// or ends the call at the memory limit as [`afford`] does when the request cannot afford them.
+/// Whoever charged them gives them back.
+pub(crate) fn grow(budget: &dyn Budget, what: &'static str, bytes: u64) -> wasmtime::Result<()> {
+    if !budget.charge(i64::try_from(bytes).unwrap_or(i64::MAX)) {
         return Err(wasmtime::Error::new(Unaffordable { what, bytes }));
     }
     Ok(())
