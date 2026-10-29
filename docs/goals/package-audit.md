@@ -34,7 +34,7 @@ stages:
         rules: [security/an-unmatched-namespace-holds-the-application, security/grants-are-keyed-on-a-namespace]
   - id: 4
     title: "`nvs pkg audit` has its feature proofs, and its rules are shipped"
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md]
   - id: 6
     title: the goal is verified once, and every failure is fixed
@@ -236,10 +236,10 @@ because no grant line matches it.
 **Split:** after the session writes the heading, one writing subagent writes `about.md` and the
 examples `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` lists, then a second writes the attack.
 
-- [ ] The heading `# nvs pkg audit` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
-- [ ] The attack: a registry hides an advisory from its feed that its log holds. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
-- [ ] `rule:packaging/a-known-bad-version-is-retracted-not-deleted` and `rule:security/an-unmatched-namespace-holds-the-application` are `shipped`, and `bun nv owners --closes package-audit` passes. `data/rules/packaging/a-known-bad-version-is-retracted-not-deleted.json:1`, `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
+- [x] The heading `# nvs pkg audit` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
+- [x] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
+- [x] The attack: a registry hides an advisory from its feed that its log holds. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
+- [x] `rule:packaging/a-known-bad-version-is-retracted-not-deleted` and `rule:security/an-unmatched-namespace-holds-the-application` are `shipped`, and `bun nv owners --closes package-audit` passes. `data/rules/packaging/a-known-bad-version-is-retracted-not-deleted.json:1`, `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -258,7 +258,15 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5, 2 and 3 are done. `nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
+Stages 1, 5, 2, 3 and 4 are done. Stage 4 added the chapter heading `# nvs pkg audit`
+(`docs/reference/tools/35-packages.md`, with `website/public/llms-full.txt` re-rendered), the
+proofs under `docs/examples/tools/packages/nvs-pkg-audit/` and
+`tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs` (both run green on the debug
+binary), one help paragraph for the grants warning in `package/mod.rs`, and set both rules
+`shipped` with their guards. `bun nv proofs --gate --only tools:packages/nvs-pkg-audit` and
+`bun nv owners --closes package-audit` pass.
+
+`nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
 wired in `package/mod.rs`'s `Command`) reads the lock, checks each registry's feed against the
 served log, compares the root file's `checkpoint_copy`, and reports each advisory with its bump.
 It then warns on standard error about each autoload prefix no `[grants]` line matches
@@ -267,17 +275,19 @@ them under `unmatched`. Tests run once by name and green:
 `audit_warns_on_an_autoload_prefix_no_grant_line_matches` and the edited
 `audit_json_names_the_advisory_and_the_matching_copy`. No test is expected to go red.
 
-The sweep's `env-secret-proofs` and nightly-run 40662443492 findings are stale, as last session
-found: the log is from Oct 22 and exited 0, no check of that name exists, and the run was a manual
+The sweep's `env-secret-proofs` and nightly-run 40662443492 findings are stale. Two sessions checked
+them: the log is from Oct 22 and exited 0, no check of that name exists, and the run was a manual
 dispatch cancelled whole. Nothing to fix.
+
+No test is expected to go red. A help golden that freezes `nvs pkg audit --help` would, if one
+exists: the help gained a paragraph about the grants warning.
 
 ### Next
 
-Stage 4, on `docs/reference/tools/35-packages.md` and the proofs.
-- [ ] The heading `# nvs pkg audit`, covering the advisory report, the second copy and the warning. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and the examples `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
-- [ ] The attack: a registry hides an advisory from its feed. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
-- [ ] Both rules `shipped`, and the *Not on disk* paragraph of `docs/rules/security/an-unmatched-namespace-holds-the-application.md` rewritten: fetch writes the lines and audit warns now. `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
+Stage 6, the gate: start `looper verify` (`bun nv affected --run`) with `run_in_background`,
+group its failures by cause, fix them in one pass, and run it once more. `tools/nv/cmd/verify.ts:1`
+Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes package-audit` and
+`bun nv ci --check`.
 
 ### Backlog
 
