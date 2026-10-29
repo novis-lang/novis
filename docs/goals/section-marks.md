@@ -38,11 +38,11 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-server/src/lib.rs, crates/nvs-host/src/lib.rs]
   - id: 12
     title: "the runtime crate's marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-runtime/src/lib.rs]
   - id: 6
     title: "the config, LDAP, test and render crates' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-config/src/lib.rs]
   - id: 13
     title: "the CLI crate's marks name their documents"
@@ -236,9 +236,9 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] The capability, routes, metrics and pool files. `crates/nvs-runtime/src/capability.rs:1`, `crates/nvs-runtime/src/routes.rs:1`
-- [ ] The files under `crates/nvs-runtime/src/ctx/`. `crates/nvs-runtime/src/ctx/mod.rs:1`
-- [ ] The rest of the crate's entries in the record, and its counts at zero. `crates/nvs-runtime/src/lib.rs:1`
+- [x] The capability, routes, metrics and pool files. `crates/nvs-runtime/src/capability.rs:1`, `crates/nvs-runtime/src/routes.rs:1`
+- [x] The files under `crates/nvs-runtime/src/ctx/`. `crates/nvs-runtime/src/ctx/mod.rs:1`
+- [x] The rest of the crate's entries in the record, and its counts at zero. `crates/nvs-runtime/src/lib.rs:1`
 
 ### 6. the config, LDAP, test and render crates' marks name their documents
 
@@ -246,8 +246,8 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] `nvs-config`. `crates/nvs-config/src/http.rs:1`, `crates/nvs-config/src/lib.rs:1`
-- [ ] `nvs-ldap`, `nvs-test` and `nvs-render`, and the four crates' counts at zero. `crates/nvs-ldap/src/lib.rs:1`
+- [x] `nvs-config`. `crates/nvs-config/src/http.rs:1`, `crates/nvs-config/src/lib.rs:1`
+- [x] `nvs-ldap`, `nvs-test` and `nvs-render`, and the four crates' counts at zero. `crates/nvs-ldap/src/lib.rs:1`
 
 ### 13. the CLI crate's marks name their documents
 
@@ -302,23 +302,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9, 3, 10, 4, 11 and 5 are done. No file under `nvs-db`, `nvs-types`,
-`nvs-syntax`, `nvs-codegen`, `nvs-ir`, `nvs-hir`, `nvs-diagnostics`, `nvs-server` or `nvs-host`
-has a bare mark. The record holds 1853 marks in 508 files. Two commits landed stage 11 (202
-marks in 28 files) and stage 5 (452 marks in 23 files). Four writing subagents on disjoint files
-did the comments, and the session rewrote the 41 marks left in strings and read the diffs.
-Build, clippy and rustfmt are green.
+Stages 1, 2, 9, 3, 10, 4, 11, 5, 12 and 6 are done. No file under `crates/` has a bare mark
+except under `nvs-cli`. The record holds 1149 marks in 440 files: `nvs-cli` 296, and
+`tests/conformance/` 853 (`core` 598, `lang` 143, `reject` 62, `class` 34, `error` 11,
+`config` 5). Two commits landed stage 12 (398 marks) and stage 6 (306 marks). Four writing
+subagents on disjoint files did the comments, and the session rewrote the 25 marks left in
+strings and read the diffs. Build, clippy and rustfmt are green.
 
 To commit two stages from one tree: `git stash push -- <stage B's crates>`, `git checkout HEAD
 -- tools/data/bare-section-marks.json`, `bun nv rules --record-marks`, commit A, `git stash
 pop`, record again, commit B.
 
-No diagnostic text changed. The strings that changed are test and panic messages and six of the
-scheduler's operator notes in `nvs-server/src/schedule.rs`, which now name the setting
-(`overlap = "skip"`, `scope = "fleet"`). Nothing pins their wording. `bounds.rs`'s
-`Connection::default` doc now states the 8mb/5m worked example, which no rule holds. Two
-headings that were themselves marks were renamed, in `secure.rs` and `socket.rs`; nothing cited
-them. No test is expected to go red.
+No diagnostic text changed. One message a user reads changed: the test runner's constructor
+failure in `nvs-runtime/src/dispatch.rs` drops "§ 8's" before "fixtures", and its pinning case
+`tests/conformance/lang/a-test-class-constructor-that-takes-an-argument-fails-that-test.nvst`
+changed with it. The other strings are test and panic messages. `peer.rs`'s
+`Closing::Faulted` now states the fact no rule holds: a connection past a limit is closed with a
+defined code. No test is expected to go red.
 
 `bun nv rules --marks` takes file paths only, so pass `git ls-files <dir>`.
 
@@ -328,15 +328,18 @@ That goal's first session fixes it.
 
 ### Next
 
-Stage 12, `nvs-runtime`: 397 marks. Take stage 6 (`nvs-config` 291, `nvs-test` 9,
-`nvs-render` 5, `nvs-ldap` 1) in the same session; the files are disjoint and `namespace-grants`
-is gone, so no file is held. Split across four writing subagents on disjoint files, about 175
-marks each, with each brief naming its file list, the history method in Standing decisions, and
-"comments only, report each mark in a string". The briefs this session used worked unchanged.
-Commit each stage on its own, as § *State* says.
-- [ ] `nvs-runtime`: `capability.rs` 49, `routes.rs` 39, `metrics.rs` 37, `pool.rs` 28 (the § 13 marks in the Backlog), `graph.rs` 25 and the rest. `crates/nvs-runtime/src/capability.rs:1`
-- [ ] `nvs-runtime/src/ctx/`: `hooks.rs` 25, `mod.rs` 24, `inbound.rs` 23 and the rest. `crates/nvs-runtime/src/ctx/mod.rs:1`
-- [ ] Stage 6: `nvs-config`'s `http.rs` 37, `export.rs` 32, `mount.rs` 28, `schedule.rs` 28, `server.rs` 20 (its line 817 is a bare § 5), then the three small crates. `crates/nvs-config/src/http.rs:1`
+Stage 13, `nvs-cli`, without the three files live goals edit: `src/config.rs` (3,
+`app-settings`), `src/main.rs` (18) and `src/script.rs` (3, both `ci-green`). That is 272 marks.
+Take stage 14 (255 marks in `lang`, `reject`, `class`, `error` and `config`) in the same
+session; the files are disjoint. Leave stage 7 (`core`, 598) for the session after. Split
+across three or four writing subagents on disjoint files, with each brief naming its file list,
+the history method in Standing decisions, and "comments only, report each mark in a string".
+For stage 14, add to the brief that a mark in a case's expected output is not edited and is
+reported: it is a message the program prints, so it changes with the code that prints it, as
+`nvs-runtime/src/dispatch.rs`'s constructor message did. Commit each stage on its own, as § *State* says.
+- [ ] `nvs-cli`: `cache.rs` 124 (one subagent alone), then `worker.rs` 54, `serve.rs` 47, `bundle.rs` 15 and the rest of the crate's entries. `crates/nvs-cli/src/cache.rs:27`
+- [ ] Stage 14: `tests/conformance/lang/` 143, then `reject/` 62, `class/` 34, `error/` 11 and `config/` 5. `tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst:1`
+- [ ] The three held `nvs-cli` files wait until `app-settings` and `ci-green` are gone from `docs/goals/`, or go to stage 8's session. `crates/nvs-cli/src/main.rs:1`
 
 ### Backlog
 
@@ -348,8 +351,6 @@ Commit each stage on its own, as § *State* says.
 - `transaction.rs` and `uri.rs` cite "R2", "R5", "R9", "R10" and "R17", old numbered `Core` API
   conventions. They are not marks, so stage 8's check does not see them.
   `crates/nvs-stdlib/src/db/transaction.rs:745`, `crates/nvs-stdlib/src/uri.rs:23`
-- `nvs_runtime::pool`'s head comment has bare § 13 marks, which `db/registry.rs` now cites by
-  heading. Stage 12 rewrites them. `crates/nvs-runtime/src/pool.rs:4`
 - `stmt.rs`'s head comment had a broken `rule:types/grammar`.2's left over from a chapter
   commit, now fixed. Others of that shape (a rule token followed by `.N`) are not marks, so the
   check does not see them. `git grep -nE "rule:[a-z/-]+\`\.[0-9]"` finds them.
