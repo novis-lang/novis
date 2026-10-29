@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/src/secret.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/resolve.rs, crates/nvs-config/src/audit.rs, crates/nvs-diagnostics/src/code/config.rs, docs/rules/config/every-block-is-argued-where-it-is-added.md, docs/rules/security/secret-has-no-ambient-source.md]
   - id: 2
     title: "Core\\Config::setting and Core\\Config::secret read them"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/config.rs, crates/nvs-config/src/request.rs, crates/nvs-stdlib/src/env.rs, crates/nvs-types/src/secret_directive.rs]
   - id: 3
     title: "nvs config check warns about a key no program reads"
@@ -117,13 +117,22 @@ them.
 
 | Method | Returns |
 |---|---|
-| `Core\Config::setting(string $name): mixed` | the value with its type, or `null` when no block sets it |
+| `Core\Config::setting(string $name): ?(string\|int\|float\|bool\|array<mixed>)` | the value with its type, or `null` when no block sets it |
 | `Core\Config::secret(string $name): ?secret string` | the secret, or `null` when no block sets it |
 
 The program converts a setting with `as`: `Core\Config::setting('page_size') as int` throws when the
 value is missing or is not a whole number. `secret`'s name is a sink, as `Core\Env::secret`'s is,
 so a request cannot choose which secret it reads. A setting is not `tainted`: the operator wrote it
-in a file only the runtime account or root may change. There is no `set` and no `restore` for
+in a file only the runtime account or root may change.
+
+**`setting` returns a union, not `mixed`** (decided in stage 2). Text out of `mixed` is `tainted`
+(`rule:security/taint-propagation`), so `mixed` made every `setting(...) as string` tainted, against
+the decision above. The union holds it, with one checker change: a union's `array<mixed>` arm adds
+no `tainted` to an `as` whose target holds no array, because `as` never turns an array into a
+scalar (`crates/nvs-types/src/expr/quals.rs`, `apply_qualifier_conversion_rule`). A table's or an
+array's values stay `mixed`, so `as array<string>` is `array<tainted string>`, and a program reads a
+table's value untainted by its dotted name. Declined: a checker special case typing
+`Core\Config::setting(<literal>)`, which cannot know the type without reading `nvs.toml`. There is no `set` and no `restore` for
 either: a request that needs another value uses a variable.
 
 **`get`, `all`, `set` and `restore` never see the four blocks.** `Core\Config::get('secrets.x')`
@@ -199,11 +208,11 @@ show up in `nvs config dump`, and the rules say so.
 
 **Does:** a program reads its values, typed, and `get` and `all` stop at the four blocks.
 
-- [ ] Two registry rows with their reference cards: `setting` returns `CoreTy::Mixed`, and `secret` returns `Nullable(SecretStr)` with a sink name, as `Core\Env::secret` does. `crates/nvs-stdlib/src/config.rs:88`, `crates/nvs-stdlib/src/env.rs:157`
-- [ ] Their runtime functions, reading the request's snapshot and building the value from its TOML type. `crates/nvs-stdlib/src/config.rs:237`, `crates/nvs-config/src/request.rs:165`
+- [x] Two registry rows with their reference cards: `setting` returns the union of the TOML types, and `secret` returns `Nullable(SecretStr)` with a sink name, as `Core\Env::secret` does. `crates/nvs-stdlib/src/config.rs:88`, `crates/nvs-stdlib/src/env.rs:157`
+- [x] Their runtime functions, reading the request's snapshot and building the value from its TOML type. `crates/nvs-stdlib/src/config.rs:237`, `crates/nvs-config/src/request.rs:165`
 - [x] `get` returns `null` for a `settings.` or `secrets.` name, and `all` lists neither. `crates/nvs-config/src/request.rs:165`, `crates/nvs-config/src/request.rs:474`
-- [ ] Conformance: a value of each TOML type, an app's value over the global one, a secret that cannot be printed (a `reject/` case), and a missing setting converted with `as int` throws. `tests/conformance/config/a-setting-keeps-its-toml-type.nvst:1`, `tests/conformance/reject/a-secret-setting-cannot-be-printed.nvst:1`
-- [ ] The tests the `settings-runtime-tests` check names. `crates/nvs-cli/tests/config_settings.rs:1`
+- [x] Conformance: a value of each TOML type, an app's value over the global one, a secret that cannot be printed (a `reject/` case), and a missing setting converted with `as int` throws. `tests/conformance/config/a-setting-keeps-its-toml-type.nvst:1`, `tests/conformance/reject/a-secret-setting-cannot-be-printed.nvst:1`
+- [x] The tests the `settings-runtime-tests` check names. `crates/nvs-cli/tests/config_settings.rs:1`
 
 ### 3. nvs config check warns about a key no program reads
 
@@ -251,37 +260,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done, and `cargo test --test settings_block` passes 10 of 10. The four blocks parse into
-`Config::settings`/`secrets` and `App::settings`/`secrets`. `crate::settings::check_file`
-(`crates/nvs-config/src/settings.rs`) checks each file over toml's spanned `DeTable`, so each error
-names its line. `secret::program_secrets` reads every secret into `Resolved::secrets`:
-`secrets.<name>`, and `app.<index>.secrets.<name>` for an app block's own. `secret::strip_inline`
-then removes the inline values from the table and the typed tree. `Snapshot::fold_secrets` puts a
-matching block's secrets over `secrets.<name>` and records the override itself. `AppBlocks` carries
-each block's secrets. An inline secret's `Secret::file` is the configuration file it was written in.
+Stages 1 and 2 are done. `cargo test --test settings_block` passes 10 of 10, `cargo test --test
+config_settings` 3 of 3, and the four new `setting` conformance cases pass. `Request::setting` and
+`Request::secret` (`crates/nvs-config/src/request.rs:193`) read the request's snapshot, and `of_toml`
+(`crates/nvs-stdlib/src/config.rs:435`) builds the value. `nvs-stdlib` takes `toml` as a normal
+dependency now.
 
-`Request::get` and `all` already skip every `settings.`/`secrets.` key (`crate::settings::is_program_value`),
-because `all` would otherwise print an inline `[secrets]` value as plain text. That is stage 2's
-third item, ticked. Its test, `config_get_and_all_never_return_a_setting_or_a_secret`, is still owed.
+`setting` returns `?(string|int|float|bool|array<mixed>)`, a new standing decision. The checker's
+`apply_qualifier_conversion_rule` (`crates/nvs-types/src/expr/quals.rs`) ignores a union's array
+arm when the target holds no array.
 
-`rule:config/check-and-dump-audit-the-tree-offline` is not rewritten yet. It describes `W1028`,
-which stage 3 builds, so stage 3's item writes it. `tests/tree.rs`'s block roster has the four blocks,
-and its count is 37. No `DIRECTIVES` row was added: the four blocks are not directives, and
-`lookup` returns `None` for them, so `set` refuses them.
+`rule:config/check-and-dump-audit-the-tree-offline` is not rewritten yet: stage 3 writes it. The
+sweep's reds were already fixed: the proofs log exits 0, and nightly 40847802941 predates the fixes.
 
-The sweep's reds were already fixed on disk: `env-secret-proofs` passes again, and nightly run
-40847802941 predates `ef7e629e2` (Docker), `dafe6c98d` (spool Miri) and `df208a541` (passkey Miri).
-
-Tests that may go red at the gate: none known. Two tests in `nvs-config` could change, because both
-read `get` and `all`: `tests/request.rs` and `tests/secret.rs`. Neither uses the four blocks.
+Tests that may go red at the gate:
+- `nvs-config`'s `tests/request.rs` and `tests/secret.rs`, which read `get` and `all`.
+- The proofs gate and any `Core\Config` member listing: the two new methods owe proofs until stage 4.
+- A taint test that pins a union with an `array<mixed>` arm `as string` as tainted.
 
 ### Next
 
-**Stage 2, one group**, on `nvs-stdlib` and `nvs-types`. No gate.
+**Stage 3, one group**, on `nvs-types`, `nvs-diagnostics` and `nvs-cli`. No gate.
 
-- [ ] `setting` and `secret` rows beside `get`, with reference cards. `secret` takes `Core\Env::secret`'s sink name and `Nullable(SecretStr)`. `crates/nvs-stdlib/src/config.rs:93`, `crates/nvs-stdlib/src/env.rs:157`
-- [ ] Runtime functions: `setting` reads `settings.<name>` from the request's snapshot table and builds the value from its TOML type, and a table becomes an array keyed by name. `secret` reads `Snapshot::secrets["secrets.<name>"]`. `crates/nvs-stdlib/src/config.rs:237`, `crates/nvs-stdlib/src/env.rs:590`
-- [ ] Conformance cases and the `reject/` case. `tests/conformance/config/a-setting-keeps-its-toml-type.nvst:1`
-- [ ] `crates/nvs-cli/tests/config_settings.rs` with the three `settings-runtime-tests`. `crates/nvs-cli/tests/config_settings.rs:1`
+- [ ] Record each literal name passed to `setting` and `secret`, per program, and a flag for a computed one. Hook in beside `secret_directive::types_secret`. `crates/nvs-types/src/expr/calls.rs:754`, `crates/nvs-types/src/secret_directive.rs:1`
+- [ ] `W1028` after `W1027`, with its message and help. `crates/nvs-diagnostics/src/code/warnings.rs:286`
+- [ ] `nvs config check` compiles each `[[app]] entry`, each `[[server.mount]]` entry and each `--program`, and warns per unread key, or prints one line when a name is computed. `crates/nvs-cli/src/config.rs:1080`
+- [ ] Rewrite `rule:config/check-and-dump-audit-the-tree-offline`. `docs/rules/config/check-and-dump-audit-the-tree-offline.md:17`
+- [ ] The three `settings-check-tests` in `crates/nvs-cli/tests/config_settings.rs`. Its `Server` harness does not fit them: they run `nvs config check` once. `crates/nvs-cli/tests/config_settings.rs:1`
 
 ### Backlog
