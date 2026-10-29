@@ -27,7 +27,7 @@ stages:
         rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/resolution-takes-the-highest-minimum, packaging/the-registry-keeps-an-append-only-log, packaging/a-package-is-its-digest]
   - id: 3
     title: "`nvs pkg audit` warns on an autoload root no grant line mentions"
-    status: open
+    status: done
     context: [crates/nvs-hir/src/autoload.rs, crates/nvs-config/src/grants.rs, crates/nvs-cli/src/main.rs, docs/rules/security/an-unmatched-namespace-holds-the-application.md]
     extra:
       context:
@@ -154,6 +154,15 @@ most 64 hashes held, once per audit run.
 one-line note. Why: the security priority; a split view that hides the copy would otherwise pass.
 Audit also opens its registries without the seven-day index age limit, because it selects nothing.
 
+**The warning walks every program under the application's folder, not one entry.** An
+application's `package.toml` names no entry file, so audit runs `nvs_hir::Lender::walk` over each
+`.nvs` file `lenders::sources` finds that starts a program, and looks each prefix of its own
+`autoload` map up in `[grants]`. The application's own source tree matches no line either, so it
+is named too, and a grant line for it silences it. Why: the stage asks for every root that holds
+the application's authority only because no line matches, and a heuristic that guesses which tree
+is the application's own would hide copied code placed beside it. Cost: one read of every `.nvs`
+file under the folder and one name resolution per program, once per audit run.
+
 **Trade-offs.** Nothing runs on the request path, and no program changes. Audit costs one feed fetch
 and two checkpoint fetches per run. Users gain one command that CI runs, and one warning that tells
 them which code holds the application's authority without a grant line.
@@ -214,9 +223,11 @@ log.
 **Does:** audit names each autoload root whose namespace holds the application's authority only
 because no grant line matches it.
 
-- [ ] The `nvs pkg audit` subcommand, if stage 2 has not added it. `crates/nvs-cli/src/main.rs:373`
-- [ ] The walk over the program's autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:199`, `crates/nvs-config/src/grants.rs:1`
-- [ ] Tests: a root under a granted prefix is silent, an ungranted one warns, and the exit stays zero. `crates/nvs-cli/tests/package_audit.rs:1`
+- [x] The `nvs pkg audit` subcommand, if stage 2 has not added it. `crates/nvs-cli/src/main.rs:373`
+- [x] The walk over the program's autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:199`, `crates/nvs-config/src/grants.rs:1`
+  - [x] `AutoloadMap::prefixes` and `Lender::map` in `nvs-hir`.
+  - [x] `audit::unmatched` walks every program under the folder with `Lender::walk`, and `warn` prints each prefix on standard error; `--json` has `unmatched`.
+- [x] Tests: a root under a granted prefix is silent, an ungranted one warns, and the exit stays zero. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 4. `nvs pkg audit` has its feature proofs, and its rules are shipped
 
@@ -247,25 +258,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 5 and 2 are done. `nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
-wired in `package/mod.rs`'s `Command`, not `main.rs`) reads the lock, checks each registry's feed
-against the whole served log (`proof::Seen::advisories` over `log::Fetched::walk`), compares the
-root file's `checkpoint_copy` (`Seen::compare_copy`), and reports each advisory with its bump. The
-index reader accepts `checkpoint_copy`, so an operator may now set `checkpointCopy`. Tests, run once
-and green: `cargo test --test package_audit` (9, five new). No test is expected to go red; a test
-that matches `nvs pkg --help` output exactly would gain the `audit` line.
+Stages 1, 5, 2 and 3 are done. `nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
+wired in `package/mod.rs`'s `Command`) reads the lock, checks each registry's feed against the
+served log, compares the root file's `checkpoint_copy`, and reports each advisory with its bump.
+It then warns on standard error about each autoload prefix no `[grants]` line matches
+(`audit::unmatched`, over `Lender::walk` and the new `AutoloadMap::prefixes`), and `--json` lists
+them under `unmatched`. Tests run once by name and green:
+`audit_warns_on_an_autoload_prefix_no_grant_line_matches` and the edited
+`audit_json_names_the_advisory_and_the_matching_copy`. No test is expected to go red.
 
-The sweep's `env-secret-proofs` finding was stale: its log is from Oct 22 and exited 0, no check of
-that name exists now, and `bun nv proofs --gate --only "Core\Env::secret"` passes. The nightly run
-40662443492 was a manual dispatch cancelled whole; later push runs are green. Nothing to fix.
+The sweep's `env-secret-proofs` and nightly-run 40662443492 findings are stale, as last session
+found: the log is from Oct 22 and exited 0, no check of that name exists, and the run was a manual
+dispatch cancelled whole. Nothing to fix.
 
 ### Next
 
-Stage 3, on `crates/nvs-cli/src/package/audit.rs`: the subcommand exists, so its first item is done.
-- [ ] The walk over the program's autoload roots against the grant table, printed as warnings after the advisory report, exit unchanged. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:199`, `crates/nvs-config/src/grants.rs:1`
-- [ ] Tests: a granted root is silent, an ungranted one warns, the exit stays zero. A clean lock needs a registry, so reuse the file's `Locked` fixture. `crates/nvs-cli/tests/package_audit.rs:1`
-
-Then stage 4: the heading in `docs/reference/tools/35-packages.md` and the proofs.
+Stage 4, on `docs/reference/tools/35-packages.md` and the proofs.
+- [ ] The heading `# nvs pkg audit`, covering the advisory report, the second copy and the warning. `docs/reference/tools/35-packages.md:1`
+- [ ] `about.md` and the examples `bun nv proofs --id 'tools:packages/nvs-pkg-audit'` lists. `docs/examples/tools/packages/nvs-pkg-audit/about.md:1`
+- [ ] The attack: a registry hides an advisory from its feed. `tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs:1`
+- [ ] Both rules `shipped`, and the *Not on disk* paragraph of `docs/rules/security/an-unmatched-namespace-holds-the-application.md` rewritten: fetch writes the lines and audit warns now. `data/rules/security/an-unmatched-namespace-holds-the-application.json:1`
 
 ### Backlog
 
