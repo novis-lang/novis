@@ -10,9 +10,11 @@
 //! directory hands its core back rather than holding it, and nothing here
 //! needs a second scheduler (`rule:concurrency/one-scheduler`).
 //!
-//! **Two checks run before a bind writes anything.** An empty password is
-//! [`Kind::InvalidCredentials`] (`rule:security/ldap-empty-password-is-refused`):
-//! an anonymous session is one that never binds. And a connection with no TLS
+//! **Two checks run before a bind writes anything.** An empty password, and a
+//! password with a NUL byte, is [`Kind::InvalidCredentials`]
+//! (`rule:security/ldap-empty-password-is-refused`): an anonymous session is
+//! one that never binds, and a server that reads the password up to its first
+//! NUL would accept a prefix of it. And a connection with no TLS
 //! exists only where the endpoint said [`Tls::None`] *and* the caller found
 //! the host on the `cleartext` grant
 //! (`rule:security/ldap-cleartext-bind-is-granted-per-host`); without both,
@@ -388,15 +390,22 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// [`Kind::InvalidCredentials`] for an empty password, before anything is
-    /// sent, and for a password the server refuses. AD's sub-codes give the
-    /// other kinds [`Kind::of_result`] lists. [`Kind::EncryptionRequired`] for
-    /// a server that will not take a bind without TLS.
+    /// [`Kind::InvalidCredentials`] for an empty password and for a password
+    /// with a NUL byte, before anything is sent, and for a password the server
+    /// refuses. AD's sub-codes give the other kinds [`Kind::of_result`] lists.
+    /// [`Kind::EncryptionRequired`] for a server that will not take a bind
+    /// without TLS.
     pub fn bind(&mut self, name: &str, password: &[u8]) -> Result<(), Error> {
         if password.is_empty() {
             return Err(Error::new(
                 Kind::InvalidCredentials,
                 "the bind has an empty password, so nothing was sent",
+            ));
+        }
+        if password.contains(&0) {
+            return Err(Error::new(
+                Kind::InvalidCredentials,
+                "the bind's password has a NUL byte, so nothing was sent",
             ));
         }
         if !self.is_encrypted() && !self.cleartext_allowed {

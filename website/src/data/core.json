@@ -18470,7 +18470,7 @@
                   {
                     "key": "password",
                     "type": "secret tainted string",
-                    "descHtml": "The account's password. An empty password throws before anything is sent."
+                    "descHtml": "The account's password. An empty password throws before anything is sent. A password with a zero byte (<code>\\x00</code>) throws before it is sent."
                   },
                   {
                     "key": "tls",
@@ -19873,7 +19873,7 @@
               },
               {
                 "error": "Core\\Ldap\\LdapError",
-                "descHtml": "<code>$kind</code> is <code>InvalidCredentials</code> for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also <code>InvalidCredentials</code>, and nothing is sent. Active Directory gives other reasons as their own kinds, such as <code>AccountDisabled</code>, <code>AccountLocked</code> or <code>PasswordExpired</code>."
+                "descHtml": "<code>$kind</code> is <code>InvalidCredentials</code> for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also <code>InvalidCredentials</code>, and nothing is sent. So is a password with a zero byte (<code>\\x00</code>), and it is not sent. Active Directory gives other reasons as their own kinds, such as <code>AccountDisabled</code>, <code>AccountLocked</code> or <code>PasswordExpired</code>."
               }
             ]
           },

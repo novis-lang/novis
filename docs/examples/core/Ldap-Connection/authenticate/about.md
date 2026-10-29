@@ -14,4 +14,5 @@ which users exist. Active Directory also gives reasons such as `AccountDisabled`
 and `PasswordExpired`.
 
 **Good to know:** an empty login or password is `InvalidCredentials`, and nothing is sent to the
-server. Each call costs one more TLS handshake.
+server. A password with a zero byte (`\x00`) is also `InvalidCredentials`, and it is not sent. Each
+call costs one more TLS handshake.

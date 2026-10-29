@@ -1967,6 +1967,53 @@ fn no_such_user_and_a_wrong_password_are_one_kind() {
 }
 
 #[test]
+fn a_login_password_with_a_nul_byte_is_refused_before_it_is_sent() {
+    // The first login has a NUL byte and must send nothing. The second is a
+    // wrong password the peer refuses, and both throw the same message. Only
+    // the second carries a result code, because only a server sends one.
+    let (port, logins) = login_peer(vec![
+        bound(49, ""),
+        bound(49, "80090308: LdapErr: DSID-0C09050F, data 52e, v4f7c"),
+    ]);
+    let mut ctx = ctx_over(&cleartext_corp(port));
+    let key = ldap::connect(&mut ctx, "corp").expect("the peer accepts");
+    let login = format!("CN=Staff,{BASE}");
+    let nul = ldap::authenticate(&mut ctx, key, &login, "Staff-Pass-1\0")
+        .expect_err("a password with a NUL byte is refused");
+    let (sent, closed) = logins
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the login dialled");
+    assert!(sent.is_empty(), "the peer received {} byte(s)", sent.len());
+    assert!(closed, "the client closed the login's connection");
+    let wrong = ldap::authenticate(&mut ctx, key, &login, "Staff-Pass-2")
+        .expect_err("the peer refuses the login");
+    logins
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the second login");
+    let text =
+        "authenticate: InvalidCredentials: the server did not accept this login and password";
+    assert!(nul.message().contains(text), "{}", nul.message());
+    assert!(wrong.message().contains(text), "{}", wrong.message());
+
+    // Against the directory: the password and anything after a NUL byte.
+    let Some(ca) = samba() else { return };
+    let mut ctx = ctx_over(&corp(&ca));
+    let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
+    let dn = login_user(&mut ctx, key, "Guests", "Guests-Pass-7");
+    for password in ["Guests-Pass-7\0", "Guests-Pass-7\0anything"] {
+        let fault = ldap::authenticate(&mut ctx, key, &dn, password)
+            .expect_err("a password with a NUL byte is refused");
+        assert!(
+            fault.message().contains("InvalidCredentials"),
+            "{}",
+            fault.message()
+        );
+    }
+    ldap::authenticate(&mut ctx, key, &dn, "Guests-Pass-7").expect("the right password works");
+    delete_user(&mut ctx, key, "Guests");
+}
+
+#[test]
 fn ad_bind_sub_codes_map_to_kinds() {
     const AD: &str = "80090308: LdapErr: DSID-0C09050F, comment: AcceptSecurityContext error";
     let reasons = [

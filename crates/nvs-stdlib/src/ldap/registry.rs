@@ -263,7 +263,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
                 key: "password",
                 ty: "secret tainted string",
                 desc: "The account's password. An empty password throws before anything is \
-                       sent.",
+                       sent. A password with a zero byte (`\\x00`) throws before it is sent.",
             },
             ShapeKeyDoc {
                 key: "tls",
@@ -583,8 +583,8 @@ const AUTHENTICATE_DOC: MethodDoc = MethodDoc {
             error: "Core\\Ldap\\LdapError",
             desc: "`$kind` is `InvalidCredentials` for a wrong password and for a user that \
                    does not exist, so the error does not show which users exist. An empty \
-                   login or password is also `InvalidCredentials`, and nothing is sent. \
-                   Active Directory gives other reasons as their own kinds, such as \
+                   login or password is also `InvalidCredentials`, and nothing is sent. So is \
+                   a password with a zero byte (`\\x00`), and it is not sent. Active Directory gives other reasons as their own kinds, such as \
                    `AccountDisabled`, `AccountLocked` or `PasswordExpired`.",
         },
     ],

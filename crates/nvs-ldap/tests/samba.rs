@@ -12,12 +12,12 @@
 //! tests/db/compose.yaml up` brings the server up, and then these assert. CI's
 //! `database` job sets `NVS_LDAP_SAMBA`, which turns the skip into a failure.
 //!
-//! **Four cases use a local listener and always run.** Two prove that nothing
-//! reached the wire, which only a listener on our side can show. The third is
-//! a scripted peer that answers a cleartext bind `strongerAuthRequired`: this
-//! Samba is configured to accept one, so that refusal has to come from
-//! somewhere else. The fourth is a peer that answers late, which no real
-//! server does on demand.
+//! **Five cases use a local listener and always run.** Three prove that
+//! nothing reached the wire, which only a listener on our side can show. The
+//! fourth is a scripted peer that answers a cleartext bind
+//! `strongerAuthRequired`: this Samba is configured to accept one, so that
+//! refusal has to come from somewhere else. The fifth is a peer that answers
+//! late, which no real server does on demand.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
@@ -210,6 +210,74 @@ fn an_empty_password_is_refused_before_a_byte_is_sent() {
         assert_eq!(
             (error.kind(), error.code()),
             (Kind::InvalidCredentials, None)
+        );
+    }
+}
+
+#[test]
+fn a_password_with_a_nul_byte_is_refused_before_a_byte_is_sent() {
+    // Samba reads a simple-bind password up to its first NUL, so each of
+    // these would log in as the administrator if it reached the server.
+    let mut with_nul = PASSWORD.to_vec();
+    with_nul.push(0);
+    let mut nul_then_more = with_nul.clone();
+    nul_then_more.extend_from_slice(b"anything");
+    let passwords = [with_nul, nul_then_more, b"\0".to_vec()];
+    if let Some((ca, _turn)) = samba() {
+        for password in &passwords {
+            let mut connection = open(
+                &format!("ldaps://localhost:{LDAPS_PORT}"),
+                Tls::Required,
+                false,
+                Some(&ca),
+            )
+            .expect("LDAPS opens");
+            let error = connection
+                .bind(ADMIN, password)
+                .expect_err("refused over LDAPS");
+            assert_eq!(
+                (error.kind(), error.code()),
+                (Kind::InvalidCredentials, None),
+                "the client refused it, not the server"
+            );
+        }
+        // Another control character is sent, and the server judges it.
+        let mut connection = open(
+            &format!("ldaps://localhost:{LDAPS_PORT}"),
+            Tls::Required,
+            false,
+            Some(&ca),
+        )
+        .expect("LDAPS opens");
+        let mut with_tab = PASSWORD.to_vec();
+        with_tab.push(b'\t');
+        let error = connection
+            .bind(ADMIN, &with_tab)
+            .expect_err("a password with a tab is wrong");
+        assert_eq!(error.code(), Some(49), "the server judged it");
+    }
+
+    // The scripted peer counts what reached it, as for the empty password.
+    for password in &passwords {
+        let (port, received) = peer(|_| None);
+        let mut connection = open(&format!("ldap://127.0.0.1:{port}"), Tls::None, true, None)
+            .expect("the peer accepts");
+        let error = connection
+            .bind(ADMIN, password)
+            .expect_err("a password with a NUL byte is refused");
+        assert_eq!(
+            (error.kind(), error.code()),
+            (Kind::InvalidCredentials, None),
+            "the client refused it, not a server"
+        );
+        drop(connection);
+        let bytes = received
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the peer reports");
+        assert!(
+            bytes.is_empty(),
+            "the peer received {} byte(s)",
+            bytes.len()
         );
     }
 }

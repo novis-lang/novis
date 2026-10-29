@@ -50368,7 +50368,7 @@ Opens a directory at a URL the program gives. Needs the `ldap.open` capability f
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{ url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap::Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string }` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (Dn\|string) The DN a search starts from when it does not give its own `base`. Text cannot be `tainted`. |
+| `$settings` | `{ url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap::Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string }` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent. A password with a zero byte (`\x00`) throws before it is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (Dn\|string) The DN a search starts from when it does not give its own `base`. Text cannot be `tainted`. |
 
 **Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`. It is closed when the request ends.
 
@@ -50423,7 +50423,7 @@ Checks a user's login and password. It opens a new connection to the same server
 
 **Returns** `void` — Nothing. The login and password are correct when no error is thrown.
 
-**Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — `$kind` is `InvalidCredentials` for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also `InvalidCredentials`, and nothing is sent. Active Directory gives other reasons as their own kinds, such as `AccountDisabled`, `AccountLocked` or `PasswordExpired`.
+**Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — `$kind` is `InvalidCredentials` for a wrong password and for a user that does not exist, so the error does not show which users exist. An empty login or password is also `InvalidCredentials`, and nothing is sent. So is a password with a zero byte (`\x00`), and it is not sent. Active Directory gives other reasons as their own kinds, such as `AccountDisabled`, `AccountLocked` or `PasswordExpired`.
 
 <a id="core-core-ldap-connection-search"></a>
 #### `Core\Ldap\Connection->search`
