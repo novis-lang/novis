@@ -1,0 +1,28 @@
+--TEST--
+Core\Arr::withoutNull keeps the order of the entries, removes only top-level null, and does not renumber
+--FILE--
+<?nvs
+// The entries stay in the order they were added, whatever their keys.
+array<?int> $a = ["c" => 3, "a" => null, "b" => 2, "d" => 1];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutNull($a)), ","), "\n";
+
+// A list keeps its gaps. `Core\Arr::values` renumbers it.
+array<?string> $list = ["a", null, "b", null, "c"];
+array<string> $kept = Core\Arr::withoutNull($list);
+echo Core\Str::join(Core\Arr::keys($kept), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::values($kept)), ","), "\n";
+
+// A `null` inside a nested array is not removed. Only the entries of the outer array are checked.
+array<?array<?int>> $nested = [[1, null], null, [null]];
+array<array<?int>> $inner = Core\Arr::withoutNull($nested);
+echo Core\Arr::count($inner), " ", Core\Arr::count($inner[0]), " ", Core\Arr::count($inner[2]), "\n";
+
+// An array that has only `null` entries gives an empty array.
+array<?int> $nothing = [null, null];
+echo Core\Arr::count(Core\Arr::withoutNull($nothing)), "\n";
+--EXPECT--
+c,b,d
+0,2,4
+0,1,2
+2 2 1
+0

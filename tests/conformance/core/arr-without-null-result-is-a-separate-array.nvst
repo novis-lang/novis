@@ -1,0 +1,31 @@
+--TEST--
+Core\Arr::withoutNull returns a separate array, and its result passes where array<T> is needed
+--FILE--
+<?nvs
+class Sum {
+    public static function total(array<int> $values): int {
+        int $sum = 0;
+        foreach ($values as int $value) {
+            $sum += $value;
+        }
+        return $sum;
+    }
+}
+
+// `Core\Arr::map` returns `array<?int>` here, and the result of
+// `withoutNull` is an `array<int>` that `Sum::total` accepts.
+array<string> $input = ["4", "x", "5", "", "6"];
+array<?int> $parsed = Core\Arr::map($input, fn(string $s): ?int => $s as ?int);
+echo Sum::total(Core\Arr::withoutNull($parsed)), "\n";
+
+// A change to the result does not change the array it came from.
+array<int> $copy = Core\Arr::withoutNull($parsed);
+$copy[] = 100;
+echo Core\Arr::count($copy), " ", Core\Arr::count($parsed), "\n";
+
+// The new entry gets the next key after the highest key in the result.
+echo Core\Str::join(Core\Arr::keys($copy), ","), "\n";
+--EXPECT--
+15
+4 5
+0,2,4,5
