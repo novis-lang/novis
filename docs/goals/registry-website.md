@@ -20,7 +20,7 @@ stages:
         rules: [packaging/search-sorts-by-the-readers-choice, packaging/only-a-major-may-break-the-api, packaging/an-owner-may-unlist, packaging/the-operator-only-withholds, packaging/a-release-waits-seven-days-unless-an-owner-confirms]
   - id: 3
     title: the account pages and the withhold policy page
-    status: open
+    status: done
     context: [apps/registry/src/Accounts.nvs, apps/registry/src/Push.nvs, apps/registry/src/Tokens.nvs, apps/registry/src/Channels.nvs, apps/registry/src/Activity.nvs, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
@@ -142,6 +142,12 @@ so a page never opens an archive or runs `nvs`. Cost: at most 64 KiB of readme a
 lists per release. A release restored from the log has these columns null, and its page says that it has no list of
 files and no comparison of the API.
 
+**The account page needs any sign-in, not a recent passkey.** `GET /account` is `Visitor::SignedIn`,
+so a visitor signed in with a recovery code sees it too. Why: that visitor has lost a passkey and must
+see the account to add one and to revoke its tokens, and the page changes nothing. Every change it
+leads to keeps its own check (`App::needsPasskey`). A webhook is shown by its host alone, because a
+webhook's path can carry the receiver's secret.
+
 ## Stages
 
 ### 1. search matches text, and the reader chooses the sort
@@ -199,9 +205,12 @@ capability and API diff sections, then a second writes the test.
 **Split:** after the session lands the route wiring, one writing subagent writes `AccountPage.nvs`
 and its test, then a second writes `PolicyPage.nvs`.
 
-- [ ] Passkeys, tokens, vendors and co-owners, push devices and webhooks with their verification state, the inbox and the days left before publishing stops. `apps/registry/src/AccountPage.nvs:1`
-- [ ] A test: the page needs a passkey sign-in, and shows an unverified channel and the days left under a fixed clock. `apps/registry/src/AccountPageTest.nvs:1`
-- [ ] The withhold policy page (`rule:packaging/the-operator-only-withholds`). `apps/registry/src/PolicyPage.nvs:1`
+- [x] Passkeys, tokens, vendors and co-owners, push devices and webhooks with their verification state, the inbox and the days left before publishing stops. `apps/registry/src/AccountPage.nvs:1`
+  - [x] `GET /account` for `Visitor::SignedIn`, and `Feeds::inboxRows` shared with `/api/inbox`.
+  - [x] Each section, with the webhook shown by its host alone.
+- [x] A test: the page needs a sign-in, and shows an unverified channel and the days left under a fixed clock. `apps/registry/src/AccountPageTest.nvs:1`
+- [x] The withhold policy page (`rule:packaging/the-operator-only-withholds`). `apps/registry/src/PolicyPage.nvs:1`
+  - [x] `GET /policy`, and the rule's *Not on disk* no longer names the page.
 
 ### 4. the website has its feature proofs, and its rule is shipped
 
@@ -234,29 +243,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. Stage 2 is done except advisories, which wait on goal `package-audit`'s
-`apps/registry/src/Advisories.nvs` (the gate in the standing decisions). `GET /packages/<vendor>/<name>`
-and `GET /packages/<vendor>/<name>/<version>` serve `PackagePage.nvs`, and
-`PackagePageTest.nvs` has five passing tests. The build is schema 3 (`readme`, `downloads`,
-`supersedes`), and `[package] supersedes` is a manifest key in the reference.
+Stages 1 and 3 are done. Stage 2 is done except advisories, which wait on goal `package-audit`'s
+`apps/registry/src/Advisories.nvs` (the gate in the standing decisions). `GET /account` serves
+`AccountPage.nvs` and `GET /policy` serves `PolicyPage.nvs`. Both use `PackagePage::layout` and
+`PackagePage::date`, which are now public. `Feeds::inboxRows` is the one inbox query, which
+`/api/inbox` and the account page share. `AccountPageTest.nvs` has three tests, and all three pass.
 
-The acceptance sweep's `env-secret-proofs` was green when run again (`bun nv proofs --gate --only
-'Core\Env::secret'` exits 0). The nightly run 40662443492 was a `workflow_dispatch` on an older
-commit, and later CI runs replaced it and passed.
+The acceptance sweep's `env-secret-proofs` is not a check this tree defines. The floor in
+`docs/goals/README.md` holds `floor-debt`, `proofs-gate` and `website-render`, the check's log is dated
+Oct 22, and `bun nv proofs --gate --only 'Core\Env::secret'` exits 0. The command quoted without
+quotes loses its backslash in a shell (`CoreEnv::secret`, not on the roster, exit 1), which is the
+likely source of the red. The nightly run 40662443492 is the same stale run the last handoff named.
 
-Tests that may go red in stage 5: none expected. Only the tests this session changed ran:
-`registry_build.rs`'s `a_build_prints...`, `manifest::tests`, and `PackagePageTest.nvs`.
-`PublishTest.nvs` builds schema 3 JSON and did not run.
+Tests that may go red in stage 5: none expected. Only `AccountPageTest.nvs` ran this session.
+`FeedsTest.nvs` covers `/api/inbox`, whose query moved into `Feeds::inboxRows` unchanged, and
+did not run.
 
 ### Next
 
-Stage 3, the account pages and the withhold policy page. The page's style is `PackagePage.nvs`:
-`html` literals, a `layout`, and `App::page` sends the markup or a 404.
-- [ ] `AccountPage.nvs`: passkeys, tokens, vendors and co-owners, channels with their verification, the inbox and the days left. `apps/registry/src/App.nvs:164` (`/api/account`), `apps/registry/src/Channels.nvs:1`, `apps/registry/src/Activity.nvs:1`, `apps/registry/src/Feeds.nvs:99`
-- [ ] Its test under a fixed clock. `apps/registry/src/PackagePageTest.nvs:1` for the setup
-- [ ] `PolicyPage.nvs`. `docs/rules/packaging/the-operator-only-withholds.md:1`
+Stage 4, the website's feature proofs and its rules shipped. `bun nv proofs --id
+'tools:packages/the-registry-website'` says "no feature" until the heading exists.
+- [ ] The heading `# The registry website` in `docs/reference/tools/35-packages.md:661` (after the last heading, `# nvs pkg retract and nvs pkg unlist`), then `bun nv proofs --id 'tools:packages/the-registry-website'` for the list it owes
+- [ ] `about.md` and the examples. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1` for the shape of a sibling
+- [ ] The attack with a backdated git history. `apps/registry/src/Ranking.nvs:1`, `apps/registry/src/SearchTest.nvs:1`
+- [ ] Both rules `shipped`. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`, `data/rules/packaging/the-registry-is-a-novis-program.json:1`
 
 ### Backlog
 
 - Advisories on a package page come from the feed of goal `package-audit` (`docs/goals/package-audit.md`).
   `PackagePage::advisories` is where they go.
+- `docs/rules/packaging/an-owner-is-notified-without-email.md`'s *Not on disk* says "There is no
+  registry", which is out of date. Stage 4 or the owner of that rule rewrites it.
