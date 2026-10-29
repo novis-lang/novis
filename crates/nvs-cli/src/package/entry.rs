@@ -3,7 +3,7 @@
 //! on, a closed list, each written as canonical JSON with a schema version.
 //!
 //! An entry is a JSON object with `"v": 1`, a `"kind"` and that kind's fields, every one a string
-//! that is not empty, each `version` a package version and each `digest` a package's BLAKE3
+//! that is not empty, each `version` and `fixed_in` a package version and each `digest` a package's BLAKE3
 //! digest, 64 lowercase hex digits (`rule:packaging/a-package-is-its-digest`). Its canonical
 //! form has the keys sorted by their bytes, no whitespace, and strings escaped as `serde_json`
 //! escapes them: `"`, `\` and the control characters alone, which is RFC 8785's form for such an
@@ -72,11 +72,14 @@ pub(crate) enum Entry {
     Unlist { package: String, version: String },
     /// An unlist was reversed.
     Relist { package: String, version: String },
-    /// A version was retracted.
+    /// A version was retracted, and the version that fixes it when one is named. An entry with
+    /// no `fixed_in` leaves it out of its canonical form.
     Retract {
         package: String,
         version: String,
         reason: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fixed_in: Option<String>,
     },
     /// A version was withheld.
     Withhold {
@@ -115,7 +118,7 @@ impl Entry {
                 Value::String(text) if text.is_empty() => {
                     return Err(format!("`{key}` is empty"));
                 }
-                Value::String(text) if key == "version" => {
+                Value::String(text) if key == "version" || key == "fixed_in" => {
                     Version::from_str(text)?;
                 }
                 Value::String(text) if key == "digest" && index::digest(text).is_none() => {
@@ -201,6 +204,7 @@ mod tests {
             r#"{"v":1,"kind":"unlist","package":"","version":"1.0.0"}"#,
             r#"{"v":1,"kind":"unlist","package":"acme/http","version":"1.0"}"#,
             r#"{"v":1,"kind":"token","account":"a","token":"t","change":"lost"}"#,
+            r#"{"v":1,"kind":"retract","package":"a/b","version":"1.0.0","reason":"r","fixed_in":"1.1"}"#,
             r#"{"v":1,"kind":"publish","package":"a/b","version":"1.0.0","digest":"sha256:00","repository":"r","commit":"c"}"#,
             r#"[1]"#,
         ] {

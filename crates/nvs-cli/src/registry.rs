@@ -23,6 +23,13 @@
 //! releases from the log. `log files` prints the path of every file a log of a given size has, so
 //! the service copies a log from a file host it cannot list.
 //!
+//! `log advisories` writes the advisory feed, the file [`advisory::FILE`] in the log's directory:
+//! every retraction and withhold the log holds, signed with the key file and the log's checkpoint.
+//! It reads every entry of the log, so the service runs it after each append that logs an
+//! advisory. `log verify` checks the feed too when the directory has one: it must name a size the
+//! log has reached, with that size's root hash, and list exactly the advisories of the records
+//! below it.
+//!
 //! `index sign` signs a directory's root file, `registry.json`, and every index file under its
 //! `index/` again ([`index::sign`]), each with the key file, the time and the size and root hash of
 //! the log's checkpoint, `log/checkpoint` in the directory unless `--log` names another log. The
@@ -44,6 +51,7 @@ use std::process::ExitCode;
 
 use nvs_config::trust::{self, Untrusted};
 
+use crate::package::advisory::{self, Feed};
 use crate::package::entry::Entry;
 use crate::package::note::{Checkpoint, Signer, Verifier};
 use crate::package::{index, log};
@@ -158,6 +166,21 @@ enum LogCommand {
         #[arg(long)]
         entries: bool,
     },
+    /// Write the advisory feed: every retraction and withhold in the log.
+    ///
+    /// The command reads every entry of the log and writes the file
+    /// `advisories` in the log's directory, signed with the key. Clients read
+    /// it to find the versions they must not use. Run it after each change
+    /// that retracts or withholds a version.
+    Advisories {
+        /// The log's directory.
+        dir: PathBuf,
+        /// The file with the signing key, `PRIVATE+KEY+<name>+...`. Only your
+        /// account may be able to change it and its folder. The key's name
+        /// must be the log's name.
+        #[arg(long, value_name = "FILE")]
+        key: PathBuf,
+    },
     /// Print the path of every file a log of `size` entries has.
     ///
     /// Each line is a path in the log's directory. The list does not include
@@ -187,6 +210,9 @@ impl Args {
                         entries,
                     },
             } => verify(&dir, vkey.as_deref(), key.as_deref(), &origin, entries),
+            Command::Log {
+                command: LogCommand::Advisories { dir, key },
+            } => advisories(&dir, &key),
             Command::Log {
                 command: LogCommand::Files { size },
             } => Ok(log::written_paths(0, size).join("\n")),
@@ -276,17 +302,22 @@ fn verify(
         (None, Some(key)) => read_key(key)?.verifier(),
         (None, None) => return Err("give `--vkey` or `--key`".to_owned()),
     };
-    let checkpoint = read_checkpoint(dir, origin, &[verifier])?
+    let checkpoint = read_checkpoint(dir, origin, std::slice::from_ref(&verifier))?
         .ok_or_else(|| format!("{} has no `{CHECKPOINT}` file", dir.display()))?;
+    let feed = read_feed(dir, &verifier, &checkpoint)?;
+    let mut against = feed.as_ref().map(Feed::against);
     let mut lines = Vec::new();
     log::verify(
         dir,
         checkpoint.size(),
         checkpoint.root(),
-        |_, record: &[u8]| {
+        |n, record: &[u8]| {
             let entry = Entry::parse(record)?;
             if entry.canonical() != record {
                 return Err("the entry is not in its canonical form".to_owned());
+            }
+            if let Some(against) = &mut against {
+                against.record(n, record)?;
             }
             if entries {
                 lines.push(String::from_utf8_lossy(record).into_owned());
@@ -295,13 +326,97 @@ fn verify(
         },
     )
     .map_err(|err| err.to_string())?;
+    if let Some(against) = against {
+        against.finish()?;
+    }
     if entries {
         return Ok(lines.join("\n"));
     }
-    Ok(format!(
+    let mut message = format!(
         "The log `{origin}` has {} entries, and every file matches its checkpoint.",
         checkpoint.size()
+    );
+    if let Some(feed) = &feed {
+        message.push_str(&format!(
+            "\nThe advisory feed lists {} advisories, every one in the first {} entries.",
+            feed.advisories.len(),
+            feed.stamp.size
+        ));
+    }
+    Ok(message)
+}
+
+/// The advisory feed in `dir`, opened with `verifier`, or `None` when `dir` has none. Its size
+/// is one the log of `checkpoint` has reached, and its root hash is the tree's at that size.
+fn read_feed(
+    dir: &Path,
+    verifier: &Verifier,
+    checkpoint: &Checkpoint,
+) -> Result<Option<Feed>, String> {
+    let path = dir.join(advisory::FILE);
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("{}: {err}", path.display())),
+    };
+    let failed = |err: String| format!("{}: {err}", path.display());
+    let feed = Feed::open(&bytes, verifier, now()).map_err(failed)?;
+    if feed.stamp.size > checkpoint.size() {
+        return Err(failed(format!(
+            "it names a log of {} entries, and the log has {}",
+            feed.stamp.size,
+            checkpoint.size()
+        )));
+    }
+    let root = log::tree_hash(feed.stamp.size, &mut log::Log::open(dir, checkpoint.size()))
+        .map_err(|err| failed(err.to_string()))?;
+    if root != feed.stamp.root {
+        return Err(failed(format!(
+            "its root hash is not the log's at {} entries",
+            feed.stamp.size
+        )));
+    }
+    Ok(Some(feed))
+}
+
+/// `nvs registry log advisories`.
+fn advisories(dir: &Path, key: &Path) -> Result<String, String> {
+    let signer = read_key(key)?;
+    let verifier = signer.verifier();
+    let checkpoint = read_checkpoint(dir, verifier.name(), std::slice::from_ref(&verifier))?
+        .ok_or_else(|| format!("{} has no `{CHECKPOINT}` file", dir.display()))?;
+    let mut listed = Vec::new();
+    log::verify(
+        dir,
+        checkpoint.size(),
+        checkpoint.root(),
+        |n, record: &[u8]| {
+            if advisory::is_advisory(&Entry::parse(record)?) {
+                listed.push((n, record.to_vec()));
+            }
+            Ok(())
+        },
+    )
+    .map_err(|err| err.to_string())?;
+    let note = advisory::sign(&listed, &signer, &checkpoint, now())?;
+    let path = dir.join(advisory::FILE);
+    let partial = dir.join(format!("{}.partial", advisory::FILE));
+    fs::write(&partial, note)
+        .and_then(|()| fs::rename(&partial, &path))
+        .map_err(|err| format!("{}: {err}", path.display()))?;
+    Ok(format!(
+        "The advisory feed lists {} advisories in the log of {} entries.\n{}",
+        listed.len(),
+        checkpoint.size(),
+        advisory::FILE
     ))
+}
+
+/// This computer's clock, in Unix seconds.
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
 }
 
 /// `nvs registry index sign`.
@@ -311,11 +426,7 @@ fn sign(dir: &Path, key: &Path, log: Option<&Path>, at: Option<u64>) -> Result<S
     let log = log.map_or_else(|| dir.join("log"), Path::to_path_buf);
     let checkpoint = read_checkpoint(&log, verifier.name(), std::slice::from_ref(&verifier))?
         .ok_or_else(|| format!("{} has no `{CHECKPOINT}` file", log.display()))?;
-    let at = at.unwrap_or_else(|| {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |since| since.as_secs())
-    });
+    let at = at.unwrap_or_else(now);
     let mut files = Vec::new();
     let root = dir.join(index::ROOT_FILE);
     if root.is_file() {

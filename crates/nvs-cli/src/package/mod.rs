@@ -29,10 +29,13 @@
 //! (`rule:packaging/the-registry-builds-the-archive-from-git`). [`retract`] is `nvs pkg retract`
 //! (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`) and [`unlist`] is
 //! `nvs pkg unlist` (`rule:packaging/an-owner-may-unlist`), each one request to the registry.
+//! [`advisory`] is the registry's signed advisory feed, every retraction and withhold in the log,
+//! and its check against the log.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+pub(crate) mod advisory;
 mod api;
 pub(crate) mod build;
 mod diff;

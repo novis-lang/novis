@@ -235,7 +235,7 @@ struct IndexFile {
 /// The checkpoint a signed file names, as written.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CheckpointLine {
+pub(crate) struct CheckpointLine {
     size: u64,
     root: String,
 }
@@ -254,7 +254,11 @@ pub(crate) struct Stamp {
 impl Stamp {
     /// The stamp `signed_at` and `checkpoint` write, once it is signed at most [`AHEAD`] past
     /// `now`.
-    fn read(signed_at: u64, checkpoint: &CheckpointLine, now: u64) -> Result<Self, String> {
+    pub(crate) fn read(
+        signed_at: u64,
+        checkpoint: &CheckpointLine,
+        now: u64,
+    ) -> Result<Self, String> {
         let root = BASE64
             .decode(&checkpoint.root)
             .ok()
