@@ -17,6 +17,13 @@ header the tree *does* know is no block at all, the same as a file that never wr
 warning. `nvs_config::file::parse_with_warnings` is the one place this runs; it costs nothing on a
 file that types first time.
 
+**The four open blocks are not an exception to the refusal.** `[settings]`, `[secrets]`,
+`[app.settings]` and `[app.secrets]` take any key that is a plain name, because the operator names
+it (`rule:config/settings-and-secrets-are-a-programs-own-values`). What a closed block's field set
+refuses, their own per-file check refuses instead, with the line: a key that is not a plain name, a
+date or time, a secret that is not a string. A key no program reads is `nvs config check`'s warning
+and not a refusal, because a program the tree does not name may read it.
+
 On a reload the same diagnostic refuses the swap and the previous snapshot keeps serving, so a typo is
 never published to a running server either.
 

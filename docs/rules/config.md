@@ -3,6 +3,8 @@
 
 # Configuration
 
+*1 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -151,6 +153,13 @@ header the tree *does* know is no block at all, the same as a file that never wr
 warning. `nvs_config::file::parse_with_warnings` is the one place this runs; it costs nothing on a
 file that types first time.
 
+**The four open blocks are not an exception to the refusal.** `[settings]`, `[secrets]`,
+`[app.settings]` and `[app.secrets]` take any key that is a plain name, because the operator names
+it ([`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)). What a closed block's field set
+refuses, their own per-file check refuses instead, with the line: a key that is not a plain name, a
+date or time, a secret that is not a string. A key no program reads is `nvs config check`'s warning
+and not a refusal, because a program the tree does not name may read it.
+
 On a reload the same diagnostic refuses the swap and the previous snapshot keeps serving, so a typo is
 never published to a running server either.
 
@@ -173,7 +182,11 @@ diagnostic ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](conf
 exception holds here too: an unknown header with nothing under it is ignored with a warning. The
 format rule owns
 only the *syntax*; every block's directives, defaults and changeability class are argued by the rule
-that adds the block, so a reader of `nvs.toml` has one place to start:
+that adds the block, so a reader of `nvs.toml` has one place to start.
+
+**Four blocks are open**: `[settings]`, `[secrets]`, `[app.settings]` and `[app.secrets]` take keys
+the operator names. Every other block's keys are closed.
+
 
 | Block | Argued by |
 |---|---|
@@ -197,6 +210,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[mail.<name>]`, `[storage.<name>]` | [`programs/framework-core-half`](programs.md#programs-framework-core-half) |
 | `[session]` | [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot) |
 | `[app.log]` | [`errors/handler-script`](errors.md#errors-handler-script) |
+| `[settings]`, `[secrets]`, `[app.settings]`, `[app.secrets]` | [`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values) |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
@@ -874,6 +888,11 @@ never logged, and `nvs config dump` renders it `<secret>` beside the file it cam
 setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
 reader a program that connects with the credential needs.
 
+**`[secrets]` and `[app.secrets]` take the same pair** for every name the operator writes there:
+`name` or `name_file`, exactly one, read by the same reader under the same rules. Their values are
+`Core\Config::secret`'s and never `get`'s
+([`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)).
+
 **`get` returns a secret directive as a `?secret string`, and only by its written name.** The
 checker types `Core\Config::get('db.main.password')` as `?secret string` when the literal is a
 secret directive, read from the same table the boot fills them from, so no output, log or
@@ -924,6 +943,106 @@ wall off every containerised deployment; saying nothing would hide a real mistak
 check` and counted on its summary line, and it never changes the verdict.
 
 <sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
+
+<a id="config-settings-and-secrets-are-a-programs-own-values"></a>
+
+## `[settings]` and `[secrets]` hold a program's own values, read with `Core\Config::setting` and `Core\Config::secret`  *(designed — owned by goal app-settings)*
+
+`rule:config/settings-and-secrets-are-a-programs-own-values`
+
+Four blocks hold values a program reads by a name the operator chooses: `[settings]` and `[secrets]`
+for every application, and `[app.settings]` and `[app.secrets]` under an `[[app]]` block for that
+application. They are the only open blocks. Every other block stays closed, and an unknown key there
+is still `E0601`.
+
+```toml
+[settings]
+page_size = 20
+
+[settings.api]
+base = "https://api.example.com"
+
+[secrets]
+api_key_file = "/run/secrets/api_key"
+```
+
+**A key is a plain name**, `[A-Za-z_][A-Za-z0-9_]*`, at every depth. A sub-table adds a dotted
+level, so `[settings.api] base` is read as `api.base`. A quoted key that is not a plain name is
+`E0601`, because `"api.base"` and `[settings.api] base` would be two settings read by one name.
+
+**A setting keeps its TOML type**: a string is a `string`, an integer an `int`, a float a `float`, a
+boolean a `bool`, an array an array, and a table an array keyed by name. A TOML date or time is
+`E0601`, and its help is the same value quoted as a string. Novis has no value a TOML date maps to
+without a time-zone choice, and a string leaves that choice to the program.
+
+**A secret is a string, written inline or read from a file.** Each `[secrets]` key is `name = "…"`
+or `name_file = "…"`, exactly one of the two, and both is `E0608`, as for a secret directive
+([`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value)). The file is read by the same reader,
+under the same rules. A secret that is not a string is `E0601`, so `[secrets]` has no sub-table and
+a secret's own name never ends in `_file`. Every value is carried beside the merged table under
+`secrets.<name>` and never in it: the table keeps only the `_file` half, so `nvs config dump` prints
+each secret as `<secret>` beside the file it came from. An inline secret names the configuration
+file it was written in.
+
+The key checks and the type checks run per file, before the merge, so a refusal names the line.
+`[[include]]` overrides a value as it overrides any directive, and `[app.settings]` and
+`[app.secrets]` fold over the global blocks key by key, least-specific first
+([`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first)). Both record the override with
+both origins ([`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded)). That is how one machine sets
+its own values: the base file holds the defaults, and a file on that machine overrides them.
+
+**Two read-only methods, and nothing else in the API:**
+
+| Method | Returns |
+|---|---|
+| `Core\Config::setting(string $name): mixed` | the value with its type, or `null` when no block sets it |
+| `Core\Config::secret(string $name): ?secret string` | the secret, or `null` when no block sets it |
+
+A program converts a setting with `as`: `Core\Config::setting('page_size') as int` throws when the
+value is missing or is not a whole number. `secret`'s name is a sink, as `Core\Env::secret`'s is, so
+a request cannot choose which secret it reads. A setting is not `tainted`: the operator wrote it in
+a file only the runtime account or root may change.
+
+**`get`, `all`, `set` and `restore` never see the four blocks.** `Core\Config::get('secrets.x')`
+returns `null`, and `all` lists no `settings.` or `secrets.` key. Without this, a secret would come
+back from `get` as a plain `?string`, which every output accepts.
+
+**A package reads the same values the application does**, as `Core\Env::secret` does not ask who
+calls it. Which package may read what is the grants model's question
+([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
+
+**The typo check is a warning from `nvs config check`.** The checker records every name passed to
+`setting` or `secret` as a literal string, per program. `nvs config check` compiles the programs the
+tree names, each `[[app]] entry` and each `[[server.mount]]` entry, and every `--program <file>`
+given, and raises `W1028` for each key in the four blocks that none of them reads. When any of them
+passes a name that is not a literal, no key is judged, and one line says so. It is a warning because
+a key may be read by a program the tree does not name. `nvs check` stays a source check that never
+reads `nvs.toml` ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)), and the boot compiles nothing
+to look.
+
+**What it spends.** A `setting` read is one lookup in the request's snapshot and one value built,
+with nothing read from disk. The values are part of the config snapshot, stored once per snapshot
+and never per request. A file that writes one of the four blocks is parsed once more at boot and at
+each reload. `nvs config check` compiles each named program, which is seconds offline and nothing on
+a server. Security: no capability can be set in the new blocks, every other block stays closed, and
+a secret is typed `secret` and redacted wherever the configuration is printed.
+
+**Declined:**
+- **A free-form block with no declared keys and no typo check.** A typo'd key reads as "not set",
+  which is the failure the unknown-key refusal exists to stop.
+- **A schema the program declares, which the boot checks against.** `nvs.toml` is read before any
+  program is compiled, and a schema would be source-tree state in a deployment file.
+- **`${ENV}` interpolation into a setting**, already declined by
+  [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml).
+- **Reading settings through `get` as strings.** Every value would need a parse, and a secret would
+  come back as a plain string.
+- **A `settings()` method that returns every value.** It is the way a whole set of secrets ends up
+  in a log.
+- **A `set` for settings.** A request that needs another value uses a variable.
+- **A package that may not read the values.** A limit for these two methods would be a rule of its
+  own, under the grants model.
+
+<sub>See also [`config/every-block-is-argued-where-it-is-added`](config.md#config-every-block-is-argued-where-it-is-added), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source).</sub>
 
 <a id="config-one-parser-for-the-boot-path-and-config-set"></a>
 
@@ -1335,8 +1454,8 @@ that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 
 `rule:config/ini-set-is-core-config-set`
 
-`Core\Config` is the run-time API over the configuration, four static methods and no free function
-([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)):
+`Core\Config` is the run-time API over the configuration, six static methods and no free function
+([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)). These four read and change the directives:
 
 | Method | What it does |
 |---|---|
@@ -1344,6 +1463,12 @@ that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 | `Core\Config::get(string $name): ?string` | reads the value in force |
 | `Core\Config::restore(string $name): void` | drops this request's change and reads the configured value again |
 | `Core\Config::all(): array<string, string>` | reads every directive |
+
+The other two, `Core\Config::setting` and `Core\Config::secret`, read a program's own values from
+`[settings]` and `[secrets]` with their types, and are
+[`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)'s. None of the four above sees those
+blocks: `get` returns `null` for a `settings.` or `secrets.` key, `all` lists none, and `set` and
+`restore` change none.
 
 The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
 `false` and leaves the value in force untouched, and every accepted change is request-local on the

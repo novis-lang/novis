@@ -25,6 +25,11 @@ never logged, and `nvs config dump` renders it `<secret>` beside the file it cam
 setting is the usual way a credential leaks. `Core\Config::get` returns the value: it is the one
 reader a program that connects with the credential needs.
 
+**`[secrets]` and `[app.secrets]` take the same pair** for every name the operator writes there:
+`name` or `name_file`, exactly one, read by the same reader under the same rules. Their values are
+`Core\Config::secret`'s and never `get`'s
+(`rule:config/settings-and-secrets-are-a-programs-own-values`).
+
 **`get` returns a secret directive as a `?secret string`, and only by its written name.** The
 checker types `Core\Config::get('db.main.password')` as `?secret string` when the literal is a
 secret directive, read from the same table the boot fills them from, so no output, log or

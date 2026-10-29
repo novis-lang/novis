@@ -8,7 +8,7 @@ whether or not their content happens to be a credential.
 type, property or local. A helper that loads an API key is expected to declare its own return type
 `secret string`; the language gives no free ride.
 
-**Two members originate the qualifier**, and each is a member whose *contract* is confidentiality,
+**Three members originate the qualifier**, and each is a member whose *contract* is confidentiality,
 so there is no reading of its result that is not a credential. Each is a declared return type, not
 an ambient grant.
 
@@ -18,6 +18,9 @@ an ambient grant.
   reads the variable `Core\Env::get` reads, and a program calls it instead of `get` to say that the
   value is a credential. Its name is a sink, as `get`'s is, so a request cannot choose which
   credential it reads. The value is not `tainted`, for `rule:security/tainted-sources`' reason.
+- **`Core\Config::secret('name')`** answers `?secret string` for a `[secrets]` value the operator
+  wrote, and `null` where no block sets it
+  (`rule:config/settings-and-secrets-are-a-programs-own-values`). Its name is a sink too.
 
 One more call originates it, and it is a fact rather than a guess: **`Core\Config::get` with a
 secret directive written as its name** answers `?secret string`. The configuration's own table says

@@ -22,6 +22,7 @@
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",
     "config/a-secret-is-a-file-whose-content-is-the-value",
     "config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure",
+    "config/settings-and-secrets-are-a-programs-own-values",
     "config/one-parser-for-the-boot-path-and-config-set",
     "config/the-config-is-an-immutable-snapshot",
     "config/three-changeability-classes",

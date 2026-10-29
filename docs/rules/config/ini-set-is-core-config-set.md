@@ -1,5 +1,5 @@
-`Core\Config` is the run-time API over the configuration, four static methods and no free function
-(`rule:classes/no-free-functions-or-constants`):
+`Core\Config` is the run-time API over the configuration, six static methods and no free function
+(`rule:classes/no-free-functions-or-constants`). These four read and change the directives:
 
 | Method | What it does |
 |---|---|
@@ -7,6 +7,12 @@
 | `Core\Config::get(string $name): ?string` | reads the value in force |
 | `Core\Config::restore(string $name): void` | drops this request's change and reads the configured value again |
 | `Core\Config::all(): array<string, string>` | reads every directive |
+
+The other two, `Core\Config::setting` and `Core\Config::secret`, read a program's own values from
+`[settings]` and `[secrets]` with their types, and are
+`rule:config/settings-and-secrets-are-a-programs-own-values`'s. None of the four above sees those
+blocks: `get` returns `null` for a `settings.` or `secrets.` key, `all` lists none, and `set` and
+`restore` change none.
 
 The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
 `false` and leaves the value in force untouched, and every accepted change is request-local on the

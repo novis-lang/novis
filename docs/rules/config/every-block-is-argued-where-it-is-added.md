@@ -3,7 +3,11 @@ diagnostic (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`).
 exception holds here too: an unknown header with nothing under it is ignored with a warning. The
 format rule owns
 only the *syntax*; every block's directives, defaults and changeability class are argued by the rule
-that adds the block, so a reader of `nvs.toml` has one place to start:
+that adds the block, so a reader of `nvs.toml` has one place to start.
+
+**Four blocks are open**: `[settings]`, `[secrets]`, `[app.settings]` and `[app.secrets]` take keys
+the operator names. Every other block's keys are closed.
+
 
 | Block | Argued by |
 |---|---|
@@ -27,6 +31,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[mail.<name>]`, `[storage.<name>]` | `rule:programs/framework-core-half` |
 | `[session]` | `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` |
 | `[app.log]` | `rule:errors/handler-script` |
+| `[settings]`, `[secrets]`, `[app.settings]`, `[app.secrets]` | `rule:config/settings-and-secrets-are-a-programs-own-values` |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
