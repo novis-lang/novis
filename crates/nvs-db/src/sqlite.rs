@@ -7,8 +7,9 @@
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
 //! what every other driver gets from its own machinery — the blocking-pool
 //! handoff off the core, `rule:core-classes/db-statement-members`'s
-//! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
-//! nesting with the § 13 reset that closes it.
+//! one-statement-at-a-time rule, `rule:core-classes/db-error`'s normalised error
+//! kinds, and `rule:core-classes/db-transactions`' nesting with the
+//! `rule:security/db-pool-reset-is-a-boundary` reset that closes it.
 //!
 //! # Why every call is a handoff, and what it costs
 //!
@@ -22,7 +23,8 @@
 //! - **The handle is an `Arc<Mutex<rusqlite::Connection>>`.** A
 //!   `rusqlite::Connection` is `Send` and not `Sync`, so an `Arc` alone will not
 //!   cross to a pool thread; the `Mutex` is what makes it `Send`, not a claim
-//!   that two callers may hold it. It is never contended — § 4's [`State`] gives
+//!   that two callers may hold it. It is never contended — the
+//!   `rule:core-classes/db-connection-busy-state` [`State`] gives
 //!   one request the connection at a time — so the cost is one uncontended
 //!   atomic per statement.
 //! - **Parameters arrive owned**, `Vec<SqliteValue>` where the others take
@@ -51,14 +53,15 @@
 //! the same span, which is why filing a deadline mid-walk goes through the
 //! thread ([`set_busy_timeout`]) rather than taking it.
 //!
-//! # What is still § 4's rule and not the file's
+//! # What is still the busy-state rule and not the file's
 //!
 //! Materialized rows mean a second statement could physically run while a first
 //! result set is unread. It still does not: [`SqliteRows`] borrows the
 //! connection for as long as it lives and leaves [`State::Streaming`] set until
 //! it is dropped, which is [`crate::tds::TdsRows`]' arrangement and for the reason
-//! [`SqliteConn::state`]'s own comment gives — § 4's `LogicError` is a property
-//! of the API, not of a socket.
+//! [`SqliteConn::state`]'s own comment gives —
+//! `rule:core-classes/db-connection-busy-state`'s `LogicError` is a property of the
+//! API, not of a socket.
 //!
 //! # Which statement inserted a row, and what that costs
 //!
@@ -121,7 +124,7 @@ const BACKEND: &str = "sqlite";
 /// The target borrows the block for [`crate::MySqlTarget`]'s reason, though the
 /// argument is weaker here: there is no password to keep a second copy of, and
 /// what is borrowed is a path. It is a target rather than a bare `&Path` because
-/// § 1's cache size and § 9's declared zone are read from the same block by the
+/// the statement cache's size and the declared zone are read from the same block by the
 /// same two readers every other driver goes through, and a driver that took the
 /// path alone would be the one backend where those two keys silently did
 /// nothing.
@@ -132,8 +135,8 @@ pub struct SqliteTarget<'a> {
     /// `rule:core-classes/db-capabilities` puts this under `db.connect` exactly as a host is: an
     /// operator wrote it into root-owned configuration, which is the same
     /// authority that granted the capability. A *program-supplied* path is
-    /// `open`'s, and § 3 additionally makes that one a path sink needing
-    /// `fs.read`/`fs.write` — a rule that lives above this crate, because
+    /// `open`'s, and that rule additionally makes it a path sink needing
+    /// `fs.read`/`fs.write` — a check that lives above this crate, because
     /// nothing here knows which of the two it was handed.
     ///
     /// Resolution against the config file's own directory (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) has
@@ -145,13 +148,15 @@ pub struct SqliteTarget<'a> {
     /// The zone a zone-less datetime off this connection is read in, as a whole
     /// number of seconds east of UTC.
     ///
-    /// § 9's declared zone, read by the same `time_zone_for` every other block
-    /// goes through. Like SQL Server's it governs decoding alone and is sent
+    /// `rule:core-classes/db-column-types`' declared zone, read by the same
+    /// `time_zone_for` every other block goes through. Like SQL Server's it
+    /// governs decoding alone and is sent
     /// nowhere: SQLite has no session state to send it to, and `CURRENT_TIMESTAMP`
     /// is UTC by definition of the function rather than by a setting.
     pub time_zone: i32,
-    /// How many prepared statements this connection keeps alive, § 1's
-    /// `statement_cache` through the reader every other block goes through.
+    /// How many prepared statements this connection keeps alive,
+    /// `rule:core-classes/db-one-api`'s `statement_cache` through the reader every
+    /// other block goes through.
     ///
     /// `rusqlite` owns the cache itself — see [`open`] — so this is the number
     /// handed to it and not the size of a structure written here.
@@ -174,12 +179,13 @@ impl<'a> SqliteTarget<'a> {
     ///
     /// [`BlockError`], in the order [`crate::TdsTarget::resolve`] runs its own:
     /// the `driver` first, then every field belonging to another driver, then
-    /// `path`, then § 9's zone. The middle group is the long one here and it is
+    /// `path`, then the declared zone. The middle group is the long one here and it is
     /// the interesting half — a `[db.x]` block that names `sqlite` and also
     /// writes `host`, `user` and `password` is one an operator retyped from a
     /// server block, and opening it would open a *local file* with the
-    /// credentials silently discarded. § 2's discriminated union is refused
-    /// field by field rather than by ignoring what does not apply.
+    /// credentials silently discarded. `rule:core-classes/db-connection-is-named`'s
+    /// discriminated union is refused field by field rather than by ignoring what
+    /// does not apply.
     pub fn resolve(block: &'a Database) -> Result<SqliteTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -253,17 +259,17 @@ impl<'a> SqliteTarget<'a> {
 /// that crate depend on the C dependency's Rust wrapper to say anything at all.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SqliteValue {
-    /// SQL `NULL`: § 9's row that makes every column `?T`.
+    /// SQL `NULL`: the type map's row that makes every column `?T`.
     Null,
     /// `INTEGER` — up to eight bytes, signed. There is no unsigned storage
-    /// class, so § 9's `uint` row has no SQLite half.
+    /// class, so the type map's `uint` row has no SQLite half.
     Int(i64),
     /// `REAL` — an IEEE-754 double.
     Real(f64),
     /// `TEXT`, already known to be UTF-8: see [`SqliteValue::read`] for why an
     /// invalid one is an error rather than a lossy conversion.
     Text(String),
-    /// `BLOB`, which § 9 reads as `tainted bytes` and never as text.
+    /// `BLOB`, which the type map reads as `tainted bytes` and never as text.
     Blob(Vec<u8>),
 }
 
@@ -274,7 +280,8 @@ impl SqliteValue {
     ///
     /// `InvalidData` for a `TEXT` cell that is not UTF-8. Every other driver
     /// gets `rule:types/bytes`'s guarantee
-    /// from § 3's forced connection charset; SQLite has no charset to force and
+    /// from `rule:core-classes/db-safe-connection-defaults`' forced connection
+    /// charset; SQLite has no charset to force and
     /// will store whatever bytes were handed to it, so the guarantee has to be
     /// checked here or abandoned. Lossy conversion is the one answer that is
     /// not available — it would hand a program a string the database does not
@@ -352,8 +359,9 @@ impl rusqlite::types::ToSql for SqliteValue {
 ///   `rule:core-classes/db-column-types`'s `decimal` row with a
 ///   read half and no write half.
 ///
-/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
-/// marker has expanded into one bound value per element by the time a statement
+/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason:
+/// `rule:core-classes/db-parameters`' marker has expanded into one bound value
+/// per element by the time a statement
 /// has its bind list.
 ///
 /// # Errors
@@ -407,7 +415,7 @@ pub fn encode(value: Value) -> io::Result<SqliteValue> {
             SqliteValue::Text(text.to_owned())
         }
         // The one arm SQL Server has no answer for at all: a `BLOB` is an
-        // ordinary storage class here, so § 9's `bytes` row needs no gap.
+        // ordinary storage class here, so the type map's `bytes` row needs no gap.
         Some(Tag::Bytes) => SqliteValue::Blob(value.as_bytes().unwrap_or_default().to_vec()),
         _ => {
             return Err(refused(format!(
@@ -421,10 +429,11 @@ pub fn encode(value: Value) -> io::Result<SqliteValue> {
 /// One result column, as the statement described it before it was stepped.
 ///
 /// `declared` is the column's *declared* type and is the whole reason this type
-/// exists: § 9 maps a SQLite column off what the schema called it, since the
+/// exists: `rule:core-classes/db-column-types` maps a SQLite column off what the
+/// schema called it, since the
 /// storage class of a value says nothing about whether `20260903` was meant as a
 /// number or a date. It is `None` for an expression — `select 1 + 1` has no
-/// declared type — which is § 9's total case rather than a failure.
+/// declared type — which is the type map's total case rather than a failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SqliteColumn {
     /// The column's name, as `AS` or the schema spelled it.
@@ -433,7 +442,7 @@ pub struct SqliteColumn {
     ///
     /// **Upper case, whatever the schema wrote** — `rusqlite` normalises it on
     /// the way out, so a column created as `weight real` describes as `REAL`.
-    /// It is carried as it arrives rather than re-cased here: § 9's map has to
+    /// It is carried as it arrives rather than re-cased here: the type map has to
     /// fold case regardless, since SQLite's own type affinity rules do, and a
     /// second normalisation in between would only be a second place for the two
     /// to disagree.
@@ -449,13 +458,13 @@ impl SqliteColumn {
     /// encoding follows from it. SQLite has five storage classes and a value
     /// carries its own, so `20260903` in a column declared `date` arrives as an
     /// `INTEGER` and `'2026-09-03'` in the same column arrives as `TEXT`.
-    /// Nothing about the *value* says which was meant, which is why § 9 keys
+    /// Nothing about the *value* says which was meant, which is why that rule keys
     /// this backend off the schema's word and why turning a cell into a
     /// `Core\Time\Date` throws when it does not parse: the column says what it
     /// is and the value is either that or a mistake. The throw is
     /// `nvs-stdlib`'s, where every driver's is — this half is the description.
     ///
-    /// **§ 9's own names are matched first, then SQLite's affinity rules in
+    /// **The type map's own names are matched first, then SQLite's affinity rules in
     /// their own order.** Affinity has only five answers and none of them is
     /// `DATETIME`, `BOOLEAN`, `UUID` or `DECIMAL`, so it is the fallback rather
     /// than the rule — and where it *does* answer, its answer is kept, quirks
@@ -473,7 +482,7 @@ impl SqliteColumn {
     /// - **Never [`ColumnType::Json`].** A column declared `JSON` is
     ///   [`ColumnType::Text`], because SQLite has no JSON type to describe:
     ///   this is MariaDB's case, where the type is a name over a text column,
-    ///   and [`ColumnType::Json`]'s own doc settles it for both. § 9's rule that
+    ///   and [`ColumnType::Json`]'s own doc settles it for both. The type map's rule that
     ///   JSON is never auto-decoded is untouched either way.
     /// - **An expression is [`ColumnType::Other`]**, the total case, and not the
     ///   `BLOB` affinity SQLite's rule 3 gives a column with no declared type.
@@ -520,7 +529,8 @@ impl SqliteColumn {
 ///
 /// The result set is in memory — this module's doc says why it cannot be
 /// otherwise — so `next_row` never fails and never blocks. What the borrow buys
-/// is § 4's rule: the connection is [`State::Streaming`] until this is dropped,
+/// is `rule:core-classes/db-connection-busy-state`: the connection is
+/// [`State::Streaming`] until this is dropped,
 /// so a second statement on it is the same refusal it is on every other driver.
 #[derive(Debug)]
 pub struct SqliteRows<'a> {
@@ -543,7 +553,7 @@ impl SqliteRows<'_> {
         self.rows.next()
     }
 
-    /// How many rows this statement changed: § 4's `execute` answer.
+    /// How many rows this statement changed: `execute`'s answer.
     ///
     /// **This statement's own count and never an earlier one's.**
     /// `sqlite3_changes` reports the last *data-changing* statement on the
@@ -572,11 +582,12 @@ impl SqliteRows<'_> {
 }
 
 impl Drop for SqliteRows<'_> {
-    /// Releasing the result set is what ends § 4's statement.
+    /// Releasing the result set is what ends the statement.
     ///
     /// A poisoned connection stays poisoned: there is no state here to prove
     /// clean, and the rule that a poisoned connection is closed rather than
-    /// reused (§ 13) is not a rule one driver relaxes because its failure mode
+    /// reused (`rule:security/db-pool-reset-is-a-boundary`) is not a rule one
+    /// driver relaxes because its failure mode
     /// looks harmless.
     fn drop(&mut self) {
         if self.state.get() == State::Streaming {
@@ -681,16 +692,19 @@ fn lost_walk() -> io::Error {
 /// What the open sets on the way out, of which only the first is a number from
 /// the block:
 ///
-/// - **§ 1's statement cache is `rusqlite`'s own**, sized here. That crate keeps
-///   an LRU of `sqlite3_stmt` handles keyed on the SQL text, which is exactly
-///   what § 1 specifies, so this driver writes no cache of its own — the one
+/// - **`rule:core-classes/db-one-api`'s statement cache is `rusqlite`'s own**,
+///   sized here. That crate keeps an LRU of `sqlite3_stmt` handles keyed on the
+///   SQL text, which is exactly what that rule specifies, so this driver writes
+///   no cache of its own — the one
 ///   place in this crate where the borrowed half covers a section outright.
-/// - **`PRAGMA foreign_keys = ON`**, which SQLite leaves off by default. § 8
+/// - **`PRAGMA foreign_keys = ON`**, which SQLite leaves off by default.
+///   `rule:core-classes/db-error`
 ///   declares `ForeignKeyViolation` as a kind *every* driver normalises onto,
 ///   and with the pragma off that condition cannot arise at all: the same
 ///   schema and the same write would refuse on every other driver and silently
 ///   corrupt the reference here. So it is not configurable to the unsafe value
-///   — § 3's own defaults are settled on the same footing.
+///   — `rule:core-classes/db-safe-connection-defaults` is settled on the same
+///   footing.
 /// - **WAL, for a file opened for writing whose block keeps the default**
 ///   ([`SqliteTarget::wal`]): readers run beside the one writer instead of
 ///   waiting for it. [`into_wal`] switches the file, and the session store's
@@ -699,7 +713,8 @@ fn lost_walk() -> io::Error {
 ///   statement path files one through [`crate::Connection::set_statement_deadline`]:
 ///   the statement's own deadline, or the time its request has left. A writer
 ///   that meets another's lock waits that long and then answers `SQLITE_BUSY`,
-///   which § 8 normalises to `Deadlock`. The wait runs on the blocking pool,
+///   which `rule:core-classes/db-error` normalises to `Deadlock`. The wait runs
+///   on the blocking pool,
 ///   never on a core.
 /// - **[`SqliteTarget::read_only`] opens with `SQLITE_OPEN_READ_ONLY`**, beside the
 ///   URI and no-mutex flags `rusqlite`'s default carries, and never creates the
@@ -709,7 +724,7 @@ fn lost_walk() -> io::Error {
 ///
 /// # Errors
 ///
-/// The `io::Error` [`server_error`] builds, carrying § 8's kind: a path that
+/// The `io::Error` [`server_error`] builds, carrying its normalised kind: a path that
 /// cannot be opened, a file that is not a database, a directory the process may
 /// not read.
 pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
@@ -926,7 +941,8 @@ const INTERRUPT_EVERY: std::ffi::c_int = 1_000;
 /// answers `true` ends the statement with `SQLITE_INTERRUPT`, which is what
 /// `sqlite3_interrupt` does from another thread. The check runs on the thread
 /// stepping the statement, so no second thread or timer waits for the
-/// deadline. The statement ends and its error comes back as § 8's `Timeout`;
+/// deadline. The statement ends and its error comes back as
+/// `rule:core-classes/db-error`'s `Timeout`;
 /// the connection is then idle, because SQLite leaves no half-read result to
 /// drain.
 ///
@@ -1040,7 +1056,8 @@ impl SqliteConn {
     }
 
     /// `rule:core-classes/db-statement-members`'s statement: prepared
-    /// through § 1's cache, stepped off the core, and answered with its rows.
+    /// through `rule:core-classes/db-one-api`'s cache, stepped off the core, and
+    /// answered with its rows.
     ///
     /// **`execute` is this same method**, for [`crate::TdsConn::query`]'s reason:
     /// what tells a statement with a result set from one without is
@@ -1120,7 +1137,7 @@ impl SqliteConn {
     ///
     /// As [`SqliteConn::query`], plus the walk whose thread ended without
     /// answering — a pool shutting down under a request, which is not a server
-    /// error and carries no § 8 kind.
+    /// error and carries no normalised kind.
     pub fn stream(&mut self, sql: &str, params: Vec<SqliteValue>) -> io::Result<&[SqliteColumn]> {
         if !self.state.get().may_start_statement() {
             return Err(busy(self.state.get()));
@@ -1162,7 +1179,7 @@ impl SqliteConn {
     /// that has not streamed since its last reset.
     ///
     /// It outlives the rows on purpose: a value is measured by the column it
-    /// belongs to, and § 9's decode of it happens after the step that produced
+    /// belongs to, and the type map's decode of it happens after the step that produced
     /// it.
     #[must_use]
     pub fn stream_columns(&self) -> Option<&[SqliteColumn]> {
@@ -1239,8 +1256,8 @@ impl SqliteConn {
     /// it has, and forgets the walk.
     ///
     /// **The wait is the point.** The thread holds the statement and the lock on
-    /// the connection, so a call that only dropped the handle would leave § 13's
-    /// reset — or the next statement — racing a release that has not happened
+    /// the connection, so a call that only dropped the handle would leave the
+    /// pool's reset — or the next statement — racing a release that has not happened
     /// yet. [`Step::End`] is answered *after* the thread has let go of both, so
     /// a connection is free the instant this returns.
     pub fn end_stream(&mut self) {
@@ -1261,12 +1278,13 @@ impl SqliteConn {
     ///
     /// The whole loop is *one* handoff off the core rather than one per set.
     /// That is what the blocking pool is for — the thread is held, the core is
-    /// not — and the alternative pays § 3's park and wake per row for a call
+    /// not — and the alternative pays a park and wake per row for a call
     /// whose executions are microseconds apart.
     ///
     /// A refusal stops the loop and the sets already applied stay applied, which
-    /// is § 4's rule on every driver: `executeMany` is not a transaction, and a
-    /// caller that needs one calls it inside § 7's `transaction()`.
+    /// is `rule:core-classes/db-statement-members` on every driver: `executeMany`
+    /// is not a transaction, and a caller that needs one calls it inside
+    /// `transaction()`.
     ///
     /// # Errors
     ///
@@ -1301,12 +1319,13 @@ impl SqliteConn {
     /// savepoints, which is all of them — and what is this driver's own is the
     /// two options.
     ///
-    /// **Every one of § 7's isolation levels is accepted, and none of them
+    /// **Every one of `rule:core-classes/db-transactions`' isolation levels is
+    /// accepted, and none of them
     /// renders to anything.** SQLite is always serializable, so a level asked
     /// for here is delivered *at least* as strongly as it was asked for, which
-    /// [`Isolation`]'s own doc makes explicitly not the case § 7 says to throw
+    /// [`Isolation`]'s own doc makes explicitly not the case that rule says to throw
     /// over: nothing a program can observe is weakened by a stronger guarantee.
-    /// The refusal § 7 requires is for a driver that would quietly run the
+    /// The refusal it requires is for a driver that would quietly run the
     /// callable at a *weaker* level, and this backend has no weaker level to run
     /// it at. A `WAL` database's readers not blocking on a writer is the same
     /// serializable history reached without the lock, not a second level.
@@ -1315,7 +1334,8 @@ impl SqliteConn {
     /// the sharper reason. SQLite has no read-only transaction: read-only-ness
     /// is a property of how the *database* was opened, and the only per-session
     /// spelling is `PRAGMA query_only`, which would be session state this
-    /// connection carried between transactions — precisely what § 13 says this
+    /// connection carried between transactions — precisely what
+    /// `rule:security/db-pool-reset-is-a-boundary` says this
     /// backend has none of, and the claim its whole reset rests on. Accepting
     /// the option and opening an ordinary writable transaction is the one
     /// failure mode a `readOnly` exists to prevent.
@@ -1357,7 +1377,8 @@ impl SqliteConn {
         Ok(span)
     }
 
-    /// § 7's `BEGIN IMMEDIATE`: the write lock taken before the first
+    /// `rule:core-classes/db-transactions`' `BEGIN IMMEDIATE`: the write lock taken
+    /// before the first
     /// statement, for a transaction that reads a row and writes it back.
     ///
     /// `rule:concurrency/claiming-is-one-statement` names this backend's claim
@@ -1388,8 +1409,8 @@ impl SqliteConn {
     ///
     /// `InvalidInput` for a connection already in a transaction, otherwise as
     /// [`simple_command`] — a `SQLITE_BUSY` here is another connection's write
-    /// lock, which § 8 normalises to the `Deadlock` kind § 7's `{ retries: n }`
-    /// retries. The depth moves only after a command SQLite accepted, so a
+    /// lock, which `rule:core-classes/db-error` normalises to the `Deadlock` kind
+    /// `{ retries: n }` retries. The depth moves only after a command SQLite accepted, so a
     /// refused `BEGIN IMMEDIATE` leaves a connection that is still in no
     /// transaction.
     pub fn begin_immediate(&self) -> io::Result<QuerySpan> {
@@ -1417,14 +1438,14 @@ impl SqliteConn {
     /// How many transaction levels are open on this connection — 0 outside one,
     /// 1 inside an outermost `transaction()`, deeper inside a nested one.
     ///
-    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries an
+    /// [`crate::PgConn::depth`] owns why this is public at all: `{ retries: n }` retries an
     /// outermost transaction only, and the caller cannot tell the two apart.
     #[must_use]
     pub fn depth(&self) -> u32 {
         self.depth.get()
     }
 
-    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one.
+    /// The `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one.
     ///
     /// **A refused outermost commit leaves the depth where it was**, which is
     /// the one place this driver's accounting is not
@@ -1433,7 +1454,7 @@ impl SqliteConn {
     /// is gone there; SQLite refuses one with `SQLITE_BUSY` and leaves the
     /// transaction open and retryable. Zeroing the count here would send the
     /// next command as a `BEGIN` inside a transaction SQLite still holds, and
-    /// § 7's `{ retries: n }` is the caller that would do it.
+    /// `{ retries: n }` is the caller that would do it.
     ///
     /// # Errors
     ///
@@ -1452,7 +1473,7 @@ impl SqliteConn {
         Ok(span)
     }
 
-    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one.
+    /// The `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one.
     ///
     /// The nested form releases the savepoint it returned to in the same batch,
     /// for [`crate::PgConn::roll_back`]'s reason: `ROLLBACK TO` leaves the
@@ -1502,7 +1523,7 @@ impl SqliteConn {
     /// and an advisory lock are things SQLite has no session to hold. An
     /// attached database is the one item left, and [`authorize`] allows only an
     /// unnamed one: a reset that finds one attached fails, so the connection is
-    /// closed. § 1's statement cache is `rusqlite`'s own and survives, which is
+    /// closed. The statement cache is `rusqlite`'s own and survives, which is
     /// what pooling exists to preserve. Nothing this driver sets per
     /// transaction is session-scoped, and [`SqliteConn::begin`]'s refusal of
     /// `read_only` is what keeps that true.
@@ -1515,7 +1536,7 @@ impl SqliteConn {
     /// count.** `sqlite3_get_autocommit` is the connection's own answer, so a
     /// reset is provable rather than inferred from a depth this driver
     /// maintains — and it also covers the transaction a caller's own `BEGIN` in
-    /// § 4 statement text opened, which the depth never saw.
+    /// statement text opened, which the depth never saw.
     ///
     /// **`self` by value is the enforcement**, exactly as on
     /// [`crate::PgConn::reset`]: a connection that cannot be proven clean must
@@ -1524,7 +1545,7 @@ impl SqliteConn {
     ///
     /// # Errors
     ///
-    /// `InvalidInput` for a connection that is not at rest — § 4's rows are
+    /// `InvalidInput` for a connection that is not at rest — a statement's rows are
     /// still lent out, and a reset is only meaningful between statements — or
     /// [`server_error`] for a rollback SQLite refused. The connection is
     /// dropped either way.
@@ -1533,7 +1554,7 @@ impl SqliteConn {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!(
-                    "a connection that is {:?} was asked to reset, and § 13's reset is only \
+                    "a connection that is {:?} was asked to reset, and the pool's reset is only \
                      meaningful between statements",
                     self.state.get()
                 ),
@@ -1601,12 +1622,12 @@ fn clean(connection: &rusqlite::Connection) -> rusqlite::Result<()> {
     connection.execute_batch(&drops)
 }
 
-/// § 7's commands and § 13's rollback, run off the core as one batch.
+/// The transaction commands and the pool reset's rollback, run off the core as one batch.
 ///
 /// None of them takes a parameter or answers a row, so `execute_batch` is the
 /// whole call: it is also the only `rusqlite` entry point that will run the two
 /// statements [`SqliteConn::roll_back`]'s nested form sends, and it deliberately
-/// does not go through § 1's cache — a `COMMIT` is worth no entry in an LRU of
+/// does not go through the statement cache — a `COMMIT` is worth no entry in an LRU of
 /// prepared statements.
 ///
 /// **It answers the span of the command it sent**, which is `rule:observability/a-query-is-a-trace-event`'s
@@ -1725,7 +1746,7 @@ fn step(
         // `create table` or a `select` leaves it reporting an earlier
         // statement's rows as this one's. `sqlite3_total_changes` moving is what
         // says this statement changed any, and a statement that changed none
-        // answers `0` — the same answer § 4's `affected` gives on every other
+        // answers `0` — the same answer `affected` gives on every other
         // driver for a command whose tag carries no count.
         affected: if guard.total_changes() == before {
             0
@@ -1747,7 +1768,7 @@ fn step(
 /// **It lets go before it answers the last question.** The cursor, the statement
 /// and the lock are dropped and only then is [`Answered::Done`] sent, so the
 /// step that ends a walk returns to a caller whose connection is already free —
-/// which is what lets § 13's reset run straight after one. Ending because the
+/// which is what lets the pool's reset run straight after one. Ending because the
 /// handle was dropped has nothing to answer and lets go on the way out.
 fn walk(
     handle: &Mutex<rusqlite::Connection>,
@@ -1927,20 +1948,21 @@ fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusql
 /// `rule:core-classes/db-statement-members`'s refusal, when a statement is asked for on a connection that is
 /// not at rest.
 ///
-/// The wording names both of § 4's fixes, as `pg.rs`'s `second_statement` does
+/// The wording names both of that rule's fixes, as `pg.rs`'s `second_statement` does
 /// and for the same reason: a developer who reaches this has either kept a
 /// result set alive or shared a connection across two flows, and the message is
 /// the only place that says which two things to look at. `nvs-stdlib` re-words
-/// it as the `LogicError` § 4 specifies.
+/// it as the `LogicError` `rule:core-classes/db-connection-busy-state` specifies.
 ///
 /// **`InvalidInput` is what carries the class across the crate boundary**, and
 /// it is the same kind `second_statement` uses. This crate builds no fault —
-/// its `Cargo.toml` § 1 is that rule — so the only thing a refusal can say
+/// its `Cargo.toml` says a protocol failure becomes one in `nvs-stdlib` — so the
+/// only thing a refusal can say
 /// about *whose* mistake it is is its [`io::ErrorKind`], and `nvs-stdlib`'s
 /// `statement_failure` reads `InvalidInput` as a mistake in the call and
 /// everything else as a refusal the engine made. An `Other` here would reach a
-/// program as `Core\Db\DbError` carrying a § 8 `kind` no engine ever answered,
-/// where § 4's uniform busy rule is a `LogicError` on every driver.
+/// program as `Core\Db\DbError` carrying a `kind` no engine ever answered,
+/// where the uniform busy rule is a `LogicError` on every driver.
 fn busy(state: State) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
@@ -1951,7 +1973,7 @@ fn busy(state: State) -> io::Error {
     )
 }
 
-/// SQLite's refusal as an `io::Error` carrying § 8's normalised kind.
+/// SQLite's refusal as an `io::Error` carrying `rule:core-classes/db-error`'s normalised kind.
 ///
 /// Some of [`ServerError`]'s fields are empty by nature of this backend rather
 /// than by accident. `sql_state` is empty because SQLite sends none — the same
@@ -1986,13 +2008,14 @@ fn server_error(error: rusqlite::Error) -> io::Error {
 /// extended result code.
 ///
 /// Keyed on the extended code because the primary one is too coarse to answer
-/// the question § 8 asks: `SQLITE_CONSTRAINT` covers several of § 8's kinds at
+/// the question that rule asks: `SQLITE_CONSTRAINT` covers several of its kinds at
 /// once, and an application branching on `UniqueViolation` would get nothing
 /// from it. Where the extended code adds nothing, the primary code is its low
 /// byte and the fallthrough reads that.
 ///
-/// § 8 names these rows itself: `SQLITE_BUSY` and `SQLITE_LOCKED` are
-/// `Deadlock`, so § 7's `{ retries: n }` works on this backend too.
+/// The rule names these rows itself: `SQLITE_BUSY` and `SQLITE_LOCKED` are
+/// `Deadlock`, so `rule:core-classes/db-transactions`' `{ retries: n }` works on
+/// this backend too.
 fn kind_of(extended: i32) -> DbErrorKind {
     use rusqlite::ffi;
 
@@ -2004,7 +2027,7 @@ fn kind_of(extended: i32) -> DbErrorKind {
         ffi::SQLITE_CONSTRAINT_NOTNULL => DbErrorKind::NotNullViolation,
         // A `CHECK` and the trigger-raised refusal are one kind: `RAISE(ABORT)`
         // in a trigger is how a schema writes a check SQLite's own `CHECK`
-        // cannot express, and § 8 normalises the condition rather than the
+        // cannot express, and the kind normalises the condition rather than the
         // mechanism.
         ffi::SQLITE_CONSTRAINT_CHECK | ffi::SQLITE_CONSTRAINT_TRIGGER => {
             DbErrorKind::CheckViolation
@@ -2029,13 +2052,13 @@ fn kind_of(extended: i32) -> DbErrorKind {
     }
 }
 
-/// § 8's `constraint`, out of the sentence SQLite writes it into.
+/// `rule:core-classes/db-error`'s `constraint`, out of the sentence SQLite writes it into.
 ///
 /// The C API has no field for it — `sqlite3_errmsg` is all there is — and the
 /// text is `UNIQUE constraint failed: t.c` in a form the engine has written the
 /// same way for its whole history. Reading it is the only way this field is ever
 /// non-`null` on this backend, and answering `None` where the shape does not
-/// match costs a caller nothing it did not already have to handle: § 8 makes the
+/// match costs a caller nothing it did not already have to handle: that rule makes the
 /// field `?string` because some boundaries are driver-dependent.
 fn constraint_of(message: &str) -> Option<String> {
     let named = message.split_once(" constraint failed: ")?.1;
@@ -2082,7 +2105,7 @@ mod tests {
 
     /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` on this
     /// driver: a deadline that passes while a statement runs interrupts it in
-    /// the engine. The error is § 8's `Timeout`, and the connection is idle at
+    /// the engine. The error is the `Timeout` kind, and the connection is idle at
     /// once and runs the next statement.
     #[test]
     fn a_deadline_interrupts_a_running_statement_and_leaves_the_connection_idle() {
@@ -2190,7 +2213,7 @@ mod tests {
         }
     }
 
-    /// § 2's block, read as this driver's target.
+    /// A `[db.<name>]` block, read as this driver's target.
     #[test]
     fn a_sqlite_block_resolves_to_its_path_and_the_two_shared_keys() {
         let mut block = block();
@@ -2204,7 +2227,8 @@ mod tests {
         assert_eq!(target.time_zone, 2 * 3600);
     }
 
-    /// § 2's discriminated union, refused key by key rather than by ignoring
+    /// `rule:core-classes/db-connection-is-named`'s discriminated union, refused
+    /// key by key rather than by ignoring
     /// what does not apply — a block retyped from a server one opens a local
     /// file with the credentials silently dropped.
     #[test]
@@ -2388,7 +2412,7 @@ mod tests {
         assert_eq!(key("update t set name = 'k.' where id = 4"), Some(2));
     }
 
-    /// § 4's statement end to end: a schema, a bound insert, and the read back
+    /// A statement end to end: a schema, a bound insert, and the read back
     /// carrying every storage class it was given.
     #[test]
     fn a_statement_runs_off_the_core_and_answers_its_rows() {
@@ -2431,7 +2455,7 @@ mod tests {
         assert_eq!(
             rows.columns()[2].declared.as_deref(),
             Some("REAL"),
-            "§ 9 keys off the declared type, which arrives upper-cased whatever the schema wrote"
+            "the type map keys off the declared type, which arrives upper-cased whatever the schema wrote"
         );
         assert_eq!(
             rows.next_row(),
@@ -2446,7 +2470,8 @@ mod tests {
         assert_eq!(rows.next_row(), None);
     }
 
-    /// An expression has no declared type, which § 9 reads as its total case
+    /// An expression has no declared type, which `rule:core-classes/db-column-types`
+    /// reads as its total case
     /// rather than as a failure.
     #[test]
     fn an_expression_column_declares_no_type() {
@@ -2458,7 +2483,8 @@ mod tests {
         assert_eq!(rows.columns()[0].declared, None);
     }
 
-    /// § 4's `LogicError`, which is a property of the API and not of a socket:
+    /// `rule:core-classes/db-connection-busy-state`'s `LogicError`, which is a
+    /// property of the API and not of a socket:
     /// the rows are already in memory, and the connection is still held.
     #[test]
     fn a_second_statement_while_rows_are_held_is_the_busy_refusal() {
@@ -2475,7 +2501,7 @@ mod tests {
         );
         assert!(
             ServerError::of(&refused).is_none(),
-            "§ 4's refusal is ours and carries no server kind"
+            "the busy-connection refusal is ours and carries no server kind"
         );
 
         drop(rows);
@@ -2484,7 +2510,7 @@ mod tests {
             .expect("the connection is free once the rows are dropped");
     }
 
-    /// § 4's `executeMany`: one prepare, N executions, the counts summed.
+    /// `executeMany`: one prepare, N executions, the counts summed.
     #[test]
     fn execute_many_is_n_executions_and_sums_what_they_affected() {
         let conn = connect();
@@ -2509,8 +2535,8 @@ mod tests {
         assert_eq!(rows.next_row(), Some(vec![SqliteValue::Int(3)]));
     }
 
-    /// § 8's normalisation, and the constraint name read out of the sentence
-    /// because SQLite's C API has no field for it.
+    /// `rule:core-classes/db-error`'s normalisation, and the constraint name read
+    /// out of the sentence because SQLite's C API has no field for it.
     #[test]
     fn a_unique_violation_normalises_and_names_its_constraint() {
         let conn = connect();
@@ -2531,7 +2557,7 @@ mod tests {
         assert_eq!(server.backend, "sqlite");
         assert!(
             server.sql_state.is_empty(),
-            "SQLite sends no SQLSTATE, and § 8 carries that absence as an empty string"
+            "SQLite sends no SQLSTATE, and `DbError` carries that absence as an empty string"
         );
         assert!(
             server.driver_code.is_some(),
@@ -2544,7 +2570,7 @@ mod tests {
         );
     }
 
-    /// `PRAGMA foreign_keys = ON`, without which § 8's `ForeignKeyViolation`
+    /// `PRAGMA foreign_keys = ON`, without which the `ForeignKeyViolation` kind
     /// could not arise on this backend at all.
     #[test]
     fn foreign_keys_are_enforced_so_section_8s_kind_is_reachable() {
@@ -2568,7 +2594,7 @@ mod tests {
         );
     }
 
-    /// A statement the engine will not run is § 8's `Syntax`, off the primary
+    /// A statement the engine will not run is the `Syntax` kind, off the primary
     /// code rather than off any extended one.
     #[test]
     fn an_unrunnable_statement_is_section_8s_syntax_kind() {
@@ -2584,8 +2610,9 @@ mod tests {
         );
     }
 
-    /// `rule:types/bytes`'s guarantee, which every other driver gets from § 3's forced
-    /// charset and this one has to check: a `TEXT` cell that is not UTF-8 is an
+    /// `rule:types/bytes`'s guarantee, which every other driver gets from
+    /// `rule:core-classes/db-safe-connection-defaults`' forced charset and this
+    /// one has to check: a `TEXT` cell that is not UTF-8 is an
     /// error, never a lossy string.
     #[test]
     fn a_text_cell_that_is_not_utf8_is_refused_rather_than_mangled() {
@@ -2604,7 +2631,8 @@ mod tests {
         assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
     }
 
-    /// § 7's nesting: `BEGIN` at the bottom, a `SAVEPOINT` above it to any
+    /// `rule:core-classes/db-transactions`' nesting: `BEGIN` at the bottom, a
+    /// `SAVEPOINT` above it to any
     /// depth, and the count following each command the engine took. This is the
     /// one driver where the assertion is the engine's own answer rather than a
     /// scripted peer's — `is_autocommit` is SQLite saying whether a transaction
@@ -2636,7 +2664,7 @@ mod tests {
         assert!(autocommit(&conn));
     }
 
-    /// § 7's nested rollback undoes its own level and leaves the outer one's
+    /// A nested rollback undoes its own level and leaves the outer one's
     /// writes alone — the composition the callable form exists for, asserted on
     /// the rows rather than on the commands sent.
     #[test]
@@ -2703,14 +2731,15 @@ mod tests {
     }
 
     /// A write that another connection's open transaction is holding the table
-    /// against is § 8's `Deadlock`, which is what makes § 7's `{ retries: n }`
+    /// against is `rule:core-classes/db-error`'s `Deadlock`, which is what makes
+    /// `rule:core-classes/db-transactions`' `{ retries: n }`
     /// mean something on this backend.
     ///
     /// Two connections to one database, per [`shared`].
     ///
     /// The kind is asserted and the extended code is not: a shared-cache
     /// conflict answers `SQLITE_LOCKED` where a file conflict answers
-    /// `SQLITE_BUSY`, and § 8 maps both to the same kind precisely so a caller
+    /// `SQLITE_BUSY`, and the error rule maps both to the same kind precisely so a caller
     /// never has to know which lock it lost. That is the claim `{ retries: n }`
     /// rests on, and it is the one this pins.
     #[test]
@@ -2776,7 +2805,8 @@ mod tests {
         );
     }
 
-    /// § 7's `Isolation` on the one backend that has a single level: every one
+    /// `rule:core-classes/db-transactions`' `Isolation` on the one backend that
+    /// has a single level: every one
     /// of them is accepted at the outermost level because serializable is
     /// stronger than any of them, none of them renders to a command, and a
     /// nested call naming one is still refused — the level belongs to the whole
@@ -2918,7 +2948,7 @@ mod tests {
     ///
     /// The refusal is a real one — a second connection's write lock — rather
     /// than the depth guard above, so what is pinned is the engine's answer and
-    /// not this file's own check. It is also § 7's `{ retries: n }` becoming
+    /// not this file's own check. It is also `{ retries: n }` becoming
     /// meaningful for a claim: the kind is `Deadlock`, and the retry is a whole
     /// transaction rather than an upgrade nothing can back off.
     #[test]
@@ -2946,7 +2976,7 @@ mod tests {
         assert_eq!(waiter.depth(), 1);
     }
 
-    /// § 7's `readOnly` is refused rather than dropped: SQLite has no read-only
+    /// `readOnly` is refused rather than dropped: SQLite has no read-only
     /// transaction, and opening a writable one under the word is the failure the
     /// option exists to prevent. Refused at every depth, and before the depth
     /// moves.
@@ -2965,7 +2995,8 @@ mod tests {
         assert_eq!(conn.depth(), 1);
     }
 
-    /// § 7 has no `commit()` on the connection, so a call with nothing open is
+    /// `rule:core-classes/db-transactions` has no `commit()` on the connection,
+    /// so a call with nothing open is
     /// this driver's own bug and says so rather than sending a bare `ROLLBACK`.
     #[test]
     fn closing_a_transaction_that_was_never_opened_is_refused() {
@@ -2978,8 +3009,8 @@ mod tests {
         }
     }
 
-    /// § 13's reset is the rollback and nothing else, and it undoes a
-    /// transaction the *depth never saw* — one a caller opened in its own § 4
+    /// The pool's reset is the rollback and nothing else, and it undoes a
+    /// transaction the *depth never saw* — one a caller opened in its own
     /// statement text — because what it asks is the engine's `is_autocommit`
     /// rather than this driver's count.
     #[test]
@@ -3019,7 +3050,8 @@ mod tests {
             .expect("the statement answers a number")
     }
 
-    /// § 13's attack on this backend: a request leaves a `temp` table, a `temp`
+    /// `rule:security/db-pool-reset-is-a-boundary`'s attack on this backend: a
+    /// request leaves a `temp` table, a `temp`
     /// view and a `temp` trigger, and turns off the pragmas the open set. The
     /// next request on the connection finds none of it.
     #[test]
@@ -3114,10 +3146,10 @@ mod tests {
         );
     }
 
-    /// § 13's reset is only meaningful between statements, and a connection
+    /// The pool's reset is only meaningful between statements, and a connection
     /// that is not at rest is refused rather than drained.
     ///
-    /// § 4's *streaming* half of that is held by the borrow checker instead and
+    /// The *streaming* half of that is held by the borrow checker instead and
     /// cannot be written as a case at all: [`SqliteRows`] borrows the
     /// connection, so `reset`'s by-value receiver will not compile while one is
     /// alive. What is left to assert is the state a caller can reach with no
@@ -3162,7 +3194,8 @@ mod tests {
         );
     }
 
-    /// § 9's map on the one backend that has no types to map: every case the
+    /// `rule:core-classes/db-column-types`' map on the one backend that has no
+    /// types to map: every case the
     /// table names, keyed off what the schema declared, and asserted through a
     /// real statement rather than by calling the map on a string — the whole
     /// question is whether SQLite hands back the word the schema wrote.
@@ -3222,10 +3255,10 @@ mod tests {
                 format!("{written} declared {:?}, wanted {want:?}", column.declared)
             })
             .collect::<Vec<_>>();
-        assert!(wrong.is_empty(), "§ 9 disagrees on: {wrong:?}");
+        assert!(wrong.is_empty(), "the type map disagrees on: {wrong:?}");
     }
 
-    /// § 9's total case: an expression has no declared type, and describing it
+    /// The type map's total case: an expression has no declared type, and describing it
     /// as the `BLOB` affinity SQLite's own rule 3 would give it is a wrong
     /// answer where `Other` is a true one.
     #[test]
@@ -3239,7 +3272,7 @@ mod tests {
     }
 
     /// The storage class of a value says nothing about what the column is,
-    /// which is § 9's whole reason for keying this backend off the schema: one
+    /// which is the type map's whole reason for keying this backend off the schema: one
     /// `date` column holding an integer and a string describes the same either
     /// way, and it is `nvs-stdlib` that throws on the cell that does not parse.
     #[test]
@@ -3267,7 +3300,8 @@ mod tests {
         );
     }
 
-    /// § 4's rule holds over § 7's commands too: a `BEGIN` written while a
+    /// `rule:core-classes/db-connection-busy-state` holds over the transaction
+    /// commands too: a `BEGIN` written while a
     /// result set is unread is the same busy refusal a second `query` is.
     #[test]
     fn a_transaction_command_while_rows_are_held_is_the_busy_refusal() {
@@ -3279,13 +3313,13 @@ mod tests {
         let refused = conn.begin(None, false).expect_err("the connection is busy");
         assert!(
             refused.to_string().contains("Streaming"),
-            "the refusal names § 4's rule and both its fixes: {refused}"
+            "the refusal names the busy-connection rule and both its fixes: {refused}"
         );
         assert_eq!(conn.depth(), 0);
         drop(rows);
     }
 
-    /// § 9's write half: a bound value takes a storage class rather than a text
+    /// The type map's write half: a bound value takes a storage class rather than a text
     /// rendering, and `NULL` is one of the five rather than an absence.
     ///
     /// Asserted against a real bind rather than only on the enum, because the
@@ -3407,7 +3441,7 @@ mod tests {
             .expect_err("a second statement is refused while a walk is open");
         assert!(
             refused.to_string().contains("open a second connection"),
-            "§ 4's refusal names both fixes: {refused}"
+            "the busy-connection refusal names both fixes: {refused}"
         );
 
         let mut seen = Vec::new();
@@ -3479,7 +3513,7 @@ mod tests {
             .expect("an ended walk leaves a resettable connection");
     }
 
-    /// § 4's deadline, filed on a connection a walk is holding.
+    /// A statement's deadline, filed on a connection a walk is holding.
     ///
     /// It cannot take the lock — the walk's thread has it for the walk's whole
     /// life — so [`super::set_busy_timeout`] goes through the thread instead.
