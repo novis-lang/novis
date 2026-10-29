@@ -412,8 +412,117 @@ pub fn materialize(
             }
         }
     }
+    program_secrets(config, origins, files, &mut out)?;
     apply(config, &out.secrets);
     Ok(out)
+}
+
+/// `[secrets]` and each `[app.secrets]`, read into `out` under the key each is the value of:
+/// `secrets.<name>`, and `app.<index>.secrets.<name>` for a block's own, which
+/// [`Snapshot`](crate::Snapshot)'s fold puts over the global one.
+///
+/// The same pair as a secret directive, with the same reader: `name` or `name_file`, exactly one.
+/// An inline value is carried here too, with the file it was written in, because
+/// [`strip_inline`] takes it out of the table.
+fn program_secrets(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+    files: &dyn Files,
+    out: &mut Materialized,
+) -> Result<(), Diagnostic> {
+    let blocks = std::iter::once((
+        crate::settings::SECRETS.to_owned(),
+        "secrets",
+        config.secrets.as_ref(),
+    ))
+    .chain(config.app.iter().enumerate().map(|(index, app)| {
+        (
+            format!("app.{index}.secrets"),
+            "app.secrets",
+            app.secrets.as_ref(),
+        )
+    }));
+    for (prefix, shown, block) in blocks {
+        let Some(block) = block else {
+            continue;
+        };
+        let names: std::collections::BTreeSet<&str> = block
+            .keys()
+            .map(|key| key.strip_suffix("_file").unwrap_or(key))
+            .collect();
+        for name in names {
+            let key = format!("{prefix}.{name}");
+            let file_key = format!("{key}_file");
+            let inline = block.get(name).and_then(toml::Value::as_str);
+            let named = block
+                .get(&format!("{name}_file"))
+                .and_then(toml::Value::as_str);
+            match (named, inline) {
+                (Some(_), Some(_)) => {
+                    return Err(both_set(shown, name, origins.get(&file_key)));
+                }
+                (Some(named), None) => {
+                    let written_in = origins.get(&file_key);
+                    let secret = read(named, &file_key, written_in, files, &mut out.warnings)?;
+                    if let Some(edge) = padding(&secret.value) {
+                        out.warnings
+                            .push(padded(&key, edge, Some(&secret.file), written_in));
+                    }
+                    out.secrets.insert(key, secret);
+                }
+                (None, Some(value)) => {
+                    let written_in = origins.get(&key);
+                    if let Some(edge) = padding(value) {
+                        out.warnings.push(padded(&key, edge, None, written_in));
+                    }
+                    let file = written_in.map(|origin| origin.path.clone());
+                    out.secrets.insert(
+                        key,
+                        Secret {
+                            value: value.to_owned(),
+                            file: file.unwrap_or_default(),
+                        },
+                    );
+                }
+                // `settings::check_file` refused every value that is not a string.
+                (None, None) => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Takes every inline `[secrets]` and `[app.secrets]` value out of the table and the typed tree,
+/// once [`materialize`] has carried each beside them. Each `_file` half stays, so the dump can name
+/// the file a value came from, as `password_file` stays.
+pub fn strip_inline(config: &mut Config, table: &mut toml::Table) {
+    let keep_files = |block: &mut toml::Table| block.retain(|key, _| key.ends_with("_file"));
+    let strip = |parent: &mut toml::Table| {
+        if let Some(toml::Value::Table(block)) = parent.get_mut(crate::settings::SECRETS) {
+            keep_files(block);
+            if block.is_empty() {
+                parent.remove(crate::settings::SECRETS);
+            }
+        }
+    };
+    strip(table);
+    if let Some(toml::Value::Array(apps)) = table.get_mut("app") {
+        for app in apps {
+            if let toml::Value::Table(app) = app {
+                strip(app);
+            }
+        }
+    }
+    let typed = std::iter::once(&mut config.secrets)
+        .chain(config.app.iter_mut().map(|app| &mut app.secrets));
+    for block in typed {
+        if let Some(inner) = block.as_mut() {
+            keep_files(inner);
+            if inner.is_empty() {
+                *block = None;
+            }
+        }
+    }
 }
 
 /// Puts every materialized secret onto a typed tree, at the key it is the value of.

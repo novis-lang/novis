@@ -131,6 +131,14 @@ pub struct Config {
     pub opcache: Option<Opcache>,
     /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`).
     pub session: Option<Session>,
+    /// `[settings]` — values every program reads with `Core\Config::setting`, by names the
+    /// operator chooses (`rule:config/settings-and-secrets-are-a-programs-own-values`). One of the
+    /// four open blocks, so a table and not a struct: [`mod@crate::settings`] checks its keys.
+    pub settings: Option<toml::Table>,
+    /// `[secrets]` — the same for `Core\Config::secret`, each a string or a `_file` naming one. The
+    /// merged table keeps only the `_file` halves, and every value is carried beside it in
+    /// `Snapshot::secrets` under `secrets.<name>` ([`mod@crate::secret`]).
+    pub secrets: Option<toml::Table>,
 }
 
 /// One `[[include]]` entry — `rule:config/include-takes-a-path-or-a-dir`.
@@ -174,6 +182,10 @@ pub struct App {
     /// not spell. It folds onto the global `[log]` block like every other sub-table here —
     /// `crate::snapshot`'s per-app merge takes the whole block and names none of these fields.
     pub log: Option<Log>,
+    /// `[app.settings]` — this application's values over the global `[settings]`, key by key.
+    pub settings: Option<toml::Table>,
+    /// `[app.secrets]` — this application's secrets over the global `[secrets]`, key by key.
+    pub secrets: Option<toml::Table>,
 }
 
 /// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (`rule:config/three-changeability-classes`).

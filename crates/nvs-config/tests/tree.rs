@@ -66,6 +66,10 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[cache]", "[cache.memory]\nmax_size = \"32M\"\nfill_wait = \"5s\"\n[cache.shared]\nurl = \"redis://cache.internal\"\ntimeout = \"5s\"\n"),
     ("[image]", "[image]\nmax_pixels = \"24M\"\n"),
     ("[opcache]", "[opcache]\nvalidate = \"mtime\"\nrevalidate_freq = \"2s\"\nsettle = \"1s\"\nfile_cache = true\nfile_cache_dir = \"/var/cache/nvs\"\nfile_cache_max_size = \"1G\"\nfile_cache_gc_probability = 1\nfile_cache_gc_divisor = 100\n"),
+    ("[settings]", "[settings]\npage_size = 20\n[settings.api]\nbase = \"https://api.example.com\"\n"),
+    ("[secrets]", "[secrets]\napi_key_file = \"/run/secrets/api_key\"\ntoken = \"x\"\n"),
+    ("[app.settings]", "[[app]]\nroot = \"/srv/www/shop\"\n[app.settings]\npage_size = 50\n"),
+    ("[app.secrets]", "[[app]]\nroot = \"/srv/www/shop\"\n[app.secrets]\napi_key_file = \"/run/secrets/shop_key\"\n"),
 ];
 
 /// Every block a rule writes out parses, asserted by counting rather than by reading one off a
@@ -90,7 +94,7 @@ fn every_block_a_rule_writes_out_is_in_the_tree() {
     );
     assert_eq!(
         BLOCKS.len(),
-        33,
+        37,
         "a block was added to or removed from the sweep without the count moving",
     );
 }

@@ -268,7 +268,7 @@ fn block_at(text: &str, offset: usize) -> Option<&str> {
 /// The failure's byte range as a span in `id`, dropped rather than clamped when it does not fit —
 /// a diagnostic with no label still names the file and the message, which is strictly better than
 /// one pointing at the wrong line.
-fn span_of(id: SourceId, range: Option<Range<usize>>) -> Option<Span> {
+pub(crate) fn span_of(id: SourceId, range: Option<Range<usize>>) -> Option<Span> {
     let range = range?;
     let start = u32::try_from(range.start).ok()?;
     let end = u32::try_from(range.end).ok()?;

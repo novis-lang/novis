@@ -531,6 +531,7 @@ pub fn resolve(
     let materialized = crate::secret::materialize(&mut resolved.config, &origins, files)?;
     resolved.warnings.extend(materialized.warnings);
     resolved.secrets = materialized.secrets;
+    crate::secret::strip_inline(&mut resolved.config, &mut resolved.table);
     // `rule:core-classes/db-capabilities`'s trust anchors, beside `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets and for the same reason: a `_file` on a
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
@@ -698,6 +699,9 @@ fn read_into(
     // table.
     let (file, warnings) = parsed?;
     merge.warnings.extend(warnings);
+    // The four open blocks have no `deny_unknown_fields` to check their keys, so the same per-file
+    // check runs here by hand, with this file's line under a refusal.
+    crate::settings::check_file(source, &text, &file)?;
     let table: toml::Table = toml::from_str(&text).map_err(|err| {
         // Unreachable in practice — the typed parse above accepted the same bytes — but a
         // configuration reader is not the place to unwrap on that reasoning.

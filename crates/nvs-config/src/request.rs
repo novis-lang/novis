@@ -165,6 +165,11 @@ impl Request {
     #[must_use]
     pub fn get(&self, name: &str) -> Option<String> {
         let key = canonical(name);
+        // A program's own values are read with `setting` and `secret`, never as a directive: a
+        // secret read here would be a plain string every output takes.
+        if crate::settings::is_program_value(key) {
+            return None;
+        }
         if let Some(set) = self.overlay.get(key) {
             return Some(set.clone());
         }
@@ -484,6 +489,7 @@ impl Request {
         for (key, value) in &self.overlay {
             out.insert(key.clone(), value.clone());
         }
+        out.retain(|key, _| !crate::settings::is_program_value(key));
         for (key, value) in &mut out {
             if crate::secret::is_secret_key(key) {
                 crate::secret::REDACTED.clone_into(value);

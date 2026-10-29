@@ -237,7 +237,14 @@ impl Snapshot {
             overrides: resolved.overrides.clone(),
             origins: resolved.origins.clone(),
             warnings: resolved.warnings.clone(),
-            secrets: resolved.secrets.clone(),
+            // An `[app.secrets]` value is keyed on its block's index, which is the roster's: the
+            // fold below puts the matching blocks' own over `secrets.<name>`.
+            secrets: resolved
+                .secrets
+                .iter()
+                .filter(|(key, _)| !governs("app", key))
+                .map(|(key, secret)| (key.clone(), secret.clone()))
+                .collect(),
             limits: crate::limits::Cell::default(),
         };
         // The roster goes with the blocks it lists: it is what *selected* the directives below, and
@@ -289,6 +296,7 @@ impl Snapshot {
             for key in ["root", "entry", "mode", "origin"] {
                 directives.remove(key);
             }
+            self.fold_secrets(&roster.secrets[index], origin);
             crate::resolve::merge_table(
                 &mut self.table,
                 &directives,
@@ -309,6 +317,36 @@ impl Snapshot {
             capabilities.canonicalize(files);
         }
         Ok(())
+    }
+
+    /// Puts one `[app.secrets]` block's values over `secrets.<name>`, before the block's table is
+    /// merged (`rule:config/settings-and-secrets-are-a-programs-own-values`).
+    ///
+    /// The value is beside the table, so `merge_table` never sees it, and this records the override
+    /// itself, naming the file the replaced half was written in. The replaced `_file` half leaves
+    /// the table first: if the block names a file of its own, the merge after this puts it back,
+    /// and if the block writes the value inline, no file is in force.
+    fn fold_secrets(&mut self, secrets: &BTreeMap<String, Secret>, origin: &Origin) {
+        for (name, secret) in secrets {
+            let key = format!("{}.{name}", crate::settings::SECRETS);
+            let file_key = format!("{key}_file");
+            if let Some(toml::Value::Table(block)) = self.table.get_mut(crate::settings::SECRETS) {
+                block.remove(&format!("{name}_file"));
+            }
+            let replaced = self
+                .origins
+                .remove(&file_key)
+                .or_else(|| self.origins.get(&key).cloned());
+            self.origins.insert(key.clone(), origin.clone());
+            if let Some(replaced) = replaced {
+                self.overrides.push(Override {
+                    key: key.clone(),
+                    replaced,
+                    winner: origin.clone(),
+                });
+            }
+            self.secrets.insert(key, secret.clone());
+        }
     }
 
     /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config), and puts
@@ -435,6 +473,8 @@ pub struct AppBlocks {
     apps: Vec<App>,
     tables: Vec<Option<toml::Table>>,
     origins: Vec<Option<Origin>>,
+    /// Each block's `[app.secrets]` values, by name. The table above has only their `_file` halves.
+    secrets: Vec<BTreeMap<String, Secret>>,
 }
 
 impl AppBlocks {
@@ -449,7 +489,21 @@ impl AppBlocks {
                 .map(|index| app::block_table(resolved, index))
                 .collect(),
             origins: indices
+                .clone()
                 .map(|index| app::block_origin(resolved, index).cloned())
+                .collect(),
+            secrets: indices
+                .map(|index| {
+                    let prefix = format!("app.{index}.{}.", crate::settings::SECRETS);
+                    resolved
+                        .secrets
+                        .iter()
+                        .filter_map(|(key, secret)| {
+                            let name = key.strip_prefix(&prefix)?;
+                            Some((name.to_owned(), secret.clone()))
+                        })
+                        .collect()
+                })
                 .collect(),
         }
     }

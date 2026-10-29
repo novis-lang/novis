@@ -98,6 +98,7 @@ pub mod schedule;
 pub mod secret;
 pub mod server;
 pub mod session;
+pub mod settings;
 pub mod snapshot;
 pub mod store;
 pub mod tree;
