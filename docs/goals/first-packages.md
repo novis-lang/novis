@@ -265,6 +265,14 @@ The first gate run saw `nvs_ext_test_runs_the_projects_tests_with_the_built_file
 (`crates/nvs-cli/tests/ext_command.rs:752`) fail once beside the other binaries and pass alone,
 with no assertion text in the log. It passed in every run since. Expect it may go red again under load.
 
+The first DONE was refused on `floor-debt`. Its first round judged 5763 proof programs and six
+attacks red, among them `core/Arr/unique/01`, `core/ObjectSet/count/01`,
+`core/Validate/isPrintable/01`, `lang/iteration/what-foreach-walks/01` and
+`tools/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/01`. Round 2 of the same run judged all
+six green. Each passes alone with `bun nv proofs --only ... --run --no-cache`. `looper check --name
+floor-debt` is green now, and so is `env-secret-proofs`. The nightly CI run 40662443492 was
+cancelled by a later push, and no job in it failed.
+
 ### Next
 
 Nothing: the goal is reached. The loop retires it and goes on to `arr-key-order-and-nulls`.
@@ -274,6 +282,11 @@ Nothing: the goal is reached. The loop retires it and goes on to `arr-key-order-
 - `nvs_ext_test_runs_the_projects_tests_with_the_built_file_loaded` failed once under verify's load
   and passed alone, and its log held no assertion text. Its second `nvs ext test` runs from the
   scratch folder's parent, which every test shares (`crates/nvs-cli/tests/ext_command.rs:745`).
+- A judged proof run keeps no reason for a red verdict once the program is recorded
+  (`recordProgram` in `tools/nv/proofs/select.ts`), and `bun nv debt` prints only the ids. Six attacks
+  went red in one debt round and green in the next, and why is lost. Four of them fill memory up to
+  their limit. Only a timeout is retried alone (`timedOut` in `tools/nv/proofs/run.ts`). The debt
+  should print each red program's `why`, so the next flake can be diagnosed.
 
 - `Core\Test::answerHttp` called twice for one URL keeps the first answer, and the docs do not say
   so (`docs/examples/core/Test/answerHttp/about.md`). Several `Novis\Rest` attacks give each step its
