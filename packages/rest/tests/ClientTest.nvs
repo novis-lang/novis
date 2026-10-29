@@ -89,6 +89,31 @@ final class ClientTest
 
     // covers: Novis\Rest\Token
     #[Test]
+    public function aLongErrorDescriptionIsCut(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 400, {
+            json: ['error' => 'invalid_request', 'error_description' => Str::repeat('x', 100000)],
+        });
+        try {
+            ClientCredentials::request(ClientTest::client('shop'), '');
+            Test::assertTrue(false);
+        } catch (RuntimeError $error) {
+            Test::assertSame($error->message, 'the server replied with status 400: invalid_request: ' . Str::repeat('x', 200));
+        }
+    }
+
+    // covers: Novis\Rest\Token
+    #[Test]
+    public function aLifetimeBelowZeroThrows(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-5', 'token_type' => 'Bearer', 'expires_in' => -1],
+        });
+        Test::assertThrows(fn(): void => { ClientCredentials::request(ClientTest::client('shop'), ''); }, RuntimeError::class);
+    }
+
+    // covers: Novis\Rest\Token
+    #[Test]
     public function anUnknownTokenTypeThrows(): void
     {
         Test::answerHttp(ClientTest::TOKENS, 200, {

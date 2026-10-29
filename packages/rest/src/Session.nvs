@@ -34,6 +34,10 @@ final class Session
             return null;
         }
         // The session store is outside this program, so the values are checked before they are used.
+        // 253402300799 is the last second of the year 9999.
+        if ($expires < 0 || $expires > 253402300799) {
+            return null;
+        }
         if (!Core\Regex::matches($type, '^(Bearer|DPoP)$') || !Core\Regex::matches($scope, '^[\x21\x23-\x5B\x5D-\x7E ]*$')) {
             return null;
         }

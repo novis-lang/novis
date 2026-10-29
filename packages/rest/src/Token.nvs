@@ -7,6 +7,9 @@ use RuntimeError;
 // `type` is `Bearer`, or `DPoP` for a token that is bound to a key.
 final class Token
 {
+    private const int LONGEST_SECONDS = 315360000;
+    private const int LONGEST_DESCRIPTION = 200;
+
     public function constructor(
         public readonly secret string $accessToken,
         public readonly string $type,
@@ -33,6 +36,10 @@ final class Token
 
         string $type = Token::typeOf($reply->token_type);
         int $seconds = $reply->expires_in ?? $lifetimeSeconds;
+        // A lifetime below zero or above ten years is not a real token's.
+        if ($seconds < 0 || $seconds > Token::LONGEST_SECONDS) {
+            throw new RuntimeError('the server sent an `expires_in` that is below 0 or above ten years');
+        }
 
         ?secret string $refresh = null;
         tainted string $refreshText = $reply->refresh_token ?? '';
@@ -84,7 +91,8 @@ final class Token
             if ($description == '') {
                 return $status . ': ' . $code;
             }
-            tainted string $printable = Core\Regex::replace($description, '[^\x20-\x7E]', '');
+            // The description goes into a message, so only its first 200 printable characters are kept.
+            tainted string $printable = Core\Str::slice(Core\Regex::replace($description, '[^\x20-\x7E]', ''), 0, Token::LONGEST_DESCRIPTION);
             string $text = Core\Taint::assertTrusted($printable, 'the description has only printable characters and goes into a message');
             return $status . ': ' . $code . ': ' . $text;
         } catch (RuntimeError $notJson) {
