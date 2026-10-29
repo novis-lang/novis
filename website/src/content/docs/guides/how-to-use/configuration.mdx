@@ -4,6 +4,8 @@ covers: []
 description: What nvs.toml controls, how to start one, and how to check it before you deploy.
 ---
 
+import Snippet from '@components/Snippet.astro'
+
 All configuration is in TOML files. Usually there is one file, `nvs.toml`. Novis reads no setting
 from an environment variable. Two command-line options change a setting: `--listen` and `--port` of
 `nvs serve`.
@@ -161,10 +163,7 @@ api_key_file = "/run/secrets/api_key"   # the file contains the value
 `float`, and `true` is a `bool`. A block such as `[settings.api]` is an array. Read one of its
 keys with a dot: `api.base`. The result is `null` when no block sets the name.
 
-```nvs
-int $size = Core\Config::setting('page_size') as int;
-string $base = Core\Config::setting('api.base') as string;
-```
+<Snippet src="guides/how-to-use/settings/settings.nvs" />
 
 `Core\Config::secret` returns a `secret string`. Your program can send it in a request header or
 use it as a database password. It cannot print it or write it to a log. Write a secret in the

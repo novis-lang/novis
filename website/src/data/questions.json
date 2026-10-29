@@ -225,13 +225,13 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "938dbc75b34c0f1e",
+    "hash": "9da899e832bc212a",
     "questions": [
       "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
       "Use different settings for one folder or script",
       "Why does my program have no permission to read files?",
-      "What may my program do when there is no nvs.toml?",
+      "Use other values for my program on one server",
       "Can environment variables change a setting?"
     ]
   },
@@ -3559,12 +3559,13 @@
   },
   "/reference/core/config/": {
     "feature": "Core\\Config",
-    "hash": "a0a82f9d61796521",
+    "hash": "be0562167d856f28",
     "questions": [
       "How do I read server configuration settings from my program?",
       "Change a setting for one request only",
       "Where do I access values from the configuration file?",
       "Can my code override a config setting while it runs?",
+      "Which methods read my program's own values and secrets?",
       "Work with runtime configuration settings"
     ]
   },
@@ -3602,6 +3603,17 @@
       "Restore the original value of a setting"
     ]
   },
+  "/reference/core/config/secret/": {
+    "feature": "Core\\Config::secret",
+    "hash": "f40c9cf152278475",
+    "questions": [
+      "Where do I put an API key my program uses?",
+      "Read a password from a file next to nvs.toml",
+      "Use a different API key for each application",
+      "Why can my program not print a secret from the config?",
+      "Keep a token in the configuration out of my logs"
+    ]
+  },
   "/reference/core/config/set/": {
     "feature": "Core\\Config::set",
     "hash": "7335683a3ae289af",
@@ -3612,6 +3624,17 @@
       "Increase the time limit for a slow job",
       "Why did changing a setting return false?",
       "Can a command-line script raise its own memory limit?"
+    ]
+  },
+  "/reference/core/config/setting/": {
+    "feature": "Core\\Config::setting",
+    "hash": "875b0e3258727a87",
+    "questions": [
+      "How do I read my own value from nvs.toml?",
+      "Keep a page size or an API address in the config file",
+      "Read a number from the configuration with its type",
+      "Use a different value for one application",
+      "Give a configuration value a default when it is missing"
     ]
   },
   "/reference/core/crypto/": {

@@ -42199,7 +42199,7 @@ Returns a tab-completion script for this program, in the syntax of the shell you
 <a id="core-core-config"></a>
 ### `Core\Config`
 
-Keywords: nvs.toml, configuration, setting, read a setting, change a setting at run time, directive, [limits], memory, cpu_time, time limit, hard ceiling, get, set, restore, all
+Keywords: nvs.toml, configuration, setting, read a setting, change a setting at run time, directive, [limits], memory, cpu_time, time limit, hard ceiling, get, set, restore, all, setting, secret
 
 `Core\Config` reads and moves the configuration in force for the current request. Every value crosses as a
 `string`, spelled as `nvs.toml` would spell it (`"512M"`, `"30s"`); a directive is named with dots
@@ -42247,6 +42247,8 @@ unknown name refused
 | [`Core\Config::set`](#core-core-config-set) | `set(string $name, string $value): bool` |
 | [`Core\Config::restore`](#core-core-config-restore) | `restore(string $name): void` |
 | [`Core\Config::all`](#core-core-config-all) | `all(): array<string>` |
+| [`Core\Config::setting`](#core-core-config-setting) | `setting(string $name): ?string\|int\|float\|bool\|array<mixed>` |
+| [`Core\Config::secret`](#core-core-config-secret) | `secret(string $name): ?secret string` |
 
 <a id="core-core-config-get"></a>
 #### `Core\Config::get`
@@ -42306,6 +42308,36 @@ Core\Config::all(): array<string>
 Returns every setting in force for this request, with the dotted names as keys. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.
 
 **Returns** `array<string>` — An `array<string, string>` sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry. A secret setting, such as `db.main.password` or `http.csrf_key`, has the value `<secret>`. `get` returns the real value.
+
+<a id="core-core-config-setting"></a>
+#### `Core\Config::setting`
+
+```nvs skip
+Core\Config::setting(string $name): ?string|int|float|bool|array<mixed>
+```
+
+Returns a value your program reads from the `[settings]` block of `nvs.toml`. A value in the `[app.settings]` block of the application replaces the value in `[settings]`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The name of the value, such as `page_size`. A value in a table, such as `[settings.api]` with `base = "..."`, has the name `api.base`. |
+
+**Returns** `?string|int|float|bool|array<mixed>` — The value with the type it has in the file. A TOML string is a `string`, an integer is an `int`, a float is a `float` and a boolean is a `bool`. A TOML array is an array, and a table is an array with the names as keys. The result is `null` when no block sets the name. Use `as` to convert it: `Core\Config::setting('page_size') as int` throws an error when the value is missing or is not a whole number.
+
+<a id="core-core-config-secret"></a>
+#### `Core\Config::secret`
+
+```nvs skip
+Core\Config::secret(string $name): ?secret string
+```
+
+Returns a secret your program reads from the `[secrets]` block of `nvs.toml`, such as an API key. A secret in the `[app.secrets]` block of the application replaces the one in `[secrets]`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The name of the secret, such as `api_key`. The block may write the value, or read it from a file with `api_key_file`. The name cannot come from the request. |
+
+**Returns** `?secret string` — The secret as a `?secret string`. Your program cannot print it or write it to a log. You can send it in an outgoing header, a form field or a database parameter. The result is `null` when no block sets the name.
 
 <a id="core-core-env"></a>
 ### `Core\Env`

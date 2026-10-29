@@ -1,0 +1,7 @@
+<?nvs
+// This program reads two settings from `nvs.toml`.
+int $size = Core\Config::setting('page_size') as int;
+
+// `api.base` is the `base` key under `[settings.api]`.
+string $base = Core\Config::setting('api.base') as string;
+echo $size, "\n", $base, "\n";

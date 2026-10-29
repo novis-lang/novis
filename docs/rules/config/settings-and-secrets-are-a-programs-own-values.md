@@ -52,6 +52,13 @@ a request cannot choose which secret it reads. A setting is not `tainted`: the o
 a file only the runtime account or root may change. That is why `setting` returns a union of the
 TOML types and not `mixed`: text out of `mixed` is `tainted` (`rule:security/taint-propagation`).
 A table's values are `mixed`, so a program reads one untainted by its dotted name, `api.base`.
+The union's `array<mixed>` arm adds no `tainted` to an `as` whose target holds no array, because
+`as` never turns an array into a scalar (`nvs-types`' `apply_qualifier_conversion_rule`). So
+`setting(...) as string` is a `string`, and `as array<string>` is `array<tainted string>`.
+
+The examples write every secret inline, and the configuration page shows `_file`. A secret file in
+the repository is readable by other accounts on every checkout, so an example that used one would
+print `W1005` on each run, and an example a reader copies runs clean.
 
 **`get`, `all`, `set` and `restore` never see the four blocks.** `Core\Config::get('secrets.x')`
 returns `null`, and `all` lists no `settings.` or `secrets.` key. Without this, a secret would come
@@ -91,5 +98,8 @@ a secret is typed `secret` and redacted wherever the configuration is printed.
 - **A `settings()` method that returns every value.** It is the way a whole set of secrets ends up
   in a log.
 - **A `set` for settings.** A request that needs another value uses a variable.
+- **A checker special case typing `Core\Config::setting(<literal>)` by its value.** The checker
+  cannot know the type without reading `nvs.toml`, which a source check never does
+  (`rule:config/nvs-toml-is-not-a-project-manifest`).
 - **A package that may not read the values.** A limit for these two methods would be a rule of its
   own, under the grants model.

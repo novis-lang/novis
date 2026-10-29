@@ -653,7 +653,9 @@ fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
             "origin",
             "limits",
             "capabilities",
-            "log"
+            "log",
+            "settings",
+            "secrets"
         ],
         "a key added to `[[app]]` joins this census in the commit that adds it, because the one \
          `app` row is what governs it and nothing else names it",
