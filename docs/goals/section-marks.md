@@ -6,7 +6,7 @@ context: [tools/nv/cmd/rules.ts, tools/nv/test/rules.test.ts]
 stages:
   - id: 1
     title: "the check finds every bare mark, and no file gains one"
-    status: open
+    status: done
     context: [tools/nv/cmd/rules.ts, tools/nv/test/rules.test.ts, docs/agent/conventions.md]
   - id: 2
     title: "the standard library's queue and database files' marks name their documents"
@@ -148,10 +148,10 @@ sessions: fourteen stages, each about one session.
 **Does:** `bun nv rules --check` counts the bare marks in every tracked file under `crates/` and
 `tests/conformance/`, and fails when a file has more than its recorded count.
 
-- [ ] `conventions.md` § *Citing a document* states the three forms a section mark takes. `docs/agent/conventions.md:367`
-- [ ] A bare-mark finder beside `deletedDocFindings`, with cases for each kept form and for a bare mark. `tools/nv/cmd/rules.ts:120`, `tools/nv/test/rules.test.ts:29`
-- [ ] The per-file counts are recorded in `tools/data/bare-section-marks.json`, which `bun nv rules --record-marks` writes and the check reads. `tools/nv/cmd/rules.ts:144`, `tools/nv/cmd/rules.ts:467`
-- [ ] The check fails on a count that rose and on a new file with a mark, and passes on a count that fell. `tools/nv/test/rules.test.ts:46`
+- [x] `conventions.md` § *Citing a document* states the three forms a section mark takes. `docs/agent/conventions.md:367`
+- [x] A bare-mark finder beside `deletedDocFindings`, with cases for each kept form and for a bare mark. `tools/nv/cmd/rules.ts:120`, `tools/nv/test/rules.test.ts:29`
+- [x] The per-file counts are recorded in `tools/data/bare-section-marks.json`, which `bun nv rules --record-marks` writes and the check reads. `tools/nv/cmd/rules.ts:144`, `tools/nv/cmd/rules.ts:467`
+- [x] The check fails on a count that rose and on a new file with a mark, and passes on a count that fell. `tools/nv/test/rules.test.ts:46`
 
 ### 2. the standard library's queue and database files' marks name their documents
 
@@ -297,21 +297,26 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. Nothing is built. The mark counts and the history method above were checked on
-`side/docs-cleanup` when the goal was written. Stage sizes come from a raw `§ N` count; the record
-stage 1 writes replaces it.
+Stage 1 is done. `bun nv rules --check` counts each file's bare marks under `crates/` and
+`tests/conformance/` against `tools/data/bare-section-marks.json` (5166 marks in 727 files) and is
+green. A mark is kept after `RFC N`, `MS-X`, `FIPS N-N`, `XML 1.0`, `WebAuthn Level N` or
+`WHATWG X` (`NAMED_STANDARD`, `tools/nv/cmd/rules.ts:150`), after a list joiner that follows a kept
+mark, and as `§ *Heading*`. `--record-marks` writes nothing while a file is above its count. The
+forms' home is `docs/agent/conventions.md:382`. The finder counts every line, string literals too,
+so stage 8 meets any `§ N` a test fixture carries. `tools/nv/test/rules.test.ts:103` holds the
+cases, and no existing test is expected to go red.
 
 ### Next
 
-Stage 1, the check, on `tools/nv/cmd/rules.ts`, `tools/nv/test/rules.test.ts` and
-`docs/agent/conventions.md`. No gate.
-- [ ] `conventions.md` § *Citing a document* states the three kept forms. `docs/agent/conventions.md:367`
-- [ ] The bare-mark finder and its cases. `tools/nv/cmd/rules.ts:120`, `tools/nv/test/rules.test.ts:29`
-- [ ] The record and `--record-marks`, read by the check. `tools/nv/cmd/rules.ts:144`, `tools/nv/cmd/rules.ts:467`
-- [ ] The cases for a count that rose, a new file with a mark, and a count that fell. `tools/nv/test/rules.test.ts:46`
+Stage 2, on `crates/nvs-stdlib/`; `namespace-grants` is retired, so no lane holds its files. Its
+record entries total about 697, so it stops near 600 and names what is left. Largest first:
+- [ ] The queue files: `queue.rs` 155, `tests/queue.rs` 95, `topic.rs` 26, `tests/queue_sqlite.rs` 25, `bus.rs` 7. `crates/nvs-stdlib/src/queue.rs:1`
+- [ ] `db/`: `execute.rs` 88, `transaction.rs` 66, `open.rs` 46, `bind.rs` 40, `registry.rs` 36, the rest, `tests/db_stream.rs`. `crates/nvs-stdlib/src/db/execute.rs:1`
+- [ ] `bun nv rules --record-marks` lowers the counts in each slice's commit. `tools/data/bare-section-marks.json:1`
 
 ### Backlog
 
-- Stage 2 follows in its own session, on `crates/nvs-stdlib/` (`tools/data/bare-section-marks.json`).
+- A standard the finder does not know turns its marks bare; add it to `NAMED_STANDARD` with a case
+  rather than rewriting the mark. `tools/nv/cmd/rules.ts:150`
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
   marks. `docs/agent/conventions.md:367`

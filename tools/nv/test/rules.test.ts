@@ -1,7 +1,7 @@
 // The decision record and deleted doc guards in `bun nv rules --check`. The cases name every form they
 // refuse, so this file carries `nv-rules:record-examples`.
 import { describe, expect, test } from "bun:test";
-import { RECORD_DIRS, deletedDocFindings, recordFindings } from "../cmd/rules.ts";
+import { RECORD_DIRS, bareMarkFindings, bareMarks, deletedDocFindings, markCounts, recordFindings } from "../cmd/rules.ts";
 
 const one = (text: string) => recordFindings([], [["docs/x.md", text]]);
 
@@ -97,5 +97,52 @@ describe("nv rules --check, deleted docs", () => {
     expect(doc("[the rules](../rules/types.md) and docs/setup.md")).toEqual([]);
     expect(doc("see [the ground rules](docs/ground-rules.md)")).toEqual([]);
     expect(doc("docs/plan/m10.md\n// nv-rules:record-examples")).toEqual([]);
+  });
+});
+
+describe("nv rules --check, bare section marks", () => {
+  test("a mark after a standard's name is kept", () => {
+    expect(bareMarks("// RFC 3986 § 5.4 resolves a reference")).toEqual([]);
+    expect(bareMarks("/// [MS-TDS] § 2.2.6 and MS-DTYP § 2.3.4")).toEqual([]);
+    expect(bareMarks("// (FIPS 180-4 § 6.2) and (XML 1.0 § 2.3)")).toEqual([]);
+    expect(bareMarks("// RFC 9110 §§ 8.8–8.9")).toEqual([]);
+    expect(bareMarks("/// WebAuthn Level 3 § 16.2 and § 16.11, WHATWG URL § 5")).toEqual([]);
+  });
+
+  test("a second mark of the same standard, joined by a list word, is kept", () => {
+    expect(bareMarks("// RFC 9110 § 8.8 and § 13.1, RFC 6265 § 4.1, § 5.2")).toEqual([]);
+  });
+
+  test("a mark citing a heading in asterisks is kept", () => {
+    expect(bareMarks("//! `AGENTS.md` § *The priority ordering* and § *Text an end user reads*")).toEqual([]);
+  });
+
+  test("a mark that names no document is bare", () => {
+    expect(bareMarks("// § 3")).toEqual([1]);
+    expect(bareMarks("ok\n/// because § 2.1 says so, and § B")).toEqual([2, 2]);
+    expect(bareMarks("// `docs/reference/README.md` § 4")).toEqual([1]);
+    expect(bareMarks("// RFC 3986 § 3 says this. The module's § 4 says that.")).toEqual([1]);
+    expect(bareMarks("// § Safepoints")).toEqual([1]);
+  });
+
+  const two = "// § 1\n// § 2";
+
+  test("a count that rose is a finding, and so is a mark in a file the record does not name", () => {
+    expect(bareMarkFindings({ "crates/x.rs": 1 }, [["crates/x.rs", two]])).toEqual([
+      { where: "crates/x.rs", what: "has 2 bare section mark(s), and its record allows 1 (lines 1, 2)" },
+    ]);
+    expect(bareMarkFindings({}, [["crates/new.rs", "// § 1"]])).toHaveLength(1);
+  });
+
+  test("a count that fell or held passes", () => {
+    expect(bareMarkFindings({ "crates/x.rs": 3 }, [["crates/x.rs", two]])).toEqual([]);
+    expect(bareMarkFindings({ "crates/x.rs": 2 }, [["crates/x.rs", two]])).toEqual([]);
+  });
+
+  test("the record names each file with a bare mark, in path order", () => {
+    expect(markCounts([["crates/b.rs", two], ["crates/a.rs", "// RFC 3986 § 1"], ["crates/A/c.rs", "// § 9"]])).toEqual({
+      "crates/A/c.rs": 1,
+      "crates/b.rs": 2,
+    });
   });
 });

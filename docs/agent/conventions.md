@@ -379,6 +379,23 @@ reason cites the rule or states the reason in place, and `bun nv brief --where <
 to the rule that owns it. A new decision becomes a goal, and when it lands, what it decided, why, what
 it spends and what it declined go into its rule fragment.
 
+**A section mark names its document in the same phrase, in one of three forms.**
+
+| The document | The form |
+|---|---|
+| an RFC | `RFC 3986 § 5.4` |
+| another standard | its name before the mark: `[MS-TDS] § 2.2.6`, `FIPS 180-4 § 6.2`, `WHATWG URL § 5` |
+| a document in this repository | its heading in asterisks: `AGENTS.md` § *The priority ordering* |
+
+A second mark of the same standard joined by `and`, `or` or a comma keeps the name: `RFC 9110 § 8.8
+and § 13.1`. Any other `§ N` is bare, because a reader cannot tell what it cites, even where the file's
+head comment names a standard: write `RFC 8446 § 3`, not `§ 3`. A section of this repository's
+documents is cited by its heading, never its number, so a new section above it does not change the
+citation. `bun nv rules --check` counts the bare marks of each file under `crates/` and
+`tests/conformance/` against `tools/data/bare-section-marks.json`, fails on a file above its count, and
+`bun nv rules --record-marks` writes the lower counts once a change removes marks. The standards it
+recognises are `NAMED_STANDARD` in `tools/nv/cmd/rules.ts`; a new one is added there with a case.
+
 **A link to another document depends on whether a renderer resolves it, and there are exactly two
 forms.**
 
