@@ -3611,7 +3611,10 @@ built-in world's do. A third-party export is called on the dynamic path, which w
 list as one wasmtime `Val` per byte. `crates/nvs-ext/benches/ext_bytes.rs` measured that in
 `benches/results/ext-bytes.json`: a 16 MiB echo took 876 ms and allocated 122 host bytes per byte
 crossed. So a third-party `bytes` crosses as the host's `bytes` resource instead, copied once each
-way by typed host calls ([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)).
+way by typed host calls ([`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type)). The same bench's `after`
+row: the 16 MiB echo takes 5.5 ms, about 160 times faster, and allocates 2 host bytes per byte
+crossed, of which at most 1 is held at once: the `read` copy on its way into the guest, and the
+result's buffer, which becomes the program's value. A 1 KiB echo takes about 22 µs.
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
