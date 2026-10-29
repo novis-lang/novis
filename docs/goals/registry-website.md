@@ -130,6 +130,18 @@ reads. A query keeps its first eight runs of letters and digits, each a prefix m
 operator reaches the index. The facts are computed per request in one query, which is
 O(packages matched); a cached score table waits until a few thousand packages make it measurable.
 
+**The readme is shown as escaped plain text in a `<pre>`.** `Core` has no markdown renderer, and a
+renderer for text any publisher writes is a new parser on the request path and a new way to inject
+markup. Escaped text has neither cost and shows every word. A rendered readme waits for a `Core`
+markdown renderer with its own goal.
+
+**The build's JSON is `schema` 3**: it adds `readme` (at most 64 KiB), `downloads` (each
+`[[download]]` entry as written) and `supersedes`, a new `[package] supersedes` key that names a
+package as `'Acme\Http'`. The release row keeps them with `files` and the API report (`changes`),
+so a page never opens an archive or runs `nvs`. Cost: at most 64 KiB of readme and two short JSON
+lists per release. A release restored from the log has these columns null, and its page says that it has no list of
+files and no comparison of the API.
+
 ## Stages
 
 ### 1. search matches text, and the reader chooses the sort
@@ -163,11 +175,22 @@ one line each with its anchor. After the session lands `Ranking.nvs`, a writing 
 **Split:** after the session lands the page and its route, one writing subagent writes the
 capability and API diff sections, then a second writes the test.
 
-- [ ] Versions and their states, the commit, and `supersedes`. `apps/registry/src/PackagePage.nvs:1`
-- [ ] Requested capabilities and their change per version, and the API diff per version from `nvs pkg diff`. `apps/registry/src/PackagePage.nvs:1`, `crates/nvs-cli/src/package/diff.rs:1`
+- [x] Versions and their states, the commit, and `supersedes`. `apps/registry/src/PackagePage.nvs:1`
+  - [x] `[package] supersedes` in the manifest, and the build prints it (schema 3).
+  - [x] The release row keeps it, and the page shows it both ways.
+  - [x] `PackagePage::stateOf` and the versions table.
+- [x] Requested capabilities and their change per version, and the API diff per version from `nvs pkg diff`. `apps/registry/src/PackagePage.nvs:1`, `crates/nvs-cli/src/package/diff.rs:1`
+  - [x] The release row keeps the build's `api` report as `changes`.
+  - [x] `PackagePage::capabilities` and `PackagePage::changes`.
 - [ ] Owners and their history, advisories, and the ranking facts with the link to `Ranking.nvs`. `apps/registry/src/PackagePage.nvs:1`
-- [ ] The readme, rendered as untrusted markdown, the archive's file list with sizes, and the external downloads per version. `apps/registry/src/PackagePage.nvs:1`
-- [ ] A test: a package with a pending, an unlisted, a retracted and a withheld version shows each state, and every fact `Ranking.nvs` reads is on the page. `apps/registry/src/PackagePageTest.nvs:1`
+  - [x] Owners and the `ownership` notices of the vendor.
+  - [x] The ranking facts, the score and the link to the formula (`Ranking::facts` with a `$key`).
+  - [x] Retractions and withholds with their reasons.
+  - [ ] Advisories from `apps/registry/src/Advisories.nvs`, once goal `package-audit` writes it.
+- [x] The readme, rendered as untrusted markdown, the archive's file list with sizes, and the external downloads per version. `apps/registry/src/PackagePage.nvs:1`
+  - [x] The build prints `readme` and `downloads`, and the release row keeps them with `files`.
+  - [x] The readme as escaped text (see the standing decision), the files and the external downloads.
+- [x] A test: a package with a pending, an unlisted, a retracted and a withheld version shows each state, and every fact `Ranking.nvs` reads is on the page. `apps/registry/src/PackagePageTest.nvs:1`
 
 ### 3. the account pages and the withhold policy page
 
@@ -211,24 +234,29 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs registry build` prints `doc_coverage`, `docs` and `summary` (schema 2), and
-the release row keeps `declarations` and `documented`. A publish of a package's highest version
-writes the FTS5 table `search`. `GET /api/search?q=&sort=` returns the facts `Ranking.nvs` reads,
-in the order the reader picked. `SearchTest.nvs` has five passing tests. The CI failure in
-`ext_world.rs` is fixed: the two `Core\WebPush` classes are in `REFUSED`.
+Stage 1 is done. Stage 2 is done except advisories, which wait on goal `package-audit`'s
+`apps/registry/src/Advisories.nvs` (the gate in the standing decisions). `GET /packages/<vendor>/<name>`
+and `GET /packages/<vendor>/<name>/<version>` serve `PackagePage.nvs`, and
+`PackagePageTest.nvs` has five passing tests. The build is schema 3 (`readme`, `downloads`,
+`supersedes`), and `[package] supersedes` is a manifest key in the reference.
 
-Tests that may go red in stage 5: none expected. `registry_build.rs` and `PublishTest.nvs` were
-updated for schema 2, and only their changed tests ran.
+The acceptance sweep's `env-secret-proofs` was green when run again (`bun nv proofs --gate --only
+'Core\Env::secret'` exits 0). The nightly run 40662443492 was a `workflow_dispatch` on an older
+commit, and later CI runs replaced it and passed.
+
+Tests that may go red in stage 5: none expected. Only the tests this session changed ran:
+`registry_build.rs`'s `a_build_prints...`, `manifest::tests`, and `PackagePageTest.nvs`.
+`PublishTest.nvs` builds schema 3 JSON and did not run.
 
 ### Next
 
-Stage 2, the package page, on `apps/registry/src/PackagePage.nvs` and a route in `App.nvs`.
-- [ ] Versions and their states, the commit, and `supersedes`. `apps/registry/src/Releases.nvs:1`
-- [ ] Capabilities per version and their change, and the API diff from the stored API files. `apps/registry/src/Publish.nvs:106`, `crates/nvs-cli/src/package/diff.rs:1`
-- [ ] Owners and their history (`notices`), and the ranking facts from `Ranking::facts`. `apps/registry/src/Ranking.nvs:1`
-- [ ] The readme, file list and external downloads. The build prints `files` but the row does not keep them yet. `crates/nvs-cli/src/package/build.rs:216`
-- [ ] The page's test. `apps/registry/src/PackagePageTest.nvs:1`
+Stage 3, the account pages and the withhold policy page. The page's style is `PackagePage.nvs`:
+`html` literals, a `layout`, and `App::page` sends the markup or a 404.
+- [ ] `AccountPage.nvs`: passkeys, tokens, vendors and co-owners, channels with their verification, the inbox and the days left. `apps/registry/src/App.nvs:164` (`/api/account`), `apps/registry/src/Channels.nvs:1`, `apps/registry/src/Activity.nvs:1`, `apps/registry/src/Feeds.nvs:99`
+- [ ] Its test under a fixed clock. `apps/registry/src/PackagePageTest.nvs:1` for the setup
+- [ ] `PolicyPage.nvs`. `docs/rules/packaging/the-operator-only-withholds.md:1`
 
 ### Backlog
 
 - Advisories on a package page come from the feed of goal `package-audit` (`docs/goals/package-audit.md`).
+  `PackagePage::advisories` is where they go.
