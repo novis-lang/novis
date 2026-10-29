@@ -328,8 +328,8 @@ fn run_record_proof(proof: &[Hash], lo: u64, hi: u64, n: u64, leaf: &Hash) -> Re
     }
 }
 
-/// The consistency proof from the tree's first `old` records to its first `size` (RFC 6962
-/// § 2.1.2). `old` is at least 1 and at most `size`.
+/// The consistency proof from the tree's first `old` records to its first `size`
+/// (RFC 6962 § 2.1.2). `old` is at least 1 and at most `size`.
 pub(crate) fn prove_tree(
     size: u64,
     old: u64,

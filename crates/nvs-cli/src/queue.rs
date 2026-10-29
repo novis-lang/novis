@@ -1,7 +1,7 @@
 //! `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s two tables, as the explicit operator command that owns
 //! them.
 //!
-//! § 2 gives the runtime one jobs table and one dead-letter table and has them created from here and
+//! The rule gives the runtime one jobs table and one dead-letter table and has them created from here and
 //! nowhere else: DDL is an injection sink and a privileged act
 //! (`rule:security/tainted-qualifier`), so the runtime never
 //! issues it at boot or from a request, and a queue's schema arrives by an operator running a
@@ -134,7 +134,7 @@ impl Args {
 ///
 /// **Separate failures rather than one**, because they are separate mistakes: a block writing no
 /// `driver` is not openable by anything, and a `driver` no backend answers to is a typo in a value
-/// `rule:core-classes/db-connection-is-named` closes. There is no third refusal: § 2's schema is
+/// `rule:core-classes/db-connection-is-named` closes. There is no third refusal: the queue schema is
 /// one value and `nvs_db::ddl` emits it in every dialect, so no backend is one this command has to
 /// turn away for having no schema written for it.
 ///

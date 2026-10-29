@@ -664,7 +664,7 @@ pub(crate) mod platform {
         out
     }
 
-    /// One of § 4's lifecycle records, written to the event-log source
+    /// One of `rule:packaging/a-service-answers-its-manager`'s lifecycle records, written to the event-log source
     /// `nvs service install` registered under this service's name.
     ///
     /// The record's text is its one insertion string, so the viewer shows it

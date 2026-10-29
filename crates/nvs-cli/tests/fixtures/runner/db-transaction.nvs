@@ -21,7 +21,7 @@ use Core\Db\Transaction;
 
 class Rows
 {
-    // § 6's typed reader answers `?T`, a `null` being a NULL column, so the
+    // A row's typed reader answers `?T`, a `null` being a NULL column, so the
     // unwrap happens once here rather than at each of the four places below.
     public static function count(Core\Db\Connection $db): int
     {

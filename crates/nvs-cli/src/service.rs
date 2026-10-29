@@ -208,10 +208,11 @@ pub(crate) struct Args {
 /// generate the unit and **print** it, because the operator's configuration
 /// management already owns the directory it belongs in and a binary that writes
 /// there behind Ansible's back is a worse citizen than one that prints. On
-/// Windows it emits § 5's equivalent `New-Service` invocation, carrying § 3's
-/// encoded `ImagePath` for review rather than execution.
+/// Windows it emits the equivalent `New-Service` invocation, carrying the
+/// encoded `ImagePath` of `rule:packaging/the-argv-lives-in-imagepath` for
+/// review rather than execution.
 ///
-/// Every § 2 refusal runs in front of both it and `install`, so `unit` is also
+/// Every `rule:packaging/the-installer-is-a-sink` refusal runs in front of both it and `install`, so `unit` is also
 /// how an operator finds out that the argv they were about to install would
 /// have been refused — without an elevated shell, and without having installed
 /// anything. Which manager a verb reaches is [`at_host`]'s answer, and this
@@ -5098,7 +5099,9 @@ mod tests {
     /// exit, so an uncoded one is a failure of that rule rather than of the
     /// case reading it.
     fn coded(refusal: &Diagnostic) -> nvs_diagnostics::Code {
-        refusal.code.expect("every § 2 refusal carries a code")
+        refusal
+            .code
+            .expect("every installer refusal carries a code")
     }
 
     /// Every command line the help shows is one the parser takes, and the argv
@@ -7450,7 +7453,7 @@ mod tests {
         .expect_err(case);
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
         let registration::Refused::Manager(error) = refused else {
-            panic!("§ 2 refused an argv that survives it")
+            panic!("the installer's own check refused an argv that survives it")
         };
         assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied, "{case}");
         error.to_string()
@@ -7683,7 +7686,7 @@ mod tests {
         );
         assert!(
             hosted::stops(0x0000_000F),
-            "PRESHUTDOWN is what § 4 asks for at install, and it means drain",
+            "PRESHUTDOWN is what the install asks the manager for, and it means drain",
         );
         assert!(
             !hosted::stops(0x0000_0006),

@@ -15,8 +15,8 @@
 //! [`nvs_host::Scheduler`] is created here, and a task is a thing only its owner can spawn. What is
 //! *shared* is the schema — [`nvs_stdlib::queue::QUEUES_POSTGRES`],
 //! [`nvs_stdlib::queue::CLAIM_POSTGRES`] and the MySQL dialect written beside each of them are read
-//! from the module that owns § 2's tables, so a worker decides nothing about them and nothing about
-//! which dialect a driver gets.
+//! from the module that owns `rule:core-classes/queue-storage-is-a-table`'s tables, so a worker
+//! decides nothing about them and nothing about which dialect a driver gets.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
 //! `rule:http-server/containment-does-not-end-at-the-helper`:
@@ -65,9 +65,8 @@
 //!
 //! ## What a job's grants are
 //!
-//! A claimed job is § 5's root isolate, and an isolate is reached through
-//! `rule:security/capability-check-at-the-door`'s
-//! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
+//! A claimed job is `rule:concurrency/a-job-runs-as-a-root-isolate`'s root isolate, and an
+//! isolate is reached through `rule:security/capability-check-at-the-door`'s spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
 //! script's, so each job is handed the snapshot the `[[app]]` blocks matching its own script fold
 //! to, out of the publish in force when it is claimed ([`configure`]). Under `nvs serve` that is
@@ -124,7 +123,8 @@
 //! [`open`], not only at the top of a turn.
 //!
 //! **Every attempt's error reaches the dead-letter row through the row itself.** [`report`] writes
-//! every attempt back — `Succeeded`, back to `Pending` on § 6's ladder, or out of `nvs_jobs` and
+//! every attempt back — `Succeeded`, back to `Pending` on the retry ladder
+//! (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`), or out of `nvs_jobs` and
 //! into `nvs_dead_jobs` where the job has used its last attempt — and each of the two failing
 //! endings binds what [`nvs_stdlib::queue::dead_errors`] appends to the `errors` column the claim
 //! answered with. A worker therefore keeps no history of its own, which is what makes the fleet
@@ -603,8 +603,8 @@ fn take_turns(workers: &Workers, mut turn: impl FnMut() -> io::Result<bool>) -> 
 
 /// One turn: which queues have due work, then one claim against each.
 ///
-/// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — § 2 names
-/// no queues, so the table is the only place they are written down — at O(queues) a turn, which
+/// The roster is asked first for the reason [`nvs_stdlib::queue::QUEUES_POSTGRES`] owns — the schema
+/// (`rule:core-classes/queue-storage-is-a-table`) names no queues, so the table is the only place they are written down — at O(queues) a turn, which
 /// that text's doc costs out. The two instants are
 /// computed once here so that every claim in this turn judges due-ness against the same moment.
 /// The visibility window is read from `current` at the start of the turn, so a reload that moves
@@ -826,12 +826,12 @@ fn sqlite_roster(sqlite: &nvs_db::SqliteConn, now: i64, cutoff: i64) -> io::Resu
 /// What a worker reads off [`nvs_stdlib::queue::CLAIM_POSTGRES`]'s `returning` list, and what running one
 /// and reporting it needs.
 ///
-/// Every column of that list: what to run, what it runs under, and what § 6's ladder is judged
-/// against, which [`report`] does the moment [`run`] returns.
+/// Every column of that list: what to run, what it runs under, and what the retry ladder
+/// (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) is judged against, which [`report`] does the moment [`run`] returns.
 struct Job {
     /// The primary key, which is what the write-back names the row by.
     id: i64,
-    /// The file § 1 says a job names. `spawn script`'s own spelling, resolved the same way.
+    /// The file a job names (`rule:concurrency/a-job-names-a-file`). `spawn script`'s own spelling, resolved the same way.
     script: String,
     /// The `args` column as it is stored: the document `Core\Queue::push` encoded, or `None` for a
     /// job pushed without one. Decoded at the last moment, in [`run`], so a job whose script is
@@ -840,10 +840,10 @@ struct Job {
     /// Attempts made *including this one* — [`nvs_stdlib::queue::CLAIM_POSTGRES`] increments the column in
     /// the same statement it returns it from, so a job being run for the first time reads `1`.
     attempts: i64,
-    /// § 6's bound on the above, as `Core\Queue::push` recorded it from `{ maxAttempts: … }` or from
+    /// The bound on the above (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`), as `Core\Queue::push` recorded it from `{ maxAttempts: … }` or from
     /// `[queue] max_attempts`.
     max_attempts: i64,
-    /// The base delay of § 6's ladder for this job, in milliseconds.
+    /// The base delay of the retry ladder for this job, in milliseconds.
     ///
     /// `i64` for every integer here, whatever width the DDL gave the column: they arrive as
     /// [`nvs_db::PgScalar::Int`], which is one variant for `smallint`, `integer` and `bigint`
@@ -925,8 +925,8 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
         let nvs_db::PgScalar::Text(script) = script.scalar(row.column(SCRIPT)?)? else {
             continue;
         };
-        // A `text` column that is null is § 3's job with no payload, which is the ordinary shape of
-        // a job that needs none — not a malformed row, so it is `None` rather than a skip.
+        // A `text` column that is null is a job pushed with no payload, which is the ordinary shape
+        // of a job that needs none — not a malformed row, so it is `None` rather than a skip.
         let args = match args.scalar(row.column(ARGS)?)? {
             nvs_db::PgScalar::Text(args) => Some(args.into_owned()),
             _ => None,
@@ -949,8 +949,8 @@ fn postgres_claim(conn: &mut nvs_db::PgConn, bound: &[Option<&[u8]>]) -> io::Res
         };
         // The columns the write-back judges against, and every one of them is `not null` in the
         // migration: a row missing any of them is one no `Core\Queue::push` wrote, so the claim is
-        // dropped rather than run on a guess. It stays claimed until § 4's visibility timeout, which
-        // is where a row this worker cannot make sense of belongs.
+        // dropped rather than run on a guess. It stays claimed until the visibility timeout
+        // (`rule:concurrency/claiming-is-one-statement`), which is where a row this worker cannot make sense of belongs.
         let [Some(id), Some(attempts), Some(max_attempts), Some(backoff)] =
             [ID, ATTEMPTS, MAX_ATTEMPTS, BACKOFF].map(|at| columns.get(at))
         else {
@@ -1051,7 +1051,7 @@ fn tds_claim(tds: &mut nvs_db::TdsConn, bound: &[Option<&[u8]>]) -> io::Result<O
         let nvs_db::tds::TdsScalar::Text(script) = nvs_db::tds::scalar(script, script_body)? else {
             continue;
         };
-        // A text column that is null is § 3's job with no payload, which [`postgres_claim`] reads
+        // A text column that is null is a job pushed with no payload, which [`postgres_claim`] reads
         // the same way and for the same reason: it is the ordinary shape of a job that needs none.
         let args = match nvs_db::tds::scalar(args, args_body)? {
             nvs_db::tds::TdsScalar::Text(args) => Some(args.into_owned()),
@@ -1159,7 +1159,7 @@ fn framed_claim(
 ///
 /// The columns are at the ordinals the constants above name, on this dialect as on the others:
 /// `all_three_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds every
-/// `select` list to one set of positions, so nothing here is a second reading of § 4's list.
+/// `select` list to one set of positions, so nothing here is a second reading of the claim's list.
 fn claimed_in_two(
     framed: &mut Framed<'_>,
     bound: &[Option<&[u8]>],
@@ -1183,16 +1183,16 @@ fn claimed_in_two(
             };
             read.push(nvs_db::mysql::scalar(column, body)?);
         }
-        // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and [`postgres_claim`]
-        // drops such a row for the reason its own guards give: it stays claimed until § 4's
-        // visibility timeout, which is where a row this worker cannot make sense of belongs.
+        // A row narrower than the claim's list is one no `Core\Queue::push` wrote, and
+        // [`postgres_claim`] drops such a row for the reason its own guards give: it stays claimed
+        // until the visibility timeout (`rule:concurrency/claiming-is-one-statement`), which is where a row this worker cannot make sense of belongs.
         if read.len() <= LIMITS {
             continue;
         }
         let nvs_db::MySqlScalar::Text(script) = &read[SCRIPT] else {
             continue;
         };
-        // A `text` column that is null is § 3's job with no payload — the ordinary shape of a job
+        // A `text` column that is null is a job pushed with no payload — the ordinary shape of a job
         // that needs none, so it is `None` rather than a skip.
         let args = match &read[ARGS] {
             nvs_db::MySqlScalar::Text(args) => Some(args.to_string()),
@@ -1240,7 +1240,8 @@ fn claimed_in_two(
     let Some(job) = took else {
         return Ok(None);
     };
-    // § 4's mark, keyed by the id the `select` named and still holding its lock. The values are the
+    // The claim's mark (`rule:concurrency/claiming-is-one-statement`), keyed by the id the
+    // `select` named and still holding its lock. The values are the
     // `set` clause's and the `where` clause's in that order, because a `?` is bound where it
     // stands — the same reason [`nvs_stdlib::queue::RETRY_MYSQL`] orders its own values
     // differently.
@@ -1253,7 +1254,7 @@ fn claimed_in_two(
 
 /// One integer column of a claim, whichever width and sign the server described it as.
 ///
-/// § 2's schema declares each of them `bigint`, so [`nvs_db::MySqlScalar::Int`] is what a table
+/// The queue's schema (`rule:core-classes/queue-storage-is-a-table`) declares each of them `bigint`, so [`nvs_db::MySqlScalar::Int`] is what a table
 /// `nvs queue migrate` created answers with. `UInt` is accepted beside it because a column an
 /// operator widened to `bigint unsigned` is still a count, and a claim refused over the sign of a
 /// column nothing else is wrong with would strand the job rather than report anything.
@@ -1304,7 +1305,7 @@ fn sqlite_claim(
 ///
 /// The columns are at the ordinals the constants above name, on this dialect as on the others:
 /// `all_three_dialects_answer_a_claim_with_the_same_columns` in `nvs-stdlib` is what holds every
-/// `select` list to one set of positions, so nothing here is a second reading of § 4's list.
+/// `select` list to one set of positions, so nothing here is a second reading of the claim's list.
 fn sqlite_claimed_in_two(
     sqlite: &nvs_db::SqliteConn,
     queue: &str,
@@ -1326,16 +1327,16 @@ fn sqlite_claimed_in_two(
         if took.is_some() {
             continue;
         }
-        // A row narrower than § 4's list is one no `Core\Queue::push` wrote, and it is dropped for
-        // [`postgres_claim`]'s reason: it stays claimed until § 4's visibility timeout, which is
-        // where a row this worker cannot make sense of belongs.
+        // A row narrower than the claim's list is one no `Core\Queue::push` wrote, and it is
+        // dropped for [`postgres_claim`]'s reason: it stays claimed until the visibility timeout
+        // (`rule:concurrency/claiming-is-one-statement`), which is where a row this worker cannot make sense of belongs.
         if row.len() <= LIMITS {
             continue;
         }
         let nvs_db::SqliteValue::Text(script) = &row[SCRIPT] else {
             continue;
         };
-        // A `text` cell that is null is § 3's job with no payload — the ordinary shape of a job
+        // A `text` cell that is null is a job pushed with no payload — the ordinary shape of a job
         // that needs none, so it is `None` rather than a skip.
         let args = match &row[ARGS] {
             nvs_db::SqliteValue::Text(args) => Some(args.clone()),
@@ -1378,13 +1379,14 @@ fn sqlite_claimed_in_two(
         });
     }
     // The rows have to have let the connection go before the `update` on it starts: a result set
-    // holds this connection until it is dropped, which is § 4's one-statement-at-a-time rule as
-    // this driver keeps it.
+    // holds this connection until it is dropped, which is
+    // `rule:core-classes/db-streaming`'s one-statement-at-a-time rule as this driver keeps it.
     drop(answered);
     let Some(job) = took else {
         return Ok(None);
     };
-    // § 4's mark, keyed by the id the `select` named. The values are the `set` clause's and the
+    // The claim's mark (`rule:concurrency/claiming-is-one-statement`), keyed by the id the
+    // `select` named. The values are the `set` clause's and the
     // `where` clause's in that order, because a `?` is bound where it stands — the same reason
     // [`nvs_stdlib::queue::RETRY_MYSQL`] orders its own values differently.
     sqlite_apply(
@@ -1414,8 +1416,9 @@ fn sqlite_integer(read: &nvs_db::SqliteValue) -> Option<i64> {
 /// compiled code, answering with what the attempt threw — or `None`, which is the attempt
 /// [`report`] writes back as `Succeeded`.
 ///
-/// **The same `Isolate` a `spawn script` builds, through the same door**, which is § 5's "there is
-/// no second execution path" taken literally: a job is resolved by
+/// **The same `Isolate` a `spawn script` builds, through the same door**, which is
+/// `rule:concurrency/a-job-runs-as-a-root-isolate`'s "there is no second execution path" taken
+/// literally: a job is resolved by
 /// [`nvs_runtime::script::resolve`], so `script.spawn` is asked of this worker's context with the
 /// job's path as its scope, and it runs on [`nvs_host::Output::Capture`] — the default, and here
 /// the only honest one, since a job's `echo` landing in the middle of what the run's own script is
@@ -1425,12 +1428,14 @@ fn sqlite_integer(read: &nvs_db::SqliteValue) -> Option<i64> {
 /// *What a job's grants are* owns why the pair is the answer and the worker's own configuration
 /// only the ceiling. A pair [`nvs_stdlib::queue::narrowing`] cannot read is a refused attempt
 /// rather than a job run at that ceiling: running it there is exactly the widening the two columns
-/// exist to prevent, and § 6's ladder bounds a refusal where nothing bounds an escalation.
+/// exist to prevent, and the retry ladder
+/// (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) bounds a refusal where
+/// nothing bounds an escalation.
 ///
 /// A refusal is written to standard error rather than answered, because there is nobody to answer:
 /// a worker has no caller. One line per refused job, and the answer is a failure either way — a job
-/// whose script does not resolve is a failed attempt like any other, so § 6's ladder is what
-/// bounds it rather than a second policy written here. It crosses as the same [`nvs_host::Failure`]
+/// whose script does not resolve is a failed attempt like any other
+/// (`rule:concurrency/a-budget-overrun-is-a-failed-attempt`), so the retry ladder is what bounds it rather than a second policy written here. It crosses as the same [`nvs_host::Failure`]
 /// a throw does, under [`refusal`]'s class, so a dead-letter row records the two in one shape.
 fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
     let Some(narrowing) =
@@ -1469,9 +1474,9 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
         .run(ctx)
     {
         // `ok` and not "it returned": an isolate whose program threw, or that was torn down over a
-        // budget, answers here exactly as one that returned — which is § 6's "a job exceeding its
-        // memory, CPU or time budget is a failed attempt, reported as that rather than as an
-        // out-of-memory". So the flag the isolate already computed is the whole judgement, and
+        // budget, answers here exactly as one that returned — which is
+        // `rule:concurrency/a-budget-overrun-is-a-failed-attempt`: an overrun is a failed attempt,
+        // reported as that rather than as an out-of-memory. So the flag the isolate already computed is the whole judgement, and
         // there is no second reading of the completion beside it.
         Ok(mut completion) => {
             // A job has no caller, so nothing downstream ever reads its answer —
@@ -1496,7 +1501,8 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
             // Every attempt's failure reaches the row's `errors` array as well, and this line is
             // still where one becomes visible without a query: a job that recovers on a later
             // attempt is never dead-lettered, so nothing but the log ever reports the attempts it
-            // spent — and a queue whose failures are silent is the one thing § 6 exists to prevent.
+            // spent — and a queue whose failures are silent is the one thing
+            // `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` exists to prevent.
             eprintln!(
                 "warning: the queued job `{}` threw {}: {}",
                 job.script, failure.class, failure.message
@@ -1520,7 +1526,9 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
 ///
 /// `Error` is [`nvs_host::Failure`]'s own name for the class of a failure the child did not throw,
 /// so nothing here invents a spelling: a refusal and a throw differ in that field and in nothing
-/// else, which is what lets § 6's `errors` array hold either without a second entry shape.
+/// else, which is what lets the dead-letter row's `errors` array
+/// (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) hold either without a second
+/// entry shape.
 fn refusal(message: String) -> nvs_host::Failure {
     nvs_host::Failure {
         class: "Error".to_string(),
@@ -1551,7 +1559,7 @@ fn errors_after(job: &Job, held_at: i64, failure: &nvs_host::Failure) -> String 
 /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back: the row the claim took, told what the attempt did.
 ///
 /// **A branch per outcome, and one lease.** An attempt that returned is `Succeeded`; one that
-/// failed with attempts still to come is armed for the next on § 6's ladder; one that failed on the
+/// failed with attempts still to come is armed for the next on the retry ladder; one that failed on the
 /// job's last attempt is moved into `nvs_dead_jobs` carrying what it threw. Each is one statement
 /// out of [`nvs_stdlib::queue`] — the move a pair inside one transaction where the dialect has no
 /// data-modifying CTE to say it in one — and that module owns each of them and every column they
@@ -1560,13 +1568,14 @@ fn errors_after(job: &Job, held_at: i64, failure: &nvs_host::Failure) -> String 
 /// **Keyed on the lease `held_at`**, which is the `claimed_at` this worker's own claim wrote —
 /// [`nvs_stdlib::queue::SUCCEEDED_POSTGRES`]'s doc owns why, and it is why this takes the turn's
 /// instant rather than reading the clock again. A statement that matches no row is the ordinary
-/// shape of a worker that overran § 4's visibility window, not an error, so the affected count is
+/// shape of a worker that overran the visibility window
+/// (`rule:concurrency/claiming-is-one-statement`), not an error, so the affected count is
 /// deliberately not judged: another worker owns the job by then and has its own attempt to report.
 ///
 /// The retry's own `run_at` is computed against a *fresh* instant, because the attempt has just
 /// spent however long it spent: a backoff measured from the claim would already be part-elapsed,
 /// and for a job that ran longer than its own base delay it would be wholly elapsed, which is
-/// § 6's ladder collapsed to a busy loop.
+/// the retry ladder collapsed to a busy loop.
 fn report(
     conn: &mut Wire,
     job: &Job,
@@ -1601,7 +1610,7 @@ fn report(
         };
     };
     if job.attempts >= job.max_attempts {
-        // § 6's floor: the attempt was the job's last, so the row moves rather than being armed
+        // The ladder's floor: the attempt was the job's last, so the row moves rather than being armed
         // again — one statement, keyed on the same lease, which is where "never deleted by the
         // runtime" is actually kept. `>=` and not `==` because `[queue] max_attempts` is
         // configuration an operator can lower under a job that has already used more than the new
@@ -1704,11 +1713,12 @@ fn report(
     }
 }
 
-/// § 6's move as MySQL and MariaDB spell it: the copy, then the delete, inside one transaction.
+/// The dead-letter move (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`) as MySQL
+/// and MariaDB spell it: the copy, then the delete, inside one transaction.
 ///
 /// **The copy runs first and that is not this function's choice** —
 /// [`nvs_stdlib::queue::DEAD_LETTER_MYSQL`]'s doc owns it: the columns have to be read while they
-/// still exist, since a `delete` here cannot answer with what it removed. § 6's property is
+/// still exist, since a `delete` here cannot answer with what it removed. The move's property is
 /// unchanged, the row being in both tables or in neither, and here it is the transaction that
 /// holds what PostgreSQL's single statement held by construction.
 ///
@@ -1740,7 +1750,7 @@ fn dead_letter_in_two(
     }
 }
 
-/// § 6's move in T-SQL: the copy, then the delete, inside one transaction.
+/// The dead-letter move in T-SQL: the copy, then the delete, inside one transaction.
 ///
 /// [`dead_letter_in_two`]'s twin, and its doc owns the whole of why the pair is the shape — the
 /// copy runs first because a `delete` cannot answer with what it removed, and both halves are keyed
@@ -1788,7 +1798,7 @@ fn apply(conn: &mut nvs_db::PgConn, sql: &str, bound: &[Option<&[u8]>]) -> io::R
 /// [`apply`] over MySQL's framing, which MariaDB runs unchanged.
 ///
 /// The affected count is discarded on both drivers and for one reason, which [`report`]'s own doc
-/// owns: a write-back that matches no row is the ordinary shape of a worker that overran § 4's
+/// owns: a write-back that matches no row is the ordinary shape of a worker that overran the
 /// visibility window, not an error.
 fn apply_framed(framed: &mut Framed<'_>, sql: &str, bound: &[Option<&[u8]>]) -> io::Result<()> {
     framed.execute_many(sql, &[bound])?;
@@ -1826,11 +1836,11 @@ fn sqlite_lease(id: i64, held_at: i64) -> Vec<nvs_db::SqliteValue> {
     ]
 }
 
-/// § 6's move as SQLite runs it, which is [`nvs_stdlib::queue::DEAD_LETTER_SQLITE`] — MySQL's own
+/// The dead-letter move as SQLite runs it, which is [`nvs_stdlib::queue::DEAD_LETTER_SQLITE`] — MySQL's own
 /// pair — inside the immediate transaction that makes the two one moment.
 ///
 /// The copy runs first and both halves are keyed on the lease, for [`dead_letter_in_two`]'s
-/// reasons: the columns have to be read while they still exist, and a worker that overran § 4's
+/// reasons: the columns have to be read while they still exist, and a worker that overran the
 /// visibility window must match no row in either half. The rollback is [`sqlite_claim`]'s, for its
 /// reason.
 fn sqlite_dead_letter_in_two(
@@ -2026,10 +2036,10 @@ fn sqlite_wire(name: &str, block: &Database) -> Option<Wire> {
 /// and [`Wire::dialect`] is the one place a driver narrows to one.
 ///
 /// Every driver `nvs_stdlib::queue::runs` answers for has an arm, so a `Wire` that exists is one
-/// § 4's statements can run on, and a driver gaining a send path arrives here as a build failure
+/// the claim's statements can run on, and a driver gaining a send path arrives here as a build failure
 /// rather than as a refusal that has quietly stopped being true.
 enum Wire {
-    /// § 4's and § 6's statements as PostgreSQL's single texts.
+    /// The claim's and the write-back's statements as PostgreSQL's single texts.
     Postgres(nvs_db::PgConn),
     /// The same statements as MySQL's dialect, some of them
     /// [`nvs_stdlib::queue::Split`]s.
@@ -2037,7 +2047,7 @@ enum Wire {
     /// MariaDB, which runs every one of MySQL's texts unchanged over its own framing and its own
     /// authentication roster.
     MariaDb(nvs_db::MariaConn),
-    /// § 4's and § 6's statements as T-SQL, whose claim is one statement and whose dead-letter move
+    /// The claim's and the write-back's statements as T-SQL, whose claim is one statement and whose dead-letter move
     /// is a [`nvs_stdlib::queue::Split`].
     SqlServer(nvs_db::TdsConn),
     /// A file this process opened rather than a socket, running MySQL's own texts — the SQLite
@@ -2077,9 +2087,9 @@ impl Wire {
 
 /// A borrowed [`Wire`], narrowed to the dialects `nvs_stdlib::queue` writes statements in.
 ///
-/// The same arms `Core\Queue`'s own members branch on, and for the same reason: § 2's schema and
-/// §§ 4 and 6's statements are written per backend that can run them, so an arm here is a backend
-/// with something to send.
+/// The same arms `Core\Queue`'s own members branch on, and for the same reason: the schema
+/// (`rule:core-classes/queue-storage-is-a-table`), the claim and the write-back are written per
+/// backend that can run them, so an arm here is a backend with something to send.
 ///
 /// **SQLite is its own arm rather than a third [`Framed`] driver**, and what keeps it out is a type
 /// and not a dialect: [`nvs_db::SqliteConn::query`] takes owned values where a wire driver takes
@@ -2093,7 +2103,7 @@ enum Dialect<'a> {
     /// transaction — and MariaDB runs every one of them unchanged.
     Framed(Framed<'a>),
     /// [`nvs_stdlib::queue::CLAIM_SQLSERVER`] and its siblings: the claim is one statement as
-    /// PostgreSQL's is, and § 6's move is a pair inside one transaction as the framed one is.
+    /// PostgreSQL's is, and the dead-letter move is a pair inside one transaction as the framed one is.
     SqlServer(&'a mut nvs_db::TdsConn),
     /// [`nvs_stdlib::queue::CLAIM_SQLITE`] and its siblings, every pair inside the immediate
     /// transaction `rule:concurrency/claiming-is-one-statement` makes the mutual exclusion out of.
@@ -2103,7 +2113,7 @@ enum Dialect<'a> {
 /// The two drivers that share one dialect and one send path, borrowed as one.
 ///
 /// **MariaDB is its own driver above the framing, not inside it** — its own target, its own
-/// authentication roster, its own § 8 code table — and what it does not duplicate is the wire:
+/// authentication roster, its own `rule:core-classes/db-error` code table — and what it does not duplicate is the wire:
 /// `nvs_db::MariaConn::query` delegates into the same `nvs_db::mysql::start_statement` and hands
 /// back the same [`nvs_db::MySqlRows`]. So the only difference this module can observe between the
 /// two is the *type of the borrow*, and without this every framed reader below would grow a second
@@ -2148,7 +2158,7 @@ impl Framed<'_> {
         }
     }
 
-    /// § 7's `COMMIT`, which is where a split pair becomes one moment.
+    /// `rule:core-classes/db-transactions`'s `COMMIT`, which is where a split pair becomes one moment.
     fn commit(&mut self) -> io::Result<nvs_db::QuerySpan> {
         match self {
             Framed::MySql(mysql) => mysql.commit(),
@@ -2156,7 +2166,7 @@ impl Framed<'_> {
         }
     }
 
-    /// § 7's `ROLLBACK`, run best-effort on the way out of a refused pair.
+    /// `rule:core-classes/db-transactions`'s `ROLLBACK`, run best-effort on the way out of a refused pair.
     fn roll_back(&mut self) -> io::Result<nvs_db::QuerySpan> {
         match self {
             Framed::MySql(mysql) => mysql.roll_back(),
@@ -2296,7 +2306,7 @@ mod tests {
             serde_json::from_str(&written).expect("the column holds a JSON document");
         let entries = parsed
             .as_array()
-            .expect("§ 6's `errors` is an array of entries");
+            .expect("a dead-letter row's `errors` is an array of entries");
         assert_eq!(
             entries.len(),
             thrown.len(),
@@ -2854,8 +2864,8 @@ mod tests {
 
     /// The `state` column of one job, or `None` once no row in `nvs_jobs` carries that id.
     ///
-    /// `None` is the dead-letter outcome read from this side — § 6 moves the row into the other
-    /// table — so a case waiting for a job to finish treats it as finished and fails on the state
+    /// `None` is the dead-letter outcome read from this side — the dead-letter move takes the row
+    /// into the other table — so a case waiting for a job to finish treats it as finished and fails on the state
     /// rather than waiting out [`WATCHING_FOR`].
     fn state(conn: &nvs_db::SqliteConn, id: i64) -> Option<i64> {
         let read = ran(
@@ -2956,7 +2966,8 @@ mod tests {
     /// backend that needs no server: [`super::start`] arms the worker the way `nvs serve` arms it,
     /// and everything between the enqueue and the state is the production path — the roster
     /// statement, `rule:concurrency/claiming-is-one-statement`'s claim, the isolate
-    /// `rule:concurrency/a-job-runs-as-a-root-isolate` calls for, and § 6's write-back.
+    /// `rule:concurrency/a-job-runs-as-a-root-isolate` calls for, and
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back.
     ///
     /// **Asserted on the state and not on the worker having polled**, because every cheaper reading
     /// of this passes while the queue does nothing an operator wanted: a worker that claimed and
@@ -3013,7 +3024,7 @@ mod tests {
     /// proves the workers were live — a run whose connection never opened ends promptly for a
     /// reason that has nothing to do with the drain — and the second worker is what makes the end
     /// *every* worker's rather than one's. The drain arrives while the claim is in flight, so the
-    /// tail measured is § 6's write-back finishing plus the drain waking the other worker out of
+    /// tail measured is the write-back finishing plus the drain waking the other worker out of
     /// its idle wait, which is what `[queue] workers`'s shutdown actually costs a deployment.
     #[test]
     fn a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins() {

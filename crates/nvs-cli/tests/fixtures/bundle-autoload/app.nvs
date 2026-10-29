@@ -1,5 +1,5 @@
 <?nvs
-// § 2's payload is the file set a *re-compilation* reads, and no `require`
+// A bundle's payload is the file set a *re-compilation* reads, and no `require`
 // here names a single one of the files under `modules/`. `App\Widget` is
 // reached by the prefix map alone; `Core\Program::implementing<T>()` then
 // reaches `App\Spare`, which nothing names at all — the enumeration of the

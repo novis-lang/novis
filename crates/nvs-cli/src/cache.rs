@@ -1,10 +1,10 @@
 //! `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache: one immutable, content-addressed file per compiled unit,
 //! and the writer that publishes one by a single atomic rename.
 //!
-//! § 1's layout is `<cache_dir>/<key[0..2]>/<key[2..]>.nvsc`, where the key is
+//! The layout is `<cache_dir>/<key[0..2]>/<key[2..]>.nvsc`, where the key is
 //! [`nvs_config::cache::artifact_key`]'s `BLAKE3(content_hash ‖ env_hash)` spelled as 64 lowercase
 //! hex characters. The fan-out exists so that a directory listing stays small enough for the
-//! platform to walk cheaply; nothing reads it on the hit path, and § 6's eviction is the only caller
+//! platform to walk cheaply; nothing reads it on the hit path, and eviction below is the only caller
 //! that ever will.
 //!
 //! **The environment is in the address, not only in the header.** An artifact built for another
@@ -12,7 +12,9 @@
 //! this process never looks up, so it costs one failed `open` rather than an open-then-reject
 //! (`rule:config/the-extension-set-is-in-every-unit-key` owns the digest; this module only carries it).
 //!
-//! # § 2's header
+//! # The header
+//!
+//! `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` owns it:
 //!
 //! ```text
 //! magic "NVSC" | format_version: u16 | env_hash: [u8; 32] | payload_len: u64 | checksum: [u8; 32]
@@ -21,10 +23,12 @@
 //! 78 bytes, then the payload. The two integers are little-endian and nothing negotiates that,
 //! because `env_hash` already covers the target triple: a host that would read them the other way
 //! round derives a different `env_hash`, so it looks for a different path and never opens this file.
-//! `env_hash` is repeated in the header even though it is folded into the path — § 2's defence in
+//! `env_hash` is repeated in the header even though it is folded into the path, as defence in
 //! depth against a `BLAKE3` collision or a file placed there by hand rather than written here.
 //!
-//! # § 4's write path
+//! # The write path
+//!
+//! `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock` owns it.
 //!
 //! Write header and payload to `.tmp-<random>` **in the shard directory the final name lives in**,
 //! `fsync` it, then one `rename` onto the final path. Same directory so the rename cannot cross a
@@ -35,8 +39,9 @@
 //! hash — so this writer discards its own temp file instead. There is nothing to reconcile because
 //! there is nothing that could differ.
 //!
-//! **A failure to write is not an error anyone hears about.** § 3 states that discipline for the
-//! reader and it holds just as well here: the caller drops an [`Err`] and the next process
+//! **A failure to write is not an error anyone hears about.**
+//! `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` covers the writer as well as the
+//! reader: the caller drops an [`Err`] and the next process
 //! recompiles. [`store`](Cache::store) still returns one so a test can assert on it, and so that a
 //! caller which wants to log a persistently unwritable cache directory can.
 //!
@@ -44,12 +49,14 @@
 //! `fsync` and one `rename`, all on a path where a real compile has just happened. A warm hit pays
 //! none of it.
 //!
-//! # § 3's read path
+//! # The read path
 //!
 //! Read the whole file into a heap buffer with one `fs::read`, then check magic, `format_version`
 //! and `env_hash` against what this process expects, check `payload_len` against the buffer's own
-//! length, and hash the payload. Every failure is a cache miss, and none of them is visible to the
-//! script being run: § 3 is explicit that a bad entry is exactly as invisible as a cold cache, so
+//! length, and hash the payload
+//! (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`). Every failure is a
+//! cache miss, and none of them is visible to the script being run: a bad entry is exactly as
+//! invisible as a cold cache (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`), so
 //! nothing here returns a diagnostic, panics or throws.
 //!
 //! **The file is read, never mapped** (`rule:packaging/the-artifact-cache-is-read-not-mapped`). A
@@ -63,9 +70,10 @@
 //! going through it, so the step that would make those pages executable cannot be reached from
 //! unverified bytes even by mistake.
 //!
-//! **Which failures also delete the file.** A checksum mismatch does, which is § 3's own
-//! instruction: the key is the content hash, so a file at that path whose contents hash differently
-//! can only be corrupt or tampered and can never become a second valid version. A `payload_len` that
+//! **Which failures also delete the file.** A checksum mismatch does, as
+//! `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` decides: the key is the content
+//! hash, so a file at that path whose contents hash differently can only be corrupt or tampered
+//! and can never become a second valid version. A `payload_len` that
 //! disagrees with the file's length is treated the same way, one step earlier — that field exists to catch
 //! a truncation before the checksum does, the entry is corrupt on the same argument, and leaving it
 //! costs a re-open on every future run. A wrong magic, `format_version` or `env_hash` is *not*
@@ -78,17 +86,19 @@
 //! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is where that trade
 //! is argued.
 //!
-//! # § 3's loader
+//! # The loader
 //!
 //! [`Verified::relocate`] is the half that makes a payload runnable. It maps a private, anonymous,
 //! writable region of its own, copies each of the object's allocatable sections into it at the
 //! alignment that section runs at, resolves every symbol the object left undefined against the
 //! addresses its caller supplies, and only then calls `make_exec`. That call consumes the `MmapMut`
-//! which was the one writable view of those pages, so § 3's one-way W^X transition is a move here
+//! which was the one writable view of those pages, so the one-way W^X transition of
+//! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is a move here
 //! rather than a rule someone has to remember.
 //!
-//! **The pages that run are never the file's.** § 3 owns the argument — a relocatable object's
-//! sections are laid out for a linker to place, not for a header of any length to leave aligned.
+//! **The pages that run are never the file's.** The same rule owns the argument — a relocatable
+//! object's sections are laid out for a linker to place, not for a header of any length to leave
+//! aligned.
 //! What it means in this module is that [`Cache::load`]'s buffer is never written after the read
 //! and exists only to be hashed and copied out of.
 //!
@@ -115,25 +125,27 @@
 //! container format's own relocation number becomes one of those, and it is the only place either
 //! format's numbering is read.
 //!
-//! Every failure is an [`Unloadable`], and every variant of that is a cache miss on § 3's terms: an
+//! Every failure is an [`Unloadable`], and every variant of that is a cache miss on
+//! `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`'s terms: an
 //! unresolvable name says the artifact was written against a runtime this process no longer
 //! matches, which is "not mine" rather than "broken", so nothing is deleted and nothing is
 //! reported.
 //!
-//! # § 5's directory check
+//! # The directory check
 //!
 //! [`Cache::new`] refuses a cache directory another local account can write, once, before anything
 //! is read out of it, through [`nvs_config::trust`] — `rule:config/ownership-is-the-trust-boundary`'s boundary, and the one
-//! implementation of it. § 5 says why no checksum can stand in for this: a principal who can write
+//! implementation of it. `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`
+//! says why no checksum can stand in for this: a principal who can write
 //! the directory computes a perfectly valid header over payload bytes of their own choosing, so a
 //! checksum answers "is this the file I wrote" and never "should I trust whoever wrote it".
 //!
 //! **The check is the constructor's**, so a `Cache` value is itself the evidence that it passed —
 //! the discipline [`Verified`] holds on the read path, one level up. Nothing per entry ever asks
-//! again: § 5 makes this a property of the directory, checked once at process start, and it is
-//! what the `unsafe` mapping in [`load`](Cache::load) rests on.
+//! again: this is a property of the directory, checked once at process start, and it is
+//! what [`load`](Cache::load) trusts before the loader makes a payload's pages executable.
 //!
-//! Two details § 5 leaves here. A directory that does not exist yet is checked at the nearest
+//! Two details are settled here. A directory that does not exist yet is checked at the nearest
 //! ancestor that does ([`existing_root`]), because that is the shallowest directory an attacker
 //! would have to write in order to fill the slot the first [`store`](Cache::store) will create —
 //! `rule:config/ownership-is-the-trust-boundary`'s own answer for an absent `optional` include. And the configured spelling is
@@ -143,25 +155,28 @@
 //!
 //! A refusal is the caller's to report, and it never stops the process: [`from_config`] answers
 //! [`None`], so the run compiles every unit, the fallback every miss already takes. A
-//! `file_cache_dir` somebody wrote and § 5 refused is named in one `warning:` per process, because
-//! § 3's "invisible to the script" discipline is about a bad *entry*, and a directory an operator
-//! chose that breaches the boundary is theirs to fix. A refused default directory prints nothing:
-//! nobody chose it.
+//! `file_cache_dir` somebody wrote and the check refused is named in one `warning:` per process,
+//! because the "invisible to the script" discipline of
+//! `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` is about a bad *entry*, and a
+//! directory an operator chose that breaches the boundary is theirs to fix. A refused default
+//! directory prints nothing: nobody chose it.
 //!
-//! # § 6's eviction
+//! # Eviction
 //!
 //! A content-addressed entry never needs invalidating for correctness — only for growth — so the
-//! whole of eviction is a size question, and § 6 hangs it off the *miss*: after a store, with a
-//! configured probability, walk the directory and, if it is over its cap, delete oldest-by-`mtime`
-//! entries down to a floor below that cap. [`Cache::store`] is the only caller,
-//! [`gc`](Cache::gc) is the same walk without the roll — § 6's `nvs cache gc` — and nothing on the
-//! read path calls either. **A warm hit performs no directory walk, checks no size and pays
-//! nothing beyond § 3's read, verify and load**, and that is the whole cost of a warm start.
+//! whole of eviction is a size question, and
+//! `rule:packaging/eviction-rides-the-cold-miss-at-a-probability` hangs it off the *miss*: after a
+//! store, with a configured probability, walk the directory and, if it is over its cap, delete
+//! oldest-by-`mtime` entries down to a floor below that cap. [`Cache::store`] is the only caller,
+//! [`gc`](Cache::gc) is the same walk without the roll — `nvs cache gc`, as
+//! `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape` names it — and nothing on
+//! the read path calls either. **A warm hit performs no directory walk, checks no size and pays
+//! nothing beyond the read, verify and load above**, and that is the whole cost of a warm start.
 //!
 //! The roll is PHP's `session.gc_probability`/`gc_divisor` shape deliberately, and the floor is
 //! hysteresis: evicting to exactly the cap leaves the next miss's roll finding work again, so a
-//! cache hovering at the boundary would walk on nearly every one. § 7 leaves the defaults to
-//! the implementation and [`Eviction`] states them with their reasons.
+//! cache hovering at the boundary would walk on nearly every one. No rule fixes the defaults:
+//! [`Eviction`] states them with their reasons.
 //!
 //! Every producer of a unit is wired. [`unit_for`] is the compile site's whole decision, and
 //! every call site makes it: `main.rs`'s `run_run`, `runner.rs`'s suite compile for `nvs test`,
@@ -171,12 +186,13 @@
 //! wiring, and [`from_config`] is the only place it is read.
 //!
 //! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` is not the other half of
-//! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
-//! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
+//! this. A bundle carries *source*, not precompiled artifacts
+//! (`rule:packaging/a-bundle-carries-source-not-artifacts`), and feeds into this cache rather than
+//! out of it, so there is no already-produced payload for the cache to ship over.
 //!
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
-// anything else here. What is left over is the vocabulary § 3's own steps are stated in —
+// anything else here. What is left over is the vocabulary the read path's own steps are stated in —
 // `Cache::dir`, `Verified::header`, `Provenance::Loaded` — reachable only from this module's tests,
 // which is where a format decision is asserted rather than used. Narrowing this to those items
 // would be a list to maintain for no reader.
@@ -199,28 +215,28 @@ use object::{
 };
 use rand::RngExt;
 
-/// § 2's magic, the first four bytes of every artifact.
+/// The header's magic, the first four bytes of every artifact.
 pub(crate) const MAGIC: [u8; 4] = *b"NVSC";
 
-/// § 2's `format_version`. A file carrying any other value is a cache miss, never an error, so this
-/// is bumped rather than migrated whenever the payload's meaning changes.
+/// The header's `format_version`. A file carrying any other value is a cache miss, never an
+/// error, so this is bumped rather than migrated whenever the payload's meaning changes.
 pub(crate) const FORMAT_VERSION: u16 = 1;
 
-/// § 2's header, in bytes: magic 4, version 2, `env_hash` 32, `payload_len` 8, checksum 32.
+/// The header's length in bytes: magic 4, version 2, `env_hash` 32, `payload_len` 8, checksum 32.
 pub(crate) const HEADER_LEN: usize = 4 + 2 + 32 + 8 + 32;
 
-/// The extension every published artifact carries — § 1.
+/// The extension every published artifact carries, the `.nvsc` of the module doc's layout.
 pub(crate) const EXTENSION: &str = "nvsc";
 
-/// § 2's header, as the fields a reader checks rather than as bytes.
+/// The module doc's header, as the fields a reader checks rather than as bytes.
 ///
 /// `env_hash` and `checksum` are raw arrays and not [`Digest`]s: every use of them is a byte-wise
-/// comparison against what this process expects, which is exactly what § 2 asks for, and a decoder
+/// comparison against what this process expects, which is all a header check is, and a decoder
 /// that had to build a typed digest first would need a constructor whose only caller is a file it
 /// has not verified yet.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct Header {
-    /// § 2's `format_version`, as written. A reader compares it to [`FORMAT_VERSION`].
+    /// The header's `format_version`, as written. A reader compares it to [`FORMAT_VERSION`].
     pub(crate) format_version: u16,
     /// `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest, repeated from the path as defence in depth.
     ///
@@ -280,7 +296,7 @@ impl Header {
 /// Why [`Cache::load`] is not returning an artifact — and, where the file is corrupt, why it is
 /// taking that file with it.
 ///
-/// The module doc's § 3 section owns which mismatch is which and why the split is where it is.
+/// The module doc's read path owns which mismatch is which and why the split is where it is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Miss {
     /// Not this process's file: absent, or headed for another format version or environment.
@@ -289,7 +305,7 @@ enum Miss {
     Corrupt,
 }
 
-/// One artifact that passed every one of § 3's checks, held in a buffer of this process's own.
+/// One artifact that passed every check of the read path, held in a buffer of this process's own.
 ///
 /// This type is the whole of "verified before a single page is executable": it is constructed on
 /// exactly one code path, the far side of the checksum comparison in [`Cache::load`], and it owns
@@ -313,18 +329,19 @@ impl Verified {
         &self.bytes[HEADER_LEN..]
     }
 
-    /// § 2's header, as it was read.
+    /// The artifact's header, as it was read.
     #[must_use]
     pub(crate) fn header(&self) -> Header {
         self.header
     }
 
-    /// § 3's second half: place this payload's sections, resolve every symbol it left undefined
-    /// against `resolve`, and only then make the pages executable.
+    /// The loader's half of the read path: place this payload's sections, resolve every symbol it
+    /// left undefined against `resolve`, and only then make the pages executable.
     ///
     /// `resolve` is the whole of "this process's own addresses" — a runtime helper's, and a
     /// descriptor's for an `nvs_class_desc_*`, which [`nvs_codegen::class_desc_symbol`] spells at
-    /// both ends. A name it answers [`None`] for is a miss on § 3's own terms and not a failure:
+    /// both ends. A name it answers [`None`] for is a miss
+    /// (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`) and not a failure:
     /// it says the artifact was written against a runtime this process no longer matches.
     ///
     /// # Errors
@@ -382,8 +399,8 @@ impl Verified {
         }
 
         // Every function this payload defines, by the name `nvs-codegen` gave it. The entry frame
-        // is one of them, and the rest are what § 3's binding step asks for by name once the pages
-        // are executable — one walk answers both questions, and neither is answerable later,
+        // is one of them, and the rest are what the loader's binding step asks for by name once
+        // the pages are executable — one walk answers both questions, and neither is answerable later,
         // since `object` borrows [`Verified`]'s buffer and [`Loaded`] does not hold it.
         let mut functions = BTreeMap::new();
         for symbol in object.symbols() {
@@ -433,7 +450,7 @@ const HOST_ARCH: Architecture = Architecture::Aarch64;
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 const HOST_ARCH: Architecture = Architecture::Unknown;
 
-/// Whether § 4's writer publishes anything on this host — [`HOST_ARCH`]'s question asked of the
+/// Whether the writer publishes anything on this host — [`HOST_ARCH`]'s question asked of the
 /// *host* rather than of a file, because an artifact no loader will ever read is a second
 /// Cranelift walk every cold run pays for nothing.
 ///
@@ -476,11 +493,12 @@ fn stub_body(arch: Architecture) -> Result<&'static [u8], Unloadable> {
 
 /// Why a verified artifact still could not be made runnable in this process.
 ///
-/// **Every one of these is a cache miss**, never a diagnostic and never a throw — § 3 puts an
-/// unresolvable symbol on exactly the footing of a wrong `env_hash`: it says the file was written
-/// against a runtime this process no longer matches, which is "not this process's file" rather
-/// than "broken", so nothing here deletes anything either. They are distinguished at all so a
-/// test can name the wall it hit.
+/// **Every one of these is a cache miss**, never a diagnostic and never a throw —
+/// `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` puts an unresolvable symbol on
+/// exactly the footing of a wrong `env_hash`: it says the file was written against a runtime
+/// this process no longer matches, which is "not this process's file" rather than "broken", so
+/// nothing here deletes anything either. They are distinguished at all so a test can name the
+/// wall it hit.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum Unloadable {
     /// The payload is not an object file, or names a section this host's reader cannot follow.
@@ -1066,9 +1084,9 @@ fn write_page_offset12(field: &mut [u8], offset: i64) -> Result<(), Unloadable> 
     Ok(())
 }
 
-/// One artifact's payload, placed, relocated and executable — § 3's end state.
+/// One artifact's payload, placed, relocated and executable — the end state of the read path.
 ///
-/// The pages are this loader's own mapping and never the file's: § 2's header leaves a payload's
+/// The pages are this loader's own mapping and never the file's: the header in front leaves a payload's
 /// sections at whatever offset the object writer chose, which is not the alignment they have to
 /// run at, and a relocation against a far-away helper needs a [`Landing`] placed beside the code
 /// that no file's bytes have room for. The file is read into [`Verified`]'s buffer only to be
@@ -1086,8 +1104,8 @@ pub(crate) struct Loaded {
     /// object reader, which borrows a mapping this type does not keep.
     ///
     /// **Costs** one `String` and one `usize` per function in the unit, for the life of the loaded
-    /// artifact: the same scale as the JIT's own `functions` table, and the price of § 3's binding
-    /// step being answerable at all after `mprotect`.
+    /// artifact: the same scale as the JIT's own `functions` table, and the price of the loader's
+    /// binding step being answerable at all after `mprotect`.
     functions: BTreeMap<String, usize>,
 }
 
@@ -1118,7 +1136,7 @@ impl Loaded {
     }
 }
 
-/// § 3's last step, from this side: the addresses this loader placed, by the names
+/// The loader's last step, binding, from this side: the addresses this loader placed, by the names
 /// `nvs-codegen` emitted them under.
 ///
 /// `nvs_codegen::Descriptors::bind` derives the symbol a method's code was emitted under and asks
@@ -1155,7 +1173,7 @@ impl Entry<'_> {
     }
 }
 
-/// What [`Cache::store`] did — § 4's two outcomes, and neither is a failure.
+/// What [`Cache::store`] did — the write path's two outcomes, and neither is a failure.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Stored {
     /// This writer published the entry.
@@ -1196,8 +1214,8 @@ impl Swept {
 
 /// One cache directory, and the environment every artifact in it was compiled against.
 ///
-/// Holding `env` here rather than passing it per call is what keeps § 2's header field and § 1's
-/// key from being able to disagree inside one process.
+/// Holding `env` here rather than passing it per call is what keeps the header's `env_hash` and
+/// the key's from being able to disagree inside one process.
 #[derive(Clone, Debug)]
 pub(crate) struct Cache {
     dir: PathBuf,
@@ -1205,22 +1223,23 @@ pub(crate) struct Cache {
     eviction: Eviction,
 }
 
-/// § 6's hysteresis floor, as a percentage of the cap: a walk that evicts anything evicts down to
+/// Eviction's hysteresis floor, as a percentage of the cap: a walk that evicts anything evicts down to
 /// here rather than to the cap itself, so a cache sitting at the boundary does not find work on
 /// every subsequent miss. A fifth of the cap is one walk's worth of headroom — small enough that
 /// the cache stays near its configured size, large enough that the walks stay rare.
 const GC_FLOOR_PERCENT: u64 = 80;
 
-/// § 6's growth policy: the size the cache is kept near, and how often a miss checks.
+/// The growth policy of `rule:packaging/eviction-rides-the-cold-miss-at-a-probability`: the size
+/// the cache is kept near, and how often a miss checks.
 ///
-/// These are § 7's `opcache.file_cache_max_size` and its
+/// These are `opcache.file_cache_max_size` and the
 /// `opcache.file_cache_gc_probability`/`opcache.file_cache_gc_divisor` pair, which
-/// [`nvs_config::tree::Opcache`] holds; § 7 leaves their defaults to the implementation and
-/// [`Eviction::default`] is where they are decided.
+/// [`nvs_config::tree::Opcache`] holds (`rule:config/opcache-file-cache-directives-are-system`).
+/// No rule fixes their defaults, and [`Eviction::default`] is where they are decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Eviction {
     /// The cap in bytes. A walk finding the cache over this deletes down to [`GC_FLOOR_PERCENT`]
-    /// of it; between two walks the cache may sit above it, which is § 6's accepted trade.
+    /// of it; between two walks the cache may sit above it, which is the trade eviction accepts.
     pub(crate) max_size: u64,
     /// The numerator of the chance that one store walks.
     pub(crate) probability: u32,
@@ -1250,9 +1269,9 @@ impl Default for Eviction {
 
 /// The nearest ancestor of `dir` that exists, which is `dir` itself once it does.
 ///
-/// § 5's check runs once at process start, and the cache directory is usually created by the first
-/// [`store`](Cache::store) rather than by an operator, so at that moment there is often nothing to
-/// examine. `rule:config/ownership-is-the-trust-boundary` answers the same question for an absent `optional` include and this
+/// The directory check runs once at process start, and the cache directory is usually created by
+/// the first [`store`](Cache::store) rather than by an operator, so at that moment there is often
+/// nothing to examine. `rule:config/ownership-is-the-trust-boundary` answers the same question for an absent `optional` include and this
 /// takes its answer whole: the check falls on the directory that would hold the thing, and walks up
 /// while that one does not exist either, because the promise is only as strong as the shallowest
 /// directory an attacker would have to write in order to keep it.
@@ -1274,7 +1293,8 @@ pub(crate) fn existing_root(dir: &Path) -> &Path {
 impl Cache {
     /// The cache rooted at `dir` — `opcache.file_cache_dir`, which [`nvs_config::tree::Opcache`]
     /// holds and `rule:config/opcache-file-cache-directives-are-system` makes the only spelling
-    /// of — for artifacts compiled against `env`, once § 5's ownership check has passed on that
+    /// of — for artifacts compiled against `env`, once the ownership check of
+    /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust` has passed on that
     /// directory.
     ///
     /// It neither creates nor canonicalizes it: the first [`store`](Self::store) creates it, and
@@ -1295,7 +1315,7 @@ impl Cache {
         })
     }
 
-    /// The same cache under a different § 6 policy — `[opcache]`'s own keys, once a caller reads
+    /// The same cache under a different eviction policy —`[opcache]`'s own keys, once a caller reads
     /// them out of the configuration rather than taking [`Eviction::default`].
     #[must_use]
     pub(crate) fn with_eviction(mut self, eviction: Eviction) -> Self {
@@ -1322,7 +1342,7 @@ impl Cache {
         self.env = env;
     }
 
-    /// § 1's path for `key`: `<dir>/<key[0..2]>/<key[2..]>.nvsc`.
+    /// The path for `key` in the module doc's layout:`<dir>/<key[0..2]>/<key[2..]>.nvsc`.
     #[must_use]
     pub(crate) fn path(&self, key: Digest) -> PathBuf {
         let hex = key.to_string();
@@ -1330,12 +1350,13 @@ impl Cache {
         self.dir.join(shard).join(format!("{rest}.{EXTENSION}"))
     }
 
-    /// § 3: the artifact published under `key`, verified whole, or [`None`].
+    /// The read path: the artifact published under `key`, verified whole, or [`None`].
     ///
     /// [`None`] covers every failure this can have — a missing file, a foreign one, a corrupt one,
-    /// an unreadable directory — because § 3 makes a bad cache entry exactly as invisible to the
-    /// running script as a cold cache is. Nothing here reports, and the caller's next move is the
-    /// compile it would have done anyway.
+    /// an unreadable directory — because
+    /// `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` makes a bad cache entry exactly
+    /// as invisible to the running script as a cold cache is. Nothing here reports, and the
+    /// caller's next move is the compile it would have done anyway.
     ///
     /// The file is read whole into a buffer this process owns, and the file is closed before the
     /// first check runs, so nothing done to the file after this returns can reach the bytes it
@@ -1354,7 +1375,7 @@ impl Cache {
         }
     }
 
-    /// § 3's checks over an artifact's bytes, cheapest first, hash last.
+    /// The read path's checks over an artifact's bytes, cheapest first, hash last.
     fn verify(env: EnvHash, bytes: &[u8]) -> Result<Header, Miss> {
         let header = Header::decode(bytes).ok_or(Miss::Foreign)?;
         if header.format_version != FORMAT_VERSION || header.env_hash != *env.digest().as_bytes() {
@@ -1371,7 +1392,7 @@ impl Cache {
         Ok(header)
     }
 
-    /// § 4: publish `payload` under `key` by one atomic rename, with no lock file.
+    /// The write path: publish `payload` under `key` by one atomic rename, with no lock file.
     ///
     /// # Errors
     ///
@@ -1381,14 +1402,14 @@ impl Cache {
     /// next process handles as an ordinary miss; the module doc says why nothing escalates.
     pub(crate) fn store(&self, key: Digest, payload: &[u8]) -> io::Result<Stored> {
         let stored = self.publish(key, payload)?;
-        // § 6's roll is here and nowhere else. This line is only reached on a miss, which has just
+        // Eviction's roll is here and nowhere else. This line is only reached on a miss, which has just
         // paid for a real compile on the compile pool, so a directory walk is invisible against
         // it; the warm-hit path never comes near it.
         self.maybe_gc();
         Ok(stored)
     }
 
-    /// § 4's write itself, split out so § 6's eviction can hang off the one place it completes.
+    /// The write itself, split out so eviction can hang off the one place it completes.
     fn publish(&self, key: Digest, payload: &[u8]) -> io::Result<Stored> {
         let published = self.path(key);
         let shard = published
@@ -1402,8 +1423,8 @@ impl Cache {
             return Err(err);
         }
 
-        // § 4's check, immediately before the rename rather than at entry: a race that both writers
-        // pass replaces one identical file with another, which is why this race is resolved
+        // The existence check, immediately before the rename rather than at entry: a race that
+        // both writers pass replaces one identical file with another, which is why this race is resolved
         // rather than coordinated.
         if published.exists() {
             drop(fs::remove_file(&temp));
@@ -1425,7 +1446,7 @@ impl Cache {
         }
     }
 
-    /// § 6's probabilistic half: roll `probability` against `divisor`, and walk only on a hit.
+    /// Eviction's probabilistic half: roll `probability` against `divisor`, and walk only on a hit.
     ///
     /// Whatever the walk found is dropped. A cache directory that cannot be read is not a failure
     /// the caller of [`store`](Self::store) hears about — the entry it asked to publish is on disk
@@ -1447,12 +1468,12 @@ impl Cache {
         drop(self.gc());
     }
 
-    /// § 6's walk: delete oldest-by-`mtime` artifacts until the cache is under the hysteresis
+    /// Eviction's walk: delete oldest-by-`mtime` artifacts until the cache is under the hysteresis
     /// floor, and answer what that removed.
     ///
-    /// This is the deterministic half of § 6 — what `nvs cache gc` calls, and what
+    /// This is the deterministic half of eviction — what `nvs cache gc` calls, and what
     /// [`maybe_gc`](Self::maybe_gc) calls with a probability in front of it. **Nothing on the read
-    /// path calls it**: § 6 buys the warm-hit cost by putting every size question here.
+    /// path calls it**: eviction buys the warm-hit cost by putting every size question here.
     ///
     /// Only `.nvsc` files count and only they are deleted. A `.tmp-` file belongs to a writer that
     /// still has it open, and it is transient by construction — counting it would let a burst of
@@ -1470,7 +1491,7 @@ impl Cache {
             return Ok(swept);
         }
 
-        // Oldest first, which is the only order § 6 names.
+        // Oldest first, which is the only order eviction names.
         artifacts.sort_unstable_by_key(|(modified, _, _)| *modified);
         let floor = self.eviction.max_size / 100 * GC_FLOOR_PERCENT;
         for (_, len, path) in artifacts {
@@ -1537,12 +1558,12 @@ impl Cache {
     }
 }
 
-/// § 1's content hash for a whole **program**: every file the entry point's `require`/`autoload`
+/// The key's content hash for a whole **program**: every file the entry point's `require`/`autoload`
 /// graph reached, in the order `nvs_hir::resolve_program` handed them back.
 ///
 /// A unit is that graph and not one file (`front_end`'s own doc), so a key over the entry file
 /// alone would answer a stale artifact for a program whose `require`d file was the one edited —
-/// § 3's verification cannot catch that, because such a payload is this toolchain's and its
+/// the read path's verification cannot catch that, because such a payload is this toolchain's and its
 /// checksum is correct. Each file goes in as its name, its text and its folder, each behind its
 /// length, so no two file sets can hash alike by running together. A file *renamed* moves the key,
 /// because a diagnostic's path and a throw's frame name it. A file *moved* moves the key too: a
@@ -1600,15 +1621,16 @@ pub(crate) fn unit_key(source: Digest, env: EnvHash, level: nvs_codegen::OptLeve
 
 /// Which half of `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` this run's unit came out of.
 ///
-/// Nothing a script can observe turns on this — § 3 makes a miss exactly as invisible as a cold
-/// cache — so it exists for the tests that have to tell the two paths apart, and for a caller that
-/// wants to say which one ran.
+/// Nothing a script can observe turns on this — a miss is exactly as invisible as a cold cache
+/// (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`) — so it exists for the tests that
+/// have to tell the two paths apart, and for a caller that wants to say which one ran.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Provenance {
     /// A cold compile: this process walked Cranelift itself, and published what it built if it
     /// could.
     Compiled,
-    /// § 3 end to end: a payload this process verified, placed, relocated, protected and bound.
+    /// The read path end to end: a payload this process verified, placed, relocated, protected
+    /// and bound.
     Loaded,
 }
 
@@ -1631,7 +1653,8 @@ pub(crate) enum Provenance {
 /// # Errors
 ///
 /// Only [`nvs_codegen::CodegenError`], and only from the cold compile: the cache contributes no
-/// error of its own, which is § 3's rule stated in the signature.
+/// error of its own, which is `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error` stated
+/// in the signature.
 pub(crate) fn unit_for(
     program: &nvs_ir::Program,
     source: Digest,
@@ -1651,7 +1674,7 @@ pub(crate) fn unit_for(
         return Ok((unit, Provenance::Loaded));
     }
     let unit = nvs_codegen::compile(program)?;
-    // § 4's writer, on the path that has just paid for a compile: a failure to publish is a cache
+    // The writer, on the path that has just paid for a compile: a failure to publish is a cache
     // that stays cold, which is the one thing this whole module promises can never be worse. A
     // host [`HOST_PUBLISHES`] says no for writes nothing, because the object walk would be paid on
     // every cold run for a file no loader will ever read.
@@ -1661,19 +1684,21 @@ pub(crate) fn unit_for(
     Ok((unit, Provenance::Compiled))
 }
 
-/// § 3 in one expression: the artifact under `key`, verified, placed, relocated, protected, bound
-/// and assembled — or [`None`] at the first step that says this is not this process's file.
+/// The read path in one expression: the artifact under `key`, verified, placed, relocated,
+/// protected, bound and assembled — or [`None`] at the first step that says this is not this
+/// process's file.
 fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs_codegen::Unit> {
     let verified = cache.load(key)?;
-    // § 2: the descriptors a warm hit resolves against are built here, out of the IR the front end
-    // has just lowered, because a run that skipped codegen allocated none and no payload carries
-    // one.
+    // The descriptors a warm hit resolves against are built here, out of the IR the front end has
+    // just lowered, because a run that skipped codegen allocated none and no payload carries one
+    // (`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`).
     let descriptors = nvs_codegen::Descriptors::of(program);
     let loaded = verified.relocate(&this_process(&descriptors)).ok()?;
     Some(descriptors.into_unit(Box::new(loaded)))
 }
 
-/// § 3's "this process's own addresses", in full.
+/// "This process's own addresses", which the loader resolves every undefined symbol against, in
+/// full.
 ///
 /// Every runtime and `Core` helper by the address this process really calls it at — the same
 /// tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` out of
@@ -1697,15 +1722,16 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
     }
 }
 
-/// § 7's directives, resolved into the cache a run consults — or [`None`] for a run that consults
-/// none.
+/// The `[opcache]` file-cache directives (`rule:config/opcache-file-cache-directives-are-system`),
+/// resolved into the cache a run consults — or [`None`] for a run that consults none.
 ///
 /// [`None`] is `opcache.file_cache = false`, [`NO_FILE_CACHE`] in the environment, a build that
-/// cannot identify itself, a host with no cache root to default to, and a directory § 5 refuses. A
+/// cannot identify itself, a host with no cache root to default to, and a directory the ownership
+/// check refuses. A
 /// run without a cache is a run that compiles, which is the fallback every miss in this module
 /// already takes, so none of them stops anything.
 ///
-/// **One of them is reported: a `file_cache_dir` somebody wrote and § 5 refused.** The default
+/// **One of them is reported: a `file_cache_dir` somebody wrote and the check refused.** The default
 /// directory is nobody's decision and its refusal is nobody's to act on, but an operator who named
 /// a directory asked for a cache there, and a server that silently compiles every unit on every
 /// start is that answer withheld. It is one `warning:` line per process however many callers
@@ -1723,12 +1749,12 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
 }
 
 /// [`from_config`]'s answer with its one reported case left to the caller: the written
-/// `file_cache_dir` and why § 5 refused it. A reload reports that case differently from a boot,
-/// because a reload keeps the cache already in use (`crate::reload`).
+/// `file_cache_dir` and why the ownership check refused it. A reload reports that case
+/// differently from a boot, because a reload keeps the cache already in use (`crate::reload`).
 ///
 /// # Errors
 ///
-/// A `file_cache_dir` somebody wrote, and § 5's reason for refusing it.
+/// A `file_cache_dir` somebody wrote, and the ownership check's reason for refusing it.
 pub(crate) fn placed(config: &nvs_config::Config) -> Result<Option<Cache>, (String, Untrusted)> {
     placed_unless(config, std::env::var_os(NO_FILE_CACHE).as_deref())
 }
@@ -1775,7 +1801,7 @@ fn placed_unless(
 }
 
 /// Whether `now` places the artifact cache anywhere `was` does not: another `file_cache`,
-/// `file_cache_dir` or § 6 policy. A reload that moves none of them keeps the cache it has.
+/// `file_cache_dir` or eviction policy. A reload that moves none of them keeps the cache it has.
 pub(crate) fn placement_moved(was: &nvs_config::Config, now: &nvs_config::Config) -> bool {
     let keys = |config: &nvs_config::Config| {
         config.opcache.as_ref().map(|opcache| {
@@ -1791,7 +1817,7 @@ pub(crate) fn placement_moved(was: &nvs_config::Config, now: &nvs_config::Config
     keys(was) != keys(now)
 }
 
-/// The line [`from_config`] prints for a written `file_cache_dir` § 5 refused.
+/// The line [`from_config`] prints for a written `file_cache_dir` the ownership check refused.
 ///
 /// It says what the run does instead, because "not used" alone reads as harmless and the cost is
 /// a compile of every unit on every start. A breach carries the remedy; a directory that could
@@ -1814,24 +1840,24 @@ fn refused_dir_warning(written: &str, why: &Untrusted) -> String {
     }
 }
 
-/// § 7's "a fixed system location": `cache/` in this process's data folder
+/// The default `opcache.file_cache_dir`: `cache/` in this process's data folder
 /// ([`nvs_config::data::current`]), which Novis creates private to the account running it.
 ///
 /// `None` when there is no data folder to use — the binary's own path could not be read, or the
 /// startup `prepare` found the folder unusable — and a run with no directory has no cache. An
 /// operator wanting another location writes `opcache.file_cache_dir`, which is `System`-class for
-/// the reason § 7 gives.
+/// the reason `rule:config/opcache-file-cache-directives-are-system` gives.
 ///
 /// **One directory, not one per compiler build.** `rule:config/the-extension-set-is-in-every-unit-key`'s
 /// `env_hash` names the running executable, so a rebuilt compiler addresses none of the artifacts
 /// its predecessor emitted however they are filed — and a directory per build would instead leave
-/// each dead build's artifacts in a directory of their own, outside the one § 6 budget
+/// each dead build's artifacts in a directory of their own, outside the one eviction budget
 /// [`eviction_of`] reads and with nothing that ever reclaims them.
 fn default_dir() -> Option<PathBuf> {
     nvs_config::data::current().map(nvs_config::data::Folder::cache)
 }
 
-/// § 6's policy as `[opcache]` writes it, with [`Eviction::default`] for every key it leaves out.
+/// The eviction policy as `[opcache]` writes it, with [`Eviction::default`] for every key it leaves out.
 ///
 /// A value that spells nothing readable is left at the default rather than refused, which is the
 /// treatment `nvs_config::cache::Revalidation::from_config` already gives `[opcache]`'s other
@@ -1903,7 +1929,7 @@ mod tests {
     }
 
     /// Backdate `path` by `seconds`, which is the only way a case can say which entry is oldest:
-    /// § 6 evicts by `mtime` and files written in one loop differ by microseconds.
+    /// eviction goes by `mtime` and files written in one loop differ by microseconds.
     fn age(path: &Path, seconds: u64) {
         File::options()
             .write(true)
@@ -1913,7 +1939,7 @@ mod tests {
             .expect("the filesystem records a modification time");
     }
 
-    /// What every file under the cache root occupies, which is the quantity § 6's cap is about.
+    /// What every file under the cache root occupies, which is the quantity eviction's cap is about.
     fn total_size(dir: &Path) -> u64 {
         let mut total = 0;
         for shard in fs::read_dir(dir).expect("the cache root is readable") {
@@ -1969,7 +1995,7 @@ mod tests {
             "a store that does not roll never evicts, whatever the directory holds",
         );
 
-        // A hit is not a miss. § 6 hangs the roll off `store` alone, so this cannot evict however
+        // A hit is not a miss. Eviction hangs the roll off `store` alone, so this cannot evict however
         // the roll would have gone — and this cache's roll always fires.
         let hot = Cache::new(dir.path(), env())
             .expect("a scratch directory of this test's own")
@@ -2117,7 +2143,8 @@ mod tests {
         let written = format!("[opcache]\nfile_cache_dir = '{}'\n", dir.display());
 
         let config = parsed(&written).expect("the key the tree documents is the key it parses");
-        let cache = from_config(&config).expect("a directory this account owns is inside § 5");
+        let cache =
+            from_config(&config).expect("a directory this account owns passes the ownership check");
 
         assert_eq!(
             cache.dir(),
@@ -2187,7 +2214,7 @@ mod tests {
             Stored::Written
         );
 
-        // § 1: `<dir>/<key[0..2]>/<key[2..]>.nvsc`, and the shard is the key's own first byte.
+        // The layout: `<dir>/<key[0..2]>/<key[2..]>.nvsc`, and the shard is the key's own first byte.
         for (key, payload) in [(first_key, first), (second_key, second)] {
             let hex = key.to_string();
             let path = cache.path(key);
@@ -2198,7 +2225,7 @@ mod tests {
             );
             assert_eq!(hex.len(), 64, "a BLAKE3 key is 64 hex characters");
 
-            // § 2: header then payload, and the header's own fields.
+            // The file shape: header then payload, and the header's own fields.
             let bytes = fs::read(&path).expect("the published file is readable");
             assert_eq!(bytes.len(), HEADER_LEN + payload.len());
             assert_eq!(&bytes[..4], &MAGIC);
@@ -2208,7 +2235,7 @@ mod tests {
                     .encode()
                     .as_slice(),
                 &bytes[..HEADER_LEN],
-                "the header is § 2's field order, little-endian"
+                "the header is the module doc's field order, little-endian"
             );
         }
 
@@ -2357,7 +2384,8 @@ mod tests {
     /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: a tampered artifact is rejected, silently, and the file goes with it — while a
     /// file that is merely *foreign* is left alone.
     ///
-    /// The foreign cases are the ones § 3 calls a cache miss rather than corruption: a wrong
+    /// The foreign cases are the ones `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`
+    /// calls a cache miss rather than corruption: a wrong
     /// magic, a wrong `format_version` and a wrong `env_hash`. Deleting on those would let one build
     /// of the compiler evict another's entries out of a shared cache directory, which the module doc
     /// states as the reason the split is where it is.
@@ -2406,7 +2434,7 @@ mod tests {
     }
 
     /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: what a writer publishes is the object `nvs_codegen::compile_object` wrote,
-    /// and the name § 3's loader will resolve a descriptor against is derived on *this* side of
+    /// and the name the loader will resolve a descriptor against is derived on *this* side of
     /// the crate boundary, from the class's label alone.
     ///
     /// The two halves are one case because neither says much alone. A round trip over bytes is
@@ -2477,13 +2505,15 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// Both halves of a warm hit for the program at `source`: § 2's payload, written through the
-    /// object backend which is the only producer § 2 recognises, and the descriptors § 2 says the
-    /// *loading* process builds for itself out of the same lowered IR.
+    /// Both halves of a warm hit for the program at `source`: the payload, written through the
+    /// object backend which is the only producer
+    /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+    /// recognises, and the descriptors the *loading* process builds for itself out of the same
+    /// lowered IR.
     ///
-    /// The front end runs **once** here, which is what a warm hit does too — § 2's decision is that
-    /// a hit skips codegen and not the front end, so a fixture that ran it twice would be measuring
-    /// a pipeline this cache does not have.
+    /// The front end runs **once** here, which is what a warm hit does too — a hit skips codegen
+    /// and not the front end (`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`), so a
+    /// fixture that ran it twice would be measuring a pipeline this cache does not have.
     fn unit_of(source: &Path) -> (Vec<u8>, nvs_codegen::Descriptors) {
         let checked = crate::front_end(source).expect("a program with no error diagnostics");
         let program = nvs_ir::lower::lower_program(
@@ -2500,11 +2530,12 @@ mod tests {
         )
     }
 
-    /// The environment § 4's digest would call another toolchain's.
+    /// The environment that `rule:config/the-extension-set-is-in-every-unit-key`'s digest would call
+    /// another toolchain's.
     ///
     /// Its `[[extension]]` array is the only contribution to that digest a test in this process
     /// can move — the triple, the CPU feature bitset and the compiler build are all read off the
-    /// running binary — and moving it is enough, because § 4 folds them all into one value.
+    /// running binary — and moving it is enough, because the digest folds them all into one value.
     fn other_toolchain() -> EnvHash {
         let config: Config =
             toml::from_str("[[extension]]\npath = \"an-extension-this-one-lacks\"")
@@ -2512,7 +2543,7 @@ mod tests {
         env_hash(&config, &nvs_config::grants::Grants::default())
     }
 
-    /// The whole front end over `source`, lowered, beside § 1's content hash of the program it
+    /// The whole front end over `source`, lowered, beside the key's content hash of the program it
     /// turned out to be — exactly what a run holds at the moment it decides whether to consult
     /// the cache, and in the same order.
     fn lowered(source: &Path) -> (nvs_ir::Program, Digest) {
@@ -2596,7 +2627,8 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 3 end to end: a payload this process verified becomes pages it can run.
+    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` end to end: a
+    /// payload this process verified becomes pages it can run.
     ///
     /// The assertion is the program's own output, and it is the strongest one available: reaching
     /// it means the sections were placed at the alignments they run at, every relocation resolved
@@ -2634,7 +2666,8 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 2's descriptors, at the one place a test can tell a real one from a placeholder: a payload
+    /// The descriptors a loading process builds, at the one place a test can tell a real one from
+    /// a placeholder: a payload
     /// whose program allocates an instance, names its class and reads a field back.
     ///
     /// [`a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`] would pass
@@ -2644,7 +2677,8 @@ mod tests {
     /// decides how much of it `$box->n` may touch. So reaching `Box=42` means the address the
     /// loader resolved that symbol to was a real `ClassDesc` for this very class — built by *this*
     /// process out of the IR its own front end just lowered, and never carried in the file. That is
-    /// § 2's decision stated as an observation rather than as prose.
+    /// `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end` stated as an observation rather
+    /// than as prose.
     #[test]
     // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -2677,8 +2711,8 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 3's last step, at the one place a test can tell a bound method table from an empty one:
-    /// a call that *must* go through it, whose fallback runs a different body.
+    /// The loader's last step, binding, at the one place a test can tell a bound method table from
+    /// an empty one: a call that *must* go through it, whose fallback runs a different body.
     ///
     /// `static::speak()` inside `Base::shout` is late static binding, so `nvs_ir` lowers it to an
     /// `InstKind::CallVirtual` against the descriptor of the class the call was made on, with
@@ -2686,9 +2720,9 @@ mod tests {
     /// therefore prints `derived` only if `Derived`'s descriptor holds a row bound to the address
     /// the *loader* placed `Derived::speak` at — and prints `base` if the table is empty, which is
     /// exactly the state every fixture above leaves it in. The assertion is `derived`, so nothing
-    /// but § 3's build-place-relocate-protect-*bind* order can produce it, and the bind runs after
-    /// `relocate` returned executable pages because a row is written into this process's
-    /// descriptor and never back into the mapping.
+    /// but the loader's build-place-relocate-protect-*bind* order can produce it, and the bind
+    /// runs after `relocate` returned executable pages because a row is written into this
+    /// process's descriptor and never back into the mapping.
     #[test]
     // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -2763,7 +2797,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 3's end state, as the *type* the rest of the CLI takes: a warm hit hands back a
+    /// The read path's end state, as the *type* the rest of the CLI takes: a warm hit hands back a
     /// `nvs_codegen::Unit`, and it answers everything a cold compile's does.
     ///
     /// [`a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound`] pins the binding
@@ -2771,7 +2805,7 @@ mod tests {
     /// the rest of it — a named function it can be asked for by label, an entry frame reached
     /// through `Unit::script` rather than through this module's `Loaded::script`, and a context
     /// armed by `Unit::install_in` — because that is what lets the compile site hold one variable
-    /// whichever path produced it, which is the whole point of § 3 ending in a `Unit`.
+    /// whichever path produced it, which is the whole point of the read path ending in a `Unit`.
     #[test]
     // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
@@ -2823,11 +2857,12 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// §§ 3 and 4 as a run performs them: the second run of one program reads what the first
-    /// published, and compiles nothing.
+    /// The read path and the write path as a run performs them: the second run of one program
+    /// reads what the first published, and compiles nothing.
     ///
     /// This is the decision [`unit_for`] exists to make, and [`Provenance`] is how a test sees it
-    /// — nothing a script can observe distinguishes the two paths, which is § 3's own rule. Both
+    /// — nothing a script can observe distinguishes the two paths
+    /// (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`). Both
     /// runs are asserted to print the same thing as well, because "did not compile it" is only
     /// worth anything beside "and ran the same program".
     #[test]
@@ -2939,7 +2974,8 @@ mod tests {
     /// with one it can never write.
     ///
     /// The first half is a run that was handed no [`Cache`] at all — what [`from_config`] answers
-    /// for `file_cache = false`, for a host with no cache root, and for a directory § 5 refuses.
+    /// for `file_cache = false`, for a host with no cache root, and for a directory the ownership
+    /// check refuses.
     /// The second is a cache whose directory can never be created, because its parent is a regular
     /// file: every store fails, so every run is a miss, and the only thing that reaches the caller
     /// is the unit it asked for.
@@ -2981,7 +3017,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 1's key is the program's content, so editing the program moves it — the artifact under
+    /// The artifact key is the program's content, so editing the program moves it — the artifact under
     /// the old key is not consulted, and cannot be.
     ///
     /// [`program_digest`] is what makes that true, and this asserts the whole loop rather than the
@@ -3065,7 +3101,7 @@ mod tests {
         );
         assert!(
             !path.exists(),
-            "and § 3 deletes it: at this key it can only be corrupt"
+            "and the read path deletes it: at this key it can only be corrupt"
         );
 
         // The compile the caller would have done anyway, and its result runs.
@@ -3159,7 +3195,7 @@ mod tests {
     /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: an artifact another toolchain wrote is a miss, and the environment is in the
     /// *address* rather than only in the header.
     ///
-    /// Both halves, because § 2 keeps both on purpose. The address is what makes a foreign
+    /// Both halves, because the rule keeps both on purpose. The address is what makes a foreign
     /// artifact cost one failed `open` instead of an open-then-reject; the header is the defence
     /// in depth for a file that reached this key's path some other way, and being foreign rather
     /// than broken it survives being read.
@@ -3187,7 +3223,7 @@ mod tests {
         let our_key = artifact_key(content_hash(&payload), ours.env());
         assert_ne!(
             their_key, our_key,
-            "one payload, two environments, two addresses — § 2's whole point"
+            "one payload, two environments, two addresses, which is why the environment is in the key"
         );
         theirs.store(their_key, &payload).expect("writable");
         assert!(
@@ -3202,7 +3238,7 @@ mod tests {
         fs::copy(theirs.path(their_key), &ours_path).expect("writable");
         assert!(
             ours.load(our_key).is_none(),
-            "§ 2's header field is the second, independent check"
+            "the header's `env_hash` is the second, independent check"
         );
         assert!(
             ours_path.exists(),
@@ -3224,12 +3260,12 @@ mod tests {
     /// is worth having, and the one that would say it is not.
     ///
     /// **The front end is inside neither arm.** [`lowered`] runs parse, check and lower once, above
-    /// both, which is § 2's own accounting: a warm hit pays for them in full and only codegen comes
+    /// both, which is the rule's own accounting: a warm hit pays for them in full and only codegen comes
     /// off the disk. So the margin below is codegen against place-relocate-bind and nothing else,
     /// and reading it as a whole-run speedup would be reading it wrong — a real run's parse and
     /// check sit on top of both numbers alike.
     ///
-    /// The cold arm is a *whole* cold run and carries § 4's publish with it: the second Cranelift
+    /// The cold arm is a *whole* cold run and carries the writer's publish with it: the second Cranelift
     /// walk [`unit_for`]'s doc names, the temp file, the `fsync` and the rename. That is what a
     /// first run of a program actually costs, and pricing the cold arm at less than it would
     /// flatter the cache.
@@ -3253,8 +3289,8 @@ mod tests {
     /// **The ratio has the two bounds of `rule:testing/perf-two-mechanisms`.** What is asserted is
     /// "codegen dominates place and relocate", not a benchmark's own number. The soft bound, `4`,
     /// is written well under the ratio a development machine prints, and a run under it prints a
-    /// warning: the loader may have grown expensive enough to reopen the decision, which is what
-    /// § *Revisiting* asks this test to detect. The hard bound, `1.5`, is just over a warm start
+    /// warning: the loader may have grown expensive enough to reopen the file format, which is what
+    /// `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end` asks this test to detect. The hard bound, `1.5`, is just over a warm start
     /// that costs what a cold one does, a cache no longer worth having, and a ratio under it fails
     /// after three attempts.
     ///
@@ -3275,7 +3311,7 @@ mod tests {
 
         let _alone = crate::testing::measuring_alone();
 
-        /// The factors a warm start must clear: under `soft`, § *Revisiting* is owed a look, and
+        /// The factors a warm start must clear: under `soft`, the file format is owed a look, and
         /// under `hard` the cache is not worth having.
         const MARGIN: crate::testing::Margin = crate::testing::Margin {
             soft: 4.0,
@@ -3309,7 +3345,7 @@ mod tests {
             "a cold start over a warm one",
             MARGIN,
             "A warm start that costs what a cold one does is a cache that is not worth having, \
-             and § Revisiting is owed its decision.",
+             and reopens the file format.",
             || {
                 attempt += 1;
                 let mut best: Option<(Duration, Duration)> = None;

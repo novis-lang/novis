@@ -8,7 +8,8 @@
 //! with no library target, and what `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` promises is what the *command*
 //! produces. The round-trip of the manifest itself is a unit test next to the
 //! writer (`src/bundle.rs`); this file asserts what only a real executable can
-//! answer — that the payload is on disk in § 2's shape, and that
+//! answer — that the payload is on disk in the shape
+//! `rule:packaging/a-bundle-carries-source-not-artifacts` gives it, and that
 //! running it is running the program.
 
 use std::path::{Path, PathBuf};
@@ -25,7 +26,7 @@ const AUTOLOAD_APP: &str = concat!(
     "/tests/fixtures/bundle-autoload/app.nvs"
 );
 
-/// § 4's footer: `b"NVSB"`, a `u16` and two `u64`s.
+/// The footer (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`): `b"NVSB"`, a `u16` and two `u64`s.
 const FOOTER_LEN: usize = 22;
 
 /// Builds the fixture into a private scratch directory and hands back its guard
@@ -72,7 +73,7 @@ fn at_most_usize(n: u64) -> usize {
     usize::try_from(n).expect("a length this host wrote fits its own pointer width")
 }
 
-/// § 2's flat file list, read back out of a finished executable exactly as the
+/// The payload's flat file list, read back out of a finished executable exactly as the
 /// footer describes it: `(relative path, source)` per entry, in payload order.
 ///
 /// Written here rather than shared with the writer on purpose — a reader that
@@ -81,7 +82,7 @@ fn at_most_usize(n: u64) -> usize {
 fn payload(exe: &Path) -> Vec<(String, String)> {
     let bytes = std::fs::read(exe).expect("the bundle was just written");
     let footer = &bytes[bytes.len() - FOOTER_LEN..];
-    assert_eq!(&footer[0..4], b"NVSB", "§ 4's magic ends the file");
+    assert_eq!(&footer[0..4], b"NVSB", "the footer's magic ends the file");
     assert_eq!(
         u16::from_le_bytes([footer[4], footer[5]]),
         1,
@@ -120,7 +121,8 @@ fn payload(exe: &Path) -> Vec<(String, String)> {
     files
 }
 
-/// §§ 2 and 3: the payload is the entry file **plus every file its `require`
+/// `rule:packaging/a-bundle-carries-source-not-artifacts` and
+/// `rule:packaging/a-bundled-require-resolves-at-build-time`: the payload is the entry file **plus every file its `require`
 /// graph statically resolved to**, as plain source, entry first.
 ///
 /// Asserted by counting and by content rather than by looking for one name: a
@@ -146,7 +148,7 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
          whatever platform built it"
     );
 
-    // Source, not artifacts — § 2's whole trade. Each file's own text is in
+    // Source, not artifacts — the bundle's whole trade. Each file's own text is in
     // there byte for byte, which is also what makes a bundle inspectable.
     assert!(
         files[0].1.contains("require 'lib/greet.nvs';"),
@@ -166,7 +168,7 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
     }
 }
 
-/// § 2's other half: what the `autoload` roots declare is frozen into the
+/// The payload's other half: what the `autoload` roots declare is frozen into the
 /// payload at build time, a file no name reaches included
 /// (`rule:programs/no-runtime-autoload`).
 ///

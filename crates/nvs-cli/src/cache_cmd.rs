@@ -3,8 +3,9 @@
 //! artifact cache in [`crate::cache`].
 //!
 //! **The store is the one a run reads.** Both commands resolve the configuration tree the way
-//! `nvs tmp clean` does and hand it to [`cache::from_config`], so `opcache.file_cache_dir`, § 5's
-//! ownership check and its one warning are decided in one place. A tree that places no cache — the
+//! `nvs tmp clean` does and hand it to [`cache::from_config`], so `opcache.file_cache_dir`, the
+//! ownership check of `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust` and
+//! its one warning are decided in one place. A tree that places no cache — the
 //! cache is off, or the written directory was refused — has nothing to remove, and the command says
 //! so with the same line as an empty store.
 //!
@@ -13,8 +14,8 @@
 //! Windows, a file another process has open — is counted as skipped, and the command still exits
 //! `0`: the next `gc` takes it, and a cron job that fails over it fails over nothing.
 //!
-//! Cost: one walk of the cache directory per command, which is what § 6's roll already pays on a
-//! miss. Nothing here runs on a request.
+//! Cost: one walk of the cache directory per command, which is what the roll of
+//! `rule:packaging/eviction-rides-the-cold-miss-at-a-probability` already pays on a miss. Nothing here runs on a request.
 
 use std::io::Write;
 use std::path::PathBuf;

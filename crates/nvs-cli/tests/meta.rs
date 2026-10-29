@@ -1,6 +1,6 @@
 //! `nvs meta --json`, driven as a consumer drives it —
 //! `rule:core-api/reference-card`'s
-//! *Verification* section: a golden of § 2's shape over the first documented
+//! *Verification* section: a golden of `rule:tooling/meta-json`'s shape over the first documented
 //! member, through the built binary for the same reason `openapi.rs` goes
 //! through it — the contract is what the *command* prints.
 
@@ -62,7 +62,7 @@ fn constant(document: &serde_json::Value, class: &str, name: &str) -> serde_json
         .clone()
 }
 
-/// § 2's golden: `Core\Str::length`, the simple case — the `$name` its one
+/// The `rule:tooling/meta-json` golden: `Core\Str::length`, the simple case — the `$name` its one
 /// parameter is callable by, a `short`, one documented parameter, a `return`,
 /// and no `errors` or `shape` key because neither is written.
 #[test]
@@ -151,7 +151,7 @@ fn the_options_and_errors_of_the_proof_members_are_emitted() {
     assert_eq!(errors[0]["error"], "RuntimeError");
 }
 
-/// § 2's enum golden: `Core\Arr::Order`, top-level beside `classes`, a `short` and
+/// The `rule:tooling/meta-json` enum golden: `Core\Arr::Order`, top-level beside `classes`, a `short` and
 /// one `cases` entry per case in declaration order.
 #[test]
 fn the_golden_for_order_matches_the_contract() {
@@ -173,7 +173,7 @@ fn the_golden_for_order_matches_the_contract() {
     );
 }
 
-/// § 2's constant golden: `Core\Math::PI`, under its class's `constants`, its
+/// The `rule:tooling/meta-json` constant golden: `Core\Math::PI`, under its class's `constants`, its
 /// one-sentence card as `doc`.
 #[test]
 fn the_golden_for_math_pi_matches_the_contract() {

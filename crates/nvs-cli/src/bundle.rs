@@ -4,10 +4,12 @@
 //!
 //! ## What is appended
 //!
-//! § 2's payload is **source, not artifacts**: the entry file, every file its
+//! The payload is **source, not artifacts**
+//! (`rule:packaging/a-bundle-carries-source-not-artifacts`): the entry file, every file its
 //! `require` graph statically resolves to, and every file its `autoload` roots
 //! declare, as a flat list of `(relative path, length, bytes)`, with no archive
-//! format and no compression. § 4 puts a fixed-size footer after it, so the
+//! format and no compression. A fixed-size footer follows it
+//! (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), so the
 //! whole appended region is
 //!
 //! ```text
@@ -64,13 +66,14 @@
 //! argument happens to be `run` or `check` must not have it eaten by a
 //! subcommand. On a hit, [`run`] installs the payload as
 //! `nvs_diagnostics::embedded`'s byte source and calls the ordinary
-//! `nvs run` path — § 4's "the same code path with one different byte source
-//! for reads", so there is no second interpreter here to drift from the first.
+//! `nvs run` path, the same code path with one different byte source for
+//! reads, so there is no second interpreter here to drift from the first.
 //!
 //! Configuration is that same path's: naming no `--config` leaves the search
 //! for `./nvs.toml` in the working directory
 //! (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`),
-//! which is what a bundled process therefore gets. § 1's single trust domain is
+//! which is what a bundled process therefore gets. The bundle's single trust
+//! domain (`rule:programs/bundle-trust-domain`) is
 //! what makes reading a file beside the binary harmless — the person running it
 //! is the only principal — and the consequence is that a malformed `nvs.toml` in
 //! that directory refuses the run as the configuration error it is, before the
@@ -93,7 +96,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// § 4's magic, first of the footer's 22 bytes.
+/// The footer's magic, first of its 22 bytes.
 const MAGIC: &[u8; 4] = b"NVSB";
 
 /// The payload layout this build of `nvs` writes and reads. A mismatch is not
@@ -121,7 +124,7 @@ const EXTENSION_ENTRIES: &str = "\0extension.toml";
 
 /// One bundled program, as read back out of a host binary.
 pub(crate) struct Bundle {
-    /// § 2's flat list in payload order, entry file first.
+    /// The payload's flat file list in payload order, entry file first.
     files: Vec<(String, String)>,
     /// Each embedded `.nvsx`, by its payload name without [`EXTENSION_PREFIX`].
     extensions: Vec<(String, Vec<u8>)>,
@@ -269,7 +272,7 @@ pub(crate) fn embedded() -> Option<Bundle> {
     read_payload(&exe).ok().flatten()
 }
 
-/// Runs a bundled program: install § 2's payload as the byte source, then the
+/// Runs a bundled program: install the payload as the byte source, then the
 /// ordinary `nvs run` path over its entry point.
 pub(crate) fn run(bundle: Bundle) -> ExitCode {
     let Ok(root) = std::env::current_exe() else {
@@ -318,7 +321,8 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
 /// `nvs build --compile <entry> [-o <out>]` — `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`.
 ///
 /// The program goes through the same front end `check` and `run` do before a
-/// byte is written, which is where § 3's static-`require` rule is enforced: a
+/// byte is written, which is where
+/// `rule:packaging/a-bundled-require-resolves-at-build-time` is enforced: a
 /// path the walk cannot resolve is already `E_REQUIRE_TARGET_NOT_FOUND`, and a
 /// program that does not compile produces no artifact at all rather than one
 /// that fails on the user's machine.
@@ -667,7 +671,7 @@ fn default_output(entry: &Path) -> PathBuf {
     })
 }
 
-/// The manifest bytes for a file list — § 2's flat list, and nothing else.
+/// The manifest bytes for a file list — the payload's flat list, and nothing else.
 fn manifest(files: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&u32::try_from(files.len()).unwrap_or(u32::MAX).to_le_bytes());
@@ -690,8 +694,8 @@ fn write_bundle(
 ) -> std::io::Result<()> {
     let exe = std::env::current_exe()?;
     let mut host = fs::read(&exe)?;
-    // Rebundling from a bundle is § 5's ordinary case — the author reruns the
-    // command — so the host is this binary with any payload of its own cut off
+    // Rebundling from a bundle is the ordinary case — the author reruns the
+    // command (`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`) — so the host is this binary with any payload of its own cut off
     // rather than a second payload stacked on the first.
     if let Ok(Some(offset)) = payload_offset(&exe) {
         host.truncate(usize::try_from(offset).unwrap_or(host.len()));
@@ -734,8 +738,8 @@ fn write_bundle(
         perms.set_mode(perms.mode() | 0o111);
         fs::set_permissions(out, perms)?;
     }
-    // § 5: appending after a Mach-O's signature invalidates it, so the result
-    // is ad-hoc signed here. A failure is a warning rather than a failed build —
+    // Appending after a Mach-O's signature invalidates it, so the result is
+    // ad-hoc signed here (`rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build`). A failure is a warning rather than a failed build —
     // this module's *What is appended* says why.
     #[cfg(target_os = "macos")]
     {
@@ -782,7 +786,7 @@ fn payload_offset(path: &Path) -> std::io::Result<Option<u64>> {
     Ok(Some(offset))
 }
 
-/// Reads a host binary's payload back into § 2's file list.
+/// Reads a host binary's payload back into its flat file list.
 ///
 /// A footer that does not add up, or a manifest that runs off its own end, is
 /// `Ok(None)`: the file is then simply not a bundle. Nothing here trusts a
@@ -800,7 +804,7 @@ fn read_payload(path: &Path) -> std::io::Result<Option<Bundle>> {
     Ok(parse_manifest(&body).and_then(Bundle::of))
 }
 
-/// § 2's flat list, or `None` for bytes that do not describe one.
+/// The payload's flat file list, or `None` for bytes that do not describe one.
 fn parse_manifest(body: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
     let mut at = 0_usize;
     let mut take = |n: usize| -> Option<&[u8]> {
@@ -824,7 +828,7 @@ fn parse_manifest(body: &[u8]) -> Option<Vec<(String, Vec<u8>)>> {
 mod tests {
     use super::*;
 
-    /// The manifest round-trips: what § 2 writes is what § 4 reads, entry file
+    /// The manifest round-trips: what the build writes is what the footer reader reads, entry file
     /// first and every byte of every file intact.
     #[test]
     fn a_manifest_round_trips_its_file_list() {

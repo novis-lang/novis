@@ -142,7 +142,8 @@ mod mutation;
 ///
 /// Exits non-zero if any case or any test failed; a skipped one is not a
 /// failure.
-// `rule:testing/nvst-is-separate` § 1, and
+// `rule:testing/nvst-is-separate`, `rule:testing/test-attribute` for a program's
+// compiled test table, and
 // `rule:testing/a-directory-of-programs-is-one-test-program` for the directory.
 #[derive(clap::Args)]
 pub(crate) struct Args {
@@ -251,8 +252,8 @@ pub(crate) struct Args {
     /// than a suite of test methods, and the two share nothing — so naming
     /// a machine format beside a case tree is refused rather than silently
     /// ignored.
-    // `rule:testing/report-formats`, and § 23 is what keeps the two reports
-    // from sharing a shape.
+    // `rule:testing/report-formats`, and `rule:testing/nvst-is-separate` is what
+    // keeps the two reports from sharing a shape.
     #[arg(long, value_name = "FORMAT", default_value = "human")]
     format: Format,
     /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
@@ -4734,7 +4735,8 @@ fn location_keys(declared: Option<&Declared>, out: &mut String) {
 /// grouping every reader of this format expects and the one the run already
 /// has — the roster is walked class by class, so a class's cases are
 /// consecutive and no second pass is needed to collect them. A `skipped` test
-/// is not a failure here either, matching both the exit code and § 20.
+/// is not a failure here either, matching both the exit code and
+/// `rule:testing/runner-is-strict`.
 fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
     let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     out.push_str(&format!(

@@ -612,7 +612,7 @@ fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
             "required": true,
             "schema": {"enum": ["1", "2", "3"]},
         }),
-        "a `#[Query]` key narrows by the same walk, `rule:routing/a-query-parameter-is-declared-like-a-capture` giving it § 5's type list:\n{doc}"
+        "a `#[Query]` key narrows by the same walk, `rule:routing/a-query-parameter-is-declared-like-a-capture` giving it a capture's type list:\n{doc}"
     );
 }
 
@@ -978,7 +978,8 @@ fn an_apis_four_values_reach_the_operation_and_nothing_else() {
 }
 
 // -------------------------------------------------------------------------
-// § 1's type list at its last entry: a class a segment reaches through its own
+// `rule:routing/api-document-is-generated-from-the-route-table`'s type list at
+// its last entry: a class a segment reaches through its own
 // `parse`. The two tests are one bound asserted on both sides — what a class
 // answers, and what the one class the engine ships answers over it.
 

@@ -16,11 +16,12 @@
 //!
 //! `rule:http-server/a-path-is-never-derived-from-a-url`
 //! is the server's governing rule — a request *selects* an entry point from
-//! a set enumerated before it arrived and may never construct one — and § 4's
-//! mount table is that set. A tree that writes `[[server.mount]]` gets **the
-//! whole of it**: [`nvs_config::mount::expand`] walked § 3's globs against the
-//! disk, and this command binds a socket over the table that produced. A tree
-//! that writes none, started with a `<file>`, is served through [`one_mount`]:
+//! a set enumerated before it arrived and may never construct one — and the
+//! mount table (`rule:http-server/a-request-resolves-in-five-steps`) is that
+//! set. A tree that writes `[[server.mount]]` gets **the whole of it**:
+//! [`nvs_config::mount::expand`] walked the globs of
+//! `rule:http-server/a-mount-table-expands-at-boot` against the disk, and this
+//! command binds a socket over the table that produced. A tree that writes none, started with a `<file>`, is served through [`one_mount`]:
 //! that file at `/` with its own directory as the mount root — not `expand`'s
 //! implicit mount, which names a default entry this command was not told to
 //! serve.
@@ -62,7 +63,8 @@
 //!
 //! # Decision: every entry is bound, and the flag is the last word
 //!
-//! `[server] listen` is a flat array (§ 5) and
+//! `[server] listen` is a flat array
+//! (`rule:http-server/the-server-block-is-boot-class`) and
 //! `rule:http-server/the-accept-fan-out-is-one-worker-per-core` binds **every**
 //! entry of it, in the order written, before anything accepts: [`addresses`]
 //! resolves the set and [`bind_all`] binds it, so a deployment answering on two
@@ -70,7 +72,7 @@
 //! [`handles_for`] then gives every worker its own handle on every one of them
 //! and [`serve_on_worker`] is what a core does with them — one accept loop per
 //! socket, on that core's own scheduler. `--listen` and `--port` override the
-//! file, on § 5's own sentence; they conflict with each other, because two
+//! file, on that rule's own sentence; they conflict with each other, because two
 //! spellings of one address is a question guessing an answer to would be worse
 //! than refusing.
 //!
@@ -178,10 +180,11 @@ pub(crate) mod mounts;
 // `--help` is the mental model they form of the process, and one naming the
 // accept loop alone is what sends them looking for a second thing to
 // install. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and
-// `rule:security/isolate-shares-nothing`. § 4's mount table is the set of
-// entry points, and this module's doc owns why the argument is optional and
-// why one path on the command line is § 2's rule rather than an exception
-// to it.
+// `rule:security/isolate-shares-nothing`. The mount table
+// (`rule:http-server/a-request-resolves-in-five-steps`) is the set of entry
+// points, and this module's doc owns why the argument is optional and why one
+// path on the command line is `rule:http-server/a-path-is-never-derived-from-a-url`
+// rather than an exception to it.
 #[derive(clap::Args)]
 pub(crate) struct Args {
     /// The file every request runs. It is optional when the configuration
@@ -222,11 +225,12 @@ impl Args {
     }
 }
 
-/// `nvs serve [<file>]` — resolve the tree, build § 4's mount table, compile every
+/// `nvs serve [<file>]` — resolve the tree, build the mount table, compile every
 /// entry in it, bind the socket and run the accept loop until this process is
 /// stopped.
 ///
-/// The order is the whole of § 2's rule: the configuration is refused before
+/// The order is the whole of `rule:http-server/a-path-is-never-derived-from-a-url`:
+/// the configuration is refused before
 /// anything is compiled, every mounted entry is compiled before anything is
 /// bound, and the socket exists only once there is something for it to answer
 /// with.
@@ -296,7 +300,8 @@ pub(crate) fn run(
     // other subcommand does it, and why nothing it finds can refuse this start.
     sweep_orphans(&snapshot.config);
 
-    // Both halves of § 5 this loop can keep today. Neither can refuse here in
+    // Both halves of `rule:http-server/the-server-block-is-boot-class` this loop
+    // can keep today, the waits and the listeners. Neither can refuse here in
     // practice — `nvs_config::server::validate` is the boot pass and it ran
     // above — but a resolution reported twice is better than one swallowed,
     // and the origins map `boot_origins` kept is what points a refusal at the
@@ -344,7 +349,7 @@ pub(crate) fn run(
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
     // written under `[http.headers]` it is the whole of what every response this
     // server writes carries beside its body, and `nvs_server::secure` owns the
-    // details § 1 calls decisions rather than transcription.
+    // details that are decisions rather than transcription.
     // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`: who may assert a client address or a scheme, resolved once
     // here beside the two above. An entry that names no network is dropped and
     // reported — `nvs_server::forwarded`'s module doc owns why dropping is the
@@ -363,7 +368,7 @@ pub(crate) fn run(
         );
     }
     // Read here because the resolved set is about to become the server's, and
-    // § 6's boot `Warn` below needs the address this process actually binds —
+    // the boot `Warn` below needs the address this process actually binds —
     // which the flags have not had their say over yet.
     let nobody_trusted = trusted.is_empty();
     let wanted = match addresses(&configured, listen, port) {
@@ -394,7 +399,8 @@ pub(crate) fn run(
     // server cannot tell those apart. It is asked only of a tree that wrote a
     // `[server]` block, because a directive can only be forgotten out of a
     // block somebody wrote. `nvs serve app.nvs` with no configuration at all is
-    // § 1's *development* server and matches every other fact on the way to
+    // the *development* server of
+    // `rule:http-server/two-deployments-and-nothing-a-proxy-owns` and matches every other fact on the way to
     // matching nothing, and a line every such run prints is a line every
     // operator learns to skip.
     let started_in = snapshot
@@ -414,8 +420,8 @@ pub(crate) fn run(
         );
     }
 
-    // § 4's table. A tree that writes `[[server.mount]]` is served through the
-    // whole of it — `expand` walks § 3's globs against the disk — whether or
+    // The mount table. A tree that writes `[[server.mount]]` is served through
+    // the whole of it — `expand` walks its globs against the disk — whether or
     // not a file was named. A named file over a tree that writes none is that
     // file, at `/`, with the directory it sits in as the mount root. The module
     // doc's § *Decision* owns which of these a run gets and why the argument
@@ -511,7 +517,8 @@ pub(crate) fn run(
     // belongs to the thread that reads it.
     let table = Rc::new(Table::from_config(mounts.clone(), &snapshot.config));
 
-    // § 2, kept before the socket exists: **every** path this server can execute
+    // `rule:http-server/a-path-is-never-derived-from-a-url`, kept before the
+    // socket exists: **every** path this server can execute
     // is compiled now, so its diagnostics are in the log before any request and
     // the loop below knows which mounts are served. It costs one compile per mounted entry at boot rather than one
     // per entry per request. The front end renders its own diagnostics
@@ -941,7 +948,7 @@ struct Core {
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
-    /// § 4's rows, which every core turns into its own [`Table`], and turns
+    /// The mount table's rows, which every core turns into its own [`Table`], and turns
     /// again each time they are replaced (`mounts::Local`).
     mounts: Arc<mounts::Mounts>,
     /// The tree this process booted on, read by every core and written by none.
@@ -953,7 +960,7 @@ struct Core {
     /// this core *builds* is `Boot`-class and is the tree this process started
     /// on, and what a fire *runs under* is whatever a reload has published since.
     current: Arc<nvs_config::Current>,
-    /// § 5's waits for the boot's snapshot. A connection accepted under a
+    /// The `[server]` waits for the boot's snapshot. A connection accepted under a
     /// snapshot published later takes that snapshot's own waits
     /// (`nvs_server::serve_connection`), and the exporters keep these.
     waits: nvs_config::server::Waits,
@@ -1011,12 +1018,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // time a stack comes back, so a reload that moves it reaches the pool too.
     sched.bound_pool_by(move || admission.max_in_flight().div_ceil(cores.max(1)));
     let stopped = Rc::new(Cell::new(false));
-    // This core's own table over § 4's set, which is the same set on every
+    // This core's own table over the mount set, which is the same set on every
     // core: what is per-core is the structure, because an `Rc` graph belongs to
     // the thread that reads it. It is rebuilt when the set is replaced.
     let tables = Rc::new(mounts::Local::new(mounts, Arc::clone(&snapshot)));
 
-    // Every request goes through § 4's five steps, and what they chose is either
+    // Every request goes through `rule:http-server/a-request-resolves-in-five-steps`, and what they chose is either
     // a file to send — `nvs_server::statics`, the same policy a configured
     // deployment serves under — or a file to run as `rule:security/isolate-shares-nothing`'s isolate, the same
     // type `spawn script` runs and deliberately not a second isolation path
@@ -1031,7 +1038,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // The *process's* bit, because this command is the process: a terminating
     // signal writes it (`crate::stop`), an application reads the same one
     // through `Core\Server::isDraining()`, which has no handle to have been
-    // given (`nvs_runtime::drain`), and § 5's probe answers `503` off it.
+    // given (`nvs_runtime::drain`), and the health probe answers `503` off it.
     let draining = nvs_server::Draining::process();
     // The reactor is what a parked coroutine is woken by, and every connection
     // parks. It is installed ahead of the handler rather than beside the accept
@@ -1109,7 +1116,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // request from this machine names this machine in its `Host`
             // (`nvs_server::Table::local_hosts_only`).
             let selected = match table.select(&request, origin.client(), &OnDisk) {
-                // Step 0, ahead of every mount: § 5's probe says the process is
+                // Step 0, ahead of every mount: the probe of
+                // `rule:http-server/health-path-is-off-and-checks-nothing` says the process is
                 // alive, which is a fact this loop holds and no program is asked
                 // for. That is why it is answered here rather than by an entry —
                 // an application that will not compile is exactly when the
@@ -1117,12 +1125,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 Some(Resolved::Health) if unknown_verb => return Reply::not_implemented(),
                 Some(Resolved::Health) => return Reply::health(&draining),
                 Some(Resolved::Mounted(selected)) => selected,
-                // § 4 step 1's third arrow. There is no mount for it and so
+                // Step 1's third arrow (`rule:http-server/a-request-resolves-in-five-steps`). There is no mount for it and so
                 // nothing to run: not a program's `404` but the table's.
                 None if unknown_verb => return Reply::not_implemented(),
                 None => return Reply::not_found(),
             };
-            // § 4 step 2's remainder and the row it came off, both taken before
+            // Step 2's remainder and the row it came off, both taken before
             // the branch below moves the rest of the selection. The remainder is
             // the path the application is written against; the row is borrowed,
             // so keeping it costs a word and is what `rule:routing/a-request-reads-its-mount` is answered
@@ -1238,7 +1246,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                 nvs_config::export::head_sample(&standing.config),
             );
             // `rule:routing/a-request-reads-its-mount`'s mount, which is the other half of what step 2 did:
-            // the prefix taken off the path above, and § 3's captures of the row
+            // the prefix taken off the path above, and the glob captures of the row
             // that took it. `nvs_server::mount::carry` owns why the door writes
             // them rather than the program deriving them — a program that could
             // derive its own prefix would be reading the deployment out of the
@@ -1419,7 +1427,7 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // and nowhere else. A tree with no `scope = "fleet"` entry opens nothing —
     // the connection is per process, so it is paid for by the roster that
     // needs it and by nothing else — and a store that will not answer leaves
-    // § 3's fallback holding: every fleet entry unarmed and named while an
+    // that rule's fallback holding: every fleet entry unarmed and named while an
     // operator is still reading the start. The ticker opens the lease again
     // when a reload moves `[cache.shared]`, and when a reload changes a roster
     // that needs one and has none.
@@ -1486,8 +1494,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
                     leases: held.clone(),
                 })
             };
-            // `Zoned::now` and not a fixed instant: § 6's missed interval is
-            // skipped rather than replayed, which is the ticker asking the clock
+            // `Zoned::now` and not a fixed instant: a missed interval is skipped
+            // rather than replayed
+            // (`rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`), which is the ticker asking the clock
             // for every fire and never counting from the last one.
             let ticked = nvs_server::tick_on_this_core(
                 &mut armed,
@@ -1734,8 +1743,9 @@ fn offer_this_core_for_placements(
 /// [`nvs_config::queue::queue_for`] is the resolution the boot already accepted, so a refusal is
 /// impossible by the time this runs and `.ok()` swallows none; `run_run` reads it exactly this way,
 /// which is what makes moving queue work between the two binaries operational and never
-/// behavioural. `workers = 0` is § 2's enqueue-only deployment and arms nothing, which is also what
-/// a tree writing no `[queue]` block at all costs.
+/// behavioural. `workers = 0` is the enqueue-only deployment of
+/// `rule:concurrency/who-runs-a-job-is-configuration` and arms nothing, which is also what a tree
+/// writing no `[queue]` block at all costs.
 ///
 /// **The storage is asked about here because this is the last place an answer can still refuse.**
 /// [`queue_storage_is_current`] is that question, and it is asked of a queue this core is about to
@@ -1918,7 +1928,8 @@ fn arm_queue_workers(
     Ok(Some(crew))
 }
 
-/// `nvs_server::Leases` over the shared tier — § 3's lease, which this binary is
+/// `nvs_server::Leases` over the shared tier —
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, which this binary is
 /// the only crate that can supply and `nvs_server::schedule`'s module doc §
 /// *Where a `fleet` entry's lease comes from* is the whole reason for.
 ///
@@ -1955,7 +1966,8 @@ impl FleetLease {
     /// One question to the store, with every way of not getting an answer
     /// collapsed into `false`.
     ///
-    /// § 3 says a partition may leave an interval unrun, so not reaching the
+    /// A partition may leave an interval unrun
+    /// (`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`), so not reaching the
     /// store is "this host does not hold the lease" and never a guess in the
     /// other direction. Each way of not reaching it is still a line an operator
     /// sees, because a schedule whose failures are silent is what
@@ -2005,7 +2017,7 @@ fn shared_store(config: &nvs_config::Config) -> Option<&nvs_config::tree::CacheS
 /// The lease the ticker is handed for `config`: [`fleet_lease`] where a fleet
 /// entry needs one, and [`None`] otherwise.
 ///
-/// An `Rc` rather than the value: § 3's renewal runs on each fire's own task,
+/// An `Rc` rather than the value: the lease's renewal runs on each fire's own task,
 /// so the store is reached from frames that outlive the tick that took the key.
 fn fleet_lease_for(config: &nvs_config::Config) -> Option<Rc<dyn nvs_server::Leases>> {
     if !has_fleet_entry(config) {
@@ -2133,7 +2145,7 @@ impl nvs_server::Fires for Scheduled {
                 return None;
             }
         };
-        // § 5: the script is handed its entry's `name` and reads it back through
+        // `rule:config/a-scheduled-run-is-a-root-isolate`: the script is handed its entry's `name` and reads it back through
         // `Core\Script::args()` — there is no scheduler-specific accessor.
         // Ownership: `NvsStr::new` makes the one reference `Isolate::new`
         // consumes, so nothing here releases anything.
@@ -2162,7 +2174,7 @@ impl nvs_server::Fires for Scheduled {
 
     fn ran(&self, entry: &nvs_server::Armed, done: &nvs_host::Completion) {
         if done.ok {
-            // § 5: the result is logged and not delivered — nothing is waiting for
+            // `rule:config/a-scheduled-run-is-a-root-isolate`: the result is logged and not delivered — nothing is waiting for
             // it. A returned `string` is rendered; anything else is reported as
             // having returned, because rendering an arbitrary value is
             // `Core\Debug`'s job and a scheduled run has no sink to hand it to.
@@ -2209,7 +2221,7 @@ impl nvs_server::Fires for Scheduled {
 /// **Boot, and no other invocation.** A `nvs run` does not sweep and neither
 /// does any other subcommand: taxing every CLI start with a walk of the root to
 /// insure against a rare hard kill prices the common case for the exceptional
-/// one. The deliberate consequence, which § 4 states rather than regrets, is
+/// one. The deliberate consequence, which the rule states rather than regrets, is
 /// that a machine where no server ever boots keeps a killed script's directory
 /// until an operator runs `nvs tmp clean`.
 ///
@@ -2243,13 +2255,14 @@ fn sweep_orphans(config: &nvs_config::Config) {
 /// command line, mounted at `/`, with the directory it sits in as the mount
 /// root.
 ///
-/// Not [`nvs_config::mount::expand`]'s implicit mount, which names § 3's default
-/// entry — a file this command was not told to serve and may not even have. § 2's
-/// rule is about the set being enumerated before a request arrives rather than
+/// Not [`nvs_config::mount::expand`]'s implicit mount, which names the default
+/// entry of `rule:http-server/a-mount-table-expands-at-boot` — a file this
+/// command was not told to serve and may not even have.
+/// `rule:http-server/a-path-is-never-derived-from-a-url` is about the set being enumerated before a request arrives rather than
 /// about how many rows it has, and a set of one is still a set. The module doc's
 /// § *Decision* is the whole of why.
 ///
-/// The root is canonical: § 4 steps 3 and 4 compare a resolved remainder
+/// The root is canonical: steps 3 and 4 of the five compare a resolved remainder
 /// against the mount root, and a `starts_with` between a canonical path and a
 /// written one answers `false` for every file in the tree.
 ///
@@ -2290,7 +2303,7 @@ enum NoTable {
     Said(String),
 }
 
-/// § 4's table for this start, which the module doc's § *Decision* owns the
+/// The mount table for this start, which the module doc's § *Decision* owns the
 /// reasons of: a named file over a tree that writes no `[[server.mount]]` is
 /// [`one_mount`], and a tree that writes some is
 /// [`nvs_config::mount::expand`]'s whole table.
@@ -2435,7 +2448,8 @@ fn fold_origins(mounts: &mut [Mounted], published: &nvs_config::Published) {
 /// resolved no origin refuses the start.
 ///
 /// **Per resolved mount, and here rather than at the expansion**, because the
-/// question needs the compiled unit and § 3 needs it per row: one entry serves
+/// question needs the compiled unit and
+/// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` needs it per row: one entry serves
 /// every tenant a `scan` glob enumerated, and each of those rows resolves its
 /// own origin, so the same unit is a refusal under one and a start under
 /// another. `nvs_config::mount`'s expander owns the substitution that decides
@@ -2495,7 +2509,7 @@ fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Op
 }
 
 /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot`'s origin, from the
-/// row § 4 step 1 chose onto the isolate that is about to answer the request.
+/// row step 1 of `rule:http-server/a-request-resolves-in-five-steps` chose onto the isolate that is about to answer the request.
 ///
 /// **Nothing here resolves anything.** `Mounted::origin` is already
 /// substituted — `{1}` is gone by the time a mount exists — so a request that
@@ -2510,7 +2524,7 @@ fn unreached_origin(mount: &Mounted, routes: &nvs_runtime::routes::Routes) -> Op
 /// **A mount that resolved no origin leaves the isolate as it was**, which is
 /// the fail-closed direction: `Core\Router::urlAbsolute` throws in a program
 /// with no origin rather than linking to an authority somebody guessed, and
-/// § 3's boot check is what turns that throw into a start that fails instead.
+/// that rule's boot check is what turns that throw into a start that fails instead.
 /// The carrier for a request's verb, its path after the mount's prefix, its
 /// query, its header lines and the peer it came from.
 ///
@@ -2629,7 +2643,7 @@ fn addresses(
             // does not quietly narrow the deployment to loopback.
             (Listen::Tcp(addr), Some(port)) => Listen::Tcp(SocketAddr::new(addr.ip(), port)),
             // And over a Unix entry it names a whole address, since there is no
-            // host in one to keep. `127.0.0.1` because that is § 5's own default
+            // host in one to keep. `127.0.0.1` because that is `[server] listen`'s own default
             // and the one a development machine means.
             (Listen::Unix(_), Some(port)) => {
                 Listen::Tcp(SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port)))
@@ -3023,7 +3037,7 @@ fn scrape_bound(address: SocketAddr) -> Result<Socket, String> {
 /// where it asks for nothing.
 ///
 /// The sibling of [`scrape_socket`] on the other block, and the asymmetry
-/// between them is § 6's: a scrape is answered at an address this process binds,
+/// between them is `rule:observability/metrics-and-trace-blocks-are-system`'s: a scrape is answered at an address this process binds,
 /// while a trace is pushed to one it dials, so what comes back here is a URL and
 /// not a socket. Parsing and resolving it is `nvs_server::otlp::Endpoint`'s,
 /// which is why this returns the written text — the type that holds a resolved
@@ -3049,7 +3063,7 @@ fn trace_collector(config: &nvs_config::Config) -> Result<Option<String>, String
     {
         return Err(refusal);
     }
-    // § 6 gives `[trace]` only a push, so there is no second protocol to fall
+    // `[trace]` takes only a push, so there is no second protocol to fall
     // through to here — but the roster is the config crate's and this match is
     // what keeps a word it adds later from being read as `otlp`.
     if tracing.exporter != nvs_config::Exporter::Otlp {
@@ -3067,7 +3081,8 @@ fn trace_collector(config: &nvs_config::Config) -> Result<Option<String>, String
 /// written, or `None` where it asks for nothing.
 ///
 /// The other half of [`scrape_socket`]'s block, and the pair of them is what
-/// makes `[metrics]` the one § 6 gives both protocols: a tree writing
+/// makes `[metrics]` the one block that takes both protocols
+/// (`rule:observability/metrics-and-trace-blocks-are-system`): a tree writing
 /// `prometheus` binds a socket there and a tree writing `otlp` dials a
 /// collector here, and neither function answers anything for the protocol the
 /// other one owns.
@@ -3223,14 +3238,17 @@ mod tests {
     }
 
     /// A `scope = "fleet"` entry is armed exactly when this host has a lease to
-    /// hold it with, which is the whole of `nvs_server::schedule`'s § 3 seam
-    /// seen from the one crate that can close it.
+    /// hold it with, which is the whole of the seam `nvs_server::schedule`'s
+    /// module doc § *Where a `fleet` entry's lease comes from* describes, seen
+    /// from the one crate that can close it.
     ///
     /// The same tree is armed twice — once with the lease this command builds
     /// from `[cache.shared]`, once with the [`None`] that was the only answer
     /// before it existed — because the feature is the *difference*: an entry
     /// that arms either way would prove nothing about the lease, and the note
-    /// the second one writes is § 3's refusal to fire on each host's own clock.
+    /// the second one writes is
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s refusal to
+    /// fire on each host's own clock.
     ///
     /// The lease is then asked the question the ticker asks, against the store
     /// itself: a key is taken once and refused the second time. Skipped where
@@ -3571,7 +3589,7 @@ mod tests {
     /// The dead owner's entry going is the feature. The live owner's entry
     /// **and its contents** staying is the invariant — an age rule, a looser
     /// name parse or a liveness question answered the wrong way round all
-    /// delete a running process's directory out from under it, and § 4 allows
+    /// delete a running process's directory out from under it, and the rule allows
     /// under-deleting and never the reverse. The operator's own directory is
     /// the third: this walk is over a root Novis owns, but it still does not
     /// touch a name it did not write.
