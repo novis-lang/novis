@@ -6,9 +6,12 @@ codes. It has no email and no password. The data is kept in SQLite.
 Run these commands in this folder:
 
 ```sh
-nvs serve public/index.nvs --config nvs.toml   # open http://localhost:8000/
+nvs serve public/index.nvs --config nvs.toml   # open http://localhost:8140/policy
 nvs test . --config nvs.toml                   # runs the tests
 ```
+
+In a clone of the repository, `bun nv app registry` starts the registry from any folder. The
+registry uses port 8140 and the telemetry service uses port 8141, so both can run at the same time.
 
 ## The settings
 
@@ -166,16 +169,21 @@ the day before, counts the downloads by `nvs`, and keeps no line.
 
 ### 6. Add the server settings to `nvs.toml`
 
-Add these blocks to `/srv/registry/nvs.toml`:
+The `[server]` block in `/srv/registry/nvs.toml` already has `listen = ["127.0.0.1:8140"]`.
+Add `trusted_proxies` to that block. A second `[server]` block is an error.
+
+```toml
+# Caddy runs on this server and sends each request from 127.0.0.1.
+[server]
+listen = ["127.0.0.1:8140"]
+trusted_proxies = ["127.0.0.1"]
+```
+
+Then add these blocks:
 
 ```toml
 [mode]
 default = "production"
-
-# Caddy runs on this server and sends each request from 127.0.0.1.
-[server]
-listen = ["127.0.0.1:8000"]
-trusted_proxies = ["127.0.0.1"]
 
 # No line the server writes has the address of the sender.
 [log]
@@ -208,13 +216,13 @@ WantedBy=multi-user.target
 ```
 
 `telemetry.service` is the same, with `User=telemetry`, `WorkingDirectory=/srv/telemetry` and
-`nvs serve public/index.nvs` on another port. Then:
+`nvs serve public/index.nvs`. The telemetry service uses port 8141 from its own `nvs.toml`. Then:
 
 ```sh
 systemctl enable --now registry telemetry
 ```
 
-Caddy sends `registry.example.com` to `127.0.0.1:8000`. The registry runs its jobs itself, from the
+Caddy sends `registry.example.com` to `127.0.0.1:8140`. The registry runs its jobs itself, from the
 `[[schedule]]` blocks in `nvs.toml`.
 
 ## Move to a new server

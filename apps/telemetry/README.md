@@ -9,9 +9,12 @@ and the report itself is not saved. The totals are kept in SQLite.
 Run these commands in this folder:
 
 ```sh
-nvs serve public/index.nvs   # the app answers on http://127.0.0.1:8000/
+nvs serve public/index.nvs   # the app answers on http://127.0.0.1:8141/
 nvs test .                   # runs the tests
 ```
+
+In a clone of the repository, `bun nv app telemetry` starts the app from any folder. The app uses
+port 8141 and the registry uses port 8140, so both can run at the same time.
 
 | File | What it does |
 |---|---|
@@ -59,17 +62,17 @@ change. Run it in a second terminal, in this folder. The `date` command is the o
 mkdir -p try/telemetry
 echo on > try/telemetry/consent
 printf 'uploads 0\nbytes 0\npending %s\ndays 1000000\ninvocation.run 3\n' "$(date -u -d '7 days ago' +%G-W%V)" > try/telemetry/counters
-NVS_TELEMETRY_URL=http://127.0.0.1:8000/v1/report nvs --data try telemetry upload
+NVS_TELEMETRY_URL=http://127.0.0.1:8141/v1/report nvs --data try telemetry upload
 ```
 
-The last command prints `telemetry: sent week ...`. Open `http://127.0.0.1:8000/` to see the week in
+The last command prints `telemetry: sent week ...`. Open `http://127.0.0.1:8141/` to see the week in
 the totals. Delete the folder `try` when you are done.
 
 ## Deploy the collector
 
 This guide runs the collector on a Linux host with systemd. [Caddy](https://caddyserver.com/) receives
 the HTTPS requests and gets the certificate. It sends each request to `nvs serve` on
-`127.0.0.1:8000`. The examples use the domain `telemetry.example.com`. Replace it with your own.
+`127.0.0.1:8141`. The examples use the domain `telemetry.example.com`. Replace it with your own.
 
 **1. Get the code.** Clone the repository to `/srv/novis` as `root`. Every user may read it, and only
 `root` may change it.
@@ -114,6 +117,7 @@ read = ["/srv/novis/apps/telemetry/known.toml", "/srv/novis/apps/telemetry/REVIS
 The file keeps these settings from the copy:
 
 - `[mode] default = "production"` runs the server with the settings for production.
+- `[server] listen = ["127.0.0.1:8141"]` accepts connections from this host only, on port 8141.
 - `[log] client_ip = false` keeps the address of the sender out of every log line.
 - `[server] trusted_proxies = ["127.0.0.1"]` reads the address of the sender from Caddy's
   `X-Forwarded-For` header. The app uses the address only to limit the rate, and never saves it.
@@ -137,7 +141,7 @@ sudo nvs service start telemetry
 
 ```caddyfile
 telemetry.example.com {
-    reverse_proxy 127.0.0.1:8000
+    reverse_proxy 127.0.0.1:8141
 }
 ```
 

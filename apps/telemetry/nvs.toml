@@ -6,9 +6,11 @@ default = "production"
 [log]
 client_ip = false
 
+# The server listens on port 8141. The registry uses port 8140, so both can run on one computer.
 # Caddy runs on the same machine and sends each request from 127.0.0.1. The server reads
 # the address of the sender from Caddy's `X-Forwarded-For` header.
 [server]
+listen = ["127.0.0.1:8141"]
 trusted_proxies = ["127.0.0.1"]
 
 # A report has at most 4096 bytes. The server does not read a larger body into memory.

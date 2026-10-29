@@ -1,3 +1,8 @@
+# The server listens on port 8140. The telemetry service uses port 8141, so both can run on
+# one computer. `origin` in `hosting.json` has the same port.
+[server]
+listen = ["127.0.0.1:8140"]
+
 # The accounts and passkeys are kept in the SQLite file `registry.sqlite`, next to this file.
 # Novis creates the file when the first request opens the database.
 [db.registry]

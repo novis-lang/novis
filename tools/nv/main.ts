@@ -22,6 +22,7 @@ interface Command {
 
 const COMMANDS: Record<string, () => Promise<Command>> = {
   affected: () => import("./cmd/affected.ts"),
+  app: () => import("./cmd/app.ts"),
   bench: () => import("./cmd/bench.ts"),
   benches: () => import("./cmd/benches.ts"),
   "bench-compare": () => import("./cmd/bench-compare.ts"),
