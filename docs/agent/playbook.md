@@ -25,6 +25,11 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A package's proofs group is `package:<namespace>`, such as `--group 'package:Novis\Rest'`.**
+  `--group 'Novis\Rest'` and `--group 'Novis\Rest\Client'` both answer `no group`, while
+  `--id 'Novis\Rest\Client'` takes the class. A bench declares `// bench: complexity constant` when
+  each round does the same work; `linear` needs a `.scale.nvs` beside it. See
+  `tools/nv/proofs/roster.ts`. `until: gone tools/nv/proofs/roster.ts:package:${name}`
 - **`bun nv site --questions --stamp` stamps an entry whatever its shape, and only `bun nv site
   --check questions` judges it.** An entry needs four to six questions of at most 15 words, so a
   page stamped with three passes `--status` and turns `bun nv ci --check`'s website stale guard red.

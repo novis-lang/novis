@@ -116,6 +116,11 @@ a comment above the class as its help. Its tests are the package's `#[Test]` met
 features and 180 files for a package that is not in the binary, whose page is per class; simplicity
 favours the class. `tools/nv/proofs/roster.ts`'s header is the home.
 
+**A package's reference is its class pages, not a heading in `35-packages.md`.** Each `#` heading
+of that chapter is a tool feature that owes its own proofs, and `Novis\Rest`'s seven class pages
+already say what it does, so the chapter gains no `Novis\Rest` heading. Why: simplicity, since one
+home per fact.
+
 **Lanes.** Stage 1 (`openapi.rs`) and stage 2 (`bundle.rs`, `build/winres.rs`) touch disjoint files
 and can run in either order or as side goals. Stage 3 creates `packages/rest/` alone. Stage 4 writes
 `tools/nv/proofs/roster.ts` and `docs/reference/tools/35-packages.md`, where every package goal adds a
@@ -207,8 +212,13 @@ one class after another.
   - [x] kind `package` and `packageFeatures` in `roster.ts`, its policy in `collect.ts`
   - [x] `packages/` is a marker root, and a `.nvs` marker credits its `#[Test]` method
   - [x] `tools/nv/test/roster-packages.test.ts` passes, and `tsc` is clean
-- [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
-- [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
+- [x] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
+  - [x] one writing subagent per class wrote `about.md`, 3 examples, 1 attack and 1 bench
+  - [x] a bench's copy rebases its `autoload` folders (`writeCopy` in `tools/nv/cmd/scaling.ts`)
+  - [x] perf recorded, and `bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing
+- [x] `nvs pkg publish --dry-run` prints its digest. `packages/rest/package.toml:1`
+  - [x] `LICENSE` and `README.md` next to `package.toml`, committed, since the dry run packs the commit
+- [ ] The grants hover follows the entry's tree and `[grants]`, and its gap record is deleted, so `bun nv owners --closes first-packages` passes. `crates/nvs-lsp/src/grants.rs:35`, `data/gaps/nvs-lsp/the-grants-hover-reads-the-entrys-tree-and-every-grant.json:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -231,35 +241,43 @@ Stages 1-3 are done: `info.version`, the Windows bundle's resource, and `package
 `Novis\Rest` 0.1.0 with seven classes under `src/`. `Session` is only type-checked, since
 `Core\Session` needs a store.
 
-Stage 4's first two items are done. `packages/rest/tests/` has `bootstrap.nvs` and four test
-classes, 25 tests, green under `nvs test packages/rest`: both grants, the cache, a refresh,
-discovery, DPoP claims and the one resend on a new nonce. Every fake server is
-`Core\Test::answerHttp`, and each test carries `// covers: Novis\Rest\<Class>`. The roster has
-kind `package` (standing decision *A package's roster unit is its class*): `bun nv proofs --id
-'Novis\Rest\Client'` lists its tests and owes about, 3 examples, 1 attack and a bench under
-`package/Novis-Rest-Client`.
+Stage 4 is done but for its last item. `packages/rest/tests/` has 27 tests, green under `nvs test
+packages/rest`. Every class has `about.md`, three examples, one attack and a bench under
+`package/Novis-Rest-<Class>`, and `bun nv proofs --gate --group 'package:Novis\Rest'` owes nothing.
+`Session`'s tests are skipped in `data/proofs/skip/package/Novis-Rest-Session.json`: it needs a
+request and a store, so its examples, attack and bench run as requests against Redis, and
+`benches/members/package/nvs.toml` names that store for every package bench. `nvs pkg publish
+--dry-run` in `packages/rest` prints its digest, now that `LICENSE` and `README.md` are committed.
+The attacks found two bounds `Token` lacked, now fixed with tests: an `expires_in` below 0 or above
+ten years throws, and an error description is cut to 200 characters.
 
-Expected red: `bun nv proofs --gate` (and CI's `proofs`) names the seven `Novis\Rest` classes until
-their proofs land. It is also red, before this goal's change, on every `lang:attributes/*` feature's
-perf: `docs/reference/lang/90-attributes.md` changed since it was last measured; the playbook's first
-bullet says how to re-record. The sweep's `env-secret-proofs` red was stale again (rerun green), and
-nightly run 40662443492 was cancelled by newer pushes.
+`bun nv owners --closes first-packages` is red on one record this goal owns, the grants hover's.
+
+Expected red, left to stage 5 (nothing is pushed before it): `bun nv proofs --gate` owes perf for
+every `lang:attributes/*` feature (`docs/reference/lang/90-attributes.md` changed in 5a5c9bbfc; the
+playbook's first bullet says how to re-record). `bun nv site --check questions` is stale on
+`tools/api-document/index.mdx` and on the questions of `/reference/cli/nvs-build-compile/` and
+`/reference/cli/nvs-build-openapi/` (from c330003ac and 5a5c9bbfc). The sweep's `env-secret-proofs`
+red was stale (rerun green), and nightly run 40662443492 was cancelled by newer pushes.
 
 ### Next
 
-Stage 4, items 3 and 4. Follow its `**Split:**`: one writing subagent per class, side by side, since
-each writes its own `package/Novis-Rest-<Class>` directories; the session then records perf once.
-An example loads the package with `autoload 'Novis\Rest' from '<relative path>/packages/rest/src';`
-and fakes the server with `Core\Test::answerHttp` (`docs/examples/core/Test/answerHttp/` shows it
-outside a test). `Session` also owes two tests: `Core\Session` needs a store (its examples declare
-`// requires: redis`), so look for a test-side store before writing them, or skip `tests` for it in
-`data/proofs/skip/` with the reason. The dry run needs a `LICENSE` next to `package.toml`, and a
-README is worth adding.
-- [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
-- [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
+Stage 4's last item, then stage 5. The grants hover (`crates/nvs-lsp/src/grants.rs:35`,
+`of_program`) reads the `nvs.toml` of the hovered file's directory. It should read the entry's tree,
+so a handler autoloaded from another directory shows the program's grants, and list the `[grants]`
+of the `package.toml` the entry finds (`rule:security/grants-are-keyed-on-a-namespace`), with
+`net.internal`'s exceptions and an extension's own `grants`. Read the gap record and
+`rule:ide/a-route-hover-shows-the-programs-grants` (`docs/rules/ide.md`) first. Pin it in an
+`.lspt` case, then delete the record. Stage 5 then fixes the expected reds above in its one pass.
+- [ ] The grants hover follows the entry's tree and `[grants]`, and its gap record is deleted. `crates/nvs-lsp/src/grants.rs:35`
 
 ### Backlog
 
+- `Core\Test::answerHttp` called twice for one URL keeps the first answer, and the docs do not say
+  so (`docs/examples/core/Test/answerHttp/about.md`). Several `Novis\Rest` attacks give each step its
+  own URL for this reason. Either the second call replaces the answer, or the page says it does not.
+- A top-level `jsonAs<tainted { count: int }>()` in a script is E0102/E0117 (an anonymous object
+  read as a block), though the same shape compiles inside a method.
 - Publishing `Novis\Rest` to the live registry is the project account's step, done by a person once the registry is deployed (`apps/registry/README.md`).
 - From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
   `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. A goal that changes
