@@ -12,8 +12,8 @@
 #
 #     plan → test → build → publish → docker
 #
-# `test` is skipped when the commit being released already has a green full run of `ci.yml`, a
-# nightly `schedule` or a `workflow_dispatch`. That run is the same commit and the same definition
+# `test` is skipped when the commit being released already has a green full run of `ci.yml` on
+# `main`: the nightly, or a `workflow_dispatch`. That run is the same commit and the same definition
 # `test` would call, so the release keeps its proof and loses its longest step. `plan` looks it up
 # with `bun nv release --tested`, and `build` and `publish` read a skipped `test` as passed and a
 # failed or cancelled one as the end of the release.

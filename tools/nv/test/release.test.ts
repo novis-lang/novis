@@ -303,8 +303,24 @@ describe("greenFullRun", () => {
   let next = 1;
   const ciRun = (over: Partial<WorkflowRun>): WorkflowRun => {
     const id = next++;
-    return { id, head_sha: SHA, event: "schedule", status: "completed", conclusion: "success", html_url: `https://example.com/runs/${id}`, ...over };
+    return {
+      id,
+      head_sha: SHA,
+      head_branch: "main",
+      event: "schedule",
+      status: "completed",
+      conclusion: "success",
+      html_url: `https://example.com/runs/${id}`,
+      ...over,
+    };
   };
+
+  test("a green run on landing does not count, because landing's ci.yml only dispatches CI on main", () => {
+    for (const event of ["schedule", "workflow_dispatch"]) {
+      expect(greenFullRun([ciRun({ event, head_branch: "landing" })], SHA)).toBeNull();
+    }
+    expect(greenFullRun([ciRun({ head_branch: null })], SHA)).toBeNull();
+  });
 
   test("a green schedule run and a green dispatch run count", () => {
     for (const event of ["schedule", "workflow_dispatch"]) {

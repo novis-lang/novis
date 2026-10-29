@@ -668,6 +668,7 @@ function repoSlug(): string {
 export interface WorkflowRun {
   id: number;
   head_sha: string;
+  head_branch: string | null;
   event: string;
   status: string;
   conclusion: string | null;
@@ -680,13 +681,21 @@ export const FULL_CI_EVENTS = ["schedule", "workflow_dispatch"];
 /**
  * The first run of `ci.yml` in `runs` that ran every job on `sha` and finished green, or null. The sha is
  * compared whole: a prefix could name another commit.
+ *
+ * Only a run on `main` counts. `landing`, the default branch, has a `ci.yml` too, and GitHub lists its
+ * runs under the same workflow: its nightly `schedule` and its **Run workflow** button only dispatch CI
+ * on `main`, so a green run there tested nothing.
  */
 export function greenFullRun(runs: WorkflowRun[], sha: string): WorkflowRun | null {
   const want = sha.trim().toLowerCase();
   return (
     runs.find(
       (r) =>
-        r.head_sha.toLowerCase() === want && FULL_CI_EVENTS.includes(r.event) && r.status === "completed" && r.conclusion === "success",
+        r.head_sha.toLowerCase() === want &&
+        r.head_branch === "main" &&
+        FULL_CI_EVENTS.includes(r.event) &&
+        r.status === "completed" &&
+        r.conclusion === "success",
     ) ?? null
   );
 }
