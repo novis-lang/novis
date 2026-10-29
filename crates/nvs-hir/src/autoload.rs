@@ -478,6 +478,19 @@ impl AutoloadMap {
         &self.sites
     }
 
+    /// Every prefix this program's own declarations map, as `Acme\Legacy`,
+    /// with its roots in probe order. A prefix a `discover` glob produced is
+    /// here, and a borrowed one is not. `nvs pkg audit` reads it to find a
+    /// namespace no grant line matches.
+    #[must_use]
+    pub fn prefixes(&self) -> Vec<(String, &[PathBuf])> {
+        self.entries
+            .iter()
+            .filter(|entry| !entry.borrowed)
+            .map(|entry| (entry.segments.join("\\"), entry.roots.as_slice()))
+            .collect()
+    }
+
     /// Whether `path` is under a root one of this program's own declarations
     /// names, which makes it a file this program autoloads.
     ///

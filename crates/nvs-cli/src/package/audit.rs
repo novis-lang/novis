@@ -14,16 +14,30 @@
 //! cannot be read, stop the command with an error. A registry that names no copy gets one note,
 //! and audit goes on.
 //!
+//! **An autoload prefix no grant line matches is a warning**
+//! (`rule:security/an-unmatched-namespace-holds-the-application`). Every `.nvs` file under the
+//! application's folder that starts a program is walked the way an editor finds its lenders
+//! ([`Lender::walk`]), and each prefix its `autoload` declarations map, discovered ones included,
+//! is looked up in the application's `[grants]`. A prefix that matches no line holds the
+//! application's authority, and audit names it with its roots. Code `nvs pkg fetch` placed always
+//! has a line, so what is named is code a person copied in, or the application's own source
+//! tree, which has the same shape. A warning never changes the exit status.
+//!
 //! The command exits non-zero while any locked version is under an advisory, so CI can run it.
 //! `--json` prints the same report as one JSON object.
 //!
 //! Cost: per registry, one feed, one entry bundle per 256 records of its log, one checkpoint
-//! copy and one consistency proof, and one index file per package under an advisory. Nothing
-//! here runs on the request path.
+//! copy and one consistency proof, and one index file per package under an advisory. For the
+//! warning, one read of every `.nvs` file under the folder and one name resolution per file that
+//! starts a program. Nothing here runs on the request path.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 use std::process::ExitCode;
 
+use nvs_config::grants::Grants;
+use nvs_diagnostics::SourceMap;
+use nvs_hir::Lender;
 use serde::Serialize;
 
 use super::advisory::Advisory;
@@ -65,11 +79,23 @@ struct Checked {
     copy_size: Option<u64>,
 }
 
+/// One autoload prefix that no grant line matches.
+#[derive(Serialize)]
+struct Unmatched {
+    /// The namespace prefix, as `Acme\Legacy`.
+    prefix: String,
+    /// Its roots in probe order, relative to the application's folder with `/` where they are
+    /// under it.
+    roots: Vec<String>,
+}
+
 /// The whole report, as `--json` prints it.
 #[derive(Serialize)]
 struct Report {
     advisories: Vec<Found>,
     registries: Vec<Checked>,
+    /// The warnings: each autoload prefix no grant line matches, sorted.
+    unmatched: Vec<Unmatched>,
 }
 
 /// `nvs pkg audit`, in the working directory. With `json`, the report is one JSON object.
@@ -82,6 +108,7 @@ pub(crate) fn run(json: bool) -> ExitCode {
                 println!("{text}");
             } else {
                 print(&report);
+                warn(&report.unmatched);
             }
             if clean {
                 ExitCode::SUCCESS
@@ -110,6 +137,7 @@ fn auditing() -> Result<Report, Failed> {
     let mut report = Report {
         advisories: Vec::new(),
         registries: Vec::new(),
+        unmatched: unmatched(&app.dir, &app.manifest.grants),
     };
     for locked in &lock.packages {
         if locked.source.starts_with("git+") {
@@ -219,6 +247,52 @@ fn found(
         log: advisory.log,
         fixed_in,
         bump,
+    }
+}
+
+/// Each autoload prefix that a program under `dir` maps and no line of `grants` matches, sorted
+/// by prefix, each once.
+fn unmatched(dir: &Path, grants: &Grants) -> Vec<Unmatched> {
+    let base = nvs_hir::requires::canonicalize(dir).unwrap_or_else(|| dir.to_path_buf());
+    let mut found: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for source in nvs_hir::lenders::sources(dir) {
+        let Some(lender) = Lender::walk(SourceMap::new(), &source) else {
+            continue;
+        };
+        for (prefix, roots) in lender.map().prefixes() {
+            if grants.lookup(&prefix).is_some() {
+                continue;
+            }
+            let shown = found.entry(prefix).or_default();
+            shown.extend(roots.iter().map(|root| match root.strip_prefix(&base) {
+                Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                Err(_) => nvs_diagnostics::plain_path(root).display().to_string(),
+            }));
+        }
+    }
+    found
+        .into_iter()
+        .map(|(prefix, roots)| Unmatched {
+            prefix,
+            roots: roots.into_iter().collect(),
+        })
+        .collect()
+}
+
+/// Each of `unmatched` as a warning on standard error.
+fn warn(unmatched: &[Unmatched]) {
+    for line in unmatched {
+        eprintln!(
+            "warning: no line in `[grants]` matches `{}`, loaded from `{}`. Its code has every \
+             permission your application has.",
+            line.prefix,
+            line.roots.join("`, `")
+        );
+        eprintln!(
+            "  If it is not your application's own code, add a line for `{}\\*` to `[grants]` \
+             in `package.toml`, with the permissions it needs.",
+            line.prefix
+        );
     }
 }
 

@@ -131,6 +131,12 @@ impl Lender {
         self.map.sites()
     }
 
+    /// The map the program's declarations built.
+    #[must_use]
+    pub fn map(&self) -> &AutoloadMap {
+        &self.map
+    }
+
     /// Whether this program lends its map to `path`: its walk read the file,
     /// the file is under a root one of its own declarations names, or the file
     /// is under the directory of its entry and is plain.

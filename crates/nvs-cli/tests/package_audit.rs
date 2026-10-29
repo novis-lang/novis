@@ -10,7 +10,9 @@
 //! bad. A retracted and a withheld locked version are each reported with the release that clears
 //! them, and the command fails. An unlisted one is not an advisory, and a registry that names no
 //! second copy of its checkpoint gets one note. A copy of the checkpoint over another log, shorter
-//! or of the same size, stops the command, and `--json` names the advisory and the copy.
+//! or of the same size, stops the command, and `--json` names the advisory and the copy. An
+//! autoload prefix the application's program maps and no grant line matches is a warning that
+//! leaves the exit at zero (`rule:security/an-unmatched-namespace-holds-the-application`).
 //!
 //! The signing key is Go's `sumdb/note` test key, from the vendored vectors in
 //! `tests/fixtures/tlog/note.json`, so no case needs a random source. Its name is the log's origin,
@@ -573,6 +575,61 @@ fn audit_json_names_the_advisory_and_the_matching_copy() {
                 "copy": "file:../copy/checkpoint",
                 "copy_size": 3,
             }],
+            "unmatched": [],
         })
     );
+}
+
+/// The application's program autoloads the fetched `Acme\Http`, which `nvs pkg fetch` gave a grant
+/// line, and a copied `Legacy\Pdf`, which has none. Only `Legacy\Pdf` is named, as a warning, and
+/// the exit stays zero. A grant line for it makes audit silent.
+#[test]
+fn audit_warns_on_an_autoload_prefix_no_grant_line_matches() {
+    let tree = Locked::new("audit-unmatched");
+    let unlist = serde_json::json!({
+        "v": 1, "kind": "unlist", "package": "acme/http", "version": "1.1.0",
+    });
+    tree.advise(&unlist, &serde_json::json!("unlisted"));
+    fs::create_dir_all(tree.app().join("lib/pdf")).unwrap();
+    fs::write(
+        tree.app().join("main.nvs"),
+        "<?nvs\nrequire './vendor/packages.nvs';\nautoload 'Legacy\\Pdf' from './lib/pdf';\n",
+    )
+    .unwrap();
+    let out = tree.nvs(&["pkg", "audit"]);
+    assert!(out.status.success(), "{}", shown(&out));
+    let errors = stderr(&out);
+    let warnings: Vec<&str> = errors
+        .lines()
+        .filter(|line| line.starts_with("warning: "))
+        .collect();
+    assert_eq!(
+        warnings,
+        [
+            "warning: no line in `[grants]` matches `Legacy\\Pdf`, loaded from `lib/pdf`. Its code \
+             has every permission your application has."
+        ],
+        "{}",
+        shown(&out)
+    );
+    let json = tree.nvs(&["pkg", "audit", "--json"]);
+    assert!(json.status.success(), "{}", shown(&json));
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&json)).expect("audit prints JSON");
+    assert_eq!(
+        report["unmatched"],
+        serde_json::json!([{ "prefix": "Legacy\\Pdf", "roots": ["lib/pdf"] }])
+    );
+
+    let manifest = tree.app().join("package.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    assert!(text.contains("[grants]\n"), "{text}");
+    fs::write(
+        &manifest,
+        text.replace("[grants]\n", "[grants]\n'Legacy\\Pdf\\*' = []\n"),
+    )
+    .unwrap();
+    let granted = tree.nvs(&["pkg", "audit"]);
+    assert!(granted.status.success(), "{}", shown(&granted));
+    assert!(!stderr(&granted).contains("warning:"), "{}", shown(&granted));
 }
