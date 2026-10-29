@@ -104,16 +104,10 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `48f915494`, which carries the Windows `Response::text` attack fix
-`253382e65`. CI 40820447284 and Website 40820447292 are green on it. Nothing is fixed and
-unpushed. The next watch waits for the next goal end's push.
-
-Before that push, the main loop's open goal owes this at `HEAD`, and its own gate catches it.
-The main loop was told with `loop say`. `proofs --gate` owes perf for `lang:attributes/*`
-(`docs/reference/lang/90-attributes.md` changed in `5a5c9bbfc`) and every `Novis\Rest` class.
-`site --check stale questions` is red on `tools/api-document/index.mdx` and on the questions of
-`/reference/cli/nvs-build-compile/` and `/reference/cli/nvs-build-openapi/`. If the next push
-goes out with these, its `proofs` and site jobs go red: record and stamp them then.
+`origin/main` is at `15a64f161`, the end of `arr-key-order-and-nulls`. CI 40827587132 and
+Website 40827587118 are green on it. Nothing is fixed and unpushed. The next watch waits for the
+next goal end's push. Before this push, `proofs --gate --limit 0` and `site --check stale
+questions` were both green at `HEAD`.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
