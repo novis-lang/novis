@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/rules.ts, tools/nv/test/rules.test.ts, docs/agent/conventions.md]
   - id: 2
     title: "the standard library's queue and database files' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-stdlib/src/queue.rs, crates/nvs-stdlib/src/db/execute.rs]
   - id: 9
     title: "the rest of the standard library's marks name their documents"
@@ -115,12 +115,17 @@ for a document that does not exist.
   about 600 bare marks, which is what each stage was sized to from a raw count of `§ N`. Where a
   stage's entries total more, the session stops at about 600 and its handoff names the files left as
   the next group.
-- **The history lookup and the edits are delegated.** For each file, an `Explore` subagent runs the
-  history method above and returns a table, one row per mark: line, mark, the record and section it
-  meant, and the replacement (a `rule:` id, "delete", "module doc", or the standard's name). The
-  session checks each table against the rules it names. Writing subagents then apply the checked
-  tables, one batch of files after another, and the session reads each batch's diff before the next.
-  A slice is a batch whose diff the session read, committed with the counts it lowered.
+- **The history lookup and the edits are delegated to the same writing subagent.** Each gets a
+  disjoint set of files, runs the history method above, edits the comments, and reports one line per
+  mark meaning: the record and section, and the replacement. They run side by side, and the session
+  reads every diff before it commits. A separate `Explore` table first would read each file twice
+  and check nothing the diff does not. `bun nv rules --marks <paths>` lists what is left in a file.
+  A slice is a set of files whose diff the session read, committed with the counts it lowered.
+- **A mark in a string literal is rewritten by the session, after the subagents end.** Subagents
+  edit comments only and report each mark left in a string. Most are test messages, which name the
+  thing instead (`"§ 6 moved it"` becomes `"the dead-letter move took it"`). A message a program's
+  user reads follows AGENTS.md § *Text an end user reads*, and is changed only once a search shows
+  no expectation file pins its wording.
 
 **Lanes.** Stages 2 to 7 and 9 to 14 cover disjoint crates and directories, so any two can run at
 once as lanes after stage 1. Every lane edits `tools/data/bare-section-marks.json`; at merge it is
@@ -160,9 +165,9 @@ sessions: fourteen stages, each about one session.
 **Split:** one `Explore` subagent per file returns its mark table; writing subagents apply the tables
 in batches, one after another, as the standing decision says.
 
-- [ ] The queue files. `crates/nvs-stdlib/src/queue.rs:1`, `crates/nvs-stdlib/tests/queue.rs:1`, `crates/nvs-stdlib/tests/queue_sqlite.rs:1`, `crates/nvs-stdlib/src/topic.rs:1`, `crates/nvs-stdlib/src/bus.rs:1`
-- [ ] The database layer: every file under `crates/nvs-stdlib/src/db/` the record lists, and `crates/nvs-stdlib/tests/db_stream.rs`. `crates/nvs-stdlib/src/db/execute.rs:1`, `crates/nvs-stdlib/src/db/transaction.rs:1`
-- [ ] Their counts at zero in the record. `tools/data/bare-section-marks.json:1`
+- [x] The queue files. `crates/nvs-stdlib/src/queue.rs:1`, `crates/nvs-stdlib/tests/queue.rs:1`, `crates/nvs-stdlib/tests/queue_sqlite.rs:1`, `crates/nvs-stdlib/src/topic.rs:1`, `crates/nvs-stdlib/src/bus.rs:1`
+- [x] The database layer: every file under `crates/nvs-stdlib/src/db/` the record lists, and `crates/nvs-stdlib/tests/db_stream.rs`. `crates/nvs-stdlib/src/db/execute.rs:1`, `crates/nvs-stdlib/src/db/transaction.rs:1`
+- [x] Their counts at zero in the record. `tools/data/bare-section-marks.json:1`
 
 ### 9. the rest of the standard library's marks name their documents
 
@@ -297,26 +302,44 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `bun nv rules --check` counts each file's bare marks under `crates/` and
-`tests/conformance/` against `tools/data/bare-section-marks.json` (5166 marks in 727 files) and is
-green. A mark is kept after `RFC N`, `MS-X`, `FIPS N-N`, `XML 1.0`, `WebAuthn Level N` or
-`WHATWG X` (`NAMED_STANDARD`, `tools/nv/cmd/rules.ts:150`), after a list joiner that follows a kept
-mark, and as `§ *Heading*`. `--record-marks` writes nothing while a file is above its count. The
-forms' home is `docs/agent/conventions.md:382`. The finder counts every line, string literals too,
-so stage 8 meets any `§ N` a test fixture carries. `tools/nv/test/rules.test.ts:103` holds the
-cases, and no existing test is expected to go red.
+Stages 1 and 2 are done. All 697 of stage 2's marks are gone, so the record holds 4469 marks in
+708 files, and every queue, topic, bus and `db/` file under `crates/nvs-stdlib/` is at zero. Eight
+writing subagents on disjoint files did the lookup and the edits in one pass. The session then
+rewrote the 64 marks they left in strings, which were test messages and two errors a user reads,
+and read every diff. `bun nv rules --marks <paths>` (`tools/nv/cmd/rules.ts:239`) lists a file's
+bare marks with their lines. Build, clippy and rustfmt are green. Only messages changed, so no test
+is expected to go red. The SQLite decode error's new wording (`crates/nvs-stdlib/src/db/execute.rs:1362`)
+is pinned by no expectation file.
+
+Most `db/` marks cited the `Core\Db` record; its sections map to the `core-classes/db-*` rules,
+`security/db-pool-reset-is-a-boundary` (§ 13) and `observability/a-query-is-a-trace-event` (§ 11).
+The queue's map to the `concurrency/` queue rules and `core-classes/queue-storage-is-a-table`.
+`docs/adr/` was deleted at `4eac41113`, not `8b0d14919`; `git log --diff-filter=D -1 -- '<path>'`
+finds any record's deleting commit, and its parent has the record.
+
+`bun nv rules --check` is red on one line this goal did not write:
+`docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
+That goal's first session fixes it.
 
 ### Next
 
-Stage 2, on `crates/nvs-stdlib/`; `namespace-grants` is retired, so no lane holds its files. Its
-record entries total about 697, so it stops near 600 and names what is left. Largest first:
-- [ ] The queue files: `queue.rs` 155, `tests/queue.rs` 95, `topic.rs` 26, `tests/queue_sqlite.rs` 25, `bus.rs` 7. `crates/nvs-stdlib/src/queue.rs:1`
-- [ ] `db/`: `execute.rs` 88, `transaction.rs` 66, `open.rs` 46, `bind.rs` 40, `registry.rs` 36, the rest, `tests/db_stream.rs`. `crates/nvs-stdlib/src/db/execute.rs:1`
-- [ ] `bun nv rules --record-marks` lowers the counts in each slice's commit. `tools/data/bare-section-marks.json:1`
+Stage 9, the rest of `crates/nvs-stdlib/`: 528 marks, which fits one session. `namespace-grants`
+is retired, so `cap.rs` and `registry.rs` are free. Split the files across about seven writing
+subagents with the brief stage 2 used, then rewrite the strings they leave.
+- [ ] HTTP: `response.rs` 51, `uri.rs` 43, `socket.rs` 41, `request.rs` 37, `http.rs` 31, `router.rs` 29, `sse.rs` 11, `http/`. `crates/nvs-stdlib/src/response.rs:1`
+- [ ] The rest, largest first: `ratelimit.rs` 35, `script.rs` 27, `cache.rs` 27, `log.rs` 23, `command.rs` 18, `html.rs` 14, `registry.rs` 12, `encoding.rs` 12, `tests/capability.rs` 10, and every smaller entry. `crates/nvs-stdlib/src/ratelimit.rs:1`
+- [ ] `bun nv rules --record-marks` in each slice's commit. When the files of two slices are edited together, stash one slice's files while you record and commit the other. `tools/data/bare-section-marks.json:1`
 
 ### Backlog
 
 - A standard the finder does not know turns its marks bare; add it to `NAMED_STANDARD` with a case
   rather than rewriting the mark. `tools/nv/cmd/rules.ts:150`
+- `Core\Db\Schema::fromArray`'s error shows `rule:core-classes/schema-vocabulary-is-closed` to the
+  program's user. It is not a mark, and a conformance case pins it, so it changes with its
+  expectation file. `crates/nvs-stdlib/src/db/schema.rs:58`
+- `transaction.rs` cites "R2" and "R9", old numbered `Core` API conventions. They are not marks,
+  so stage 8's check does not see them. `crates/nvs-stdlib/src/db/transaction.rs:745`
+- `nvs_runtime::pool`'s head comment has bare § 13 marks, which `db/registry.rs` now cites by
+  heading. Stage 12 rewrites them. `crates/nvs-runtime/src/pool.rs:4`
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
   marks. `docs/agent/conventions.md:367`
