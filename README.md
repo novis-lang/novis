@@ -119,8 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Faster extensions.** *Working on it now.* An extension written in Rust or C gets and returns bytes without a second copy. Large files and uploads go through an extension faster.
-2. **Settings for your program.** Your program reads its own settings and secrets from `nvs.toml`. `nvs config check` warns about a setting that no program reads.
+1. **Settings for your program.** *Working on it now.* Your program reads its own settings and secrets from `nvs.toml`. `nvs config check` warns about a setting that no program reads.
 <!-- roadmap:end -->
 
 ## Contributing
