@@ -96,4 +96,37 @@ echo 'step 6: ', Core\Arr::count(Core\Arr::sortByKey($wide)), "\n";
 array<int> $empty = [];
 echo 'step 7: ', Core\Arr::count(Core\Arr::sortByKey($empty)), "\n";
 
+// 8. A `keys` list of 400000 keys, given for an array of four entries. Only the
+// key `c` is in both, so it comes first.
+array<int|string> $longList = [];
+int $k = 0;
+while ($k < 400000) {
+    $longList[] = $k;
+    $k = $k + 1;
+}
+$longList[] = 'c';
+echo 'step 8: ', Core\Arr::firstKey(Core\Arr::sortByKey($keys, { keys: $longList })), "\n";
+
+// 9. A `keys` list that names every key of the array 100000 times. Each key
+// keeps its first place, and every entry is still in the result.
+array<string> $repeated = [];
+int $r = 0;
+while ($r < 100000) {
+    $repeated[] = 'a';
+    $repeated[] = 'b';
+    $repeated[] = 'c';
+    $repeated[] = 'd';
+    $r = $r + 1;
+}
+array<int> $ranked = Core\Arr::sortByKey($keys, { keys: $repeated });
+echo 'step 9: ', Core\Str::join(Core\Arr::keys($ranked), ','), "\n";
+
+// 10. `keys` and a comparator together. The call throws an error.
+try {
+    array<int> $both = Core\Arr::sortByKey($keys, { keys: ['a'], comparator: Attack::contradict });
+    echo 'step 10: ', Core\Arr::count($both), "\n";
+} catch (LogicError $twoOrders) {
+    echo 'step 10: threw', "\n";
+}
+
 echo 'the runtime is still standing', "\n";

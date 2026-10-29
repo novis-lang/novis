@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to move one key to the front of every row in a table. The other keys
+// keep their order.
+
+array<array<string>> $users = [
+    ['name' => 'Ida Weber', 'email' => 'ida@example.com', 'id' => '7'],
+    ['name' => 'Tom Berg', 'email' => 'tom@example.com', 'id' => '12'],
+];
+
+// `keys: ['id']` puts the key `id` first. `name` and `email` follow in their
+// current order, and every value stays with its key.
+array<array<string>> $idFirst = Core\Arr::map(
+    $users,
+    fn(array<string> $row): array<string> => Core\Arr::sortByKey($row, { keys: ['id'] }),
+);
+
+// This prints `id=7 name=Ida Weber email=ida@example.com`, then the same for Tom.
+foreach ($idFirst as array<string> $row) {
+    array<string> $pairs = Core\Arr::map($row, fn(string $value, string $key): string
+        => $key . '=' . $value);
+    echo Core\Str::join($pairs, ' '), "\n";
+}
