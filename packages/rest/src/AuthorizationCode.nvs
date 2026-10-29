@@ -1,0 +1,95 @@
+<?nvs
+namespace Novis\Rest;
+
+use RuntimeError;
+
+// The authorization code grant with PKCE: a user signs in at the server, and the
+// server sends the user back with a code. The client then exchanges the code for a token.
+final class AuthorizationCode
+{
+    // Returns the URL to send the user to, and the `state` and `codeVerifier` of this sign-in.
+    // Keep both in the user's session until the user comes back to `$redirectUri`.
+    // With a DPoP client, the URL also has `dpop_jkt`, so the code only works with that key.
+    public static function start(Client $client, string $authorizationEndpoint, string $redirectUri, string $scope): { url: string, state: string, codeVerifier: secret string }
+    {
+        string $verifier = Core\Encoding::toBase64Url(Core\Random::bytes(32));
+        string $challenge = Core\Encoding::toBase64Url(Core\Hash::of($verifier, Core\Hash::Digest::Sha256));
+        string $state = Core\Encoding::toBase64Url(Core\Random::bytes(16));
+
+        Core\Uri $uri = Core\Uri::parse($authorizationEndpoint)
+            ->withQueryParameter('response_type', 'code')
+            ->withQueryParameter('client_id', $client->clientId)
+            ->withQueryParameter('redirect_uri', $redirectUri)
+            ->withQueryParameter('state', $state)
+            ->withQueryParameter('code_challenge', $challenge)
+            ->withQueryParameter('code_challenge_method', 'S256');
+        if ($scope != '') {
+            $uri = $uri->withQueryParameter('scope', $scope);
+        }
+        ?DPoP $dpop = $client->dpop();
+        if ($dpop != null) {
+            $uri = $uri->withQueryParameter('dpop_jkt', $dpop->thumbprint());
+        }
+        secret string $codeVerifier = $verifier;
+        return { url: $uri->toString(), state: $state, codeVerifier: $codeVerifier };
+    }
+
+    // Checks the `state` the user came back with against the one from `start`.
+    // A different value throws a `RuntimeError`. The comparison takes the same time for every value.
+    public static function checkState(tainted string $returned, string $expected): void
+    {
+        string $state = AuthorizationCode::checked($returned, 'state');
+        bytes $a = Core\Hash::of($state, Core\Hash::Digest::Sha256);
+        bytes $b = Core\Hash::of($expected, Core\Hash::Digest::Sha256);
+        if (!Core\Hash::equals($a, $b)) {
+            throw new RuntimeError('the `state` of the reply is not the `state` of this sign-in');
+        }
+    }
+
+    // Exchanges the `code` the user came back with for a token. `$redirectUri` and
+    // `$codeVerifier` must be the values that were used in `start`.
+    public static function exchange(Client $client, tainted string $code, string $redirectUri, secret string $codeVerifier): Token
+    {
+        string $checkedCode = AuthorizationCode::checked($code, 'code');
+        return $client->requestToken([
+            'grant_type' => 'authorization_code',
+            'code' => $checkedCode,
+            'redirect_uri' => $redirectUri,
+            'code_verifier' => $codeVerifier,
+        ]);
+    }
+
+    // Uses a refresh token to get a new token. When the server sends no new
+    // refresh token, the new token keeps the old one.
+    public static function refresh(Client $client, Token|secret string $refresh): Token
+    {
+        ?secret string $refreshToken = null;
+        string $scope = '';
+        if ($refresh is Token) {
+            $refreshToken = $refresh->refreshToken;
+            $scope = $refresh->scope;
+        } else if ($refresh is string) {
+            $refreshToken = $refresh;
+        }
+        if ($refreshToken == null) {
+            throw new RuntimeError('this token has no refresh token');
+        }
+        Token $token = $client->requestToken([
+            'grant_type' => 'refresh_token',
+            'refresh_token' => $refreshToken,
+        ]);
+        if ($token->scope == '' && $scope != '') {
+            $token = new Token($token->accessToken, $token->type, $token->expiresAt, $token->refreshToken, $scope);
+        }
+        return $token->keepingRefresh($refreshToken);
+    }
+
+    // A code and a state may have only printable ASCII characters (RFC 6749).
+    private static function checked(tainted string $value, string $field): string
+    {
+        if (!Core\Regex::matches($value, '^[\x20-\x7E]{1,2048}$')) {
+            throw new RuntimeError('the `' . $field . '` of the reply is empty, too long, or has characters it may not have');
+        }
+        return Core\Taint::assertTrusted($value, 'the value has only the characters of RFC 6749');
+    }
+}

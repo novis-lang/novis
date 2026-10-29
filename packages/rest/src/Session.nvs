@@ -1,0 +1,79 @@
+<?nvs
+namespace Novis\Rest;
+
+// Keeps the tokens of a signed-in user in the user's session.
+// The tokens are encrypted with `$keys`, so the session store only sees encrypted bytes.
+// Call `Core\Session::start()` before you use these functions.
+final class Session
+{
+    // Saves `$token` in the session. The refresh token is kept in the session
+    // and not in a cache, because a cache may delete it at any time.
+    public static function save(Token $token, array<secret bytes> $keys): void
+    {
+        Core\Session::setSecret('novis-rest.access', $token->accessToken, $keys);
+        ?secret string $refreshToken = $token->refreshToken;
+        if ($refreshToken != null) {
+            Core\Session::setSecret('novis-rest.refresh', $refreshToken, $keys);
+        } else {
+            Core\Session::remove('novis-rest.refresh');
+        }
+        Core\Session::set('novis-rest.type', $token->type);
+        Core\Session::set('novis-rest.expires', $token->expiresAt->toEpochSeconds());
+        Core\Session::set('novis-rest.scope', $token->scope);
+    }
+
+    // Returns the token from the session, or `null` when the session has none.
+    // The token may be expired. `current` also refreshes it.
+    public static function load(array<secret bytes> $keys): ?Token
+    {
+        ?secret string $accessToken = Core\Session::getSecret('novis-rest.access', $keys);
+        ?tainted string $type = Core\Session::get('novis-rest.type') as ?tainted string;
+        ?int $expires = Core\Session::get('novis-rest.expires') as ?int;
+        ?tainted string $scope = Core\Session::get('novis-rest.scope') as ?tainted string;
+        if ($accessToken == null || $type == null || $expires == null || $scope == null) {
+            return null;
+        }
+        // The session store is outside this program, so the values are checked before they are used.
+        if (!Core\Regex::matches($type, '^(Bearer|DPoP)$') || !Core\Regex::matches($scope, '^[\x21\x23-\x5B\x5D-\x7E ]*$')) {
+            return null;
+        }
+        ?secret string $refreshToken = Core\Session::getSecret('novis-rest.refresh', $keys);
+        return new Token(
+            $accessToken,
+            Core\Taint::assertTrusted($type, 'the type is `Bearer` or `DPoP`'),
+            Core\Time::fromEpoch($expires),
+            $refreshToken,
+            Core\Taint::assertTrusted($scope, 'the scope has only the characters of RFC 6749'),
+        );
+    }
+
+    // Deletes the tokens from the session, such as when the user signs out.
+    public static function forget(): void
+    {
+        Core\Session::remove('novis-rest.access');
+        Core\Session::remove('novis-rest.refresh');
+        Core\Session::remove('novis-rest.type');
+        Core\Session::remove('novis-rest.expires');
+        Core\Session::remove('novis-rest.scope');
+    }
+
+    // Returns a token that is not expired, or `null` when the user is not signed in.
+    // An expired token is refreshed with its refresh token, and the new token is saved.
+    // An expired token without a refresh token returns `null`.
+    public static function current(Client $client, array<secret bytes> $keys): ?Token
+    {
+        ?Token $token = Session::load($keys);
+        if ($token == null) {
+            return null;
+        }
+        if (!$token->isExpired()) {
+            return $token;
+        }
+        if ($token->refreshToken == null) {
+            return null;
+        }
+        Token $fresh = AuthorizationCode::refresh($client, $token);
+        Session::save($fresh, $keys);
+        return $fresh;
+    }
+}

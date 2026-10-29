@@ -1,0 +1,123 @@
+<?nvs
+namespace Novis\Rest;
+
+use RuntimeError;
+
+// The endpoints of an OAuth 2 server, read from its metadata document.
+// `Discovery::fetch('https://login.example.com')` reads them, and `client` creates a client for that server.
+final class Discovery
+{
+    public function constructor(
+        public readonly string $issuer,
+        public readonly string $tokenEndpoint,
+        public readonly ?string $authorizationEndpoint,
+        public readonly ?string $jwksUri,
+        public readonly array<string> $dpopAlgorithms,
+    )
+    {}
+
+    // Reads the metadata of the server `$issuer`. It tries the OpenID Connect document first,
+    // and the OAuth 2 document (RFC 8414) when that one does not exist.
+    // The document must name the same issuer, and every endpoint must be an `https:` URL.
+    public static function fetch(string $issuer): Discovery
+    {
+        Core\Uri $uri = Discovery::httpsUri($issuer, 'issuer');
+        string $path = Core\Str::trimEnd($uri->path(), { characters: '/' });
+
+        string $openId = $uri->with({ path: $path . '/.well-known/openid-configuration', query: null, fragment: null })->toString();
+        Core\Http\Response $response = Core\Http\Client::get($openId, { headers: ['Accept' => 'application/json'] });
+        if ($response->status() == 404) {
+            string $oauth = $uri->with({ path: '/.well-known/oauth-authorization-server' . $path, query: null, fragment: null })->toString();
+            $response = Core\Http\Client::get($oauth, { headers: ['Accept' => 'application/json'] });
+        }
+        if ($response->status() != 200) {
+            throw new RuntimeError('the metadata of `' . $issuer . '` could not be read: the server replied with status ' . $response->status());
+        }
+
+        var $metadata = $response->jsonAs<tainted {
+            issuer: string,
+            token_endpoint: string,
+            authorization_endpoint?: string,
+            jwks_uri?: string,
+            dpop_signing_alg_values_supported?: array<string>,
+        }>();
+
+        if ($metadata->issuer != $issuer) {
+            throw new RuntimeError('the metadata of `' . $issuer . '` names a different issuer');
+        }
+
+        ?string $authorizationEndpoint = null;
+        tainted string $authorization = $metadata->authorization_endpoint ?? '';
+        if ($authorization != '') {
+            $authorizationEndpoint = Discovery::endpointOf($authorization, 'authorization_endpoint');
+        }
+        ?string $jwksUri = null;
+        tainted string $jwks = $metadata->jwks_uri ?? '';
+        if ($jwks != '') {
+            $jwksUri = Discovery::endpointOf($jwks, 'jwks_uri');
+        }
+        array<string> $algorithms = [];
+        foreach ($metadata->dpop_signing_alg_values_supported ?? [] as tainted string $algorithm) {
+            if (!Core\Regex::matches($algorithm, '^[A-Za-z0-9_.\-]{1,32}$')) {
+                throw new RuntimeError('the metadata has a DPoP algorithm that is not one short word');
+            }
+            $algorithms[] = Core\Taint::assertTrusted($algorithm, 'the algorithm is one short word');
+        }
+
+        return new Discovery(
+            $issuer,
+            Discovery::endpointOf($metadata->token_endpoint, 'token_endpoint'),
+            $authorizationEndpoint,
+            $jwksUri,
+            $algorithms,
+        );
+    }
+
+    // Returns a client with a secret for this server.
+    public function client(string $clientId, secret string $clientSecret): Client
+    {
+        return Client::confidential($this->tokenEndpoint, $clientId, $clientSecret);
+    }
+
+    // Returns a client without a secret for this server.
+    public function publicClient(string $clientId): Client
+    {
+        return Client::withoutSecret($this->tokenEndpoint, $clientId);
+    }
+
+    // Reads the public keys of the server from `jwks_uri`. Use them to check the
+    // signature of a token with `Core\Jwt`. A server without `jwks_uri` throws a `RuntimeError`.
+    public function keys(): Core\Jwt\KeySet
+    {
+        ?string $jwksUri = $this->jwksUri;
+        if ($jwksUri == null) {
+            throw new RuntimeError('the metadata of `' . $this->issuer . '` has no `jwks_uri`');
+        }
+        Core\Http\Response $response = Core\Http\Client::get($jwksUri, { headers: ['Accept' => 'application/json'] });
+        if ($response->status() != 200) {
+            throw new RuntimeError('the keys of `' . $this->issuer . '` could not be read: the server replied with status ' . $response->status());
+        }
+        string $text = Core\Taint::assertTrusted($response->text(), 'the key set is read and checked as JSON');
+        return Core\Jwt\KeySet::read($text);
+    }
+
+    // An endpoint must be an `https:` URL without a fragment.
+    private static function endpointOf(tainted string $value, string $field): string
+    {
+        if (!Core\Regex::matches($value, '^https://[\x21-\x7E]{1,2048}$')) {
+            throw new RuntimeError('the metadata has a `' . $field . '` that is not an `https:` URL');
+        }
+        string $url = Core\Taint::assertTrusted($value, 'the value is an https URL of printable characters');
+        Discovery::httpsUri($url, $field);
+        return $url;
+    }
+
+    private static function httpsUri(string $url, string $field): Core\Uri
+    {
+        ?Core\Uri $uri = Core\Uri::tryParse($url);
+        if ($uri == null || $uri->scheme() != 'https' || ($uri->host() ?? '') == '' || $uri->fragment() != null) {
+            throw new RuntimeError('the `' . $field . '` is not an `https:` URL');
+        }
+        return $uri;
+    }
+}

@@ -20,7 +20,7 @@ stages:
         rules: [packaging/the-windows-binary-says-what-it-is, packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host, packaging/package-toml-is-a-tool-input, packaging/a-c-dependency-answers-two-questions]
   - id: 3
     title: "`Novis\\Rest` gives OAuth grants, discovery and DPoP"
-    status: open
+    status: done
     context: [packages/rest/package.toml, crates/nvs-stdlib/src/jwt.rs, crates/nvs-stdlib/src/session.rs, docs/rules/core-api/tier-placement.md]
     extra:
       context:
@@ -178,9 +178,9 @@ package uses, one line each with its anchor.
 
 - [x] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
 - [x] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache (`rule:core-api/tier-placement`). `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
-- [ ] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
-- [ ] `Discovery` and `DPoP` (`rule:security/jws-issued-subset`). `packages/rest/src/DPoP.nvs:1`
-- [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`
+- [x] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
+- [x] `Discovery` and `DPoP` (`rule:security/jws-issued-subset`). `packages/rest/src/DPoP.nvs:1`
+- [x] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`
 
 ### 4. `Novis\Rest` has its tests and its proofs, and passes `nvs pkg publish --dry-run`
 
@@ -213,34 +213,36 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `nvs build --openapi` writes the nearest `package.toml`'s `version` as
-`info.version` (`run_build` in `crates/nvs-cli/src/main.rs`).
+Stages 1, 2 and 3 are done. Stage 1: `nvs build --openapi` writes the nearest `package.toml`'s
+`version` as `info.version`. Stage 2: `nvs build --compile` on Windows writes the program's name,
+version and `[bundle] icon` into the copy (`crates/nvs-cli/src/bundle/resource.rs`).
 
-`nvs build --compile` on Windows now writes the program's own resource: `bundle::identity` reads the
-nearest `package.toml` from the working directory, and `bundle/resource.rs::rewrite` replaces the
-copy's version information, and its icon when `[bundle] icon` names one, in a new `.rsrc` section
-(standing decision *The bundle's resource*). `package::manifest` gained `[bundle] icon` and `load`.
-`build/winres.rs` was split into `icon` and `version_resource`, which `resource` and the bundle share.
-The rule, `docs/reference/tools/10-cli.md` and `35-packages.md` say it, and the gap record is deleted.
-`tests/windows_resource.rs` (all five tests) and the unit test
-`bundle::resource::tests::a_written_directory_reads_back_as_the_same_resources` passed; the rewritten
-bundle loads and runs. Nothing else was run.
+Stage 3: `packages/rest/` is `Novis\Rest` 0.1.0, requiring `net.connect`, with seven classes under
+`src/`: `Client` (token endpoint, `client_secret_post`, `send`/`get` with a token, one resend on a
+new `DPoP-Nonce`), `Token` (reads a token reply, checks each value's characters before
+`assertTrusted`), `DPoP` (P-256 proofs, `ath`, `nonce`, `thumbprint`), `ClientCredentials` (cached
+in `Core\Cache::memory()` with `putSecret`, keyed on endpoint, client, scope and DPoP thumbprint),
+`AuthorizationCode` (`start` with PKCE S256 and `dpop_jkt`, `checkState`, `exchange`, `refresh`),
+`Discovery` (OpenID then RFC 8414 well-known URL, exact `issuer` match, `https:` endpoints, `keys`)
+and `Session` (tokens via `Core\Session::setSecret`, `load`, `forget`, `current` refreshes). The
+standing decision *`Novis\Rest`'s client authenticates with `client_secret_post`* records the
+choices. `nvs check packages/rest` prints `no errors`. Two scratch tests (since deleted) ran the
+grants, discovery, a DPoP proof and an error reply green; `Session` was only type-checked, since it
+needs a session store. No cargo build was needed: nothing outside `packages/` and docs changed.
 
-Expected red: none known. A test that builds a bundle from a folder under a `package.toml` with an
-unknown key would now see the manifest's error; none is known. The sweep's `env-secret-proofs` red
-is stale (its log reads `exit 0`), and nightly run 40662443492 was cancelled by newer pushes.
+Expected red: none known. The sweep's `env-secret-proofs` red was stale (rerun: nothing owed), and
+nightly run 40662443492 was cancelled by newer pushes.
 
 ### Next
 
-Stage 3, `packages/rest/`. Its gate holds: `docs/goals/package-client.md` is gone. Follow the stage's
-`**Split:**`: an `Explore` subagent first returns the `Core\Jwt`, HTTP client and `Core\Session` calls
-the package uses; the session lands the manifest and `Client`, then writing subagents write the other
-six types one after another.
-- [ ] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
-- [ ] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache. `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
-- [ ] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
-- [ ] `Discovery` and `DPoP`. `packages/rest/src/DPoP.nvs:1`
-- [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`
+Stage 4. Follow its `**Split:**`. Tests may not live under `src/`, since `nvs pkg pack` packs every
+`.nvs` there: put them under `packages/rest/tests/` with a `bootstrap.nvs` (`nvs test --help` says
+how), using `Core\Test::answerHttp` for the issuer where a loopback listener is not needed. The dry
+run needs a `LICENSE` next to `package.toml`, and a README is worth adding.
+- [ ] Tests: each grant, discovery, a DPoP proof's claims, a refresh. `packages/rest/tests/ClientTest.nvs:1`
+- [ ] The roster kind for a package's class, if one is missing. `tools/nv/proofs/roster.ts:35`
+- [ ] The proofs the roster lists for each class. `packages/rest/src/Client.nvs:1`
+- [ ] `nvs pkg publish --dry-run` prints its digest, and `bun nv owners --closes first-packages` passes. `packages/rest/package.toml:1`
 
 ### Backlog
 

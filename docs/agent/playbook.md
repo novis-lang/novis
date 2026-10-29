@@ -190,6 +190,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **In a `jsonAs<{...}>` shape, `key: ?T` means the key must be there and may be `null`; a key a
+  server may leave out is `key?: T`, read with `??`.** `expires_in: ?int` type-checks and then
+  throws "2 value(s) of `$shape{...}` did not match" on a token reply without `refresh_token`.
+  Comparing a `key?: T` field with `null` is E0466, so read it as `$reply->key ?? ''`. Namespaced
+  code imports `RuntimeError` with `use RuntimeError;`, since `\RuntimeError` is E0240.
+  See `packages/rest/src/Token.nvs`. `until: gone packages/rest/src/Token.nvs:refresh_token?: string`
 - **A script under an app's `jobs/` runs on every `Core\Test::request` of `nvs test <app folder>`,
   so each request answers `500` with no body.** The folder's generated entry requires every file no
   other file requires, and the request runs that entry. It shows as "`Response::json()`: the program
