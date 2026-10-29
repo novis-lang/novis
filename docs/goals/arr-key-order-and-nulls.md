@@ -14,7 +14,7 @@ stages:
     context: [docs/examples/core/Arr/sortByKey/about.md, tests/conformance/core/arr-sort-by-key-orders-keys-bytewise-and-takes-a-comparator.nvst]
   - id: 3
     title: "both members have their feature proofs, and every stale figure and page is current"
-    status: open
+    status: done
     context: [docs/examples/core/Arr/withoutFirst/about.md, benches/members/core/Arr/withoutFirst.nvs, tests/hostile/core/Arr/withoutFirst/01-copies-written-to-break-the-walk.nvs]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -104,7 +104,10 @@ union of two bare variables, keeps the old pairing, because which member the rem
 has no one answer there. When nothing is left after the removal, the old pairing applies too.
 
 **`withoutNull` over an `array<mixed>` returns `array<mixed>`.** `mixed` is not a union, so `T` binds
-to `mixed`. That is correct: the static type cannot say more.
+to `mixed`. That is correct: the static type cannot say more. The parameter then substitutes to
+`array<null|mixed>`, so a union target with a `mixed` member accepts what `mixed` does
+(`assignable` in `crates/nvs-types/src/expr/assign.rs`). Before that, a `mixed` source was refused
+ahead of the union arm, and the call did not compile.
 
 **Trade-offs.** Performance: both forms are one native pass with no callback, where today's ways call
 back into Novis code per entry or per comparison. Memory: one rank map of `k` entries per `keys` call,
@@ -151,13 +154,13 @@ shape of `withoutFirst`'s, held to § *Text an end user reads* in `AGENTS.md`. A
 because its files are disjoint, writes `sortByKey`'s about-page paragraph and the `keys` example. The
 session writes both attacks, then records perf.
 
-- [ ] `withoutNull`: about page, three examples (a form's optional fields, a lookup that returned `null` for some ids, and the keys that stay), and the bench. `docs/examples/core/Arr/withoutNull/about.md:1`, `benches/members/core/Arr/withoutNull.nvs:1`
-- [ ] `withoutNull`'s attack: copies of the subject written while the walk runs do not change its result. `tests/hostile/core/Arr/withoutNull/01-copies-written-to-break-the-walk.nvs:1`
-- [ ] `sortByKey`'s about page names `keys`, and one example moves a key to the front of every row of a table. `docs/examples/core/Arr/sortByKey/about.md:1`, `docs/examples/core/Arr/sortByKey/04-some-keys-first.nvs:1`
-- [ ] `sortByKey`'s attack gains a step: a `keys` list far longer than the array, and one that lists every key many times. `tests/hostile/core/Arr/sortByKey/01-comparators-written-to-break-the-sort.nvs:1`
-- [ ] `bun nv proofs --record-perf` over every feature `bun nv proofs --gate --limit 0` names stale, then that gate passes. `benches/members/core/Arr/sortByKey.nvs:1`
-- [ ] `bun nv site --check stale questions` passes: each page and question that covers a changed member is reread and stamped. `website/site.lock.json:1`
-- [ ] `bun nv owners --closes arr-key-order-and-nulls` passes. `docs/goals/arr-key-order-and-nulls.md:1`
+- [x] `withoutNull`: about page, three examples (a form's optional fields, a lookup that returned `null` for some ids, and the keys that stay), and the bench. `docs/examples/core/Arr/withoutNull/about.md:1`, `benches/members/core/Arr/withoutNull.nvs:1`
+- [x] `withoutNull`'s attack: copies of the subject written while the walk runs do not change its result. `tests/hostile/core/Arr/withoutNull/01-copies-written-to-break-the-walk.nvs:1`
+- [x] `sortByKey`'s about page names `keys`, and one example moves a key to the front of every row of a table. `docs/examples/core/Arr/sortByKey/about.md:1`, `docs/examples/core/Arr/sortByKey/04-some-keys-first.nvs:1`
+- [x] `sortByKey`'s attack gains a step: a `keys` list far longer than the array, and one that lists every key many times. `tests/hostile/core/Arr/sortByKey/01-comparators-written-to-break-the-sort.nvs:1`
+- [x] `bun nv proofs --record-perf` over every feature `bun nv proofs --gate --limit 0` names stale, then that gate passes. `benches/members/core/Arr/sortByKey.nvs:1`
+- [x] `bun nv site --check stale questions` passes: each page and question that covers a changed member is reread and stamped. `website/site.lock.json:1`
+- [x] `bun nv owners --closes arr-key-order-and-nulls` passes. `docs/goals/arr-key-order-and-nulls.md:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -176,25 +179,27 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done and committed. `bind` narrows a declared `?T` against a union through
-`narrowed_pair` (`crates/nvs-types/src/generics.rs`), with four Rust tests that pass.
-`Core\Arr::withoutNull` exists (`crates/nvs-stdlib/src/arr.rs:3629`, card at `:1281`).
-`sortByKey` takes `keys` (`SORT_BY_KEY_OPTIONS` at `:2230`, `ranked_by_list` at `:4919`). The helper
-takes four arguments, and `keys` with `comparator` throws `LogicError`. All three new conformance
-cases pass, and so does the existing `arr-sort-by-key-orders-keys-bytewise-and-takes-a-comparator.nvst`.
+Stages 1, 2 and 3 are done and committed. Both members have every feature proof, and
+`bun nv proofs --gate --limit 0` owes nothing across the whole roster. `withoutNull` has a Rust test
+(`without_null_removes_null_and_keeps_every_other_key` in `crates/nvs-stdlib/src/arr.rs`). All 57
+`Core\Arr` perf figures are recorded again, and `bun nv site --check stale questions` and
+`bun nv owners --closes arr-key-order-and-nulls` pass. `core.json` and `llms-full.txt` are rendered.
 
-Expected red until stage 3: the proofs gate for `Core\Arr::withoutNull` (no about page, examples,
-bench or attack yet), perf figures and `website/src/data/core.json` / `llms-full.txt` (a new member
-and a new option), and any `nvs meta --json` or registry-count snapshot.
+Stage 3's attack found that `withoutNull` over an `array<mixed>` did not compile (E0401, expected
+`array<null|mixed>`). `assignable` in `crates/nvs-types/src/expr/assign.rs` now accepts any value
+into a union with a `mixed` member. The conformance case for `withoutNull` covers it.
+
+Expected red at the gate: any `nvs meta --json` golden in `crates/nvs-cli/tests/meta.rs` or registry
+count that lists `Core\Arr`'s members, and any hover `.lspt` or stub golden that quotes
+`sortByKey`'s card.
 
 ### Next
 
-**Stage 3: the feature proofs**, as its `**Split:**` line says. Two writing subagents, side by side:
+**Stage 4: the gate**, as its `**Split:**` line says.
 
-- [ ] `withoutNull`'s about page, three examples and bench, shaped like `withoutFirst`'s. `docs/examples/core/Arr/withoutFirst/about.md:1`
-- [ ] `sortByKey`'s about-page paragraph and `04-some-keys-first.nvs`. `docs/examples/core/Arr/sortByKey/about.md:1`
-- [ ] The session writes both attacks. `tests/hostile/core/Arr/withoutLast/01-copies-written-to-break-the-walk.nvs:1`
-- [ ] Then `bun nv proofs --record-perf`, `bun nv site --check stale questions`, `bun nv owners --closes arr-key-order-and-nulls`. `website/site.lock.json:1`
+- [ ] Start `bun nv affected --run` with `run_in_background`, end the turn, and group its failures by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Check first the `assign.rs` change's reach: `nvs-types` tests and every conformance case that writes `?mixed`. `crates/nvs-types/src/expr/assign.rs:212`
+- [ ] Then the goal-end gates: `bun nv verify --doc`, `bun nv ci --check`. `docs/goals/arr-key-order-and-nulls.md:1`
 
 ### Backlog
 
