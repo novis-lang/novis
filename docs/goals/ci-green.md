@@ -104,15 +104,14 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `2dc0e99e5`, the end of `registry-website`. Website 40798057259 is green on it.
-CI 40798057255 is red in two jobs, both fixed and committed, not pushed:
+`origin/main` is at `2d2c1b42d`. It carries the `docs` and IO-append fixes. Website 40807904476
+is green on it. CI 40807904339 is red in one job, fixed and committed, not pushed:
 
-- `docs`: `docs/rules/packaging.md` was stale against its fragments. `0d262b122` renders it, and
-  `c0a468946` adds `rules --render --check` to `bun nv ci`'s `PRE_PUSH`, which lacked it.
-- `proofs / windows-x86_64`: `tests/hostile/core/IO/append/01-empty-huge-and-impossible-appends.nvs`
-  passed its 30s limit after step 2, with no hang. Each append opens the file, about 85µs on
-  Windows, and the attack did 120000. `f931f5cef` cuts that to 12000, 1.5s here. A second timeout
-  in another IO attack is the same cause: count its file opens before you look for a hang.
+- `proofs / windows-x86_64`: `tests/hostile/core/Http-Response/text/01-large-and-broken-text-bodies.nvs`
+  passed its 30s limit in step 1, having printed nothing. Each `text()` checks the whole 32 MB
+  body as UTF-8 (`crates/nvs-stdlib/src/http.rs:nvs_core_http_response_text`), and step 1 did
+  10000 reads, 4.7s here. `253382e65` cuts it to 1000, 1.1s here. A third attack timing out on
+  Windows with no output: time it with `proofs --run --id ... --show` and count its per-call work.
 
 The next watch runs with `--next`: the red run would end it at once.
 
@@ -197,6 +196,11 @@ target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper 
   direct `nvs run`: an attack can change the checkout.
 
 ### Backlog
+
+- `Core\Http\Response::text` checks the whole body as UTF-8 on every call, about 0.5ms per 32 MB.
+  `crates/nvs-stdlib/src/http.rs:nvs_core_http_response_text` A program that reads a large body
+  as text twice pays the check twice. Keeping the checked `string` in the slot is a design change
+  to the main loop's module. Take it only if a bench or a user shows the cost.
 
 - The function-entry safepoint returns with no error edge, so a stop at entry may keep that
   frame's arguments. `crates/nvs-ir/src/lower/mod.rs:emit_safepoint` Moving the poll after the
