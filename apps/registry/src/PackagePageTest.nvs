@@ -1,0 +1,240 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Encoding;
+use Core\Html;
+use Core\Html\Markup;
+use Core\Http\Method;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+use RuntimeError;
+
+// Tests for the page of a package and the page of one of its versions, under a fixed clock.
+// Most tests have their own database in memory with the vendor `Acme`, and read the HTML of the page.
+// The test for a missing page sends requests, so it uses the database of the app and a new vendor.
+final class PackagePageTest
+{
+    // One day in seconds.
+    private const int DAY = 86400;
+
+    // The account that published every release in these tests.
+    private const string OWNER = '0123456789abcdef0123456789abcdef';
+
+    // Each state of a version is on the package page, with its reason.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function eachVersionShowsItsStateAndItsReason(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 200 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.1', $now - 200 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.2', $now - 150 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.3', $now - 100 * PackagePageTest::DAY);
+        // 0.0.4 is published by token, and is out in three days.
+        PackagePageTest::release($db, $key, '0.0.4', $now - PackagePageTest::DAY, $now + 3 * PackagePageTest::DAY);
+        var $releases = new Releases($db);
+        Test::assertTrue($releases->withhold($key, '0.0.1', 'Malware.'));
+        Test::assertTrue($releases->retract($key, '0.0.2', 'It deletes files.', '0.0.4', $now - 5 * PackagePageTest::DAY));
+        Test::assertTrue($releases->unlist($key, '0.0.3', false));
+
+        string $page = PackagePageTest::packagePage($db, $now, $key);
+        PackagePageTest::has($page, '<h1>Acme\\Http</h1>');
+        PackagePageTest::has($page, '>0.0.1</a></td><td>withheld</td>');
+        PackagePageTest::has($page, '>0.0.2</a></td><td>retracted</td>');
+        PackagePageTest::has($page, '>0.0.3</a></td><td>unlisted</td>');
+        PackagePageTest::has($page, '>0.0.4</a></td><td>pending until 2026-06-18</td>');
+        PackagePageTest::has($page, '<a href="/packages/acme/http/0.0.1">0.0.1</a>');
+        PackagePageTest::has($page, '<li>0.0.1 is withheld by the operator of the registry. The reason is: Malware.</li>');
+        PackagePageTest::has($page, '<li>0.0.2 is retracted from 2026-06-10. The reason is: It deletes files. Version 0.0.4 fixes it.</li>');
+    }
+
+    // Every fact the score reads is on the package page, with the link to the formula.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function everyFactOfTheScoreIsOnThePage(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 400 * PackagePageTest::DAY);
+        // Three releases in three different months. The newest has 42 declarations, and 17 of them have a doc comment.
+        PackagePageTest::release($db, $key, '0.0.1', $now - 400 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.2', $now - 300 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.3', $now - 37 * PackagePageTest::DAY, null, 42, 17);
+        // One retraction names the version with the fix.
+        Test::assertTrue(new Releases($db)->retract($key, '0.0.2', 'It deletes files.', '0.0.3', $now - 37 * PackagePageTest::DAY));
+        // 70 downloads in the last 90 days, and 5 downloads before that.
+        PackagePageTest::download($db, $key, '0.0.3', Downloads::dayOf($now) - 1, 70);
+        PackagePageTest::download($db, $key, '0.0.1', Downloads::dayOf($now) - 100, 5);
+
+        string $page = PackagePageTest::packagePage($db, $now, $key);
+        PackagePageTest::has($page, '<a href="' . PackagePage::FORMULA . '">The formula</a>');
+        PackagePageTest::has($page, '<tr><th>Time since the first publish</th><td>400 days</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Months with at least one release</th><td>3</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Time since the newest release</th><td>37 days</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Public declarations in the highest version</th><td>42</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Declarations with a doc comment</th><td>17</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Retracted versions that name the version with the fix</th><td>1</td></tr>');
+        PackagePageTest::has($page, '<tr><th>Downloads in the last 90 days</th><td>70</td></tr>');
+    }
+
+    // The version page shows the capabilities and their change, the API changes, the files and the external downloads.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function aVersionPageShowsItsCapabilitiesChangesAndFiles(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 100 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.1', $now - 100 * PackagePageTest::DAY, null, 0, 0, '{"required":["net.connect","fs.read"],"optional":["env.read"]}');
+        PackagePageTest::release($db, $key, '0.0.2', $now - 10 * PackagePageTest::DAY, null, 0, 0, '{"required":["net.connect","env.read"],"optional":["fs.write"]}');
+        string $sha256 = Str::repeat('ab', 32);
+        $db->execute(
+            'update releases set changes = ?, files = ?, external = ? where package = ? and version = ?',
+            [
+                '{"from":"0.0.1","changes":[{"class":"additive","at":"Client::retry","what":"The method is new."},{"class":"breaking","at":"Client::send","what":"The method has a new parameter."}]}',
+                '[{"path":"src/Client.nvs","size":2048},{"path":"VERSION","size":1}]',
+                '[{"path":"data/table.bin","urls":["https://files.example.com/table.bin","https://mirror.example.org/table.bin"],"size":4096,"sha256":"' . $sha256 . '","license":"MIT"}]',
+                $key,
+                '0.0.2',
+            ],
+        );
+
+        string $page = PackagePageTest::source(new PackagePage($db, $now)->version($key, '0.0.2'));
+        PackagePageTest::has($page, '<h1>Acme\\Http 0.0.2</h1>');
+        // The capabilities, and their change from 0.0.1.
+        PackagePageTest::has($page, '<h3>Required</h3><ul><li><code>net.connect</code></li><li><code>env.read</code></li></ul>');
+        PackagePageTest::has($page, '<h3>Optional</h3><ul><li><code>fs.write</code></li></ul>');
+        PackagePageTest::has($page, '<h3>Changes from version 0.0.1</h3>');
+        PackagePageTest::has($page, '<li><code>env.read</code> was optional and is now required.</li>');
+        PackagePageTest::has($page, '<li><code>fs.write</code> is new and optional.</li>');
+        PackagePageTest::has($page, '<li><code>fs.read</code> is removed. It was required.</li>');
+        // The API changes, the breaking change first.
+        PackagePageTest::has($page, '<p>These are the changes from version 0.0.1.</p>');
+        PackagePageTest::has(
+            $page,
+            '<tr><td>Breaking</td><td><code>Client::send</code></td><td>The method has a new parameter.</td></tr>'
+                . '<tr><td>Added</td><td><code>Client::retry</code></td><td>The method is new.</td></tr>',
+        );
+        // The files with their sizes.
+        PackagePageTest::has($page, '<tr><td><code>src/Client.nvs</code></td><td>2048 bytes</td></tr>');
+        PackagePageTest::has($page, '<tr><td><code>VERSION</code></td><td>1 byte</td></tr>');
+        // The external download with its hosts, its size, its hash and its license.
+        PackagePageTest::has(
+            $page,
+            '<tr><td><code>data/table.bin</code></td><td>files.example.com, mirror.example.org</td><td>4096 bytes</td><td><code>' . $sha256 . '</code></td><td>MIT</td></tr>',
+        );
+    }
+
+    // The readme is shown as text, so a `<script>` tag in it is escaped.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function theReadmeIsEscaped(): void
+    {
+        var $db = PackagePageTest::database();
+        int $now = PackagePageTest::now();
+        string $key = PackagePageTest::package($db, 'Acme\\Http', $now - 10 * PackagePageTest::DAY);
+        PackagePageTest::release($db, $key, '0.0.1', $now - 10 * PackagePageTest::DAY);
+        $db->execute('update releases set readme = ? where package = ? and version = ?', ['Hello <script>alert(1)</script>', $key, '0.0.1']);
+
+        string $page = PackagePageTest::packagePage($db, $now, $key);
+        PackagePageTest::has($page, '<h2>Readme</h2><pre>Hello &lt;script&gt;alert(1)&lt;/script&gt;</pre>');
+        Test::assertTrue(!Str::contains($page, '<script>'));
+    }
+
+    // An unknown package and an unknown version both get the status 404.
+    #[Test]
+    public function anUnknownPackageOrVersionGets404(): void
+    {
+        var $db = Schema::open();
+        string $vendor = 'V' . Encoding::toHex(Random::bytes(4));
+        string $account = Encoding::toHex(Random::bytes(16));
+        int $now = PackagePageTest::now();
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [$account]);
+        string $key = PackagePageTest::package($db, $vendor . '\\Http', $now);
+        PackagePageTest::release($db, $key, '0.0.1', $now, null, 0, 0, '{"required":[],"optional":[]}', $account);
+
+        Test::assertSame(Test::request(Method::Get, '/packages/' . $vendor . '/http')->status(), 200);
+        Test::assertSame(Test::request(Method::Get, '/packages/' . $vendor . '/http/0.0.1')->status(), 200);
+        Test::assertSame(Test::request(Method::Get, '/packages/' . $vendor . '/mail')->status(), 404);
+        Test::assertSame(Test::request(Method::Get, '/packages/' . $vendor . '/mail/0.0.1')->status(), 404);
+        Test::assertSame(Test::request(Method::Get, '/packages/' . $vendor . '/http/0.0.2')->status(), 404);
+    }
+
+    // A new database in memory with every table and the account `OWNER`.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [PackagePageTest::OWNER]);
+        return $db;
+    }
+
+    // Adds the package `$name` and its vendor. Returns its key, such as `acme\http`.
+    private static function package(Connection $db, string $name, int $createdAt): string
+    {
+        string $key = Str::lower($name);
+        string $vendor = Str::before($name, '\\') ?? $name;
+        $db->execute('insert into vendors (key, name, created_at) values (?, ?, 0) on conflict (key) do nothing', [Str::lower($vendor), $vendor]);
+        $db->execute(
+            "insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, 'https://git.example.com/project.git', '', ?)",
+            [$key, $name, Str::lower($vendor), $createdAt],
+        );
+        return $key;
+    }
+
+    // Adds a release of `$key`, published at `$publishedAt`. `$pendingUntil` is the time it is out, or `null`.
+    private static function release(
+        Connection $db,
+        string $key,
+        string $version,
+        int $publishedAt,
+        ?int $pendingUntil = null,
+        int $declarations = 0,
+        int $documented = 0,
+        string $capabilities = '{"required":[],"optional":[]}',
+        string $account = PackagePageTest::OWNER,
+    ): void
+    {
+        array<string> $parts = Str::split($version, '.');
+        $db->execute(
+            'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+                . 'published_at, pending_until, dependencies, capabilities, log, declarations, documented) '
+                . "values (?, ?, ?, ?, ?, ?, 10, 'https://git.example.com/project.git', '', ?, ?, 'token', '', '', ?, ?, '{}', ?, 0, ?, ?)",
+            [$key, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, 'blake3:' . Encoding::toHex(Random::bytes(32)), Str::repeat('1', 40), $account, $publishedAt, $pendingUntil, $capabilities, $declarations, $documented],
+        );
+    }
+
+    // Adds `$count` downloads of a version on the day `$day`.
+    private static function download(Connection $db, string $key, string $version, int $day, int $count): void
+    {
+        $db->execute('insert into downloads (package, version, day, count) values (?, ?, ?, ?)', [$key, $version, $day, $count]);
+    }
+
+    // The HTML of the package page of `$key`.
+    private static function packagePage(Connection $db, int $now, string $key): string
+    {
+        return PackagePageTest::source(new PackagePage($db, $now)->package($key));
+    }
+
+    // The HTML of a page. The test fails when there is no page.
+    private static function source(?Markup $markup): string
+    {
+        if ($markup == null) {
+            throw new RuntimeError('There is no page.');
+        }
+        return Html::toSource($markup, 'the test reads the page');
+    }
+
+    // Checks that `$page` contains `$part`. A failure prints the part that is missing.
+    private static function has(string $page, string $part): void
+    {
+        Test::assertSame(Str::contains($page, $part) ? $part : 'missing: ' . $part, $part);
+    }
+
+    private static function now(): int
+    {
+        return Time::now()->toEpochSeconds();
+    }
+}
