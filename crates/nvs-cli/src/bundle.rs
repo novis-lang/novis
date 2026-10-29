@@ -478,14 +478,13 @@ struct Identity {
 /// The exit code after the manifest's diagnostic, or after one line naming an icon that does not
 /// read or is not an `.ico` file.
 fn identity(output: &Path) -> Result<Option<Identity>, ExitCode> {
-    let Some(dir) = std::env::current_dir()
+    let found = std::env::current_dir()
         .ok()
-        .and_then(|cwd| crate::package::manifest::find(&cwd))
-        .and_then(|path| path.parent().map(Path::to_path_buf))
-    else {
+        .and_then(|cwd| crate::package::manifest::find(&cwd));
+    let Some(dir) = found.as_deref().and_then(Path::parent) else {
         return Ok(None);
     };
-    let Some(manifest) = crate::package::manifest::load(&dir)? else {
+    let Some(manifest) = crate::package::manifest::load(dir)? else {
         return Ok(None);
     };
     let icon = match &manifest.icon {
