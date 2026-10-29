@@ -631,5 +631,9 @@ fn audit_warns_on_an_autoload_prefix_no_grant_line_matches() {
     .unwrap();
     let granted = tree.nvs(&["pkg", "audit"]);
     assert!(granted.status.success(), "{}", shown(&granted));
-    assert!(!stderr(&granted).contains("warning:"), "{}", shown(&granted));
+    assert!(
+        !stderr(&granted).contains("warning:"),
+        "{}",
+        shown(&granted)
+    );
 }

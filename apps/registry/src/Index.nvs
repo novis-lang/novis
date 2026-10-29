@@ -223,9 +223,11 @@ final class Index
     // second copy of the checkpoint when the setting `checkpointCopy` names one.
     public static function root(Site $site): string
     {
-        return Index::trusted($site->checkpointCopy == ''
-            ? Json::encode({ schema: 1, hosts: $site->hosts })
-            : Json::encode(['schema' => 1, 'hosts' => $site->hosts, 'checkpoint_copy' => $site->checkpointCopy]));
+        return Index::trusted(
+            $site->checkpointCopy == ''
+                ? Json::encode({ schema: 1, hosts: $site->hosts })
+                : Json::encode(['schema' => 1, 'hosts' => $site->hosts, 'checkpoint_copy' => $site->checkpointCopy]),
+        );
     }
 
     // Writes the index file of the package `$key`, before it is signed.

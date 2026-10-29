@@ -3,8 +3,6 @@
 
 # Security and isolation
 
-*1 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="security-isolate-shares-nothing"></a>
 
 ## Running another script is an in-process isolate that shares nothing with its parent but compiled code
@@ -791,7 +789,7 @@ site.
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
-## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — owned by goal package-audit)*
+## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched
 
 `rule:security/an-unmatched-namespace-holds-the-application`
 
@@ -813,8 +811,7 @@ application's own.
 ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)): on a CLI run it reads and writes
 any file, reaches public hosts and loopback, and runs any program, and in server work it reads its
 app folder and reaches public hosts, all with nothing written. Hand-vendored code with no grant line
-holds all of that, so the audit warning is the mitigation for the wider defaults too, and the package
-goal that builds the audit keeps it. Code a package manager fetched never holds a default: its line
+holds all of that, so the audit warning is the mitigation for the wider defaults too. Code a package manager fetched never holds a default: its line
 is checked alone ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
 
 A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
@@ -825,7 +822,11 @@ A discovery glob happens to skip a directory such as `vendor/` because its name 
   that exists. A grant line written for every fetched package, empty ones included, gives the same
   protection where it matters without charging the common case.
 
-**Not on disk.** There is no fetch step and no audit that writes or checks these lines.
+**Where it lives.** `nvs pkg fetch` writes the grant line of every package it places
+(`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg audit` walks every program under the
+application's folder and warns on each autoload prefix no line matches, the application's own
+source tree included until a line names it (`crates/nvs-cli/src/package/audit.rs`). The warning
+never changes the exit status.
 
 <sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 

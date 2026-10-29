@@ -58,8 +58,11 @@ foreach ($advisories as mixed $item) {
     tainted string $floor = ($entry['fixed_in'] ?? $version) as tainted string;
     ?string $fix = null;
     foreach ($released as string $candidate) {
-        if (Audit::older($version, $candidate) && !Audit::older($candidate, $floor)
-            && !Core\Arr::contains($bad, $package . ' ' . $candidate)) {
+        if (
+            Audit::older($version, $candidate)
+            && !Audit::older($candidate, $floor)
+            && !Core\Arr::contains($bad, $package . ' ' . $candidate)
+        ) {
             $fix = $candidate;
             break;
         }

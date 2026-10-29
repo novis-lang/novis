@@ -3,8 +3,6 @@
 
 # Packaging
 
-*1 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
 ## A compiled unit is one immutable file whose address is its content and its environment
@@ -2309,7 +2307,7 @@ page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`).
 
 <a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
 
-## A known-bad version is retracted, never deleted, a token-sent retraction waits seven days, and `nvs pkg audit` names the minimum bump that clears it  *(designed — owned by goal package-audit)*
+## A known-bad version is retracted, never deleted, a token-sent retraction waits seven days, and `nvs pkg audit` names the minimum bump that clears it
 
 `rule:packaging/a-known-bad-version-is-retracted-not-deleted`
 
