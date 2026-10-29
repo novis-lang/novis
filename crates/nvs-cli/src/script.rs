@@ -711,7 +711,8 @@ impl Compiler {
     }
 
     /// Puts `cache` behind this compiler in place of the one in use, which is
-    /// how a reload moves `[opcache] file_cache_dir` and the § 6 policy
+    /// how a reload moves `[opcache] file_cache_dir` and the eviction policy of
+    /// `rule:packaging/eviction-rides-the-cold-miss-at-a-probability`
     /// (`rule:config/reloadability-is-its-own-field`). The next compile reads and
     /// writes artifacts there. Units already in memory stay, and a compile
     /// already running finishes on the cache it cloned.
@@ -1449,7 +1450,8 @@ impl Compiler {
                 },
             );
         };
-        // Held across the lowering and the key alike: § 1's digest is over
+        // Held across the lowering and the key alike: the digest of
+        // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` is over
         // every file the `require`/`autoload` graph reached, which is the same
         // list that was lowered and not the entry file alone.
         let files = checked.program_files();
@@ -2207,8 +2209,8 @@ pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
         }),
         // And `rule:http-server/allow-url-pins-the-address`'s outbound pair, for the fixture that reaches `rule:testing/in-process-request`'s ephemeral listener over the wire. Both halves are needed and
         // that is the rule rather than an inconvenience: `connect` names the
-        // host, and `internal` is the operator's written exception for § 3's
-        // denied loopback range — a `#[Test(server: true)]` in a real program
+        // host, and `internal` is the operator's written exception for the
+        // loopback range `rule:security/net-address-policy` denies — a `#[Test(server: true)]` in a real program
         // grants exactly this pair to reach its own listener, which is why the
         // helper grants it rather than the runner carving a hole for itself.
         net: Some(nvs_config::tree::CapNet {

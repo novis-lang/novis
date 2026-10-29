@@ -225,7 +225,8 @@ pub(crate) fn init_gate(project_command: bool, no_init: bool, environment: Optio
 /// None of these is an error for a project command. The shipped defaults are a complete
 /// configuration (`rule:config/no-configuration-file-is-a-complete-configuration`), so a folder that
 /// would not take the file leaves the run on them — the artifact cache's discipline
-/// ([`crate::cache`] § 4), for its reason: a run that refused to start because it could not write a
+/// (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`, which covers the writer), for its
+/// reason: a run that refused to start because it could not write a
 /// file nobody asked for would be a regression against every deployment that works without one.
 /// What the reason buys is that the question can be *asked*: [`init`] renders it as the one line
 /// [`Self::note_about`] gives, because there an operator asked for the file and a silent failure
@@ -1581,8 +1582,8 @@ mod tests {
         );
     }
 
-    /// A directory that will not take the file is not a failure to start. The goal's § 5: the run
-    /// keeps the shipped defaults it was about to take anyway — no diagnostic, no non-zero exit,
+    /// A directory that will not take the file is not a failure to start
+    /// (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`): the run keeps the shipped defaults it was about to take anyway — no diagnostic, no non-zero exit,
     /// and nothing on stderr that a deployment which has always run read-only now has to expect.
     ///
     /// Ownership is untouched here on purpose, so what refuses is the filesystem rather than
@@ -1621,9 +1622,8 @@ mod tests {
         );
     }
 
-    /// The goal's § 7, as far as it can land: a declined write says **which** reason applied, so an
-    /// operator who expected a file and has none is not left comparing an empty directory against
-    /// the documentation. [`super::init`] is what reports it today; the boot line will carry it
+    /// A declined write says **which** reason applied, so an operator who expected a file and has
+    /// none is not left comparing an empty directory against the documentation. [`super::init`] is what reports it today; the boot line will carry it
     /// once `rule:config/the-resolved-root-is-announced-and-stored` ships.
     ///
     /// The three reasons are the three things that can answer this call, and only the breach is

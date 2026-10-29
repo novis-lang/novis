@@ -34,8 +34,8 @@
 //!   source, appended to a copy of this binary. Also the one subcommand this
 //!   binary can *be*: a copy carrying that payload runs it instead of parsing
 //!   arguments at all; see [`bundle`].
-//! * `nvs api diff <old.json> <new.json>` — the same rule's § 4 gate over two
-//!   finished documents: breaking, additive or cosmetic per change, non-zero
+//! * `nvs api diff <old.json> <new.json>` — `rule:routing/api-diff-fails-a-breaking-change`'s
+//!   gate over two finished documents: breaking, additive or cosmetic per change, non-zero
 //!   exit on a breaking one. It compiles nothing, because the old side of a
 //!   diff is a released artifact rather than a program; see [`api_diff`].
 //! * `nvs pkg api <dir>` — a package's public API as JSON, read from the
@@ -72,11 +72,12 @@
 //!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
-//!   [`serve`] for the other half of § 4, which is the same walk at boot.
+//!   [`serve`] for the other half of that rule, which is the same walk at boot.
 //! * `nvs cache gc|clear` —
 //!   `rule:packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`'s two commands over the
-//!   artifact cache a run reads: § 6's eviction walk without its roll, and every entry removed;
-//!   see [`cache_cmd`].
+//!   artifact cache a run reads: the eviction walk of
+//!   `rule:packaging/eviction-rides-the-cold-miss-at-a-probability` without its roll, and every
+//!   entry removed; see [`cache_cmd`].
 //! * `nvs update-check` — `rule:tooling/update-check-states-the-whole-picture`: the telemetry
 //!   switch, this version and the latest release GitHub lists, one line per step or `--json`,
 //!   exit `0` always; see [`update_check`], and [`endpoints`] for the URLs it reads.
@@ -487,8 +488,9 @@ enum Command {
     Service(service::Args),
     /// Another name for `nvs service install`.
     // The syntax `mysqld --install` and `httpd -k install` made familiar.
-    // Hidden: § 1 names it an accepted alias rather than a second way to write
-    // the command, and a help listing both would be advertising two.
+    // Hidden: `rule:packaging/a-service-is-one-stored-argv` names it an accepted
+    // alias rather than a second way to write the command, and a help listing
+    // both would be advertising two.
     #[command(hide = true)]
     InstallService(service::Install),
     Fmt(fmt::Args),
@@ -608,7 +610,8 @@ fn serve_command(
 ///
 /// A service manager starts `nvs serve …` itself, so this is not how one is
 /// hosted — it is how an operator sees the line the manager runs, on a
-/// terminal. § 2's allowlist is two subcommands, which is why two arms here
+/// terminal. `rule:packaging/the-installer-is-a-sink`'s allowlist is two
+/// subcommands, `serve` and `run`, which is why two arms here
 /// are the whole of it, and anything else is a stored argv this binary no
 /// longer accepts.
 fn run_hosted(argv: &[String]) -> ExitCode {
@@ -968,7 +971,7 @@ fn front_end_extended(
 /// documentation.
 ///
 /// **`nvs check` is the caller that asks, and `nvs run` is deliberately not.**
-/// § 10 is titled for `check` and means it: at run time the refusal is
+/// That rule's question is titled for `check` and means it: at run time the refusal is
 /// `nvs_runtime::capability::require`'s, and `rule:security/denial-is-a-runtime-error` makes that a denial the
 /// program is still running underneath and may catch. Hoisting it into `run`
 /// would turn a catchable denial into a refusal to start, which is a different
@@ -1369,7 +1372,8 @@ fn searched_note(root: &std::path::Path) -> String {
 /// stops probing the moment the `require` graph is in doubt, and printing a
 /// partial map beside a wall of errors would be read as the whole of it.
 /// Paths are shown relative to the entry point's own directory, which is what
-/// `autoload`'s literals are written against (§ 1).
+/// the entry point's own `autoload` literals resolve against
+/// (`rule:programs/autoload`: a path resolves relative to the file that declares it).
 ///
 /// This is the one front end that reads the configuration
 /// ([`front_end_granted`]), so `nvs check` answers `rule:core-classes/db-compile-time-query-checking`'s question
@@ -1568,10 +1572,12 @@ fn survey_root(
 /// that rule's whole promise in one line: the document cannot say something the
 /// compiler did not agree to.
 ///
-/// **A program declaring no route emits nothing**, which is § 1's "generates
+/// **A program declaring no route emits nothing**, which is
+/// `rule:routing/api-document-is-generated-from-the-route-table`'s "generates
 /// nothing and runs no pass", and it says so on standard error rather than
-/// writing a document with an empty `paths`: fed to § 4's diff, an empty
-/// document is the claim that every operation was removed.
+/// writing a document with an empty `paths`: fed to
+/// `rule:routing/api-diff-fails-a-breaking-change`'s diff, an empty document is
+/// the claim that every operation was removed.
 fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
     debug_assert!(
         openapi,
@@ -1612,7 +1618,7 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
         }
     };
     // Pretty rather than compact, because the artifact is read by people and
-    // diffed by `git` as often as it is by § 4's own gate. It cannot fail: the
+    // diffed by `git` as often as it is by `nvs api diff`. It cannot fail: the
     // document is strings, bools and integers, and `serde_json` only errors on
     // a map key that is not a string or a float that is not finite.
     println!(
@@ -1825,8 +1831,9 @@ fn run_run(
     // A bundled program's entry file is a synthetic path inside the payload
     // (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), and `trust::canonical` has no filesystem entry to
     // examine for it. The executable itself is what an `[[app]]` block could
-    // legitimately key on, and it is also all § 1's single trust domain
-    // leaves to key on: the only principal here is whoever ran the binary.
+    // legitimately key on, and it is also all that the single trust domain of
+    // `rule:programs/bundle-trust-domain` leaves to key on: the only principal
+    // here is whoever ran the binary.
     let config_entry = if nvs_diagnostics::embedded::is_active() {
         std::env::current_exe().unwrap_or_else(|_| path.to_path_buf())
     } else {
@@ -1941,7 +1948,8 @@ fn run_run(
     // fail to answer is a compile, so nothing here reports one.
     //
     // **This is why the compile sits below the snapshot rather than above it.**
-    // Both halves of the key are configuration: § 7's `[opcache]` block says
+    // Both halves of the key are configuration: the `[opcache]` block of
+    // `rule:config/opcache-file-cache-directives-are-system` says
     // where artifacts live and whether they are used at all, and `rule:config/the-extension-set-is-in-every-unit-key`'s
     // environment digest — which covers the loaded extension set — is the other
     // half of every key. A pre-boot default for either would address an
@@ -1980,8 +1988,9 @@ fn run_run(
     // worker because the snapshot is moved onto the context below, and
     // `queue_for` is the same resolution boot already accepted
     // (`nvs_config::queue`), so a refusal is impossible by the time this runs
-    // and `.ok()` is not swallowing one. `workers = 0` is § 2's enqueue-only
-    // deployment and starts nothing, and so is a `--count` run: a worker runs
+    // and `.ok()` is not swallowing one. `workers = 0` is the enqueue-only
+    // deployment of `rule:concurrency/who-runs-a-job-is-configuration` and
+    // starts nothing, and so is a `--count` run: a worker runs
     // on this thread whenever the script yields, so its database handshake and
     // its polls would land in the per-thread allocation counters the count
     // line reads, at a size that depends on scheduling rather than on the
@@ -2729,8 +2738,10 @@ fn run_test(
         }
         // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
         // resolves it above its own compile: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact key is half
-        // configuration — § 7's `[opcache]` says where artifacts live and
-        // whether they are read at all, and § 4's environment digest covers the
+        // configuration — the `[opcache]` block of
+        // `rule:config/opcache-file-cache-directives-are-system` says where artifacts live and
+        // whether they are read at all, and the environment digest of
+        // `rule:config/the-extension-set-is-in-every-unit-key` covers the
         // loaded extension set — so a suite compiled above the tree would
         // address an artifact by an environment this run is not in. A tree that
         // does not resolve stops a test run exactly as it stops a `nvs run`.
@@ -2757,7 +2768,8 @@ fn run_test(
         return ExitCode::FAILURE;
     }
     if update {
-        // § 14's updater rewrites a `#[Test]` method's own snapshot literal,
+        // The updater of `rule:testing/inline-snapshots` rewrites a `#[Test]`
+        // method's own snapshot literal,
         // and a `.nvst` case has none: its expectation is the `--EXPECT--`
         // section, which `nvs_test` compares whole and which nothing here
         // writes. Refused rather than ignored, for `--format`'s reason below.
@@ -2781,8 +2793,9 @@ fn run_test(
         return ExitCode::FAILURE;
     }
     if format != runner::Format::Human && !(list && format == runner::Format::Json) {
-        // § 22's formats report a `#[Test]` run, and § 23 keeps the two suites
-        // from sharing a summary — so a machine format over a `.nvst` tree
+        // The formats of `rule:testing/report-formats` report a `#[Test]` run, and
+        // `rule:testing/nvst-is-separate` keeps the two suites from sharing a
+        // summary — so a machine format over a `.nvst` tree
         // names a document this subcommand does not produce. A listing has no
         // summary, which is why its JSON document is the one exception.
         eprintln!("error: `--format` reports a program's `#[Test]` methods, not a `.nvst` tree");

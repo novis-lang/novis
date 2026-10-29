@@ -1,6 +1,0 @@
-{
-  "crates/nvs-cli/src/config.rs": 3,
-  "crates/nvs-cli/src/main.rs": 18,
-  "crates/nvs-cli/src/script.rs": 3,
-  "tests/conformance/reject/a-character-that-begins-no-token-does-not-compile.nvst": 1
-}
