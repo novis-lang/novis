@@ -6,7 +6,7 @@ context: [docs/rules/config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one
 stages:
   - id: 1
     title: "the two blocks are typed, merged and dumped, and the rule is written"
-    status: open
+    status: done
     context: [crates/nvs-config/src/secret.rs, crates/nvs-config/src/snapshot.rs, crates/nvs-config/src/resolve.rs, crates/nvs-config/src/audit.rs, crates/nvs-diagnostics/src/code/config.rs, docs/rules/config/every-block-is-argued-where-it-is-added.md, docs/rules/security/secret-has-no-ambient-source.md]
   - id: 2
     title: "Core\\Config::setting and Core\\Config::secret read them"
@@ -187,13 +187,13 @@ binary. The goal depends on no other chain goal.
 **Does:** the four blocks parse, validate, merge per app and per file, read secrets from files, and
 show up in `nvs config dump`, and the rules say so.
 
-- [ ] `settings` and `secrets` fields on `Config` and on `App`, as `Option<toml::Table>`. `crates/nvs-config/src/tree.rs:73`, `crates/nvs-config/src/tree.rs:156`
-- [ ] A validating pass: plain key names, no date or time, a secret is a string, and exactly one of `name` and `name_file`, each refusal naming the file and line. `crates/nvs-config/src/resolve.rs:512`, `crates/nvs-diagnostics/src/code/config.rs:11`
-- [ ] `[secrets]` and `[app.secrets]` keys read through the `_file` reader into `Snapshot::secrets` under `secrets.<name>`, and kept out of the table. `crates/nvs-config/src/secret.rs:371`, `crates/nvs-config/src/snapshot.rs:133`
-- [ ] The per-app fold carries both sub-tables and both secrets maps, and an override records both origins. `crates/nvs-config/src/snapshot.rs:262`, `crates/nvs-config/src/resolve.rs:961`
-- [ ] `nvs config dump` prints every setting, and every secret as `<secret>` with the file it came from. `crates/nvs-config/src/audit.rs:73`, `crates/nvs-config/src/secret.rs:320`
-- [ ] The new rule fragment and its data file as `designed`, and the five rewritten fragments, then `bun nv rules --render`. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`, `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`, `docs/rules/config/every-block-is-argued-where-it-is-added.md:8`
-- [ ] The tests the `settings-block-tests` check names. `crates/nvs-config/tests/settings_block.rs:1`
+- [x] `settings` and `secrets` fields on `Config` and on `App`, as `Option<toml::Table>`. `crates/nvs-config/src/tree.rs:73`, `crates/nvs-config/src/tree.rs:156`
+- [x] A validating pass: plain key names, no date or time, a secret is a string, and exactly one of `name` and `name_file`, each refusal naming the file and line. `crates/nvs-config/src/resolve.rs:512`, `crates/nvs-diagnostics/src/code/config.rs:11`
+- [x] `[secrets]` and `[app.secrets]` keys read through the `_file` reader into `Snapshot::secrets` under `secrets.<name>`, and kept out of the table. `crates/nvs-config/src/secret.rs:371`, `crates/nvs-config/src/snapshot.rs:133`
+- [x] The per-app fold carries both sub-tables and both secrets maps, and an override records both origins. `crates/nvs-config/src/snapshot.rs:262`, `crates/nvs-config/src/resolve.rs:961`
+- [x] `nvs config dump` prints every setting, and every secret as `<secret>` with the file it came from. `crates/nvs-config/src/audit.rs:73`, `crates/nvs-config/src/secret.rs:320`
+- [x] The new rule fragment and its data file as `designed`, and the five rewritten fragments, then `bun nv rules --render`. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`, `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`, `docs/rules/config/every-block-is-argued-where-it-is-added.md:8`
+- [x] The tests the `settings-block-tests` check names. `crates/nvs-config/tests/settings_block.rs:1`
 
 ### 2. Core\Config::setting and Core\Config::secret read them
 
@@ -201,7 +201,7 @@ show up in `nvs config dump`, and the rules say so.
 
 - [ ] Two registry rows with their reference cards: `setting` returns `CoreTy::Mixed`, and `secret` returns `Nullable(SecretStr)` with a sink name, as `Core\Env::secret` does. `crates/nvs-stdlib/src/config.rs:88`, `crates/nvs-stdlib/src/env.rs:157`
 - [ ] Their runtime functions, reading the request's snapshot and building the value from its TOML type. `crates/nvs-stdlib/src/config.rs:237`, `crates/nvs-config/src/request.rs:165`
-- [ ] `get` returns `null` for a `settings.` or `secrets.` name, and `all` lists neither. `crates/nvs-config/src/request.rs:165`, `crates/nvs-config/src/request.rs:474`
+- [x] `get` returns `null` for a `settings.` or `secrets.` name, and `all` lists neither. `crates/nvs-config/src/request.rs:165`, `crates/nvs-config/src/request.rs:474`
 - [ ] Conformance: a value of each TOML type, an app's value over the global one, a secret that cannot be printed (a `reject/` case), and a missing setting converted with `as int` throws. `tests/conformance/config/a-setting-keeps-its-toml-type.nvst:1`, `tests/conformance/reject/a-secret-setting-cannot-be-printed.nvst:1`
 - [ ] The tests the `settings-runtime-tests` check names. `crates/nvs-cli/tests/config_settings.rs:1`
 
@@ -251,17 +251,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new and nothing is built. Every choice is settled in § *Standing decisions*.
+Stage 1 is done, and `cargo test --test settings_block` passes 10 of 10. The four blocks parse into
+`Config::settings`/`secrets` and `App::settings`/`secrets`. `crate::settings::check_file`
+(`crates/nvs-config/src/settings.rs`) checks each file over toml's spanned `DeTable`, so each error
+names its line. `secret::program_secrets` reads every secret into `Resolved::secrets`:
+`secrets.<name>`, and `app.<index>.secrets.<name>` for an app block's own. `secret::strip_inline`
+then removes the inline values from the table and the typed tree. `Snapshot::fold_secrets` puts a
+matching block's secrets over `secrets.<name>` and records the override itself. `AppBlocks` carries
+each block's secrets. An inline secret's `Secret::file` is the configuration file it was written in.
+
+`Request::get` and `all` already skip every `settings.`/`secrets.` key (`crate::settings::is_program_value`),
+because `all` would otherwise print an inline `[secrets]` value as plain text. That is stage 2's
+third item, ticked. Its test, `config_get_and_all_never_return_a_setting_or_a_secret`, is still owed.
+
+`rule:config/check-and-dump-audit-the-tree-offline` is not rewritten yet. It describes `W1028`,
+which stage 3 builds, so stage 3's item writes it. `tests/tree.rs`'s block roster has the four blocks,
+and its count is 37. No `DIRECTIVES` row was added: the four blocks are not directives, and
+`lookup` returns `None` for them, so `set` refuses them.
+
+The sweep's reds were already fixed on disk: `env-secret-proofs` passes again, and nightly run
+40847802941 predates `ef7e629e2` (Docker), `dafe6c98d` (spool Miri) and `df208a541` (passkey Miri).
+
+Tests that may go red at the gate: none known. Two tests in `nvs-config` could change, because both
+read `get` and `all`: `tests/request.rs` and `tests/secret.rs`. Neither uses the four blocks.
 
 ### Next
 
-**Stage 1, one group**, on `nvs-config`. No gate.
+**Stage 2, one group**, on `nvs-stdlib` and `nvs-types`. No gate.
 
-- [ ] The two fields on `Config` and `App`. `crates/nvs-config/src/tree.rs:73`, `crates/nvs-config/src/tree.rs:156`
-- [ ] The validating pass and its refusals. `crates/nvs-config/src/resolve.rs:512`
-- [ ] Secrets read into `Snapshot::secrets`. `crates/nvs-config/src/secret.rs:371`
-- [ ] The fold and the dump. `crates/nvs-config/src/snapshot.rs:262`, `crates/nvs-config/src/audit.rs:73`
-- [ ] The rule fragments, rendered. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`
-- [ ] The `settings-block-tests`. `crates/nvs-config/tests/settings_block.rs:1`
+- [ ] `setting` and `secret` rows beside `get`, with reference cards. `secret` takes `Core\Env::secret`'s sink name and `Nullable(SecretStr)`. `crates/nvs-stdlib/src/config.rs:93`, `crates/nvs-stdlib/src/env.rs:157`
+- [ ] Runtime functions: `setting` reads `settings.<name>` from the request's snapshot table and builds the value from its TOML type, and a table becomes an array keyed by name. `secret` reads `Snapshot::secrets["secrets.<name>"]`. `crates/nvs-stdlib/src/config.rs:237`, `crates/nvs-stdlib/src/env.rs:590`
+- [ ] Conformance cases and the `reject/` case. `tests/conformance/config/a-setting-keeps-its-toml-type.nvst:1`
+- [ ] `crates/nvs-cli/tests/config_settings.rs` with the three `settings-runtime-tests`. `crates/nvs-cli/tests/config_settings.rs:1`
 
 ### Backlog
