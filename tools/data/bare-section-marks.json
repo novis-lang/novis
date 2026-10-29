@@ -53,7 +53,6 @@
   "crates/nvs-db/src/lib.rs": 16,
   "crates/nvs-db/src/maria.rs": 11,
   "crates/nvs-db/src/mysql.rs": 155,
-  "crates/nvs-db/src/pg.rs": 175,
   "crates/nvs-db/src/span.rs": 9,
   "crates/nvs-db/src/sql.rs": 33,
   "crates/nvs-db/src/sqlite.rs": 114,

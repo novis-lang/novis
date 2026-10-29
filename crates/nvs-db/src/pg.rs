@@ -12,7 +12,7 @@
 //! # Opening is three exchanges, and the first two are refusals waiting to
 //! happen
 //!
-//! 1. **The upgrade.** [`request_tls`] writes § 3's `SSLRequest` — eight bytes,
+//! 1. **The upgrade.** [`request_tls`] writes the in-band `SSLRequest` — eight bytes,
 //!    and the only plaintext this connection will ever carry — and reads the
 //!    one-byte answer. `S` continues; **`N` is refused** on every address but
 //!    loopback, because `rule:core-classes/db-safe-connection-defaults` makes
@@ -250,11 +250,12 @@ impl<'a> PgTarget<'a> {
     /// **Every field is decided here and none of it in the connect path.**
     /// [`statement_cache_for`] and [`crate::sql::time_zone_for`] are
     /// the two readers that own what an absent field means, and this is where
-    /// their answers become a number; § 9's `None` — a zone that is not an
-    /// offset — becomes [`BlockError::TimeZone`] rather than UTC, which is the
+    /// their answers become a number; the declared zone's `None` — a zone that
+    /// is not an offset — becomes [`BlockError::TimeZone`] rather than UTC, which is the
     /// refusal that reader's doc comment promises somebody makes.
     ///
-    /// The address is not here. § 3 pre-approves an operator-written endpoint
+    /// The address is not here. `rule:core-classes/db-capabilities`
+    /// pre-approves an operator-written endpoint
     /// and `rule:http-server/allow-url-pins-the-address` pins
     /// it, so `host`'s resolution to a [`std::net::SocketAddr`] belongs to
     /// whoever checked the `db.connect` capability, and [`PgConn::connect`]
@@ -270,7 +271,7 @@ impl<'a> PgTarget<'a> {
     /// MySQL block resolved as PostgreSQL would send this handshake to a server
     /// that cannot answer it; then a field belonging to another driver; then
     /// every field the startup exchange sends, each by its own key; then
-    /// § 9's zone.
+    /// the declared zone.
     pub fn resolve(block: &'a Database) -> Result<PgTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -383,7 +384,7 @@ pub(crate) struct Peer {
 /// (`rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`), it
 /// names no host for a certificate to be valid for, and the bytes never leave
 /// the machine — the socket's own file permissions are the boundary TLS would
-/// otherwise be standing in for. § 3's in-band upgrade is still mandatory on the
+/// otherwise be standing in for. The in-band upgrade is still mandatory on the
 /// TCP arm, which is the one with a network in it, and the transport is decided
 /// before the first message goes out rather than negotiated.
 ///
@@ -646,8 +647,9 @@ impl<S: Read + Write> Wire<S> {
 }
 
 impl PgConn {
-    /// Opens a connection: the transport [`Endpoint`] names, § 3's in-band
-    /// upgrade where there is a network to upgrade, then SASL.
+    /// Opens a connection: the transport [`Endpoint`] names,
+    /// `rule:core-classes/db-safe-connection-defaults`'s in-band upgrade where
+    /// there is a network to upgrade, then SASL.
     ///
     /// A socket endpoint is **dialled as it stands**: the directory an operator
     /// wrote became `<directory>/.s.PGSQL.<port>` in [`socket_endpoint`], which
@@ -709,7 +711,7 @@ impl PgConn {
             // this path takes a number and has no opinion about where an
             // unwritten field's default comes from.
             cache: StatementCache::new(target.statement_cache),
-            // § 9's zone-less row is decoded a layer up, and the target is
+            // The type map's zone-less row is decoded a layer up, and the target is
             // gone by then — see the field.
             time_zone: target.time_zone,
             depth: Cell::new(0),
@@ -733,8 +735,9 @@ impl PgConn {
     /// handshake sent the server.
     ///
     /// `nvs-stdlib` asks: [`PgScalar::Timestamp`] carries the civil fields the
-    /// server rendered and no offset at all, because § 9 reads that row in the
-    /// zone the *connection* declared rather than one the column carries.
+    /// server rendered and no offset at all, because
+    /// `rule:core-classes/db-column-types` reads that row in the zone the
+    /// *connection* declared rather than one the column carries.
     #[must_use]
     pub fn time_zone(&self) -> i32 {
         self.time_zone
@@ -779,10 +782,11 @@ impl PgConn {
     /// rows, and [`Self::stream_columns`] hands the same slice back to the later
     /// calls that decode against it.
     ///
-    /// A second statement is refused while this one is open — that is § 4's
-    /// `LogicError`, and it is [`State::Streaming`] that says so rather than a
-    /// lifetime. [`Self::end_stream`] is the abandonment [`PgRows`] gets from
-    /// `Drop`; a stream read to its end needs no call at all.
+    /// A second statement is refused while this one is open — that is
+    /// `rule:core-classes/db-streaming`'s `LogicError`, and it is
+    /// [`State::Streaming`] that says so rather than a lifetime.
+    /// [`Self::end_stream`] is the abandonment [`PgRows`] gets from `Drop`; a
+    /// stream read to its end needs no call at all.
     ///
     /// # Errors
     ///
@@ -796,7 +800,7 @@ impl PgConn {
     /// that has not streamed since its last reset.
     ///
     /// It outlives the rows on purpose: the decode of the last row happens after
-    /// the walk that produced it, and § 9's type map is read off these.
+    /// the walk that produced it, and the type map is read off these.
     #[must_use]
     pub fn stream_columns(&self) -> Option<&[PgColumn]> {
         Some(&self.reading.as_ref()?.columns)
@@ -863,8 +867,8 @@ impl PgConn {
     ///
     /// [`execute_many`] owns the two rules a caller can be surprised by: an
     /// execution is its own transaction, so a failure part way through does not
-    /// undo the writes before it, and an empty `sets` is § 4's no-op answering
-    /// `0`.
+    /// undo the writes before it, and an empty `sets` is a no-op answering `0`
+    /// (`rule:core-classes/db-statement-members`).
     ///
     /// # Errors
     ///
@@ -876,12 +880,12 @@ impl PgConn {
     /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
-    /// This is the driver half of § 7 and nothing more: the callable, the
+    /// This is the driver half of that rule and nothing more: the callable, the
     /// rollback-only flag and the retry rule are `nvs-stdlib`'s, and what a
     /// driver owes them is the commands that leave the connection at a message
     /// boundary. [`begin`] owns which command a given nesting depth gets and
     /// [`begin_command`] the rendering of the two options, including which of
-    /// § 7's five isolation levels PostgreSQL spells with another name.
+    /// the five isolation levels PostgreSQL spells with another name.
     ///
     /// **It answers the span of the command it sent**, which is `rule:observability/a-query-is-a-trace-event`'s
     /// event for a statement that lends no [`PgRows`] out — the shape
@@ -909,7 +913,7 @@ impl PgConn {
     /// How many transaction levels are open on this connection — 0 outside one,
     /// 1 inside an outermost `transaction()`, deeper inside a nested one.
     ///
-    /// `nvs-stdlib` asks, and § 7's retry rule is the only reason this is
+    /// `nvs-stdlib` asks, and the transaction retry rule is the only reason this is
     /// public: a serialization failure is retried **only for an outermost
     /// transaction**, because re-running the callable of a nested one would
     /// re-run it inside an outer transaction the conflict already aborted. The
@@ -926,19 +930,20 @@ impl PgConn {
         self.depth.get()
     }
 
-    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
+    /// The `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
     /// normal return out of the callable either way.
     ///
     /// # Errors
     ///
-    /// As [`commit`]. A refused outermost commit is § 7's failed commit, which
+    /// As [`commit`]. A refused outermost commit is the failed commit
+    /// `rule:core-classes/db-transactions` names, which
     /// `nvs-stdlib` throws as `DbError`. The span it answers with on success is
     /// [`PgConn::begin`]'s, for the same reason.
     pub fn commit(&mut self) -> io::Result<QuerySpan> {
         commit(&mut self.wire, &self.state, &self.depth)
     }
 
-    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
+    /// The `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
     /// a throw out of the callable, or `rollBack`'s own signal.
     ///
     /// # Errors
@@ -951,8 +956,8 @@ impl PgConn {
 
     /// `rule:security/db-pool-reset-is-a-boundary`'s reset, and the connection back only if it worked.
     ///
-    /// **`self` by value is the enforcement**, not a convenience. § 13 makes the
-    /// reset a security boundary: a connection that cannot be proven clean is
+    /// **`self` by value is the enforcement**, not a convenience. That rule
+    /// makes the reset a security boundary: a connection that cannot be proven clean is
     /// closed, never returned to the pool, because one request's session state
     /// read by the next is a cross-tenant leak. A `&mut self` signature would
     /// leave the caller holding a connection it must remember not to reuse, and
@@ -971,11 +976,12 @@ impl PgConn {
     /// it.
     pub fn reset(mut self) -> io::Result<PgConn> {
         reset_session(&mut self.wire, &self.state)?;
-        // § 13's first command is `ROLLBACK`, so every level § 7 opened is
-        // closed by the time this returns — including the savepoints inside
+        // The reset's first command is `ROLLBACK`, so every transaction level
+        // is closed by the time this returns — including the savepoints inside
         // one, which do not outlive the transaction that held them.
         self.depth.set(0);
-        // "No open cursor" is one of the properties § 13 states the reset has to
+        // "No open cursor" is one of the properties
+        // `rule:security/db-pool-reset-is-a-boundary` states the reset has to
         // establish, and a stream parked here is one request's statement shape
         // and command tag: the next request must not be able to read either.
         self.reading = None;
@@ -1120,7 +1126,7 @@ fn say_goodbye<S: Read + Write>(wire: &mut Wire<S>) {
     drop(wire.send(&mut out));
 }
 
-/// Asks for § 3's in-band upgrade and reads the one-byte answer.
+/// Asks for the in-band upgrade and reads the one-byte answer.
 ///
 /// Writes `SSLRequest` and gives `true` once the server has agreed. The caller
 /// wraps the same stream in TLS immediately: every byte after this one is a
@@ -1217,7 +1223,7 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             // by construction rather than by inspection, which is what
             // `rule:types/string-is-utf8`'s guarantee needs.
             ("client_encoding", "UTF8"),
-            // § 9's structured rows are read positionally out of the text
+            // The type map's structured rows are read positionally out of the text
             // format, so the two parameters that decide what that text looks
             // like are pinned here rather than discovered from whatever the
             // server was configured with: `DateStyle` fixes the rendering as
@@ -1226,7 +1232,7 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             // numeric and never an abbreviation this driver would have to
             // know the rules of.
             ("DateStyle", "ISO"),
-            // § 9's zone-less half. It is sent as well as decoded so that
+            // The type map's zone-less half. It is sent as well as decoded so that
             // `CURRENT_TIMESTAMP` and a `TIMESTAMP` column agree.
             ("TimeZone", time_zone.as_str()),
             // Not decoration: this is what an operator reads in
@@ -1397,7 +1403,7 @@ struct Startup {
 ///
 /// The sentence is [`ServerError`]'s `Display` and is unchanged by the kind
 /// riding beside it: a caller that prints this reads the sentence alone, and
-/// one that branches — § 7's retry rule is the first — asks
+/// one that branches — the transaction retry rule is the first — asks
 /// [`ServerError::of`].
 fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
     let mut severity = String::from("ERROR");
@@ -1437,13 +1443,13 @@ fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
     })
 }
 
-/// The § 8 kind a PostgreSQL `SQLSTATE` means.
+/// The `rule:core-classes/db-error` kind a PostgreSQL `SQLSTATE` means.
 ///
 /// The five characters are the whole input: PostgreSQL has no vendor integer
 /// beside them, and its *classes* — the first two characters — are specified
 /// rather than incidental, so a class that means one kind is matched as a class
 /// and only the codes that disagree with their own class are named one by one.
-/// Everything unnamed is [`DbErrorKind::Other`] rather than a guess: § 8
+/// Everything unnamed is [`DbErrorKind::Other`] rather than a guess: that rule
 /// normalises the conditions applications branch on, and a code outside that
 /// set is one they read the `SQLSTATE` for.
 pub(crate) fn kind_of(code: &str) -> DbErrorKind {
@@ -1456,7 +1462,7 @@ pub(crate) fn kind_of(code: &str) -> DbErrorKind {
         "40001" => DbErrorKind::SerializationFailure,
         // `query_canceled` is what `statement_timeout` raises, and `25P03` is
         // `idle_in_transaction_session_timeout`. A cancellation asked for by
-        // the other end of § 3's cancellation key arrives as `57014` too, and
+        // the other end of this connection's [`CancelKey`] arrives as `57014` too, and
         // is the same thing from the statement's point of view.
         "57014" | "25P03" => DbErrorKind::Timeout,
         // The rest of class 57 is the server going away or not yet accepting
@@ -1471,8 +1477,8 @@ pub(crate) fn kind_of(code: &str) -> DbErrorKind {
             // Class 28 — invalid authorization specification, which is a bad
             // password as much as a refused role.
             Some("28") => DbErrorKind::Permission,
-            // Class 42 — syntax error *or* access rule violation, and § 8's
-            // `Syntax` is the half an application branches on: an undefined
+            // Class 42 — syntax error *or* access rule violation, and the
+            // normalised `Syntax` is the half an application branches on: an undefined
             // table and a malformed statement are the same bug to a caller.
             Some("42") => DbErrorKind::Syntax,
             _ => DbErrorKind::Other,
@@ -1505,7 +1511,7 @@ pub struct PgColumn {
     pub type_oid: Oid,
     /// The type's modifier, or `-1` where the type takes none.
     ///
-    /// Only § 9's `BIT(1)` row reads it: `bit` and `bit varying` share one OID
+    /// Only the type map's `BIT(1)` row reads it: `bit` and `bit varying` share one OID
     /// and carry their width here, so this is the only signal separating the
     /// row that is a `bool` from the row that is a `tainted string`.
     pub type_modifier: i32,
@@ -1565,7 +1571,8 @@ impl PgRow {
 ///
 /// **Two questions are asked of this table, and the second is why the text
 /// types are in it.** [`super::PgColumn::scalar`] asks what a body decodes to,
-/// and for that a type is either named here or reaches § 9's last row as text.
+/// and for that a type is either named here or reaches the type map's last row
+/// as text.
 /// [`super::PgColumn::column_type`] asks what the column *is*, and there
 /// `varchar` is `ColumnType::Text` while `inet` is `ColumnType::Other` — so the
 /// text family and the two JSON types are named as well, though no decoder
@@ -1612,9 +1619,9 @@ mod oid {
     /// `DATE`.
     pub(super) const DATE: Oid = 1082;
     /// `TIME`, which is `time without time zone`. `timetz` is a different OID
-    /// with no row of its own in § 9, so it stays text.
+    /// with no row of its own in the type map, so it stays text.
     pub(super) const TIME: Oid = 1083;
-    /// `TIMESTAMP`, § 9's zone-less row.
+    /// `TIMESTAMP`, the type map's zone-less row.
     pub(super) const TIMESTAMP: Oid = 1114;
     /// `TIMESTAMPTZ`, the row that carries its own offset.
     pub(super) const TIMESTAMPTZ: Oid = 1184;
@@ -1638,7 +1645,7 @@ mod oid {
     /// bootstrap argument the module doc makes for the list above decides it
     /// the same way.
     ///
-    /// Every type § 9 has a row for is here as its array, and so are the
+    /// Every type the type map has a row for is here as its array, and so are the
     /// text-ish ones whose elements reach the table's last row: `text[]` is
     /// `array<string>`, which is the array a query is most likely to select.
     /// An array this does not name — `point[]`, and every array of a type an
@@ -1679,7 +1686,7 @@ mod oid {
             1182 => DATE,
             1183 => TIME,
             1185 => TIMESTAMPTZ,
-            // `interval[]`, which § 9 keeps at text deliberately: an interval
+            // `interval[]`, which the type map keeps at text deliberately: an interval
             // carries months and is not a `Duration`.
             1187 => 1186,
             1231 => NUMERIC,
@@ -1701,7 +1708,8 @@ mod oid {
 /// cannot build one: an instance needs `nvs-stdlib`'s class descriptors, and
 /// `Cargo.toml` states on both manifests why an edge to that crate does not
 /// exist. [`PgScalar`] is this crate's public answer beside a [`Value`], and
-/// § 9's structured rows are finished one layer up.
+/// `rule:core-classes/db-column-types`'s structured rows are finished one
+/// layer up.
 ///
 /// The fields are checked for *shape* — a month is 1 to 12, a day 1 to 31 —
 /// and never against the calendar: whether the 31st exists in this month is
@@ -1757,20 +1765,20 @@ impl std::fmt::Debug for PgTime {
 ///
 /// The decode and the allocation are two steps for one reason: everything that
 /// can go wrong with a column happens in the first, and none of it needs an
-/// allocator, so § 9's whole table is assertable in a `-p nvs-db` test that
+/// allocator, so the type map's whole table is assertable in a `-p nvs-db` test that
 /// leaks nothing. This crate forbids `unsafe` and [`Value::release`] is unsafe,
 /// so a `Value` a test built here could never be freed by one — a reference is
 /// minted in [`PgScalar::into_value`] and nowhere else, and that function is
 /// one arm per variant with nothing left to get wrong.
 ///
 /// It is also this driver's public answer beside a [`Value`], because some of
-/// § 9's rows are not values at all: a `DATE` is a `Core\Time\Date`, an
+/// the type map's rows are not values at all: a `DATE` is a `Core\Time\Date`, an
 /// *instance* of an `nvs-stdlib` class, and that crate is the only one that
 /// can allocate one. Those rows arrive here as parsed components — see
 /// [`PgDate`] — and `into_value` answers `None` for them, as it does for an
 /// array holding one of them at any depth.
 pub enum PgScalar<'a> {
-    /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
+    /// SQL `NULL`: the row of the type map that makes every column `?T`.
     Null,
     /// `BOOLEAN`, and `BIT(1)`.
     Bool(bool),
@@ -1796,7 +1804,7 @@ pub enum PgScalar<'a> {
     Date(PgDate),
     /// `TIME`, which is a `Core\Time\TimeOfDay`.
     Time(PgTime),
-    /// `TIMESTAMP`: § 9's zone-less row, a `Core\Time\DateTime` in the zone
+    /// `TIMESTAMP`: the type map's zone-less row, a `Core\Time\DateTime` in the zone
     /// [`PgTarget::time_zone`] declared and the server was told.
     Timestamp {
         /// The civil date, as rendered.
@@ -1817,7 +1825,7 @@ pub enum PgScalar<'a> {
     },
     /// `UUID`, as its sixteen octets in the order the text spells them.
     Uuid([u8; 16]),
-    /// A PostgreSQL array, as its elements — each one a row of § 9's table in
+    /// A PostgreSQL array, as its elements — each one a row of the type map in
     /// its own right, so a multi-dimensional array is elements that are
     /// themselves arrays and needs nothing else.
     ///
@@ -1830,7 +1838,7 @@ pub enum PgScalar<'a> {
 }
 
 impl std::fmt::Debug for PgScalar<'_> {
-    /// Which row of § 9's table this landed on, and never the value: a column
+    /// Which row of the type map this landed on, and never the value: a column
     /// in flight is one request's data, which is the rule [`PgRow`]'s own
     /// rendering holds.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1857,7 +1865,7 @@ impl PgScalar<'_> {
     /// The Novis value, taking on the one reference a `string` or a `bytes`
     /// costs and nothing at all for the rest.
     ///
-    /// `None` for § 9's structured rows, whose Novis type is a class instance
+    /// `None` for the type map's structured rows, whose Novis type is a class instance
     /// this crate cannot allocate at all — [`PgDate`] owns why — and for an
     /// array holding one of them at any depth, which is as much
     /// `nvs-stdlib`'s to finish as a bare one is. A caller that wants the
@@ -1958,7 +1966,8 @@ impl PgScalar<'_> {
 /// `Core\Db` boundary turns into a `LogicError` naming the parameter — the
 /// same route [`crate::sql::rewrite`]'s refusals take.
 ///
-/// A `Core\Db\InList` never reaches here: § 5's marker has already expanded
+/// A `Core\Db\InList` never reaches here: `rule:core-classes/db-parameters`'s
+/// marker has already expanded
 /// into one bound value per element by the time a statement has its bind list.
 ///
 /// # What the server makes of it
@@ -2049,7 +2058,7 @@ impl PgColumn {
     /// reads besides the OID is `rule:core-classes/db-column-types`'s `BIT(1)` row, for the reason
     /// [`Self::scalar`] reads the modifier there.
     ///
-    /// A PostgreSQL `ENUM` is the one member of § 9's text family this answers
+    /// A PostgreSQL `ENUM` is the one member of the type map's text family this answers
     /// [`ColumnType::Other`] for rather than [`ColumnType::Text`]: an enum
     /// type's OID is created with the type and is not bootstrap data, so the
     /// only way to recognise one is a catalog lookup per connection — which is
@@ -2065,7 +2074,7 @@ impl PgColumn {
             oid::CHAR | oid::NAME | oid::TEXT | oid::BPCHAR | oid::VARCHAR => ColumnType::Text,
             oid::BYTEA => ColumnType::Bytes,
             oid::BOOL => ColumnType::Bool,
-            // § 9's `BIT(1)` row, and the width is the only thing that says so.
+            // The type map's `BIT(1)` row, and the width is the only thing that says so.
             oid::BIT | oid::VARBIT if self.type_modifier == 1 => ColumnType::Bool,
             oid::DATE => ColumnType::Date,
             oid::TIME => ColumnType::Time,
@@ -2074,7 +2083,7 @@ impl PgColumn {
             oid::UUID => ColumnType::Uuid,
             oid::JSON | oid::JSONB => ColumnType::Json,
             // Every array, every `BIT(n>1)`, and every type with no Novis type
-            // of its own: § 9's last row, which `scalar` reads as text.
+            // of its own: the type map's last row, which `scalar` reads as text.
             _ => ColumnType::Other,
         }
     }
@@ -2086,10 +2095,10 @@ impl PgColumn {
     /// the module doc chose.
     ///
     /// `Ok(None)` is the *other* absence, and the two never collide: it says
-    /// the column is one of § 9's structured rows — `DATE`, `TIME`,
+    /// the column is one of the type map's structured rows — `DATE`, `TIME`,
     /// `TIMESTAMP`, `TIMESTAMPTZ`, `UUID` — whose Novis type is a class
     /// instance no driver can allocate. [`Self::scalar`] is what reads those,
-    /// and this is the scalar half in full — plus § 9's array row, which is a
+    /// and this is the scalar half in full — plus the array row, which is a
     /// `Value` like any other once its elements are. An array whose elements
     /// are one of those rows is the same `Ok(None)` as a single one, whole and
     /// at any nesting.
@@ -2116,7 +2125,7 @@ impl PgColumn {
     }
 
     /// [`PgColumn::decode`]'s whole decision, before anything is allocated,
-    /// and every row of § 9's table rather than the scalar half.
+    /// and every row of the type map rather than the scalar half.
     ///
     /// `nvs-stdlib` calls this one: it is the only crate that can turn a
     /// [`PgScalar::Date`] and its siblings into the `Core\Time` and
@@ -2138,7 +2147,7 @@ impl PgColumn {
                 b"f" => false,
                 _ => return Err(self.malformed("a bool")),
             }),
-            // § 9's `BIT(1)` row, and the width is the only thing that says so.
+            // The type map's `BIT(1)` row, and the width is the only thing that says so.
             // A one-bit string renders as `0`/`1` rather than `f`/`t`: on the
             // wire a `bit` is not a `boolean`, only in the table.
             oid::BIT | oid::VARBIT if self.type_modifier == 1 => PgScalar::Bool(match body {
@@ -2180,7 +2189,7 @@ impl PgColumn {
             oid::UUID => PgScalar::Uuid(self.uuid(self.text(body)?)?),
             _ => match oid::element(self.type_oid) {
                 Some(element) => PgScalar::Array(self.array(element, self.text(body)?)?),
-                // § 9's last row: every type this driver has no arm for, and
+                // The type map's last row: every type this driver has no arm for, and
                 // every array whose element type it cannot name.
                 None => PgScalar::Text(Cow::Borrowed(self.text(body)?)),
             },
@@ -2195,12 +2204,12 @@ impl PgColumn {
         std::str::from_utf8(body).map_err(|_| self.malformed("well-formed UTF-8"))
     }
 
-    /// § 9's array row: the elements `array_out` wrote between braces, each
+    /// The type map's array row: the elements `array_out` wrote between braces, each
     /// decoded through this same table.
     ///
     /// `{1,2,3}`, `{}` for the empty one, and `{{1,2},{3,4}}` for a
     /// multi-dimensional one — which is nested [`PgScalar::Array`]s here,
-    /// because Novis has no rectangular array type and § 9's `array<T>` with
+    /// because Novis has no rectangular array type and the map's `array<T>` with
     /// an array for `T` is what that shape means. A lower bound other than 1
     /// is written as a `[0:1]=` prefix and is dropped: a Novis array is a
     /// list, and a base has nowhere to go in one.
@@ -2213,7 +2222,7 @@ impl PgColumn {
     ///
     /// `element` is the OID [`oid::element`] answered, and the element column
     /// carries **this** column's modifier: PostgreSQL stores an array's typmod
-    /// as its element's, so a `BIT(1)[]` reaches § 9's `bool` row the same way
+    /// as its element's, so a `BIT(1)[]` reaches the `bool` row the same way
     /// a `BIT(1)` does. It costs one clone of the column's name per array
     /// cell, so that a refusal still names the column the operator sees.
     ///
@@ -2499,8 +2508,8 @@ impl PgColumn {
     /// `TimeZone` is a startup parameter rather than whatever the server was
     /// configured with: a numeric zone makes the suffix `+02`, `-05:30` or
     /// `+00`, always present and never a name. A zone-less column has no
-    /// suffix and is read in [`PgTarget::time_zone`] instead, which is § 9's
-    /// rule and the reason that field is sent as well as held.
+    /// suffix and is read in [`PgTarget::time_zone`] instead, which is
+    /// `rule:core-classes/db-column-types` and the reason that field is sent as well as held.
     ///
     /// # Errors
     ///
@@ -2614,7 +2623,7 @@ impl PgColumn {
     /// the three-digit currencies (`KWD`, `BHD`, `OMR`), where a grouped
     /// `1,234` and a fractional `1.234` are the same shape and the text carries
     /// no second signal to break the tie. A deployment on one of those casts
-    /// the column — `amount::numeric` is § 9's `NUMERIC` row and has no locale
+    /// the column — `amount::numeric` is the type map's `NUMERIC` row and has no locale
     /// in it at all — and that is cheaper than the alternative, which is a
     /// round trip per connection to read `lc_monetary` out of the server.
     ///
@@ -2714,7 +2723,7 @@ impl PgColumn {
         Ok(out)
     }
 
-    /// § 9's `NUMERIC` and `money` rows: the server's own rendering as a
+    /// The type map's `NUMERIC` and `money` rows: the server's own rendering as a
     /// [`Decimal`], and the two reasons it may not be one.
     ///
     /// **The two are separate refusals because they are separate jobs.** A
@@ -2920,7 +2929,8 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// whose tag carries no count at all. [`affected_rows`] owns which
     /// commands those are.
     ///
-    /// § 4's `changed` is this same number on PostgreSQL. The distinction
+    /// `rule:core-classes/db-statement-members`'s `changed` is this same
+    /// number on PostgreSQL. The distinction
     /// MySQL draws between rows matched and rows actually altered has nothing
     /// in this protocol to read it out of, and inventing a second count that
     /// always equalled the first would be a difference callers wrote code
@@ -3017,7 +3027,7 @@ fn next_row_of<S: Read + Write>(
         match read_or_poison(wire, state)? {
             backend::Message::DataRow(body) => {
                 let row = PgRow { body };
-                // § 4's `lastId`, taken as the row goes past: the last row
+                // The `Db\Write`'s `lastId`, taken as the row goes past: the last row
                 // is the answer, and a row borrows the wire's buffer, so
                 // once the next one has arrived there is nothing left to
                 // read it out of.
@@ -3046,7 +3056,8 @@ fn next_row_of<S: Read + Write>(
             backend::Message::ErrorResponse(body) => {
                 let error = server_error(&body);
                 // A refused statement is still a statement that took time,
-                // and § 11 gives a span no success field to lose: the rows
+                // and `rule:observability/a-query-is-a-trace-event` gives a
+                // span no success field to lose: the rows
                 // it reports are the ones that did arrive, and the error is
                 // the caller's own return value.
                 reading.span.finished(None);
@@ -3112,7 +3123,7 @@ fn open_portal<S: Read + Write>(
 
     // `rule:observability/a-query-is-a-trace-event`'s span, opened before the batch is built so its duration is
     // what the caller waited rather than what the server spent. It is handed
-    // `sql` and not `params`, which is the whole of § 11's "never parameters" —
+    // `sql` and not `params`, which is the whole of that rule's "never a bound parameter" —
     // `crate::span`'s module doc owns why that is a signature and not a rule.
     let span = QuerySpan::opened(Driver::Postgres, sql);
 
@@ -3245,8 +3256,8 @@ fn start_statement<'a, S: Read + Write>(
 /// `rule:core-classes/db-statement-members`'s `executeMany`: one `Parse`, N `Bind`/`Execute` pairs, and the
 /// affected counts summed.
 ///
-/// All of it goes out in **one flush**, which is the whole reason § 4 has a
-/// member for this rather than leaving it to a loop over [`start_statement`]: a
+/// All of it goes out in **one flush**, which is the whole reason that rule
+/// has a member for this rather than leaving it to a loop over [`start_statement`]: a
 /// thousand writes cost the round trip one statement costs, and the `Parse` is
 /// in the buffer at most once — [`StatementCache`] answers whether it is there
 /// at all, exactly as it does for a single statement.
@@ -3256,7 +3267,7 @@ fn start_statement<'a, S: Read + Write>(
 /// less — the messages are in the same buffer either way — but it would make
 /// the batch a single implicit transaction, so a failure at set 900 would roll
 /// back the 899 writes before it and would have held their locks from the
-/// first. That is the hidden `BEGIN` § 4 refuses in as many words: a caller who
+/// first. That is the hidden `BEGIN` the rule refuses in as many words: a caller who
 /// wants all-or-nothing writes `transaction(fn ($tx) => $tx->executeMany(…))`,
 /// and one who did not ask for it gets what an autocommitting MySQL would give
 /// — each execution independent, and the ones after a failure still attempted,
@@ -3265,12 +3276,13 @@ fn start_statement<'a, S: Read + Write>(
 /// The answer is the sum of what each `CommandComplete` reports, and a tag
 /// carrying no count contributes nothing rather than failing the batch;
 /// [`affected_rows`] owns which commands those are. A `DataRow` a `RETURNING`
-/// clause produced is discarded: § 4 gives this member a `uint` return and no
+/// clause produced is discarded: `executeMany` has a `uint` return and no
 /// second one to hand rows back through.
 ///
-/// An empty `sets` is § 4's no-op answering `0` — nothing is written, and
+/// An empty `sets` is a no-op answering `0` — nothing is written, and
 /// nothing is prepared for executions that will not happen. The state check
-/// still runs ahead of it, because § 4's refusal is a property of the
+/// still runs ahead of it, because `rule:core-classes/db-connection-busy-state`'s
+/// refusal is a property of the
 /// connection rather than of the payload: a statement written to a streaming
 /// connection is the same bug whether or not its parameter list was empty, and
 /// a rule that fired only for some inputs would surface in production on the
@@ -3281,10 +3293,10 @@ fn start_statement<'a, S: Read + Write>(
 /// `InvalidInput` when the connection is not [`State::Idle`], as
 /// [`PgConn::query`], and for a `sets` whose members do not all bind the same
 /// number of parameters — one prepare has one parameter count, and it is what
-/// § 1's cache is keyed on beside the SQL. Otherwise the **first** error any
-/// execution drew, reported only once every `Sync` has been accounted for so
-/// that the connection is left idle and poolable, or a wire failure, which
-/// poisons it.
+/// `rule:core-classes/db-one-api`'s cache is keyed on beside the SQL.
+/// Otherwise the **first** error any execution drew, reported only once every
+/// `Sync` has been accounted for so that the connection is left idle and
+/// poolable, or a wire failure, which poisons it.
 fn execute_many<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
@@ -3385,7 +3397,7 @@ fn execute_many<S: Read + Write>(
                 }
                 backend::Message::ErrorResponse(body) => {
                     let error = server_error(&body);
-                    // The first one is the one with a cause, as § 13's reset
+                    // The first one is the one with a cause, as the pool's reset
                     // reports it: the executions after it may only be that
                     // execution's consequences.
                     if refused.is_none() {
@@ -3421,10 +3433,11 @@ fn execute_many<S: Read + Write>(
 
 /// `rule:security/db-pool-reset-is-a-boundary`'s PostgreSQL reset, in the order that section lists it.
 ///
-/// `DISCARD TEMP` is the server's own spelling of § 13's "drop the session's
-/// temporary schema", and the reason it is that rather than `DISCARD ALL` is the
-/// same reason § 13 gives: `DISCARD ALL` also runs `DEALLOCATE ALL`, which would
-/// throw away the statement cache pooling exists to preserve.
+/// `DISCARD TEMP` is the server's own spelling of the step that rule names,
+/// dropping the session's temporary schema, and the reason it is that rather than
+/// `DISCARD ALL` is the same reason the rule gives: `DISCARD ALL` also runs
+/// `DEALLOCATE ALL`, which would throw away the statement cache pooling exists
+/// to preserve.
 ///
 /// `RESET ALL` does not cover `SET ROLE` or `SET SESSION AUTHORIZATION`: the
 /// server marks `role` and `session_authorization` as settings "all" skips, so
@@ -3445,7 +3458,7 @@ const RESET_COMMANDS: [&str; 8] = [
 
 /// Runs [`RESET_COMMANDS`] as one pipelined batch and reports the first refusal.
 ///
-/// **One round trip for eight commands**, which is what makes § 13's reset cheap
+/// **One round trip for eight commands**, which is what makes the pool's reset cheap
 /// enough to be unconditional. These go out as *simple* `Query` messages rather
 /// than through the extended path, and that is the whole reason the batch is
 /// safe to pipeline: a simple `Query` carries its own implicit `Sync`, so each
@@ -3474,7 +3487,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "a connection that is {:?} was asked to reset, and § 13's reset is only meaningful \
+                "a connection that is {:?} was asked to reset, and the pool's reset is only meaningful \
                  at a message boundary",
                 state.get()
             ),
@@ -3519,7 +3532,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 /// `SAVEPOINT` a nested `transaction()` is.
 ///
 /// **The depth decides which**, and the depth is the connection's rather than
-/// the caller's: § 7 gives no explicit savepoint API and no `inTransaction()`,
+/// the caller's: that rule gives no explicit savepoint API and no `inTransaction()`,
 /// so a library that wraps its own writes stays callable from inside a caller's
 /// transaction precisely because it cannot tell and does not have to. `depth`
 /// counts the levels open — 0 means this is the outermost `BEGIN`.
@@ -3529,9 +3542,9 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 /// transaction, at its first statement, so there is nothing a savepoint could
 /// do with them; running the callable at the *outer* transaction's level while
 /// its author wrote `Isolation::Serializable` would give it weaker semantics
-/// than the program asked for, and nothing would say so. § 7's composition is
-/// not what this costs: a nested `transaction()` with no options is the case
-/// § 7 argues for and it still composes.
+/// than the program asked for, and nothing would say so. Composition is not
+/// what this costs: a nested `transaction()` with no options is the case the
+/// rule argues for and it still composes.
 ///
 /// # Errors
 ///
@@ -3567,7 +3580,8 @@ fn begin<S: Read + Write>(
     Ok(span)
 }
 
-/// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
+/// The transaction's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested
+/// level.
 ///
 /// # Errors
 ///
@@ -3578,11 +3592,12 @@ fn begin<S: Read + Write>(
 /// own side effects outlive it. **The count follows the connection there**: an
 /// outermost commit the *server* refused leaves the depth at 0, unlike every
 /// other refusal in this family, because the level really is gone. A caller that
-/// opens the next transaction on that connection — § 7's `{ retries: n }` is the
+/// opens the next transaction on that connection — `{ retries: n }` is the
 /// one that does — must get a `BEGIN` and not a `SAVEPOINT` against nothing. A
 /// refused `RELEASE SAVEPOINT` says nothing of the kind and moves nothing, as in
-/// [`roll_back`], and neither does a refusal this crate made itself — § 4's busy
-/// connection, or a wire that failed before the command was processed.
+/// [`roll_back`], and neither does a refusal this crate made itself —
+/// `rule:core-classes/db-connection-busy-state`'s busy connection, or a wire
+/// that failed before the command was processed.
 fn commit<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
@@ -3612,11 +3627,12 @@ fn commit<S: Read + Write>(
     Ok(span)
 }
 
-/// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
+/// The transaction's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a
+/// nested level.
 ///
 /// **A nested rollback releases the savepoint it returned to, in the same
 /// command.** `ROLLBACK TO SAVEPOINT` leaves the savepoint established — it can
-/// be returned to again — but § 7's nested transaction is over by then, and a
+/// be returned to again — but the nested transaction is over by then, and a
 /// loop that opens and abandons one per iteration would otherwise leave the
 /// server holding a savepoint per iteration for as long as the outer
 /// transaction runs. Two statements in one simple `Query` is one round trip and
@@ -3650,14 +3666,15 @@ fn roll_back<S: Read + Write>(
 
 /// The number of levels open, or the refusal for a connection in none.
 ///
-/// § 7 has no `commit()` and no `rollBack()` on the connection, so only the
+/// `rule:core-classes/db-transactions` has no `commit()` and no `rollBack()`
+/// on the connection, so only the
 /// callable's own two exits reach these: a call with nothing open is this
 /// driver's bug rather than a program's, and saying so is worth more than
 /// sending a bare `ROLLBACK` that PostgreSQL answers with a warning nobody
 /// reads.
 ///
 /// Shared with [`crate::mysql`] rather than written twice: the wording is about
-/// § 7's surface — which has no `commit()` on any backend — and not about
+/// that rule's surface — which has no `commit()` on any backend — and not about
 /// anything one protocol does.
 ///
 /// # Errors
@@ -3678,9 +3695,10 @@ pub(crate) fn open_transaction(depth: &Cell<u32>, verb: &str) -> io::Result<u32>
 /// Named by the depth rather than by a counter that only climbs: a name is in
 /// use only while that one level is open, two open levels never share one, and
 /// a transaction that opens and closes a nested one a thousand times reuses
-/// `nvs_1` rather than leaving the server a thousand names. § 7 has no explicit
-/// savepoint API, so no program can name one of these and nothing outside this
-/// crate may depend on the spelling — [`crate::mysql`] takes the same names for
+/// `nvs_1` rather than leaving the server a thousand names.
+/// `rule:core-classes/db-transactions` has no explicit savepoint API, so no
+/// program can name one of these and nothing outside this crate may depend on
+/// the spelling — [`crate::mysql`] takes the same names for
 /// the same reason, so one backend's savepoint and another's read alike in a
 /// server log.
 pub(crate) fn savepoint_name(depth: u32) -> String {
@@ -3689,14 +3707,15 @@ pub(crate) fn savepoint_name(depth: u32) -> String {
 
 /// The `BEGIN` a given `{isolation, readOnly}` renders to.
 ///
-/// **§ 7's five levels become PostgreSQL's four, and only [`Isolation::Snapshot`]
-/// collapses**: `REPEATABLE READ` *is* PostgreSQL's snapshot isolation, so
-/// asking for either gets the same guarantee under the name this server uses
-/// and neither is the missing level § 7 says to throw over.
+/// **The five [`Isolation`] levels become PostgreSQL's four, and only
+/// [`Isolation::Snapshot`] collapses**: `REPEATABLE READ` *is* PostgreSQL's
+/// snapshot isolation, so asking for either gets the same guarantee under the
+/// name this server uses and neither is a level the driver lacks, which
+/// `rule:core-classes/db-transactions` says to throw over.
 /// [`Isolation::ReadUncommitted`] keeps its own spelling, which PostgreSQL
 /// accepts and then runs as `READ COMMITTED`: the level asked for is the
 /// weakest one there is and the level delivered is stronger, so no promise a
-/// program was given is broken. § 7's refusal is for the other direction, and
+/// program was given is broken. That rule's refusal is for the other direction, and
 /// PostgreSQL never has to make it.
 ///
 /// **`read_only` renders `READ ONLY` or nothing, never `READ WRITE`.** The
@@ -3731,16 +3750,17 @@ fn begin_command(isolation: Option<Isolation>, read_only: bool) -> String {
 
 /// Writes one simple `Query` and reads to the `ReadyForQuery` it carries.
 ///
-/// § 7's three commands take no parameters and are worth no cache entry, so
-/// they go out on the *simple* path exactly as § 13's reset does: a simple
+/// The three transaction commands take no parameters and are worth no cache
+/// entry, so they go out on the *simple* path exactly as the pool's reset does: a simple
 /// `Query` carries its own implicit `Sync`, so the boundary after it is the
 /// protocol's promise rather than an inference from the sequence, and a message
 /// that is neither an error nor that boundary is discarded rather than treated
 /// as poison.
 ///
 /// A busy connection is refused with [`second_statement`]'s wording rather than
-/// one of its own, because § 4 is the rule being broken and both of its fixes
-/// are what this caller needs to hear. § 13's reset is the one caller that says
+/// one of its own, because `rule:core-classes/db-streaming` is the rule being
+/// broken and both of its fixes are what this caller needs to hear. The pool's
+/// reset is the one caller that says
 /// something else, since "read the first statement's rows" is not advice a pool
 /// return can act on.
 ///
@@ -3760,8 +3780,8 @@ fn simple_command<S: Read + Write>(
 
     // `rule:observability/a-query-is-a-trace-event`'s span, opened where the extended-query path opens its own:
     // once the connection is this command's, so the duration is the round trip
-    // and not the wait for a busy one. The text is this module's — § 7's
-    // commands carry no caller's SQL at all — and [`QuerySpan`] is what carries
+    // and not the wait for a busy one. The text is this module's — the
+    // transaction commands carry no caller's SQL at all — and [`QuerySpan`] is what carries
     // it to a trace, so a `COMMIT` reads there beside the statements it closed.
     let span = QuerySpan::opened(Driver::Postgres, sql);
     let mut out = BytesMut::new();
@@ -3790,7 +3810,7 @@ fn simple_command<S: Read + Write>(
     match refused {
         None => {
             let mut span = span;
-            // No count and no rows: § 7's commands change nothing themselves,
+            // No count and no rows: the transaction commands change nothing themselves,
             // and `affected` says "this statement reported a count" rather than
             // "it reported zero".
             span.finished(None);
@@ -3862,7 +3882,8 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 /// `rule:core-classes/db-statement-members`'s refusal of a second statement, and the one place its wording
 /// lives.
 ///
-/// **It names both fixes, always**, because § 4 requires the refusal to: the
+/// **It names both fixes, always**, because `rule:core-classes/db-streaming`
+/// requires the refusal to: the
 /// buffered read that frees the connection, and the `{ shared: false }`
 /// connection that gives this statement one of its own. Those are the only two
 /// answers, they fix different programs — one loop wants its rows in memory,
@@ -3870,13 +3891,13 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 /// connection is busy leaves the caller to guess which of them their code
 /// needs.
 ///
-/// `nvs-stdlib` re-words this as § 4's `LogicError`: the fault class is its own
+/// `nvs-stdlib` re-words this as that rule's `LogicError`: the fault class is its own
 /// and so is the call site's spelling, per [`State::may_start_statement`].
 /// What it re-words is this sentence, which is also the one a log carries
 /// wherever nothing has — so it is the whole answer rather than a hint.
 ///
 /// The state is quoted because it is the difference between the two bugs this
-/// catches: `Streaming` is § 4's unread stream, and `Poisoned` is a connection
+/// catches: `Streaming` is an unread stream, and `Poisoned` is a connection
 /// that is not going to work again whatever the caller does next.
 pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
     io::Error::new(
@@ -4257,7 +4278,8 @@ mod tests {
 
     /// A complete block resolves to exactly what the handshake sends, and the
     /// two fields with readers of their own are asserted through them: an
-    /// unwritten `statement_cache` is § 1's default and a written `0` is the
+    /// unwritten `statement_cache` is `rule:core-classes/db-one-api`'s default
+    /// and a written `0` is the
     /// cache off, which is the answer a `unwrap_or_default` reader loses.
     #[test]
     fn a_complete_block_resolves_to_the_target_the_handshake_sends() {
@@ -4315,7 +4337,8 @@ mod tests {
         assert_eq!(swept, fields.len());
     }
 
-    /// § 3's `password_file`, on both sides. `nvs_config::secret` materializes
+    /// `password_file` (`rule:config/a-secret-is-a-file-whose-content-is-the-value`),
+    /// on both sides. `nvs_config::secret` materializes
     /// the file's content into `password` and *leaves `password_file` set*, so
     /// a resolver refusing on the field's presence would refuse every
     /// deployment that keeps its credential out of the config file — and one
@@ -4339,7 +4362,8 @@ mod tests {
         );
     }
 
-    /// § 9's zone, on both sides of the reader's own answer: an unwritten field
+    /// `rule:core-classes/db-column-types`'s declared zone, on both sides of
+    /// the reader's own answer: an unwritten field
     /// is UTC and a value that is not an offset refuses the block instead of
     /// being folded into UTC, which would run a deployment two hours out on a
     /// typo. The message names the block and quotes what was written, since
@@ -4411,7 +4435,7 @@ mod tests {
         );
     }
 
-    /// § 9's declared zone reaches the server as PostgreSQL's own numeric
+    /// The type map's declared zone reaches the server as PostgreSQL's own numeric
     /// spelling, and the sign is the whole trap.
     ///
     /// A POSIX zone counts westwards, so two hours *east* of UTC is `-02`
@@ -4551,7 +4575,7 @@ mod tests {
                 secret_key: 99
             }
         );
-        // § 9's rendering parameters are pinned in the startup message: a text
+        // The type map's rendering parameters are pinned in the startup message: a text
         // rendering this driver parses positionally has to be the rendering it
         // asked for, not the one the server was configured with. The charset is
         // [`the_connection_charset_is_forced_to_utf8`]'s.
@@ -4598,7 +4622,7 @@ mod tests {
     /// § *Parameters and results are in text format* owns why: a server is a
     /// network peer, `rule:types/bytes`'s guarantee is read unchecked downstream, and
     /// `client_encoding` is a request rather than a proof. It is asserted over
-    /// **every** OID that reads back as text — § 9's text rows, its JSON ones
+    /// **every** OID that reads back as text — the type map's text rows, its JSON ones
     /// and the "no Novis type" row every unnamed OID falls to — by counting, so
     /// an OID added later that decodes text without the check fails here rather
     /// than passing on the rows it shares with these.
@@ -4639,7 +4663,7 @@ mod tests {
             oid::VARCHAR,
             oid::JSON,
             oid::JSONB,
-            // § 9's last row: `inet`, and with it every OID this driver has no
+            // The type map's last row: `inet`, and with it every OID this driver has no
             // arm for.
             869,
         ];
@@ -4666,7 +4690,7 @@ mod tests {
         }
         assert_eq!(refused, text_oids.len());
 
-        // The other side of the bound: § 9's binary rows have no text form at
+        // The other side of the bound: the type map's binary rows have no text form at
         // all, so the same bytes are a value there rather than an error.
         assert_eq!(
             rendered(
@@ -4780,7 +4804,7 @@ mod tests {
     }
 
     /// An `ErrorResponse` that also names the constraint the condition broke,
-    /// which is field `n` and the one § 8 field a `SQLSTATE` cannot imply.
+    /// which is field `n` and the one `DbError` field a `SQLSTATE` cannot imply.
     fn constrained_error_response(code: &str, said: &str, constraint: &str) -> Vec<u8> {
         let mut body = vec![b'S'];
         body.extend_from_slice(b"ERROR\0");
@@ -4813,8 +4837,8 @@ mod tests {
     }
 
     /// An `ErrorResponse` carrying whatever further fields the case names, for
-    /// the § 8 rule that turns on the fields [`super::server_error`] *drops*
-    /// rather than on the ones it keeps.
+    /// the `rule:core-classes/db-error` property that turns on the fields
+    /// [`super::server_error`] *drops* rather than on the ones it keeps.
     fn error_response_with(code: &str, said: &str, extra: &[(u8, &str)]) -> Vec<u8> {
         let mut body = vec![b'S'];
         body.extend_from_slice(b"ERROR\0");
@@ -5024,7 +5048,7 @@ mod tests {
         }
     }
 
-    /// § 4's batch binds the same way, and asserted over every execution: one
+    /// `executeMany`'s batch binds the same way, and asserted over every execution: one
     /// `Parse` shared by N `Bind`s is a saving only if all N name it.
     #[test]
     fn an_execute_many_binds_the_named_statement_in_the_unnamed_portal() {
@@ -5088,7 +5112,7 @@ mod tests {
     /// quoted literal, ends the statement and comments out what followed — so
     /// this does not have to model what an escaper would have done with it.
     /// Either it reaches the server inside a `Bind` or the driver has
-    /// reintroduced the thing § 1 removes.
+    /// reintroduced the emulated prepare `rule:core-classes/db-one-api` removes.
     ///
     /// Counted per path rather than read off one flush: a path that sent the
     /// value nowhere at all would satisfy "never in statement text" and fail
@@ -5138,7 +5162,7 @@ mod tests {
             paths.push(("query, uncached", 1, wire.peer().sent.clone()));
         }
 
-        // § 4's batch, on both cache states for the same reason.
+        // `executeMany`'s batch, on both cache states for the same reason.
         for (path, mut cache) in [
             ("executeMany, cached", StatementCache::new(2)),
             ("executeMany, uncached", no_cache()),
@@ -5302,7 +5326,8 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
-    /// § 4's "an empty set list is a no-op returning `0`", and the half worth
+    /// `rule:core-classes/db-statement-members`'s "an empty set list is a
+    /// no-op", and the half worth
     /// pinning is that nothing reaches the wire: there is no statement to
     /// prepare for executions that are not going to happen.
     #[test]
@@ -5328,7 +5353,8 @@ mod tests {
         assert_eq!(state.get(), State::Idle);
     }
 
-    /// One prepare has one parameter count, which is also what § 1's cache is
+    /// One prepare has one parameter count, which is also what the statement
+    /// cache is
     /// keyed on: a set list that disagrees with itself is refused before
     /// anything is written, rather than drawing the server's bind error on
     /// whichever set was odd.
@@ -5649,7 +5675,7 @@ mod tests {
 
     /// `rule:core-classes/db-statement-members`'s refusal, and the half of it that matters is that
     /// **nothing reaches the wire**: writing a second statement over an
-    /// unfinished one is the shape § 4 exists to prevent, not merely one it
+    /// unfinished one is the shape that rule exists to prevent, not merely one it
     /// reports.
     #[test]
     fn a_second_statement_on_a_busy_connection_writes_nothing_and_is_refused() {
@@ -5681,7 +5707,8 @@ mod tests {
     ///
     /// [`State::Poisoned`] is the other side of that: it refuses the same
     /// statement and is deliberately not the same answer, since a wire that is
-    /// not at a message boundary is closed rather than reused (§ 13).
+    /// not at a message boundary is closed rather than reused
+    /// (`rule:core-classes/db-connection-busy-state`).
     #[test]
     fn a_second_statement_on_a_busy_connection_is_a_logic_error() {
         // One predicate and one permitted state. A variant added later has to
@@ -5700,7 +5727,7 @@ mod tests {
         assert_eq!(
             permitted,
             vec![State::Idle],
-            "§ 4 permits a statement on an idle connection and on no other"
+            "the busy-state rule permits a statement on an idle connection and on no other"
         );
 
         // The busy states that are *healthy*. `Poisoned` refuses for its
@@ -5723,7 +5750,7 @@ mod tests {
 
             // The caller reads its rows — or abandons them, which drains the
             // same way — and then re-runs what was refused. That it needs no
-            // reconnect is the whole difference between § 4's refusal and a
+            // reconnect is the whole difference between the busy refusal and a
             // wire failure, and it is why the class is `LogicError`.
             state.set(State::Idle);
             let mut rows =
@@ -5753,7 +5780,8 @@ mod tests {
         );
     }
 
-    /// § 4 does not only require the refusal — it requires it to name **both**
+    /// `rule:core-classes/db-streaming` does not only require the refusal — it
+    /// requires it to name **both**
     /// fixes, `->all()` *or* a `{ shared: false }` connection, because they fix
     /// different programs. Asserted for every entry point that can refuse, so a
     /// member added later with a message of its own fails here rather than
@@ -5816,7 +5844,7 @@ mod tests {
     /// A statement the server refuses at `Parse` is the server's own error, and
     /// the connection is still poolable afterwards: the `Sync` means a
     /// `ReadyForQuery` follows the refusal, so there is a boundary to resume
-    /// from and § 4's poison would be wrong here.
+    /// from and poisoning the connection would be wrong here.
     #[test]
     fn a_statement_the_server_refuses_leaves_the_connection_idle_and_poolable() {
         let state = Cell::new(State::Idle);
@@ -5867,7 +5895,8 @@ mod tests {
     }
 
     /// The one case that *is* poison: a peer that stops mid-message leaves no
-    /// boundary to resume from, so § 4 closes the connection rather than
+    /// boundary to resume from, so `rule:core-classes/db-connection-busy-state`
+    /// closes the connection rather than
     /// resetting it. Asserted on `is_poolable` and not only on the state,
     /// because that is the security-relevant half.
     #[test]
@@ -5977,7 +6006,8 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
-    /// § 13's exclusion read from the other side: not what the reset's flush
+    /// `rule:security/db-pool-reset-is-a-boundary`'s exclusion of `DISCARD ALL`,
+    /// read from the other side: not what the reset's flush
     /// says, but what the flush *after* it costs.
     ///
     /// The case above asserts the command list, which only implies the
@@ -6029,18 +6059,19 @@ mod tests {
         assert_eq!(cache.len(), 1, "the reset emptied the cache");
     }
 
-    /// § 13 states what a reset must remove as a **property list**, not as a
+    /// `rule:security/db-pool-reset-is-a-boundary` states what a reset must
+    /// remove as a **property list**, not as a
     /// command list, because "a backend added later satisfies that property or
     /// is not pooled". This sweeps the list.
     ///
     /// The case above compares the flush against eight literals, which fails
     /// loudly but says only that two lists differ. Here a property whose
     /// command went missing fails **by name**, and the second loop closes the
-    /// other direction: a command in the reset that no § 13 property asks for
+    /// other direction: a command in the reset that no property asks for
     /// is a round trip nothing justifies.
     #[test]
     fn no_session_state_survives_a_return_to_the_pool() {
-        /// Each of § 13's properties against the command that removes it. An
+        /// Each of the reset's properties against the command that removes it. An
         /// assumed role takes two, because `RESET ALL` skips both settings.
         const REMOVED: [(&str, &str); 8] = [
             ("an open transaction", "ROLLBACK"),
@@ -6073,7 +6104,7 @@ mod tests {
         for command in &sent {
             assert!(
                 REMOVED.iter().any(|(_, c)| *c == command.as_str()),
-                "`{command}` is in the reset and no § 13 property asks for it"
+                "`{command}` is in the reset and no property of the reset asks for it"
             );
         }
         // The one property the list *keeps* — "no prepared statement the cache
@@ -6105,7 +6136,7 @@ mod tests {
         assert!(said.contains("42501"), "the later error won: {said}");
         assert!(said.contains("permission denied"), "{said}");
         // The wire is still at a boundary — that is what eight `ReadyForQuery`
-        // means — so § 13 destroys this connection through `PgConn::reset`
+        // means — so the pool destroys this connection through `PgConn::reset`
         // taking `self`, not by claiming the stream is unreadable.
         assert_eq!(state.get(), State::Idle);
     }
@@ -6176,7 +6207,7 @@ mod tests {
         assert!(!state.get().is_poolable());
     }
 
-    /// A reset is a statement like any other as far as § 4 goes: a connection
+    /// A reset is a statement like any other as far as the busy state goes: a connection
     /// with rows still in flight is not at a boundary, and nothing is written.
     #[test]
     fn a_reset_of_a_busy_connection_writes_nothing_and_is_refused() {
@@ -6193,7 +6224,8 @@ mod tests {
         }
     }
 
-    /// § 7's two options as PostgreSQL spells them, and the one place its five
+    /// `rule:core-classes/db-transactions`'s two options as PostgreSQL spells
+    /// them, and the one place its five
     /// isolation levels become four: `Snapshot` renders exactly as
     /// `RepeatableRead` does, asserted against it rather than against a literal
     /// so that a level that grows its own spelling fails here.
@@ -6254,7 +6286,7 @@ mod tests {
             .collect()
     }
 
-    /// Each of § 7's commands is one simple `Query` in its own flush, and the
+    /// Each transaction command is one simple `Query` in its own flush, and the
     /// connection is back at a boundary after each — which is what makes the
     /// callable's own statements ordinary ones rather than a mode.
     #[test]
@@ -6296,7 +6328,8 @@ mod tests {
         );
     }
 
-    /// § 7's nesting: the second `transaction()` on one connection is a
+    /// `rule:core-classes/db-transactions`'s nesting: the second
+    /// `transaction()` on one connection is a
     /// `SAVEPOINT` named by the depth it opened at, and the levels close
     /// inwards-out under the same names.
     #[test]
@@ -6358,7 +6391,7 @@ mod tests {
         );
     }
 
-    /// § 7's nesting past the depth the two cases above stop at, and the three
+    /// Nesting past the depth the two cases above stop at, and the three
     /// things that only appear there: a level's savepoint is named by the
     /// depth it opened at however deep that gets, a name is taken again as
     /// soon as its level has closed, and exactly one level of a whole run —
@@ -6460,7 +6493,7 @@ mod tests {
     }
 
     /// Closing a transaction that was never opened is this driver's bug rather
-    /// than a program's — § 7 has no `commit()` on the connection — so it is
+    /// than a program's — the connection has no `commit()` — so it is
     /// refused by name instead of sent as a `ROLLBACK` PostgreSQL answers with
     /// a warning nobody reads.
     #[test]
@@ -6481,7 +6514,7 @@ mod tests {
         assert_eq!(state.get(), State::Idle);
     }
 
-    /// A refused `COMMIT` is § 7's failed commit and carries the server's own
+    /// A refused `COMMIT` is the transaction's failed commit and carries the server's own
     /// error, and the connection is idle and poolable after it: the transaction
     /// is over, and nothing about where the next message starts is unknown.
     #[test]
@@ -6502,7 +6535,7 @@ mod tests {
         assert_eq!(state.get(), State::Idle);
         assert!(state.get().is_poolable());
 
-        // § 7's retry rule reads this off the error rather than off the
+        // The transaction retry rule reads this off the error rather than off the
         // sentence, and a serialization failure is one of its two codes.
         let server = ServerError::of(&failed).expect("a refusal carried no kind");
         assert_eq!(server.kind, DbErrorKind::SerializationFailure);
@@ -6532,9 +6565,10 @@ mod tests {
         assert_eq!(depth.get(), 2);
     }
 
-    /// § 8's kind, `SQLSTATE` and constraint ride inside the `io::Error` that
-    /// carries the sentence, and the errors this driver words itself carry
-    /// none — which is what makes asking cheaper than matching on text.
+    /// `rule:core-classes/db-error`'s kind, `SQLSTATE` and constraint ride
+    /// inside the `io::Error` that carries the sentence, and the errors this
+    /// driver words itself carry none — which is what makes asking cheaper
+    /// than matching on text.
     #[test]
     fn a_refused_statement_carries_section_8s_kind_beside_the_sentence() {
         let state = Cell::new(State::Idle);
@@ -6565,7 +6599,8 @@ mod tests {
         assert!(ServerError::of(&ours).is_none(), "{ours}");
     }
 
-    /// § 8's rule that a bound parameter reaches the wire and never the error,
+    /// `rule:core-classes/db-error`: a bound parameter reaches the wire and
+    /// never the error,
     /// so a refusal can be logged whole: the value is in the `Bind` we sent and
     /// in none of the sentence, the `ServerError` or the `Debug` a trace
     /// prints. PostgreSQL is what makes this a rule rather than a tautology —
@@ -6576,7 +6611,7 @@ mod tests {
     /// kept field would still pass on the first row.
     #[test]
     fn a_db_error_message_contains_no_bound_value() {
-        // Deliberately not a substring of the SQL, which § 8 does allow on the
+        // Deliberately not a substring of the SQL, which that rule does allow on the
         // error, being developer-authored.
         const BOUND: &str = "correct-horse-battery-staple";
 
@@ -6618,7 +6653,7 @@ mod tests {
             assert!(said.contains("duplicate key value"), "{said}");
             assert!(!said.contains(BOUND), "{said}");
 
-            // A trace prints the `Debug`, and § 8 covers that spelling too.
+            // A trace prints the `Debug`, and the rule covers that spelling too.
             let traced = format!("{failed:?}");
             assert!(!traced.contains(BOUND), "{traced}");
 
@@ -6629,7 +6664,8 @@ mod tests {
         }
     }
 
-    /// § 11 over § 7's own commands: each of the three answers the span of the
+    /// `rule:observability/a-query-is-a-trace-event` over the transaction
+    /// commands: each of the three answers the span of the
     /// command it *sent*, which is the only reason the driver hands one back at
     /// all — a nested level is a `SAVEPOINT` and its caller, which asked for a
     /// transaction, has no way to know that or to spell the name.
@@ -6649,7 +6685,7 @@ mod tests {
         .expect("the transaction opened");
         assert_eq!(opened.sql(), "BEGIN ISOLATION LEVEL SERIALIZABLE");
         assert_eq!(opened.driver(), Driver::Postgres);
-        // Never `Some(0)`: § 7's commands report no count of their own, and
+        // Never `Some(0)`: the transaction commands report no count of their own, and
         // `affected` is where a reader tells "no count" from "zero rows".
         assert_eq!(opened.affected(), None);
         assert_eq!(opened.rows(), 0);
@@ -6670,7 +6706,8 @@ mod tests {
         );
     }
 
-    /// § 11's span, and the property that makes it exportable at all: the bound
+    /// `rule:observability/a-query-is-a-trace-event`'s span, and the property
+    /// that makes it exportable at all: the bound
     /// value goes out on the wire and appears in no field of the span, in
     /// neither of its renderings, and — the part that is about the future — in
     /// nothing a field added later could carry, since the `Debug` it is
@@ -6681,7 +6718,8 @@ mod tests {
     /// the driver, the row count, the affected count and the SQL are named
     /// before the absence is. What survives in the text is the **placeholder**
     /// — `$1` is still there where the value never was, which is the same fact
-    /// § 1's refusal of emulated prepares states from the other side.
+    /// `rule:core-classes/db-one-api`'s refusal of emulated prepares states
+    /// from the other side.
     #[test]
     fn a_query_span_contains_no_parameter_value_anywhere() {
         const BOUND: &str = "correct-horse-battery-staple";
@@ -6752,7 +6790,8 @@ mod tests {
     }
 
     /// Every `SQLSTATE` this driver classifies, and the agreement that matters:
-    /// exactly the two codes § 7 names re-run the callable, asserted over the
+    /// exactly the two codes `rule:core-classes/db-transactions` names re-run
+    /// the callable, asserted over the
     /// whole table rather than on the two rows that answer `true`.
     #[test]
     fn every_sqlstate_classifies_and_only_the_two_the_retry_rule_names_retry() {
@@ -6772,7 +6811,8 @@ mod tests {
             ("42P01", DbErrorKind::Syntax),
             ("42501", DbErrorKind::Permission),
             ("28P01", DbErrorKind::Permission),
-            // Class 23 is not mapped wholesale: § 8 names four integrity
+            // Class 23 is not mapped wholesale: `rule:core-classes/db-error`
+            // names four integrity
             // conditions and `restrict_violation` is not one of them.
             ("23001", DbErrorKind::Other),
             ("XX000", DbErrorKind::Other),
@@ -6789,13 +6829,14 @@ mod tests {
         }
     }
 
-    /// § 4 governs these three like any other statement, and all three answer
+    /// `rule:core-classes/db-connection-busy-state` governs these three like
+    /// any other statement, and all three answer
     /// the refusal that names both of its fixes rather than a third wording.
     #[test]
     fn a_transaction_command_on_a_busy_connection_writes_nothing_and_is_refused() {
         for busy in [State::Executing, State::Streaming, State::Poisoned] {
             let state = Cell::new(busy);
-            // One level open, so `commit` and `roll_back` reach § 4's refusal
+            // One level open, so `commit` and `roll_back` reach the busy refusal
             // rather than the one for a connection in no transaction at all.
             let depth = Cell::new(1);
             let mut wire = Wire::new(Peer::new(|_: &[u8]| Vec::new()));
@@ -6868,7 +6909,7 @@ mod tests {
             );
         }
 
-        // § 9's `BIT(1)` row is a `bool` and every wider bit string is text,
+        // The type map's `BIT(1)` row is a `bool` and every wider bit string is text,
         // and the description reads the modifier for exactly that reason.
         for type_oid in [oid::BIT, oid::VARBIT] {
             assert_eq!(column(type_oid, 1).column_type(), ColumnType::Bool);
@@ -6876,7 +6917,7 @@ mod tests {
         }
 
         // One direction: a description no decode could have produced, because
-        // both of these decode as the text § 9 leaves them at.
+        // both of these decode as the text the type map leaves them at.
         for type_oid in [oid::JSON, oid::JSONB] {
             let json = column(type_oid, -1);
             assert_eq!(json.column_type(), ColumnType::Json);
@@ -6892,7 +6933,7 @@ mod tests {
         assert_eq!(column(869, -1).column_type(), ColumnType::Other);
     }
 
-    /// What a decoded column is, rendered so a whole table of § 9's rows fits
+    /// What a decoded column is, rendered so a whole table of the type map's rows fits
     /// in a line each.
     ///
     /// `PgScalar`'s own `Debug` names the row and never the value — a row's
@@ -6998,7 +7039,8 @@ mod tests {
         }
     }
 
-    /// § 4's affected-row count, over every tag shape PostgreSQL writes.
+    /// `rule:core-classes/db-statement-members`'s affected-row count, over
+    /// every tag shape PostgreSQL writes.
     ///
     /// The `INSERT` row is the one that matters: its tag carries two numbers
     /// and the first is an OID, so a driver reading the tag's *first* field
@@ -7025,7 +7067,7 @@ mod tests {
         assert_eq!(affected_rows("REINDEX 3"), None);
     }
 
-    /// § 4's count on this protocol is the rows **matched**, and `changed` is
+    /// `Db\Write`'s `affected` on this protocol is the rows **matched**, and `changed` is
     /// that same number.
     ///
     /// The statement is the one where the two answers diverge everywhere they
@@ -7033,7 +7075,7 @@ mod tests {
     /// alters none of them, which is where MySQL answers zero affected while
     /// reporting three matched out of the same execution. PostgreSQL's tag is
     /// `UPDATE 3` either way — the protocol carries the matched count and
-    /// carries nothing else — so § 4's `changed` reads this same number, and
+    /// carries nothing else — so `changed` reads this same number, and
     /// the doc on `PgRows::affected` owns why inventing a second one would be
     /// worse than having none.
     ///
@@ -7083,22 +7125,23 @@ mod tests {
 
         // The other half of the claim, and the only place in this crate that
         // can state it: there is no second count on the PostgreSQL half for
-        // § 4's `changed` to read, so it reads `affected` or it reads nothing.
+        // `changed` to read, so it reads `affected` or it reads nothing.
         // The needle is assembled rather than written out, because a literal
         // would itself be a line of this file's source and the scan would then
         // find nothing but itself.
         assert!(
             !include_str!("pg.rs").contains(concat!("fn ", "changed")),
-            "a second row count appeared on this driver; § 4 has one number"
+            "a second row count appeared on this driver; `execute` has one number"
         );
     }
 
-    /// § 9's structured rows: those whose Novis type is a class instance, and
+    /// `rule:core-classes/db-column-types`'s structured rows: those whose Novis
+    /// type is a class instance, and
     /// so are components here rather than a value.
     ///
     /// Asserted through `scalar`, which is the seam itself — `decode` answers
     /// `None` for every one of these, and the test below pins that. The last
-    /// case is `timetz`, which has an OID of its own and no row in § 9: it
+    /// case is `timetz`, which has an OID of its own and no row in the type map: it
     /// stays at the table's `tainted string`, and a driver that read it as a
     /// `TIME` would be dropping an offset silently.
     #[test]
@@ -7147,7 +7190,7 @@ mod tests {
         }
     }
 
-    /// § 9's two timestamp rows, and the zone each of them is read in.
+    /// The type map's two timestamp rows, and the zone each of them is read in.
     ///
     /// A zone-less `TIMESTAMP` reads in the zone the *connection* declared —
     /// `time_zone` in the block, `PgConn::time_zone` to the caller — while a
@@ -7217,9 +7260,10 @@ mod tests {
         );
     }
 
-    /// § 9's table, one row per constant the [`oid`] module names: the OID,
-    /// its modifier, a body the server would really write, the `ColumnType`
-    /// description of the column, and § 9's decoded value as [`rendered`]
+    /// `rule:core-classes/db-column-types`'s table, one row per constant the
+    /// [`oid`] module names: the OID, its modifier, a body the server would
+    /// really write, the `ColumnType` description of the column, and the
+    /// table's decoded value as [`rendered`]
     /// spells it.
     ///
     /// Shared rather than local because two tests below sweep it, and sharing
@@ -7313,7 +7357,7 @@ mod tests {
             ColumnType::Instant,
             "instant 2024-01-02 03:04:05.000000000 +7200",
         ),
-        // § 9's `BIT(1)` row, the one place a modifier rather than an OID
+        // The type map's `BIT(1)` row, the one place a modifier rather than an OID
         // decides which row of the table a column is on. The wider bit
         // string is the test above's, whose subject is that boundary.
         (oid::BIT, 1, b"1", ColumnType::Bool, "bool true"),
@@ -7335,7 +7379,7 @@ mod tests {
         (oid::JSONB, -1, b"{}", ColumnType::Json, "text {}"),
     ];
 
-    /// § 9's whole table in one sweep, bounded by the OID table's own length
+    /// The type map's whole table in one sweep, bounded by the OID table's own length
     /// rather than by what an author remembered to list.
     ///
     /// The two tests above split the table in half and read it a line at a
@@ -7346,7 +7390,8 @@ mod tests {
     /// type added to the driver without a row here fails, and so does one
     /// given two rows.
     ///
-    /// Each row asserts the round trip § 9 specifies end to end — the
+    /// Each row asserts the round trip `rule:core-classes/db-column-types`
+    /// specifies end to end — the
     /// description `columns()` gives the column, the scalar a decode of a body
     /// the server would really write produces, and, through
     /// [`row_of_the_type_map`], that those two name the **same** row of the
@@ -7367,7 +7412,7 @@ mod tests {
             assert_eq!(
                 decoded.split(' ').next(),
                 Some(row_of_the_type_map(described)),
-                "OID {type_oid} describes as one row of § 9 and decodes as another"
+                "OID {type_oid} describes as one row of the type map and decodes as another"
             );
         }
 
@@ -7387,14 +7432,15 @@ mod tests {
     }
 
     /// `rule:core-classes/db-one-api`'s § *Context* defect,
-    /// pinned: **no column § 9 gives a number decodes to a string**, whatever
+    /// pinned: **no column the type map gives a number decodes to a string**, whatever
     /// the value.
     ///
     /// This is a thing `Core\Db` exists to remove rather than a row of the
     /// map. PDO hands `DECIMAL` back as a string on every driver it has, and
     /// `pgsql` hands back *every* column as one, so PHP code compares a price
     /// with `==` and gets away with it until a value stops surviving the float
-    /// it is silently coerced through — § 9's `decimal` row says exactly that,
+    /// it is silently coerced through — the type map's `decimal` row says
+    /// exactly that,
     /// in the column beside it.
     ///
     /// Three parts, and the first is why this is not a second copy of the
@@ -7471,11 +7517,11 @@ mod tests {
         }
     }
 
-    /// The [`PgScalar`] § 9 pairs with a description, spelled as [`rendered`]
-    /// spells it.
+    /// The [`PgScalar`] the type map pairs with a description, spelled as
+    /// [`rendered`] spells it.
     ///
     /// Exhaustive on purpose: a case added to [`ColumnType`] has to be
-    /// given its row of § 9 here, and that is the one thing a table of OIDs
+    /// given its row of the map here, and that is the one thing a table of OIDs
     /// cannot be made to notice on its own.
     fn row_of_the_type_map(column_type: ColumnType) -> &'static str {
         match column_type {
@@ -7491,11 +7537,11 @@ mod tests {
             ColumnType::DateTime => "timestamp",
             ColumnType::Instant => "instant",
             ColumnType::Uuid => "uuid",
-            // § 9's `JSON`/`JSONB` row is `tainted string` — JSON is never
+            // The type map's `JSON`/`JSONB` row is `tainted string` — JSON is never
             // auto-decoded — so this pairing is what agreement *is* for a JSON
             // column, not an exception to it.
             ColumnType::Json => "text",
-            // § 9's last row. An array describes as `Other` too and decodes to
+            // The type map's last row. An array describes as `Other` too and decodes to
             // an `Array`, so this pairing is the one the sweep does not reach:
             // every OID the driver names that lands on `Other` is text, and
             // the test above owns the array direction.
@@ -7523,7 +7569,7 @@ mod tests {
         source[start..end].matches("pub(super) const ").count()
     }
 
-    /// § 4's `lastId` on PostgreSQL is the id a `RETURNING` clause handed back:
+    /// `Db\Write`'s `lastId` on PostgreSQL is the id a `RETURNING` clause handed back:
     /// the last returned row's first column, and never the tag.
     ///
     /// The `INSERT 0 2` here is the trap in full — a driver reading the tag's
@@ -7584,7 +7630,7 @@ mod tests {
         }
     }
 
-    /// § 9's array row is every other row again, one element at a time: what a
+    /// The type map's array row is every other row again, one element at a time: what a
     /// `text[]` holds is what a `text` column holds, and a driver that grew a
     /// second decoder for elements would be the thing this asserts against.
     ///
@@ -7629,7 +7675,7 @@ mod tests {
         }
     }
 
-    /// An array of § 9's structured rows is `nvs-stdlib`'s to finish whole:
+    /// An array of the type map's structured rows is `nvs-stdlib`'s to finish whole:
     /// `decode` answers `None` for it exactly as it does for a single one.
     ///
     /// The nested case is the one that matters. The answer is decided before
@@ -7677,7 +7723,7 @@ mod tests {
         );
     }
 
-    /// § 9's `NULL` row does not depend on the column, which is what makes
+    /// The type map's `NULL` row does not depend on the column, which is what makes
     /// every column `?T`. A `0` for an integer column is the one wrong answer
     /// that would still look right on the line that printed it.
     #[test]
@@ -7711,7 +7757,8 @@ mod tests {
     /// A body its column cannot hold is refused rather than approximated, and
     /// the refusal does not quote it.
     ///
-    /// Both halves matter. The first is § 9 read strictly: a `NUMERIC` past
+    /// Both halves matter. The first is `rule:core-classes/db-column-types`
+    /// read strictly: a `NUMERIC` past
     /// what `rule:types/decimal`'s `decimal` holds, or a `NaN` in one, has no value to
     /// answer with and inventing the nearest one would be a wrong number that
     /// nothing downstream could detect. The second is `PgColumn::malformed`'s
@@ -7747,7 +7794,7 @@ mod tests {
             (oid::UUID, -1, b"a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a1"),
             (oid::UUID, -1, b"a0eebc999c0b4ef8bb6d6bb9bd380a11xxxx"),
             (25, -1, b"\xff\xfe"),
-            // § 9's array row, whose refusals are the rendering's own: an
+            // The type map's array row, whose refusals are the rendering's own: an
             // unclosed brace or quote, an empty element, anything after the
             // outer brace closed, an element its element type refuses, and a
             // nesting past PostgreSQL's own six dimensions.
@@ -7787,7 +7834,7 @@ mod tests {
     #[test]
     fn a_decoded_value_carries_the_scalar_the_table_names() {
         // Every column here is a scalar row, so the second `expect` is the
-        // seam rather than the value: a `None` would mean § 9 had put this
+        // seam rather than the value: a `None` would mean the type map had put this
         // type in the structured half.
         let value = |type_oid: Oid, body: Option<&[u8]>| {
             column(type_oid, -1)
