@@ -202,3 +202,6 @@ Stage 1, `info.version` from the manifest, on `crates/nvs-cli/src/openapi.rs` an
 
 - Stage 2, the bundle's resource, is a lane beside stage 1 (`crates/nvs-cli/src/bundle.rs`).
 - Publishing `Novis\Rest` to the live registry is the project account's step, done by a person once the registry is deployed (`apps/registry/README.md`).
+- From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
+  `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. A goal that changes
+  `apps/registry/src/Backup.nvs` adds a test that a restored registry still finds a package.

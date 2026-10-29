@@ -38,7 +38,7 @@ stages:
     context: [docs/reference/tools/35-packages.md]
   - id: 6
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: audit-proofs
@@ -250,48 +250,33 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 5, 2, 3 and 4 are done. Stage 4 added the chapter heading `# nvs pkg audit`
-(`docs/reference/tools/35-packages.md`, with `website/public/llms-full.txt` re-rendered), the
-proofs under `docs/examples/tools/packages/nvs-pkg-audit/` and
-`tests/hostile/tools/packages/nvs-pkg-audit/01-a-hidden-advisory.nvs` (both run green on the debug
-binary), one help paragraph for the grants warning in `package/mod.rs`, and set both rules
-`shipped` with their guards. `bun nv proofs --gate --only tools:packages/nvs-pkg-audit` and
-`bun nv owners --closes package-audit` pass.
+Every stage is done, and the goal is reached. Stage 6's verify found three causes, each fixed in
+one pass: the rule chapters and `docs/ground-rules.md` were stale after stage 4 shipped both rules
+(`bun nv rules --render`), rustfmt reformatted `crates/nvs-cli/tests/package_audit.rs`, and the
+formatter's identity test named `apps/registry/src/Index.nvs` and
+`docs/examples/tools/packages/nvs-pkg-audit/01-the-smallest-fix.nvs` (`bun nv nvs-fmt`). The
+next `looper verify` is green, and so are `bun nv verify --doc`, `bun nv owners --closes
+package-audit`, `bun nv ci --check` and both acceptance checks. The backlog item about restoring
+`search` moved to goal `first-packages`, since this goal did not change `Backup.nvs`.
 
-`nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
-wired in `package/mod.rs`'s `Command`) reads the lock, checks each registry's feed against the
-served log, compares the root file's `checkpoint_copy`, and reports each advisory with its bump.
-It then warns on standard error about each autoload prefix no `[grants]` line matches
-(`audit::unmatched`, over `Lender::walk` and the new `AutoloadMap::prefixes`), and `--json` lists
-them under `unmatched`. Tests run once by name and green:
-`audit_warns_on_an_autoload_prefix_no_grant_line_matches` and the edited
-`audit_json_names_the_advisory_and_the_matching_copy`. No test is expected to go red.
-
-The sweep's `env-secret-proofs` and nightly-run 40662443492 findings are stale. Two sessions checked
-them: the log is from Oct 22 and exited 0, no check of that name exists, and the run was a manual
-dispatch cancelled whole. Nothing to fix.
-
-No test is expected to go red. A help golden that freezes `nvs pkg audit --help` would, if one
-exists: the help gained a paragraph about the grants warning.
+`nvs pkg audit [--json]` is `crates/nvs-cli/src/package/audit.rs`, with its proofs under
+`docs/examples/tools/packages/nvs-pkg-audit/`. The sweep's `env-secret-proofs` and nightly-run
+40662443492 findings are stale (an Oct 22 log that exited 0, and a dispatch cancelled whole).
+No test is expected to go red.
 
 ### Next
 
-Stage 6, the gate: start `looper verify` (`bun nv affected --run`) with `run_in_background`,
-group its failures by cause, fix them in one pass, and run it once more. `tools/nv/cmd/verify.ts:1`
-Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes package-audit` and
-`bun nv ci --check`.
+Nothing in this goal. The driver retires it, and the chain goes on with goal `first-packages`.
+`docs/goals/first-packages.md:1`
 
 ### Backlog
 
-- From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
-  `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. Stage 5 touches the
-  registry app; if it changes `apps/registry/src/Backup.nvs`, add a test that a restored registry
-  still finds a package.
+- Nothing. The one item moved to goal `first-packages`.
