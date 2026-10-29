@@ -601,14 +601,21 @@ pub(crate) fn run(
     // is what moves the pointer (`crate::script::watch`). Held for the run.
     let _watching = crate::script::watch(&compiler, Some(rescan));
 
+    // A server that records checks its spool now and writes what is wrong with it to the log, the
+    // one place a service's operator reads. The first request would only print it to standard
+    // error, which a service loses.
+    let recording = nvs_config::Request::new(Arc::clone(&snapshot)).debug_store();
+    if recording && let Err(unusable) = nvs_runtime::spool::prepare() {
+        unrecorded(&snapshot, unusable);
+    }
+
     // `rule:testing/nvs-debug-is-the-service-and-a-development-server-starts-it`: a development
     // server that records starts the debug service, and dropping the handle stops it. A production
     // server never does. Started before any socket is bound, so the child inherits no listener,
     // and told the address it may replay to once they are.
-    let mut debug = (started_in == nvs_config::mode::DEVELOPMENT
-        && nvs_config::Request::new(Arc::clone(&snapshot)).debug_store())
-    .then(|| crate::debug::Child::start(config))
-    .flatten();
+    let mut debug = (started_in == nvs_config::mode::DEVELOPMENT && recording)
+        .then(|| crate::debug::Child::start(config))
+        .flatten();
 
     // Every address the set named, bound before any worker exists. A bind
     // taken by the core that reached the entry would report one wrong address
@@ -2816,6 +2823,21 @@ impl Socket {
             Self::Unix(socket) => Ok(Box::new(nvs_host::NvsUnixListener::from_std(socket)?)),
         }
     }
+}
+
+/// Writes one `Error` record to `[log] target` saying that no request is recorded and why, with the
+/// repair as a `help` field when the ownership check named one. A log write that fails is
+/// ignored, as the floor ignores it.
+fn unrecorded(snapshot: &Arc<nvs_config::Snapshot>, unusable: &nvs_config::data::SpoolUnusable) {
+    let mut record = nvs_runtime::floor::note(nvs_render::Level::Error, &unusable.message());
+    if let Some(help) = unusable.help() {
+        record
+            .envelope
+            .fields
+            .push(("help".into(), nvs_runtime::floor::text(help)));
+    }
+    let config = nvs_config::Request::new(Arc::clone(snapshot));
+    drop(nvs_runtime::LogWriter::resolve(Some(&config)).write(&record));
 }
 
 /// Every address bound, in the order [`addresses`] gave them.

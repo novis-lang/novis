@@ -38,7 +38,8 @@
 //! (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`), and with it off it costs one
 //! read of the resolved configuration. The spool directory is prepared and checked once per process
 //! ([`nvs_config::data::Folder::prepare_spool`]); a directory that fails the check gets a warning
-//! once and no record.
+//! once and no record. A server reads that check at start through [`prepare`] and writes the
+//! warning to its log.
 //!
 //! **What it spends:** per writer with an open file, one write buffer and one descriptor; per writer,
 //! one entry per sealed file it has not evicted. On disk, at most `spool_max` per process. Nothing is
@@ -57,6 +58,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
+use nvs_config::data::SpoolUnusable;
 use serde::{Deserialize, Serialize};
 
 use crate::Ctx;
@@ -1115,20 +1117,48 @@ fn with_writer(write: impl FnOnce(&mut Writer) -> std::io::Result<()>) {
     }
 }
 
-/// The process's spool directory, prepared and checked on first use; `None` when the data folder is
-/// unusable, after one warning.
-fn spool_dir() -> Option<&'static Path> {
-    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
-    DIR.get_or_init(|| {
-        let folder = nvs_config::data::current()?;
-        folder
-            .prepare_spool()
-            .inspect_err(|unusable| {
-                let _ = writeln!(std::io::stderr(), "{}", unusable.warning());
-            })
-            .ok()
+/// What preparing the process's spool found, once per process: the directory, `None` where there is
+/// no data folder, or why the spool cannot be used.
+fn prepared() -> &'static Result<Option<PathBuf>, SpoolUnusable> {
+    static PREPARED: OnceLock<Result<Option<PathBuf>, SpoolUnusable>> = OnceLock::new();
+    PREPARED.get_or_init(|| {
+        nvs_config::data::current().map_or(Ok(None), |folder| folder.prepare_spool().map(Some))
     })
-    .as_deref()
+}
+
+/// Whether why the spool cannot be used has been told once, here or by the caller of [`prepare`].
+static TOLD: AtomicBool = AtomicBool::new(false);
+
+/// Prepares the process's spool now, and answers why it cannot be used. A server where
+/// `[debug] store` is on calls this at start and writes the answer to its log, because a service's
+/// standard error goes nowhere. The first record then prints nothing more. The answer is kept for
+/// the life of the process, so a repaired folder is used from the next start.
+///
+/// # Errors
+///
+/// Why the spool cannot be used. Nothing is recorded in this process.
+pub fn prepare() -> Result<(), &'static SpoolUnusable> {
+    match prepared() {
+        Ok(_) => Ok(()),
+        Err(unusable) => {
+            TOLD.store(true, Ordering::Relaxed);
+            Err(unusable)
+        }
+    }
+}
+
+/// The process's spool directory, prepared and checked on first use; `None` when it cannot be
+/// used, after one warning unless [`prepare`]'s caller has already reported it.
+fn spool_dir() -> Option<&'static Path> {
+    match prepared() {
+        Ok(dir) => dir.as_deref(),
+        Err(unusable) => {
+            if !TOLD.swap(true, Ordering::Relaxed) {
+                let _ = writeln!(std::io::stderr(), "{}", unusable.warning());
+            }
+            None
+        }
+    }
 }
 
 /// `<pid>-<start>-<thread>`, which a restarted process never repeats.

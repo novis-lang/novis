@@ -161,7 +161,13 @@ impl Args {
         let spool = match folder.prepare_spool() {
             Ok(spool) => spool,
             Err(unusable) => {
-                eprintln!("{}", unusable.warning());
+                eprintln!(
+                    "error: `nvs debug` cannot read the recorded requests: {}",
+                    unusable.reason()
+                );
+                if let Some(help) = unusable.help() {
+                    eprintln!("  help: {help}");
+                }
                 return ExitCode::FAILURE;
             }
         };

@@ -51,13 +51,17 @@ struct Served {
 impl Served {
     /// Starts [`PROGRAM`] on a free loopback port, with `config` as the directory's `nvs.toml`.
     fn start(case: &str, config: &str) -> Self {
+        Self::start_over(case, config, nvs_repo::scratch_private("nvsdata"))
+    }
+
+    /// [`Served::start`] over a data folder the case has already prepared.
+    fn start_over(case: &str, config: &str, data: nvs_repo::Scratch) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("debug-service-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
         std::fs::write(dir.join("app.nvs"), PROGRAM).expect("the program is written");
         std::fs::write(dir.join("nvs.toml"), config).expect("the configuration is written");
-        let data = nvs_repo::scratch_private("nvsdata");
         let mut child = Command::new(env!("CARGO_BIN_EXE_nvs"))
             .arg("--data")
             .arg(&*data)
@@ -391,6 +395,30 @@ fn a_production_server_records_and_starts_no_service() {
     assert!(!stderr.contains(STARTED), "{stderr}");
     assert!(!served.debug().join("index.sqlite").exists());
     assert!(!served.debug().join("service.lock").exists());
+}
+
+/// A server that records and cannot use its spool says so once, in its log, as it starts: the
+/// line is there before any request, and a request adds no second one.
+#[test]
+fn a_server_whose_spool_is_unusable_logs_it_once_at_start() {
+    const UNRECORDED: &str = "Novis cannot record requests for `nvs debug`";
+    let data = nvs_repo::scratch_private("nvsdata");
+    // A file where `debug/` belongs, so the spool cannot be created on any platform.
+    std::fs::write(data.join("debug"), "").expect("the blocking file is written");
+    let mut served = Served::start_over(
+        "unusable-spool",
+        "[mode]\ndefault = \"production\"\n\n[debug]\nstore = true\n",
+        data,
+    );
+    let answer = served.get("/order");
+    assert_eq!(echoed(&answer), "/order", "{answer}");
+    let stderr = served.stop();
+    assert_eq!(stderr.matches(UNRECORDED).count(), 1, "{stderr}");
+    let logged = stderr
+        .lines()
+        .find(|line| line.contains(UNRECORDED))
+        .expect("the line is there");
+    assert!(logged.contains("\"level\":\"error\""), "{logged}");
 }
 
 /// With `store` off, a development server writes nothing to the data folder's `debug` folder, and

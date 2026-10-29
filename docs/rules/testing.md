@@ -2494,6 +2494,12 @@ above.
 index, so a restarted process never reuses a name and the writer id with the line's sequence number is
 a dedupe key ([`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking)).
 
+**A spool the server cannot use is in its log.** A server with `[debug] store` on prepares the spool
+as it starts. One it cannot create, or one another account owns ([`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)), is one `Error` record
+at `[log] target`, naming the cause and the ownership check's repair, and the process records nothing.
+The log and not standard error, because a service's standard error reaches no one, and the first
+request prints nothing more.
+
 **What a line is.** One JSON object per line, with a `kind`: `request` (the request's outcome and,
 in `development`, its input and its response,
 [`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)),

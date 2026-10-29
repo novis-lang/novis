@@ -11,8 +11,9 @@
 //! [`Folder::telemetry`] has no key: it belongs to the user who runs `nvs`, not to a deployment.
 //! [`Folder::registry`] has no key either: it is a copy of what each registry last said.
 //! [`Folder::tokens`] has none: a publish token belongs to the user who runs `nvs`.
-//! [`Folder::spool`] and [`Folder::debug_index`] are under `debug/`, which only a run with
-//! `[debug] store` on creates ([`Folder::prepare_spool`]).
+//! [`Folder::spool`] and [`Folder::debug_index`] are under `debug/`, which a run with
+//! `[debug] store` on creates ([`Folder::prepare_spool`]), and so does a service install that
+//! grants its account write on it.
 //!
 //! **One value per process.** The CLI names the folder once at startup through [`set`], and every
 //! reader asks [`current`]. A process that never set one — an in-process test, a library caller —
@@ -280,19 +281,20 @@ impl Folder {
     ///
     /// # Errors
     ///
-    /// [`Unusable`] naming this folder, when a create failed or a check did.
-    pub fn prepare_spool(&self) -> Result<PathBuf, Unusable> {
-        let unusable = |reason: String| Unusable {
-            folder: Some(self.root.clone()),
-            reason,
-        };
+    /// [`SpoolUnusable`], when a create failed or a check did, with the check's repair where it
+    /// named one.
+    pub fn prepare_spool(&self) -> Result<PathBuf, SpoolUnusable> {
         let spool = self.spool();
+        let unusable = |reason: String, help: Option<&str>| SpoolUnusable {
+            reason,
+            help: help.map(str::to_owned),
+        };
         create_private_root(&spool)
-            .map_err(|err| unusable(format!("{}: {err}", spool.display())))?;
+            .map_err(|err| unusable(format!("{}: {err}", spool.display()), None))?;
         self.check()
-            .map_err(|why| unusable(why.message().to_owned()))?;
+            .map_err(|why| unusable(why.message().to_owned(), why.help()))?;
         // `trust::check` reads the directory and the one containing it, so this covers `debug/`.
-        trust::check(&spool).map_err(|why| unusable(why.message().to_owned()))
+        trust::check(&spool).map_err(|why| unusable(why.message().to_owned(), why.help()))
     }
 
     /// `rule:config/ownership-is-the-trust-boundary`'s check on the folder, and its canonical path:
@@ -377,6 +379,48 @@ impl Unusable {
              error.\n  \
              help: pass `--data <folder>` to use a folder that only this account can change."
         )
+    }
+}
+
+/// Why the debug spool cannot be used, from [`Folder::prepare_spool`]. While it cannot, no request
+/// is recorded, so `nvs debug` has nothing to show.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpoolUnusable {
+    /// What went wrong, naming the directory it is about.
+    reason: String,
+    /// The repair the ownership check named, when it named one.
+    help: Option<String>,
+}
+
+impl SpoolUnusable {
+    /// What went wrong, in the words of the call that failed.
+    #[must_use]
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    /// The repair, when the ownership check named one.
+    #[must_use]
+    pub fn help(&self) -> Option<&str> {
+        self.help.as_deref()
+    }
+
+    /// One line for a log record: what is lost, then why.
+    #[must_use]
+    pub fn message(&self) -> String {
+        format!(
+            "Novis cannot record requests for `nvs debug`: {}",
+            self.reason
+        )
+    }
+
+    /// The warning a process prints for this once, with no trailing newline.
+    #[must_use]
+    pub fn warning(&self) -> String {
+        match &self.help {
+            Some(help) => format!("warning: {}\n  help: {help}", self.message()),
+            None => format!("warning: {}", self.message()),
+        }
     }
 }
 
