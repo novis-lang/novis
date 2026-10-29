@@ -2435,6 +2435,17 @@ for nothing, and a package with no other version is not returned. `Ranking::fact
 one query per request, and the package page (`apps/registry/src/PackagePage.nvs`) shows each fact, the
 score and a link to the formula. `Downloads` counts both kinds of download through `Downloads::add`.
 
+A package's summary is the first paragraph of its readme, which `nvs registry build` prints beside
+`doc_coverage`, `docs`, `readme`, `downloads` and `supersedes` (`crates/nvs-cli/src/package/build.rs`).
+The release row keeps each of them, so a page never opens an archive or runs `nvs`; a release restored
+from the log has them null, and its page says so. The release row's `declarations` is both the public
+API size the ranking reads and the denominator of doc-comment coverage, so one count serves both facts.
+
+The readme is escaped and shown as plain text. The account page (`apps/registry/src/AccountPage.nvs`)
+needs any sign-in, a recovery code too: a visitor who lost a passkey must see the account to add one
+and to revoke its tokens, the page changes nothing, and every change it leads to keeps its own passkey
+check. A webhook is shown by its host alone, because its path can carry the receiver's secret.
+
 **Memory:** a download count is one row per version per day. The day's salt and its set of hashes are
 the only per-address data, and both are deleted when the day ends.
 
@@ -2445,6 +2456,13 @@ the only per-address data, and both are deleted when the day ends.
 - **A secret or unpublished formula.** A reader cannot judge an order whose inputs are hidden.
 - **Storing addresses to count downloads.** An address is personal data, and a daily salt counts
   unique fetches as well.
+- **A `summary` key in `package.toml`.** It grows the manifest for a fact the readme already carries.
+- **A rendered markdown readme.** `Core` has no markdown renderer, and one for text any publisher
+  writes is a new parser on the request path and a new way to inject markup. It waits for a `Core`
+  renderer with its own goal.
+- **A cached score table.** The facts are computed per request in one query, O(packages matched); a
+  cache waits until a few thousand packages make that cost measurable.
+- **A separate search service.** SQLite's full-text index covers a few thousand packages.
 
 **Not on disk.** There is no registry.
 
