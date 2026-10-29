@@ -1908,7 +1908,7 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
 /// to rather than the class of the ones somebody listed.
 #[test]
 fn every_http_response_directive_is_runtime_class() {
-    // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the blocks a *response* reads. `[http.client]` (§ 5) is the outbound
+    // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the blocks a *response* reads. `[http.client]` (`rule:http-server/no-spelling-for-an-unbounded-wait`) is the outbound
     // half and `[http.errors]` is `rule:errors/compile-failure`'s, so neither is this case's question.
     for block in ["http.headers", "http.cors", "http.cookies"] {
         for key in keys_in(block) {

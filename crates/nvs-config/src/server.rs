@@ -17,7 +17,8 @@
 //! that reads a file and asks the operating system one question; it decides nothing.
 //!
 //! **Each of the waits is an *idle* wait and none is a total.** A slow 2 GB upload completes while
-//! a stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
+//! a stalled socket does not, which is `rule:http-server/four-idle-waits-all-finite`'s own sentence
+//! and the reason the server refreshes a
 //! deadline on every byte that moves rather than arming one when a connection is accepted.
 //! `nvs_server::io`'s phase machine is the home of *which* wait is in force at a given moment;
 //! this module only says how long each one is.
@@ -46,8 +47,9 @@
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
 //! operator who wrote it asked for the one thing that rule does not offer and would be told nothing.
 //!
-//! **A `listen` entry beginning with a path separator is a Unix socket**, which is § 5's own
-//! overload and is unambiguous because no `host:port` can be spelled that way. A `host:port` is
+//! **A `listen` entry beginning with a path separator is a Unix socket**, which is
+//! `rule:http-server/a-unix-socket-listener`'s overload and is unambiguous because no `host:port`
+//! can be spelled that way. A `host:port` is
 //! parsed as a literal address and a host *name* is refused under `E0620`: a name that answers
 //! with two addresses is two sockets rather than one, and a boot that resolves one has made the
 //! server's start depend on a nameserver. Which of the classified entries a given process actually
@@ -115,7 +117,8 @@ pub struct Waits {
     /// How long the response may go without the socket taking one.
     pub write_idle: Duration,
     /// How long a kept-alive connection may sit between one response and the next request's first
-    /// byte. § 5: this must exceed the proxy's own upstream keep-alive, or the proxy writes into a
+    /// byte. It must exceed the proxy's own upstream keep-alive
+    /// (`rule:http-server/four-idle-waits-all-finite`), or the proxy writes into a
     /// socket the origin has already closed and the client gets an intermittent `502`.
     pub keepalive: Duration,
     /// How long a connection keeps being served once it has **seen** the drain, after which it
@@ -168,7 +171,8 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 
 /// The waits the tree's `[server]` asks for, over [`Waits::default`].
 ///
-/// A tree with no `[server]` block at all is the default set and not an absence: § 5's waits are
+/// A tree with no `[server]` block at all is the default set and not an absence:
+/// `rule:http-server/four-idle-waits-all-finite`'s waits are
 /// what makes the server finite, so "unconfigured" and "unbounded" must not be the same state.
 /// Every unwritten key keeps its own default, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per key and
 /// a partly-written `[server]` is a decision per key rather than one. `origins` names the file a
@@ -353,7 +357,8 @@ pub struct ConnectionBounds {
 /// The bounds the tree's `[server.connection]` writes over the server's own.
 ///
 /// A tree with no block, and a block that leaves a key out, are both "the shipped bound stands"
-/// rather than an absence to be filled in later — which is [`waits_for`]'s reason and § 7's: an
+/// rather than an absence to be filled in later — which is [`waits_for`]'s reason and
+/// `rule:concurrency/connection-bounds-are-finite`'s: an
 /// unconfigured connection is already bounded, and a reader that treated an unwritten key as
 /// unbounded would invert the one property that rule exists for.
 ///
@@ -484,7 +489,7 @@ fn unbounded(
     ))
 }
 
-/// One classified `[server] listen` entry: whichever transport § 5's flat array spells.
+/// One classified `[server] listen` entry: whichever transport the flat array spells.
 ///
 /// A classification and not a socket — nothing here binds anything, and a process holding this
 /// has not yet decided how many of the entries it will take. The module doc owns why the overload
@@ -493,8 +498,9 @@ fn unbounded(
 pub enum Listen {
     /// A `host:port` entry, parsed as a literal address.
     Tcp(SocketAddr),
-    /// An entry beginning with a path separator: the Unix-domain socket § 5 says a proxy should
-    /// prefer, and the one that makes FastCGI unnecessary.
+    /// An entry beginning with a path separator: the Unix-domain socket
+    /// `rule:http-server/a-unix-socket-listener` says a proxy should prefer, and the one that makes
+    /// FastCGI unnecessary.
     Unix(PathBuf),
 }
 
@@ -514,7 +520,8 @@ pub fn listen_on(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<Vec<Listen>, Diagnostic> {
-    // § 5's own default, in both modes: loopback is the proxied shape as well as the development
+    // `rule:http-server/the-server-block-is-boot-class`'s default, in both modes: loopback is the
+    // proxied shape as well as the development
     // one, so requiring an explicit `listen` in production would be friction with no safety in it.
     let default = || {
         crate::defaults::SERVER_LISTEN
@@ -573,7 +580,8 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
     })
 }
 
-/// § 5's own `socket_mode`: the owner's account and the socket's group, and nobody else.
+/// The default `socket_mode` `rule:http-server/the-server-block-is-boot-class` writes: the owner's
+/// account and the socket's group, and nobody else.
 ///
 /// Not the umask's answer, for `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 /// reason — an ordinary `022` would create the socket world-connectable, and on this transport
@@ -683,11 +691,13 @@ fn this_machine() -> usize {
     std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
 }
 
-/// The one URL § 5's probe answers on, or `None` where this server reserves none.
+/// The one URL `rule:http-server/health-path-is-off-and-checks-nothing`'s probe answers on, or
+/// `None` where this server reserves none.
 ///
 /// A `String` and not a [`std::path::PathBuf`]: this is the path inside a request target and it
 /// never reaches a disk, which is the whole difference between it and every other path in the
-/// block. Matching it is `nvs_server::mount`'s — § 4's steps run after the probe, not around
+/// block. Matching it is `nvs_server::mount`'s —
+/// `rule:http-server/a-request-resolves-in-five-steps` runs after the probe, not around
 /// it — and what this function decides is only that the written value is a target a request could
 /// carry.
 ///
@@ -814,7 +824,8 @@ const DEFAULT_MAX_IN_FLIGHT: u64 = crate::defaults::SERVER_MAX_IN_FLIGHT;
 /// so memory is no condition at all.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Capacity {
-    /// `[server] max_in_flight`, or § 5's own `10000` where the key is unwritten.
+    /// `[server] max_in_flight`, or the `10000`
+    /// `rule:http-server/max-in-flight-refuses-before-allocating` states where the key is unwritten.
     pub configured: u64,
     /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
     /// written, otherwise the `[limits] memory` a request starts with, and otherwise
@@ -826,9 +837,9 @@ pub struct Capacity {
     pub budget: Option<u64>,
 }
 
-/// § 5's `max_in_flight` and the memory numbers admission reads beside it.
+/// `[server] max_in_flight` and the memory numbers admission reads beside it.
 ///
-/// A tree with no `[server]` block is § 5's default ceiling and not an absence, for [`waits_for`]'s
+/// A tree with no `[server]` block is the default ceiling and not an absence, for [`waits_for`]'s
 /// reason. The per-request cap is read from `[limits]` rather than from `[server]` because that is
 /// where it is written; this function is the one place the two blocks are read together, which is
 /// the whole of what the admission rule added.
@@ -1039,7 +1050,7 @@ mod tests {
         toml::from_str(text).expect("the fixture did not deserialize")
     }
 
-    /// § 5's `socket_mode`, from the three answers it has: the default, a written mode, and every
+    /// `socket_mode`, from the three answers it has: the default, a written mode, and every
     /// spelling that is not a mode at all.
     ///
     /// The default is asserted as `0660` rather than as "whatever the constant says", because the
@@ -1100,7 +1111,8 @@ mod tests {
         }
     }
 
-    /// A tree that writes no `[server]` block is bounded anyway: § 5's own numbers are what the
+    /// A tree that writes no `[server]` block is bounded anyway:
+    /// `rule:http-server/the-server-block-is-boot-class`'s own numbers are what the
     /// server runs on, and an operator configuring nothing is the deployment they describe.
     // covers: tools:server/the-server-block
     #[test]
@@ -1311,7 +1323,7 @@ mod tests {
         assert_eq!(refused.code, Some(code::E_BAD_DIRECTIVE));
     }
 
-    /// § 5's default is the same in both modes, and an unwritten key is it — the same reading the
+    /// The default `listen` is the same in both modes, and an unwritten key is it — the same reading the
     /// waits get one function up, asserted here because a server that defaulted to nothing would
     /// have to be told where to listen before it could be started at all.
     #[test]
@@ -1328,7 +1340,8 @@ mod tests {
         );
     }
 
-    /// § 5's overload, asserted on both sides of it in one case: the transports are told apart
+    /// `rule:http-server/a-unix-socket-listener`'s overload, asserted on both sides of it in one
+    /// case: the transports are told apart
     /// by the first character and by nothing else, so a case that only looked at an address would
     /// pass against a reading that classified everything as one.
     #[test]
@@ -1337,7 +1350,7 @@ mod tests {
             &tree("[server]\nlisten = [\"0.0.0.0:80\", \"/run/nvs.sock\", \"[::1]:8080\"]\n"),
             &BTreeMap::new(),
         )
-        .expect("§ 5's own spellings were refused");
+        .expect("the documented listen entries were refused");
         assert_eq!(
             entries,
             vec![
@@ -1350,7 +1363,7 @@ mod tests {
 
     /// The refusals, named together because each is plausible on its own: a name is the entry
     /// an operator is most likely to write, and an empty array is the one spelling of "listen on
-    /// nothing" that § 5 has no version of.
+    /// nothing" that `rule:http-server/the-server-block-is-boot-class` has no version of.
     #[test]
     fn a_host_name_and_an_empty_array_are_both_refused() {
         for written in [

@@ -14,7 +14,7 @@ fn fires(expression: &str, zone: &str, after: &str) -> Option<String> {
     let zone = zone_of(Some(zone)).expect("the zone is one this build's database knows");
     let after: Timestamp = after.parse().expect("the case names a real instant");
     Cron::parse(expression)
-        .expect("the case names an expression in § 2's dialect")
+        .expect("the case names an expression in the cron dialect")
         .next_after(&after.to_zoned(zone))
         .map(|fire| fire.timestamp().to_string())
 }
@@ -24,7 +24,8 @@ fn next(expression: &str, zone: &str, after: &str) -> String {
     fires(expression, zone, after).expect("the expression fires inside the horizon")
 }
 
-/// § 2: the dialect the boot accepts is the dialect that fires, asserted over a **sweep** rather
+/// `rule:config/cron-is-five-fields-and-nothing-more`: the dialect the boot accepts is the dialect
+/// that fires, asserted over a **sweep** rather
 /// than one expression — a next-fire that reads the minute field and guesses at the rest answers
 /// the first row plausibly and fails here. The last row is the one that sets the horizon: the
 /// longest gap between two 29 Februaries is the eight years a non-leap century opens.
@@ -62,11 +63,12 @@ fn the_next_fire_is_the_expression_the_boot_read() {
         rows.iter()
             .map(|(_, _, fire)| (*fire).to_string())
             .collect::<Vec<String>>(),
-        "each expression fires at the instant § 2's dialect names, and at no other",
+        "each expression fires at the instant the cron dialect names, and at no other",
     );
 }
 
-/// § 2, and POSIX's own two-field rule: when `day-of-month` and `day-of-week` **both** narrow, a
+/// `rule:config/cron-is-five-fields-and-nothing-more`, and POSIX's own two-field rule: when
+/// `day-of-month` and `day-of-week` **both** narrow, a
 /// date matching *either* fires. Asserted with the single-narrowing spellings beside it, because
 /// an implementation that intersected the two fields would answer those correctly and differ only
 /// where both fields narrow.
@@ -97,7 +99,8 @@ fn a_day_of_month_and_a_day_of_week_that_both_narrow_fire_on_either() {
     );
 }
 
-/// § 6: a local-time schedule landing in a spring-forward **gap** fires **once**, at the first valid
+/// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: a local-time schedule landing
+/// in a spring-forward **gap** fires **once**, at the first valid
 /// instant after the gap. `02:30` does not exist on `2026-03-08` in New York — the clocks go from
 /// `01:59:59-05` to `03:00:00-04` — so the fire is `03:00`, and the day after is back to `02:30`.
 #[test]
@@ -114,7 +117,7 @@ fn a_fire_in_a_spring_forward_gap_lands_on_the_first_instant_after_it() {
     );
 }
 
-/// § 6: one landing in a fall-back **repeat** fires **once**, on the first occurrence. `01:30`
+/// The same rule: one landing in a fall-back **repeat** fires **once**, on the first occurrence. `01:30`
 /// happens twice on `2026-11-01` in New York, at `05:30Z` under `-04` and again at `06:30Z` under
 /// `-05`; the second is not a fire. The case asked from *inside* the repeated hour is the one an
 /// implementation gets wrong by reading the civil clock alone: the first occurrence is already
@@ -139,14 +142,15 @@ fn a_fire_in_a_fall_back_repeat_happens_on_the_first_occurrence_only() {
 }
 
 /// A date the calendar does not hold is not a fire, and the search says so rather than running out
-/// of years quietly: 30 February is a well-formed expression under § 2's ranges — the month has 31
+/// of years quietly: 30 February is a well-formed expression under the dialect's ranges — the month has 31
 /// days in the dialect — and it comes round never.
 #[test]
 fn an_expression_that_never_comes_round_answers_nothing() {
     assert_eq!(fires("30 2 30 2 *", "UTC", "2026-01-01T00:00:00Z"), None);
 }
 
-/// § 6: `timezone` defaults to `UTC` — there is no ambient zone anywhere in Novis (`rule:core-api/no-ambient-state`) —
+/// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: `timezone` defaults to `UTC` —
+/// there is no ambient zone anywhere in Novis (`rule:core-api/no-ambient-state`) —
 /// and a name the database does not carry is a fault rather than a silent fall back to it, which is
 /// what [`nvs_config::schedule::validate`] turns into the boot refusal.
 #[test]

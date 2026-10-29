@@ -56,7 +56,8 @@
 //! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
 //! `#[Test]` classes and what the case pins is the *report* of running them —
 //! the only way a `.nvst` can observe the `#[Test]` table at all, since a row
-//! and its order are visible nowhere else. § 22's machine formats are further
+//! and its order are visible nowhere else. `rule:testing/report-formats`'s
+//! machine formats are further
 //! spellings of the same thing — `test --format=json` and
 //! `test --format=junit` — because a report is observable only by being read,
 //! and a format nothing pins is a format that can drift.
@@ -71,7 +72,7 @@
 //! alone: `--SKIPIF--` and `--CLEAN--` are the runner's own scaffolding and
 //! are always `nvs run`.
 //!
-//! § 22's report carries a per-test duration, so such a case wants
+//! The report carries a per-test duration, so such a case wants
 //! `--EXPECTF--`'s `%f` rather than `--EXPECT--`.
 //!
 //! `--RUN--\nconfig dump --origin` is the one spelling that runs no program.
@@ -79,8 +80,10 @@
 //! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
 //! step 2's `./nvs.toml` out of the case's own working directory — which
 //! makes a tree written with `--FILE nvs.toml--` and `--FILE conf.d/…--` the
-//! thing under test, and § 9's listing the expectation. That is where § 3's
-//! obligation to record an override with **both** origins is observable at
+//! thing under test, and `rule:config/check-and-dump-audit-the-tree-offline`'s
+//! listing the expectation. That is where
+//! `rule:config/later-wins-and-every-override-is-recorded`'s obligation to
+//! record an override with **both** origins is observable at
 //! all: no program can ask where a value was written. Such a case wants
 //! `--EXPECTF--`, because the listing names absolute paths under a temporary
 //! directory.

@@ -1,4 +1,5 @@
-//! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
+//! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and
+//! `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` threshold, as the boot reads them: one key in
 //! two shapes, bounds that are finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), the values that
 //! parse and still cannot describe a pool, and a threshold that is off until an operator writes one.
 //!
@@ -34,7 +35,7 @@ fn bounds(text: &str) -> PoolBounds {
         .unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message))
 }
 
-/// § 11's threshold `text`'s block resolves to, panicking when it is refused instead.
+/// The `slow_query` threshold `text`'s block resolves to, panicking when it is refused instead.
 fn threshold(text: &str) -> Option<Duration> {
     slow_query_for("main", &block(text), &BTreeMap::new())
         .unwrap_or_else(|err| panic!("{text}\n-- refused: {}", err.message))
@@ -61,7 +62,8 @@ fn nothing_configured_is_a_finite_pool() {
     assert_eq!(pool, PoolBounds::DEFAULT, "and that is the default set");
 }
 
-/// § 13 writes `pool = false` and `[db.<name>.pool]` against the same key, so the tree holds one
+/// `rule:security/db-pool-reset-is-a-boundary` writes `pool = false` and `[db.<name>.pool]` against
+/// the same key, so the tree holds one
 /// field of two shapes. Both are asserted here because either alone reads as a whole feature.
 #[test]
 fn the_switch_and_the_table_are_one_key_in_two_shapes() {
@@ -145,7 +147,7 @@ fn a_bound_that_cannot_describe_a_pool_is_refused_at_boot() {
 
     assert!(
         accepted.is_empty(),
-        "§ 13's bounds are finite and usable, and these were accepted: {accepted:?}",
+        "the pool reset's bounds are finite and usable, and these were accepted: {accepted:?}",
     );
     for (label, pool) in cases {
         assert_eq!(
@@ -172,7 +174,7 @@ fn a_zero_max_is_refused_by_the_key_and_points_at_the_switch() {
             .notes
             .iter()
             .any(|note| note.starts_with("help: ") && note.contains("pool = false")),
-        "and the help should name § 13's one spelling of off: {:?}",
+        "and the help should name the pool reset's one spelling of off: {:?}",
         diagnostic.notes,
     );
 }

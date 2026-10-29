@@ -1,7 +1,7 @@
 //! Reading one file of the configuration: TOML in, a deserialized block tree out, and a refusal
 //! that carries a span rather than a byte offset.
 //!
-//! `rule:config/the-file-is-nvs-toml-and-it-is-toml` fixes the format as TOML read through `serde`, and § 3 makes both a duplicate key
+//! `rule:config/the-file-is-nvs-toml-and-it-is-toml` fixes the format as TOML read through `serde`, and `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` makes both a duplicate key
 //! and an unknown one an error *per file*: in a root-owned file where one table grants
 //! capabilities, an assignment silently shadowed by a later copy of itself is a security-relevant
 //! failure that costs nothing to refuse. Neither refusal is machinery of ours — the `toml` crate

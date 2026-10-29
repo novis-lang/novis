@@ -4,7 +4,8 @@
 //!
 //! The refusals are asserted by **counting**, not read off one line: a reader that grew a hole in
 //! one of its checks still answers plausibly for the rest. The two `0`s are named together for the
-//! opposite reason — `workers = 0` is § 2's enqueue-only deployment and `max_attempts = 0` is a
+//! opposite reason — `workers = 0` is `rule:concurrency/who-runs-a-job-is-configuration`'s
+//! enqueue-only deployment and `max_attempts = 0` is a
 //! refusal, so a reader that treats "zero" as one question passes either half alone.
 
 use std::collections::BTreeMap;
@@ -14,7 +15,7 @@ use nvs_config::Config;
 use nvs_config::queue::{QueueBounds, queue_for};
 use nvs_diagnostics::{Diagnostic, SourceMap, code};
 
-/// The connection every `[queue]` below names, since § 2's `connection` has no default.
+/// The connection every `[queue]` below names, since `connection` has no default.
 const MAIN: &str = "[db.main]\ndriver = \"pgsql\"\n";
 
 /// The tree `text` writes, panicking with the refusal's message when it does not parse.
@@ -92,16 +93,17 @@ fn a_tree_with_no_queue_block_has_no_queue() {
 #[test]
 fn every_queue_that_cannot_run_a_job_is_refused() {
     let cannot_run = [
-        // § 2 has no default database, so a block naming none names nothing.
+        // There is no default database, so a block naming none names nothing.
         "[queue]\nworkers = 4\n",
         // A name the merged tree holds no block for.
         "[queue]\nconnection = \"man\"\n",
         // The one spelling that could be read as a block name rather than as the key having been
         // left out, and a `[db.]` block is not a thing a file can write.
         "[queue]\nconnection = \"\"\n",
-        // § 6's attempts are finite, and zero of them is dead-lettered on arrival.
+        // Attempts are finite (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`),
+        // and zero of them is dead-lettered on arrival.
         "[queue]\nconnection = \"main\"\nmax_attempts = 0\n",
-        // § 4's lease, expiring as it is taken.
+        // The claim's lease (`rule:concurrency/claiming-is-one-statement`), expiring as it is taken.
         "[queue]\nconnection = \"main\"\nvisibility = \"0s\"\n",
         // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s `false` removes a ceiling, which is not a meaning a lease has.
         "[queue]\nconnection = \"main\"\nvisibility = false\n",
@@ -123,8 +125,10 @@ fn every_queue_that_cannot_run_a_job_is_refused() {
     }
 }
 
-/// The two zeroes, named together: § 2 states `workers = 0` as an instance that enqueues and lets
-/// another work the rows, and § 6 has no zero at all. A reader that treats them as one question
+/// The two zeroes, named together: `rule:concurrency/who-runs-a-job-is-configuration` states
+/// `workers = 0` as an instance that enqueues and lets another work the rows, and
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` has no zero at all. A reader
+/// that treats them as one question
 /// still reads right on either line alone.
 // covers: directive:queue.workers, directive:queue.max_attempts
 #[test]

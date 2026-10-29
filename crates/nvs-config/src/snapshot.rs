@@ -690,7 +690,8 @@ impl Current {
 
     /// Publishes `next`, after carrying the running snapshot's `Boot` values into it.
     ///
-    /// This is the last of § 1's validate-then-publish steps and the only one that mutates
+    /// This is the last of `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish
+    /// steps and the only one that mutates
     /// anything: everything that can refuse a tree has already run by the time a [`Snapshot`]
     /// exists, so a malformed file leaves the previous snapshot serving because it never reached
     /// here.

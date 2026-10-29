@@ -1469,7 +1469,8 @@ fn scheduling(block: &str) -> Fake {
     ])
 }
 
-/// One entry with every key § 1 requires, `scope` last so a case can replace or drop it.
+/// One entry with every key `rule:config/scheduled-work-is-a-config-block` requires, `scope` last
+/// so a case can replace or drop it.
 fn entry(scope: &str) -> String {
     format!(
         "[[schedule]]\nname = \"nightly\"\ncron = \"0 3 * * *\"\nscript = \"jobs/report.nvs\"\n{scope}"
@@ -1578,7 +1579,8 @@ fn a_schedule_entry_with_no_scope_refuses_the_boot() {
     );
 }
 
-/// § 2: the dialect is five-field POSIX cron plus the five shorthands, and the exclusions are the
+/// `rule:config/cron-is-five-fields-and-nothing-more`: the dialect is five-field POSIX cron plus
+/// the five shorthands, and the exclusions are the
 /// decision. Asserted by **counting** over both tables rather than by reading one expression, so a
 /// validator that happens to answer plausibly for the first row still fails here.
 #[test]
@@ -1589,7 +1591,7 @@ fn a_malformed_cron_refuses_the_boot() {
         "60 3 * * *",    // minutes are 0-59, so 60 is the off-by-one a bound catches
         "0 3 * * 7",     // Sunday is 0; `7` is Vixie's second spelling for it
         "*/0 3 * * *",   // a step of nothing never comes round
-        "5/15 3 * * *",  // Quartz's "every 15 from 5"; § 2 takes the range it is short for
+        "5/15 3 * * *",  // Quartz's "every 15 from 5"; the dialect takes the range it is short for
         "0 3 * * MON#2", // and none of Quartz's `L`/`W`/`#`/`?`
         "@fortnightly",  // not one of the five shorthands
     ];
@@ -1628,11 +1630,12 @@ fn a_malformed_cron_refuses_the_boot() {
     assert_eq!(
         armed,
         accepted.len(),
-        "the dialect is what § 2 says it is, names and steps and bounds included",
+        "the dialect is what the cron rule says it is, names and steps and bounds included",
     );
 }
 
-/// § 6: the zone is pinned because implementations differ about DST and the difference is a
+/// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: the zone is pinned because
+/// implementations differ about DST and the difference is a
 /// production incident, so a `timezone` no IANA database knows refuses the boot rather than falling
 /// back to UTC and running the job at the wrong hour — which nothing observes, since a schedule
 /// fails silently. Asserted on both sides and with the absent key beside them: a check that only
@@ -1665,7 +1668,8 @@ fn an_unknown_timezone_refuses_the_boot() {
     );
 }
 
-/// § 1: a scheduled script is checked against the same `[capabilities] script.spawn` roots a `spawn
+/// `rule:config/scheduled-work-is-a-config-block`: a scheduled script is checked against the same
+/// `[capabilities] script.spawn` roots a `spawn
 /// script` target is, at boot rather than at the first fire. The `..` row is the one that matters:
 /// the comparison is canonicalize-then-prefix, so a path that *spells* itself inside a root and
 /// resolves outside one is refused on where it lands.
@@ -1795,7 +1799,8 @@ fn a_relative_capability_grant_resolves_against_the_file_it_is_written_in() {
     );
 }
 
-/// § 3: `fleet` fires once across the deployment under a lease in the shared store, and a tree with
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`: `fleet` fires once across the
+/// deployment under a lease in the shared store, and a tree with
 /// no store configured refuses rather than degrading to one run per host — which is the exact
 /// failure the key exists to prevent. The store is `[cache.shared] url`, `rule:core-api/two-cache-tiers`'s coherent
 /// tier and the one `Core\Cache::shared()` opens, so the two sides are asserted together: a tree
@@ -1833,7 +1838,7 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
             .schedule
             .len(),
         1,
-        "`[cache.shared] url` is the store § 3's lease lives in, so a `fleet` entry beside one boots",
+        "`[cache.shared] url` is the store the fleet lease lives in, so a `fleet` entry beside one boots",
     );
 
     let empty_url = format!(
@@ -1915,7 +1920,7 @@ fn an_overlap_that_is_none_of_the_three_refuses_the_boot() {
         assert_eq!(
             tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
             1,
-            "§ 6 names three modes and gives an entry that writes none of them `skip`: {written:?}",
+            "`overlap` has three modes, and gives an entry that writes none of them `skip`: {written:?}",
         );
     }
 }
@@ -1927,7 +1932,7 @@ fn http(block: &str) -> Fake {
 
 /// `rule:http-server/cors-is-closed-until-origins-are-named`: `origins = ["*"]` is permitted **only** with `credentials = false`, so the pair is
 /// what refuses and neither half does alone. Asserted on all four combinations, because a check
-/// reading one key would refuse the wildcard public API § 2 explicitly allows and still pass a case
+/// reading one key would refuse the wildcard public API the rule explicitly allows and still pass a case
 /// that only tried the bad pair.
 #[test]
 fn cors_star_origins_with_credentials_true_is_refused() {
@@ -1943,7 +1948,7 @@ fn cors_star_origins_with_credentials_true_is_refused() {
     );
 
     let allowed = [
-        // § 2's own sentence: the wildcard is a legitimate public API without credentials.
+        // The rule's own sentence: the wildcard is a legitimate public API without credentials.
         "[http.cors]\norigins = [\"*\"]\ncredentials = false\n",
         // Credentials are legitimate too, for origins named exactly.
         "[http.cors]\norigins = [\"https://app.example\"]\ncredentials = true\n",
@@ -1972,8 +1977,9 @@ fn cors_star_origins_with_credentials_true_is_refused() {
     );
 }
 
-/// `rule:http-server/cookies-are-secure-httponly-and-lax`: `same_site = "None"` needs `secure = true`, refused by § 2's mechanism and for §
-/// 2's reason. The absent-key half is the one that matters most — § 3 ships `secure = true`, so a
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`: `same_site = "None"` needs `secure = true`, refused by the mechanism and for the reason of
+/// `rule:http-server/a-wildcard-origin-with-credentials-is-refused`. The absent-key half is the one
+/// that matters most — the cookie rule ships `secure = true`, so a
 /// tree that never writes the key has it in force, and reading an absent boolean as `false` would
 /// refuse a correct configuration.
 #[test]
@@ -2002,7 +2008,7 @@ fn same_site_none_without_secure_is_refused() {
 
     let allowed = [
         "[http.cookies]\nsame_site = \"None\"\nsecure = true\n",
-        // § 3's default is `secure = true`, so the key not being written is not `secure = false`.
+        // The default is `secure = true`, so the key not being written is not `secure = false`.
         "[http.cookies]\nsame_site = \"None\"\n",
         // And `secure = false` is a decision an operator may make for a `Lax` cookie.
         "[http.cookies]\nsame_site = \"Lax\"\nsecure = false\n",
@@ -2060,7 +2066,7 @@ fn a_same_site_that_is_none_of_the_three_is_refused() {
 /// `rule:http-server/cors-is-closed-until-origins-are-named`: the lists reach a preflight's answer as one header line each and `max_age`
 /// reaches it as a number of seconds, so a boot refuses here what `nvs_server::cors` would
 /// otherwise have to repair while answering — an entry the wire cannot carry, and a duration that
-/// is not one. Both halves are one case because they are one rule: § 2's block is resolved into
+/// is not one. Both halves are one case because they are one rule: the `[http.cors]` block is resolved into
 /// header lines at boot, and every value that cannot become one is refused before a server starts.
 #[test]
 fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
@@ -2090,7 +2096,7 @@ fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
         "[http.cors]\norigins = [\"https://a.example\"]\nmethods = [\"GET\", \"DELETE\"]\n",
         "[http.cors]\nheaders = [\"Authorization\"]\nexpose = []\n",
         "[http.cors]\nmax_age = \"10m\"\n",
-        // A bare number of seconds is the same duration written the other way, and § 2's own
+        // A bare number of seconds is the same duration written the other way, and the rule's own
         // block writes neither key at all.
         "[http.cors]\nmax_age = \"600\"\n",
         "[http.cors]\norigins = []\n",
@@ -2102,7 +2108,7 @@ fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
     assert_eq!(
         accepted,
         allowed.len(),
-        "a spelling § 2 states was refused by the check on the ones it does not",
+        "a spelling the cron rule states was refused by the check on the ones it does not",
     );
 }
 
@@ -2199,7 +2205,8 @@ fn an_http_headers_value_the_wire_cannot_carry_is_refused() {
         "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
         "[http.headers]\ncontent_security_policy = \"default-src 'self'; frame-ancestors 'none'\"\n",
         "[http.headers]\npermissions_policy = \"geolocation=(), camera=()\"\n",
-        // Empty is § 1's "emit nothing", which is a decision and not an unspellable value.
+        // Empty is `rule:http-server/secure-headers-with-nothing-written`'s "emit nothing", which is
+        // a decision and not an unspellable value.
         "[http.headers]\nreferrer_policy = \"\"\n",
     ];
     let accepted = allowed

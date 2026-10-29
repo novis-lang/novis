@@ -881,9 +881,9 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
 
 /// `rule:config/the-extension-set-is-in-every-unit-key`: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
 /// it — the on-disk `BLAKE3(content_hash ‖ env_hash)` and the in-memory
-/// `UnitKey { path, content_hash, probe_hash, env_hash }`. Asked of both keys together, because § 4's whole
+/// `UnitKey { path, content_hash, probe_hash, env_hash }`. Asked of both keys together, because the rule's whole
 /// content is that they move as one: a key built out of the source digest alone still looks right
-/// beside a case that only asks the other one. The last block is § 4's "hashed once": both keys
+/// beside a case that only asks the other one. The last block is the source "hashed once": both keys
 /// take the source's digest, and the on-disk key is a derivation of it rather than either input
 /// passed through.
 #[test]
@@ -894,7 +894,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
     let changed = env_hash(&pinned(&["aa", "cc"]).config, &grants);
     assert_eq!(
         one, reordered,
-        "§ 4 hashes the pins sorted, so the set is order-independent"
+        "the unit key hashes the pins sorted, so the set is order-independent"
     );
     assert_ne!(one, changed, "a changed pin is a changed environment");
     assert_ne!(
@@ -906,7 +906,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
     let source = content_hash(b"<?nvs\necho 1;\n");
     let path = p("srv/www/index.nvs");
 
-    // On disk. Same source, two environments, two entries — which is the hole § 4 closes.
+    // On disk. Same source, two environments, two entries — which is the hole the rule closes.
     assert_ne!(
         artifact_key(source, one),
         artifact_key(source, changed),

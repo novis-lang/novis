@@ -5,7 +5,9 @@
 //! fails silently by construction — an entry that never fires is indistinguishable from one whose
 //! interval has not come round, and the operator learns about it from the work that did not happen.
 //! So the questions are asked once, over the merged tree, and a tree that cannot answer them does
-//! not serve: § 1 for `name` and `script`, § 2 for `cron`, § 3 for `scope`, § 6 for `overlap` —
+//! not serve: `rule:config/scheduled-work-is-a-config-block` for `name` and `script`,
+//! `rule:config/cron-is-five-fields-and-nothing-more` for `cron`, `rule:config/scope-has-no-default` for `scope`, and
+//! `rule:config/overlap-is-skip-queue-or-kill` for `overlap` —
 //! which has a default and is checked anyway, because a word that is not one of its three is a mode
 //! the operator asked for and will not get.
 //!
@@ -15,19 +17,22 @@
 //! a base file an include was about to complete.
 //!
 //! **The roots check is [`Capabilities::allows`](crate::tree::Capabilities::allows) and not a
-//! second comparison.** § 1 puts a scheduled script under the same `script.spawn` roots a `spawn
+//! second comparison.** `rule:config/scheduled-work-is-a-config-block` puts a scheduled script
+//! under the same `script.spawn` roots a `spawn
 //! script` target lives under, and the reason it says so — the set of files a deployment can execute
 //! is one list — is exactly the reason this module must not grow its own canonicalize-then-prefix.
 //! The grant side is canonicalized here first, on a clone, because at resolve time the tree still
 //! holds the roots as the operator spelled them and the snapshot that would canonicalize them does
 //! not exist yet.
 //!
-//! **The next fire is this module's question too, and that is why [`Cron`] is `pub`.** § 2 has the
+//! **The next fire is this module's question too, and that is why [`Cron`] is `pub`.** The cron
+//! rule has the
 //! expression read at boot with the offending line named, so the parse is already here; a scheduler
 //! that read the same string a second time would be a second dialect, and the two disagreeing
 //! produces exactly the failure this module exists to prevent — an entry that booted and fires at
 //! the wrong minute, which nothing observes. So the one parse answers [`Cron::next_after`] as well,
-//! and § 6's two DST rules are decided in the single place a civil minute becomes an instant.
+//! and `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s two DST rules are decided
+//! in the single place a civil minute becomes an instant.
 //!
 //! Cost: one clone of `[capabilities]` and one canonicalization per path-scoped grant at boot and at
 //! reload, plus one `realpath` and one IANA zone lookup per entry. A next-fire computation walks
@@ -47,7 +52,7 @@ use crate::capability::{Authority, Cap, Run, Scope};
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, Schedule};
 
-/// The five named shorthands § 2 accepts beside the five-field form, and the expression each one is
+/// The five named shorthands the cron dialect accepts beside the five-field form, and the expression each one is
 /// short for.
 ///
 /// Expanding rather than special-casing is what keeps the dialect one reader wide: `@daily` and
@@ -121,14 +126,16 @@ pub fn anchor(
     }
 }
 
-/// § 1–§ 3's boot questions, asked of every `[[schedule]]` entry in the merged tree.
+/// The boot questions of `rule:config/scheduled-work-is-a-config-block`,
+/// `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/scope-has-no-default`, asked
+/// of every `[[schedule]]` entry in the merged tree.
 ///
 /// # Errors
 ///
 /// One [`Diagnostic`], `E0611`, for the first entry that cannot answer: no `name` or a duplicate
-/// one, no `cron` or one outside § 2's dialect, a `timezone` no IANA database knows, no `script` or
+/// one, no `cron` or one outside the cron dialect, a `timezone` no IANA database knows, no `script` or
 /// one outside the `script.spawn` roots, no `scope` or one that is neither `fleet` nor `host`, an
-/// `overlap` that is none of § 6's three, or a `fleet` entry with no shared store to hold § 3's
+/// `overlap` that is none of its three, or a `fleet` entry with no shared store to hold its
 /// lease.
 pub fn validate(
     config: &Config,
@@ -219,7 +226,7 @@ pub fn validate(
             ));
         }
 
-        // § 6's `overlap` has a default, so what is refused here is a *word* rather than a missing
+        // `overlap` has a default, so what is refused here is a *word* rather than a missing
         // key. It earns a refusal because the three differ in whether a fire is dropped, held or
         // allowed to replace the run before it: a typo falling through to `skip` is a job that
         // quietly does nothing where the operator asked for the previous run to be cancelled, and
@@ -270,7 +277,8 @@ pub fn validate(
     Ok(())
 }
 
-/// Whether the tree configures the shared store § 3's `fleet` lease lives in.
+/// Whether the tree configures the shared store the `fleet` lease of
+/// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` lives in.
 ///
 /// **`[cache.shared] url` is that store, and it is the only one.**
 /// `rule:core-api/two-cache-tiers`'s coherent tier is what
@@ -281,7 +289,7 @@ pub fn validate(
 /// key and is the same rule for the same reason.
 ///
 /// **This does not connect, on purpose.** A store that is configured and unreachable is an interval
-/// that does not run and is logged, which is § 3's stated at-most-once; a boot that dialled the
+/// that does not run and is logged, which is the lease rule's stated at-most-once; a boot that dialled the
 /// store to decide whether to start would turn an unreachable Redis into a refusal to serve requests
 /// that have nothing to do with the schedule.
 fn configures_a_shared_store(config: &Config) -> bool {
@@ -293,7 +301,7 @@ fn configures_a_shared_store(config: &Config) -> bool {
         .is_some_and(|url| !url.trim().is_empty())
 }
 
-/// A field § 1 requires, or the refusal naming it. An empty string is absent: a key set to `""` has
+/// A field an entry requires, or the refusal naming it. An empty string is absent: a key set to `""` has
 /// said nothing, and reporting it as present would send the operator looking for a different bug.
 fn required<'a>(
     entry: &Schedule,
@@ -339,7 +347,7 @@ fn refusal(
     .with_help(help.to_string())
 }
 
-/// How a refusal names an entry: by the label § 1 requires, and by position until it has one.
+/// How a refusal names an entry: by the `name` it requires, and by position until it has one.
 fn label(index: usize, entry: &Schedule) -> String {
     match entry.name.as_deref() {
         Some(name) if !name.trim().is_empty() => format!("`[[schedule]]` `{name}`"),
@@ -347,7 +355,8 @@ fn label(index: usize, entry: &Schedule) -> String {
     }
 }
 
-/// § 2's dialect, read: which minutes, hours, days and months an entry names, as one bit per
+/// `rule:config/cron-is-five-fields-and-nothing-more`'s dialect, read: which minutes, hours, days
+/// and months an entry names, as one bit per
 /// accepted value.
 ///
 /// **The boot refusal and the scheduler are the same read**, which is the module doc's own reason
@@ -364,7 +373,7 @@ pub struct Cron {
 }
 
 impl Cron {
-    /// § 2's dialect, parsed — or why `expression` is not a schedule.
+    /// The cron dialect, parsed — or why `expression` is not a schedule.
     ///
     /// # Errors
     ///
@@ -410,11 +419,12 @@ impl Cron {
     /// The first instant strictly after `after` that this expression names, in `after`'s own zone.
     ///
     /// [`None`] when nothing inside [`HORIZON_YEARS`] matches — `30 2 30 2 *`, and the end of the
-    /// representable range. **A missed fire is never caught up** (§ 6), so the scheduler asks this
+    /// representable range. **A missed fire is never caught up**
+    /// (`rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`), so the scheduler asks this
     /// from the clock rather than from the last fire, and an interval that passed while the host was
     /// down is skipped rather than replayed.
     ///
-    /// § 6's two DST rules are here, in [`at`], because this is the one place a civil minute becomes
+    /// The two DST rules are here, in [`at`], because this is the one place a civil minute becomes
     /// an instant: a minute in a spring-forward gap fires once, at the first instant after the gap;
     /// one in a fall-back repeat fires once, on the first occurrence.
     #[must_use]
@@ -422,7 +432,7 @@ impl Cron {
         let zone = after.time_zone();
         let from = after.datetime();
         // The fire at `after` has happened, so the search opens at the next whole minute. Seconds
-        // are not part of the dialect (§ 2), which is what makes truncation the same as flooring.
+        // are not part of the dialect, which is what makes truncation the same as flooring.
         let mut when = DateTime::new(
             from.year(),
             from.month(),
@@ -463,7 +473,7 @@ impl Cron {
             if accepts(self.accepted[0], when.minute()) {
                 let fire = at(when, zone)?;
                 // A fall-back repeat runs one civil minute twice. Asked from *inside* the second
-                // pass, § 6's first-occurrence rule would answer an instant already behind the
+                // pass, the first-occurrence rule would answer an instant already behind the
                 // clock — the fire that has just happened — so the search carries on instead.
                 if fire.timestamp() > after.timestamp() {
                     return Some(fire);
@@ -492,7 +502,8 @@ impl Cron {
     }
 }
 
-/// § 6's zone: what `timezone` names, or `UTC` when the entry does not say.
+/// The entry's zone: what `timezone` names, or `UTC` when the entry does not say
+/// (`rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`).
 ///
 /// There is no ambient timezone anywhere in Novis (`rule:core-api/no-ambient-state`), so an absent key is the documented
 /// default rather than the host's setting, and an empty one has said nothing — the same reading
@@ -509,7 +520,8 @@ pub fn zone_of(timezone: Option<&str>) -> Result<TimeZone, String> {
     TimeZone::get(named).map_err(|_| named.to_string())
 }
 
-/// § 6's two DST rules, in the one place a civil minute becomes an instant.
+/// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s two DST rules, in the one
+/// place a civil minute becomes an instant.
 fn at(when: DateTime, zone: &TimeZone) -> Option<Zoned> {
     let ambiguous = zone.to_ambiguous_zoned(when);
     match ambiguous.offset() {
@@ -556,7 +568,7 @@ fn field_bits(text: &str, name: &str, low: u32, high: u32) -> Result<u64, String
                     ));
                 }
                 Ok(parsed) if range == "*" || range.contains('-') => step = parsed,
-                // `5/15` is Quartz's "every 15 from 5"; § 2 takes the range it is short for.
+                // `5/15` is Quartz's "every 15 from 5"; the dialect takes the range it is short for.
                 Ok(_) => {
                     return Err(format!(
                         "the {name} field steps a single value (`{term}`); a step applies to `*` \
@@ -592,7 +604,7 @@ fn field_bits(text: &str, name: &str, low: u32, high: u32) -> Result<u64, String
 }
 
 /// One term as a number: POSIX's own three-letter names for `month` and `day-of-week`, and digits
-/// everywhere. The names are part of the dialect § 2 names, not an extension of it.
+/// everywhere. The names are part of the dialect the cron rule names, not an extension of it.
 fn value_of(term: &str, field: &str) -> Option<u32> {
     if let Ok(number) = term.parse::<u32>() {
         return Some(number);

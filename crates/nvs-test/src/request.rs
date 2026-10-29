@@ -350,8 +350,8 @@ fn field(text: &mut String, name: &str, value: &str) {
     text.push('\n');
 }
 
-/// Whether a field of this name is already written, compared the way RFC 9110
-/// § 5.1 compares one.
+/// Whether a field of this name is already written, compared the way
+/// RFC 9110 § 5.1 compares one.
 fn carries(headers: &[(String, String)], name: &str) -> bool {
     headers
         .iter()

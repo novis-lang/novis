@@ -23,7 +23,7 @@
 //!   bit [`ACCOUNT_FLAGS`] or [`GROUP_TYPE_FLAGS`] does not name is kept.
 //!   `sAMAccountType` is one of the values [`account_type`] reads.
 //! - An INTEGER is RFC 4517 § 3.3.16's decimal text, read by [`int`] where
-//!   an `i64` holds it, and a Boolean is § 3.3.3's `TRUE` or `FALSE`, read
+//!   an `i64` holds it, and a Boolean is RFC 4517 § 3.3.3's `TRUE` or `FALSE`, read
 //!   by [`boolean`] with the case exactly as the RFC writes it.
 
 use std::fmt;

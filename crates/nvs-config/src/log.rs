@@ -14,14 +14,14 @@
 //! tree and the origins to say which file the word was written in.
 //!
 //! The format's grammar is [`Format::of`], and it is here rather than one crate down for the
-//! target's reason and not the level's: § 3 names a *rendering to select*, and `nvs-render` carries
+//! target's reason and not the level's: `rule:errors/renderings` names a *rendering to select*, and `nvs-render` carries
 //! one function per rendering with no enum over them. The HTML rendering the response sink picks is
-//! deliberately not a value of this directive, which § 3 states outright, so the two rosters are not
+//! deliberately not a value of this directive, which that rule states outright, so the two rosters are not
 //! the same roster and must not become one type.
 //!
 //! **Refused where it is written, never where it is used.** The one moment the engine cannot afford
 //! to raise a diagnostic about its configuration is the moment it is already reporting a failure:
-//! § 4's floor is the last rung, so a target checked on the first record would displace the record
+//! the engine floor is the last rung, so a target checked on the first record would displace the record
 //! it exists to write, and only in the deployments that had already gone wrong twice. Boot is where
 //! an operator is reading output and can fix the file.
 //!
@@ -152,7 +152,7 @@ pub enum Target<'a> {
 }
 
 impl<'a> Target<'a> {
-    /// What `written` names, or `None` for a target § 4 does not spell.
+    /// What `written` names, or `None` for a target `rule:errors/engine-floor` does not spell.
     ///
     /// A `file:` with nothing behind it is `None` rather than a file called nothing: an empty path
     /// is the shape a half-finished edit leaves, and the value it would otherwise open is whatever
@@ -184,16 +184,17 @@ pub enum Format {
     /// record per line is the shape a log pipeline can read without being told.
     #[default]
     Json,
-    /// `text` — § 3's plaintext rendering, `nvs_render::plain::render`, uncoloured.
+    /// `text` — the plaintext rendering, `nvs_render::plain::render`, uncoloured.
     ///
-    /// Colour is a property of the terminal sink and not of this directive: § 3 makes plaintext
+    /// Colour is a property of the terminal sink and not of this directive: plaintext is
     /// coloured *iff* `Cli::colorDepth() != None`, and a file or a redirected `stderr` answers
     /// `None`, so a target's plaintext is the same bytes either way.
     Text,
 }
 
 impl Format {
-    /// What `written` names, or `None` for a rendering § 3 does not put on this directive.
+    /// What `written` names, or `None` for a rendering `rule:errors/renderings` does not put on this
+    /// directive.
     ///
     /// `html` is the near miss worth naming: it is a real rendering of the same record, reached
     /// through the response sink, and it is refused here rather than accepted and ignored.
@@ -207,7 +208,7 @@ impl Format {
     }
 }
 
-/// § 4's target, asked of every `[log]` block the merged tree holds.
+/// `[log] target`, asked of every `[log]` block the merged tree holds.
 ///
 /// The global block and each `[[app]]`'s own, because `rule:config/an-application-is-its-entry-file-path` lets an application carry its
 /// own `[app.log]` and a target written there reaches the floor exactly as the global one does.
@@ -464,7 +465,7 @@ fn formatted(
 mod tests {
     use super::*;
 
-    /// § 4's roster, as the grammar both readers share: the three spellings resolve and everything
+    /// The target roster, as the grammar both readers share: the three spellings resolve and everything
     /// else is one refusal rather than a destination nobody opens.
     ///
     /// The two near-misses are the ones an edit produces — a `file:` whose path was deleted and a

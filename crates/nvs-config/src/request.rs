@@ -7,7 +7,7 @@
 //! makes the API request-local, and it is a property of the shape rather than of a discipline —
 //! there is no `&mut Snapshot` anywhere for a member to reach.
 //!
-//! **A bare name is a limit's name.** § 5's API is keyed on a directive *name*, and the common
+//! **A bare name is a limit's name.** The API is keyed on a directive *name*, and the common
 //! call is `Core\Config::set('memory', '512M')`, with no block in it. So a name with no dot
 //! that [`value::unit_of`] knows is read and written in `[limits]` — the block `rule:config/three-changeability-classes` states the
 //! request-settable default in — and every other name is the dotted path the file writes. This is
@@ -153,7 +153,8 @@ impl Request {
     /// `None` is a key with no default (`wall_time`), a key whose default is nothing for this run
     /// (`cpu_time` outside server work), and a key in a named block the file does not write.
     ///
-    /// Values cross as text (§ 5), so a directive the file wrote as an integer, a float or a
+    /// Values cross as text (`rule:config/ini-set-is-core-config-set`), so a directive the file
+    /// wrote as an integer, a float or a
     /// boolean answers with the way TOML spells it — `64`, `0.01`, `true`. A key naming a table or
     /// a list is `None` rather than a rendering nothing could set back.
     ///
@@ -428,7 +429,8 @@ impl Request {
     /// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, asked of what this request would be left holding.
     ///
     /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
-    /// — § 2 states both halves and [`http`](crate::http) is the one place the condition is
+    /// — `rule:http-server/a-wildcard-origin-with-credentials-is-refused` states both halves and
+    /// [`http`](crate::http) is the one place the condition is
     /// written, so this reads those values off the snapshot, folds this request's overlay and
     /// then the proposed assignment over them, and asks. A key under neither block returns before
     /// any of that, `[errors] deprecated` with whether [`crate::errors::Deprecated::of`] names it.
@@ -459,7 +461,7 @@ impl Request {
     /// each folded over the one before.
     ///
     /// One entry per scalar leaf, on [`get`](Self::get)'s rule: a table is not a value and a list
-    /// has no rendering `set` would take back. § 7's secrets and the defaults are folded in for the
+    /// has no rendering `set` would take back. The secrets and the defaults are folded in for the
     /// same reason — a key this answers `None` for and `get` answers a value for would be two
     /// readers disagreeing about what is in force — so `all` and `get` are one key set.
     ///
@@ -597,7 +599,7 @@ fn leaf_keys(file: &str) -> BTreeSet<String> {
     keys
 }
 
-/// A TOML scalar as the text § 5 crosses it as, and `None` for anything that is not one.
+/// A TOML scalar as the text `Core\Config` crosses it as, and `None` for anything that is not one.
 pub(crate) fn as_text(value: &toml::Value) -> Option<String> {
     match value {
         toml::Value::String(text) => Some(text.clone()),

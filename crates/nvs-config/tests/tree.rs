@@ -1,4 +1,6 @@
-//! `rule:config/every-block-is-argued-where-it-is-added`'s block roster as a type, and § 3's unknown-key refusal that comes with it.
+//! `rule:config/every-block-is-argued-where-it-is-added`'s block roster as a type, and
+//! `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s unknown-key refusal that
+//! comes with it.
 //!
 //! The roster is the security-relevant half: a key this tree does not name is a key an operator may
 //! write and no code will ever read, so the sweep below asserts by **counting** the blocks that
@@ -93,13 +95,14 @@ fn every_block_a_rule_writes_out_is_in_the_tree() {
     );
 }
 
-/// `rule:http-server/a-mount-carries-no-policy`: a mount routes and carries nothing else. § 3's routing keys say where a request
+/// `rule:http-server/a-mount-carries-no-policy`: a mount routes and carries nothing else. The routing keys of
+/// `rule:http-server/a-mount-table-expands-at-boot` say where a request
 /// arrives and which file answers it; every directive saying what the code answering it *may do*
 /// belongs to `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
 /// that grew one would be a second home for a fact `rule:config/three-changeability-classes` owns, and the per-app block
 /// re-implemented one block over.
 ///
-/// Asserted on both sides, because either half alone reads as correct: § 3's routing keys parse
+/// Asserted on both sides, because either half alone reads as correct: the routing keys parse
 /// together, and each policy directive is refused under `[[server.mount]]` **while the same
 /// directive parses under `[[app]]`** — so a refusal that came from the directive being unspellable
 /// anywhere, rather than from the mount declining to hold policy, fails here too.
@@ -120,7 +123,7 @@ fn a_mount_carries_no_policy_of_its_own() {
     assert_eq!(
         mounts.len(),
         2,
-        "§ 3's five routing keys are the whole of what a mount holds",
+        "the five routing keys are the whole of what a mount holds",
     );
 
     // One policy directive per row: how it would be written under a mount, and the `[[app]]`
@@ -198,7 +201,8 @@ fn an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive() {
     );
 }
 
-/// The typo § 3 names by name. It is refused at the root table, where there is no enclosing block,
+/// The typo `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` names by name. It is
+/// refused at the root table, where there is no enclosing block,
 /// so the note is absent rather than wrong — a refusal claiming a block it did not find would be
 /// worse than one that stays quiet.
 // covers: tools:config/the-blocks-the-binary-accepts

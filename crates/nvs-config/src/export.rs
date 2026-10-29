@@ -5,24 +5,25 @@
 //! **The two blocks share a module because they share a grammar and not a roster.** `exporter` is
 //! written the same way in both — `false` for no export, otherwise one word naming a protocol — and
 //! [`Exporter::of`] is the one place a word becomes one. What differs is which of them a block
-//! accepts: § 6 gives metrics a scrape or a push and gives a trace only a push, so [`Block`] carries
+//! accepts: the rule gives metrics a scrape or a push and gives a trace only a push, so [`Block`] carries
 //! the asymmetry and neither roster is spelled twice.
 //!
 //! **Refused where it is written, never where it is used**, which is [`crate::log`]'s rule. Both
 //! blocks are `System` ([`crate::directive`]), so the value in force is the one the boot read, and
 //! what a wrong one produces is *silence*: a collector nothing ever writes to looks exactly like a
 //! deployment with nothing to say, and every dashboard over it is empty rather than wrong. There is
-//! no later moment at which that reports itself, which is the same argument § 6 makes for the class.
+//! no later moment at which that reports itself, which is the same argument the rule makes for the class.
 //!
-//! `sample` is refused on the same footing and for a sharper reason. § 6 writes it as a fraction of
+//! `sample` is refused on the same footing and for a sharper reason. The rule writes it as a fraction of
 //! one, and a number outside that does not name a smaller or larger sample — it names nothing, and
 //! what an eventual reader does with `sample = 5` depends entirely on which side of a comparison it
 //! lands on. Both readings are plausible and neither is what anyone wrote it for.
 //!
 //! **The resolved reading lives here too**, as [`Metering`], for the reason [`crate::server`] keeps
-//! `Capacity` beside its own refusal: § 6's written defaults are part of what a block *means*, and a
+//! `Capacity` beside its own refusal: the rule's written defaults are part of what a block *means*, and a
 //! reader that applied them itself would be a second place for `max_series = 10000` to be written
-//! down. What comes out is what a core is asked to build — the protocol in force and § 7's bound —
+//! down. What comes out is what a core is asked to build — the protocol in force and
+//! `rule:observability/past-max-series-a-new-series-is-refused`'s bound —
 //! and `None` where `exporter = false` says to build nothing.
 //!
 //! Cost: one match over a short string per block in the merged tree, at boot and at reload. Per
@@ -44,7 +45,7 @@ pub enum Exporter {
     /// `prometheus` — the scrape endpoint served at `[metrics] listen`.
     ///
     /// A pull, so what it can answer with is the *current* value of a series. That is why no trace
-    /// block accepts it rather than an oversight in § 6's table: a span is a finished record, and
+    /// block accepts it rather than an oversight in the rule's table: a span is a finished record, and
     /// there is no current value of one to answer a scrape with.
     Prometheus,
     /// `otlp` — a push to the collector named by the block's own `endpoint`.
@@ -52,7 +53,7 @@ pub enum Exporter {
 }
 
 impl Exporter {
-    /// What `written` names, or `None` for a word § 6 gives neither block.
+    /// What `written` names, or `None` for a word that names neither block's protocol.
     #[must_use]
     pub fn of(written: &str) -> Option<Self> {
         match written {
@@ -63,7 +64,8 @@ impl Exporter {
     }
 }
 
-/// § 6's own `max_series`, for a `[metrics]` block that writes an exporter and not a bound.
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s own `max_series`, for a `[metrics]`
+/// block that writes an exporter and not a bound.
 ///
 /// `pub` because a registry can exist without a `[metrics]` block at all: `Core\Metrics` is Tier 0
 /// in every build (`rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`), so a
@@ -73,16 +75,17 @@ impl Exporter {
 pub const DEFAULT_MAX_SERIES: u64 = crate::defaults::METRICS_MAX_SERIES;
 
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s `[metrics]` block, resolved into what one core is asked to build: where its
-/// series ship to, and § 7's bound on how many of them it may hold.
+/// series ship to, and `rule:observability/past-max-series-a-new-series-is-refused`'s bound on how
+/// many of them it may hold.
 ///
 /// Only the two values a registry needs. `listen` and `endpoint` are the exporter's own address and
 /// are read where the exporter is built, which is a crate this one does not know about; putting them
 /// here would make this the shape of an exporter rather than of a block.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Metering {
-    /// The protocol § 6 named, already checked by [`validate`] against [`Block::Metrics`].
+    /// The protocol the block named, already checked by [`validate`] against [`Block::Metrics`].
     pub exporter: Exporter,
-    /// `[metrics] max_series`, or § 6's own `10000` where the key is unwritten. Per core (§ 7).
+    /// `[metrics] max_series`, or the shipped `10000` where the key is unwritten. Per core.
     pub max_series: u64,
 }
 
@@ -90,7 +93,7 @@ impl Metering {
     /// What the merged tree asks a core to meter, or `None` where nothing does.
     ///
     /// `None` covers three ways of saying the same thing — no `[metrics]` block, no `exporter` key,
-    /// and `exporter = false` — because § 6 writes the default as `false` and a block that only
+    /// and `exporter = false` — because the rule writes the default as `false` and a block that only
     /// sets `max_series` has bounded a registry it never asked for. A word naming no protocol is
     /// `None` as well and cannot be reached: [`validate`] refused it at boot, and a caller holding a
     /// [`Config`] holds one that got past that.
@@ -108,9 +111,9 @@ impl Metering {
 }
 
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s `[trace]` block, resolved into what a
-/// process is asked to push: the protocol § 6 named, and the collector it ships to.
+/// process is asked to push: the protocol the block named, and the collector it ships to.
 ///
-/// Beside [`Metering`] and read the same way, with one difference the asymmetry in § 6 forces: a
+/// Beside [`Metering`] and read the same way, with one difference the rule's asymmetry forces: a
 /// trace has only a push, so the address is not the exporter's own to bind but the thing it dials,
 /// and a block naming a protocol with nowhere to send it has asked for silence. `endpoint` is
 /// therefore carried here — borrowed rather than copied, so this stays a reading of the block and
@@ -122,7 +125,7 @@ impl Metering {
 /// to have.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Tracing<'a> {
-    /// The protocol § 6 named, already checked by [`validate`] against [`Block::Trace`].
+    /// The protocol the block named, already checked by [`validate`] against [`Block::Trace`].
     pub exporter: Exporter,
     /// `[trace] endpoint`, as written, or `None` where the block names no collector.
     pub endpoint: Option<&'a str>,
@@ -146,14 +149,15 @@ impl<'a> Tracing<'a> {
     }
 }
 
-/// § 6's own `sample`, for a tree that writes no fraction: a trace this process starts is recorded
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s own `sample`, for a tree that writes
+/// no fraction: a trace this process starts is recorded
 /// by nothing until an operator says how much of it to record.
 const DEFAULT_SAMPLE: f64 = crate::defaults::TRACE_SAMPLE;
 
 /// `rule:observability/sampling-is-head-based`'s fraction, resolved: the probability that a request
 /// which *starts* a trace is recorded.
 ///
-/// Beside [`Metering`] and for its reason — § 6's written default is part of what `[trace]` means,
+/// Beside [`Metering`] and for its reason — the written default is part of what `[trace]` means,
 /// and a door that applied `0.0` itself would be a second place for it to be written down.
 ///
 /// Read per request rather than once at a boot, because `sample` is one of the keys
@@ -177,10 +181,11 @@ pub fn head_sample(config: &Config) -> Option<f64> {
     )
 }
 
-/// Which block an `exporter` was written in: its name, and the protocols § 6 gives it.
+/// Which block an `exporter` was written in: its name, and the protocols
+/// `rule:observability/metrics-and-trace-blocks-are-system` gives it.
 ///
 /// A block rather than a bare roster because every half of the refusal below differs between the
-/// two — the key an origin is recorded under, the sentence quoting § 6, and the one near miss worth
+/// two — the key an origin is recorded under, the sentence quoting the rule, and the one near miss worth
 /// naming — and threading three arguments through would let them drift apart.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Block {
@@ -200,7 +205,7 @@ impl Block {
         }
     }
 
-    /// The protocols § 6 gives this block, in the order that section lists them.
+    /// The protocols the rule gives this block, in the order it lists them.
     #[must_use]
     pub fn accepts(self) -> &'static [Exporter] {
         match self {
@@ -209,7 +214,7 @@ impl Block {
         }
     }
 
-    /// § 6's own spellings for this block, for a refusal to quote back.
+    /// The rule's own spellings for this block, for a refusal to quote back.
     fn roster(self) -> &'static str {
         match self {
             Self::Metrics => "`false`, `\"prometheus\"` and `\"otlp\"`",
@@ -218,7 +223,8 @@ impl Block {
     }
 }
 
-/// § 6's two blocks, asked of the merged tree: both `exporter` values, and `[trace] sample`.
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s two blocks, asked of the merged tree:
+/// both `exporter` values, and `[trace] sample`.
 ///
 /// # Errors
 ///
@@ -244,7 +250,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 
 /// [`validate`]'s refusal for one written `exporter`, under the block it was written in.
 ///
-/// `false` is checked before the roster and not as a member of it: § 6 writes the disabled state as
+/// `false` is checked before the roster and not as a member of it: the rule writes the disabled state as
 /// a boolean rather than as an `"off"` protocol, which [`Setting`]'s own doc comment gives the
 /// reason for, and a roster with a variant meaning "none" would be a second spelling of it.
 fn exporter(
@@ -357,7 +363,7 @@ mod tests {
         }
     }
 
-    /// § 6's rosters, asserted as an asymmetry rather than as two lists: every protocol resolves as
+    /// The two blocks' rosters, asserted as an asymmetry rather than as two lists: every protocol resolves as
     /// a word, and `prometheus` is the one that resolves while still being refused where it was
     /// written. A block that grew its neighbour's roster passes both halves read alone.
     #[test]
@@ -370,14 +376,14 @@ mod tests {
             &metrics(Setting::Text("prometheus".to_owned())),
             &BTreeMap::new(),
         )
-        .expect("§ 6's scrape");
+        .expect("a scrape for metrics");
         validate(&metrics(Setting::Text("otlp".to_owned())), &BTreeMap::new())
-            .expect("§ 6's push, for metrics");
+            .expect("a push for metrics");
         validate(
             &trace(Some(Setting::Text("otlp".to_owned())), None),
             &BTreeMap::new(),
         )
-        .expect("§ 6's push, for spans");
+        .expect("a push for spans");
 
         // The word is a real exporter and `Exporter::of` says so; what refuses it is the block.
         assert_eq!(Exporter::of("prometheus"), Some(Exporter::Prometheus));
@@ -392,12 +398,12 @@ mod tests {
                 .notes
                 .iter()
                 .any(|note| note.contains("finished record")),
-            "the near miss earns § 6's reason rather than the roster: {:?}",
+            "the near miss names the block's reason, not the list of exporters: {:?}",
             refused.notes
         );
     }
 
-    /// `false` is the disabled state and `true` is not a second spelling of anything: § 6 gives the
+    /// `false` is the disabled state and `true` is not a second spelling of anything: the rule gives the
     /// key one boolean, so the other one names no exporter and is refused with the rest.
     #[test]
     fn only_false_disables_an_export_and_true_names_nothing() {
@@ -417,7 +423,7 @@ mod tests {
         }
     }
 
-    /// § 6's head sample, both bounds named together: `0.0` and `1.0` are inside it, the first
+    /// The head sample, both bounds named together: `0.0` and `1.0` are inside it, the first
     /// value past either end is not, and neither non-finite spelling TOML has is a sample at all.
     #[test]
     fn the_head_sample_is_a_fraction_of_one_at_both_ends() {
@@ -436,7 +442,8 @@ mod tests {
         }
     }
 
-    /// A tree that configures no export still boots, which is what makes the default in § 6's table
+    /// A tree that configures no export still boots, which is what makes the default in
+    /// `rule:observability/metrics-and-trace-blocks-are-system`'s table
     /// the *absence* of an exporter rather than a value anything has to write.
     #[test]
     fn a_tree_that_configures_no_export_still_boots() {

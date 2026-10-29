@@ -28,7 +28,7 @@
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
-//! escalation ladder. § 6 asks that ordinary application code and the tier-4
+//! escalation ladder. That rule asks that ordinary application code and the tier-4
 //! floor write one shape through one implementation, and `rule:errors/diagnostic-record` has
 //! already put every rendering in this crate; a JSON writer in `nvs-runtime`
 //! for the floor plus this one for everything else would be two writers that

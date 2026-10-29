@@ -3,7 +3,8 @@
 //! This module is the whole decision procedure and it is **pure** — a [`Capabilities`], a [`Cap`], an
 //! argument, a `bool`. It takes no context, throws nothing, and reports nothing, so it is testable
 //! without a compiler or a request in front of it. The refusal a program sees is
-//! `nvs_runtime::capability::require`, which asks this and turns a `false` into § 5's `RuntimeError`;
+//! `nvs_runtime::capability::require`, which asks this and turns a `false` into the `RuntimeError` of
+//! `rule:security/denial-is-a-runtime-error`;
 //! keeping the two apart is what lets `-p nvs-config` assert the *rule* and `-p nvs-stdlib` assert the
 //! *diagnostic*.
 //!
@@ -227,12 +228,13 @@ pub enum Cap {
     QueuePurge,
 }
 
-/// What a capability is being asked *about* — the second half of § 1's question.
+/// What a capability is being asked *about* — the second half of
+/// `rule:security/capability-question-is-grant-and-scope`'s question.
 #[derive(Clone, Copy, Debug)]
 pub enum Scope<'a> {
     /// The grant is the whole answer: there is no argument to place inside it.
     Unscoped,
-    /// A filesystem path, resolved by § 4's canonicalise-then-prefix rule.
+    /// A filesystem path, resolved by `rule:security/path-scope-canonicalise-then-prefix`.
     Path(&'a Path),
     /// A hostname, matched case-insensitively because DNS is.
     Host(&'a str),
@@ -482,19 +484,22 @@ impl<'a> Authority<'a> {
 /// The address ranges `rule:security/net-address-policy` denies
 /// before any grant is consulted, named so a refusal can say which one it was.
 ///
-/// **Here rather than in the client**, which is § 5: `Core\Http`, `Core\Net`, `Core\Db::open`'s
+/// **Here rather than in the client**, which is `rule:security/the-policy-lives-in-the-capability`:
+/// `Core\Http`, `Core\Net`, `Core\Db::open`'s
 /// program-supplied target and any socket a host import hands a Tier 1 extension are all subject to
 /// the same policy, and a copy of this table in each of them is a set of copies that agree until
 /// one of them does not. The one class of address it does not govern is a `[db.<name>]` block an
-/// operator wrote into root-owned configuration and granted by name (§ 3), which is why the caller
+/// operator wrote into root-owned configuration and granted by name
+/// (`rule:core-classes/db-capabilities`), which is why the caller
 /// asks this rather than it being folded into [`Cap::NetConnect`]'s own grant check.
 ///
 /// It is asked of a **resolved address**, never of a hostname: a hostname the operator never named
-/// can resolve into any of these, which is the whole of why § 2's launderer pins.
+/// can resolve into any of these, which is the whole of why
+/// `rule:http-server/allow-url-pins-the-address`'s launderer pins.
 ///
 /// This is the table alone. The operator's exception half — a service that must reach an internal
 /// API saying so in `nvs.toml` — is [`Capabilities::address_refused`], which is what a door asks:
-/// nothing widens *this* function, so a caller holding no configuration gets § 3's answer.
+/// nothing widens *this* function, so a caller holding no configuration gets the default-deny answer.
 #[must_use]
 pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
     use std::net::IpAddr;
@@ -1006,7 +1011,8 @@ fn endpoint_granted(list: &[String], endpoint: std::net::SocketAddr) -> bool {
 }
 
 impl Capabilities {
-    /// § 1's question: does this configuration grant `cap` for `scope`?
+    /// `rule:security/capability-question-is-grant-and-scope`'s question: does this configuration
+    /// grant `cap` for `scope`?
     ///
     /// `files` is the canonicalizer, and it is a parameter rather than the filesystem because
     /// [`Files::canonical`] is [`trust::canonical`](crate::trust::canonical) in production and a fake
@@ -1189,7 +1195,8 @@ impl Capabilities {
         self.net.as_ref().and_then(|net| net.internal.as_ref())
     }
 
-    /// § 4's grant side: replaces every path-scoped root with its canonical spelling, once.
+    /// `rule:security/path-scope-canonicalise-then-prefix`'s grant side: replaces every path-scoped
+    /// root with its canonical spelling, once.
     ///
     /// Called when the snapshot is built, exactly as an `[[app]]` block's key is canonicalized at the
     /// same point and for the same reason — a root still spelled the way the operator typed it is a
@@ -1721,8 +1728,8 @@ pub fn own_file_word(resolved: &Path) -> i64 {
     OWN_FILE_WORD | bits
 }
 
-/// § 4's argument side: `path` canonicalized, or its **deepest existing ancestor** canonicalized with
-/// the rest re-appended.
+/// `rule:security/path-scope-canonicalise-then-prefix`'s argument side: `path` canonicalized, or its
+/// **deepest existing ancestor** canonicalized with the rest re-appended.
 ///
 /// A write creates the file it names, so its path cannot be canonicalized before the check — and
 /// creating it to find out whether creating it is allowed is the wrong order. Pinning the deepest
@@ -1905,7 +1912,8 @@ fn network_path(text: &str) -> bool {
 /// so without this the walk in [`resolved`] pins nothing, [`Path::file_name`] of `""` is `None`, and
 /// a bare relative name is denied under every grant including `.`. Substituting `.` asks the same
 /// canonicalizer the same question the operating system will answer when the path is opened, which
-/// keeps the resolution on the one seam § 4 puts it on rather than reading a current directory here.
+/// keeps the resolution on the one seam `rule:security/path-scope-canonicalise-then-prefix` puts it
+/// on rather than reading a current directory here.
 fn here(parent: &Path) -> &Path {
     if parent.as_os_str().is_empty() {
         Path::new(".")

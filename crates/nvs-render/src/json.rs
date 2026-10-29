@@ -20,18 +20,19 @@
 //! `rule:errors/log-write`'s list, in reading order: `ts`, `level`, `msg`, `request_id`,
 //! `trace_id`, `span_id`, `source`, `count`, `fields`, then the record's own
 //! `nodes`. Only `level` is unconditional; every other key is **omitted rather
-//! than written empty**, which is [`Envelope`]'s own rule and § 6's for
+//! than written empty**, which is [`Envelope`]'s own rule and
+//! `rule:errors/log-write`'s for
 //! `trace_id`/`span_id` in particular.
 //!
-//! `count` is the one key § 6 does not list, because it belongs to
+//! `count` is the one key that rule does not list, because it belongs to
 //! `rule:http-server/the-floor-cannot-fill-the-disk`
 //! instead; it sits last of the envelope's own keys and ahead of
 //! the producer's `fields` for the reason [`Envelope::count`] gives — it is the
 //! sink talking about the record, not the call site talking about the failure.
 //!
-//! **`msg` is § 6's `message`, spelled short.** That is what
+//! **`msg` is `rule:errors/log-write`'s `message`, spelled short.** That is what
 //! `examples/logging.nvs` and `Core\Log::write`'s conformance cases pin, while
-//! § 6's prose writes the long form; the two are one word apart in one of the
+//! the rule's prose writes the long form; the two are one word apart in one of the
 //! two places and nothing else depends on which is chosen.
 //!
 //! # What a node is spelled as

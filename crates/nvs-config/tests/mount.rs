@@ -142,7 +142,8 @@ fn checked(text: &str) -> Diagnostic {
 /// `rule:http-server/a-mount-table-expands-at-boot`'s own example, over a disk that holds module directories and one that is not
 /// a module at all.
 ///
-/// The count is the assertion that matters: § 2's claim is that the executable set is *enumerated*,
+/// The count is the assertion that matters: `rule:http-server/a-path-is-never-derived-from-a-url`
+/// claims that the executable set is *enumerated*,
 /// so a reading that expanded a `*` per request — or one that kept a candidate whose entry is not
 /// there — would satisfy every per-mount assertion below while leaving an extra entry in the
 /// table.
@@ -177,7 +178,8 @@ fn a_mount_globs_is_expanded_against_disk_at_boot() {
         vec!["/Blog".to_string(), "/Shop".to_string()]
     );
     assert_eq!(mounts[0].entry, p("/www/Blog/public/index.nvs"));
-    // § 4's "the mount root": the directory the entry sits in, which is where steps 3 and 4 look
+    // `rule:http-server/a-request-resolves-in-five-steps`'s "the mount root": the directory the
+    // entry sits in, which is where steps 3 and 4 look
     // for a static file and for a dispatched `.nvs`.
     assert_eq!(mounts[0].root, p("/www/Blog/public"));
     assert_eq!(mounts[0].captures, vec!["Blog".to_string()]);
@@ -186,7 +188,7 @@ fn a_mount_globs_is_expanded_against_disk_at_boot() {
         Some("https://Blog.example.com")
     );
     assert_eq!(mounts[0].host, None);
-    // Every mount the table holds names a file the disk holds: that equality is § 2's governing
+    // Every mount the table holds names a file the disk holds: that equality is the governing
     // rule, and it is the one a per-request expansion could not state at all.
     assert!(mounts.iter().all(|one| fs.exists(&one.entry)));
 }
@@ -208,7 +210,8 @@ fn a_mount_table_with_no_root_written_is_refused() {
     assert!(refusal(&fs, "").message.contains("`[server] root`"));
 }
 
-/// § 3's other spelling of the same glob: a capture in `host` rather than in `prefix`, which is
+/// `rule:http-server/a-mount-table-expands-at-boot`'s other spelling of the same glob: a capture
+/// in `host` rather than in `prefix`, which is
 /// what makes a module relocatable without the route table naming a host.
 #[test]
 fn a_capture_reads_the_same_in_a_host_as_in_a_prefix() {
@@ -229,17 +232,19 @@ fn a_capture_reads_the_same_in_a_host_as_in_a_prefix() {
         ]
     );
     // A host mount with no `prefix` written answers at the root of that host, which is the only
-    // reading that makes `host` alone a complete match under § 4 step 1.
+    // reading that makes `host` alone a complete match under step 1 of
+    // `rule:http-server/a-request-resolves-in-five-steps`.
     assert!(mounts.iter().all(|one| one.prefix == "/"));
 }
 
-/// § 3's override, asserted from both ends: an explicit `entry` replaces the scanned mount at its
+/// `rule:http-server/a-mount-table-expands-at-boot`'s override, asserted from both ends: an
+/// explicit `entry` replaces the scanned mount at its
 /// key whichever block was read first, and two explicit ones at a key is a boot error. A case
 /// asserting only the first order would pass against a reading that let the later block win.
 // covers: tools:server/mounts-which-file-answers-a-request
 #[test]
 fn an_explicit_entry_overrides_a_scanned_mount_at_the_same_key() {
-    // `Backoffice` is the irregular module § 3's second block is for: its entry is not where the
+    // `Backoffice` is the irregular module an explicit block is for: its entry is not where the
     // glob looks, so it reaches the table through the explicit block or not at all.
     let fs = Fake::with(&[
         "/www/admin/public/index.nvs",
@@ -276,7 +281,8 @@ fn an_explicit_entry_overrides_a_scanned_mount_at_the_same_key() {
     assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
 }
 
-/// § 3's last bullet: a tree with no `[[server.mount]]` at all is one mount and not none. An
+/// `rule:http-server/a-mount-table-expands-at-boot`'s implicit mount: a tree with no
+/// `[[server.mount]]` at all is one mount and not none. An
 /// absent block is the single-module deployment, which is the shape a first `nvs serve` has.
 #[test]
 fn a_tree_with_no_mount_block_has_one_implicit_mount_at_the_root() {
@@ -299,7 +305,8 @@ fn a_tree_with_no_mount_block_has_one_implicit_mount_at_the_root() {
         );
     }
     // And it is refused rather than empty when the file it names is not there: a server whose
-    // whole executable set is missing answers every request with nothing, which § 2 makes a boot
+    // whole executable set is missing answers every request with nothing, which
+    // `rule:http-server/a-path-is-never-derived-from-a-url` makes a boot
     // question rather than a per-request one.
     let refused = refusal(
         &Fake::with(&["/www/index.nvs"]),
@@ -308,7 +315,8 @@ fn a_tree_with_no_mount_block_has_one_implicit_mount_at_the_root() {
     assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
 }
 
-/// § 3: every resolved path is checked to resolve inside `[server] root`, once, at boot. Both
+/// `rule:http-server/a-mount-table-expands-at-boot`: every resolved path is checked to resolve
+/// inside `[server] root`, once, at boot. Both
 /// sides are named together because a reading that only refused a written `..` would accept the
 /// symlink, which is the same escape with the lexical half already done for it.
 #[test]
@@ -338,7 +346,8 @@ fn an_entry_that_resolves_outside_server_root_is_refused() {
     }
 }
 
-/// § 3's capture charset, which is `rule:errors/path-component-refusals` on every platform. The refusals are named
+/// The capture charset of `rule:http-server/a-mount-table-expands-at-boot`, which is
+/// `rule:errors/path-component-refusals` on every platform. The refusals are named
 /// together because each is a different half of that rule, and a reading that held only the
 /// charset would mount a directory called `CON`.
 #[test]
@@ -512,7 +521,8 @@ fn a_lower_transform_writes_the_capture_in_lower_case() {
     );
 }
 
-/// Two directories a transform folds onto one prefix are two mounts at one key, which § 3 already
+/// Two directories a transform folds onto one prefix are two mounts at one key, which
+/// `rule:http-server/a-mount-table-expands-at-boot` already
 /// makes a boot error — a case-sensitive disk can hold both, and a table that kept either would
 /// serve one module's URL from the other.
 #[test]
@@ -541,7 +551,7 @@ fn a_declared_host_is_held_in_ascii_lower_case() {
 }
 
 /// Two blocks whose hosts differ only in case are one key, as they are to a request: a boot error
-/// when both are explicit, and § 3's override when one is scanned.
+/// when both are explicit, and the explicit mount's override when one is scanned.
 #[test]
 fn two_mounts_whose_hosts_differ_only_in_case_are_a_duplicate() {
     let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/other/app.nvs"]);

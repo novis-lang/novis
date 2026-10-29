@@ -7,8 +7,8 @@
 //! the one place a `*` in a `scan` meets a directory listing. It runs at boot ([`expand`]) and
 //! again off the request path whenever a running server sees a scanned directory change
 //! ([`expand_again`]), and never on a request path. The same glob evaluated per request would be
-//! `cgi.fix_pathinfo` with a different spelling, which is § 2's own sentence for why the expansion
-//! is here rather than in the router.
+//! `cgi.fix_pathinfo` with a different spelling, which is that rule's own sentence for why the
+//! expansion is here rather than in the router.
 //!
 //! **Two halves, because only one of them needs a disk.** [`check`] is everything a block can be
 //! wrong about on its own — naming both `entry` and `scan` or neither, matching on neither `prefix`
@@ -19,13 +19,15 @@
 //! and it is the server's own boot step rather than the resolver's, because a `nvs run` of a CLI
 //! program has no business failing over a `/www` that is not mounted on this host.
 //!
-//! **A capture that reaches a candidate is refused rather than skipped.** § 3 bounds a capture to
+//! **A capture that reaches a candidate is refused rather than skipped.**
+//! `rule:http-server/a-mount-table-expands-at-boot` bounds a capture to
 //! `[A-Za-z0-9._-]+`, forbids a leading dot and refuses a reserved Windows device name
 //! (`rule:errors/path-component-refusals` owns that
-//! list, and § 5's own reasoning is why it fires on every platform). Only a directory that actually
+//! list, and its own reasoning is why it fires on every platform). Only a directory that actually
 //! holds the scanned entry ever reaches the test, so `.git` beside a module costs nothing — and a
 //! module directory named `CON` that *does* hold one is a boot refusal rather than a mount silently
-//! missing from the table, which is `rule:errors/ambiguous-input-refused`'s headline applied to the thing § 2 enumerates.
+//! missing from the table, which is `rule:errors/ambiguous-input-refused`'s headline applied to the
+//! set of entry points `rule:http-server/a-path-is-never-derived-from-a-url` enumerates.
 //!
 //! **Where the origin check is.** `rule:routing/an-origin-is-per-mount-and-checked-at-boot` makes a
 //! mount whose unit contains a literal `Core\Router::urlAbsolute` call and resolves no `origin` a boot
@@ -47,38 +49,44 @@ use crate::tree::{Config, Mount};
 
 /// One resolved mount — a literal entry file and the key a request selects it by.
 ///
-/// Every field is already substituted: `{1}` is gone by the time one of these exists, because § 2's
-/// enumeration is only worth anything if what it enumerates is what a request matches against.
+/// Every field is already substituted: `{1}` is gone by the time one of these exists, because the
+/// enumeration `rule:http-server/a-path-is-never-derived-from-a-url` asks for is only worth anything
+/// if what it enumerates is what a request matches against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mounted {
     /// The path prefix a request's path must begin with, always beginning with `/` and never
-    /// ending with one unless it *is* `/`. § 4 step 2 strips exactly this.
+    /// ending with one unless it *is* `/`. Step 2 of
+    /// `rule:http-server/a-request-resolves-in-five-steps` strips exactly this.
     pub prefix: String,
-    /// The host this mount answers on, in ASCII lower case, or `None` for a host-less mount. § 4
-    /// step 1 tries the host mounts before the host-less ones.
+    /// The host this mount answers on, in ASCII lower case, or `None` for a host-less mount. Step 1
+    /// of `rule:http-server/a-request-resolves-in-five-steps` tries the host mounts before the
+    /// host-less ones.
     pub host: Option<String>,
     /// The entry file, canonical and inside `[server] root`.
     pub entry: PathBuf,
-    /// The directory the entry sits in — § 4's "the mount root", which steps 3 and 4 resolve a
-    /// remainder against. It is the entry's own directory rather than the module's, because a PHP
-    /// deployment's document root is the `public/` the entry lives in and § 4's static policy is
+    /// The directory the entry sits in — the five steps' "the mount root", which steps 3 and 4
+    /// resolve a remainder against. It is the entry's own directory rather than the module's, because
+    /// a PHP deployment's document root is the `public/` the entry lives in and step 3's static policy is
     /// "an existing file under the mount root": pointing it a level higher would serve the module's
     /// source tree.
     pub root: PathBuf,
-    /// What `Core\Router::urlAbsolute` prepends for a request arriving here (§ 3).
+    /// What `Core\Router::urlAbsolute` prepends for a request arriving here
+    /// (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`).
     pub origin: Option<String>,
-    /// § 3's glob captures, in order — `{1}` is `captures[0]`. `Core\Request::mount()` returns
+    /// The glob's captures, in order — `{1}` is `captures[0]`. `Core\Request::mount()` returns
     /// these `tainted`, which is how a multi-tenant application learns which tenant it is serving
     /// without the route table naming a host.
     pub captures: Vec<String>,
 }
 
-/// § 3's implicit mount, for a tree that writes no `[[server.mount]]` at all. `nvs test` over a
+/// `rule:http-server/a-mount-table-expands-at-boot`'s implicit mount, for a tree that writes no
+/// `[[server.mount]]` at all. `nvs test` over a
 /// folder answers a test request with this file too (`rule:testing/in-process-request`).
 pub const IMPLICIT_ENTRY: &str = "public/index.nvs";
 
-/// Why a brace that is not a capture reference is refused rather than kept as text. § 4 step 1
-/// matches a prefix against the path as it was sent, so a brace that survived expansion would be a
+/// Why a brace that is not a capture reference is refused rather than kept as text. Step 1 of
+/// `rule:http-server/a-request-resolves-in-five-steps` matches a prefix against the path as it was
+/// sent, so a brace that survived expansion would be a
 /// mount no request reaches.
 const UNREACHABLE: &str = "a brace is `{n}` or `{n:lower}` and nothing else. A host name and a \
      URL path never contain a brace, so no request could reach this mount";
@@ -218,7 +226,7 @@ enum Piece<'a> {
 /// What a template can be wrong about.
 #[derive(Debug, PartialEq, Eq)]
 enum Malformed<'a> {
-    /// A `{n}` the glob has no `*` for. `{0}` is one: § 3 numbers from 1, and a `{0}` is an operator
+    /// A `{n}` the glob has no `*` for. `{0}` is one: captures number from 1, and a `{0}` is an operator
     /// who counted from zero rather than one who meant something this could resolve.
     OutOfRange(usize),
     /// Braces around something that is neither `n` nor `n:lower`.
@@ -271,16 +279,18 @@ fn pieces(template: &str, captures: usize) -> Result<Vec<Piece<'_>>, Malformed<'
     Ok(out)
 }
 
-/// § 3's globs expanded against the disk: the literal table this configuration lets a server run.
+/// `rule:http-server/a-mount-table-expands-at-boot`'s globs expanded against the disk: the literal
+/// table this configuration lets a server run.
 ///
-/// The order is the order § 4 step 1 wants nothing in particular from — it sorts by host and then
+/// Step 1 of `rule:http-server/a-request-resolves-in-five-steps` wants nothing in particular from
+/// the order — it sorts by host and then
 /// by prefix so that two boots of the same tree over the same disk produce the same table, which is
 /// what makes `nvs info --config`'s printing of it worth reading.
 ///
 /// # Errors
 ///
 /// `E0621` for everything [`check`] refuses, plus what only a disk can answer: a `[server] root`
-/// that is not there, an entry that resolves outside it, a capture § 3's charset forbids, an
+/// that is not there, an entry that resolves outside it, a capture the rule's charset forbids, an
 /// explicit `entry` naming a file that does not exist, and two mounts answering at one key.
 pub fn expand(
     config: &Config,
@@ -297,7 +307,7 @@ pub fn expand(
 /// bad match has served nothing yet, so refusing the start costs nothing. A server that meets one
 /// is already serving every other module, and refusing the whole table would take them all down
 /// for one directory. So each resolved path is still checked against `[server] root` and against
-/// § 3's capture rules, and one that fails is not in the table. Two mounts at one key leave the
+/// its capture rules, and one that fails is not in the table. Two mounts at one key leave the
 /// later one out.
 ///
 /// # Errors
@@ -333,7 +343,7 @@ fn expanding(
         .server
         .as_ref()
         .map_or(&[][..], |server| server.mount.as_slice());
-    // § 3: with nothing written there is exactly one mount, and it is the shape every single-module
+    // With nothing written there is exactly one mount, and it is the shape every single-module
     // deployment has anyway. Spelled as a block rather than as a special case so that it is refused
     // by the same sentences a written one would be.
     let implicit = Mount {
@@ -348,7 +358,7 @@ fn expanding(
     };
 
     // Each holder carries whether it was written literally, because that — and not the order the
-    // blocks were read in — is what § 3's override is decided by.
+    // blocks were read in — is what the explicit-over-scanned override is decided by.
     let mut table: Vec<(bool, Mounted)> = Vec::new();
     for (index, block) in written {
         shape(index, block, origins)?;
@@ -379,10 +389,10 @@ fn expanding(
                 .position(|(_, held)| held.prefix == one.prefix && held.host == one.host);
             match at {
                 None => table.push((literal, one)),
-                // § 3: an explicit mount overrides a scanned one at the same key, so one irregular
+                // An explicit mount overrides a scanned one at the same key, so one irregular
                 // module costs one block and not a second glob. Both orders are the same override,
-                // because a scan reaching a key an `entry` already claimed is what § 3 describes
-                // read from the other end.
+                // because a scan reaching a key an `entry` already claimed is the same case read
+                // from the other end.
                 Some(at) if literal && !table[at].0 => table[at] = (true, one),
                 Some(at) if !literal && table[at].0 => {}
                 Some(_) => refused(duplicate(index, &one.prefix, one.host.as_deref(), origins))?,
@@ -543,7 +553,7 @@ fn mounted(
             origins.get(&format!("server.mount.{index}.entry")),
         )
     })?;
-    // § 3: every resolved path is checked to resolve inside `[server] root` — once, here, and never
+    // Every resolved path is checked to resolve inside `[server] root` — once, here, and never
     // per request. Both sides are canonical, so a `..` and a symlink out of the tree are the same
     // answer as a path written outside it.
     if !entry.starts_with(root) {
@@ -564,7 +574,7 @@ fn mounted(
         prefix: prefix_of(block.prefix.as_deref().unwrap_or("/"), &captures),
         // `rule:http-server/host-matching-is-on-the-host-part-only` folds ASCII case when a request
         // is matched, so the table holds the folded spelling: two blocks whose hosts differ only
-        // in case are then one key to the duplicate check and to § 3's override, as they are to
+        // in case are then one key to the duplicate check and to the explicit-over-scanned override, as they are to
         // a request.
         host: block
             .host
@@ -580,7 +590,8 @@ fn mounted(
     })
 }
 
-/// A written prefix with its captures in it, normalized to the one spelling § 4 step 2 strips.
+/// A written prefix with its captures in it, normalized to the one spelling step 2 of
+/// `rule:http-server/a-request-resolves-in-five-steps` strips.
 ///
 /// A trailing separator is dropped so that `/admin/` and `/admin` are one mount rather than two
 /// that never both match; `/` itself keeps its slash, being the whole of what it names.
@@ -620,7 +631,8 @@ fn substitute(template: &str, captures: &[String]) -> String {
     out
 }
 
-/// § 3's rule for a captured segment, which is `rule:errors/path-component-refusals`'s on every platform.
+/// `rule:http-server/a-mount-table-expands-at-boot`'s rule for a captured segment, which is
+/// `rule:errors/path-component-refusals`'s on every platform.
 fn spells_itself(capture: &str) -> bool {
     !capture.is_empty()
         && !capture.starts_with('.')
@@ -630,7 +642,8 @@ fn spells_itself(capture: &str) -> bool {
         && !crate::capability::is_reserved_device(capture)
 }
 
-/// Two mounts answering the same request, which § 3 makes a boot error rather than a race.
+/// Two mounts answering the same request, which `rule:http-server/a-mount-table-expands-at-boot`
+/// makes a boot error rather than a race.
 fn duplicate(
     index: usize,
     prefix: &str,
@@ -679,7 +692,7 @@ fn ordinal(index: usize) -> String {
     format!("the {word} `[[server.mount]]`")
 }
 
-/// A glob's separator, on either host: § 3 writes one with `/` and Windows spells the same tree
+/// A glob's separator, on either host: a `scan` is written with `/` and Windows spells the same tree
 /// with `\`, and a mount table that read only one of them would be two configurations.
 fn is_separator(ch: char) -> bool {
     ch == '/' || ch == '\\'

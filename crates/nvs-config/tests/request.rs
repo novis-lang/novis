@@ -252,7 +252,7 @@ fn a_name_a_settable_row_governs_that_is_not_a_key_is_refused() {
     assert_eq!(request.get("log.format").as_deref(), Some("text"));
 }
 
-/// § 5's `all()`: every leaf by dotted name, with the overlay folded over it — and the bare name a
+/// `Core\Config::all()`: every leaf by dotted name, with the overlay folded over it — and the bare name a
 /// `set` used resolving to the same `limits.memory` the file wrote.
 #[test]
 fn all_is_every_leaf_by_dotted_name_with_the_overlay_over_it() {
@@ -267,7 +267,8 @@ fn all_is_every_leaf_by_dotted_name_with_the_overlay_over_it() {
     );
 }
 
-/// Values cross as text however the file typed them (§ 5), so an integer directive answers with
+/// Values cross as text however the file typed them (`rule:config/ini-set-is-core-config-set`), so
+/// an integer directive answers with
 /// the way TOML spells it rather than with nothing.
 #[test]
 fn a_typed_directive_crosses_as_the_text_it_was_written_as() {
@@ -305,7 +306,8 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
     //
     // (the block without the key, the line it starts at, the key, the value moved to, that line)
     let moves = [
-        // § 2. The wildcard is in the block, because a request cannot set a list.
+        // `rule:http-server/a-wildcard-origin-with-credentials-is-refused`. The wildcard is in the
+        // block, because a request cannot set a list.
         (
             "[http.cors]\norigins = [\"*\"]\n",
             "credentials = false",
@@ -327,7 +329,8 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
             "true",
             "credentials = true",
         ),
-        // § 3, where the pair breaks from either of its two keys.
+        // `rule:http-server/cookies-are-secure-httponly-and-lax`, where the pair breaks from either
+        // of its two keys.
         (
             "[http.cookies]\nsame_site = \"None\"\n",
             "secure = true",

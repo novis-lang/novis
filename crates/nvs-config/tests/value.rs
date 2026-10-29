@@ -80,7 +80,8 @@ fn every_duration_suffix_names_the_same_span_of_nanoseconds() {
 }
 
 /// `false` is "no ceiling" in both spellings — the boolean a file writes and the string every
-/// `Core\Config::set` writes (§ 5 crosses values as strings in both directions).
+/// `Core\Config::set` writes (`rule:config/ini-set-is-core-config-set` crosses values as strings in
+/// both directions).
 // covers: tools:config/limits-and-limits-hard
 #[test]
 fn false_removes_a_ceiling_however_it_arrives() {

@@ -25,25 +25,26 @@ pub struct Report {
     /// The dotted keys the swap changed and which are now in force, in dotted-key order.
     pub applied: Vec<String>,
     /// The `Boot` keys whose written value changed and which therefore did **not** take effect,
-    /// each named individually. § 5's own paragraph is why they are named rather than counted: a
+    /// each named individually. They are named rather than counted because a
     /// deployment that silently ignores a changed listen address believes it applied a change it
     /// did not. A reloadable key whose new resource could not be built is named here too
     /// ([`reload`]'s `keep`).
     pub ignored: Vec<&'static str>,
     /// How many compiled units the swap invalidated, so an operator knows a recompile wave is
-    /// coming. § 4's rule is what decides it: a changed `env_hash` rekeys **every** unit and an
+    /// coming. `rule:config/the-extension-set-is-in-every-unit-key` decides it: a changed
+    /// `env_hash` rekeys **every** unit and an
     /// unchanged one rekeys none, because a unit key carries the hash whole.
     pub invalidated: usize,
 }
 
 /// Publishes the set built from `next` and `blocks` over what `current` is serving, and reports
-/// § 5's three answers.
+/// the three answers of `rule:config/a-reload-names-what-it-could-not-apply`.
 ///
 /// `next` is the host's snapshot and `blocks` the `[[app]]` roster each entry's own snapshot is
 /// folded from. Every file in `entries` is folded before anything is swapped, so a block that does
 /// not fold for one of them refuses the whole reload ([`Current::publish_set`]).
 ///
-/// `held` is how many compiled units the caller has, which is the only half of § 5's third answer
+/// `held` is how many compiled units the caller has, which is the only half of the third answer
 /// this module cannot know: the unit cache is `nvs-cli`'s.
 ///
 /// `keep` names the reloadable keys whose new resource the caller could not build. Each keeps

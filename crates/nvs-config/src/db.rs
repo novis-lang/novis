@@ -1,6 +1,8 @@
 //! What a `[db.<name>]` block still owes once it has deserialized: the paths that name a file,
 //! resolved — the CA bundle trust-checked as well — and the durations `rule:core-classes/db-one-api` states in prose —
-//! § 13's pool bounds and § 11's `slow_query` threshold — read into numbers. All of it at boot.
+//! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and
+//! `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` threshold — read
+//! into numbers. All of it at boot.
 //!
 //! The paths are [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
 //! `rule:core-classes/db-capabilities`'s TLS leg verifies a server's certificate against, and
@@ -33,7 +35,7 @@
 //! one.** `Db\Settings.path` reaches `Core\Db::open` as `rule:core-classes/db-capabilities`'s path sink, needing
 //! `fs.read`/`fs.write`, and it stays relative to the process rather than to a configuration file
 //! the program never named — `nvs_stdlib::db`'s `sqlite_settings` is that half. The asymmetry is the
-//! same one § 3 draws about an address: what an operator wrote in root-owned configuration is
+//! same one that rule draws about an address: what an operator wrote in root-owned configuration is
 //! resolved against that configuration, and what a program computed is not.
 //!
 //! **The paths are rewritten in place**, absolute, exactly as [`mod@crate::app`] canonicalizes a
@@ -230,7 +232,8 @@ pub(crate) fn rewrite_in(
 /// beside a connection cost less than the pointer chase that would save most of them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolBounds {
-    /// Whether a released connection rejoins a pool at all. `false` is § 13's `pool = false`, which
+    /// Whether a released connection rejoins a pool at all. `false` is
+    /// `rule:security/db-pool-reset-is-a-boundary`'s `pool = false`, which
     /// restores connect-per-request exactly; the bounds below are then the defaults and nothing
     /// reads them.
     pub enabled: bool,
@@ -259,7 +262,7 @@ impl PoolBounds {
         acquire: crate::defaults::DB_POOL_ACQUIRE,
     };
 
-    /// § 13's `pool = false`: the default set with the pool switched off, so a caller that reads a
+    /// `pool = false`: the default set with the pool switched off, so a caller that reads a
     /// bound anyway reads a finite one rather than a zero it would divide by.
     pub const OFF: PoolBounds = PoolBounds {
         enabled: false,
@@ -273,7 +276,7 @@ impl Default for PoolBounds {
     }
 }
 
-/// Every `[db.<name>]` block's pool and § 11 threshold resolve — the boot half of [`pool_for`] and
+/// Every `[db.<name>]` block's pool and `slow_query` threshold resolve — the boot half of [`pool_for`] and
 /// [`slow_query_for`], which is where an unwritable setting becomes a refusal naming its own file.
 ///
 /// It runs over the merged tree for [`canonicalize`]'s reason: which `pool` is in force is a
@@ -281,7 +284,8 @@ impl Default for PoolBounds {
 ///
 /// # Errors
 ///
-/// An unscoped `[db.pool]` table of bounds, which § 13 gives no meaning to and which
+/// An unscoped `[db.pool]` table of bounds, which `rule:security/db-pool-reset-is-a-boundary` gives
+/// no meaning to and which
 /// [`bounds_for`]'s doc argues could not be sized against anything; then the first block whose
 /// bounds do not describe a pool or whose `slow_query` is not a duration, as [`pool_for`] and
 /// [`slow_query_for`] refuse it, or whose `host` is a socket this build has no transport for, as
@@ -527,13 +531,14 @@ pub fn pool_of(
 /// connection that matched no block at all: a `Core\Db::open` whose settings object names an
 /// endpoint no operator wrote. That case takes [`PoolBounds::DEFAULT`], which is the only finite
 /// answer available — there is no table to read — and it is still reached by the unscoped switch,
-/// which is the whole reason § 13 gives that switch an unscoped spelling. An audited deployment
+/// which is the whole reason `rule:security/db-pool-reset-is-a-boundary` gives that switch an
+/// unscoped spelling. An audited deployment
 /// needs every connection the process opens to map to one request, and a per-block key cannot reach
 /// a connection that has no block.
 ///
 /// A name that is not in the tree is the same case as `None` rather than an error: the caller that
 /// asks by name has already established the block exists, and a name that vanished between the two
-/// is a reload, where the superseded generation's own key retires with it (§ 13).
+/// is a reload, where the superseded generation's own key retires with it.
 ///
 /// # Errors
 ///
@@ -564,7 +569,7 @@ const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the po
 /// rather than a number this crate picks.
 ///
 /// Not part of [`PoolBounds`] and not read by [`pool_for`], because it is not a bound on the pool:
-/// it is a property of the statements that run on the connection, and § 13's bounds are resolved
+/// it is a property of the statements that run on the connection, and the pool's bounds are resolved
 /// once per acquire where this is asked once per statement.
 ///
 /// **The unwritten case costs a lookup and nothing else**, which is why the setting is tested before
@@ -598,7 +603,7 @@ pub fn slow_query_for(
 /// a suffix it does not know is refused in its own words rather than in this module's.
 ///
 /// `help` is the caller's because the settings this reads are not one family: a pool bound is
-/// answered by `pool = false` and § 11's `slow_query` by leaving the key out, and a shared line
+/// answered by `pool = false` and `slow_query` by leaving the key out, and a shared line
 /// would name the wrong escape for one of them.
 pub(crate) fn duration(
     key: &str,

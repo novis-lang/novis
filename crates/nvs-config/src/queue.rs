@@ -9,7 +9,7 @@
 //! [`mod@crate::schedule`]'s reasoning one subsystem over, and it is the same trade: one pass over
 //! the merged tree at boot against a failure mode with no signal.
 //!
-//! **`connection` is resolved and not merely read.** § 2 names a `[db.<name>]` block, so the check
+//! **`connection` is resolved and not merely read.** It names a `[db.<name>]` block, so the check
 //! is that the tree holds one — the same shape [`mod@crate::db`] gives a `tls_ca_file`, minus the
 //! filesystem, because a queue names a block and not a path. It runs over the merged tree for that
 //! module's reason: which `[db]` blocks exist is a question only the merge has answered, and a
@@ -22,10 +22,11 @@
 //! answer would be a second place a deployment could be pointed at a different server.
 //!
 //! **The bounds are finite with nothing configured**, per
-//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and § 6 has no unbounded
+//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and
+//! `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` has no unbounded
 //! spelling at all: a job is retried a fixed number of times and then kept, so `max_attempts =
-//! false` is not a bound this module can read. `QueueBounds::DEFAULTS` transcribes § 2's own
-//! example rather than choosing numbers.
+//! false` is not a bound this module can read. `QueueBounds::DEFAULTS` reads the shipped defaults
+//! in [`mod@crate::defaults`] rather than choosing numbers.
 //!
 //! Cost: one pass over one optional block at boot and at reload, and one [`QueueBounds`] held per
 //! configuration generation. Nothing here runs on a request path.
@@ -47,16 +48,18 @@ use crate::value::{Quantity, Unit};
 /// generation the deployment has moved off.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueBounds {
-    /// The `[db.<name>]` key § 2 names — proven to exist by [`queue_for`], so nothing downstream
+    /// The `[db.<name>]` key `connection` names — proven to exist by [`queue_for`], so nothing downstream
     /// re-asks.
     pub connection: String,
-    /// Workers this instance runs. `0` is enqueue-only, which § 2 states as a deployment and not as
-    /// a disabled queue.
+    /// Workers this instance runs. `0` is enqueue-only, which
+    /// `rule:concurrency/who-runs-a-job-is-configuration` states as a deployment and not as a
+    /// disabled queue.
     pub workers: u32,
-    /// Attempts a job gets before § 6 moves it to the dead-letter table. Never `0` — a job that may
+    /// Attempts a job gets before it moves to the dead-letter table. Never `0` — a job that may
     /// never be attempted is dead-lettered by the enqueue that created it.
     pub max_attempts: u32,
-    /// How long a claimed job stays invisible to other workers (§ 4). Never zero: a lease that
+    /// How long a claimed job stays invisible to other workers
+    /// (`rule:concurrency/claiming-is-one-statement`). Never zero: a lease that
     /// expires as it is taken is every worker claiming every job at once.
     pub visibility: Duration,
 }
@@ -226,7 +229,7 @@ fn duration(
         Quantity::Nanos(nanos) => Ok(Some(Duration::from_nanos(nanos))),
         // `Unit::Duration` yields nothing else, and the reachable one is `false` — everywhere else
         // in this tree "no ceiling", which is a meaning a lease does not have: a job held forever
-        // by a worker that died is the failure § 4's visibility timeout exists to end.
+        // by a worker that died is the failure the claim's visibility timeout exists to end.
         _ => Err(refuse(
             key,
             &crate::value::as_written(setting),

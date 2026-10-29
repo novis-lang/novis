@@ -21,7 +21,8 @@ fn p(path: &str) -> PathBuf {
     lexical(Path::new(path))
 }
 
-/// A path spelled host-natively and **left as written**, `..` and all: the escape half of § 4 only
+/// A path spelled host-natively and **left as written**, `..` and all: the escape half of
+/// `rule:security/path-scope-canonicalise-then-prefix` only
 /// means anything if the case can hand `allows` a path nothing has resolved yet.
 fn raw(path: &str) -> PathBuf {
     let mut out = PathBuf::new();
@@ -53,7 +54,7 @@ fn lexical(path: &Path) -> PathBuf {
     out
 }
 
-/// The filesystem § 4's canonicalizer asks: a fixed set of paths that exist, plus any symlink the
+/// The filesystem the path-scope canonicalizer asks: a fixed set of paths that exist, plus any symlink the
 /// case wanted, and nothing else. It is a parameter of `allows` precisely so this can stand in for
 /// `trust::canonical` without the case having to create a real directory to be refused out of.
 struct Disk {
@@ -169,7 +170,8 @@ impl Files for Disk {
 }
 
 /// The `[capabilities]` block `text` spells, canonicalized once as the snapshot's build does it —
-/// the grant side of § 4's canonicalise-then-prefix, which the comparison in `allows` is written to
+/// the grant side of `rule:security/path-scope-canonicalise-then-prefix`, which the comparison in
+/// `allows` is written to
 /// assume has already happened.
 fn granting(text: &str, disk: &Disk) -> Capabilities {
     let mut caps: Capabilities =
@@ -225,7 +227,7 @@ fn spawn_script_without_the_capability_fails() {
         );
     }
 
-    // Granted, but not here. § 4 canonicalizes the argument before the prefix test, so the two ways
+    // Granted, but not here. The argument is canonicalized before the prefix test, so the two ways
     // out of a granted root — a `..` and a symlink pointing across — are the same refusal as a
     // target that never claimed to be inside one.
     for (why, outside) in [
@@ -244,7 +246,8 @@ fn spawn_script_without_the_capability_fails() {
     }
 }
 
-/// § 4's argument side reaches the current directory for a **bare** relative name, so a grant of `.`
+/// The argument side of `rule:security/path-scope-canonicalise-then-prefix` reaches the current
+/// directory for a **bare** relative name, so a grant of `.`
 /// covers the ordinary spelling of a path a program writes.
 ///
 /// `Path::parent` of `copy.txt` is `""`, which canonicalizes nowhere, and a resolver that ran out
@@ -595,7 +598,7 @@ fn an_operator_exception_names_addresses_and_ranges_and_widens_nothing_else() {
     assert_eq!(mapped.address_refused(ip("10.0.0.7")), None);
 
     // And what it did not name stays denied — a neighbour in the same range, the *other* loopback,
-    // and the link-local endpoint § 3 calls out.
+    // and the link-local endpoint `rule:security/net-address-policy` calls out.
     for outside in ["127.0.0.2", "::1", "169.254.169.254", "10.0.0.7"] {
         assert!(
             one.address_refused(ip(outside)).is_some(),
@@ -659,7 +662,8 @@ fn an_operator_exception_names_addresses_and_ranges_and_widens_nothing_else() {
 /// Whether `caps` grants `cap` for `host`, asked in **both** spellings and asserted to agree.
 ///
 /// `allows_host` is what a `nvs check` pass asks and `allows` is what a running request asks
-/// (`rule:core-classes/db-compile-time-query-checking` and § 3), and a check that disagreed with the run it
+/// (`rule:core-classes/db-compile-time-query-checking` and `rule:core-classes/db-capabilities`),
+/// and a check that disagreed with the run it
 /// precedes is the one failure `rule:expressions/preparation-preserves-behaviour` forbids outright. Every wildcard case below goes through
 /// here rather than through either half, so a wildcard read by one caller and not the other fails.
 fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {
@@ -870,8 +874,9 @@ fn db_schema_names_blocks_and_does_not_follow_from_db_connect() {
 /// `net.listen` and `net.local` are rows on the roster, and each is denied until an operator has
 /// written one (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
 ///
-/// Two grants and two shapes. `net.local` is path-scoped like every other path grant, so § 4's
-/// canonicalise-then-prefix governs it and a `..` out of a granted directory is refused rather than
+/// Two grants and two shapes. `net.local` is path-scoped like every other path grant, so
+/// `rule:security/path-scope-canonicalise-then-prefix` governs it and a `..` out of a granted
+/// directory is refused rather than
 /// resolved. `net.listen` is asked of an **endpoint**, and both sides of the comparison are parsed:
 /// what a program binds is an address, not the string an operator typed, so one address's several
 /// spellings are one endpoint and an entry that is not an endpoint at all matches nothing.

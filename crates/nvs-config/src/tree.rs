@@ -102,7 +102,8 @@ pub struct Config {
     /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
-    /// § 13 lets an operator write beside them rather than inside one.
+    /// `rule:security/db-pool-reset-is-a-boundary` lets an operator write beside them rather than
+    /// inside one.
     pub db: Databases,
     /// `[ldap.<name>]` — one named directory per sub-table, bound as the block's own identity
     /// (`rule:security/ldap-pool-is-bound-as-its-block`).
@@ -980,7 +981,7 @@ pub struct StorageDisk {
 /// `[db]` — every named block, and the one directive `rule:security/db-pool-reset-is-a-boundary` lets an operator write
 /// *unscoped*.
 ///
-/// **A bare map has no home for an unscoped `pool = false`.** § 13's switch is written per block as
+/// **A bare map has no home for an unscoped `pool = false`.** The switch is written per block as
 /// `[db.<name>] pool = false`, and an audited deployment — one where every connection must map to
 /// one request — needs it to reach every connection the process opens, including the one a program
 /// described for itself through `Core\Db::open`. That connection names no block, so no per-block key
@@ -998,7 +999,7 @@ pub struct StorageDisk {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Databases {
-    /// `[db] pool = false` — § 13's switch with no block in front of it, and the only key this
+    /// `[db] pool = false` — the pool switch with no block in front of it, and the only key this
     /// table holds that is not a block.
     ///
     /// It is the same [`Pool`] a block's own key is, so that `false` is spelled once; a *table* of
@@ -1042,7 +1043,8 @@ pub struct Database {
     pub driver: Option<String>,
     /// SQLite's file, resolved against the directory of the file it is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     pub path: Option<String>,
-    /// The server host. Refuses `tainted` at the language level and has no launderer (§ 3).
+    /// The server host. Refuses `tainted` at the language level and has no launderer
+    /// (`rule:core-classes/db-capabilities`).
     pub host: Option<String>,
     /// The server port.
     pub port: Option<u16>,
@@ -1052,7 +1054,8 @@ pub struct Database {
     pub password: Option<String>,
     /// The file whose whole content is the password, minus one trailing newline
     /// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of this and `password` may be set, and it stays set after the
-    /// value is read so § 9's dump can name where the secret came from. [`mod@crate::secret`] is
+    /// value is read so `rule:config/check-and-dump-audit-the-tree-offline`'s dump can name where
+    /// the secret came from. [`mod@crate::secret`] is
     /// every rule about it; this is the only field on this struct another module writes to.
     pub password_file: Option<String>,
     /// The database name.
@@ -1096,7 +1099,7 @@ pub struct Database {
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
     /// (`rule:core-classes/db-column-types`), defaulting to UTC.
     ///
-    /// An offset and never a zone name — `"+02:00"`, `"-05:30"`, `"UTC"` — because § 9 sends it to
+    /// An offset and never a zone name — `"+02:00"`, `"-05:30"`, `"UTC"` — because the driver sends it to
     /// the server as a numeric offset, and a named zone needs server-side tables that usually are
     /// not populated. `nvs_db::sql::time_zone_for` is the reader and owns the accepted spellings
     /// and the bound; it answers *no* offset for anything else, which is a value refused rather
@@ -1104,7 +1107,7 @@ pub struct Database {
     pub time_zone: Option<String>,
     /// `[db.<name>.pool]`'s bounds, or the `pool = false` that turns pooling off (`rule:security/db-pool-reset-is-a-boundary`).
     ///
-    /// One key in two shapes, because § 13 writes both against the same name and TOML has one `pool`
+    /// One key in two shapes, because that rule writes both against the same name and TOML has one `pool`
     /// for a table and a boolean alike. [`Pool`] is that pair; `nvs_config::db::pool_for` is the
     /// reader, and it owns the default every bound takes when this is unset.
     pub pool: Option<Pool>,
@@ -1206,24 +1209,29 @@ pub struct Deferred {
 /// redirect into a database it was never granted.
 ///
 /// There is no shape here that turns the queue off, because the block's own absence is that: nothing
-/// is enqueued and nothing runs. `workers = 0` is the other half of § 2's answer and is a different
+/// is enqueued and nothing runs. `workers = 0` is the other half of
+/// `rule:concurrency/who-runs-a-job-is-configuration`'s answer and is a different
 /// fact — this instance enqueues and lets another one work the rows.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Queue {
     /// The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required,
-    /// and § 2 recommends it be the application's own, because that is what makes an enqueue commit
+    /// and `rule:core-classes/queue-storage-is-a-table` recommends it be the application's own,
+    /// because that is what makes an enqueue commit
     /// with the write that caused it.
     pub connection: Option<String>,
-    /// Workers this instance runs, per § 2. `0` makes the instance enqueue-only, which is a
+    /// Workers this instance runs, per `rule:concurrency/who-runs-a-job-is-configuration`. `0`
+    /// makes the instance enqueue-only, which is a
     /// supported deployment and not a disabled queue.
     pub workers: Option<u64>,
-    /// Attempts a job gets before § 6 moves it to the dead-letter table. Finite with nothing
-    /// configured, per `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and there is no spelling for unbounded: § 6's whole shape is
+    /// Attempts a job gets before it moves to the dead-letter table. Finite with nothing
+    /// configured, per `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and there is
+    /// no spelling for unbounded: `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s whole shape is
     /// that nothing is retried forever and nothing is discarded silently.
     pub max_attempts: Option<u64>,
     /// How long a claimed job stays invisible to other workers before it may be claimed again
-    /// (§ 4's lease). A duration, so `5m` and `300s` read the same.
+    /// (`rule:concurrency/claiming-is-one-statement`'s lease). A duration, so `5m` and `300s` read
+    /// the same.
     pub visibility: Option<Setting>,
 }
 
@@ -1234,7 +1242,7 @@ pub struct Schedule {
     /// Required and unique — the log and metric label. A duplicate is a boot error naming both
     /// lines, which is the resolver's check and not this struct's.
     pub name: Option<String>,
-    /// Five-field cron, and nothing more (§ 2).
+    /// Five-field cron, and nothing more (`rule:config/cron-is-five-fields-and-nothing-more`).
     pub cron: Option<String>,
     /// The `.nvs` to fire. A relative path is joined to the folder of the file that wrote it while
     /// the configuration is read, and then checked against the `script.spawn` roots. A path outside
@@ -1266,7 +1274,7 @@ pub struct Metrics {
     /// `nvs_server::push_registry_on_this_core`. Required where `exporter` is
     /// `otlp`.
     pub endpoint: Option<String>,
-    /// Per core (§ 7).
+    /// Per core (`rule:observability/past-max-series-a-new-series-is-refused`).
     pub max_series: Option<u64>,
 }
 
@@ -1308,7 +1316,8 @@ pub struct Server {
     /// file, which is a Rust keyword.
     #[serde(rename = "static")]
     pub serve_static: Option<bool>,
-    /// Fail-closed (§ 6): with nothing here, no forwarding header is believed.
+    /// Fail-closed (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`): with
+    /// nothing here, no forwarding header is believed.
     pub trusted_proxies: Option<Vec<String>>,
     /// Off when empty.
     pub health_path: Option<String>,
@@ -1341,7 +1350,7 @@ pub struct Server {
     /// `[server.connection]` — what holds an upgraded connection, which is a different subject
     /// from the waits above (`rule:concurrency/connection-bounds-are-finite`).
     pub connection: Option<ServerConnection>,
-    /// `[[server.mount]]` — one rule per mount (§ 4).
+    /// `[[server.mount]]` — one rule per mount (`rule:http-server/a-request-resolves-in-five-steps`).
     pub mount: Vec<Mount>,
 }
 
@@ -1396,7 +1405,8 @@ pub struct Mount {
     pub host: Option<String>,
     /// One literal file, overriding a `scan` at this mount's key.
     pub entry: Option<String>,
-    /// Optional — what `Core\Router::urlAbsolute` prepends for requests arriving here (§ 3).
+    /// Optional — what `Core\Router::urlAbsolute` prepends for requests arriving here
+    /// (`rule:routing/an-origin-is-per-mount-and-checked-at-boot`).
     pub origin: Option<String>,
 }
 
@@ -1492,7 +1502,8 @@ pub struct CacheShared {
 /// Every key here is `System`/`Boot` per `crate::directive`'s `session` row: where a
 /// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
 /// strand every live record in the store nobody reads any more. There is no `gc_probability` pair
-/// and no `save_path` — § 5 gives expiry to the store, and § 3 gives it no backend that keeps files.
+/// and no `save_path` — `rule:http-server/session-expiry-belongs-to-the-store` gives expiry to the
+/// store, and the backend rule above gives it no backend that keeps files.
 ///
 /// The block being absent is **not** a default backend: `Core\Session::start()` throws naming this
 /// block, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s "nothing configured is already safe" applied to a store nobody chose.

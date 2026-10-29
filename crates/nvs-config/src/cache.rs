@@ -1,7 +1,7 @@
 //! `rule:config/the-extension-set-is-in-every-unit-key`: the one `env_hash` both compiled-unit cache keys carry.
 //!
 //! The caches that key a compiled unit — the on-disk artifact cache (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`) and the in-memory
-//! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — are given the same environment digest by § 4, so that a unit compiled
+//! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — are given the same environment digest, so that a unit compiled
 //! against one extension set, one CPU or one compiler is never reused against another:
 //!
 //! ```text
@@ -30,7 +30,7 @@
 //! already the key's other two fields.
 //!
 //! **Both keys are built here, in the crate that holds the extension set**, rather than each in the
-//! cache that uses it. Those caches live in other crates and answer the same question; § 4's
+//! cache that uses it. Those caches live in other crates and answer the same question; the rule's
 //! whole content is that they answer it *with the same value*, and two implementations of one
 //! formula is how one of them ends up hashing three pins where the other hashes four. A
 //! [`UnitKey`]'s fields are private and [`UnitKey::new`] takes an [`EnvHash`] for the same reason:

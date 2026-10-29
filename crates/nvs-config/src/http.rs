@@ -2,10 +2,10 @@
 //! `Core\Config::set` both ask — and, beside them, the values under `[http.*]` that are refused
 //! before either question is worth asking.
 //!
-//! **The rule is written once and read from two places, and that asymmetry is the module.** § 2
-//! refuses `origins = ["*"]` with `credentials = true` and § 3 refuses `same_site = "None"` with
-//! `secure = false`, "at boot with the line named and at runtime by `Core\Config::set` returning
-//! `false`". Two refusals in two shapes is a standing invitation to write the *condition* twice and
+//! **The rule is written once and read from two places, and that asymmetry is the module.**
+//! `rule:http-server/a-wildcard-origin-with-credentials-is-refused` refuses `origins = ["*"]` with
+//! `credentials = true` and `same_site = "None"` with `secure = false`, "at boot with the line named
+//! and at runtime by `Core\Config::set` returning `false`". Two refusals in two shapes is a standing invitation to write the *condition* twice and
 //! have them drift, which is why [`Inbound`] holds the values the two questions are decided from
 //! and [`Inbound::meaningless`] is the only place either question is answered.
 //! [`validate`] reads those values off the merged tree; [`Request::set`](crate::request::Request)
@@ -14,25 +14,26 @@
 //!
 //! **Refused rather than warned**, because neither combination is a weak policy — every browser
 //! rejects both, so a deployment that wrote one has an access-control rule that does not do what it
-//! says and no signal that it does not. § 2 says so for CORS and § 3 says the cookie pair is refused
-//! "by the same mechanism, for the same reason".
+//! says and no signal that it does not. The rule says so for CORS, and refuses the cookie pair "by
+//! the same mechanism for the same reason".
 //!
-//! **An absent key is its shipped default, not `false`.** § 2's CORS block is closed with nothing
-//! written and § 3's cookies are `Secure; HttpOnly; SameSite=Lax`, so a tree that never mentions
+//! **An absent key is its shipped default, not `false`.** The CORS block is closed with nothing
+//! written (`rule:http-server/cors-is-closed-until-origins-are-named`) and cookies are
+//! `Secure; HttpOnly; SameSite=Lax` (`rule:http-server/cookies-are-secure-httponly-and-lax`), so a tree that never mentions
 //! `secure` has `secure = true` in force and a `same_site = "None"` written beside it is meaningful.
 //! Reading an absent boolean as `false` would refuse that tree, which is the one direction a
 //! security check must not fail in: it would teach operators to write the pair out to get a boot.
 //!
-//! **[`Cookies`] is the other half of § 3, and it is a resolver rather than a refusal.** The pair
+//! **[`Cookies`] is the other half of the cookie rule, and it is a resolver rather than a refusal.** The pair
 //! above says which trees are wrong; this says what a `Core\Response::addCookie` inherits for an
 //! option its call site left out — `Secure; HttpOnly; SameSite=Lax; Path=/` with nothing written.
-//! Both read the same block, and `secure` is the one value both need, read once here so § 3's
-//! default for it is stated in one place. [`validate`] additionally refuses a `same_site` that is
+//! Both read the same block, and `secure` is the one value both need, read once here so its
+//! default is stated in one place. [`validate`] additionally refuses a `same_site` that is
 //! none of the three spellings, as `E0624`: that is what lets [`Cookies::of`] resolve the key with
 //! no fourth arm, and so without ever repairing one.
 //!
 //! **[`validate`] additionally refuses what the wire cannot carry, which is a different question
-//! from what a policy means.** § 1's free-text values — `referrer_policy`,
+//! from what a policy means.** `rule:http-server/secure-headers-with-nothing-written`'s free-text values — `referrer_policy`,
 //! `content_security_policy` and `permissions_policy` — go onto every response verbatim, so a
 //! `\r\n` in one is a response split against every request the server will answer. `nvs_server`'s
 //! `secure` already declines to spell such a value and emits the shipped default instead, which is
@@ -40,7 +41,7 @@
 //! its policy is in force and nothing says otherwise. `E0625` at boot is what makes that fallback
 //! unreachable from a server that started, and both are kept.
 //!
-//! **§ 2's own values are refused on the same two terms**, because `nvs_server::cors` resolves them
+//! **The CORS block's own values are refused on the same two terms**, because `nvs_server::cors` resolves them
 //! into header lines at boot and so has the same fallbacks to make unreachable: an entry of
 //! `methods`, `headers` or `expose` that a header line cannot carry is `E0625`, and a `max_age`
 //! that is not a duration is `E0601` — the code a directive whose value is not what its unit takes
@@ -95,7 +96,8 @@ pub const RESOLVE_LOCALLY: &str = "local";
 /// word costs and what every boot says about it.
 pub const RESOLVE_AT_THE_PROXY: &str = "proxy";
 
-/// The values §§ 2-3's two refusals are decided from, resolved to what is in force.
+/// The values `rule:http-server/a-wildcard-origin-with-credentials-is-refused`'s two refusals are
+/// decided from, resolved to what is in force.
 ///
 /// Booleans and not the blocks themselves, because the callers read from different places — a typed
 /// tree at boot, a snapshot plus an overlay plus a proposed assignment inside a request — and the
@@ -107,25 +109,26 @@ pub const RESOLVE_AT_THE_PROXY: &str = "proxy";
 pub struct Inbound {
     /// Whether `[http.cors] origins` contains `*`.
     pub star_origin: bool,
-    /// `[http.cors] credentials`; § 2's default is `false`.
+    /// `[http.cors] credentials`; its default is `false`.
     pub credentials: bool,
-    /// Whether `[http.cookies] same_site` is `None`; § 3's default is `Lax`.
+    /// Whether `[http.cookies] same_site` is `None`; its default is `Lax`.
     pub same_site_none: bool,
-    /// `[http.cookies] secure`; § 3's default is `true`.
+    /// `[http.cookies] secure`; its default is `true`.
     pub secure: bool,
 }
 
-/// A combination with no correct meaning — one variant per pair §§ 2-3 refuse.
+/// A combination with no correct meaning — one variant per pair
+/// `rule:http-server/a-wildcard-origin-with-credentials-is-refused` refuses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Meaningless {
-    /// § 2: `origins = ["*"]` together with `credentials = true`.
+    /// `origins = ["*"]` together with `credentials = true`.
     CorsStarWithCredentials,
-    /// § 3: `same_site = "None"` together with `secure = false`.
+    /// `same_site = "None"` together with `secure = false`.
     SameSiteNoneWithoutSecure,
 }
 
 impl Inbound {
-    /// What is in force for a tree, with every absent key at §§ 2-3's shipped default.
+    /// What is in force for a tree, with every absent key at its shipped default.
     #[must_use]
     pub fn of(http: Option<&Http>) -> Self {
         let cors = http.and_then(|http| http.cors.as_ref());
@@ -149,7 +152,7 @@ impl Inbound {
     /// Folds one `key = value` assignment in — a request's overlay entry, or the value
     /// `Core\Config::set` is proposing. A key deciding neither pair changes nothing.
     ///
-    /// `origins` is absent on purpose: it is a list, and § 5 of `rule:config/the-file-is-nvs-toml-and-it-is-toml` crosses values as text, so
+    /// `origins` is absent on purpose: it is a list, and `rule:config/ini-set-is-core-config-set` crosses values as text, so
     /// no request can set one. Which star origins are in force is therefore always the snapshot's
     /// answer, and [`of`](Self::of) has already read it.
     pub fn assign(&mut self, key: &str, value: &str) {
@@ -161,7 +164,7 @@ impl Inbound {
         }
     }
 
-    /// Whether either pair is one of §§ 2-3's, and which — [`None`] for a meaningful configuration.
+    /// Whether either refused pair is in force, and which — [`None`] for a meaningful configuration.
     ///
     /// The one place the condition itself is written. Both refusals check the *pair*: a star origin
     /// alone is a deliberate public API and `same_site = "None"` alone is an ordinary cross-site
@@ -228,18 +231,18 @@ impl Meaningless {
     }
 }
 
-/// § 3's `same_site`, as the closed set the attribute actually has.
+/// `[http.cookies] same_site`, as the closed set the attribute actually has.
 ///
 /// A `String` in the tree and an enum from here on, because everything downstream of the parse asks
 /// which of three this is rather than what it was spelled as — [`validate`] refuses a fourth
 /// spelling at boot, so no later reader has to carry an "or something else" arm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SameSite {
-    /// Sent with a top-level navigation and not with a cross-site subrequest — § 3's default.
+    /// Sent with a top-level navigation and not with a cross-site subrequest — the default.
     Lax,
     /// Never sent cross-site at all.
     Strict,
-    /// Sent cross-site, which is why § 3 pairs it with `Secure`.
+    /// Sent cross-site, which is why it is refused without `Secure`.
     None,
 }
 
@@ -247,7 +250,7 @@ impl SameSite {
     /// The three spellings, case-insensitively; [`None`] for anything else.
     ///
     /// Case-insensitive because the attribute a browser parses is, so a tree writing `none` has
-    /// configured the same cookie and must reach § 3's refusal rather than a fourth-spelling one.
+    /// configured the same cookie and must reach the pair's refusal rather than a fourth-spelling one.
     #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         let value = value.trim();
@@ -274,14 +277,14 @@ impl SameSite {
     }
 }
 
-/// § 3's defaults, resolved to what is in force — what every `Core\Response::addCookie`
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`'s defaults, resolved to what is in force — what every `Core\Response::addCookie`
 /// inherits for an option its call site left out.
 ///
 /// Beside [`Inbound`] rather than folded into it, because the two answer different questions off
 /// the same block: `Inbound` holds the booleans *two refusals* are decided from, and this holds
 /// the values *a cookie is written with*. They overlap in `secure` alone, and that one
-/// value is read here through the same `unwrap_or(true)` on purpose — § 3 states one default for
-/// it, so a second statement of it would be the drift this module exists to prevent.
+/// value is read here through the same `unwrap_or(true)` on purpose — the rule states one default
+/// for it, so a second statement of it would be the drift this module exists to prevent.
 ///
 /// Cost: one `String` clone per `addCookie` call, for `path`. The alternative is borrowing the
 /// snapshot across the member's own writes, which `crates/nvs-stdlib`'s queue path already declined
@@ -289,18 +292,18 @@ impl SameSite {
 /// once.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cookies {
-    /// The `Secure` attribute; § 3's default is `true`.
+    /// The `Secure` attribute; its default is `true`.
     pub secure: bool,
-    /// The `HttpOnly` attribute; § 3's default is `true`.
+    /// The `HttpOnly` attribute; its default is `true`.
     pub http_only: bool,
-    /// The `SameSite` attribute; § 3's default is [`SameSite::Lax`].
+    /// The `SameSite` attribute; its default is [`SameSite::Lax`].
     pub same_site: SameSite,
-    /// The `Path` attribute; § 3's default is `/`.
+    /// The `Path` attribute; its default is `/`.
     pub path: String,
 }
 
 impl Cookies {
-    /// What is in force for a tree, with every absent key at § 3's shipped default.
+    /// What is in force for a tree, with every absent key at its shipped default.
     ///
     /// An unparseable `same_site` resolves to the default rather than throwing, and that is not a
     /// repair: [`validate`] has already refused such a tree at boot, so this arm is reachable only
@@ -328,7 +331,7 @@ impl Cookies {
     }
 }
 
-/// Whether a `same_site` value is § 3's `None`.
+/// Whether a `same_site` value is `None`.
 fn is_none_same_site(value: &str) -> bool {
     SameSite::parse(value) == Some(SameSite::None)
 }
@@ -878,7 +881,8 @@ fn socket_bound(
     ))
 }
 
-/// §§ 2-3's two refusals, asked of the merged tree at boot.
+/// `rule:http-server/a-wildcard-origin-with-credentials-is-refused`'s two refusals, asked of the
+/// merged tree at boot.
 ///
 /// # Errors
 ///
@@ -931,7 +935,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
                 .to_string(),
         ));
     }
-    // § 1's free-text policies, before anything about meaning: a value the wire cannot carry
+    // `[http.headers]`'s free-text policies, before anything about meaning: a value the wire cannot carry
     // is not a policy that is wrong, it is a policy that never reaches a peer at all.
     let headers = config.http.as_ref().and_then(|http| http.headers.as_ref());
     if let Some(headers) = headers {
@@ -964,7 +968,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     }
     let cors = config.http.as_ref().and_then(|http| http.cors.as_ref());
     if let Some(cors) = cors {
-        // § 2's lists reach a preflight's header lines exactly as § 1's policies reach an
+        // The CORS lists reach a preflight's header lines exactly as `[http.headers]`'s policies reach an
         // ordinary answer's, so they are refused here on the same terms and under the same code.
         // `origins` is not among them: it is never written onto a response, only compared byte for
         // byte against an `Origin` a peer sent, and a value the wire delivered is carriable by
@@ -1004,7 +1008,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
                 .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
         }
     }
-    // Before the pairs, because an unreadable `same_site` leaves § 3's question unanswerable: a
+    // Before the pairs, because an unreadable `same_site` leaves the cookie pair's question unanswerable: a
     // fourth spelling is not `None`, so the pair check would pass it and `Cookies::of` would then
     // have to choose between repairing it and failing inside a request. Refusing here is the only
     // arrangement where neither happens.

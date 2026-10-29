@@ -138,7 +138,7 @@ pub struct Request {
 /// one spelling would make the format's one required section conditional.
 ///
 /// The roster is **closed**, and a `--format` spelling is a variant of it
-/// rather than a flag string carried along: § 22's formats are a closed list
+/// rather than a flag string carried along: `rule:testing/report-formats` is a closed list
 /// too, so this stays one enum whose every value is a command line this binary
 /// has, and a misspelling is refused where it is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -148,16 +148,19 @@ pub enum Subcommand {
     Run,
     /// `nvs test case.nvs` — the program's `#[Test]` methods are the case.
     Test,
-    /// `nvs test --format=json case.nvs` — § 22's JSON document is the case.
+    /// `nvs test --format=json case.nvs` — `rule:testing/report-formats`'s JSON
+    /// document is the case.
     TestJson,
-    /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
+    /// `nvs test --format=junit case.nvs` — `rule:testing/report-formats`'s JUnit
+    /// XML is the case.
     TestJunit,
     /// `nvs test --show-output --jobs 1 case.nvs` — the plaintext report with
     /// every test's output printed as it runs, one test at a time, so a
     /// passing test's output is pinned in a fixed place
     /// (`rule:testing/tests-run-across-every-core`).
     TestShowOutput,
-    /// `nvs test --list --format=json case.nvs` — § 22's discovery document is
+    /// `nvs test --list --format=json case.nvs` — `rule:testing/report-formats`'s
+    /// discovery document is
     /// the case, and what it says is that the program's tests were located
     /// without being run.
     TestListJson,
