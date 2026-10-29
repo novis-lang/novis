@@ -1,0 +1,36 @@
+<?nvs
+// Attack: the blog program tries to read the settings of the shop, another
+// application on the same server. Every attempt below should give `null` or
+// find nothing.
+
+// The blog can read its own setting. This prints `10`.
+echo 'own setting: ', Core\Config::setting('posts_per_page') as ?int ?? 0, "\n";
+
+// 1. Uses the name of the shop's setting.
+echo 'shop key: ', Core\Config::setting('admin_email') ?? 'null', "\n";
+echo 'shop table: ', Core\Json::encode(Core\Config::setting('payment')), "\n";
+echo 'shop table key: ', Core\Config::setting('payment.account') ?? 'null', "\n";
+
+// 2. Puts the name of the application or of the block in front of the key.
+echo 'app name: ', Core\Config::setting('shop.admin_email') ?? 'null', "\n";
+echo 'app name capital: ', Core\Config::setting('Shop.admin_email') ?? 'null', "\n";
+echo 'block name: ', Core\Config::setting('app.settings.admin_email') ?? 'null', "\n";
+echo 'block index: ', Core\Config::setting('app.0.settings.admin_email') ?? 'null', "\n";
+echo 'folder path: ', Core\Config::setting('shop/admin_email') ?? 'null', "\n";
+
+// 3. Reads the setting through `Core\Config::get`, which reads the server's settings.
+echo 'get settings: ', Core\Config::get('settings.admin_email') ?? 'null', "\n";
+echo 'get app: ', Core\Config::get('app.settings.admin_email') ?? 'null', "\n";
+echo 'get own: ', Core\Config::get('settings.posts_per_page') ?? 'null', "\n";
+
+// 4. Searches every name and value that `Core\Config::all` returns.
+int $found = 0;
+foreach (Core\Config::all() as string $name => string $value) {
+    if (Core\Str::contains($name, 'admin_email') || Core\Str::contains($value, 'shop.example.com')) {
+        $found = $found + 1;
+    }
+    if (Core\Str::contains($name, 'payment') || Core\Str::contains($value, 'shop-account')) {
+        $found = $found + 1;
+    }
+}
+echo 'found in all: ', $found, "\n";

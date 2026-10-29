@@ -1,0 +1,3 @@
+https://api.example.com/orders
+3
+{"base":"https://api.example.com","retries":3}

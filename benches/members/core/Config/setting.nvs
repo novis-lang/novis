@@ -1,0 +1,28 @@
+<?nvs
+// Measures reading one value from the `[settings]` block. A program does this when
+// it needs a page size or a site name to build a page.
+// bench: iterations 256
+// bench: calls 1
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['page_size', 'not_set'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name read in each round is chosen by the round before it, so no round
+            // can be left out.
+            var $value = Core\Config::setting($names[($total % 2) as int]);
+            uint $step = $value == null ? 1 : 3;
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// `nvs.toml` sets `page_size` and does not set `not_set`, so this prints `read`.
+echo Bench::run(256) > 0 ? "read\n" : "empty\n";

@@ -1,0 +1,8 @@
+# The values these examples read with `Core\Config::setting`.
+[settings]
+site_name = "Corner Shop"
+page_size = 20
+
+[settings.api]
+base = "https://api.example.com"
+retries = 3

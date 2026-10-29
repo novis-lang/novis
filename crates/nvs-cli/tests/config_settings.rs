@@ -272,6 +272,7 @@ const SHOP_AND_BLOG: &str = "[settings]\npage_size = 10\ntitle = \"Store\"\n\n\
 /// Each mount reads the snapshot of its own application. `shop` reads its
 /// block's values over the global ones, and `blog` reads the global ones and
 /// never `shop`'s.
+// covers: Core\Config::setting, Core\Config::secret
 #[test]
 fn an_app_reads_its_own_settings_and_not_another_apps() {
     let server = Server::start(

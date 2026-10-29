@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to use a default value when `nvs.toml` does not set a setting.
+
+// `nvs.toml` does not set `cache_seconds`, so `as ?int` gives `null`.
+// This prints `null`.
+echo Core\Json::encode(Core\Config::setting('cache_seconds') as ?int), "\n";
+
+// The `??` operator replaces `null` with a default value. This prints `60`.
+int $seconds = Core\Config::setting('cache_seconds') as ?int ?? 60;
+echo $seconds, "\n";
+
+// `site_name` is text and not a whole number, so `as ?int` also gives `null`.
+// This prints `60`.
+echo Core\Config::setting('site_name') as ?int ?? 60, "\n";

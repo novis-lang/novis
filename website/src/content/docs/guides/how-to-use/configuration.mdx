@@ -139,12 +139,67 @@ Every file must belong to the account that runs `nvs serve`, or to root. No othe
 write to the file or to its folder. Otherwise `nvs serve` stops with the error `E0607`. A file can
 grant capabilities, so this check protects it.
 
+## Your program's own settings and secrets
+
+Four blocks are for your own values: `[settings]`, `[secrets]`, `[app.settings]` and
+`[app.secrets]`. You choose the key names. A key name has letters, digits and `_`, and it does not
+start with a digit.
+
+```toml
+[settings]
+page_size = 20                # an int
+shop_name = "Example Shop"    # a string
+
+[settings.api]
+base = "https://api.example.com"
+
+[secrets]
+api_key_file = "/run/secrets/api_key"   # the file contains the value
+```
+
+`Core\Config::setting` returns a value with its type from the file. A number is an `int` or a
+`float`, and `true` is a `bool`. A block such as `[settings.api]` is an array. Read one of its
+keys with a dot: `api.base`. The result is `null` when no block sets the name.
+
+```nvs
+int $size = Core\Config::setting('page_size') as int;
+string $base = Core\Config::setting('api.base') as string;
+```
+
+`Core\Config::secret` returns a `secret string`. Your program can send it in a request header or
+use it as a database password. It cannot print it or write it to a log. Write a secret in the
+file, or write `name_file` with the path of a file that contains it.
+
+`[app.settings]` and `[app.secrets]` under an `[[app]]` block are for that application only. Each
+key replaces the same key from `[settings]` or `[secrets]`.
+
+To use other values on one server, put them in a file on that server and include it:
+
+```toml
+# nvs.toml
+[settings]
+page_size = 20
+
+[[include]]
+path = "/etc/nvs/this-server.toml"
+optional = true
+```
+
+```toml
+# /etc/nvs/this-server.toml
+[settings]
+page_size = 50
+```
+
+On that server `page_size` is `50`. On every other server it is `20`.
+
 ## Check it before you deploy
 
 A key that Novis does not know stops the program before it starts, with the error `E0601`. So a typo
 in a key always gives an error message.
 
-- `nvs config check` reads the file and reports every error.
+- `nvs config check` reads the file and reports every error. It also warns about a key in the four
+  blocks that no program reads.
 - `nvs config dump --origin` prints every key that is set, and the file that set it. When a later
   file replaced a key, it names both files.
 

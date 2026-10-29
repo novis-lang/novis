@@ -1,0 +1,2 @@
+This file keeps the empty `shop` folder in the repository.
+The `[[app]]` block for the shop in `nvs.toml` names this folder.

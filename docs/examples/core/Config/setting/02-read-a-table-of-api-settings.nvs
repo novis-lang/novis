@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the values of a table such as `[settings.api]`.
+
+// A dotted name reads one key of the table.
+// This prints `https://api.example.com/orders`.
+string $base = Core\Config::setting('api.base') as string;
+echo $base . '/orders', "\n";
+
+// `retries` is an integer in the file, so the result is an `int`. This prints `3`.
+int $retries = Core\Config::setting('api.retries') as int;
+echo $retries, "\n";
+
+// The name of the table returns all of its keys in one array.
+// This prints `{"base":"https://api.example.com","retries":3}`.
+echo Core\Json::encode(Core\Config::setting('api')), "\n";

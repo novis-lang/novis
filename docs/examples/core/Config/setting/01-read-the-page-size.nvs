@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the size of a page from the `[settings]` block of `nvs.toml`.
+
+// `site_name` is a string in the file. This prints `Corner Shop`.
+string $siteName = Core\Config::setting('site_name') as string;
+echo $siteName, "\n";
+
+// `page_size` is a whole number in the file, so `as int` works.
+// This prints `Products 1 to 20`.
+int $pageSize = Core\Config::setting('page_size') as int;
+echo 'Products 1 to ', $pageSize, "\n";
+
+// The second page starts after the first one. This prints `Page 2 starts at 21`.
+echo 'Page 2 starts at ', $pageSize + 1, "\n";

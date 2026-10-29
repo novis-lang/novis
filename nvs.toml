@@ -2848,6 +2848,21 @@ pool_idle_timeout = "30s"
 [http.client.tls]
 min_version = "1.2"
 
+# The values the `Core\Config::setting` and `Core\Config::secret` benches read, so each bench times
+# a name that is set beside one that is not. A class directory's own `nvs.toml` would replace this
+# whole file for every `Core\Config` bench, and `all`'s cost would change with it.
+[[app]]
+entry = "benches/members/core/Config/setting.nvs"
+
+[app.settings]
+page_size = 20
+
+[[app]]
+entry = "benches/members/core/Config/secret.nvs"
+
+[app.secrets]
+api_key = "bench-key"
+
 [[app]]
 entry = "benches/members/core/Db-Connection/execute.scale.nvs"
 
