@@ -376,8 +376,9 @@ impl<'a> Lowering<'a> {
             }
             // `rule:iteration/generators`'s suspension point. Only the statement position
             // is lowered, for `throw`'s reason above: `yield` produces
-            // nothing a surrounding expression could consume (§ 5 gives a
-            // generator no `send()`), so there is no other position worth
+            // nothing a surrounding expression could consume
+            // (`rule:iteration/one-way-only` gives a generator no `send()`), so there
+            // is no other position worth
             // having.
             ExprKind::Yield {
                 key: None,
@@ -408,7 +409,8 @@ impl<'a> Lowering<'a> {
             ExprKind::Require { path } => {
                 if let Some(target) = self.exprs.require_target(path.span) {
                     // The frame returns whatever the file's own `return`
-                    // handed back, or § 3's `1` where it never returned at
+                    // handed back, or `rule:statements/a-require-expression-is-mixed`'s
+                    // `1` where it never returned at
                     // all, and the statement form reads neither — but the
                     // value is still this frame's to release, exactly as a
                     // discarded anonymous object's is.
@@ -447,8 +449,9 @@ impl<'a> Lowering<'a> {
             // A value built and immediately discarded. `new` above is the
             // same shape and the same one line of accounting: the literal is
             // a fresh producer, so this frame owns the only reference to it
-            // and releases it here. Worth lowering at all only because § 2
-            // names it — the statement is a no-op with an allocation in it,
+            // and releases it here. Worth lowering at all only because
+            // `rule:types/anonymous-object` names it — the statement is a no-op with
+            // an allocation in it,
             // and the checker has already reported anything wrong inside.
             ExprKind::AnonObject(_) => {
                 let (v, ty) = self.lower_expr(e, None, env, cur);
@@ -1433,7 +1436,7 @@ impl<'a> Lowering<'a> {
                 // the name-keyed write its own read mirrors and leaves before
                 // the class machinery below. That arm is also the erased
                 // receiver's — a plain `object` and a `mixed` both record the
-                // same variant — so § 4's write half, incoming-value check
+                // same variant — so that rule's write half, incoming-value check
                 // included, is here rather than in the `panic!` below, which
                 // has no reachable target at all.
                 // `guarded` is a read's question and is never set on a write
@@ -1465,7 +1468,8 @@ impl<'a> Lowering<'a> {
                     );
                 }
                 // `rule:types/property-key-access`'s `$obj->$key = v`, whose name arrives as a
-                // value: § 5 makes it `rule:types/erased-member-access`'s checked erased store with
+                // value: that rule makes it `rule:types/erased-member-access`'s checked erased
+                // store with
                 // the name taken from the key, so it leaves before the class
                 // machinery below for the shape target's reason and one more —
                 // there is no name here to ask about a hook with.

@@ -198,7 +198,7 @@ impl<'a> Lowering<'a> {
         // neither ever reaches `erase_checked_ty` — a shape has no IR type at
         // all. See [`Self::lower_options_arg`].
         // The merged list and never the arms: which arm the literal selected is
-        // a checking question `nvs-types` has already settled, and § 3's ABI is
+        // a checking question `nvs-types` has already settled, and the ABI is
         // one argument per merged slot whichever arm that was.
         if let CheckedTy::CoreShape(shape) = checked_types.get(sig.param_tys[index]) {
             let options = shape.fields.clone();
@@ -805,7 +805,8 @@ impl<'a> Lowering<'a> {
     /// `nvs_runtime::call_callable`, the same entry point every `Core` member
     /// taking a `callable` already reaches, so a callable invoked from Novis
     /// takes no second path into a compiled body. It is deliberately **not**
-    /// an [`InstKind::Call`]: § 1 gives `callable` no parameter list, so
+    /// an [`InstKind::Call`]: a bare `callable` carries no parameter list
+    /// (`rule:types/callable-signature`), so
     /// there is no resolved target to name, no per-argument expected type to
     /// lower against and no arity to check, and the callable object's own
     /// `invoke` answers all three at run time.
@@ -1418,7 +1419,8 @@ impl<'a> Lowering<'a> {
 /// `$timestamped->touch()` reaching nothing. `lower_program` adds the same
 /// name to the class's method table, which is what that dispatch reads.
 ///
-/// The body is § 4's own one-liner, `return $this->field->method(...);`: read
+/// The body is `rule:classes/delegation-by-property`'s own one-liner,
+/// `return $this->field->method(...);`: read
 /// the field, retain it (a field read borrows, and
 /// [`InstKind::CallVirtual`] transfers its receiver), then the call, then the
 /// return. The call is late-bound with **no fallback** — the field's declared

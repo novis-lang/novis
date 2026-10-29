@@ -57,8 +57,8 @@ codes! {
     /// the file that names it.
     ///
     /// It is said out loud because that space is invisible in the one place an
-    /// operator looks. In the file half of a § 7 pair there is nothing to see
-    /// at all, and at the end of a TOML line it is a space before a quote. A
+    /// operator looks. In the file half of a `password`/`password_file` pair
+    /// there is nothing to see at all, and at the end of a TOML line it is a space before a quote. A
     /// reader that quietly trims it instead turns a working credential into an
     /// authentication failure at the far end, which is the bug this code
     /// exists to make loud.

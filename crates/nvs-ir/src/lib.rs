@@ -33,7 +33,8 @@
 //!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/anonymous-function`'s anonymous functions,
 //!   `is`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
 //!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
-//!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
+//!   `as ?T` over every row `rule:expressions/nullable-conversion-availability` makes
+//!   available.
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
 //!   `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
@@ -257,7 +258,7 @@
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
 //!    table's completeness check applied to the `T` inside the sugar. The other direction —
-//!    a row § 3 calls **available** — has its `?` helper: `$m as ?array<U>` is
+//!    a row that rule calls **available** — has its `?` helper: `$m as ?array<U>` is
 //!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
 //!    spelling runs, answering `null` where that one throws. `$m as ?Shape`
 //!    runs the checked shape row's field walk with a `null` miss arm
@@ -269,7 +270,7 @@
 //!    [`ir::Helper::ToBytesOrNull`] is [`ir::Helper::TaggedToBytes`]'s twin
 //!    over that pair's other direction, the two rows a tag can take into a
 //!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is
-//!    § 3's —
+//!    `rule:expressions/nullable-conversion-availability`'s too —
 //!    `nvs_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all: `Core\Uri::tryParse`
 //!    is an ordinary member call.
@@ -296,7 +297,7 @@
 //!    Every `rule:types/erased-member-access` receiver lowers: a shape naming one
 //!    of its own fields, a shape asked for a name it does not list, a
 //!    plain `object`, and a `mixed`. Each is one
-//!    [`ir::InstKind::SlotGet`] — § 4's
+//!    [`ir::InstKind::SlotGet`] — that rule's
 //!    **name-keyed** fetch, which is therefore right through a widened view
 //!    too — or one [`ir::InstKind::SlotSet`], which additionally checks the
 //!    incoming value's tag against what the concrete class declares the field
@@ -304,7 +305,7 @@
 //!    state what that granularity misses. The erased ones differ only in what
 //!    the checker could record: no slot to hint (so `0`, which the runtime's
 //!    by-name search corrects) and no type (so [`ty::Ty::Tagged`]), which
-//!    makes § 4's missing-name throw reachable rather than theoretical. A
+//!    makes the rule's missing-name throw reachable rather than theoretical. A
 //!    `mixed` receiver adds the one thing the others cannot: an
 //!    unproven *tag*, so `lower::expr`'s `ReceiverProof::Erased` emits no
 //!    [`ir::InstKind::Untag`] and the whole tagged value reaches the runtime,
@@ -352,13 +353,14 @@
 //!    through [`ir::Helper::CallCallableArray`] instead — the whole list built
 //!    into one array, because `CallCallable`'s own argument count is a literal
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
-//!    where it is written (`E0712`), § 1 leaving no parameter for a name to
-//!    fill at either end. The method-reference sentinel is the one
+//!    where it is written (`E0712`), `rule:types/callable-signature` leaving no
+//!    parameter name to fill at either end. The method-reference sentinel is the one
 //!    `$f(...)` that makes no call: `rule:types/callable-values` gives
 //!    `callable` a single inhabitant, so the site answers the callable `$f`
 //!    already holds — PHP's own answer, retained once so the value leaves as a
 //!    fresh owner. A `callable` carries
-//!    no parameter list (§ 1), so no checker can compare a call site against
+//!    no parameter list (`rule:types/callable-signature`'s bare `callable`), so
+//!    no checker can compare a call site against
 //!    the body it will reach: this crate packs the declared representations
 //!    into the callable object's own `FN_PARAM_TAGS` word where the anonymous function is written
 //!    ([`lower::anon_fn::param_tags_word`]), and
@@ -369,7 +371,8 @@
 //!    proven where it was written and pays nothing per argument, which is the
 //!    only difference between the two. Neither half of `inout $x` is
 //!    a gap: an anonymous function *capturing* an enclosing `inout $x` parameter takes
-//!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] where
+//!    `rule:types/implicit-capture`'s by-value snapshot of the cell — one
+//!    [`ir::InstKind::RefLoad`] where
 //!    it is written, at the pointee type, retained like any other captured
 //!    value, which is what lets the callable outlive the call that staged the
 //!    cell — and an `inout $x` parameter on the anonymous function *itself* is `E0493`,
@@ -432,18 +435,21 @@
 //!    declaration with no value to bind still records its representation.
 //! 10. **`rule:expressions/one-equality-operator` is built, and a
 //!     cross-representation pair splits between arithmetic and ordering.**
-//!     Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
+//!     Every row of `rule:expressions/disjoint-comparison-refused`,
+//!     `rule:expressions/equality-semantics` and `rule:expressions/mixed-equality`
+//!     lowers: `===`/`!==` do
 //!     not lex, `== null` takes
 //!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
 //!     representation pair is [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a
 //!     `string`, `array` or `object` pair is that `BinOp` with the row's own
-//!     comparison chosen in `nvs-codegen`, a `mixed` or union operand is § 5's
-//!     [`ir::Helper::Identical`], and § 2's numeric row — the one pairing
+//!     comparison chosen in `nvs-codegen`, a `mixed` or union operand is
+//!     `rule:expressions/mixed-equality`'s [`ir::Helper::Identical`], and
+//!     `rule:expressions/disjoint-comparison-refused`'s numeric row — the one pairing
 //!     whose two operands hold two *representations* — is
 //!     [`ir::Helper::NumericEq`], settled in
 //!     [`lower::Lowering::lower_binary`] rather than in `nvs-codegen`, whose
 //!     "a `BinOp` has one representation" invariant therefore still holds.
-//!     The disjoint-operand refusal of § 2 is `nvs_types`' half, not this
+//!     The disjoint-operand refusal of that rule is `nvs_types`' half, not this
 //!     crate's.
 //!
 //!     The same mismatch under a *different* operator lowers too, and it
@@ -452,11 +458,12 @@
 //!     division, not a new one. **Arithmetic widens**: `$n + $f` is that
 //!     table's "either operand a `float`" row, so the integer side is
 //!     converted in [`lower::Lowering::lower_binary`] through the very
-//!     [`ir::Helper::IntToFloat`] a written `$n as float` emits — § 2 names
-//!     this as the one implicit conversion in the language and gives it that
+//!     [`ir::Helper::IntToFloat`] a written `$n as float` emits —
+//!     `rule:types/implicit-widening` names this as the one implicit conversion
+//!     in the language and gives it that
 //!     conversion's own behaviour, exact or throwing above 2^53.
-//!     **Ordering does not**: § 4 closes by saying a comparison "has an exact
-//!     answer in the mathematical integers and can be lowered as one", so
+//!     **Ordering does not**: `rule:types/ordering` makes a comparison of two
+//!     numerics "mathematically exact over the full range of both", so
 //!     `$n < $f` takes [`ir::Helper::NumericLt`] beside its equality sibling.
 //!     Widening there would be wrong twice — rounding away every integer past
 //!     2^53, and, since the widening throws rather than rounds, raising
@@ -467,17 +474,17 @@
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
 //!
 //! 11. **`rule:types/single-value-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
-//!     whole, a `mixed` source included, and so do § 2's
+//!     whole, a `mixed` source included, and so do `rule:types/conversion`'s
 //!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::erase_checked_ty`]), so `"a"|"b"` is a
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
-//!     own tag rather than a `Ty::Tagged`, and § 4's
+//!     own tag rather than a `Ty::Tagged`, and `rule:types/single-value-types`'
 //!     checked row runs the membership test
 //!     [`lower::Lowering::lower_single_value_membership`] emits — a comparison per
 //!     member, throwing through [`ir::Helper::SingleValueMismatch`] with the
-//!     accepted set named. § 3's enum-case subset is in that set: every
+//!     accepted set named. `rule:types/enum-case-type`'s enum-case subset is in that set: every
 //!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
-//!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/declaration`/§ 2's declaration errors are not reported twice), which is where a
+//!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/declaration`/`rule:enums/one-backing-type`'s declaration errors are not reported twice), which is where a
 //!     case's constant lives — [`nvs_types::ExprInfo::EnumCase`] carries one only for
 //!     a case written as an *expression*, and a case named in a **type** has
 //!     no expression to record one against. An enum operand is reinterpreted

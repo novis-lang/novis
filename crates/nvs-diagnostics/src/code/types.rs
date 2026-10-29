@@ -212,7 +212,7 @@ codes! {
     /// A `lateinit` property read inside a method body with no intervening
     /// write to it and no intervening call on that path since the method's
     /// entry — the one intraprocedural, false-positive-free case `rule:classes/lateinit-read-before-write` proves at compile time; every other case relies entirely on the
-    /// § 2 runtime throw.
+    /// runtime throw `rule:classes/lateinit` defines.
     pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428").card(
         "A method reads a `lateinit` property before anything in the method assigns it. Assign \
          the property before this line, or read it after the call that sets it. You can also \
@@ -401,8 +401,8 @@ codes! {
          the value instead.",
     );
     /// `yield from`, or a `yield` with a `key =>` half. `rule:iteration/one-way-only` rejects
-    /// the first as the second spelling of an explicit re-yield loop; § 1
-    /// gives `Iterator<T>` no key for the second to produce.
+    /// the first as the second spelling of an explicit re-yield loop;
+    /// `rule:iteration/two-interfaces` gives `Iterator<T>` no key for the second to produce.
     pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448").card(
         "This form of `yield` is not supported. Write `yield $value;` as a statement of its own, \
          without a key and without `from`. To yield the values of another sequence, write \
@@ -463,7 +463,7 @@ codes! {
     /// A **shape key** no arm of an `rule:core-api/shape-parameter` shape parameter declares is
     /// this same code: the merged list is the whole key set either way. So is a
     /// key that belongs to an arm the anonymous object's other values did not select —
-    /// § 2's arm selection narrows *which* key set a call is held to, and a key
+    /// `rule:core-api/shape-arms-are-disjoint`'s arm selection narrows *which* key set a call is held to, and a key
     /// outside the selected one is still not a key of this call. The two read
     /// differently and are one code on purpose: a second code would ask the
     /// reader to know which arm they were in before they could look it up.
@@ -567,8 +567,9 @@ codes! {
     );
     /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
     /// types are **disjoint**: no single value inhabits both, so the compiler
-    /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the
-    /// comparison forms that are not written with the operator.
+    /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and
+    /// `rule:expressions/switch-match-equality` for the comparison forms that are not
+    /// written with the operator.
     pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466").card(
         "This comparison is always false, because no value can have both types. Check that you \
          compare the right values. If a variable can be `null`, declare its type as `?T`.",
@@ -583,7 +584,8 @@ codes! {
     /// `Foo::BAR` in *type* position where `Foo::BAR` is declared but is not a
     /// `string`/`int` compile-time constant — `rule:types/constant-in-type-position`. A class constant is
     /// sugar that folds to its own single-value type, so it folds only when the
-    /// value has a single-value type to fold to: a `float` (§ 7 defers those), an
+    /// value has a single-value type to fold to: a `float`
+    /// (`rule:types/single-value-types` has none), an
     /// `array`, an object, or an expression that is not a literal at all has
     /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
     /// a different mistake with a different fix.
@@ -596,16 +598,16 @@ codes! {
     /// contain, so it would compile and then throw on every execution. The
     /// accepted set in the message is generated from the target type, never
     /// written per site. A conversion the operand does not settle — `$s as
-    /// "a"|"b"` over a plain `string` — is § 4's ordinary checked row and
+    /// "a"|"b"` over a plain `string` — is that rule's ordinary checked row and
     /// compiles.
     pub const E_SINGLE_VALUE_TYPE_MISMATCH: Code = Code::new("E0469").card(
         "This value is not one of the values the target type allows, so the conversion always \
          fails. Write one of the values the message lists, or add this value to the target type.",
     );
-    /// `Mode::Admin as Mode::Read|Mode::Write` — § 3's case-subset half of
-    /// [`E_SINGLE_VALUE_TYPE_MISMATCH`], on the same terms. Its own code because
-    /// the set it names is a set of *cases* rather than of literal values,
-    /// which is the distinction § 3 exists to keep.
+    /// `Mode::Admin as Mode::Read|Mode::Write` — `rule:types/enum-case-type`'s
+    /// case-subset half of [`E_SINGLE_VALUE_TYPE_MISMATCH`], on the same terms. Its
+    /// own code because the set it names is a set of *cases* rather than of literal
+    /// values, which is the distinction that rule exists to keep.
     pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470").card(
         "This enum case is not one of the cases the target type allows, so the conversion always \
          fails. Write one of the cases the message lists, or add this case to the target type.",
@@ -639,11 +641,11 @@ codes! {
     /// `rule:types/unions-and-mixed`'s narrowing already answers class membership, so the
     /// conversion would be R17's second spelling of a question the language
     /// already has one for. Reported for the written `?T` sugar only, since
-    /// § 1 deliberately leaves the `SomeClass|null` union spelling out of the
-    /// form.
+    /// the `SomeClass|null` union spelling is not the `as ?T` form
+    /// `rule:expressions/nullable-conversion` defines.
     ///
     /// **There are no exceptions**, including `Core\Uri` and `Core\Uuid`.
-    /// § 3a's `Core\Uri::tryParse` is the member that answers a parse instead
+    /// `rule:expressions/try-parse`'s `Core\Uri::tryParse` is the member that answers a parse instead
     /// — which the help names for a class in
     /// `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473").card(
@@ -656,7 +658,8 @@ codes! {
     ///
     /// An increment is `± 1` and nothing else. PHP's `$s++` walking a string
     /// through `"a"`→`"b"`→`"aa"` is a divergence this takes deliberately:
-    /// § 2 says a declared type never changes and § 4's table has no row that
+    /// `rule:types/declaration` says a declared type never changes and
+    /// `rule:types/arithmetic`'s table has no row that
     /// produces `"b"` from a `string` and a `1`, so there is no arithmetic
     /// here to lower. `nvs_types::expr::operators`' module doc is that
     /// decision's home.
@@ -770,8 +773,8 @@ codes! {
     /// `$a[] .= "x"` is the one spelling PHP accepts and this refuses, and
     /// it is `rule:types/absent-storage-is-never-a-zero-value`: PHP appends because the element that is
     /// not there yet reads as `""`, and no rule in Novis makes an absent
-    /// element read as a zero value — which is § 7 row 8 one storage kind
-    /// along, not a new judgement.
+    /// element read as a zero value — which is that rule's undefined-variable
+    /// case one storage kind along, not a new judgement.
     pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481").card(
         "`$a[]` adds a new element, so it can only be the target of `=`, as in `$a[] = $value;`. \
          To read an element, write its key, such as `$a[0]`, or use `Core\\Arr::last($a)`.",
@@ -783,8 +786,8 @@ codes! {
     /// *declared* element type, so a base that declares none — a `mixed`, a
     /// scalar, an object, or a `?array<T>` a `!== null` test has not
     /// narrowed — has no element to name and nothing to check against.
-    /// PHP answers `null` with a warning for most of these, which is § 7
-    /// row 8's family; Novis refuses at check time instead. A `string` is not
+    /// PHP answers `null` with a warning for most of these, which is
+    /// `rule:types/absent-storage-is-never-a-zero-value`'s family; Novis refuses at check time instead. A `string` is not
     /// an exception: `rule:types/string-is-utf8` indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482").card(

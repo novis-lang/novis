@@ -3,7 +3,7 @@
 //!
 //! [`crate::resolve::Resolver`] collects each `type` alias's own
 //! declaration into the [`crate::symbol::SymbolTable`] and rejects the
-//! single-bare-class shape (`rule:types/alias-is-never-a-bare-class`). This module answers *what an alias expands to*: § 5 says a `type`
+//! single-bare-class shape (`rule:types/alias-is-never-a-bare-class`). This module answers *what an alias expands to*: `rule:types/type-alias` says a `type`
 //! alias is "fully transparent" — every occurrence of its name, including
 //! inside another alias's own expansion, resolves to the same fully-expanded
 //! [`Type`] before anything downstream ever sees the alias's name at all.

@@ -447,7 +447,7 @@ struct Env<'a> {
     ///
     /// Set to *this* anonymous function's own name on entering its body and
     /// restored afterwards, so it is `None` again inside a nested one that
-    /// declares no name: § 3's name is visible in one body and not in an
+    /// declares no name: the self-name is visible in one body and not in an
     /// anonymous function written inside it, which is the same reach
     /// `nvs_ir::lower::anon_fn`'s `FN_SELF`
     /// receiver has. It exists here for one rule — `fact(...)` inside `fact`'s

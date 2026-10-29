@@ -766,7 +766,8 @@ impl<'a> Lowering<'a> {
     /// expression form adds is the join: the guard and every completing arm
     /// carry a value into one [`InstKind::Phi`], widened into a shared
     /// representation by the [`Self::join_representations`] a `match` already
-    /// joins its arms through. § 6's "written to one temporary" needs no
+    /// joins its arms through. `rule:expressions/catch-lowers-to-block-form`'s "written to
+    /// one temporary" needs no
     /// temporary in SSA — the phi *is* it.
     ///
     /// What differs from the block form follows from an arm being an expression
@@ -784,7 +785,8 @@ impl<'a> Lowering<'a> {
     ///   representation to [`Self::join_representations`] — a `string` guard
     ///   beside a `throw` arm would join at [`Ty::Tagged`], which is not the
     ///   type the checker gave the expression (`nvs_types::expr::check_expr`
-    ///   drops a `never` arm from § 4's union for the same reason). A `throw`
+    ///   drops a `never` arm from `rule:expressions/catch-result-type`'s union for the same
+    ///   reason). A `throw`
     ///   body therefore goes through [`Self::lower_throw`] directly, which
     ///   seals the arm's own block and opens no successor at all.
     /// - **The binding is released on the arm's completing edge**, exactly

@@ -298,7 +298,8 @@ pub struct Class {
     ///
     /// Populated for every class with a layout, plus an `rule:types/object-top` shape
     /// literal's synthesized one: [`InstKind::SlotSet`] reaches any class at
-    /// all through § 4's erased receiver, and that write is the one site with
+    /// all through `rule:types/erased-member-access`'s erased receiver, and that
+    /// write is the one site with
     /// no statically known field type of its own. A slot whose declared type
     /// nothing recorded is [`Ty::Tagged`] rather than absent, so the vector
     /// stays index-aligned with [`Self::fields`] — see `nvs_ir::lower`'s
@@ -722,8 +723,8 @@ pub struct Inst {
     /// [`crate::ty::Ty::Float`]**. All of those throw
     /// `rule:types/arithmetic`'s
     /// `ArithmeticError`: the divisions on a zero divisor, and the rest
-    /// on overflow, which that section makes a throw rather than a wrap
-    /// or a promotion to `float`. The float `/` is on the list because § 4
+    /// on overflow, which that rule makes a throw rather than a wrap
+    /// or a promotion to `float`. The float `/` is on the list because the rule
     /// refuses the zero divisor before the operand types are consulted, so it
     /// is one rule and not two; it is the *only* float row here, every other
     /// float row being total. None of these is a call at all —
@@ -1177,7 +1178,7 @@ pub enum InstKind {
     },
     /// `rule:types/class-reference`'s checked way *into* a `class<T>`: the [`Ty::ClassDesc`] of the
     /// class `subject` denotes, or a null one when it denotes no class that is
-    /// a `base`. Both of § 2's rows are this one instruction, told apart by
+    /// a `base`. Both of the rule's `as` rows are this one instruction, told apart by
     /// `subject`'s own representation:
     ///
     /// * a [`Ty::Str`] subject is the **string door** — the name must be
@@ -1206,7 +1207,7 @@ pub enum InstKind {
     /// it and throws, exactly as `rule:types/conversion`'s other checked rows do, so no
     /// consumer of a [`Ty::ClassDesc`] ever sees one. `Dog::class as
     /// class<Animal>` never reaches here at all — both sides are written out,
-    /// so § 2 decides it where it stands and it lowers to
+    /// so `rule:types/class-reference` decides it where it stands and it lowers to
     /// [`InstKind::ClassDescConst`].
     ClassDescIn {
         /// The name or the descriptor to resolve — a [`Ty::Str`] or a
@@ -1347,7 +1348,8 @@ pub enum InstKind {
     /// **What an absent field answers is [`AbsentKey`]**, the same enum
     /// [`InstKind::ArrayGet`] carries one storage kind along. Under
     /// [`AbsentKey::Throws`] — every read written outside a guard — a name
-    /// the concrete class does not carry is § 4's catchable throw, and the
+    /// the concrete class does not carry is `rule:types/erased-member-access`'s catchable
+    /// throw, and the
     /// result is the field's own representation. Under [`AbsentKey::Null`] —
     /// a read under a `??`, an `isset` or an `empty`, which is the only way
     /// `rule:types/shape-type`'s optional field is reachable without one — it
@@ -1363,7 +1365,7 @@ pub enum InstKind {
     /// receiver that is not an object, and a slot that was never written —
     /// throw under both answers. A field the receiver's static shape lists as
     /// *required* reaches neither, being proven present; it is the erased
-    /// half of § 4 and the optional field that arrive here.
+    /// half of `rule:types/erased-member-access` and the optional field that arrive here.
     ///
     /// **The receiver may be a [`Ty::Tagged`], and the runtime checks its
     /// tag.** `rule:types/conversion`'s `mixed` is an erased receiver like a plain
@@ -1443,9 +1445,9 @@ pub enum InstKind {
     /// field**; a name the concrete class does not carry is a catchable throw,
     /// exactly as on the read side.
     ///
-    /// **Fallible for a second reason the read does not have.** § 4 checks the
-    /// incoming value against the field's *real* declared type, because § 3
-    /// compares a shape's field types by ordinary assignability and a shape
+    /// **Fallible for a second reason the read does not have.** The write checks the
+    /// incoming value against the field's *real* declared type, because
+    /// `rule:types/shape-type` compares a shape's field types by ordinary assignability and a shape
     /// value is aliased rather than copied — so `{ n: int|string }` is a legal
     /// view of a `{ n: int }` value, and a `string` written through it would sit
     /// in a slot the narrow view loads as an `int`. What the runtime actually
@@ -2563,10 +2565,10 @@ pub enum Helper {
     /// **throws** on either overflow kind rather than wrapping or promoting,
     /// so this and its siblings below carry `rule:errors/propagation`'s error edge like any call.
     ///
-    /// Either operand may be an `int` or a `uint` instead: § 3's
+    /// Either operand may be an `int` or a `uint` instead: that rule's
     /// `decimal ⊕ int` row promotes exactly in 96 bits, and the helper does it
     /// from the operand's own tag, so lowering emits no conversion for one.
-    /// A `float` operand never reaches here — § 3 makes `decimal ⊕ float` a
+    /// A `float` operand never reaches here — the rule makes `decimal ⊕ float` a
     /// compile error.
     DecimalAdd,
     /// `a - b` over `decimal` — see [`Self::DecimalAdd`].
@@ -2655,7 +2657,8 @@ pub enum Helper {
     /// `int`.
     ///
     /// **One tag per target, not one per (source, target) pair.** This helper
-    /// dispatches on the operand's runtime tag, which is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`" and § 3's "from `mixed` every
+    /// dispatches on the operand's runtime tag, which is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`" and
+    /// `rule:expressions/nullable-conversion-availability`'s "from `mixed` every
     /// target has a checked path" the same code as `"42" as ?int` rather than
     /// a lowering branch per source — the operand is already a tagged `Value` by
     /// the time any helper sees it (`nvs_codegen`'s `store_value`).
@@ -2754,7 +2757,7 @@ pub enum Helper {
     /// union.
     ///
     /// The throwing twin of [`Self::ToIntOrNull`], over the same row set in
-    /// `nvs_runtime` and never a second copy of it: § 2's `as T` throws where
+    /// `nvs_runtime` and never a second copy of it: `rule:types/conversion`'s `as T` throws where
     /// `rule:expressions/nullable-conversion`'s `as ?T` answers `null`, so the pair differs only in what it
     /// does with a miss. Fallible, so it is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
@@ -2835,7 +2838,8 @@ pub enum Helper {
     /// the static types `rule:security/capture-answers-the-carrier`'s sink carrier can arrive under.
     ///
     /// `rule:tooling/terminal-output-is-a-sink`
-    /// puts exactly one raw path in the language and § 2 makes it a *type*,
+    /// puts exactly one raw path in the language and
+    /// `rule:tooling/styling-is-a-value-not-a-grammar` makes it a *type*,
     /// `Core\Cli\Text`. A type can only be recognised while the operand still
     /// has one, so the conversion [`crate::lower::Lowering::concat_operand`]
     /// would perform has to happen *inside* the sink rather than in front of
@@ -2877,12 +2881,12 @@ pub enum Helper {
     Exit,
     /// The throw at the end of
     /// `rule:types/single-value-types`'s membership test: the operand reached none of the literals its
-    /// target names, so the checked `as` § 4 describes fails.
+    /// target names, so the checked `as` the rule describes fails.
     ///
     /// Two arguments — the operand, which the message renders, and a
     /// [`InstKind::ConstStr`] holding the accepted set **already rendered at
     /// lowering time**, because that set is a compile-time-known list of
-    /// types and this crate is the last place they exist. § 6 requires the
+    /// types and this crate is the last place they exist. The rule requires the
     /// message to name the set, and generating it from the type rather than
     /// per call site is what makes the run-time throw read the same as the
     /// `E0469` the checker reports when the operand settles the question by
@@ -2949,7 +2953,8 @@ pub enum Helper {
     /// convention and is the caller's.
     CloneGuard,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose § 3 row is a runtime
+    /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose
+    /// `rule:expressions/equality-semantics` row is a runtime
     /// tag rather than a static type. **`!=` is this helper under
     /// [`UnOp::Not`]**, the arrangement [`Self::DecimalEq`] already uses.
     ///
@@ -2961,13 +2966,15 @@ pub enum Helper {
     /// this is the *only* row that pays `rule:errors/propagation`'s calling convention, and it
     /// is the row that has nothing cheaper to pay.
     ///
-    /// It cannot fail — § 5 makes a mismatched pair `false` rather than a
+    /// It cannot fail — `rule:expressions/mixed-equality` makes a mismatched pair
+    /// `false` rather than a
     /// throw — so unlike a conversion helper it carries no error edge.
     Identical,
     /// `a == b` over two operands whose *representations* differ but whose
     /// types are one domain —
     /// `rule:expressions/disjoint-comparison-refused`'s numeric row, which makes `int`, `uint` and `float` mutually
-    /// comparable, and § 3's "mathematically equal across the whole domain".
+    /// comparable, and `rule:expressions/equality-semantics`' "mathematically equal across
+    /// the whole domain".
     /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
     /// [`Self::DecimalEq`] already uses.
     ///
@@ -2995,8 +3002,8 @@ pub enum Helper {
     /// `float` pairing is the same question — so widening the integer side
     /// into a `float` first, which is what the *arithmetic* rows of that table
     /// do, is wrong here twice over: it would round away every integer past
-    /// 2^53, and because § 2 makes that widening **throw** rather than round,
-    /// what a program would actually observe is `9007199254740993 < 1.5`
+    /// 2^53, and because `rule:types/conversion` makes that widening **throw**
+    /// rather than round, what a program would actually observe is `9007199254740993 < 1.5`
     /// raising `ArithmeticError` where PHP answers `false`.
     /// `nvs_runtime::numeric_ordering` compares over `i128` and over the
     /// float's own binary value instead, which has an answer for every pair.
@@ -3028,8 +3035,8 @@ pub enum Helper {
     /// [`Self::NumericLt`] and [`Self::DecimalLt`] already use.
     ///
     /// **Unlike every other comparison helper this one carries
-    /// [`Inst::on_error`]**, and that is the whole design decision in it. § 4's
-    /// ordering table is a *closed* list, so a pair it names no row for — two
+    /// [`Inst::on_error`]**, and that is the whole design decision in it.
+    /// `rule:types/ordering`'s table is a *closed* list, so a pair it names no row for — two
     /// strings, an `array<T>`, `null`, an enum case, a `bytes`, a `callable` —
     /// has no ordering at all. Where the static types show it,
     /// `nvs_types::expr::operators::reject_unordered_operand` refuses it where
@@ -3129,7 +3136,7 @@ pub enum Helper {
     /// emits no instruction, a tagged operand included.
     ValueNeg,
     /// `~a` over a tagged operand — see [`Self::ValueNeg`], over
-    /// [`Self::ValueBitAnd`]'s narrower table: § 4's `& | ^ ~ << >>` row is
+    /// [`Self::ValueBitAnd`]'s narrower table: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is
     /// `int` and `uint` alone, so a `float` or a `decimal` operand is a number
     /// with no bit pattern to complement and takes the refusal rather than a
     /// row.
@@ -3366,7 +3373,7 @@ pub enum BinOp {
     /// [`crate::ty::Ty::Tagged`] and picks between the two at run time.
     ///
     /// It is also the one arithmetic operator that carries [`Inst::on_error`]
-    /// over a **float**: § 4 refuses the zero divisor before the operand types
+    /// over a **float**: the rule refuses the zero divisor before the operand types
     /// are consulted, so `1.0 / 0` throws exactly where `1 / 0` does and
     /// `Core\Math::fdiv` is the member that answers IEEE's infinity instead.
     Div,

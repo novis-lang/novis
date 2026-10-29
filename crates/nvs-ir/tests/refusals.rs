@@ -294,7 +294,7 @@ fn every_refusal_is_a_diagnostic_or_decided() {
         "{} refusal(s) belong to nobody — each is a shape that type-checks and then \
          refuses, with no open item in the live goal's file under docs/goals/ \
          claiming it and no entry on this test's allowlist. Give it a diagnostic, close it, or take the decision in the goal's \
-         § Standing decisions — do NOT add it to the allowlist to make this pass.\n{}",
+         `## Standing decisions` — do NOT add it to the allowlist to make this pass.\n{}",
         standing.len(),
         standing.join("\n")
     );

@@ -14,10 +14,10 @@
 //! probing each root in declaration order and returning the whole ordered
 //! trace — misses included — because `rule:packaging/autoload-probes-fold-into-the-cache-key` keys the artifact cache on
 //! it. [`AutoloadMap::enumerate`] is that map read the other way, listing
-//! every name the roots declare: § 3's scan, which only a program calling
+//! every name the roots declare: `rule:programs/implementing`'s scan, which only a program calling
 //! `Core\Program::implementing<T>()` or writing a `#[Route]` ever pays for.
 //!
-//! These rules of § 1 live here rather than in the resolver:
+//! These rules of `rule:programs/autoload` live here rather than in the resolver:
 //!
 //! - **An explicit prefix beats a `discover` glob** producing the same
 //!   prefix; the glob skips that name. A second explicit prefix whose
@@ -70,7 +70,7 @@
 //!
 //! A count sits on every header, so an empty section still says so — the
 //! answer someone reaching for the flag is usually after, since a glob that
-//! discovers nothing is § 1's worst outcome and looks exactly like a glob
+//! discovers nothing is the worst outcome on offer and looks exactly like a glob
 //! nobody wrote. Paths are printed relative to the directory `render` is
 //! given and with `/` separators, so both legs of the test suite render one
 //! string.
@@ -82,7 +82,7 @@
 //! declared at build time, which is what makes a bundled program resolve the
 //! names its source tree resolved.
 //!
-//! Path traversal is structurally impossible with no sanitizer, per § 1: a
+//! Path traversal is structurally impossible with no sanitizer, per `rule:programs/autoload`: a
 //! probed suffix is built only out of namespace segments, and
 //! `rule:core-api/identifier-casing` leaves
 //! no way to spell `.`, `..` or a separator in one.
@@ -450,7 +450,8 @@ impl AutoloadMap {
                     // A borrowed glob that repeats a prefix already taken adds
                     // nothing and says nothing.
                     Some(_) if is_borrowed => {}
-                    // § 1: an explicit prefix beats a glob that would produce
+                    // `rule:programs/autoload`: an explicit prefix beats a glob
+                    // that would produce
                     // the same one, and the glob skips the name rather than
                     // colliding with it — the rule a vendor override rides on.
                     Some((_, true)) => map.shadowed.push((name, root)),
@@ -641,7 +642,7 @@ impl AutoloadMap {
     /// resolution is not lazy (`rule:programs/implementing`).
     ///
     /// `Core\Program::implementing<T>()` and `rule:routing/routes-are-compiled-not-registered`'s compile-time route
-    /// table are its only callers, under § 3's opt-in rule: a program
+    /// table are its only callers, under `rule:programs/implementing`'s opt-in rule: a program
     /// writing neither never calls this and never pays the directory
     /// listing. What comes back is the *file* set. Which of those files
     /// declares a class satisfying anything is
@@ -655,7 +656,7 @@ impl AutoloadMap {
     /// root [`Self::resolve`] would have probed first, so the two directions
     /// cannot disagree about which file declares a name. A directory or file
     /// stem that cannot name a namespace segment is passed over in silence,
-    /// for the reason § 1 gives for a `discover` glob: a root inevitably
+    /// for the reason `rule:programs/autoload` gives for a `discover` glob: a root inevitably
     /// holds a `.git`, a `README.md` and a `vendor`.
     #[must_use]
     pub fn enumerate(&self) -> Vec<(QName, PathBuf)> {
@@ -915,7 +916,8 @@ pub fn listed_names(dir: &Path) -> Option<Vec<String>> {
 /// directory, sorted by name, or `None` for a directory there is nothing to
 /// list.
 ///
-/// This is the listing a `discover` glob and § 3's scan read, unfiltered. An
+/// This is the listing a `discover` glob and `rule:programs/implementing`'s scan read,
+/// unfiltered. An
 /// editor offers names out of it while a `require` or `autoload` written path
 /// is being written, so what it offers is what resolution would find.
 #[must_use]
@@ -1049,7 +1051,7 @@ fn canonical(base_dir: &Path, root: &str) -> PathBuf {
 /// What one `autoload discover '<glob>'` expanded to.
 ///
 /// The skipped half is not resolution's business — nothing probes it — but
-/// § 1 promises `nvs check --autoload-map` prints it, and this is the only
+/// `nvs check --autoload-map` prints it, and this is the only
 /// place that knows why a matched directory produced no prefix.
 #[derive(Debug, Default)]
 struct Discovered {
@@ -1167,7 +1169,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
         // against a canonical base, and the tail pushed on below may not
         // exist to canonicalize on its own.
         let matched = crate::requires::canonicalize(&path).unwrap_or(path);
-        // § 1: a directory whose name is not a legal namespace segment is
+        // `rule:programs/autoload`: a directory whose name is not a legal namespace segment is
         // skipped in silence. `.git` and `vendor` are always there.
         if !is_namespace_segment(&name) {
             out.skipped

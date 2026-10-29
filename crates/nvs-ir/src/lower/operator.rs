@@ -5,7 +5,7 @@
 //! header states: the methods are `pub(crate)`, so they reach across these modules
 //! and no further.
 //!
-//! `lower_binary` is § 4's table and `emit_binop` in `nvs-codegen` is its other
+//! `lower_binary` is `rule:types/arithmetic`'s table and `emit_binop` in `nvs-codegen` is its other
 //! end; a compound assignment reaches both by desugaring to the binary form it
 //! means, so there is no second table for `⊕=` anywhere.
 
@@ -35,8 +35,8 @@ impl<'a> Lowering<'a> {
     /// than a lookup: `!=` is [`Helper::DecimalEq`] under a [`UnOp::Not`], and
     /// `>`/`>=` are [`Helper::DecimalLt`]/[`Helper::DecimalLtEq`] with their
     /// operands swapped. That is not merely fewer variants — it is what gives
-    /// an unordered operand (a `NaN` on the `float` side of § 3's comparison
-    /// row) PHP's answer to every comparison at once, which a single
+    /// an unordered operand (a `NaN` on the `float` side of `rule:types/decimal`'s
+    /// comparison row) PHP's answer to every comparison at once, which a single
     /// compare-to-zero result could not encode.
     ///
     /// Neither operand is ever refcounted, so nothing is released here.
@@ -556,7 +556,8 @@ impl<'a> Lowering<'a> {
     /// exactly one spelling.
     ///
     /// `==`/`!=` are the whole of it:
-    /// `rule:expressions/one-equality-operator` leaves one spelling, and its § 3 makes that spelling this tag
+    /// `rule:expressions/one-equality-operator` leaves one spelling, and
+    /// `rule:expressions/equality-semantics` makes that spelling this tag
     /// test rather than PHP's truthy-table question, under which `0 == null`
     /// is *true*.
     pub(crate) fn lower_null_identity(
@@ -691,7 +692,7 @@ impl<'a> Lowering<'a> {
     /// that eventually disagrees with it.
     ///
     /// `op` is `==` or `!=`, and every row answers both — `!=` being exactly
-    /// `!( … == … )`, which is all § 2 leaves it to be.
+    /// `!( … == … )`, which is all `rule:expressions/one-equality-operator` leaves it to be.
     ///
     /// The rows, each settled here rather than handed to `nvs-codegen`, whose
     /// `BinOp` carries one representation:
@@ -929,7 +930,7 @@ impl<'a> Lowering<'a> {
         //
         // The one comparison in this function emitted with `rule:errors/propagation`'s error
         // edge, and `Helper::ValueLt`'s own doc comment is that decision's
-        // home: § 4's ordering table is closed, so a tag pair it names no row
+        // home: `rule:types/ordering`'s table is closed, so a tag pair it names no row
         // for is `E0715`'s refusal made at the first moment it is answerable.
         // Each operand therefore goes on the owned-temporaries stack rather
         // than being released inline — a throw here has an edge to leave by,
@@ -1245,7 +1246,7 @@ impl<'a> Lowering<'a> {
         // callee to carry one — the site to name in what it raises.
         // `Self::emit_raising` is where the two travel together.
         //
-        // `/` is the one that is not an integer row: § 4 refuses the zero
+        // `/` is the one that is not an integer row: `rule:types/arithmetic` refuses the zero
         // divisor *before* the operand types are consulted, so the float row
         // throws where the integer one does and carries the same edge. It is
         // recognised by its *result* either way — `Ty::Tagged` is the integer

@@ -39,7 +39,8 @@
 //!   diagnoses a missing target or a require cycle. Hands back a [`Loaded`]
 //!   per file, entry first, so the phases after this one do not re-parse the
 //!   graph to find out what is in it. A program writing
-//!   `Core\Program::implementing<T>()` also gets § 3's scan here: every file
+//!   `Core\Program::implementing<T>()` also gets `rule:programs/implementing`'s scan here:
+//!   every file
 //!   [`AutoloadMap::enumerate`] names is loaded, once, whether or not
 //!   anything mentions it.
 //! - [`lenders`] — [`Lender`]: which program lends its `autoload` map to a

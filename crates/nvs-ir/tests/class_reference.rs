@@ -1,7 +1,7 @@
 //! `rule:types/class-reference`'s two ways into a `class<T>`, lowered — the compile-time one
 //! and the run-time one, told apart by what each leaves in the IR.
 //!
-//! § 2 makes `as` a class reference's only source and then splits that source
+//! The rule makes `as` a class reference's only source and then splits that source
 //! in two: `Dog::class as class<Animal>` is decided where it stands, so "the
 //! common case pays nothing at run time", while every other operand is a
 //! hierarchy walk that throws. Those are the same *expression* with the same
@@ -72,7 +72,8 @@ fn a_folded_class_constant_lowers_to_a_descriptor_constant() {
         "{DECLARATIONS}class<Animal> $cls = Dog::class as class<Animal>;
 "
     ));
-    // One instruction, and it names `Dog` rather than the bound: § 2 decides a
+    // One instruction, and it names `Dog` rather than the bound:
+    // `rule:types/class-reference` decides a
     // written-out `::class` at compile time, so the descriptor the program ends
     // up holding is baked and nothing is compared at run time. A `Dog` here
     // with a walk beside it would mean the fold ran and was not trusted.
@@ -88,14 +89,15 @@ class<Animal> $cls = $name as class<Animal>;
     ));
     // The bound, not the class: what the walk admits is every class this unit
     // declares that is an `Animal`, which is the closed set `nvs-codegen`
-    // resolves `ClassDescIn` against and the whole of why § 2 lets a `tainted`
+    // resolves `ClassDescIn` against and the whole of why `rule:types/class-reference`
+    // lets a `tainted`
     // string through the conversion.
     assert_eq!(descriptor_sources(&program), vec!["in Animal".to_owned()]);
 }
 
 /// Every allocation the program performs, rendered as which of the two `new`
 /// instructions it is and what constructor label it carries — the two facts
-/// § 4's row is about.
+/// `rule:types/class-reference-sites`' `new $cls(...)` row is about.
 ///
 /// [`descriptor_sources`]'s reason for rendering rather than comparing values.
 fn allocations(program: &Program) -> Vec<String> {
@@ -146,7 +148,8 @@ Animal $pet = new $cls(4);
 }
 
 /// Every call this program makes, rendered as whether it bound to a label or
-/// dispatched on a descriptor — the distinction § 4's second row is entirely
+/// dispatched on a descriptor — the distinction `rule:types/class-reference-sites`'
+/// `$cls::f(...)` row is entirely
 /// about, and one a program that printed the right answer would not show.
 fn calls(program: &Program) -> Vec<String> {
     program

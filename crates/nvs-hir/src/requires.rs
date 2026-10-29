@@ -42,7 +42,7 @@
 //! declarations become an [`crate::autoload::AutoloadMap`] — that module owns
 //! the map's own rules — and the first harvested name that is still
 //! undeclared and that the map can place is loaded, parsed, checked against
-//! § 2's one-declaration-per-file rule, and pushed back onto the worklist,
+//! `rule:programs/one-declaration-per-autoloaded-file`, and pushed back onto the worklist,
 //! where its own requires and names are harvested in turn. The loop ends when
 //! no undeclared name resolves to a file nothing has loaded, so a program
 //! that never writes an `autoload` pays one empty-map check and nothing else.
@@ -50,7 +50,7 @@
 //! **The map is fixed the moment it is first consulted.** Every `autoload`
 //! declaration found after that — in an autoloaded file, or in a file one of
 //! them required — is `code::E_AUTOLOAD_IN_AUTOLOADED_FILE`, because a map
-//! that grows as it is consulted is exactly the self-dependence § 1 forbids,
+//! that grows as it is consulted is exactly the self-dependence `rule:programs/autoload` forbids,
 //! and it is what would make the answer depend on resolution order.
 //!
 //! A literal path whose spelling differs from the on-disk entry's only in
@@ -356,7 +356,8 @@ fn walk(
     // already probed, so a miss costs one probe rather than one per mention.
     let mut sites: Vec<Site> = Vec::new();
     let mut wanted: Vec<(QName, Span)> = Vec::new();
-    // § 3's opt-in: the first `implementing<T>()` site seen, and `None` once
+    // `rule:programs/implementing`'s opt-in: the first `implementing<T>()` site
+    // seen, and `None` once
     // the scan it asked for has run. A program writing no such call leaves it
     // `None` for the whole walk and never lists a directory.
     let mut scan: Option<Span> = None;
@@ -416,7 +417,8 @@ fn walk(
                     .collect();
                 // The map is fixed the moment it is first consulted. A
                 // declaration found after that is one the map's own answer led
-                // to, which is the self-dependence § 1 exists to stop — so the
+                // to, which is the self-dependence `rule:programs/autoload`
+                // exists to stop — so the
                 // rule reaches the whole autoloaded sub-graph, not only the
                 // autoloaded file itself.
                 if autoload_map.is_some() {
@@ -520,7 +522,8 @@ fn walk(
             break;
         }
 
-        // § 3's scan: for a program that asked for it — `implementing<T>()`
+        // `rule:programs/implementing`'s scan: for a program that asked for it —
+        // `implementing<T>()`
         // or an `rule:routing/table-is-opt-in` router link — every
         // name the roots declare becomes a file to load, whether or not
         // anything mentions it — the one place resolution is not lazy. It
@@ -679,7 +682,8 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 /// executable has no filesystem to canonicalize against: its payload *is* the
 /// closed world (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`
 /// ), so `nvs_diagnostics::embedded` answers first and a path it does not
-/// carry is exactly as unloadable as a missing file — which is § 3's rule, and
+/// carry is exactly as unloadable as a missing file — which is
+/// `rule:packaging/a-bundled-require-resolves-at-build-time`, and
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
 /// would report. Outside a bundle the table is empty and this is the plain
 /// syscall.
@@ -803,7 +807,7 @@ struct Harvest {
     /// not compile. `Core`'s own names are dropped, since nothing on disk
     /// declares them.
     names: Vec<(QName, Span)>,
-    /// Every call site written in this file that asks for § 3's scan — see
+    /// Every call site written in this file that asks for the scan — see
     /// [`is_program_scan`] for which those are. `rule:programs/implementing`'s opt-in lives
     /// here rather than in the checker
     /// because the scan has to happen while the walk can still load files —
@@ -863,12 +867,14 @@ fn record_written_class_name(operand: &Expr, ty: &Type, src: &SourceFile, out: &
 /// to load.
 ///
 /// Three classes ask for the same scan. `Core\Program`'s enumeration members
-/// are § 3's own query. `Core\Router`'s and `Core\Request`'s route readers
+/// are the enumeration's own query. `Core\Router`'s and `Core\Request`'s route readers
 /// need the compile-time route table, which `rule:routing/table-is-opt-in`
 /// builds by filtering *this* enumeration by a `#[Core\Route]` attribute
 /// rather than by an implemented interface. That is why all three are member
-/// lists here and not separate walks: a program calling any of them pays § 5's
-/// directory-listing dependency once, and a program calling none of them
+/// lists here and not separate walks: a program calling any of them pays the
+/// directory-listing dependency
+/// (`rule:packaging/autoload-probes-fold-into-the-cache-key`) once, and a program
+/// calling none of them
 /// performs no scan.
 const PROGRAM_CLASS: &str = r"Core\Program";
 /// The `Core\Program` members that expand to the enumeration, and so need
@@ -2770,9 +2776,10 @@ class Unreached {}
         assert!(module.symbols.contains(&name));
     }
 
-    /// § 1's Composer rule: roots are probed in declaration order and the
+    /// `rule:programs/autoload`'s Composer rule: roots are probed in declaration order and the
     /// first hit wins, which is what makes an override root work. The probe
-    /// trace records the misses that got there — § 5's cache input.
+    /// trace records the misses that got there — the cache input of
+    /// `rule:packaging/autoload-probes-fold-into-the-cache-key`.
     #[test]
     fn roots_are_probed_in_declaration_order_and_the_first_hit_wins() {
         let dir = TempDir::new("autoload-order");
@@ -2816,7 +2823,7 @@ class Unreached {}
         assert_eq!(absent.tried.len(), 2);
     }
 
-    /// § 1's "one prefix has one home".
+    /// `rule:programs/autoload`'s "one prefix has one home".
     #[test]
     fn two_explicit_declarations_of_one_prefix_are_diagnosed() {
         let dir = TempDir::new("autoload-dup");
@@ -2897,7 +2904,7 @@ class Unreached {}
         assert!(!built.claims(&dir.path.join("other/Part.nvs")));
     }
 
-    /// § 1: an explicit prefix beats a `discover` glob that would produce the
+    /// `rule:programs/autoload`: an explicit prefix beats a `discover` glob that would produce the
     /// same one — the glob skips the name rather than colliding with it — and
     /// a matched directory that is not a legal namespace segment is skipped
     /// in silence.
@@ -2942,7 +2949,7 @@ class Unreached {}
         assert!(built.resolve(&QName::parse(r"Other\Thing")).hit.is_some());
     }
 
-    /// § 1's last sentence: `nvs check --autoload-map` prints the resolved
+    /// The module doc of [`crate::autoload`]: `nvs check --autoload-map` prints the resolved
     /// map *including what was skipped and what was shadowed*, which is the
     /// only way to tell a glob that discovered nothing from a glob nobody
     /// wrote. The whole rendering is asserted rather than sampled, since its
@@ -2990,7 +2997,7 @@ class Unreached {}
         );
     }
 
-    /// § 1's exact-name rule: a case-insensitive filesystem must not accept
+    /// `rule:programs/autoload`'s exact-name rule: a case-insensitive filesystem must not accept
     /// `thing.nvs` for `Thing` and then fail on Linux. Both legs answer
     /// "miss" — Linux never finds it, Windows finds it and refuses the
     /// spelling — so this asserts the answer rather than the mechanism.
@@ -3007,7 +3014,7 @@ class Unreached {}
         assert!(built.resolve(&QName::parse(r"Acme\Thing")).hit.is_none());
     }
 
-    /// § 1: an `autoload` inside a file the map itself found would let the
+    /// `rule:programs/autoload`: an `autoload` inside a file the map itself found would let the
     /// map depend on its own answers.
     #[test]
     fn an_autoload_inside_an_autoloaded_file_is_diagnosed() {
@@ -3035,7 +3042,8 @@ class Unreached {}
         );
     }
 
-    /// § 2: a file reached through an autoload root declares exactly one
+    /// `rule:programs/one-declaration-per-autoloaded-file`: a file reached through an autoload
+    /// root declares exactly one
     /// thing, named after it.
     #[test]
     fn an_autoloaded_file_declaring_a_second_thing_is_diagnosed() {
@@ -3169,7 +3177,7 @@ class Unreached {}
     /// into a directory. The fixture holds every entry the walk must pass
     /// over in silence — a directory that cannot name a segment, a file that
     /// is not a `.nvs`, a stem that is not `PascalCase` — because that half
-    /// is the reason § 1 refuses to diagnose what a glob sweeps.
+    /// is the reason `rule:programs/autoload` refuses to diagnose what a glob sweeps.
     #[test]
     fn the_scan_enumerates_every_name_the_roots_declare() {
         let dir = TempDir::new("autoload-enumerate");
@@ -3437,7 +3445,8 @@ class Unreached {}
     }
 
     /// The two directions have to agree about which file declares a name, or
-    /// § 3's enumeration would instantiate a class the rest of the compiler
+    /// `rule:programs/implementing`'s enumeration would instantiate a class the
+    /// rest of the compiler
     /// resolves somewhere else. A name under two roots of one prefix is the
     /// case where they could part: `resolve` probes in declaration order and
     /// takes the first hit, so the scan lists that same file once.

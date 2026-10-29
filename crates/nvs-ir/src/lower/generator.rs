@@ -10,7 +10,7 @@
 //! reading an element it never advanced to is a bug in that code rather than a
 //! condition the run produced, which is the whole of the `LogicError` /
 //! `RuntimeError` split. [`lower_generator_current`] is the guard and owns why
-//! one comparison on [`GEN_STATE`] is exactly the two points § 1 names.
+//! one comparison on [`GEN_STATE`] is exactly the two points that rule names.
 
 use super::*;
 
@@ -368,7 +368,7 @@ impl GenFrame {
 /// * `name` itself keeps the label every call site already resolves to, but
 ///   runs no user code at all: it allocates the state object, stores its
 ///   receiver and every argument into that object's fields, and returns it.
-///   That is § 4's "calling it runs no user code", and it is what makes a
+///   That is `rule:iteration/generators`' "calling it runs no user code", and it is what makes a
 ///   generator's result an ordinary `Iterator<T>` value rather than a
 ///   suspended frame.
 /// * `{name}$gen::advance` holds the original body, cut into resumption
@@ -938,8 +938,8 @@ pub(crate) fn lower_generator_advance(
 /// the last `yield` parked, retained, since the field keeps owning its own
 /// reference.
 ///
-/// **The guard is `gen#state >= 1`, and that one comparison is exactly § 1's
-/// two out-of-protocol points.** [`GEN_STATE`] is `0` from
+/// **The guard is `gen#state >= 1`, and that one comparison is exactly
+/// `rule:iteration/cursor-out-of-range`'s two out-of-protocol points.** [`GEN_STATE`] is `0` from
 /// [`generator_factory`] until the first [`GEN_ADVANCE`] returns; every
 /// suspension parks its own resume index, which is `index + 1` and therefore
 /// never `0`; and [`Lowering::finish_generator`] parks [`GEN_DONE`] — `-1` —

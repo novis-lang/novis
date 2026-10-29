@@ -147,7 +147,8 @@ codes! {
     /// without its read visibility. There is no implicit `public`; see
     /// `rule:core-api/written-visibility`.
     /// A class body's PHP `var $x;` reports this too, rather than a message
-    /// about the statement grammar it would otherwise fall into (§ 4).
+    /// about the statement grammar it would otherwise fall into
+    /// (`rule:core-api/legacy-property-shapes-name-the-visibility`).
     pub const E_MISSING_VISIBILITY: Code = Code::new("E0122").card(
         "Every property, constant and method in a class must say `public`, `protected` or \
          `private`. Nothing is public by default, and `var` is not allowed. Write, for example, \
@@ -167,7 +168,7 @@ codes! {
     /// A `for` init clause holding a declaration *and* an expression, in
     /// either order — `for (int $i = 0, $j = 1; …)` and
     /// `for ($j = 1, int $i = 0; …)` alike. See
-    /// `rule:iteration/for-init-refusals`, whose § 1 makes the clause one or the other and never both.
+    /// `rule:iteration/for-init-refusals`, which makes the clause one or the other and never both.
     pub const E_FOR_INIT_MIXES_DECL_AND_EXPR: Code = Code::new("E0124").card(
         "The first part of a `for` loop can declare one variable or list expressions, but not \
          both. Move the extra part above the loop, or make every item an expression.",

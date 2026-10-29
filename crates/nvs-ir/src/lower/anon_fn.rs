@@ -116,7 +116,8 @@ pub(crate) fn drain_anon_fns(
 }
 
 /// Lowers one anonymous function's body to the `invoke` method of its own
-/// captured-environment class — `rule:types/anonymous-function`/§ 2.
+/// captured-environment class — `rule:types/anonymous-function` and
+/// `rule:types/implicit-capture`.
 ///
 /// # The representation
 ///

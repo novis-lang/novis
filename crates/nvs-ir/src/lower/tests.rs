@@ -986,8 +986,8 @@ fn a_nullsafe_property_access_on_a_nullable_receiver() {
 /// no layout table: one `slot.get` keyed on the field's *name*, carrying
 /// its position in the shape's sorted field list (which puts `path` after
 /// `message`) as the runtime's hint. Fallible, so it has a landing block
-/// of its own: § 4 makes a name the concrete receiver does not carry a
-/// catchable throw. The receiver is a parameter, so it is an aliasing
+/// of its own: `rule:types/erased-member-access` makes a name the concrete
+/// receiver does not carry a catchable throw. The receiver is a parameter, so it is an aliasing
 /// read and the value read out of its slot is retained by whoever keeps
 /// it, exactly as for a class field.
 #[test]
@@ -3336,7 +3336,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "ArithmeticError",
             "Comparable",
             // `rule:tooling/a-prompt-is-a-core-member`'s refusal to block, `rule:core-classes/db-error`'s driver failure
-            // and § 7's deliberate rollback, and `rule:testing/failure-ledger`'s assertion
+            // and `rule:core-classes/db-transactions`' deliberate rollback, and
+            // `rule:testing/failure-ledger`'s assertion
             // failure — the exception tree's namespaced entries, classes in
             // it for the reason `nvs_hir::errors::TREE` gives.
             "Core\\Cli\\NotInteractive",
@@ -3979,8 +3980,8 @@ echo Adder::sum(Adder::bump(inout $n), $n);
 /// picked — a version of this test that pinned the `secret` pair alone
 /// would still pass if the lowering had started sending every `string`
 /// comparison through the constant-time row, which is a real regression:
-/// it would spend § 5's constant-time cost on every string `==` in the
-/// language.
+/// it would spend `rule:security/secret-comparison-is-constant-time`'s cost on
+/// every string `==` in the language.
 #[test]
 fn a_secret_equality_lowers_to_the_constant_time_helper() {
     let (f, map, file) = lower_script_src(
@@ -4005,7 +4006,8 @@ bool $openly = $plain == $other;
 /// qualifier on both bases, and `Helper::SecretEq` answers `!=` under a
 /// `UnOp::Not` rather than through a second helper, the arrangement
 /// `Helper::NumericEq` already uses. A `!=` that had grown its own
-/// short-circuiting row would be the same timing oracle § 5 closes.
+/// short-circuiting row would be the same timing oracle
+/// `rule:security/secret-comparison-is-constant-time` closes.
 #[test]
 fn a_secret_bytes_inequality_is_the_same_helper_under_a_not() {
     let (f, map, file) = lower_script_src(

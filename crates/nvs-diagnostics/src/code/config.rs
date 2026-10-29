@@ -61,7 +61,8 @@ codes! {
     /// UTF-8. Every one of those is a refusal to start rather than a value
     /// carried forward: an empty credential otherwise fails at the first
     /// request instead of at boot, and the size cap catches a path pointed at
-    /// the wrong thing. A secret file that fails the § 6 trust boundary is
+    /// the wrong thing. A secret file that fails
+    /// `rule:config/ownership-is-the-trust-boundary` is
     /// `E0607` like any other configuration input, and one that cannot be read
     /// at all is `E0605`.
     pub const E_BAD_SECRET_FILE: Code = Code::new("E0608").card(
@@ -75,7 +76,8 @@ codes! {
     /// file path, so a block with no usable key silently covers nothing and
     /// hands every application it was meant for the global configuration
     /// instead — including one it was written to narrow. Two blocks on one path
-    /// are § 2's duplicate rather than a refinement: specificity is what orders
+    /// are `rule:config/every-matching-app-block-applies-least-specific-first`'s
+    /// duplicate rather than a refinement: specificity is what orders
     /// the layering, and equal paths have no order to decide with. A key naming
     /// something that cannot be examined at all is `E0605`, like any other
     /// configuration path.
@@ -101,7 +103,8 @@ codes! {
     /// A `[[schedule]]` entry the scheduler could not arm: no `name` or a
     /// duplicate one, no `scope`, a `cron` outside `rule:config/cron-is-five-fields-and-nothing-more`'s five-field
     /// dialect, a `script` outside the `script.spawn` roots, or `scope =
-    /// "fleet"` with no shared store to hold § 3's lease. Every one of them is
+    /// "fleet"` with no shared store to hold
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease. Every one of them is
     /// refused at boot rather than at the first fire, because a schedule's
     /// failure mode is silence: an entry that never fires looks exactly like
     /// one whose interval has not come round yet, and the operator finds out
@@ -115,7 +118,8 @@ codes! {
     );
 
     /// An `[http]` pair with no correct meaning: `rule:http-server/cors-is-closed-until-origins-are-named`'s `origins =
-    /// ["*"]` with `credentials = true`, or § 3's `same_site = "None"` with
+    /// ["*"]` with `credentials = true`, or
+    /// `rule:http-server/cookies-are-secure-httponly-and-lax`'s `same_site = "None"` with
     /// `secure = false`. Both are refused rather than warned about because
     /// neither is a weak policy — every browser rejects both outright, so the
     /// deployment holds an access-control rule that does not run and nothing
@@ -168,7 +172,7 @@ codes! {
     /// deployment collects exactly the right records in the shape it asked not
     /// to have, and the pipeline reading them is the thing that breaks.
     ///
-    /// § 3's own paragraph is why the near miss is worth a diagnostic rather
+    /// `rule:errors/renderings` is why the near miss is worth a diagnostic rather
     /// than a fallback: the directive has **two** values and not three, because
     /// HTML is a rendering the response sink selects and never a log target's.
     /// An operator who writes `format = "html"` has asked for something that
@@ -178,7 +182,8 @@ codes! {
     );
 
     /// A written `Core\Cap::has("…")` naming something that is not a capability
-    /// — `rule:security/capability-roster-is-closed`'s roster is closed, and § 6's whole point is that the
+    /// — `rule:security/capability-roster-is-closed`'s roster is closed, and
+    /// `rule:security/optional-capability-degrades`'s whole point is that the
     /// answer decides which branch a package takes. A misspelling folds to
     /// `false` and so reads as *not granted*, which is the same answer the
     /// correct spelling gives on a deployment that granted nothing: the branch
@@ -254,8 +259,8 @@ codes! {
     /// two addresses is two sockets rather than one, and resolving it at boot
     /// makes the server's start depend on a nameserver being up. An empty array
     /// is refused for the same reason `E0619` refuses `false` — it is a
-    /// deployment that accepts nothing, and leaving the key out is how § 5's
-    /// own default is kept.
+    /// deployment that accepts nothing, and leaving the key out is how
+    /// `rule:http-server/the-server-block-is-boot-class`'s own default is kept.
     pub const E_BAD_LISTEN: Code = Code::new("E0620").card(
         "`[server] listen` needs at least one address, written as an IP address and a port, such as \
          `127.0.0.1:8000` or `[::1]:8000`. A host name such as `localhost` is not allowed. An \

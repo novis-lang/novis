@@ -4,13 +4,14 @@
 //!
 //! A bundle carries every source file a re-compilation of the program reads —
 //! the `require` graph, and everything the `autoload` roots declare — appended
-//! to the host binary (§ 2). At process start `nvs-cli` reads that payload and
+//! to the host binary (`rule:packaging/a-bundle-carries-source-not-artifacts`).
+//! At process start `nvs-cli` reads that payload and
 //! calls [`install`]; from then on every way the compiler touches the disk for
 //! a *source* file answers out of this table first: [`crate::SourceMap::load`]
 //! for the bytes, `nvs_hir`'s canonicalization of a `require` target or an
 //! `autoload` probe for the path, and [`read_dir`] with [`is_dir`] for the
 //! directory walk an `autoload` root is enumerated with. Nothing else in the
-//! pipeline changes, which is § 4's "the same `nvs run <entry>` code path with
+//! pipeline changes, which is the footer rule's "the same `nvs run <entry>` code path with
 //! one different byte source for reads".
 //!
 //! **Why a process-global and not a field on [`crate::SourceMap`].** The two
@@ -22,7 +23,8 @@
 //! capability this feature does not want to own. [`OnceLock`] is that shape
 //! exactly, and an ordinary `nvs` never installs one.
 //!
-//! **The synthetic root.** Payload paths are relative (§ 2), so [`install`]
+//! **The synthetic root.** Payload paths are relative
+//! (`rule:packaging/a-bundle-carries-source-not-artifacts`), so [`install`]
 //! joins them onto a root the caller supplies — the running executable's own
 //! path. That is absolute on every platform and cannot also be a directory on
 //! disk, so a synthetic path can never collide with a real file, while still
@@ -80,7 +82,7 @@ static PAYLOAD: OnceLock<Payload> = OnceLock::new();
 /// Installs the payload this process runs from, and hands back its entry path.
 ///
 /// `root` is the synthetic directory every relative path is joined onto, and
-/// `files` is § 2's flat list in payload order — **the entry file first**, the
+/// `files` is the bundle's flat list in payload order — **the entry file first**, the
 /// same contract `nvs_hir::resolve_program` states for the other direction.
 ///
 /// # Panics

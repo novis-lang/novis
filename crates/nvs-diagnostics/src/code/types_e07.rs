@@ -453,7 +453,8 @@ codes! {
     /// [`E_INTERFACE_METHOD_MISSING`] anyway, and the call lands on
     /// `nvs_runtime::nvs_abstract_method` — a `FATAL` naming a compiler bug
     /// for a program the front end accepted. The help names the way out:
-    /// write the member on the class by hand, which § 4 already allows and
+    /// write the member on the class by hand, which
+    /// `rule:classes/delegation-by-property` already allows and
     /// which the forward would have lost to.
     pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721").card(
         "`implements I by $property` cannot forward a `static` method, or a method with a `...` \
@@ -563,7 +564,7 @@ codes! {
     ///
     /// It is a sink rather than a mismatch because of where the value ends up:
     /// the payload is folded into the compiled unit's constant pool and handed
-    /// back by § 4-5's retrieval to anything that asks, so the credential is
+    /// back by `rule:attributes/structural-retrieval` to anything that asks, so the credential is
     /// written into the program's own metadata rather than read at run time
     /// from somewhere a capability guards.
     ///
@@ -604,7 +605,7 @@ codes! {
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
     /// declaration this unit holds — `rule:attributes/structural-retrieval`.
     ///
-    /// § 4 fixes the spelling: a method (a constructor included) is named by
+    /// That rule fixes the spelling: a method (a constructor included) is named by
     /// its own method reference `Foo::bar`, and a class by
     /// its `constructor`'s. Retrieval is resolved entirely at compile time, so
     /// the reference is *inspected* where it is written rather than evaluated
@@ -617,8 +618,8 @@ codes! {
     /// asked for, but holds a value this compiler cannot materialize.
     ///
     /// `rule:attributes/retrieval-folds-while-checking` replaces the call with the payload itself, so every value
-    /// in a matched payload has to have a constant form. Every spelling § 2
-    /// admits has one — the payload is folded under the scope it was
+    /// in a matched payload has to have a constant form. Every spelling
+    /// `rule:attributes/payload-is-a-compile-time-constant` admits has one — the payload is folded under the scope it was
     /// *written* in, so a class constant, `Foo::class` and an enum case each
     /// resolve to the value a read of the same name inlines
     /// (`nvs_types::retrieval`'s own docs own that). What is left is the
@@ -687,7 +688,7 @@ codes! {
     /// `rule:testing/fixtures` builds a fixture **once, in the parent isolate**, and
     /// injects the value it returns into each test that declares a parameter
     /// of its type — so a fixture that is not `static` has no instance to be
-    /// built against (§ 20 gives each test its own, which is the opposite of
+    /// built against (each test constructs its own, which is the opposite of
     /// once), a non-`public` one cannot be called from outside its class, and
     /// one returning `void` produces nothing for a parameter to take. A
     /// method carrying both markers is the fourth: `#[Test]` requires exactly
@@ -698,7 +699,7 @@ codes! {
     /// instance method returning nothing, a fixture a `static` one returning
     /// something — so a single code would have to word its help both ways.
     /// Two fixtures of one class returning one type is neither, and draws
-    /// [`E_DUPLICATE_DECLARATION`]: § 8 resolves by type, so it is one
+    /// [`E_DUPLICATE_DECLARATION`]: `rule:testing/fixtures` resolves by type, so it is one
     /// declaration made twice.
     pub const E_FIXTURE_METHOD_SHAPE: Code = Code::new("E0735").card(
         "A `#[Fixture]` method must be `public` and `static`, and must return a value. A method \
@@ -712,7 +713,7 @@ codes! {
     /// runtime" — this is that diagnostic, and it is the `Widget` line of that
     /// section's own worked example. One code covers a test's parameter and a
     /// fixture's own, because it is one question asked of one roster: what
-    /// supplies this type. § 9's data rows are the other answer, and they
+    /// supplies this type. `rule:testing/data-rows`'s rows are the other answer, and they
     /// fill a parameter **by name**, so this fires only where neither roster
     /// reaches it — which is why the help names both.
     pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736").card(
@@ -874,7 +875,7 @@ codes! {
     /// The primary span is the *call*, not the offending declaration: the
     /// program being compiled is the one that asked for the enumeration, and
     /// the implementing class may be in a file this program only reached
-    /// through § 3's scan. The class is named in the message and in the help.
+    /// through `rule:programs/implementing`'s scan. The class is named in the message and in the help.
     pub const E_PROGRAM_IMPLEMENTOR_NEEDS_NO_ARGUMENT_CONSTRUCTOR: Code = Code::new("E0744").card(
         "`Core\\Program::implementing` creates each class it finds with no arguments, and this \
          class has a constructor that takes arguments. Remove the constructor's parameters, and \
@@ -907,7 +908,7 @@ codes! {
     ///
     /// `rule:tooling/commands-are-compiled`'s third compile error. A matched value's type comes from
     /// the parameter and the argument arrives as text, so a parameter no text
-    /// can be converted into is an option that could never be given — and § 6
+    /// can be converted into is an option that could never be given — and that rule
     /// takes `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster unchanged, which is why an
     /// `array<int>`, a shape or a class other than `Core\Uuid` is refused here
     /// while an enum, a set of allowed values and `bool` are not.
@@ -925,7 +926,7 @@ codes! {
 
     /// A `#[Route]` gives no `path`, no `method`, or neither.
     ///
-    /// `rule:routing/route-attribute` marks only `name` optional, and a row of § 5's table is a
+    /// `rule:routing/route-attribute` marks only `name` optional, and a row of the route table is a
     /// path and a verb together: an attribute naming neither declares nothing
     /// and would be a route the author believes exists. Reported by the pass
     /// that builds the table rather than by the payload's roster check, for
@@ -941,7 +942,7 @@ codes! {
 
     /// Two `#[Route]`s declare the same verb and the same path shape.
     ///
-    /// `rule:routing/routes-are-compiled-not-registered`'s duplicate-route error. § 2 matches by *shape*, so
+    /// `rule:routing/routes-are-compiled-not-registered`'s duplicate-route error. It matches by *shape*, so
     /// `/users/{id}` and `/users/{userId}` are one route however they are
     /// spelled, and the same path under a different verb is not a duplicate at
     /// all. A question about the whole enumeration rather than about one
@@ -966,7 +967,7 @@ codes! {
     /// (`/u{id}`, `/{id}.json`), a capture naming nothing a parameter could
     /// be called, and a `{name?}` or `{name...}` written anywhere but last.
     ///
-    /// § 2's "at most once" and "never in one path together" need no rule of
+    /// The grammar's "at most once" and "never in one path together" need no rule of
     /// their own: one segment is last, so a second trailing form is already
     /// in a position it is refused at.
     pub const E_ROUTE_PATH_GRAMMAR: Code = Code::new("E0750").card(
@@ -994,7 +995,7 @@ codes! {
     /// `rule:security/route-capture-is-laundered-by-its-type`'s second compile error, over the roster
     /// `nvs_types::commands::converts_from_string` holds for both this and
     /// `rule:tooling/commands-are-compiled`'s `#[Option]` — one list, read twice. A `{name...}` is
-    /// the one capture that roster does not answer for: § 3 hands a catch-all
+    /// the one capture that roster does not answer for: `rule:routing/path-grammar` hands a catch-all
     /// over as the single `tainted string` it was read as, nothing about it
     /// having been checked, so it binds a `string` and no other type.
     ///
@@ -1028,8 +1029,8 @@ codes! {
     /// is reported at the argument rather than at the call, which is where the
     /// reference is. The table it is checked against is the whole program's,
     /// which is why the check runs after every file has been walked and not
-    /// where the call is typed: the route may be declared in a file § 5's scan
-    /// reaches later.
+    /// where the call is typed: the route may be declared in a file
+    /// `rule:programs/implementing`'s scan reaches later.
     pub const E_LINK_METHOD_HAS_NO_ROUTE: Code = Code::new("E0754").card(
         "The method given to `Core\\Router::url` has no `#[Route]`. Pass the method that has \
          the route, or add a `#[Route]` to this method.",
@@ -1042,7 +1043,7 @@ codes! {
     /// captures is a compile error. Only a `{name?}` may be absent — its
     /// segment simply is not emitted — so every `{name}` and `{name...}` the
     /// path writes needs a key of that name. A `$params` that is not an array
-    /// literal is not checked at all: there are no keys to read, and § 4 asks
+    /// literal is not checked at all: there are no keys to read, and the rule asks
     /// nothing of a computed one.
     pub const E_ROUTE_LINK_MISSING_PARAM: Code = Code::new("E0755").card(
         "The `$params` of `Core\\Router::url` must have a key for each capture in the route's \
@@ -1083,7 +1084,8 @@ codes! {
     ///
     /// `rule:core-classes/derive-property-list`'s field list is the declared property list, so a class
     /// that declares no instance property — or skips every one it declares —
-    /// derives an empty wire contract. § 7's rule about an attribute with no
+    /// derives an empty wire contract.
+    /// `rule:core-classes/derive-generates-what-is-missing`'s rule about an attribute with no
     /// effect applies unchanged, and the fix is either a property or no
     /// attribute.
     pub const E_DERIVE_NO_FIELDS: Code = Code::new("E0758").card(
@@ -1270,7 +1272,7 @@ codes! {
     /// An `#[Api]` that contradicts the code it annotates — `rule:attributes/api-adds-and-cannot-contradict`'s
     /// contradictions, under one code.
     ///
-    /// One code rather than several because § 2 states them as one rule: the
+    /// One code rather than several because that rule states them as one sentence: the
     /// annotation *may add, and may not contradict*. Each of them is a
     /// different way for the same sentence to be false, so what distinguishes
     /// them is the message and the two spans it names, not a number an author
@@ -1292,8 +1294,8 @@ codes! {
     /// before the program runs, and the mirror of
     /// [`E_ROUTE_LINK_UNKNOWN_PARAM`]: that one is a key that names nothing,
     /// this one a key that names something and cannot hold what it was given.
-    /// Only a *literal* value is checked, exactly as § 6's key rule checks only
-    /// a literal key — a computed value has nothing to read.
+    /// Only a *literal* value is checked, exactly as
+    /// `rule:routing/a-leftover-link-key-is-a-query-string` checks only a literal key — a computed value has nothing to read.
     ///
     /// The same code covers a literal the parameter's conversion refuses, such
     /// as `"x"` or `-3` for a `uint`
@@ -1318,7 +1320,8 @@ codes! {
     /// `Core\Serialize::encode`, `spawn script`'s `args:`,
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`
     /// 's `Core\Socket::upgrade` — an `args:` that opens a connection
-    /// isolate rather than a script one — and § 4's `Core\Topic::publish`,
+    /// isolate rather than a script one — and `rule:core-classes/topic`'s
+    /// `Core\Topic::publish`,
     /// whose value is copied into every subscriber's arena on every core.
     /// `spawn`/`spawn worker` join them from the same check once they
     /// compile.
@@ -1475,8 +1478,8 @@ codes! {
     /// `rule:attributes/access-is-a-required-sibling` makes the attribute a *sibling* of `#[Route]`, and
     /// [`E_ROUTE_WITHOUT_ACCESS`] is that sentence read in the other
     /// direction: a route must declare a decision. This one refuses the
-    /// decision that guards no route — § 2 promises the compiler will not
-    /// interpret the `allow` value, so away from the route table there is
+    /// decision that guards no route — `rule:attributes/access-payload` promises the
+    /// compiler will not interpret the `allow` value, so away from the route table there is
     /// nothing that ever reads it. The sibling of [`E_QUERY_WITHOUT_ROUTE`]
     /// and [`E_API_CONTRADICTS_THE_CODE`], which are the same mistake made
     /// with the other markers a `#[Route]` gives meaning to.
@@ -1659,7 +1662,7 @@ codes! {
     /// `rule:attributes/structural-retrieval`'s last paragraph: a written `$member` is checked against
     /// the target's real declarations at the call site, the same
     /// inspection of a string literal that `rule:security/secret-sinks-refuse`'s sinks make. Only a
-    /// *computed* `$member` falls back to the empty result § 4's *Consequences* fixes,
+    /// *computed* `$member` falls back to the empty result that rule fixes,
     /// because there is no string left to check.
     ///
     /// Distinct from [`E_ATTRIBUTE_TARGET_NOT_A_DECLARATION`], which is the

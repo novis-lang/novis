@@ -38,7 +38,7 @@ codes! {
     /// letting the last one win is how a JSON endpoint acquires an HTML
     /// prelude. One member called twice is one writer and is not this
     /// diagnostic. Reported inside a `#[Route]` handler and nowhere else, because
-    /// § 3 binds `echo` by context and a handler is the one body a request is
+    /// `rule:tooling/echo-always-has-a-sink` binds `echo` by context and a handler is the one body a request is
     /// statically certain to reach — `nvs_types::response`'s module doc owns
     /// that scope, the reach inside a handler, and the entry script the scope
     /// leaves to the run-time default.
@@ -102,7 +102,8 @@ codes! {
     ///
     /// One code for the three ways a written `T` fails that question, because
     /// they are one rule read at one site: the type is a **list**
-    /// (`array<Row>`, where § 4 already answers `Core\Db\Rows` of one), the
+    /// (`array<Row>`, where `rule:core-classes/db-statement-members` already
+    /// answers `Core\Db\Rows` of one), the
     /// class carries no `#[Db\Derive]` and so has no mapping at all, or it
     /// carries one whose mapped fields cannot fill its `constructor` — a
     /// property `#[Db\Field(skip: true)]` took off the mapping is the shape

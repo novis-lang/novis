@@ -4,7 +4,7 @@
 //!
 //! Two neighbouring areas are modules of their own, reached the way `lower_expr`
 //! reaches any other: `rule:types/conversion`'s conversions and `rule:expressions/truthy-positions`'s truthiness are
-//! [`super::convert`], and § 4's operator table is [`super::operator`].
+//! [`super::convert`], and `rule:types/arithmetic`'s operator table is [`super::operator`].
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. The methods
@@ -379,9 +379,10 @@ impl<'a> Lowering<'a> {
                     let ctors = ctors.clone();
                     return self.lower_program_instances(&classes, &ctors, env, cur);
                 }
-                // `rule:routing/link-target-and-params-are-checked`'s link, resolved in `nvs check` against § 5's
-                // finished table and recorded as the named route's path,
-                // already split by § 2's grammar. The call still happens — a
+                // `rule:routing/link-target-and-params-are-checked`'s link, resolved in
+                // `nvs check` against `rule:routing/table-is-opt-in`'s finished table and
+                // recorded as the named route's path, already split by
+                // `rule:routing/path-grammar`. The call still happens — a
                 // link percent-encodes runtime values and is not a constant —
                 // so what changes is which implementation answers and what
                 // argument 0 is. See `nvs_stdlib::router::link`.
@@ -659,7 +660,7 @@ impl<'a> Lowering<'a> {
             // `fn fact(int $n): int => … fact($n - 1)`. The callable it names is
             // the frame's own receiver, which `anon_fn::lower_anon_fn` bound
             // under `FN_SELF` at entry, so this is a lookup and never a load:
-            // § 3's name is not a slot and the environment class holds no field
+            // the self-name is not a slot and the environment class holds no field
             // for it. Every *other* bare name is `E0319` — see the roster
             // below — which is why the guard is the checker's own record and
             // not the syntax.
@@ -1929,7 +1930,7 @@ impl<'a> Lowering<'a> {
     ///
     /// So it deliberately does **not** reach for [`Self::widen_to_float`].
     /// `rule:types/arithmetic`'s promotion rows belong to an *operator*, whose result
-    /// type that table fixes outright, and § 2's implicit `int`/`uint` →
+    /// type that table fixes outright, and `rule:types/implicit-widening`'s `int`/`uint` →
     /// `float` widening happens at a **`float` position** — a binding, a
     /// parameter, a `return`. A branch of a ternary is neither, so
     /// `$c ? 1 : 2.5` keeps PHP's answer on its truthy path (an `int`, not
@@ -3190,7 +3191,7 @@ impl<'a> Lowering<'a> {
     /// `rule:types/anonymous-function`'s anonymous function. Evaluating one allocates its
     /// captured-environment object and stores a snapshot of every
     /// captured binding into it — "by value at the point the anonymous
-    /// function is evaluated" (§ 2), which is exactly what a field
+    /// function is evaluated" (`rule:types/implicit-capture`), which is exactly what a field
     /// store at this program point is. The body itself becomes that
     /// class's one method, lowered later; see `lower_anon_fn`, which
     /// owns the whole representation.
@@ -3709,7 +3710,7 @@ impl<'a> Lowering<'a> {
     /// one `InstKind::ArrayNew` — instruction for instruction what
     /// `[new Alpha(), new Beta()]` written by hand lowers to through
     /// [`Self::lower_array_literal`]'s keyless fast path, which is the whole
-    /// point of § 3 specifying an *array literal of `new` expressions* rather
+    /// point of the rule specifying an *array literal of `new` expressions* rather
     /// than a runtime answer. Nothing is retained: each entry is a fresh
     /// allocation transferred straight into the array, exactly as an
     /// element that is not an aliasing read already is. Each is staged as a
@@ -5166,7 +5167,8 @@ impl<'a> Lowering<'a> {
     /// resolved label `nvs_types` recorded, `None` when that resolution is
     /// bodiless.
     ///
-    /// It carries `rule:errors/propagation`'s error edge because § 3 says so outright — an
+    /// It carries `rule:errors/propagation`'s error edge because
+    /// `rule:classes/property-observer-pipeline` says so outright — an
     /// observer that throws still fails the access it was reporting, even
     /// though the value had already been resolved.
     ///
@@ -5182,7 +5184,7 @@ impl<'a> Lowering<'a> {
         clippy::too_many_arguments,
         reason = "the receiver and its representation, the observed property's \
                   name, the settled value and its representation, and which \
-                  half of § 3's pipeline this is — every one of them differs \
+                  half of the observer pipeline this is — every one of them differs \
                   between the read site and the write site"
     )]
     pub(crate) fn emit_observer_call(
@@ -6155,11 +6157,12 @@ impl<'a> Lowering<'a> {
     /// the second as a hint — see that variant's docs for why a widened view
     /// makes the position unusable on its own.
     ///
-    /// Emitted through [`Self::emit_fallible`], because § 4 makes a name the
+    /// Emitted through [`Self::emit_fallible`], because `rule:types/erased-member-access`
+    /// makes a name the
     /// concrete class does not carry a catchable throw. Nothing the checker
     /// records a `ShapeProperty` for can reach that edge — a field the
     /// receiver's shape lists is proven present — so the landing block is the
-    /// price of the erased half of § 4 being expressible at all.
+    /// price of the rule's erased half being expressible at all.
     ///
     /// The refcounting is the class receiver's, minus the hook case.
     /// `InstKind::SlotGet` borrows, so a base that is itself a fresh producer
@@ -7930,7 +7933,7 @@ pub(super) fn test_shape(
     }
     // A single-value type carries its own value, so its atom is built here — all
     // but the enum case's, which `rule:types/enum-case-type` deliberately
-    // keeps out of the type (§ 3) and which the run's own enum table holds
+    // keeps out of the type and which the run's own enum table holds
     // instead.
     let literal = match checked_types.get(tested) {
         CheckedTy::SingleValueString(text) => Some((Ty::Str, SingleValueAtom::Str(text.clone()))),

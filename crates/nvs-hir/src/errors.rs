@@ -64,7 +64,7 @@
 /// driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
 /// from "the database said no" is the whole reason `Core\Db` has two names. It
-/// declares every one of § 8's properties in [`OWN_PROPERTIES`] — the normalised
+/// declares every one of that rule's properties in [`OWN_PROPERTIES`] — the normalised
 /// `kind`, the raw `sqlState`, `driverCode` and `constraint` the server worded,
 /// and the `sql` the program wrote — so the class carries the root's own set,
 /// those, and a message that is what the server said.
@@ -188,8 +188,8 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
 const ISSUES: &[&str] = &["issues"];
 
 /// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — `rule:core-classes/db-error`'s
-/// properties, all of them, in § 8's own order. The order is the rule and not
-/// an accident of how they arrived: a further value § 8 names is appended here
+/// properties, all of them, in the rule's own order. The order is the rule and not
+/// an accident of how they arrived: a further value the rule names is appended here
 /// too, so that no slot already compiled into a program moves.
 const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint", "sql"];
 
@@ -226,8 +226,8 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// derived from the other and a property added to either must not move the
 /// other's. `db_error_s_own_slot_starts_after_the_root_s` holds it.
 ///
-/// It is 0-relative-to-the-root and stays there: § 8's others are appended
-/// to [`KIND`] after it rather than inserted before it, so `kind` keeps this
+/// It is 0-relative-to-the-root and stays there: `rule:core-classes/db-error`'s
+/// others are appended to [`KIND`] after it rather than inserted before it, so `kind` keeps this
 /// index. They are [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`],
 /// [`CONSTRAINT_SLOT`] and [`SQL_SLOT`].
 pub const KIND_SLOT: usize = PROPERTIES.len();
@@ -250,7 +250,7 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 /// the constraint the condition violated, where the condition names one.
 ///
 /// Derived from [`KIND_SLOT`] like its siblings above, and `?string` for a
-/// reason of its own rather than theirs: most of § 8's kinds name no
+/// reason of its own rather than theirs: most `DbError::Kind` cases name no
 /// constraint at all — a syntax error, a permission, a timeout — so the absent
 /// case here is the common one and not a driver's gap.
 /// `nvs_runtime::CONSTRAINT_SLOT` is the runtime's copy.
@@ -262,7 +262,8 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 ///
 /// Derived from [`KIND_SLOT`] like its siblings above, and `?string` for
 /// a reason of its own again: a refusal is not always *of* a statement the caller
-/// spelled, since § 7's `BEGIN`, `COMMIT` and `SAVEPOINT` are the runtime's own
+/// spelled, since `rule:core-classes/db-transactions`' `BEGIN`, `COMMIT` and `SAVEPOINT`
+/// are the runtime's own
 /// text. `nvs_runtime::SQL_SLOT` is the runtime's copy.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
@@ -402,8 +403,9 @@ mod tests {
         let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
         assert_eq!(inherited, KIND_SLOT);
         // The one class in the tree declaring more than one property, so it is
-        // also the only place the *order* of a row is load-bearing: § 8's
-        // others are appended, which is what keeps `kind` at slot 0 relative to
+        // also the only place the *order* of a row is load-bearing: the
+        // `rule:core-classes/db-error` properties after `kind` are appended, which
+        // is what keeps `kind` at slot 0 relative to
         // the root however many of them there are.
         assert_eq!(
             own_properties("Core\\Db\\DbError"),

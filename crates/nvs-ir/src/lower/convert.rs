@@ -1,5 +1,5 @@
 //! `rule:types/conversion`'s conversion table — the implicit widenings `convert` applies at
-//! a binding, and the explicit `as` the § 2 grid decides.
+//! a binding, and the explicit `as` its grid decides.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory under the
 //! rule [`super::expr`]'s own header states: the methods are `pub(crate)`, so they
@@ -9,7 +9,7 @@
 //! and the two membership lowerings — is here rather than beside the operators
 //! because its only callers are `lower_conversion` and `lower_checked_downcast`:
 //! it exists to answer "does this operand's type name a set the target tests
-//! against", which is § 2's question and no one else's.
+//! against", which is `rule:types/conversion`'s question and no one else's.
 
 use super::*;
 
@@ -339,7 +339,7 @@ impl<'a> Lowering<'a> {
             // `as bytes` that runs anything: `Helper::TaggedToBytes` reads the
             // tag the value already carries, hands back the same allocation
             // under the other tag for a `string` or a `bytes`, and throws for
-            // every tag § 2's table gives no row.
+            // every tag `rule:types/conversion`'s table gives no row.
             //
             // Its operand's ownership is the numeric rows' — `Ty::Tagged` may
             // hold a refcounted payload, so it is released once the helper has
@@ -392,8 +392,10 @@ impl<'a> Lowering<'a> {
     /// result is [`Ty::Tagged`] — the one representation `?T` has
     /// ([`Ty::Tagged`]'s own doc comment) — and every source is one helper,
     /// because the helper dispatches on the operand's runtime tag rather than
-    /// on a statically chosen row. That is what makes § 2's "a `null` operand
-    /// yields `null`" and § 3's "from `mixed` every target has a checked path"
+    /// on a statically chosen row. That is what makes
+    /// `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`" and
+    /// `rule:expressions/nullable-conversion-availability`'s "from `mixed` every target
+    /// has a checked path"
     /// need no branch here: a [`Ty::Tagged`] operand is already the `Value`
     /// the helper reads.
     ///
@@ -439,7 +441,7 @@ impl<'a> Lowering<'a> {
             other => panic!(
                 "nvs-ir lowers `rule:expressions/nullable-conversion`'s `as ?T` for the checked scalar targets and for \
                  `bytes`, and through `Self::lower_nullable_membership` for `rule:types/single-value-types`'s literal \
-                 and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
+                 and enum-case ones — got `{from:?} as ?{other:?}`. Both of `rule:expressions/nullable-conversion-availability`'s refusals are \
                  `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
                  no row), a class target is `E0473`, and `Lowering::lower_conversion` takes a \
                  shape target to `Self::lower_nullable_shape_conversion` and an `array<U>` one to \
@@ -571,7 +573,8 @@ impl<'a> Lowering<'a> {
             // `rule:enums/truthiness`'s class-instance row read one representation over:
             // a class *reference* is a descriptor, so a `class<T>` is always
             // truthy the way an instance is — and `rule:types/class-reference`'s `?class<T>`
-            // is the same row with § 2's first, `null` for the miss. That
+            // is the same row with `rule:expressions/truthy-table`'s first, `null` for the
+            // miss. That
             // pairing is exactly the word against zero, since the two answers
             // are one representation here ([`Ty::ClassDesc`], which owns the
             // decision and names every site it obliges).
@@ -964,15 +967,15 @@ impl<'a> Lowering<'a> {
                 // converting one to the base would run
                 // `Helper::TaggedToString`, which turns a `mixed` holding
                 // `1` into `"1"` and would let it satisfy a set naming
-                // `"1"` — exactly the coercion § 4's "throws unless the
-                // value equals one of the named literals" refuses. Every
+                // `"1"` — exactly the coercion the rule's "throws unless the
+                // value equals one of the named values" refuses. Every
                 // other operand is converted first instead, so the
                 // comparison is over one representation and stays a
                 // `BinOp::Eq` machine compare rather than
                 // `nvs-codegen`'s refusal of a mismatched pair.
                 //
                 // An **enum** target is deliberately not in that first
-                // case, whether the set is § 3's named subset or the whole
+                // case, whether the set is `rule:types/enum-case-type`'s named subset or the whole
                 // declaration. `rule:types/conversion` words the `mixed → EnumName`
                 // row as "exactly the shape `as uint` already has for
                 // untrusted input", and its own example converts
@@ -1039,7 +1042,8 @@ impl<'a> Lowering<'a> {
     ///
     /// Everything else is [`InstKind::ClassDescIn`], whose own doc comment owns
     /// how the two dynamic rows are answered and what they cost. This function
-    /// owns only what happens to its **null**: § 2's rows are checked rows of
+    /// owns only what happens to its **null**: `rule:types/class-reference`'s rows are
+    /// checked rows of
     /// `rule:types/conversion`'s grid, so a miss throws rather than substituting, and the
     /// throw is built exactly the way [`Self::lower_checked_downcast`]'s is —
     /// same class, same `{previous}` bag, same landing block. The comparison
@@ -1056,7 +1060,7 @@ impl<'a> Lowering<'a> {
     /// by [`Self::landing_block`] on the throwing one, with no arm of its own.
     ///
     /// **`nullable` is `rule:expressions/nullable-conversion`'s `as ?class<T>`, and it is the same lowering
-    /// with the refused edge deleted.** § 2 says the sugar "yields `null`
+    /// with the refused edge deleted.** `rule:types/conversion` says the sugar "yields `null`
     /// exactly where it would throw", and here that is not a second path but a
     /// shorter one: [`InstKind::ClassDescIn`] answers a miss with the *null
     /// descriptor* already, so the null test below — the only thing the
@@ -1124,7 +1128,8 @@ impl<'a> Lowering<'a> {
                 base: base.clone(),
             },
         );
-        // `rule:expressions/nullable-conversion-availability` over § 2's rows: the miss `ClassDescIn` just answered
+        // `rule:expressions/nullable-conversion-availability` over `rule:types/class-reference`'s
+        // rows: the miss `ClassDescIn` just answered
         // *is* the `null`, so the sugar's whole content is stopping here.
         if nullable {
             return (desc, Ty::ClassDesc);
@@ -1538,7 +1543,7 @@ impl<'a> Lowering<'a> {
     /// `rule:core-classes/html-auto-escape`'s `"<b>" as Core\Html\Markup` — the sink's only raw-write bypass,
     /// and the one conversion in this crate whose result is *constructed*.
     ///
-    /// **Nothing is decided here.** § 5's rule is that the operand is a source
+    /// **Nothing is decided here.** That rule says the operand is a source
     /// literal and never anything computed, and `nvs_types::expr::quals` has
     /// already refused every other operand where it was written — a `tainted`
     /// value, a `secret` one and anything with a run-time step in it
@@ -1665,7 +1670,7 @@ impl<'a> Lowering<'a> {
     /// against at run time —
     /// `rule:types/single-value-types`'s
     /// "the only place either type costs anything at runtime" — or `None`
-    /// where this conversion is one of § 4's ordinary rows.
+    /// where this conversion is one of the rule's ordinary checked rows.
     ///
     /// A **whole enum** is one of these sets too, and is where
     /// `rule:types/conversion`'s
@@ -1675,7 +1680,8 @@ impl<'a> Lowering<'a> {
     /// is the same one a named subset gets.
     ///
     /// Read off the **checked** type rather than the annotation, because that
-    /// is where the values still are: § 2's `Foo::TYPE_A` folded to the string
+    /// is where the values still are: `rule:types/constant-in-type-position`'s
+    /// `Foo::TYPE_A` folded to the string
     /// it names during checking, and nothing in the AST says which string that
     /// was. It is also the last place they exist at all — `lower_decl_type`
     /// erases the whole set to the one base its members share.
@@ -1686,7 +1692,7 @@ impl<'a> Lowering<'a> {
     ///   `null` an `as ?T` adds — is a member the operand may reach, so there
     ///   is nothing to test against. This mirrors `closed_set_atoms` in
     ///   `nvs_types::expr::operators`, which decides the same question for
-    ///   § 6's compile-time half.
+    ///   `rule:types/single-value-types`' compile-time half.
     /// * The operand already names one value, which the checker has therefore
     ///   already settled: a singleton operand outside the set is `E0469`/
     ///   `E0470` and never reaches lowering, so `"a" as "a"|"b"` needs no
@@ -1727,7 +1733,7 @@ impl<'a> Lowering<'a> {
     /// The rendering is the throw's whole message past the name that failed —
     /// `nvs_runtime`'s `nvs_single_value_mismatch` writes "`x` is not one of " in
     /// front of it — which is why the class is named here rather than left to a
-    /// bare list, and § 2 asks for exactly that.
+    /// bare list: the message names the class and the name it was given.
     fn property_key_set(&self, ty: &Type) -> Option<AcceptedSet> {
         let ExprInfo::PropertyKey { class, names } = self.exprs.lookup(ty.span)? else {
             return None;
@@ -1918,13 +1924,14 @@ impl<'a> Lowering<'a> {
                 CheckedTy::SingleValueString(text) => Some(SingleValueAtom::Str(text.clone())),
                 CheckedTy::SingleValueInt(value) => Some(SingleValueAtom::Int(*value)),
                 // `rule:types/grammar`'s two `bool` singletons — one value each, so a
-                // closed set of exactly the kind § 5 tests, and the reason
+                // closed set of exactly the kind `rule:types/single-value-types`
+                // tests, and the reason
                 // `$m as true` is `as bool` plus a membership test rather than
                 // a target the language parses and cannot lower.
                 CheckedTy::True => Some(SingleValueAtom::Bool(true)),
                 CheckedTy::False => Some(SingleValueAtom::Bool(false)),
-                // § 3's enum-case subset. The checked type names the enum and
-                // the case but deliberately not the value (see
+                // `rule:types/enum-case-type`'s enum-case subset. The checked type
+                // names the enum and the case but deliberately not the value (see
                 // `nvs_types::ty::Ty::EnumCase`'s own doc comment for why
                 // folding it to an int literal would reopen `rule:types/conversion`), so
                 // the constant comes from the run's own enum table — the one
@@ -1946,7 +1953,8 @@ impl<'a> Lowering<'a> {
                 _ => None,
             })
             .collect::<Option<_>>()?;
-        // § 6: the accepted set is generated from the type, never written per
+        // `rule:types/single-value-types`: the accepted set is generated from the
+        // type, never written per
         // site — the same rendering `reject_impossible_literal_conversion`
         // produces for the compile-time half, so the two messages read alike.
         let rendered = atoms
@@ -2410,7 +2418,8 @@ pub(crate) struct AcceptedSet {
 /// row, which asks the identical question of the identical atom
 /// ([`Lowering::lower_type_test`]).
 ///
-/// § 3's enum case keeps its [`nvs_types::EnumValue`] rather than collapsing
+/// `rule:types/enum-case-type`'s enum case keeps its [`nvs_types::EnumValue`]
+/// rather than collapsing
 /// into [`Self::Int`]: the backing type decides both the constant's
 /// instruction and its representation, and an enum's tag is not `Ty::Int`
 /// even where its backing is (see [`Ty::Enum`]).

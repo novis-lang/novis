@@ -749,7 +749,8 @@ pub fn file_script_label(id: SourceId) -> String {
 /// Enums are not walked; interfaces are, because an `interface` method may
 /// carry a body
 /// (`rule:classes/interface-default-methods`) and a default is an ordinary compiled method under the interface's own
-/// label. § 4's `implements I by $field;` forwards have no declaration to walk
+/// label. `rule:classes/delegation-by-property`'s `implements I by $field;` forwards
+/// have no declaration to walk
 /// at all — one is synthesized per `nvs_types::Delegation` at the end of this
 /// function, beside the method-table row that makes it reachable.
 ///
@@ -1283,8 +1284,9 @@ fn lower_program_as(
     // which is what a receiver typed as the *interface* dispatches through.
     // `nvs_types::Delegation` is where every one of these was decided; this
     // adds the two things only a lowered program has, the function and the
-    // row. A name the table already answers is left alone — § 4's "a class may
-    // still write its own method with the same name as a delegated one", and
+    // row. A name the table already answers is left alone —
+    // `rule:classes/delegation-by-property`'s "a class may still write the member by
+    // hand, which is an ordinary override and beats the forward", and
     // an inherited body or an `rule:classes/interface-default-methods` interface default on the same
     // terms.
     for delegation in exprs.delegations() {
@@ -1309,7 +1311,8 @@ fn lower_program_as(
         let Some(function) = delegation_forward(delegation, checked_types, never_written) else {
             continue;
         };
-        // Public: § 4 synthesizes a forward for an *interface* member, and an
+        // Public: `rule:classes/delegation-by-property` synthesizes a forward for an
+        // *interface* member, and an
         // interface has no other visibility to inherit. Neither parameter
         // roster is filled, which is
         // `nvs_types::layout::ClassLayout::methods`' empty case:
@@ -3501,7 +3504,8 @@ impl<'a> Lowering<'a> {
             // declared type wider than the value's own is here. It is the
             // *same* conversion `$n as float` performs — exact, or throwing
             // above 2^53 where an `f64` stops representing every integer —
-            // and § 2 says so outright, so it is the same fallible helper and
+            // and `rule:types/implicit-widening` says so outright, so it is the same
+            // fallible helper and
             // not a `fcvt_from_sint` this function could emit on its own.
             //
             // That is why this one takes `env`, and why every caller passes
@@ -3863,8 +3867,8 @@ impl<'a> Lowering<'a> {
                          returns a resolved type from, and reports a diagnostic on every \
                          path it records nothing on, so a body reaching here at all had an \
                          entry. `nvs_types::expr::assign::check_write_target` then refuses \
-                         the first two where the write is written — `E0478` for `rule:classes/property-observer` \
-                         § 1's pair of accessors, `E0480` for `rule:types/erased-member-access`'s erased \
+                         the first two where the write is written — `E0478` for the pair of accessors of \
+                         `rule:classes/property-observer`, `E0480` for `rule:types/erased-member-access`'s erased \
                          receiver — for all four write spellings alike, leaving `Property` \
                          as the only entry an element write's holder can still carry",
                         base.span
@@ -5030,7 +5034,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         //
         // The argument is dropped here the way `class<T>`'s is one arm above,
         // and it costs the same thing in the same place: the *set* a key may
-        // hold does not survive, so § 2's checked rows cannot re-derive it
+        // hold does not survive, so the rule's checked rows cannot re-derive it
         // below this boundary. They do not have to — the checker records the
         // resolved roster at the conversion
         // (`nvs_types::expr_table::ExprInfo::PropertyKey`) and

@@ -7,7 +7,8 @@
 //! interface default/private method (shared behavior) and `implements
 //! Interface by $field;` delegation (shared state). Neither of those is this
 //! module's business either: a default method's body and a private one's visibility are
-//! `nvs_types`', and § 4's `by $field` forwards are resolved in
+//! `nvs_types`', and the `by $field` forwards of `rule:classes/delegation-by-property`
+//! are resolved in
 //! `nvs_types::conformance` and emitted in `nvs_ir::lower`, both of which need
 //! the signature table this pass runs before. This module's own share is the
 //! edge — the resolved `implements` target the delegation clause hangs off.
@@ -915,7 +916,7 @@ fn implements_interface_rec(
 ///
 /// The answer is over the declarations the graph *holds*. What makes that
 /// "every class the program declares" rather than "every class something
-/// required" is § 3's scan: [`crate::AutoloadMap::enumerate`] names the
+/// required" is `rule:programs/implementing`'s scan: [`crate::AutoloadMap::enumerate`] names the
 /// files, `crate::requires` loads them, and this runs over the graph that
 /// results.
 #[must_use]
@@ -1456,7 +1457,8 @@ mod tests {
     /// dropped. The [`ClassLinks::concrete`] flags are asserted beside the
     /// enumeration because they are what the filter reads, so a graph that
     /// recorded `abstract` wrongly fails here on the field rather than on the
-    /// answer three steps later. § 3 expands to `new` expressions, which is
+    /// answer three steps later. `rule:programs/implementing` expands to `new`
+    /// expressions, which is
     /// why an abstract class in the answer is a program that cannot run.
     #[test]
     fn an_abstract_class_is_not_enumerated() {
