@@ -20,7 +20,7 @@ stages:
         rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
   - id: 2
     title: "`nvs pkg audit` names the minimum bump that clears each advisory, and compares a second copy of the checkpoint"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/resolve.rs, crates/nvs-cli/src/package/lock.rs, crates/nvs-cli/src/package/index.rs, crates/nvs-cli/src/package/advisory.rs]
     extra:
       context:
@@ -143,6 +143,17 @@ withhold, and in every daily run.** A feed write that fails returns `false` from
 undoing the append, as a failed send does, and the next daily run writes it. The feed is queued at
 the index files' rank, after the log tiles it names.
 
+**Audit checks a served log by computing its root from the records, not by checking tiles.**
+`log::Fetched::walk` reads every entry bundle, hashes each record into an RFC 6962 stack, and
+compares the root at the feed's size and at the checkpoint's size. Why: a record that is not the
+signed tree's changes the root, so this is as strong as `log::verify`'s tile-by-tile check, reads
+no hash tile, and needs no tile a host may have replaced. Cost: one fetch per 256 records and at
+most 64 hashes held, once per audit run.
+
+**A copy of the checkpoint that cannot be read fails the audit.** Only "no copy named" is the
+one-line note. Why: the security priority; a split view that hides the copy would otherwise pass.
+Audit also opens its registries without the seven-day index age limit, because it selects nothing.
+
 **Trade-offs.** Nothing runs on the request path, and no program changes. Audit costs one feed fetch
 and two checkpoint fetches per run. Users gain one command that CI runs, and one warning that tells
 them which code holds the application's authority without a grant line.
@@ -188,11 +199,15 @@ log.
 
 **Split:** after the session lands the report, a writing subagent writes the tests.
 
-- [ ] The report and its non-zero exit, with a `--json` form. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
-- [ ] The optional `checkpoint_copy` field in the index reader, and the schema line in `rule:packaging/a-package-is-its-digest`. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
-- [ ] The second-copy comparison, and the one line when none is named. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
-- [ ] The feed checked against a file host's log: a walk over `log::Fetched` that checks every bundle against its level-0 tile, each tile against the one above, and the root, as `log::verify` does for a directory, feeding `advisory::Feed::against`; the records past the feed's size read the same way. `crates/nvs-cli/src/package/log.rs:947`, `crates/nvs-cli/src/package/advisory.rs:1`
-- [ ] Tests: a locked retracted version names its fixed-in version and exits non-zero, a withheld one the same, an unlisted one is silent, and two disagreeing copies fail. `crates/nvs-cli/tests/package_audit.rs:1`
+- [x] The report and its non-zero exit, with a `--json` form. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
+  - [x] `Command::Audit` in `crates/nvs-cli/src/package/mod.rs`, with its help text.
+  - [x] The bump: the smallest choosable version above the lock's, at least `fixed_in`, under no advisory (`minimum::choosable`).
+- [x] The optional `checkpoint_copy` field in the index reader, and the schema line in `rule:packaging/a-package-is-its-digest`. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [x] The second-copy comparison, and the one line when none is named. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+  - [x] `Seen::compare_copy`: same log, prefix or extension by a consistency proof, else the split-view error.
+- [x] The feed checked against a file host's log, feeding `advisory::Feed::against`; the records past the feed's size read the same way. `crates/nvs-cli/src/package/log.rs:947`, `crates/nvs-cli/src/package/advisory.rs:1`
+  - [x] `log::Fetched::walk` computes the root from the records (see *Standing decisions*), and `Seen::advisories` uses it.
+- [x] Tests: a locked retracted version names its fixed-in version and exits non-zero, a withheld one the same, an unlisted one is silent, and two disagreeing copies fail. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 3. `nvs pkg audit` warns on an autoload root no grant line mentions
 
@@ -232,25 +247,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 5 are done. The registry app writes `fixed_in` into a retraction's log entry, runs
-`nvs registry log advisories` after an append that logged a retraction or a withhold and in each
-daily run, and sends `log/advisories` with the index files. `hosting.json`'s optional
-`checkpointCopy` becomes `registry.json`'s `checkpoint_copy`. The package page links to the feed.
-New test, run once and green: `apps/registry/src/AdvisoriesTest.nvs` (4). The `Log` interface gained
-`advisories`, and every double in `BackupTest`, `IndexTest` and `ReleasesTest` has it. No test is
-expected to go red.
+Stages 1, 5 and 2 are done. `nvs pkg audit [--json]` (`crates/nvs-cli/src/package/audit.rs`,
+wired in `package/mod.rs`'s `Command`, not `main.rs`) reads the lock, checks each registry's feed
+against the whole served log (`proof::Seen::advisories` over `log::Fetched::walk`), compares the
+root file's `checkpoint_copy` (`Seen::compare_copy`), and reports each advisory with its bump. The
+index reader accepts `checkpoint_copy`, so an operator may now set `checkpointCopy`. Tests, run once
+and green: `cargo test --test package_audit` (9, five new). No test is expected to go red; a test
+that matches `nvs pkg --help` output exactly would gain the `audit` line.
 
-**Until stage 2 lands, an operator must not set `checkpointCopy`**: the client's index reader
-refuses a key it does not know in `registry.json`, and stage 2 adds `checkpoint_copy` to it.
+The sweep's `env-secret-proofs` finding was stale: its log is from Oct 22 and exited 0, no check of
+that name exists now, and `bun nv proofs --gate --only "Core\Env::secret"` passes. The nightly run
+40662443492 was a manual dispatch cancelled whole; later push runs are green. Nothing to fix.
 
 ### Next
 
-Stage 2, on `crates/nvs-cli/src/package/audit.rs` (new), `index.rs`, `log.rs` and `advisory.rs`.
-- [ ] The optional `checkpoint_copy` in the root reader and its schema line in the rule. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
-- [ ] The walk over a file host's log (`log::Fetched`) feeding `advisory::Feed::against`. `crates/nvs-cli/src/package/log.rs:947`, `crates/nvs-cli/src/package/advisory.rs:1`
-- [ ] `nvs pkg audit`'s report over the lock, its exit, `--json`, and the second-copy comparison. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/main.rs:373`
+Stage 3, on `crates/nvs-cli/src/package/audit.rs`: the subcommand exists, so its first item is done.
+- [ ] The walk over the program's autoload roots against the grant table, printed as warnings after the advisory report, exit unchanged. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-hir/src/autoload.rs:199`, `crates/nvs-config/src/grants.rs:1`
+- [ ] Tests: a granted root is silent, an ungranted one warns, the exit stays zero. A clean lock needs a registry, so reuse the file's `Locked` fixture. `crates/nvs-cli/tests/package_audit.rs:1`
 
-Then stage 3 on the same `audit.rs`.
+Then stage 4: the heading in `docs/reference/tools/35-packages.md` and the proofs.
 
 ### Backlog
 
