@@ -65,7 +65,9 @@ calls it. Which package may read what is the grants model's question
 `setting` or `secret` as a literal string, per program. `nvs config check` compiles the programs the
 tree names, each `[[app]] entry` and each `[[server.mount]]` entry, and every `--program <file>`
 given, and raises `W1028` for each key in the four blocks that none of them reads. When any of them
-passes a name that is not a literal, no key is judged, and one line says so. It is a warning because
+passes a name that is not a literal, or a method reference to either method, no key is judged, and
+one line says so. The same holds when a program does not compile or no program is named. One name
+read by any program counts for every block, an `[[app]]` block's included. It is a warning because
 a key may be read by a program the tree does not name. `nvs check` stays a source check that never
 reads `nvs.toml` (`rule:config/nvs-toml-is-not-a-project-manifest`), and the boot compiles nothing
 to look.

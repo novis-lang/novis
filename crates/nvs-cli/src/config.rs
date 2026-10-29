@@ -79,6 +79,12 @@ enum Command {
         // `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s pre-flight.
         #[arg(long = "as", value_name = "ACCOUNT")]
         account: Option<String>,
+        /// Also read this program when checking which settings and secrets
+        /// are used. Give it once per program that the configuration does not
+        /// name in `[[app]]` or `[[server.mount]]`.
+        // `rule:config/settings-and-secrets-are-a-programs-own-values`'s `W1028`.
+        #[arg(long = "program", value_name = "FILE")]
+        programs: Vec<PathBuf>,
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
@@ -105,7 +111,11 @@ impl Args {
     /// Runs the `nvs config` subcommand clap parsed, over the run's `--config` list.
     pub(crate) fn run(self, config: &[PathBuf]) -> ExitCode {
         match self.command {
-            Command::Check { files, account } => check(config, &files, account.as_deref()),
+            Command::Check {
+                files,
+                account,
+                programs,
+            } => check(config, &files, account.as_deref(), &programs),
             Command::Dump {
                 files,
                 origin,
@@ -1077,7 +1087,16 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// [`LocalFiles`], so the first file the account's `nvs serve` would refuse is
 /// refused here with the same `E0607` and help. A name this machine cannot
 /// resolve is `E0662`, before any file is read.
-pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf], account: Option<&str>) -> ExitCode {
+///
+/// A tree that writes a key in one of the four open blocks also compiles the
+/// programs that might read it, and warns about each key none of them reads
+/// ([`unread_keys`]). Those warnings count on the summary line.
+pub(crate) fn check(
+    config: &[PathBuf],
+    paths: &[PathBuf],
+    account: Option<&str>,
+    programs: &[PathBuf],
+) -> ExitCode {
     let judged;
     let files: &dyn nvs_config::resolve::Files = match account {
         None => &LocalFiles,
@@ -1118,6 +1137,18 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf], account: Option<&str>
         }
         render_diagnostics(&mut diags, &sources);
     }
+    let unread = match unread_keys(&resolved, programs, files) {
+        Ok(unread) => unread,
+        Err(refused) => return rendered(refused, &sources),
+    };
+    if !unread.is_empty() {
+        let mut diags = Diagnostics::new();
+        for warning in &unread {
+            diags.report(warning.clone());
+        }
+        render_diagnostics(&mut diags, &sources);
+    }
+    let warnings = resolved.warnings.len() + unread.len();
 
     let set = nvs_config::audit::Audit::of_files(&resolved)
         .listing()
@@ -1130,10 +1161,190 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf], account: Option<&str>
         plural(set),
         resolved.overrides.len(),
         plural(resolved.overrides.len()),
-        resolved.warnings.len(),
-        plural(resolved.warnings.len()),
+        warnings,
+        plural(warnings),
     );
     ExitCode::SUCCESS
+}
+
+/// One key of the four open blocks, as `check` judges it.
+struct OpenKey {
+    /// `settings.page_size`, `secrets.token`, or `app.0.settings.page_size` for an `[[app]]`
+    /// block's own: the key as `dump` lists it.
+    shown: String,
+    /// The name a program passes to read it: `page_size`.
+    name: String,
+    /// Whether `Core\Config::secret` reads it, rather than `setting`.
+    secret: bool,
+}
+
+/// `W1028` for every key in `[settings]`, `[secrets]`, `[app.settings]` and `[app.secrets]` that
+/// no program reads (`rule:config/settings-and-secrets-are-a-programs-own-values`).
+///
+/// The programs are each `[[app]] entry`, each entry a `[[server.mount]]` reaches, and each
+/// `--program`, compiled as `nvs check` compiles them, and one name read by any of them counts
+/// for every block. A tree that writes none of the four blocks compiles nothing. When a program
+/// does not compile, computes a name, or there is no program at all, no key is judged, and one
+/// line on standard error says why: a warning about a key such a program may read would be wrong.
+///
+/// # Errors
+///
+/// The mount table's own refusal, which `nvs serve` makes on the same tree.
+fn unread_keys(
+    resolved: &nvs_config::resolve::Resolved,
+    programs: &[PathBuf],
+    files: &dyn nvs_config::resolve::Files,
+) -> Result<Vec<Diagnostic>, Diagnostic> {
+    let keys = open_keys(resolved);
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut entries: Vec<PathBuf> = resolved
+        .config
+        .app
+        .iter()
+        .filter_map(|app| app.entry.as_ref().map(PathBuf::from))
+        .collect();
+    if resolved
+        .config
+        .server
+        .as_ref()
+        .is_some_and(|server| !server.mount.is_empty())
+    {
+        let mounts = nvs_config::mount::expand(&resolved.config, &resolved.origins, files)?;
+        entries.extend(mounts.into_iter().map(|mount| mount.entry));
+    }
+    entries.extend(programs.iter().cloned());
+    entries.sort();
+    entries.dedup();
+    if entries.is_empty() {
+        eprintln!(
+            "note: no program is named, so no setting or secret is checked. Give one with \
+             `--program <file>`"
+        );
+        return Ok(Vec::new());
+    }
+
+    let mut read = nvs_types::setting_names::SettingNames::default();
+    for entry in &entries {
+        let Ok(checked) = crate::front_end(entry) else {
+            eprintln!(
+                "note: `{}` does not compile, so no setting or secret is checked",
+                entry.display()
+            );
+            return Ok(Vec::new());
+        };
+        read.extend(checked.exprs.setting_names());
+    }
+    if read.computed() {
+        eprintln!(
+            "note: a program computes the name it passes to `Core\\Config::setting` or \
+             `Core\\Config::secret`, so no setting or secret is checked"
+        );
+        return Ok(Vec::new());
+    }
+
+    Ok(keys
+        .into_iter()
+        .filter(|key| match key.secret {
+            true => !read.reads_secret(&key.name),
+            false => !read.reads_setting(&key.name),
+        })
+        .map(|key| {
+            let reader = match key.secret {
+                true => "Core\\Config::secret",
+                false => "Core\\Config::setting",
+            };
+            let written = resolved
+                .origins
+                .get(&key.shown)
+                .or_else(|| resolved.origins.get(&format!("{}_file", key.shown)));
+            let mut warning = Diagnostic::warning(
+                nvs_diagnostics::code::W_SETTING_NOT_READ,
+                format!(
+                    "`{}` is not read by any program. No program calls `{reader}('{}')`",
+                    key.shown, key.name
+                ),
+            )
+            .with_help(
+                "check the name for a typo. If a program that the configuration does not name \
+                 reads it, give that program with `--program <file>`"
+                    .to_owned(),
+            );
+            if let Some(origin) = written {
+                warning = warning.with_note(format!("written in `{}`", origin.path.display()));
+            }
+            warning
+        })
+        .collect())
+}
+
+/// Every key the four open blocks of `resolved` write, global blocks first and then each
+/// `[[app]]` block's, in key order.
+fn open_keys(resolved: &nvs_config::resolve::Resolved) -> Vec<OpenKey> {
+    use nvs_config::settings::{SECRETS, SETTINGS};
+
+    let mut keys = Vec::new();
+    let blocks = std::iter::once((
+        String::new(),
+        &resolved.config.settings,
+        &resolved.config.secrets,
+    ))
+    .chain(
+        resolved
+            .config
+            .app
+            .iter()
+            .enumerate()
+            .map(|(index, app)| (format!("app.{index}."), &app.settings, &app.secrets)),
+    );
+    for (prefix, settings, secrets) in blocks {
+        if let Some(settings) = settings {
+            let mut leaves = Vec::new();
+            setting_leaves(settings, "", &mut leaves);
+            keys.extend(leaves.into_iter().map(|name| OpenKey {
+                shown: format!("{prefix}{SETTINGS}.{name}"),
+                name,
+                secret: false,
+            }));
+        }
+        // A secret written inline or from a file is one name. The file half is `<name>_file` in
+        // the table, and the value itself is in `resolved.secrets` alone.
+        let block = format!("{prefix}{SECRETS}.");
+        let mut names: Vec<String> = secrets
+            .iter()
+            .flat_map(|table| table.keys())
+            .map(|key| key.strip_suffix("_file").unwrap_or(key).to_owned())
+            .chain(
+                resolved
+                    .secrets
+                    .keys()
+                    .filter_map(|key| key.strip_prefix(&block).map(str::to_owned)),
+            )
+            .collect();
+        names.sort();
+        names.dedup();
+        keys.extend(names.into_iter().map(|name| OpenKey {
+            shown: format!("{block}{name}"),
+            name,
+            secret: true,
+        }));
+    }
+    keys
+}
+
+/// The dotted name of every value under `table` that is not itself a table, as `setting` reads it.
+fn setting_leaves(table: &toml::Table, above: &str, leaves: &mut Vec<String>) {
+    for (key, value) in table {
+        let name = match above {
+            "" => key.clone(),
+            _ => format!("{above}.{key}"),
+        };
+        match value {
+            toml::Value::Table(inner) => setting_leaves(inner, &name, leaves),
+            _ => leaves.push(name),
+        }
+    }
 }
 
 /// `E0662` for an `--as` account that `Account::named` could not find for `why`.

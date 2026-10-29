@@ -28,6 +28,14 @@ that is not an `address:port`, and a `net.internal` entry that is not an IP addr
 nothing before, so the deployment that wrote it was denied with no word about why. The message names
 the entry and the file, and its help is the line that allows what the entry meant, under its table.
 
+**`check` also reads the programs, and only for the four open blocks.** A tree that writes a key in
+`[settings]`, `[secrets]`, `[app.settings]` or `[app.secrets]` has each `[[app]] entry`, each entry
+a `[[server.mount]]` reaches and each `--program <file>` compiled, and every key none of them reads
+is `W1028`, counted on the summary line with the other warnings
+(`rule:config/settings-and-secrets-are-a-programs-own-values`). A tree that writes none of the four
+compiles nothing, so the check stays a read of the files. The mount table is expanded as `nvs serve`
+expands it, and its refusal is `check`'s.
+
 Both read without the ownership check, and `check --as <account>` runs it for the account that will
 serve (`rule:config/the-ownership-check-runs-where-it-can-be-answered`). What a reload actually published is
 the record it writes to `Core\Log` (`rule:config/a-reload-names-what-it-could-not-apply`).

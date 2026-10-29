@@ -995,13 +995,15 @@ its own values: the base file holds the defaults, and a file on that machine ove
 
 | Method | Returns |
 |---|---|
-| `Core\Config::setting(string $name): mixed` | the value with its type, or `null` when no block sets it |
+| `Core\Config::setting(string $name): ?(string\|int\|float\|bool\|array<mixed>)` | the value with its type, or `null` when no block sets it |
 | `Core\Config::secret(string $name): ?secret string` | the secret, or `null` when no block sets it |
 
 A program converts a setting with `as`: `Core\Config::setting('page_size') as int` throws when the
 value is missing or is not a whole number. `secret`'s name is a sink, as `Core\Env::secret`'s is, so
 a request cannot choose which secret it reads. A setting is not `tainted`: the operator wrote it in
-a file only the runtime account or root may change.
+a file only the runtime account or root may change. That is why `setting` returns a union of the
+TOML types and not `mixed`: text out of `mixed` is `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)).
+A table's values are `mixed`, so a program reads one untainted by its dotted name, `api.base`.
 
 **`get`, `all`, `set` and `restore` never see the four blocks.** `Core\Config::get('secrets.x')`
 returns `null`, and `all` lists no `settings.` or `secrets.` key. Without this, a secret would come
@@ -1015,7 +1017,9 @@ calls it. Which package may read what is the grants model's question
 `setting` or `secret` as a literal string, per program. `nvs config check` compiles the programs the
 tree names, each `[[app]] entry` and each `[[server.mount]]` entry, and every `--program <file>`
 given, and raises `W1028` for each key in the four blocks that none of them reads. When any of them
-passes a name that is not a literal, no key is judged, and one line says so. It is a warning because
+passes a name that is not a literal, or a method reference to either method, no key is judged, and
+one line says so. The same holds when a program does not compile or no program is named. One name
+read by any program counts for every block, an `[[app]]` block's included. It is a warning because
 a key may be read by a program the tree does not name. `nvs check` stays a source check that never
 reads `nvs.toml` ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)), and the boot compiles nothing
 to look.
@@ -1691,6 +1695,14 @@ on a grant that has no `true` spelling, a relative SQLite path under `db.open`, 
 that is not an `address:port`, and a `net.internal` entry that is not an IP address. Each was read as
 nothing before, so the deployment that wrote it was denied with no word about why. The message names
 the entry and the file, and its help is the line that allows what the entry meant, under its table.
+
+**`check` also reads the programs, and only for the four open blocks.** A tree that writes a key in
+`[settings]`, `[secrets]`, `[app.settings]` or `[app.secrets]` has each `[[app]] entry`, each entry
+a `[[server.mount]]` reaches and each `--program <file>` compiled, and every key none of them reads
+is `W1028`, counted on the summary line with the other warnings
+([`config/settings-and-secrets-are-a-programs-own-values`](config.md#config-settings-and-secrets-are-a-programs-own-values)). A tree that writes none of the four
+compiles nothing, so the check stays a read of the files. The mount table is expanded as `nvs serve`
+expands it, and its refusal is `check`'s.
 
 Both read without the ownership check, and `check --as <account>` runs it for the account that will
 serve ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is

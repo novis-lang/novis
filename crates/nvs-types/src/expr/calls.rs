@@ -761,6 +761,9 @@ pub(crate) fn infer_static_call(
         crate::capability::reject_ungranted_call(owner, name, expr.span, (args, &slots), ctx, env);
         crate::capability::prepare_config_set(owner, name, expr.span, ctx, env);
         crate::capability::prepare_cap_has(owner, name, expr.span, ctx, env);
+        // `rule:config/settings-and-secrets-are-a-programs-own-values`'s typo check reads the
+        // names recorded here. See [`crate::setting_names`].
+        crate::setting_names::record(owner, name, args, env);
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
         // `rule:security/secret-sinks-refuse`'s cross-boundary sink, at the same end and for the same
         // reason — `Core\Serialize::encode` declares `mixed` too. See

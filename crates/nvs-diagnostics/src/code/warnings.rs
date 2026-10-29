@@ -289,4 +289,16 @@ codes! {
          no `requestBody` for this route. Move the `Core\\Request::jsonAs` or \
          `Core\\Request::postAs` call into the route method.",
     );
+    /// A key in `[settings]`, `[secrets]`, `[app.settings]` or `[app.secrets]`
+    /// that no program the tree names reads with `Core\Config::setting` or
+    /// `secret` (`rule:config/settings-and-secrets-are-a-programs-own-values`).
+    /// A warning and never an error: a program the tree does not name may read
+    /// it. `nvs config check` raises it, and never when a program computes a
+    /// name.
+    pub const W_SETTING_NOT_READ: Code = Code::new("W1028").card(
+        "No program reads this setting or secret. The check looks at every program that the \
+         configuration names in `[[app]]` and `[[server.mount]]`, and at each file given with \
+         `--program`. Check the name for a typo. If another program reads it, give that program \
+         with `--program`.",
+    );
 }

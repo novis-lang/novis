@@ -405,3 +405,125 @@ fn config_get_and_all_never_return_a_setting_or_a_secret() {
         );
     }
 }
+
+/// What one run of `nvs config check` printed.
+struct Checked {
+    success: bool,
+    stdout: String,
+    stderr: String,
+}
+
+/// Writes `files` and `nvs.toml`, as [`Server::start`] does, into a fresh
+/// directory named for `case`, and runs `nvs config check` there once. The
+/// directory is removed before this returns.
+fn config_check(case: &str, mounts: &[&str], blocks: &str, files: &[(&str, &str)]) -> Checked {
+    let dir = directory(case);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("the case's directory is created");
+    for (path, text) in files {
+        write_file(&dir.join(path), text);
+    }
+    write_file(&dir.join("nvs.toml"), &configured(mounts, blocks));
+
+    let data = nvs_repo::scratch_private("nvsdata");
+    let output = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .args(["config", "check"])
+        .current_dir(&dir)
+        .stdin(Stdio::null())
+        .output()
+        .expect("`nvs config check` starts");
+    let _ = std::fs::remove_dir_all(&dir);
+    Checked {
+        success: output.status.success(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    }
+}
+
+/// The blocks of the two check cases that judge keys: `page_sise` and
+/// `old_key` are the two keys [`READING`] does not read.
+const WITH_TYPOS: &str = "[settings]\npage_size = 10\npage_sise = 20\ntitle = \"Store\"\n\n\
+                          [secrets]\napi_key = \"global-key\"\nold_key = \"old\"\n";
+
+/// A key no mounted program reads is `W1028`, once per key, and the check
+/// still passes. A key the program reads has no warning.
+#[test]
+fn config_check_warns_about_a_setting_no_program_reads() {
+    let checked = config_check(
+        "unread",
+        &["shop"],
+        WITH_TYPOS,
+        &[(&entry("shop"), READING)],
+    );
+    let Checked {
+        success,
+        stdout,
+        stderr,
+    } = &checked;
+    assert!(success, "the check failed: {stdout}{stderr}");
+    for unread in ["`settings.page_sise`", "`secrets.old_key`"] {
+        assert!(
+            stderr
+                .lines()
+                .any(|line| line.contains("W1028") && line.contains(unread)),
+            "no `W1028` for {unread}: {stderr}"
+        );
+    }
+    for read in [
+        "`settings.page_size`",
+        "`settings.title`",
+        "`secrets.api_key`",
+    ] {
+        assert!(!stderr.contains(read), "{read} was named: {stderr}");
+    }
+    assert_eq!(stderr.matches("W1028").count(), 2, "{stderr}");
+    assert!(stdout.contains(", 2 warnings"), "{stdout}");
+}
+
+/// When the mounted programs read every key, of the global blocks and of an
+/// `[[app]]` block, the check names none.
+#[test]
+fn config_check_is_silent_when_every_setting_is_read() {
+    let checked = config_check(
+        "all-read",
+        &["shop", "blog"],
+        SHOP_AND_BLOG,
+        &[(&entry("shop"), READING), (&entry("blog"), READING)],
+    );
+    assert!(
+        checked.success,
+        "the check failed: {}{}",
+        checked.stdout, checked.stderr
+    );
+    assert!(!checked.stderr.contains("W1028"), "{}", checked.stderr);
+}
+
+/// A program that reads `page_size`, under a name it takes from the request.
+const COMPUTED: &str = r#"<?nvs
+echo Core\Config::setting(Core\Request::query("name") ?? "page_size") as int;
+"#;
+
+/// A name the program computes may be any key, so no key is judged, and one
+/// line says why.
+#[test]
+fn config_check_judges_no_key_when_a_name_is_computed() {
+    let checked = config_check(
+        "computed",
+        &["shop"],
+        WITH_TYPOS,
+        &[(&entry("shop"), COMPUTED)],
+    );
+    assert!(
+        checked.success,
+        "the check failed: {}{}",
+        checked.stdout, checked.stderr
+    );
+    assert!(!checked.stderr.contains("W1028"), "{}", checked.stderr);
+    assert!(
+        checked.stderr.contains("computes the name"),
+        "no line says why no key was judged: {}",
+        checked.stderr
+    );
+}

@@ -205,6 +205,7 @@ pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;
 pub(crate) mod secret_directive;
+pub mod setting_names;
 pub mod signatures;
 /// Re-exported, not owned: the escape grammar lives in `nvs-syntax`, the one
 /// crate `nvs-hir`'s `require` resolution, this checker and `nvs-ir`'s lowering

@@ -1637,6 +1637,7 @@ pub struct ExprTypeTable {
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     written_paths: FxHashMap<Span, String>,
+    setting_names: crate::setting_names::SettingNames,
     prepared: FxHashMap<Span, Prepared>,
     formats: FxHashMap<Span, Vec<FormatPiece>>,
     delegations: Vec<Delegation>,
@@ -2659,6 +2660,19 @@ impl ExprTypeTable {
         self.written_paths
             .iter()
             .map(|(span, path)| (*span, path.as_str()))
+    }
+
+    /// The names the program passes to `Core\Config::setting` and `secret`, which
+    /// `nvs config check` compares with the keys a tree writes. See
+    /// [`crate::setting_names`].
+    #[must_use]
+    pub fn setting_names(&self) -> &crate::setting_names::SettingNames {
+        &self.setting_names
+    }
+
+    /// The table [`crate::setting_names::record`] fills as the walk reaches each call.
+    pub(crate) fn setting_names_mut(&mut self) -> &mut crate::setting_names::SettingNames {
+        &mut self.setting_names
     }
 
     /// Records what [`crate::intrinsics`]'s fold prepared out of the literal a
