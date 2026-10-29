@@ -13,7 +13,7 @@ stages:
         rules: [packaging/a-known-bad-version-is-retracted-not-deleted, packaging/the-operator-only-withholds, packaging/the-registry-keeps-an-append-only-log]
   - id: 5
     title: the registry publishes the signed advisory feed and names the second checkpoint copy
-    status: open
+    status: done
     context: [apps/registry/src/App.nvs, apps/registry/src/Withhold.nvs, apps/registry/src/Releases.nvs, apps/registry/src/Index.nvs, apps/registry/src/Events.nvs]
     extra:
       context:
@@ -131,6 +131,18 @@ that route adds the kind to the feed and a schema line to the rule.
 when its root is the log's at its size. Audit in stage 2 reads the records past the feed's size from
 the log itself, so an append between two feed writes never fails a run, and nothing is hidden.
 
+**The package page's *Advisories* section reads `release_states`, and links to the signed feed.**
+The feed and the table hold the same retractions and withholds, each written in the transaction of
+its event, so the page shows nothing the feed does not. Reading the feed instead would parse every
+advisory of the registry on each page view, a request-path cost the latency priority does not
+spend for no new fact. The link is `Site::feed()`: the first file host's `log/advisories`, or the
+site's own `/log/advisories` with no hosts.
+
+**The service writes the feed in `Index::run` after an append that logged a retraction or a
+withhold, and in every daily run.** A feed write that fails returns `false` from the run without
+undoing the append, as a failed send does, and the next daily run writes it. The feed is queued at
+the index files' rank, after the log tiles it names.
+
 **Trade-offs.** Nothing runs on the request path, and no program changes. Audit costs one feed fetch
 and two checkpoint fetches per run. Users gain one command that CI runs, and one warning that tells
 them which code holds the application's authority without a grant line.
@@ -158,10 +170,16 @@ second checkpoint copy when the operator configures one.
 
 **Split:** after the session lands `Advisories.nvs`, a writing subagent writes its test.
 
-- [ ] The signed feed, written by the service from each retraction and withhold. `apps/registry/src/Advisories.nvs:1`, `apps/registry/src/Withhold.nvs:1`
-- [ ] The index root's `checkpoint_copy`, from the service's configuration. `apps/registry/src/Index.nvs:1`
-- [ ] The package page's *Advisories* section reads each entry of the feed, with a link to the signed feed. It shows each retraction and withhold from `release_states` until then. `apps/registry/src/PackagePage.nvs:301`
-- [ ] A test: a retraction and a withhold each appear in the feed, and the client's reader accepts it. `apps/registry/src/AdvisoriesTest.nvs:1`
+- [x] The signed feed, written by the service from each retraction and withhold. `apps/registry/src/Advisories.nvs:1`, `apps/registry/src/Withhold.nvs:1`
+  - [x] `Events::reasoned` writes a retraction's `fixed_in`, left out when there is none.
+  - [x] `Log::advisories`, run by `NvsLog` as `nvs registry log advisories`.
+  - [x] `Index::run` writes and queues the feed after an append that logged an advisory, and `Index::daily` always.
+- [x] The index root's `checkpoint_copy`, from the service's configuration. `apps/registry/src/Index.nvs:1`
+  - [x] `checkpointCopy` in `hosting.json`, an optional `https:` address, in `Site` and the app's README.
+  - [x] `Index::root` writes `checkpoint_copy` only when it is set.
+- [x] The package page's *Advisories* section shows each retraction and withhold from `release_states`, with a link to the signed feed (see *Standing decisions*). `apps/registry/src/PackagePage.nvs:301`
+- [x] A test: a retraction and a withhold each appear in the feed, and the client's reader accepts it. `apps/registry/src/AdvisoriesTest.nvs:1`
+  - [x] The entries the app logs are, in canonical form, the ones `crates/nvs-cli/tests/package_audit.rs` appends and checks with the client's reader.
 
 ### 2. `nvs pkg audit` names the minimum bump that clears each advisory, and compares a second copy of the checkpoint
 
@@ -214,22 +232,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. The feed's schema is in its rule, `crates/nvs-cli/src/package/advisory.rs` opens a
-feed and checks it against the log, `nvs registry log advisories` writes it, and `nvs registry log
-verify` checks it when the log directory has one. Every gate holds: goals `registry-log`,
-`registry-service`, `namespace-grants` and `package-client` are gone. New tests, each run once and
-green: `crates/nvs-cli/tests/package_audit.rs` (4) and `package::advisory::tests` (4). No test is
+Stages 1 and 5 are done. The registry app writes `fixed_in` into a retraction's log entry, runs
+`nvs registry log advisories` after an append that logged a retraction or a withhold and in each
+daily run, and sends `log/advisories` with the index files. `hosting.json`'s optional
+`checkpointCopy` becomes `registry.json`'s `checkpoint_copy`. The package page links to the feed.
+New test, run once and green: `apps/registry/src/AdvisoriesTest.nvs` (4). The `Log` interface gained
+`advisories`, and every double in `BackupTest`, `IndexTest` and `ReleasesTest` has it. No test is
 expected to go red.
+
+**Until stage 2 lands, an operator must not set `checkpointCopy`**: the client's index reader
+refuses a key it does not know in `registry.json`, and stage 2 adds `checkpoint_copy` to it.
 
 ### Next
 
-Stage 5, the app lane, on `apps/registry/src/Events.nvs`, `apps/registry/src/Releases.nvs` and
-`apps/registry/src/Index.nvs`.
-- [ ] `Events::reasoned` writes a retraction's `fixed_in` into its log entry, left out when there is none. `apps/registry/src/Events.nvs:34`, `apps/registry/src/Releases.nvs:189`
-- [ ] The feed: after an append that logs a retract or a withhold, the service runs `nvs registry log advisories` over its log directory and copies `advisories` with the log's other files (find where it runs `log append` and copies the printed paths: `grep -n "log', 'append'\|'append'" apps/registry/src/*.nvs`). `apps/registry/src/NvsLog.nvs:1`
-- [ ] `checkpoint_copy` in the index root, then the package page's *Advisories* section, then `AdvisoriesTest.nvs`, as stage 5 lists them. `apps/registry/src/Index.nvs:1`, `apps/registry/src/PackagePage.nvs:301`
+Stage 2, on `crates/nvs-cli/src/package/audit.rs` (new), `index.rs`, `log.rs` and `advisory.rs`.
+- [ ] The optional `checkpoint_copy` in the root reader and its schema line in the rule. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
+- [ ] The walk over a file host's log (`log::Fetched`) feeding `advisory::Feed::against`. `crates/nvs-cli/src/package/log.rs:947`, `crates/nvs-cli/src/package/advisory.rs:1`
+- [ ] `nvs pkg audit`'s report over the lock, its exit, `--json`, and the second-copy comparison. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/main.rs:373`
 
-Then stage 2, which needs the host walk named under it.
+Then stage 3 on the same `audit.rs`.
 
 ### Backlog
 
