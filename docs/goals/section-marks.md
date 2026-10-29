@@ -62,7 +62,7 @@ stages:
     context: [tools/nv/cmd/rules.ts]
   - id: 15
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: rules
@@ -302,46 +302,36 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Every stage but 15 is done. No file under `crates/` or `tests/conformance/` has a bare mark,
-and `bun nv rules --check` is green on the whole tree. This session landed three commits:
-- Stage 7's 598 marks in 303 core cases, done by four writing subagents on disjoint batches.
-  The session read the diffs.
-- The three held `nvs-cli` files' 24 marks, which went to stage 8's session as the last
-  handoff allowed. `app-settings` and `ci-green` sit behind this goal on the chain, so neither
-  was editing them. All 24 marks were in comments.
-- Stage 8: `tools/data/bare-section-marks.json` and `--record-marks` are gone, and
-  `rules --check` fails on each line that carries a bare mark. In a `.nvst` case it reads the
-  description and the comments only (`markProse`, see Standing decisions). `rules.test.ts`
-  pins this, and its 46 cases pass with `verify.test.ts`.
+Every stage is done, stage 15 included, and the goal is reached. Its gate found two causes:
+- `extension_release` read the build matrix from `release.yml`, which `4972b3373` moved into
+  the reusable `build.yml`. This goal did not cause it. The test now reads `build.yml`.
+- 18 conformance cases pinned diagnostic lines that the section-mark comment rewrites moved.
+  Their `-->` lines, two gutter numbers and two arrow indents follow the code now. No message
+  changed.
 
-`docs/goals/app-settings.md:151` wrote its future rule as a `rule:` citation, which kept
-`rules --check` red. It now names the id without the token.
+The second `bun nv affected --run` is green, 23 of 23. `bun nv verify --doc`, `bun nv owners
+--closes section-marks`, `bun nv ci --check` and `bun nv rules --check` are green. The
+decisions live in `docs/agent/conventions.md` § *Citing a document* and the head of
+`tools/nv/cmd/rules.ts`. No test is expected to go red.
 
-Build, clippy, rustfmt on the edited `.rs` files, `tsc` on the tool and `looper lint` are
-green. No diagnostic text and no expected output changed. No test is expected to go red.
-
-The sweep's findings were already fixed on `main`: `env-secret-proofs` is defined by no goal
-and its command passes. The nightly's three causes (the proxied image's missing
-`CHANGELOG.md`, the Miri `ring` passkey cases and the spool wake test) have fixes in
-`ef7e629e2`, `df208a541` and `dafe6c98d`, all after the nightly's commit `8d39c49bb`.
+The sweep's findings were already fixed on `main`: the `env-secret-proofs` log shows exit 0,
+and every failed nightly job ran `8d39c49bb`, before the fixes `ef7e629e2`, `df208a541` and
+`dafe6c98d`. Every failed Miri stdlib job failed in `passkey::tests` calling `ring`.
 
 ### Next
 
-Stage 15 alone. Start `looper verify` (`bun nv affected --run`) with `run_in_background`,
-and end the turn to wait. Then group the failures by cause and fix them in one pass. The
-change is comments in about 900 files, the `rules` tool and its tests. A failure is most
-likely a stamp or figure that hashes a file's text: `d53652640` was one (see the playbook).
-- [ ] `bun nv affected --run` over the goal, its failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass, then the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes section-marks`, `bun nv ci --check`. `docs/goals/section-marks.md:1`
+Nothing. The goal is reached, and the driver retires it.
+- [x] `bun nv affected --run` over the goal, its failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure fixed in one pass, then the second run green. `tools/nv/cmd/verify.ts:1`
+- [x] The goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes section-marks`, `bun nv ci --check`. `docs/goals/section-marks.md:1`
 
 ### Backlog
 

@@ -1,7 +1,5 @@
-- **A comment added inside a `--FILE--` block moves every line number its `--EXPECTF-ERROR--`
-  pins, and the offset is four: source line 1 is the `<?nvs` on file line 4.** Rewording the
-  prose above the code in
-  `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`
-  turned a green case red with a `case.nvs:18` against a `case.nvs:19` and nothing else changed.
-  Keep a comment rewrite the same number of lines when the case pins a diagnostic, or update the
-  expectation in the same edit. `until: gone tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst:--EXPECTF-ERROR--`
+- **A comment added inside a `--FILE--` block moves every line its `--EXPECTF-ERROR--` pins, and
+  source line 1 is file line 4.** Three things move: the `--> case.nvs:L:C` line, a pinned
+  gutter number (`26 |`), and the arrow's indent, one space wider once the line reaches 10. Keep
+  a comment rewrite the same length when the case pins a diagnostic, or update the expectation in
+  the same edit, and say so in a writing subagent's brief. See `tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst`. `until: gone tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst:--EXPECTF-ERROR--`
