@@ -2,23 +2,23 @@
 //! the facts one statement contributes to a trace, and why a bound parameter
 //! is not one of them.
 //!
-//! § 11 fixes the field set — duration, driver, connection name, truncated SQL
-//! text, rows returned, rows affected — and then says *never parameters*. This
-//! module is where that second half is made structural rather than remembered:
-//! [`QuerySpan::opened`] is handed the SQL and the clock and **is never handed
-//! the values**, so there is no parameter in scope for a later field, a later
-//! rendering or a later driver to leak. The rule it serves is § 8's, which
-//! states it for the error path in the same words, and `pg::server_error`'s own
-//! tests hold that half.
+//! That rule fixes the field set — duration, driver, connection name, truncated
+//! SQL text, rows returned, rows affected — and then says *never parameters*.
+//! This module is where that second half is made structural rather than
+//! remembered: [`QuerySpan::opened`] is handed the SQL and the clock and **is
+//! never handed the values**, so there is no parameter in scope for a later
+//! field, a later rendering or a later driver to leak.
+//! `rule:core-classes/db-error` states the same rule for the error path, and
+//! `pg::server_error`'s own tests hold that half.
 //!
 //! **The SQL text is safe to carry for a reason this crate can point at.**
-//! § 8 allows it on the error because it is developer-authored, and the goal's
-//! standing decision that emulated prepares do not exist in any form is what
-//! makes that true of a *span*: no driver here ever interpolates a value into
-//! the text, so what a span carries is the statement as written, placeholders
-//! still placeholders. A driver that formatted its own SQL would have put the
-//! values back inside this field, which is the second reason that decision is
-//! structural.
+//! `rule:core-classes/db-error` allows it on the error because it is
+//! developer-authored, and `rule:core-classes/db-one-api`'s refusal of
+//! emulated prepares in any form is what makes that true of a *span*: no driver
+//! here ever interpolates a value into the text, so what a span carries is the
+//! statement as written, placeholders still placeholders. A driver that
+//! formatted its own SQL would have put the values back inside this field,
+//! which is the second reason that refusal is structural.
 //!
 //! # Why it is driver-shaped and not PostgreSQL-shaped
 //!
@@ -33,7 +33,7 @@
 //! statement, held for as long as the statement's handle — O(in-flight
 //! statements), never O(statements run). Against a network round trip that is
 //! not measurable, which is why the span is built unconditionally rather than
-//! behind the capability check § 11 gates the *output* on.
+//! behind the capability check the *output* is gated on.
 //!
 //! **A span reaches a trace as its own rendering, not as its fields.**
 //! `Core\Db`'s reader files one under `nvs_runtime::TraceKind::Query` once the
@@ -46,21 +46,22 @@
 //! request's trace is recorded, which needs no grant, or `DebugFlags::TRACE` is
 //! on and the `debug.trace` grant is held (`rule:testing/debug-mode-directive`).
 //!
-//! § 11's other half reads the same span: the `slow_query` threshold a
-//! `[db.<name>]` block writes turns one of these into a `Core\Log` record, and
-//! `Core\Db`'s `QueryWatch` is the single reader of both halves so that a
-//! statement renders its span at most once.
+//! `rule:observability/a-slow-query-is-logged-past-a-threshold` reads the same
+//! span: the `slow_query` threshold a `[db.<name>]` block writes turns one of
+//! these into a `Core\Log` record, and `Core\Db`'s `QueryWatch` is the single
+//! reader of the trace and the log so that a statement renders its span at
+//! most once.
 //!
 //! **A statement that lends no reader out opens its own span**, which is why
 //! [`QuerySpan::opened`] is `pub` rather than something only [`crate::pg`]
 //! reaches. `executeMany` answers with a count and never hands a
 //! [`crate::PgRows`] back, so `Core\Db`'s routine opens the span around the
 //! driver call and finishes it with the batch's sum — the same event, built one
-//! layer up because there is no handle for the driver to hang it on. § 7's
-//! `BEGIN`/`COMMIT`/`ROLLBACK` lend no reader out either, and those go the
-//! other way: [`crate::PgConn::begin`] *answers* with the span, because which
-//! command a nesting depth gets is the connection's answer and its caller has
-//! no way to spell the text.
+//! layer up because there is no handle for the driver to hang it on. A
+//! transaction's `BEGIN`/`COMMIT`/`ROLLBACK` lend no reader out either, and
+//! those go the other way: [`crate::PgConn::begin`] *answers* with the span,
+//! because which command a nesting depth gets is the connection's answer and
+//! its caller has no way to spell the text.
 
 use std::time::{Duration, Instant};
 
@@ -114,8 +115,9 @@ impl QuerySpan {
     /// Opens a span for a statement that is going out now.
     ///
     /// **The parameters are deliberately not an argument.** A driver calls this
-    /// from the routine that is holding them, and the whole of § 11's "never
-    /// parameters" is that they are not passed here — see the module docs.
+    /// from the routine that is holding them, and the whole of "never
+    /// parameters" in `rule:observability/a-query-is-a-trace-event` is that
+    /// they are not passed here — see the module docs.
     #[must_use]
     pub fn opened(driver: Driver, sql: &str) -> QuerySpan {
         let (sql, truncated) = truncate(sql);
@@ -216,7 +218,7 @@ impl QuerySpan {
     /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`): the driver, the SQL
     /// as cut here, and the affected count where the server gave one, else the rows returned.
     ///
-    /// Built from the fields and never from a parameter, for § 11's reason, so
+    /// Built from the fields and never from a parameter, for the trace event's reason, so
     /// `a_query_span_contains_no_parameter_value_anywhere` covers it too. The call site is
     /// `None` here: the driver never sees the call, and `Core\Db`'s `QueryWatch` fills it in from
     /// the program's site table when the span is traced (`rule:observability/a-query-span-names-its-call-site`).
@@ -279,9 +281,9 @@ mod tests {
     use super::{QuerySpan, SQL_LIMIT, truncate};
     use crate::conn::Driver;
 
-    /// § 11's bound, on both sides of it: the last statement carried whole and
-    /// the first one cut, named together so a rewriting that stops one
-    /// character early cannot pass against either half alone.
+    /// The truncation bound, on both sides of it: the last statement carried
+    /// whole and the first one cut, named together so a rewriting that stops
+    /// one character early cannot pass against either half alone.
     #[test]
     fn a_statement_is_carried_whole_up_to_the_bound_and_cut_after_it() {
         let whole = "s".repeat(SQL_LIMIT);

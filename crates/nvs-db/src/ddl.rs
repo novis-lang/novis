@@ -1158,7 +1158,7 @@ fn base_grade(change: &Change, server: Option<Server>) -> (Grade, &'static str) 
                     Grade::Destructive,
                     "The new type does not hold every value the old one did, so the server either \
                      truncates what does not fit or refuses the whole statement. Where the \
-                     emitter has no rule that says otherwise, § 6 grades up.",
+                     emitter has no rule that says otherwise, this grades up.",
                 )
             }
         }

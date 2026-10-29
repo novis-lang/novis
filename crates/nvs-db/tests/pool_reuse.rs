@@ -32,7 +32,7 @@
 //! stores a `Box<dyn …>` and knows nothing about a driver, so "the connection
 //! comes back" is a claim about the `Connection` this crate files and unfiles,
 //! and it is a different variant, a different reset and a different socket per
-//! driver. What changes between the twins beyond the query is the marker: § 13's
+//! driver. What changes between the twins beyond the query is the marker: the
 //! reset is asked to have removed a **session variable** on MySQL rather than a
 //! temporary table, because there the variable is the one whose absence has a
 //! single spelling — a missing temporary table is an error rather than a value,
@@ -196,8 +196,8 @@ fn mariadb_open(server: &Server) -> MariaConn {
 }
 
 /// [`one_value`]'s twin over the binary protocol, where the column arrives
-/// already typed and is read through § 9's own decoder rather than by parsing
-/// the octets here.
+/// already typed and is read through the driver's own decoder for
+/// `rule:core-classes/db-column-types` rather than by parsing the octets here.
 fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
     first_text(conn.query(sql, &[]).expect("the server ran the statement"))
 }
@@ -210,7 +210,7 @@ fn mariadb_one_value(conn: &mut MariaConn, sql: &str) -> Option<String> {
 /// The walk itself, shared by the two drivers that speak this result set.
 ///
 /// [`MariaConn::query`] answers the *same* [`MySqlRows`] as [`MySqlConn::query`]
-/// — one binary protocol, and § 9's decoder is one decoder — so the walk is
+/// — one binary protocol, and one column decoder — so the walk is
 /// shared where every helper around it is twinned. What MariaDB does not share
 /// with MySQL is above the framing, and that is what the cases below ask about.
 ///
@@ -229,7 +229,9 @@ fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
         if first {
             first = false;
             let value = row.value(0).expect("the row has a first column");
-            answer = match scalar(&columns[0], value).expect("the column decodes under § 9") {
+            answer = match scalar(&columns[0], value)
+                .expect("the column decodes to its declared type")
+            {
                 MySqlScalar::Null => None,
                 MySqlScalar::Text(text) => Some(text.to_owned()),
                 other => panic!("the statement answered {other:?}, which is not text"),
@@ -248,7 +250,7 @@ fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
 /// twice.
 const MYSQL_ID: &str = "SELECT CAST(CONNECTION_ID() AS CHAR)";
 
-/// The session state a request leaves behind for § 13's reset to remove, and the
+/// The session state a request leaves behind for the reset to remove, and the
 /// read that says whether it survived — the module doc owns why it is a variable
 /// on this driver and a temporary table on the other.
 const MYSQL_MARK: &str = "SET @novis_pool_marker = 'marker'";
@@ -277,8 +279,8 @@ fn one_value(conn: &mut PgConn, sql: &str) -> Option<String> {
     answer
 }
 
-/// § 13: the connection one request released at teardown is the connection the
-/// next request on that core draws, and it arrives reset.
+/// The connection one request released at teardown is the connection the next
+/// request on that core draws, and it arrives reset.
 ///
 /// The identity is the assertion. A request handed a *fresh* connection would
 /// answer the second query just as well, so `pg_backend_pid()` is what makes
@@ -290,7 +292,7 @@ fn two_requests_on_one_core_share_one_connection() {
         return;
     };
 
-    // One configuration generation, which is what § 13's key is scoped to —
+    // One configuration generation, which is what the pool key is scoped to —
     // `Ticket::key_for` owns why a reload is two pools rather than one.
     let generation = Arc::new(Snapshot::default());
     let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
@@ -329,7 +331,7 @@ fn two_requests_on_one_core_share_one_connection() {
     let Connection::Postgres(warm) = *held else {
         panic!("the driver under test on this leg is PostgreSQL")
     };
-    // § 13's reset is the acquiring request's and not the releasing one's —
+    // The reset is the acquiring request's and not the releasing one's —
     // `nvs_runtime::pool`'s *Where the reset is* owns why — and it consumes the
     // connection, so a reset that failed could not hand one back here at all.
     let mut warm = warm.reset().expect("a healthy connection resets");
@@ -342,12 +344,12 @@ fn two_requests_on_one_core_share_one_connection() {
     assert_eq!(
         one_value(&mut warm, "SELECT to_regclass('novis_pool_marker')"),
         None,
-        "§ 13's reset removed the session state the first request left behind",
+        "the pool reset removed the session state the first request left behind",
     );
 }
 
-/// § 13's "no assumed role": a request that changes who it is talking as
-/// leaves the next request talking as the account the block names.
+/// The reset leaves no assumed role: a request that changes who it is talking
+/// as leaves the next request talking as the account the block names.
 ///
 /// `role` and `session_authorization` are the two settings `RESET ALL` skips,
 /// so a reset of `RESET ALL` alone passes the case above and fails this one.
@@ -393,11 +395,11 @@ fn a_role_one_request_assumed_is_gone_for_the_next() {
     assert_eq!(
         one_value(&mut warm, WHO),
         Some(first),
-        "§ 13's reset gave the next request the first request's assumed role",
+        "the pool reset gave the next request the first request's assumed role",
     );
 }
 
-/// § 13: `pool = false` restores connect-per-request **exactly** — nothing is
+/// `pool = false` restores connect-per-request **exactly** — nothing is
 /// taken back, so the next request on this core opens its own connection.
 ///
 /// The same shape as the case above with one field changed, which is the point:
@@ -447,7 +449,7 @@ fn a_pool_that_is_off_hands_the_next_request_nothing() {
     );
 }
 
-/// § 13: a connection past its `lifetime` is retired rather than handed on, so
+/// A connection past its `lifetime` is retired rather than handed on, so
 /// the request that follows opens a backend of its own.
 ///
 /// The live double of `nvs_runtime::pool`'s
@@ -458,9 +460,9 @@ fn a_pool_that_is_off_hands_the_next_request_nothing() {
 /// [`two_requests_on_one_core_share_one_connection`] makes on the same query.
 ///
 /// **The clock moves, not the bound.** `release` and `take` are each handed the
-/// `Instant` they compare against, so § 13's real 30-minute `lifetime` is what
-/// is under test here rather than a short one written to make the test finish —
-/// which is also why this case costs no wall time.
+/// `Instant` they compare against, so the real 30-minute default `lifetime` is
+/// what is under test here rather than a short one written to make the test
+/// finish — which is also why this case costs no wall time.
 #[test]
 fn a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() {
     let Some(server) = postgres() else {
@@ -497,8 +499,8 @@ fn a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() {
     );
 }
 
-/// § 13: `idle` bounds what a pool keeps, and the release past that bound closes
-/// the connection instead of filing it.
+/// `idle` bounds what a pool keeps, and the release past that bound closes the
+/// connection instead of filing it.
 ///
 /// The live double of `nvs_runtime::pool`'s
 /// `a_release_past_the_idle_bound_closes_the_connection`. The `Fake` half can
@@ -508,7 +510,7 @@ fn a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() {
 /// the question has an answer: `release` refuses the second connection before it
 /// is ever filed, which makes the survivor the first one released.
 ///
-/// This is the bound that makes § 13's footprint O(in-flight) rather than
+/// This is the bound that makes the pool's footprint O(in-flight) rather than
 /// O(requests served) — `nvs_runtime::pool`'s module doc owns that argument —
 /// and a socket is the only thing that can show the difference between a
 /// connection dropped from the store and a connection actually closed.
@@ -571,7 +573,7 @@ fn a_release_past_the_idle_bound_closes_the_second_connection() {
     );
 }
 
-/// § 13 on the other driver: the connection one request released is the
+/// The same on the other driver: the connection one request released is the
 /// connection the next request on that core draws, and it arrives reset.
 ///
 /// [`two_requests_on_one_core_share_one_connection`]'s assertion, made of the
@@ -587,7 +589,7 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
         return;
     };
 
-    // One configuration generation, which is what § 13's key is scoped to —
+    // One configuration generation, which is what the pool key is scoped to —
     // `Ticket::key_for` owns why a reload is two pools rather than one.
     let generation = Arc::new(Snapshot::default());
     let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
@@ -619,7 +621,7 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
     let Connection::MySql(warm) = *held else {
         panic!("the driver under test on this leg is MySQL")
     };
-    // § 13's reset is the acquiring request's and not the releasing one's —
+    // The reset is the acquiring request's and not the releasing one's —
     // `nvs_runtime::pool`'s *Where the reset is* owns why — and it consumes the
     // connection, so a reset that failed could not hand one back here at all.
     let mut warm = warm.reset().expect("a healthy connection resets");
@@ -632,11 +634,11 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
     assert_eq!(
         mysql_one_value(&mut warm, MYSQL_MARKER),
         None,
-        "§ 13's reset removed the session state the first request left behind",
+        "the pool reset removed the session state the first request left behind",
     );
 }
 
-/// § 13 on MariaDB: that driver's own `COM_RESET_CONNECTION` hands the
+/// The same on MariaDB: that driver's own `COM_RESET_CONNECTION` hands the
 /// connection one request released to the next request on that core, clean.
 ///
 /// [`two_requests_on_one_core_share_one_mysql_connection`]'s assertion over the
@@ -645,14 +647,14 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
 /// is new is every step between `pool::release` and that read. The
 /// `Connection::MariaDb` variant this crate files, the downcast that unfiles it
 /// as *that* variant rather than the MySQL one, and [`MariaConn::reset`], which
-/// is a second implementation of § 13's reset and not a call into the first.
+/// is a second implementation of the reset and not a call into the first.
 #[test]
 fn two_requests_on_one_core_share_one_mariadb_connection() {
     let Some(server) = mariadb() else {
         return;
     };
 
-    // One configuration generation, which is what § 13's key is scoped to —
+    // One configuration generation, which is what the pool key is scoped to —
     // `Ticket::key_for` owns why a reload is two pools rather than one.
     let generation = Arc::new(Snapshot::default());
     let ticket = Ticket::for_block(&generation, "main", PoolBounds::DEFAULT);
@@ -684,7 +686,7 @@ fn two_requests_on_one_core_share_one_mariadb_connection() {
     let Connection::MariaDb(warm) = *held else {
         panic!("the driver under test on this leg is MariaDB")
     };
-    // § 13's reset is the acquiring request's and not the releasing one's, and
+    // The reset is the acquiring request's and not the releasing one's, and
     // it consumes the connection — so a reset that failed could not hand one
     // back here at all.
     let mut warm = warm.reset().expect("a healthy connection resets");
@@ -697,11 +699,11 @@ fn two_requests_on_one_core_share_one_mariadb_connection() {
     assert_eq!(
         mariadb_one_value(&mut warm, MYSQL_MARKER),
         None,
-        "§ 13's reset removed the session state the first request left behind",
+        "the pool reset removed the session state the first request left behind",
     );
 }
 
-/// § 13 on the other driver: a MySQL connection past its `lifetime` is retired
+/// The same on the other driver: a MySQL connection past its `lifetime` is retired
 /// rather than handed on.
 ///
 /// [`a_connection_past_its_lifetime_is_not_the_one_the_next_request_draws`]'s
@@ -737,7 +739,7 @@ fn a_mysql_connection_past_its_lifetime_is_not_the_one_the_next_request_draws() 
     );
 }
 
-/// § 13 on the other driver: the release past `idle` closes that connection
+/// The same on the other driver: the release past `idle` closes that connection
 /// instead of filing it.
 ///
 /// [`a_release_past_the_idle_bound_closes_the_second_connection`]'s twin, and

@@ -41,9 +41,9 @@
 //! - [`State::Executing`] — a buffered statement is in flight, and only its own
 //!   call may write.
 //! - [`State::Streaming`] — rows remain unread. A second statement here is
-//!   § 4's `LogicError`; [`Connection::may_start_statement`] is where that is
-//!   decided, and `nvs-stdlib` turns the `false` into the fault naming both
-//!   fixes.
+//!   the `LogicError` of `rule:core-classes/db-streaming`;
+//!   [`Connection::may_start_statement`] is where that is decided, and
+//!   `nvs-stdlib` turns the `false` into the fault naming both fixes.
 //! - [`State::Poisoned`] — the wire is *not* at a known message boundary: a
 //!   deadline fired mid-message, a decode failed, or a stream was abandoned in
 //!   a shape the driver cannot drain.
@@ -102,35 +102,40 @@
 //! than behind the drivers at all: [`Driver`]'s closed roster, [`State`] and
 //! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five
 //! drivers, [`pg`] has its opening and its statement path: the socket,
-//! § 3's in-band upgrade, the SASL exchange, and the extended-query state
-//! machine that walks [`State`]'s values over one flushed round trip, and
-//! `rule:security/db-pool-reset-is-a-boundary`'s reset — six commands pipelined into a second round trip, with
-//! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
-//! connection back. [`sql`] is the shared half of the statement path, plain
-//! data with no wire in it because every driver makes the same two decisions:
-//! `rule:core-classes/db-parameters`'s `?`/`:name` rewriter and `inList` expansion over four
-//! dialects, holding the bind order a driver cannot recover by counting, and
-//! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
+//! the in-band TLS upgrade of `rule:core-classes/db-safe-connection-defaults`,
+//! the SASL exchange, and the extended-query state machine that walks
+//! [`State`]'s values over one flushed round trip, and
+//! `rule:security/db-pool-reset-is-a-boundary`'s reset — six commands
+//! pipelined into a second round trip, with `PgConn::reset` taking `self` by
+//! value so a reset that failed cannot hand a connection back. [`sql`] is the
+//! shared half of the statement path, plain data with no wire in it because
+//! every driver makes the same two decisions: `rule:core-classes/db-parameters`'s
+//! `?`/`:name` rewriter and `inList` expansion over four dialects, holding the
+//! bind order a driver cannot recover by counting, and
+//! `rule:core-classes/db-one-api`'s [`StatementCache`] keyed by SQL text plus
+//! that expansion's arity.
 //! [`pg`] spends it: a hit drops the `Parse` from the batch, and an
 //! eviction's `Close` rides in the batch that replaced it.
 //!
 //! [`mysql`] is complete from a `[db.<name>]` block to a decoded row:
-//! [`MySqlTarget::resolve`] reads the block, then the greeting, § 3's
+//! [`MySqlTarget::resolve`] reads the block, then the greeting, the
 //! `CLIENT_SSL` upgrade, the authentication exchange over `mysql_common`'s
-//! plugins, the forced `utf8mb4` collation, § 9's declared zone as a
-//! session variable, § 13's `COM_RESET_CONNECTION`, and § 1's two
-//! round trips over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` with § 9's whole type
-//! map decoded off the binary rows. § 1's cache is on it as well, keyed the
-//! same way and holding the id the server hands back rather than a name this
-//! side mints, so a statement a connection has run before costs one round trip
-//! and not two — and § 13's `COM_RESET_CONNECTION` empties it, which is the
-//! asymmetry with PostgreSQL that § 13 calls the protocol's. § 13's
-//! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
-//! the acquire path — so what is here is the halves only a driver can hold:
+//! plugins, the forced `utf8mb4` collation, the declared zone of
+//! `rule:core-classes/db-column-types` as a session variable, the
+//! `COM_RESET_CONNECTION` reset, and the two round trips over
+//! `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` with that rule's whole type map
+//! decoded off the binary rows. The statement cache is on it as well, keyed
+//! the same way and holding the id the server hands back rather than a name
+//! this side mints, so a statement a connection has run before costs one round
+//! trip and not two — and `COM_RESET_CONNECTION` empties it, which is the
+//! asymmetry with PostgreSQL that `rule:security/db-pool-reset-is-a-boundary`
+//! calls the protocol's. That rule's pool is above this crate —
+//! `nvs_runtime::pool` is the store and `nvs-stdlib` the acquire path — so
+//! what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
-//! real server in `tests/pool_reuse.rs`. [`maria`] is that same framing
-//! under an authentication roster and a § 8 code table of its own
-//! — which is the whole of why `rule:core-classes/db-one-api` makes MariaDB a driver rather than a
+//! real server in `tests/pool_reuse.rs`. [`maria`] is that same framing under
+//! an authentication roster and a `rule:core-classes/db-error` code table of
+//! its own — which is the whole of why `rule:core-classes/db-one-api` makes MariaDB a driver rather than a
 //! flag.
 //!
 //! [`tds`] is where SQL Server begins, and it begins one layer below where the
@@ -139,10 +144,11 @@
 //! negotiated packet size takes, and the reassembly a token stream needs
 //! because a token is cut wherever that size lands rather than at a message
 //! boundary. Its handshake is whole on top of that — a `[db.<name>]` block,
-//! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets, LOGIN7 and the tokens
+//! PRELOGIN, the TLS tunnelled inside PRELOGIN packets, LOGIN7 and the tokens
 //! that answer it — so [`TdsConn`] holds a live wire. Its statement path is
-//! whole on top of *that*: `sp_prepexec` under § 1's cache, the row path over
-//! the same reassembly, and § 13's `sp_reset_connection`. [`sqlite`] is the one
+//! whole on top of *that*: `sp_prepexec` under the statement cache, the row
+//! path over the same reassembly, and `sp_reset_connection` as the pool's
+//! reset. [`sqlite`] is the one
 //! driver with no wire at all — `rusqlite` is the protocol, reached through `rule:core-classes/db-crate-boundary`'s
 //! handoff to `nvs-host`'s blocking pool, which is why its rows come back
 //! materialized where every other driver's stream. PostgreSQL comes first

@@ -140,9 +140,9 @@ pub fn schema_of(conn: &mut Connection) -> Result<Schema, ReadError> {
 /// One statement on `conn`, with whatever it answered drained.
 ///
 /// One statement at a time and never one string with several `;` in it:
-/// `rule:core-classes/db-one-api`'s driver takes a statement, and a
-/// multi-statement text is what § 10 of that rule's record refuses on a literal
-/// query. DDL answers no rows, so the drain is what matters — a connection is
+/// `rule:core-classes/db-one-api`'s driver takes a statement, and
+/// `rule:core-classes/db-compile-time-query-checking` refuses a second
+/// statement in a literal query. DDL answers no rows, so the drain is what matters — a connection is
 /// usable only at a message boundary, and an abandoned result is not one.
 ///
 /// # Errors

@@ -326,9 +326,10 @@ pub enum BlockError<'a> {
         /// The driver whose resolver read the block.
         expected: Driver,
     },
-    /// `time_zone` is written and is not one of § 9's offsets — the `None`
-    /// [`crate::sql::time_zone_for`] answers with, turned into a refusal here
-    /// rather than folded into UTC.
+    /// `time_zone` is written and is not one of the offsets
+    /// `rule:core-classes/db-column-types` reads a zone-less column in — the
+    /// `None` [`crate::sql::time_zone_for`] answers with, turned into a refusal
+    /// here rather than folded into UTC.
     TimeZone {
         /// What the block wrote.
         written: &'a str,
@@ -457,7 +458,8 @@ impl State {
     /// Only [`State::Idle`] permits one. The driver builds the refusal itself,
     /// in one place per driver and naming both of `rule:core-classes/db-statement-members`'s fixes —
     /// `pg.rs`'s `second_statement` owns that wording. `nvs-stdlib` re-words it
-    /// as § 4's `LogicError`, because the fault class is its own and so is the
+    /// as `rule:core-classes/db-streaming`'s `LogicError`, because the fault
+    /// class is its own and so is the
     /// call site's spelling, which only the standard library knows.
     #[must_use]
     pub fn may_start_statement(self) -> bool {
@@ -496,17 +498,17 @@ impl State {
 /// enum per driver, for the same reason [`State`] is one rule rather than one
 /// per driver.
 ///
-/// § 7 requires a driver that **lacks** a level to throw rather than quietly
-/// run the transaction's callable at a weaker one. A driver that renders a level as a
-/// *stronger* guarantee than was asked for is not that case and does not
-/// throw: nothing a program can observe is weakened by it. Where each driver
+/// That rule requires a driver that **lacks** a level to throw rather than
+/// quietly run the transaction's callable at a weaker one. A driver that renders
+/// a level as a *stronger* guarantee than was asked for is not that case and
+/// does not throw: nothing a program can observe is weakened by it. Where each driver
 /// draws that line is in the driver — `pg.rs`'s `begin_command` is
 /// PostgreSQL's, and it is the only place that reasoning is spent for
 /// PostgreSQL.
 ///
-/// The variants are in § 7's own order. Nothing derives `Ord` from it, because
-/// `Snapshot` and the two levels either side of it are not one chain on every
-/// backend.
+/// The variants are in that rule's own order. Nothing derives `Ord` from it,
+/// because `Snapshot` and the two levels either side of it are not one chain on
+/// every backend.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Isolation {
     /// A statement may read rows another transaction has written and not
@@ -534,12 +536,12 @@ pub enum Isolation {
 /// MariaDB's `JSON` is `LONGTEXT` with a check constraint and is not detectable
 /// at all — while a *description* of the column can tell them apart wherever the
 /// backend has a type of its own, so [`ColumnType::Json`] is a case here. The
-/// same split is why there is no array case: § 9 reads a PostgreSQL array as
-/// `array<T>` and MySQL's `SET` as `array<string>`, and both describe as
-/// [`ColumnType::Other`].
+/// same split is why there is no array case: the type map reads a PostgreSQL
+/// array as `array<T>` and MySQL's `SET` as `array<string>`, and both describe
+/// as [`ColumnType::Other`].
 ///
 /// [`ColumnType::Other`] is the total case rather than a failure. Every column
-/// type § 9's table has no row for — `inet`, a range, `hstore`, geometry,
+/// type the type map has no row for — `inet`, a range, `hstore`, geometry,
 /// `interval` — reads as `tainted string` and describes as `Other`, so
 /// `columns()` answers for every column a server can send rather than only for
 /// the ones this enum enumerates.
@@ -551,7 +553,7 @@ pub enum Isolation {
 pub enum ColumnType {
     /// `SMALLINT`/`INTEGER`/`BIGINT`, read as `int`.
     Int,
-    /// A column § 9 reads as `uint`: an `UNSIGNED` integer on MySQL and
+    /// A column the type map reads as `uint`: an `UNSIGNED` integer on MySQL and
     /// MariaDB, `oid` on PostgreSQL.
     Uint,
     /// `FLOAT`/`REAL`/`DOUBLE`, read as `float`.
@@ -576,10 +578,11 @@ pub enum ColumnType {
     /// offset.
     Instant,
     /// `UUID`/`uniqueidentifier`, read as a `Core\Uuid`. MySQL's `BINARY(16)`
-    /// is [`ColumnType::Bytes`], as § 9 says.
+    /// is [`ColumnType::Bytes`], as the type map says.
     Uuid,
     /// A column the backend types as JSON. The value still reads as a `tainted
-    /// string` — § 9's rule that JSON is never auto-decoded is untouched — and
+    /// string` — the type map never decodes JSON on its own, and this does not
+    /// change that — and
     /// on a backend where JSON is an aliased text type the column is
     /// [`ColumnType::Text`], because that is what it is.
     Json,
@@ -591,7 +594,7 @@ pub enum ColumnType {
 /// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
 /// that spells both in one function.
 ///
-/// § 8's whole point is that an application branches on the *condition* rather
+/// The kind exists so that an application branches on the *condition* rather
 /// than on a vendor string: PDO exposes only a `SQLSTATE` and a vendor integer,
 /// which is why real PHP matches on `"Duplicate entry"` or hard-codes `1062`.
 /// Each driver maps its own codes onto this set and MariaDB needs its own table
@@ -637,9 +640,9 @@ impl DbErrorKind {
     /// aborted the transaction *because* of a conflict it expects to be gone on
     /// the next attempt; re-running a callable over a lock timeout or a lost
     /// connection would be running a side-effecting function again on a guess,
-    /// which is also why § 7's default is 0 retries. The backoff and the re-run
-    /// are `nvs-stdlib`'s — this is the part of the rule only a driver can
-    /// answer, because only a driver knows what its server's codes mean.
+    /// which is also why that rule's default is 0 retries. The backoff and the
+    /// re-run are `nvs-stdlib`'s — this is the part of the rule only a driver
+    /// can answer, because only a driver knows what its server's codes mean.
     #[must_use]
     pub fn is_retryable(self) -> bool {
         matches!(
@@ -649,25 +652,27 @@ impl DbErrorKind {
     }
 }
 
-/// A refusal the server worded, with § 8's normalised kind beside it.
+/// A refusal the server worded, with `rule:core-classes/db-error`'s normalised
+/// kind beside it.
 ///
 /// Carried **inside** the `io::Error` every driver entry point already answers
 /// with, so a caller that only prints the sentence is unchanged and a caller
-/// that must branch — § 7's retry rule is the first of them — asks
+/// that must branch — the transaction retry of
+/// `rule:core-classes/db-transactions` is the first of them — asks
 /// [`ServerError::of`] rather than matching on the text.
 ///
-/// § 8's `driverCode` is a field PostgreSQL will always answer `None` for: the
-/// `SQLSTATE` *is* that server's code, and a second integer invented to fill a
-/// shape would be a value with no meaning. MySQL sends a real one beside the
+/// `DbError`'s `driverCode` is a field PostgreSQL will always answer `None`
+/// for: the `SQLSTATE` *is* that server's code, and a second integer invented
+/// to fill a shape would be a value with no meaning. MySQL sends a real one beside the
 /// `SQLSTATE`, and it is the half that server's code table is keyed on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerError {
-    /// § 8's normalised kind, from the driver's own code table.
+    /// The normalised kind, from the driver's own code table.
     pub kind: DbErrorKind,
     /// The five-character `SQLSTATE`, as the server sent it, or **empty on a
     /// backend that sends none**.
     ///
-    /// § 8 makes the field `?string` and SQL Server is why: TDS has no
+    /// `DbError` makes the field `?string` and SQL Server is why: TDS has no
     /// `SQLSTATE` at all, and the five characters PDO reports for it are ODBC's
     /// own mapping from the error number rather than anything the server said.
     /// An empty string is not a `SQLSTATE` any server can send, so it carries
@@ -683,15 +688,15 @@ pub struct ServerError {
     pub message: String,
     /// The constraint the condition names, where it names one.
     pub constraint: Option<String>,
-    /// § 8's `driverCode`: the server's own integer, on a backend that sends
-    /// one beside the `SQLSTATE`.
+    /// `DbError`'s `driverCode`: the server's own integer, on a backend that
+    /// sends one beside the `SQLSTATE`.
     ///
     /// `u32` because SQL Server's is a `LONG` and a `THROW` may raise one past
     /// 65535 — the whole user-defined range starts at 50000 — where MySQL's
     /// `ERR` packet carries a `u16`. A narrower field would lose `driverCode`
-    /// for every error an application raised itself, which is the half of § 8 a
-    /// normalised kind cannot cover. § 8 spells the field `?int`, so nothing
-    /// above this widens with it.
+    /// for every error an application raised itself, which is the half of
+    /// `DbError` a normalised kind cannot cover. `DbError` spells the field
+    /// `?int`, so nothing above this widens with it.
     ///
     /// The raw value stays here for the conditions [`DbErrorKind`] does not
     /// name, exactly as `sql_state` does — and on SQL Server it is the *only*
@@ -709,7 +714,8 @@ pub struct ServerError {
 impl ServerError {
     /// The server's refusal inside an `io::Error`, where that is what it is.
     ///
-    /// A wire failure, a decode refusal and § 4's busy-connection error are all
+    /// A wire failure, a decode refusal and the busy-connection error of
+    /// `rule:core-classes/db-connection-busy-state` are all
     /// the same `io::Error` type and none of them is one of these — which is
     /// why this answers `None` rather than a kind of [`DbErrorKind::Other`].
     #[must_use]
@@ -790,7 +796,8 @@ pub struct PgConn {
     /// It is on the connection because a prepared statement is a name on one
     /// session: two connections sharing this would bind against names the
     /// other's server has never heard of. It survives this driver's reset,
-    /// which is § 13's whole reason for not sending `DISCARD ALL`.
+    /// which is the whole reason `rule:security/db-pool-reset-is-a-boundary`
+    /// does not send `DISCARD ALL`.
     pub(crate) cache: StatementCache,
     /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a zone-less
     /// `TIMESTAMP` column off this connection is read in.
@@ -805,7 +812,7 @@ pub struct PgConn {
     /// `transaction()` — each of which is a `SAVEPOINT` named by the depth it
     /// opened at.
     ///
-    /// It is the *connection's* and not the caller's because § 7 gives no
+    /// It is the *connection's* and not the caller's because that rule gives no
     /// explicit savepoint API and no `inTransaction()`: a library that wraps
     /// its own writes must stay callable from inside a caller's transaction
     /// without being able to ask whether it is in one. `pg.rs`'s `begin` is
@@ -828,14 +835,15 @@ pub struct PgConn {
     ///
     /// `None` for a connection that has never streamed. It stays `Some` after a
     /// stream ends, holding what the statement finished with, until the next
-    /// `stream` replaces it or `end_stream` drops it — and § 13's reset drops it
-    /// too, because "no open cursor" is one of the properties that reset has to
-    /// establish before another request may have this connection.
+    /// `stream` replaces it or `end_stream` drops it — and the pool's reset
+    /// drops it too, because "no open cursor" is one of the properties that
+    /// reset has to establish before another request may have this connection.
     ///
     /// **What it spends:** one row description and one command tag per
     /// connection that has streamed, held until the next statement replaces
     /// them. That is O(pooled connections) rather than O(requests served), and
-    /// § 13's `max` per core is the cap on it.
+    /// the pool's `max` per core in `rule:security/db-pool-reset-is-a-boundary`
+    /// is the cap on it.
     pub(crate) reading: Option<crate::pg::PgCursor>,
 }
 
@@ -880,9 +888,9 @@ pub struct MySqlConn {
     /// [`PgConn::cache`]'s twin, holding the handle this protocol hands back:
     /// the statement id `COM_STMT_PREPARE` answers with, where PostgreSQL's is
     /// a name that driver mints. It does **not** survive this connection's
-    /// reset — § 13's `COM_RESET_CONNECTION` drops the statements themselves —
-    /// and `crate::mysql`'s `reset_session` is where the two are emptied
-    /// together, so no caller can invalidate one and forget the other.
+    /// reset — the pool's `COM_RESET_CONNECTION` drops the statements
+    /// themselves — and `crate::mysql`'s `reset_session` is where the two are
+    /// emptied together, so no caller can invalidate one and forget the other.
     pub(crate) cache: StatementCache<crate::mysql::Prepared>,
     /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC — what a zone-less
     /// `DATETIME` or `TIMESTAMP` off this connection is read in.
@@ -911,15 +919,16 @@ pub struct MySqlConn {
     ///
     /// `None` for a connection that has never streamed. It stays `Some` after a
     /// walk ends, holding what the statement finished with, until the next
-    /// `stream` replaces it or `end_stream` drops it — and § 13's reset drops it
-    /// too, after draining whatever the program walked away from, because
-    /// `COM_RESET_CONNECTION` is a command and a command written over rows still
-    /// arriving is one whose answer nothing can frame.
+    /// `stream` replaces it or `end_stream` drops it — and the pool's reset
+    /// drops it too, after draining whatever the program walked away from,
+    /// because `COM_RESET_CONNECTION` is a command and a command written over
+    /// rows still arriving is one whose answer nothing can frame.
     ///
     /// **What it spends:** one result set's column definitions per connection
     /// that has streamed, held until the next statement replaces them. That is
-    /// O(pooled connections) rather than O(requests served), and § 13's `max`
-    /// per core is the cap on it.
+    /// O(pooled connections) rather than O(requests served), and the pool's
+    /// `max` per core in `rule:security/db-pool-reset-is-a-boundary` is the cap
+    /// on it.
     pub(crate) reading: Option<crate::mysql::MySqlCursor>,
     /// Where a `KILL QUERY` for this connection is sent, and who to be there —
     /// `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`.
@@ -956,7 +965,7 @@ pub struct MariaConn {
     /// `rule:core-classes/db-one-api`'s LRU of server-side prepared statements.
     ///
     /// [`MySqlConn::cache`]'s twin down to the handle type: `COM_STMT_PREPARE`
-    /// answers with a statement id on either server, and § 13's
+    /// answers with a statement id on either server, and the pool's
     /// `COM_RESET_CONNECTION` drops the statements along with everything else.
     pub(crate) cache: StatementCache<crate::mysql::Prepared>,
     /// `rule:core-classes/db-column-types`'s declared zone, as seconds east of UTC.
@@ -1012,7 +1021,8 @@ pub struct TdsConn {
     ///
     /// Its handle is [`crate::tds::TdsPlan`] rather than the bare number
     /// `sp_prepexec` answers with, and that type's own doc owns why one number
-    /// is not enough to decide a hit on this protocol. § 13's reset empties it,
+    /// is not enough to decide a hit on this protocol. The pool's reset
+    /// (`rule:security/db-pool-reset-is-a-boundary`) empties it,
     /// as MySQL's does and unlike PostgreSQL's.
     pub(crate) cache: StatementCache<crate::tds::TdsPlan>,
     /// How many of `rule:core-classes/db-transactions`'s transactions are open — [`MySqlConn::depth`]'s
@@ -1079,8 +1089,8 @@ pub struct SqliteConn {
     /// How many of `rule:core-classes/db-transactions`'s transaction levels are open, exactly as
     /// [`PgConn::depth`] counts them.
     ///
-    /// SQLite has `BEGIN` and `SAVEPOINT` like every other backend § 7 reaches,
-    /// so the nesting is the same rule; [`mod@crate::sqlite`]'s `begin` owns
+    /// SQLite has `BEGIN` and `SAVEPOINT` like every other backend, so the
+    /// nesting is the same rule; [`mod@crate::sqlite`]'s `begin` owns
     /// which command a level gets and the one place this backend's accounting
     /// differs from PostgreSQL's, which is what a refused outermost `COMMIT`
     /// leaves behind.
@@ -1213,8 +1223,9 @@ impl Connection {
     ///
     /// The bound belongs to the connection and outlives the call that set it, so
     /// every statement path files its own — `None` included — and
-    /// `nvs_stdlib::db`'s release lifts it before § 13's reset, which is the one
-    /// exchange no program's clock may bound.
+    /// `nvs_stdlib::db`'s release lifts it before the pool's reset
+    /// (`rule:security/db-pool-reset-is-a-boundary`), which is the one exchange
+    /// no program's clock may bound.
     ///
     /// # Errors
     ///
@@ -1365,8 +1376,8 @@ mod tests {
         .expect("the default `max` admits a case's one connection")
     }
 
-    /// A connection at a message boundary, which is the state § 13's release
-    /// gate lets into the pool.
+    /// A connection at a message boundary, which is the state the release gate
+    /// of `rule:security/db-pool-reset-is-a-boundary` lets into the pool.
     ///
     /// SQLite's variant because it is the one this crate can *always* build
     /// without a server: `rule:security/one-tls-client` gives it no bytes on any wire, so it is
@@ -1389,11 +1400,11 @@ mod tests {
     }
 
     /// `rule:security/db-pool-reset-is-a-boundary`'s first two bullets: the pool is **per core**, and its key
-    /// is § 2's — the block *name* for `connect`, a hash of every settings
-    /// field for `open` — so two config blocks are two pools and two database
-    /// users never share a connection.
+    /// is `rule:core-classes/db-connection-is-named`'s — the block *name* for
+    /// `connect`, a hash of every settings field for `open` — so two config
+    /// blocks are two pools and two database users never share a connection.
     ///
-    /// One case answers for both of § 2's keys because both reach the pool
+    /// One case answers for both keys because both reach the pool
     /// through one door: `Ticket::for_block` is the only constructor of a key,
     /// and the two spellings differ in the *string* they compute rather than in
     /// where they file. `Core\Db::open` waits on a shape-parameter type; when
@@ -1407,7 +1418,7 @@ mod tests {
     /// `nvs-stdlib`'s `warm_connection` performs before it resets anything.
     ///
     /// Per core is asserted as **another core finding nothing**: the store is a
-    /// `thread_local!`, which is why § 13's acquire path needs no lock.
+    /// `thread_local!`, which is why the pool's acquire path needs no lock.
     #[test]
     fn the_pool_is_per_core_and_keyed_as_connect_and_open_key() {
         let now = Instant::now();
@@ -1423,7 +1434,7 @@ mod tests {
             .expect("the probe thread does not panic");
         assert!(!crossed, "a second core reached this core's pool");
 
-        // § 2's `connect` key is the block name, so a second block is a second
+        // The `connect` key is the block name, so a second block is a second
         // pool even on the core that filed this one.
         assert!(
             take(&lease(&generation, "reports"), now).is_none(),
@@ -1435,7 +1446,7 @@ mod tests {
             take(&lease(&reloaded, "main"), now).is_none(),
             "a reloaded generation drew a connection authenticated as the old one"
         );
-        // § 2's `open` key is a hash of every settings field, and a differing
+        // The `open` key is a hash of every settings field, and a differing
         // field is a differing string through the same door — the hash below
         // stands for one, since `open` has no caller yet.
         assert!(
@@ -1531,14 +1542,15 @@ mod tests {
     /// each read one table alone, so a driver classifying a foreign-key
     /// violation as [`DbErrorKind::Other`] — plausible, since that is exactly
     /// what its own table answers for a code it does not name — passes its case
-    /// and still breaks the only promise § 8 makes: that an application
+    /// and still breaks the only promise `rule:core-classes/db-error` makes:
+    /// that an application
     /// branches on the condition and not on the dialect. Tables that each look
     /// right and disagree with each other are what PDO leaves a caller with,
     /// and it is why real PHP code matches on `"Duplicate entry"`.
     ///
     /// **SQL Server and SQLite are absent because they have no table yet, not
-    /// because they are exempt.** § 8's "four drivers and five dialects" is not
-    /// met until each of them joins the rows below; a driver landing a
+    /// because they are exempt.** That rule's "four drivers and five dialects"
+    /// is not met until each of them joins the rows below; a driver landing a
     /// `kind_of` and not a column here has been normalised against nothing.
     #[test]
     fn every_driver_normalises_its_codes_to_one_error_kind() {
@@ -1617,7 +1629,7 @@ mod tests {
             ),
             // And the kind that means "read the raw values yourself", which has
             // to agree as well: a driver that guessed here would be branching
-            // an application on a condition § 8 declines to normalise.
+            // an application on a condition `DbError` declines to normalise.
             (
                 DbErrorKind::Other,
                 "XX000",
@@ -1642,7 +1654,7 @@ mod tests {
                 DbErrorKind::Timeout => "a statement that ran out of time",
                 DbErrorKind::Syntax => "a malformed statement, or a name that is not there",
                 DbErrorKind::Permission => "a privilege the role does not hold",
-                DbErrorKind::Other => "a condition § 8 does not normalise",
+                DbErrorKind::Other => "a condition no error kind names",
             };
 
             for (driver, answered) in [
@@ -1653,7 +1665,7 @@ mod tests {
                 assert_eq!(
                     answered, kind,
                     "{driver:?} reads {condition} as {answered:?}, and the \
-                     other drivers read it as {kind:?} — § 8 exists so that an \
+                     other drivers read it as {kind:?} — the error kind exists so that an \
                      application branches on the condition rather than on the \
                      dialect"
                 );

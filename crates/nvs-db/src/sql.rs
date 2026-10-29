@@ -1,6 +1,6 @@
 //! `rule:core-classes/db-parameters`'s placeholder rewriter: one
-//! spelling in, the driver's own out, and the `inList` expansion that § 1's
-//! statement cache keys on.
+//! spelling in, the driver's own out, and the `inList` expansion that
+//! `rule:core-classes/db-one-api`'s statement cache keys on.
 //!
 //! Novis code writes `?` or `:name` whichever database it is talking to, and
 //! every driver gets the spelling its own protocol wants — `$1` on PostgreSQL,
@@ -21,24 +21,24 @@
 //! bind order by counting the arguments it was handed, and this is the only
 //! place that knows it.
 //!
-//! `binds.len()` is § 1's **expansion arity**, and the statement cache keys on
+//! `binds.len()` is the **expansion arity**, and the statement cache keys on
 //! the original SQL text plus that number rather than on the rewritten text: the
 //! rewriting is a pure function of the two, so they identify the same entries
 //! while being cheaper to hash. `IN` over three ids and over four are two
 //! entries, which is the whole reason the arity is in the key at all.
 //!
-//! [`StatementCache`] is here for that reason and no other — it is the half of
-//! § 1 that decides whether a batch carries a `Parse`, and it is the same
-//! decision on every driver, so it is plain data with no wire in it. Which
-//! messages the answer turns into is each driver's own.
+//! [`StatementCache`] is here for that reason and no other — it is the part of
+//! the statement cache that decides whether a batch carries a `Parse`, and it
+//! is the same decision on every driver, so it is plain data with no wire in
+//! it. Which messages the answer turns into is each driver's own.
 //!
 //! [`statement_cache_for`] and [`time_zone_for`] are here on that same test and
 //! no other: they read the two `[db.<name>]` fields whose meaning is a decision
-//! rather than a string — how large § 1's cache is, and what § 9's declared
-//! zone is in seconds — and they answer identically for every driver.
-//! A driver takes the *answer* on its target, so no connect path reaches into a
-//! config tree and every one of these is testable with neither a socket nor a
-//! configuration file.
+//! rather than a string — how large the statement cache is, and what the
+//! declared zone of `rule:core-classes/db-column-types` is in seconds — and
+//! they answer identically for every driver. A driver takes the *answer* on
+//! its target, so no connect path reaches into a config tree and every one of
+//! these is testable with neither a socket nor a configuration file.
 //!
 //! # What it skips, and what it does not diagnose
 //!
@@ -46,9 +46,9 @@
 //! a placeholder, so the scan tracks those regions. It also leaves PostgreSQL's
 //! `::` cast and its `?|`/`?&` jsonb operators alone. What it cannot tell apart
 //! is jsonb's bare `?` operator from a placeholder — they are the same byte in
-//! the same position — which is why § 5 gives `??` as the escape for a literal
-//! question mark, and why that escape is the one piece of syntax this rewriter
-//! adds to SQL rather than removing.
+//! the same position — which is why `rule:core-classes/db-parameters` gives
+//! `??` as the escape for a literal question mark, and why that escape is the
+//! one piece of syntax this rewriter adds to SQL rather than removing.
 //!
 //! **A region the text never leaves is this module's own refusal.** A `'…'`, a
 //! `"…"`, a backtick- or bracket-quoted name, a `$tag$…$tag$` body or a `/*…*/`
@@ -182,16 +182,17 @@ impl Dialect {
 /// know about a value it never sees.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Binding {
-    /// One value at one marker, whatever it encodes to. § 5's "one parameter is
-    /// always one value": a list bound this way is a PostgreSQL array or a JSON
-    /// document, not an expansion.
+    /// One value at one marker, whatever it encodes to. One parameter is always
+    /// one value (`rule:core-classes/db-parameters`): a list bound this way is
+    /// a PostgreSQL array or a JSON document, not an expansion.
     One,
     /// `Core\Db::inList($values)`, holding the number of values — the explicit
     /// marker that expands to a parenthesised list of that many markers.
     List(usize),
 }
 
-/// Which spelling the caller's arguments arrived in, per § 5.
+/// Which spelling the caller's arguments arrived in, of the two
+/// `rule:core-classes/db-parameters` allows.
 ///
 /// The two are exclusive by construction here: an array is list-keyed or
 /// string-keyed, and the `LogicError` for one that is both is raised where the
@@ -225,7 +226,7 @@ pub struct Statement {
 }
 
 impl Statement {
-    /// § 1's expansion arity — the number of markers, which is what the
+    /// The expansion arity — the number of markers, which is what the
     /// statement cache's key carries alongside the *original* SQL text.
     #[must_use]
     pub fn arity(&self) -> usize {
@@ -240,12 +241,13 @@ impl Statement {
 /// is idle in a pool.
 pub const DEFAULT_STATEMENT_CACHE: usize = nvs_config::defaults::DB_STATEMENT_CACHE;
 
-/// § 1's size for one connection, read from its `[db.<name>]` block.
+/// The statement cache's size for one connection, read from its `[db.<name>]`
+/// block (`rule:core-classes/db-one-api`).
 ///
 /// The whole of the field's meaning is here, so nothing else has to decide what
 /// an absent one means: an unset `statement_cache` is
 /// [`DEFAULT_STATEMENT_CACHE`], and a written `0` is honoured rather than
-/// treated as unset — that is § 1's cache turned off, not a block that forgot
+/// treated as unset — that is the cache turned off, not a block that forgot
 /// to size it. `nvs-config` deliberately names no driver's constant, which is
 /// why the default lives on this side of the edge.
 ///
@@ -272,11 +274,12 @@ pub fn statement_cache_for(block: &Database) -> usize {
 /// server-side prepared statements.
 ///
 /// There is no `prepare` step in the Novis API, so this is what makes "every
-/// statement is prepared" cost what § 1 says it costs: the first execution of a
-/// statement in a connection's life pays for a parse and every later one does
-/// not. It is the *connection's* cache and never a process-wide one — a prepared
-/// statement is a name on one session, and two connections that shared this
-/// would bind against names the other's server has never heard of.
+/// statement is prepared" cost what that rule says it costs: the first
+/// execution of a statement in a connection's life pays for a parse and every
+/// later one does not. It is the *connection's* cache and never a
+/// process-wide one — a prepared statement is a name on one session, and two
+/// connections that shared this would bind against names the other's server
+/// has never heard of.
 ///
 /// **The key is the SQL text plus [`Statement::arity`]**, not the rewritten
 /// text: `IN` over three ids and over four are two server-side statements
@@ -286,7 +289,7 @@ pub fn statement_cache_for(block: &Database) -> usize {
 ///
 /// # Its size, and why it is a parameter here
 ///
-/// § 1 sizes it by `statement_cache` in the connection's config block, and
+/// It is sized by `statement_cache` in the connection's config block, and
 /// [`statement_cache_for`] is that field's reader. A driver takes the *answer*
 /// on its target — `PgTarget` carries it beside the zone, for the reason that
 /// type's doc gives — rather than reaching into a config tree from the connect
@@ -308,7 +311,7 @@ pub fn statement_cache_for(block: &Database) -> usize {
 ///
 /// Everything above the handle is shared, which is the reason for the type
 /// parameter rather than a second cache: the key, the LRU order, the capacity
-/// and the eviction are one set of rules, and § 1 states them once.
+/// and the eviction are one set of rules, stated once.
 #[derive(Debug)]
 pub struct StatementCache<H = String> {
     /// Most recently used first. A `Vec` rather than a map because the capacity
@@ -340,7 +343,8 @@ struct Entry<H> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Prepared {
     /// The server already has it under this name, so the batch carries no
-    /// `Parse` at all — § 1's "cached re-executions cost one round trip".
+    /// `Parse` at all — the "cached re-executions cost one round trip" of
+    /// `rule:core-classes/db-one-api`.
     Hit(String),
     /// It must be parsed under this name, and `evicted` is the name that had to
     /// leave to make room, to be closed in the same batch.
@@ -468,10 +472,11 @@ impl<H: Clone> StatementCache<H> {
 
     /// Forgets every statement, for a reset that deallocated them.
     ///
-    /// § 13's asymmetry, and it is the protocol's rather than a choice:
-    /// `COM_RESET_CONNECTION` and `sp_reset_connection` drop prepared statements
-    /// along with everything else, so their drivers call this and PostgreSQL's —
-    /// whose reset is deliberately not `DISCARD ALL` — never does.
+    /// The asymmetry `rule:security/db-pool-reset-is-a-boundary` records, and it
+    /// is the protocol's rather than a choice: `COM_RESET_CONNECTION` and
+    /// `sp_reset_connection` drop prepared statements along with everything
+    /// else, so their drivers call this and PostgreSQL's — whose reset is
+    /// deliberately not `DISCARD ALL` — never does.
     pub fn clear(&mut self) {
         self.entries.clear();
     }
@@ -506,7 +511,7 @@ impl StatementCache<String> {
 /// Every one of these is [`io::ErrorKind::InvalidInput`] and becomes a
 /// `LogicError` at the `Core\Db` boundary — they are all mistakes in the call
 /// rather than answers from a server, and this crate builds no fault of its own
-/// (`Cargo.toml` § 1 is the rule):
+/// (the comment on `nvs-runtime` in this crate's `Cargo.toml` is the rule):
 ///
 /// - a string literal, a quoted name, a `$tag$` body or a `/*` comment the text
 ///   opens and never closes, which leaves every byte after it read as being
@@ -515,8 +520,9 @@ impl StatementCache<String> {
 ///   list-keyed array, or a `?` against a string-keyed one;
 /// - a positional statement has more or fewer `?` than arguments;
 /// - a `:name` names no argument, or an argument is never named;
-/// - an `inList` is empty, which § 5 refuses because the rewriter cannot tell
-///   `IN` from `NOT IN` and the two want opposite answers.
+/// - an `inList` is empty, which `rule:core-classes/db-parameters` refuses
+///   because the rewriter cannot tell `IN` from `NOT IN` and the two want
+///   opposite answers.
 pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<Statement> {
     let bytes = sql.as_bytes();
     let mut out = String::with_capacity(sql.len() + 16);
@@ -594,8 +600,9 @@ pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<St
                 copied = end;
             }
             b'?' => {
-                // `??` is § 5's escape, and on PostgreSQL it is also the only
-                // way to write jsonb's own one-byte `?` operator.
+                // `??` is the escape for a literal `?`, and on PostgreSQL it
+                // is also the only way to write jsonb's own one-byte `?`
+                // operator.
                 if bytes.get(i + 1) == Some(&b'?') {
                     out.push_str(&sql[copied..i]);
                     out.push('?');
@@ -643,8 +650,9 @@ pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<St
 /// vendor's grammar.
 ///
 /// A prepared statement is one statement on every backend this crate speaks to,
-/// so a text holding two is refused by the server rather than run — and § 10
-/// moves that refusal to `nvs check` for a literal, which is the only reason
+/// so a text holding two is refused by the server rather than run — and
+/// `rule:core-classes/db-compile-time-query-checking` moves that refusal to
+/// `nvs check` for a literal, which is the only reason
 /// this is here rather than left to the wire. It shares [`rewrite`]'s regions
 /// exactly: a `;` inside a string, an identifier, a comment or a dollar-quoted
 /// body is text, and a **trailing** `;` terminates the one statement rather
@@ -1006,10 +1014,10 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<Region> {
 /// The zone a zone-less `DATETIME`/`TIMESTAMP` column is read in, and the one
 /// sent to the server so `CURRENT_TIMESTAMP` agrees with it. It is here rather
 /// than in a driver because it is the same field on every driver and has the
-/// same answer on every one: § 9 sends an offset and never a zone name, so
-/// nothing downstream needs a zone database to act on this number.
+/// same answer on every one: the server is sent an offset and never a zone
+/// name, so nothing downstream needs a zone database to act on this number.
 ///
-/// **`Some(0)` for a block that names none** — § 9's default is UTC — and
+/// **`Some(0)` for a block that names none** — the default is UTC — and
 /// `Some` of the offset for one that writes `UTC`, `Z`, `±HH`, `±HH:MM` or
 /// `±HH:MM:SS`, each field exactly two digits. **`None` is a value that is not
 /// an offset at all**: a zone name like `Europe/Vienna`, the compact `+0200`,
@@ -1144,8 +1152,9 @@ mod tests {
 
     #[test]
     fn a_repeated_name_is_sent_twice_where_the_marker_is_not() {
-        // The asymmetry § 5 names: positional form cannot express the reuse,
-        // and neither can a protocol whose marker carries no number.
+        // The asymmetry `rule:core-classes/db-parameters` names: positional
+        // form cannot express the reuse, and neither can a protocol whose
+        // marker carries no number.
         let statement = rewrite(
             "select * from t where a = :id or b = :id",
             Params::Named(&[("id", Binding::One)]),
@@ -1159,11 +1168,11 @@ mod tests {
         );
     }
 
-    /// § 5's reuse asserted as an agreement across the dialects rather than
-    /// one line each: whatever the marker, the one argument is consumed
-    /// exactly once — never refused as unused, never bound to a second
-    /// argument — and the arity § 1's cache keys on is the number of markers
-    /// that dialect actually wrote, not the argument count.
+    /// A `:name` used twice, asserted as an agreement across the dialects
+    /// rather than one line each: whatever the marker, the one argument is
+    /// consumed exactly once — never refused as unused, never bound to a second
+    /// argument — and the arity the statement cache keys on is the number of
+    /// markers that dialect actually wrote, not the argument count.
     #[test]
     fn a_named_parameter_used_twice_binds_one_value_once() {
         let sql = "select * from t where a = :id or b = :id";
@@ -1232,8 +1241,8 @@ mod tests {
 
     #[test]
     fn one_text_over_three_ids_and_over_four_are_two_cache_keys() {
-        // § 1's key is the original text plus the arity, so the arity is the
-        // only thing that may distinguish these two.
+        // The cache key is the original text plus the arity, so the arity is
+        // the only thing that may distinguish these two.
         let sql = "select * from t where id in ?";
         let three = rewrite(
             sql,
@@ -1261,7 +1270,7 @@ mod tests {
         assert!(message.contains("NOT IN"), "{message}");
     }
 
-    /// § 5's expansion at the bound it stops accepting, both sides named
+    /// `inList` expansion at the bound it stops accepting, both sides named
     /// together: a list of one is the shortest length that still expands —
     /// parentheses and all — and zero is the first one refused, over the same
     /// statement text. A rewriter that special-cased the single element prints
@@ -1333,11 +1342,11 @@ mod tests {
         assert_eq!(statement.arity(), 1);
     }
 
-    /// § 5's scanner as one sweep rather than one line per construct, and
-    /// asserted by counting: what a naive rewriter gets wrong is never the
-    /// hider it knows about but the one it has not heard of, so the claim is
-    /// that *every* construct hides *both* spellings of a placeholder and that
-    /// the whole sweep binds one value per row and no more.
+    /// The placeholder scanner as one sweep rather than one line per
+    /// construct, and asserted by counting: what a naive rewriter gets wrong is
+    /// never the hider it knows about but the one it has not heard of, so the
+    /// claim is that *every* construct hides *both* spellings of a placeholder
+    /// and that the whole sweep binds one value per row and no more.
     #[test]
     fn the_rewriter_skips_string_literals_and_comments() {
         let hidden = [
@@ -1496,11 +1505,11 @@ mod tests {
         assert_eq!(statement.sql, "select $1::text");
     }
 
-    /// § 5's two PostgreSQL-only exceptions in one statement, because they are
-    /// one scan and not two passes: `::` must not open a name, `?|` must not
-    /// be a placeholder, `??` must render as jsonb's own one-byte operator,
-    /// and the real markers between them must still be numbered in the order
-    /// they were written.
+    /// The scanner's two PostgreSQL-only exceptions in one statement, because
+    /// they are one scan and not two passes: `::` must not open a name, `?|`
+    /// must not be a placeholder, `??` must render as jsonb's own one-byte
+    /// operator, and the real markers between them must still be numbered in
+    /// the order they were written.
     #[test]
     fn a_postgres_cast_and_a_jsonb_question_mark_survive_the_rewrite() {
         let statement = pg_named(
@@ -1635,7 +1644,7 @@ mod tests {
 
     #[test]
     fn one_text_at_two_arities_is_two_server_side_statements() {
-        // § 1's key, and the reason it is not the SQL text alone: `IN` over
+        // The cache key, and the reason it is not the SQL text alone: `IN` over
         // three ids and over four are two different texts on the wire.
         let mut cache = StatementCache::new(4);
         let three = cached(&mut cache, "select * from t where id in ?", 3);
@@ -1706,11 +1715,12 @@ mod tests {
         assert!(cache.is_empty());
     }
 
-    /// § 1's three answers for one field, asserted together: a block that says
-    /// nothing is the default, a block that says a number is that number, and
-    /// a block that says `0` is the cache turned off rather than a block that
-    /// said nothing. The last is the one a `unwrap_or_default`-shaped reader
-    /// gets wrong while still looking right on the first two.
+    /// The `statement_cache` field's three answers, asserted together: a block
+    /// that says nothing is the default, a block that says a number is that
+    /// number, and a block that says `0` is the cache turned off rather than a
+    /// block that said nothing. The last is the one a
+    /// `unwrap_or_default`-shaped reader gets wrong while still looking right
+    /// on the first two.
     #[test]
     fn an_unset_statement_cache_is_the_default_and_a_written_zero_is_not() {
         let mut block = Database::default();
@@ -1728,9 +1738,9 @@ mod tests {
         );
     }
 
-    /// § 9's zone in every spelling the field accepts, including both sides of
-    /// the 18-hour bound. The sweep is asserted as offsets rather than one
-    /// line per spelling because a parser that dropped a `:MM` field still
+    /// The declared zone in every spelling the field accepts, including both
+    /// sides of the 18-hour bound. The sweep is asserted as offsets rather than
+    /// one line per spelling because a parser that dropped a `:MM` field still
     /// answers plausibly on `+02:00`.
     #[test]
     fn an_unwritten_zone_is_utc_and_every_accepted_spelling_is_its_offset() {
@@ -1784,7 +1794,8 @@ mod tests {
 
     #[test]
     fn a_reset_that_deallocated_everything_leaves_nothing_claimed() {
-        // MySQL's and SQL Server's resets, not PostgreSQL's — § 13's asymmetry.
+        // MySQL's and SQL Server's resets, not PostgreSQL's — the asymmetry
+        // `rule:security/db-pool-reset-is-a-boundary` records.
         let mut cache = StatementCache::new(4);
         cached(&mut cache, "select 1", 0);
         cache.clear();
