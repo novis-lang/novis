@@ -423,6 +423,7 @@ final class ReleasesTest
         return Test::double<Log>({
             size: fn(): int => 0,
             append: fn(string $lines): ?array<string> => ReleasesTest::append($folder, $lines),
+            advisories: fn(): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
     }

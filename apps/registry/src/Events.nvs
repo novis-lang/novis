@@ -31,9 +31,14 @@ final class Events
     }
 
     // A version was retracted or withheld. `$kind` is `retract` or `withhold`.
-    public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason): void
+    // `$fixedIn` is the version that fixes a retracted one. The entry leaves it out when it is `null`.
+    public static function reasoned(Connection|Transaction $db, string $kind, string $key, string $version, string $reason, ?string $fixedIn = null): void
     {
-        Events::add($db, Json::encode({ v: 1, kind: $kind, package: Index::slug($key), version: $version, reason: $reason }), $key);
+        string $package = Index::slug($key);
+        string $entry = $fixedIn == null
+            ? Json::encode({ v: 1, kind: $kind, package: $package, version: $version, reason: $reason })
+            : Json::encode(['v' => 1, 'kind' => $kind, 'package' => $package, 'version' => $version, 'reason' => $reason, 'fixed_in' => $fixedIn]);
+        Events::add($db, $entry, $key);
         string $release = '`' . Notices::nameOf($db, $key) . '` ' . $version;
         string $text = $kind == 'withhold'
             ? 'The operator withheld ' . $release . '. The reason: ' . $reason

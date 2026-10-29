@@ -64,7 +64,7 @@ final class App
     {
         var $db = Schema::open();
         ?string $key = new Releases($db)->packageOf($vendor, $name);
-        ?Core\Html\Markup $page = $key == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds())->package($key);
+        ?Core\Html\Markup $page = $key == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds(), Site::load()->feed())->package($key);
         App::page($page);
     }
 
@@ -76,7 +76,7 @@ final class App
         var $db = Schema::open();
         ?string $key = new Releases($db)->packageOf($vendor, $name);
         ?string $wanted = App::versionOf($version);
-        ?Core\Html\Markup $page = $key == null || $wanted == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds())->version($key, $wanted);
+        ?Core\Html\Markup $page = $key == null || $wanted == null ? null : new PackagePage($db, Core\Time::now()->toEpochSeconds(), Site::load()->feed())->version($key, $wanted);
         App::page($page);
     }
 

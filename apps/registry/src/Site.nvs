@@ -54,6 +54,10 @@ final class Site
         public readonly string $pushKey,
         // The contact of the operator that each push service sees, a `mailto:` or `https:` URL.
         public readonly string $pushSubject,
+        // The address of a second copy of the checkpoint on another host, such as
+        // `https://mirror.example.org/registry.example.com/checkpoint`, or an empty string for none.
+        // `nvs pkg audit` reads both copies and fails when they do not agree.
+        public readonly string $checkpointCopy = '',
     )
     {}
 
@@ -108,13 +112,34 @@ final class Site
             Site::text($settings, 'logName', ''),
             Site::optionalPath(Site::text($settings, 'pushKey', ''), $base, 'pushKey'),
             Site::text($settings, 'pushSubject', ''),
+            Site::checkpointCopyOf($settings),
         );
+    }
+
+    // The setting `checkpointCopy`. It may be left out, and then there is no second copy.
+    // Any other value must be an `https:` address.
+    private static function checkpointCopyOf(array<mixed> $settings): string
+    {
+        if (($settings['checkpointCopy'] ?? null) == null) {
+            return '';
+        }
+        string $copy = Site::text($settings, 'checkpointCopy', '');
+        if ($copy != '' && Str::lower(Uri::tryParse($copy)?->scheme() ?? '') != 'https') {
+            throw new RuntimeError('hosting.json: `checkpointCopy` must be an https: address.');
+        }
+        return $copy;
     }
 
     // The domain of the site, such as `registry.example.com`. A passkey belongs to this domain.
     public function domain(): string
     {
         return Str::lower(Uri::parse($this->origin)->host() ?? '');
+    }
+
+    // The address of the signed advisory feed: on the first file host, or on this site when there is none.
+    public function feed(): string
+    {
+        return Core\Arr::count($this->hosts) == 0 ? '/log/advisories' : Str::trimEnd($this->hosts[0], { characters: '/' }) . '/log/advisories';
     }
 
     // The first `dir` store. The registry sends the files from it when `hosts` is empty.

@@ -8,8 +8,8 @@ use Core\Process;
 use Core\Str;
 use RuntimeError;
 
-// Runs `nvs registry log append`, `nvs registry index sign`, `nvs registry log verify` and
-// `nvs registry log files` as child processes.
+// Runs `nvs registry log append`, `nvs registry log advisories`, `nvs registry index sign`,
+// `nvs registry log verify` and `nvs registry log files` as child processes.
 // The program is the `nvs` setting of `hosting.json`, and `nvs.toml` must allow it under `[capabilities.process]`.
 final class NvsLog implements Log, LogCheck
 {
@@ -56,6 +56,14 @@ final class NvsLog implements Log, LogCheck
         } catch (RuntimeError $error) {
             return null;
         }
+    }
+
+    // The command prints one line about the feed, then the file it wrote.
+    // Memory: every entry of the log, one at a time.
+    public function advisories(): ?array<string>
+    {
+        ?array<string> $lines = $this->lines(['registry', 'log', 'advisories', $this->folder . '/log', '--key', $this->site->logKey]);
+        return $lines == null ? null : Core\Arr::slice($lines, 1);
     }
 
     // The command checks the checkpoint with the public half of the key that signs the next one.

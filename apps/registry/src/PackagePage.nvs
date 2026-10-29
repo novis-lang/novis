@@ -26,11 +26,14 @@ final class PackagePage
 
     private Connection $db;
     private int $now;
+    private string $feed;
 
-    public function constructor(Connection $db, int $now)
+    // `$feed` is the address of the signed advisory feed, which the *Advisories* section links to.
+    public function constructor(Connection $db, int $now, string $feed = '/log/advisories')
     {
         $this->db = $db;
         $this->now = $now;
+        $this->feed = $feed;
     }
 
     // The page of the package `$key`, such as `acme\http`, or `null` when it has no release.
@@ -299,9 +302,13 @@ final class PackagePage
         return $found->count() == 0 ? html`` : html`<p>These packages say that they replace this one:</p><ul>{$items}</ul>`;
     }
 
-    // The retractions and the withholds of these releases, each with its reason.
+    // The retractions and the withholds of these releases, each with its reason, and a link to the
+    // signed feed. The feed lists the same retractions and withholds, from the log.
+    // Cost: none. The rows are the ones the page shows.
     private function advisories(array<Row> $rows): Markup
     {
+        string $feed = $this->feed;
+        var $link = html`<p>Every advisory of this registry is in <a href="{$feed}">the signed advisory feed</a>. <code>nvs pkg audit</code> reads it.</p>`;
         var $items = html``;
         bool $any = false;
         foreach ($rows as Row $row) {
@@ -322,9 +329,9 @@ final class PackagePage
             }
         }
         if (!$any) {
-            return html`<h2>Advisories</h2><p>No version is retracted or withheld.</p>`;
+            return html`<h2>Advisories</h2><p>No version is retracted or withheld.</p>` + $link;
         }
-        return html`<h2>Advisories</h2><ul>{$items}</ul>`;
+        return html`<h2>Advisories</h2><ul>{$items}</ul>` + $link;
     }
 
     // Every fact the default order reads, the score it gives, and the link to the formula.

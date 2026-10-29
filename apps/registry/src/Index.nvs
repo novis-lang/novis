@@ -18,6 +18,8 @@ final class Index
     private Connection $db;
     private Log $log;
     private Site $site;
+    // `true` when the last `append` added a retraction or a withhold, so the advisory feed is written again.
+    private bool $advised = false;
 
     public function constructor(Connection $db, Log $log, Site $site)
     {
@@ -73,6 +75,9 @@ final class Index
                     // The daily run sends every index file.
                     foreach ($changed as string $package) {
                         $stores->queue($this->write($package, $folder), Stores::INDEX);
+                    }
+                    if ($this->advised) {
+                        $this->feed($stores);
                     }
                     $this->sign($folder, $stores);
                 } catch (RuntimeError $error) {
@@ -140,13 +145,15 @@ final class Index
                 $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
             }
             $tx->execute('delete from events where id <= ?', [$last]);
+            $this->advised = Str::contains($lines, '"kind":"retract"') || Str::contains($lines, '"kind":"withhold"');
         }
         return $changed;
     }
 
     // Runs once a day, from `jobs/daily.nvs`. It adds every release that is not in the log yet.
-    // Then it writes every index file again, signs every file, and sends every index file and
-    // `registry.json` to every store. So a version whose seven days have passed is released.
+    // Then it writes every index file and the advisory feed again, signs every file, and sends
+    // them and `registry.json` to every store. So a version whose seven days have passed is released,
+    // and a feed that a failed run did not write is written.
     // It returns `false` when a step fails. The next run does every step again.
     // Memory: one index file at a time.
     public function daily(): bool
@@ -173,6 +180,9 @@ final class Index
                 foreach ($tx->query('select distinct package from releases where log is not null order by package', []) as Row $row) {
                     $stores->queue($this->write(Index::trusted($row->string('package')), $folder), Stores::INDEX);
                 }
+                if ($this->log->size() > 0) {
+                    $this->feed($stores);
+                }
                 $this->sign($folder, $stores);
                 return $stores->send();
             });
@@ -182,15 +192,40 @@ final class Index
         }
     }
 
+    // Writes the advisory feed again from the log, and adds it to the files to send.
+    // It is sent with the index files, after the files of the log it lists.
+    // It throws a `RuntimeError` when the command fails.
+    // Memory: none here. The command reads every entry of the log.
+    private function feed(Stores $stores): void
+    {
+        ?array<string> $written = $this->log->advisories();
+        if ($written == null) {
+            throw new RuntimeError('the advisory feed could not be written');
+        }
+        foreach ($written as string $path) {
+            $stores->queue('log/' . $path, Stores::INDEX);
+        }
+    }
+
     // Writes `registry.json`, signs it and every index file, and adds `registry.json` to the files to send.
+    // `checkpoint_copy` is in it when the operator names a second copy of the checkpoint.
     // It throws a `RuntimeError` when a step fails.
     private function sign(string $folder, Stores $stores): void
     {
-        IO::write($folder . '/registry.json', Json::encode({ schema: 1, hosts: $this->site->hosts }));
+        IO::write($folder . '/registry.json', Index::root($this->site));
         if (!$this->log->sign(Time::now()->toEpochSeconds())) {
             throw new RuntimeError('the index files could not be signed');
         }
         $stores->queue('registry.json', Stores::INDEX);
+    }
+
+    // Returns the text of `registry.json` before it is signed: the file hosts, and the address of the
+    // second copy of the checkpoint when the setting `checkpointCopy` names one.
+    public static function root(Site $site): string
+    {
+        return Index::trusted($site->checkpointCopy == ''
+            ? Json::encode({ schema: 1, hosts: $site->hosts })
+            : Json::encode(['schema' => 1, 'hosts' => $site->hosts, 'checkpoint_copy' => $site->checkpointCopy]));
     }
 
     // Writes the index file of the package `$key`, before it is signed.

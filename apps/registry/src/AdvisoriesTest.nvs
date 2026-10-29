@@ -1,0 +1,216 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Encoding;
+use Core\IO;
+use Core\Json;
+use Core\Path;
+use Core\Random;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+
+// Tests for the advisory feed and the second copy of the checkpoint
+// (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
+// Each test has its own database in memory and its own folder under `work`. The log is a test
+// double that writes each line it adds to `log.txt`, and writes a feed file when it is asked to.
+// `crates/nvs-cli/tests/package_audit.rs` appends the same two entries to a real log, writes its
+// feed with `nvs registry log advisories`, and checks the feed with the client's reader.
+// `nvs registry log append` stores each line in its canonical form, so the tests compare fields.
+final class AdvisoriesTest
+{
+    private const string KEY = 'acme\\http';
+
+    // The account that owns the vendor `Acme`.
+    private const string OWNER = '0123456789abcdef0123456789abcdef';
+
+    // The two entries that `package_audit.rs` appends, in canonical form.
+    private const string RETRACT = '{"fixed_in":"1.1.1","kind":"retract","package":"acme/http","reason":"It deletes files.","v":1,"version":"1.1.0"}';
+    private const string WITHHOLD = '{"kind":"withhold","package":"acme/http","reason":"Malware.","v":1,"version":"1.2.0"}';
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRetractionAndAWithholdAreLoggedAndTheFeedIsWrittenAndSent(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            AdvisoriesTest::release($db, '1.1.1');
+            AdvisoriesTest::release($db, '1.2.0');
+            var $releases = new Releases($db);
+            Test::assertTrue($releases->retract(AdvisoriesTest::KEY, '1.1.0', 'It deletes files.', '1.1.1', Time::now()->toEpochSeconds()));
+            Test::assertTrue($releases->withhold(AdvisoriesTest::KEY, '1.2.0', 'Malware.'));
+
+            var $log = AdvisoriesTest::log($folder);
+            Test::assertTrue(new Index($db, $log, AdvisoriesTest::site($folder, ''))->flush());
+            Test::assertSame(AdvisoriesTest::logged($folder), [AdvisoriesTest::RETRACT, AdvisoriesTest::WITHHOLD]);
+            Test::assertCalled($log, Log::advisories, { times: 1 });
+            // The feed is sent to the store with the other public files.
+            Test::assertTrue(IO::isFile($folder . '/files/log/advisories'));
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRetractionWithNoFixLeavesOutFixedIn(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            Test::assertTrue(new Releases($db)->retract(AdvisoriesTest::KEY, '1.1.0', 'It is slow.', null, Time::now()->toEpochSeconds()));
+            Test::assertTrue(new Index($db, AdvisoriesTest::log($folder), AdvisoriesTest::site($folder, ''))->flush());
+            Test::assertSame(AdvisoriesTest::logged($folder), ['{"kind":"retract","package":"acme/http","reason":"It is slow.","v":1,"version":"1.1.0"}']);
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
+    #[Test(at: '2026-03-01T12:00:00Z')]
+    public function aRunWithNoAdvisoryDoesNotWriteTheFeed(): void
+    {
+        string $folder = AdvisoriesTest::folder();
+        try {
+            var $db = AdvisoriesTest::database();
+            AdvisoriesTest::release($db, '1.1.0');
+            Test::assertTrue(new Releases($db)->unlist(AdvisoriesTest::KEY, '1.1.0', false));
+            var $log = AdvisoriesTest::log($folder);
+            Test::assertTrue(new Index($db, $log, AdvisoriesTest::site($folder, ''))->flush());
+            Test::assertNeverCalled($log, Log::advisories);
+            Test::assertTrue(!IO::exists($folder . '/files/log/advisories'));
+        } finally {
+            AdvisoriesTest::remove($folder);
+        }
+    }
+
+    #[Test]
+    public function theRootNamesTheSecondCopyOfTheCheckpointOnlyWhenThereIsOne(): void
+    {
+        string $copy = 'https://mirror.example.org/registry.example.com/checkpoint';
+        var $named = Json::decode(Index::root(AdvisoriesTest::site('', $copy))) as array<mixed>;
+        Test::assertSame($named['checkpoint_copy'] as tainted string, $copy);
+        var $none = Json::decode(Index::root(AdvisoriesTest::site('', ''))) as array<mixed>;
+        Test::assertTrue(!Core\Arr::hasKey($none, 'checkpoint_copy'));
+    }
+
+    // A new database in memory with every table, the vendor `Acme` and the package `Acme\Http`.
+    private static function database(): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, 0)', [AdvisoriesTest::OWNER]);
+        $db->execute("insert into vendors (key, name, created_at) values ('acme', 'Acme', 0)", []);
+        $db->execute('insert into owners (vendor, account, added_at) values (?, ?, 0)', ['acme', AdvisoriesTest::OWNER]);
+        $db->execute(
+            "insert into packages (key, name, vendor, repository, directory, created_at) values (?, 'Acme\\Http', 'acme', 'https://git.example.com/acme/http.git', '', 0)",
+            [AdvisoriesTest::KEY],
+        );
+        return $db;
+    }
+
+    // Adds a release of `Acme\Http` that is in the log and released.
+    private static function release(Connection $db, string $version): void
+    {
+        array<string> $parts = Str::split($version, '.');
+        $db->execute(
+            'insert into releases (package, version, major, minor, patch, digest, size, repository, directory, git_commit, account, token, archive, api, '
+                . 'published_at, pending_until, dependencies, capabilities, log) '
+                . "values (?, ?, ?, ?, ?, ?, 10, 'https://git.example.com/acme/http.git', '', ?, ?, 'token', '', '', 0, null, '{}', '{\"required\":[],\"optional\":[]}', 0)",
+            [AdvisoriesTest::KEY, $version, $parts[0] as int, $parts[1] as int, $parts[2] as int, 'blake3:' . Encoding::toHex(Random::bytes(32)), Str::repeat('1', 40), AdvisoriesTest::OWNER],
+        );
+    }
+
+    // A log double that adds every line to `log.txt` in `$folder`. Its feed is a file with one line.
+    private static function log(string $folder): Log
+    {
+        return Test::double<Log>({
+            size: fn(): int => 0,
+            append: fn(string $lines): ?array<string> => AdvisoriesTest::append($folder, $lines),
+            advisories: fn(): ?array<string> => AdvisoriesTest::feed($folder),
+            sign: fn(int $at): bool => true,
+        });
+    }
+
+    private static function append(string $folder, string $lines): array<string>
+    {
+        string $file = $folder . '/log.txt';
+        IO::write($file, (IO::exists($file) ? IO::read($file) : '') . $lines);
+        return [];
+    }
+
+    private static function feed(string $folder): array<string>
+    {
+        IO::makeDir($folder . '/work/log');
+        IO::write($folder . '/work/log/advisories', '{"schema": 1}');
+        return ['advisories'];
+    }
+
+    // Each line the log double added, in order, with its keys sorted as the canonical form sorts them.
+    private static function logged(string $folder): array<string>
+    {
+        array<string> $lines = [];
+        foreach (Str::split(Str::trim(IO::read($folder . '/log.txt')), "\n") as tainted string $line) {
+            var $entry = Json::decode($line) as array<mixed>;
+            array<tainted string> $keys = Core\Arr::sort(Core\Arr::keys($entry) as array<tainted string>);
+            array<mixed> $sorted = [];
+            foreach ($keys as tainted string $key) {
+                $sorted[$key] = $entry[$key];
+            }
+            $lines[] = Core\Taint::assertTrusted(Json::encode($sorted), 'the registry wrote this line');
+        }
+        return $lines;
+    }
+
+    // The settings of `hosting.json`, with the work folder and one `dir` store in `$folder`.
+    private static function site(string $folder, string $checkpointCopy): Site
+    {
+        var $loaded = Site::load();
+        return new Site(
+            $loaded->origin,
+            $loaded->signUpWork,
+            $loaded->nvs,
+            $loaded->gitCaFile,
+            $loaded->projectAccount,
+            $folder . '/work',
+            [new Store('dir', $folder . '/files')],
+            [],
+            new Store('dir', $folder . '/backup'),
+            '',
+            5,
+            null,
+            '',
+            '',
+            $loaded->logName,
+            '',
+            '',
+            $checkpointCopy,
+        );
+    }
+
+    // A new folder for one test, under `work`.
+    private static function folder(): string
+    {
+        string $folder = Path::join(Index::work(Site::load()), 'test-advisories-' . Random::token(8));
+        IO::makeDir($folder);
+        return $folder;
+    }
+
+    // Deletes `$path` and everything in it.
+    private static function remove(string $path): void
+    {
+        if (!IO::isDir($path)) {
+            if (IO::exists($path)) {
+                IO::remove($path);
+            }
+            return;
+        }
+        foreach (IO::list($path) as string $name) {
+            AdvisoriesTest::remove(Path::join($path, $name));
+        }
+        IO::removeDir($path);
+    }
+}

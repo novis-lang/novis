@@ -30,6 +30,7 @@ not exist.
 | `downloadLog` | Where the access lines of the file hosts are, or `null`. |
 | `logKey`, `logName` | The key file that signs the log and the index files, and the name of that key. |
 | `pushKey`, `pushSubject` | The key that signs each Web Push message, and your contact address. |
+| `checkpointCopy` | The `https:` address of a second copy of the log's checkpoint, on another host. You can leave it out. |
 
 The registry makes the files that `nvs pkg` reads in the folder `work`: `registry.json`, the
 index files, the archives and the log. Then it copies each new file to every store in `stores`.
@@ -57,6 +58,15 @@ names a key.
 `openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt`. With
 `"pushKey": ""`, no push device can be added. `pushSubject` is a `mailto:` or `https:` URL, and
 each push service sees it.
+
+After each retraction and each withhold, the registry writes the advisory feed `log/advisories`
+and sends it with the log. The feed lists every retraction and withhold in the log, and the log's
+key signs it. `nvs pkg audit` reads it.
+
+`checkpointCopy` names a copy of the file `log/checkpoint` that somebody else publishes, such as
+`https://mirror.example.org/registry.example.com/checkpoint`. `registry.json` gives this address
+to every client. `nvs pkg audit` reads both copies. If they do not agree, it reports an error.
+With no `checkpointCopy`, audit says that there is no second copy.
 
 ## Deploy on one server
 

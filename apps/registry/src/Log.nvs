@@ -1,8 +1,9 @@
 <?nvs
 namespace Registry;
 
-// The registry's log and the signatures of its index files. `NvsLog` runs `nvs registry log append`
-// and `nvs registry index sign`. The tests replace it with a double.
+// The registry's log, its advisory feed and the signatures of its index files. `NvsLog` runs
+// `nvs registry log append`, `nvs registry log advisories` and `nvs registry index sign`.
+// The tests replace it with a double.
 interface Log
 {
     // Returns the number of entries in the log. A log with no checkpoint yet has 0.
@@ -12,6 +13,10 @@ interface Log
     // It returns the files it wrote, as paths in the folder of the log, with `checkpoint` last.
     // If one entry is not valid, nothing is added and the result is `null`.
     public function append(string $lines): ?array<string>;
+
+    // Writes the advisory feed `advisories` again from every retraction and withhold in the log, and signs it.
+    // It returns the files it wrote, as paths in the folder of the log. If it fails, the result is `null`.
+    public function advisories(): ?array<string>;
 
     // Signs `registry.json` and every index file again, with the time `$at` in seconds since 1970.
     // It returns `true` when every file was signed.

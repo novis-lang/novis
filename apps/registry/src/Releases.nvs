@@ -186,7 +186,7 @@ final class Releases
             if ($write->affected() != 1) {
                 return false;
             }
-            Events::reasoned($tx, 'retract', $key, $version, $reason);
+            Events::reasoned($tx, 'retract', $key, $version, $reason, $fixedIn);
             return true;
         });
     }

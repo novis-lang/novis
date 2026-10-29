@@ -69,6 +69,7 @@ final class IndexTest
         var $failing = Test::double<Log>({
             size: fn(): int => 0,
             append: fn(string $lines): ?array<string> => null,
+            advisories: fn(): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
         Test::assertTrue(!new Index(Schema::open(), $failing, Site::load())->catchUp($key));
@@ -166,6 +167,7 @@ final class IndexTest
         return Test::double<Log>({
             size: fn(): int => $size,
             append: fn(string $lines): ?array<string> => Str::contains($lines, '"kind":"publish"') && Str::contains($lines, $package) ? [] : null,
+            advisories: fn(): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
     }

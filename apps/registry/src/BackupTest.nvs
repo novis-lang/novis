@@ -211,6 +211,7 @@ final class BackupTest
         return Test::double<Log>({
             size: fn(): int => $size,
             append: fn(string $lines): ?array<string> => [],
+            advisories: fn(): ?array<string> => [],
             sign: fn(int $at): bool => true,
         });
     }
