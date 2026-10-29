@@ -3,7 +3,9 @@
 `Dockerfile` packages the release binaries into `ghcr.io/novis-lang/novis`. What a user does with
 an image is the website's Docker guide,
 [website/src/content/docs/guides/production/docker.mdx](../website/src/content/docs/guides/production/docker.mdx).
-The release procedure is [docs/release.md](../docs/release.md).
+The release procedure is [docs/release.md](../docs/release.md). Every push to `main` whose CI run is
+green also publishes `:dev` and `:dev-debian`, from that push's release binaries
+([image.yml](../.github/workflows/image.yml) builds both kinds).
 
 ## Building an image locally
 

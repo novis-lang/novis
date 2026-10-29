@@ -233,6 +233,11 @@ describe("nv release docker tags", () => {
     ]);
   });
 
+  test("a push's dev image claims `dev` alone, floating or not", () => {
+    expect(dockerTags("dev", "img", "distroless", true, "abc1234", known)).toEqual({ tags: ["img:dev"], behind: null });
+    expect(dockerTags("dev", "img", "debian", false, "abc1234", known).tags).toEqual(["img:dev-debian"]);
+  });
+
   test("an older release gets no moving tags", () => {
     expect(dockerTags("0.3.0", "img", "distroless", true, "abc1234", known)).toEqual({
       tags: ["img:0.3.0", "img:sha-abc1234"],

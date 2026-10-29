@@ -13,6 +13,13 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
+A push also builds what a release ships, through the release's own files rather than a copy of
+them. `build.yml` holds the release binaries and the VS Code extension, and `image.yml` the container
+images; `ci.yml` and `release.yml` both call them. Every push uploads its binaries as the run's
+artifacts, and a push to `main` publishes the `dev` image once every other job in `ci.yml` is green.
+What that spends: six cold release builds per push, run beside the tests, and a `dev` image the next
+green push replaces, whose earlier versions stay in the package untagged.
+
 The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
 still gates every change that can alter the dependency set, and the sanitizer still gates every
 change to a crate that holds unsafe code. What they cost is one table to read before a job is added,

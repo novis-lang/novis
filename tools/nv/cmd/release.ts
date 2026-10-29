@@ -311,6 +311,9 @@ export function prependChangelog(existing: string | null, section: string): stri
  * workflow adds these when a person publishes the draft, so `latest` never names a version whose notes
  * nobody can read yet. A version older than the newest tag gets no moving tags, so publishing an old
  * draft late cannot move `latest` backwards; `behind` names that tag so the caller can say so.
+ *
+ * `dev` is the image every push to `main` publishes once its CI run is green. It claims `dev` alone:
+ * no `sha-` tag, because one per push would keep a tagged image for every push ever made.
  */
 export function dockerTags(
   version: string,
@@ -321,8 +324,9 @@ export function dockerTags(
   known: Tag[],
 ): { tags: string[]; behind: string | null } {
   if (!(variant in DOCKER_VARIANTS)) die(`'${variant}' is not a known image variant (${Object.keys(DOCKER_VARIANTS).sort().join(", ")})`);
-  const [major, minor] = parseVersion(version);
   const suffix = DOCKER_VARIANTS[variant]!;
+  if (version === "dev") return { tags: [`${image}:dev${suffix}`], behind: null };
+  const [major, minor] = parseVersion(version);
   const chosen = [`${version}${suffix}`, `sha-${short}${suffix}`];
   let behind: string | null = null;
   if (floating) {
@@ -809,7 +813,7 @@ function help(): string {
     "  --apply VERSION                rewrite the manifests and prepend the changelog",
     "  --package                      archive a built binary",
     "  --check                        the manifests, the tags and the changelog agree",
-    "  --docker-tags VERSION          the registry tags one image variant claims",
+    "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
     "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
     "",
     "options:",
@@ -881,7 +885,7 @@ export async function run(args: string[]): Promise<number> {
 
       case "--docker-tags": {
         const version = values.get("--docker-tags")!;
-        parseVersion(version);
+        if (version !== "dev") parseVersion(version);
         const image = values.get("--image");
         if (!image) die("--docker-tags needs --image (e.g. ghcr.io/novis-lang/novis)");
         const short = (await git(["rev-parse", "--short=7", "HEAD"])).trim();

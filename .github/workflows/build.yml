@@ -1,0 +1,292 @@
+# The release binaries and the VS Code extension, built one way for two callers.
+#
+# `release.yml` calls this with the version it is about to release. `ci.yml` calls it on every push
+# with no version, so a tester can take a push's binaries from the run's artifacts. One file builds
+# both, so a push's archives come from the same targets, profile and packaging as a release's, and
+# the two cannot drift apart (`rule:testing/ci-lanes` says why a job is never defined twice).
+#
+# Without a version, the build is the commit as it is:
+#
+#   * No version bump and no notes. The binary prints `X.Y.Z+dev (commit …)`, the archives are
+#     `nvs-dev-<name>.*` and the extension is `nvs-dev.vsix`.
+#   * No Rust cache. Six release targets would save six entries per push into a cache that
+#     `ci.yml`'s header already spends to 9.4 of its 10 GB, and every one would push out an entry
+#     a test leg needs. A push pays for cold release builds instead, in parallel with its tests.
+#   * No provenance attestation. `ci.yml` grants this file `contents: read` alone, and a push's
+#     binaries are for testing, not for distribution.
+#   * The artifacts stay 30 days rather than 7, so the last push's binaries are still there when
+#     the next push is a week or more away. Each push's are a few hundred MB, deleted on expiry.
+#
+# No job here declares `permissions:`, so each takes what its caller's job grants. `release.yml`
+# grants the attestation's two; `ci.yml` grants nothing beyond reading the repository.
+#
+# `release.yml`'s header owns the release side: why the version bump happens here and again in
+# `publish`, and why no `${{ }}` appears inside a `run:` block.
+
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The version being released. Empty builds the commit as it is, as a dev build.'
+        type: string
+        required: false
+        default: ''
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The binaries.
+  #
+  # `optional: true` marks a target whose dependency tree is not yet proven to build for it —
+  # `wasmtime` and `corosensei` both carry assembly and neither lists Windows on ARM64 as a
+  # supported platform, and the musl leg has to satisfy `ring` and `libsqlite3-sys`'s C with `musl-gcc`.
+  # Those legs may fail without failing the release; `publish` reports which arrived. Promote one
+  # to required (drop its `optional`) once a run has proved it.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
+    # A bound on a cold `lto` build with one codegen unit, which a push always is. No run has
+    # measured one yet; tighten this to twice the slowest leg once one has.
+    timeout-minutes: 120
+    env:
+      # The archive's version slot: the release's version, or `dev`.
+      LABEL: ${{ inputs.version || 'dev' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04 rather than -latest on purpose: the glibc a binary is *linked* against is
+          # a floor on the systems it runs on, and 24.04's 2.39 would exclude every stable distro
+          # older than itself. 22.04 gives 2.35.
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-x86_64-musl
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            musl: true
+            optional: true
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - name: windows-aarch64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            archive: zip
+            optional: true
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # rust-toolchain.toml pins the version, the components and the targets, and a bare
+      # `rustup toolchain install` installs exactly what it names. The release target below
+      # is added on top, because it is a matrix value the file cannot know.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
+
+      - name: Add the release target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+
+      # `ring` and `libsqlite3-sys` compile C, and the musl target has no C toolchain on the image.
+      - name: musl C toolchain
+        if: matrix.musl
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
+
+      # A release only. The header says why a push builds cold.
+      - if: inputs.version != ''
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: release-${{ matrix.name }}
+
+      # Before the manifests move, so the *committed* lock is what gets fetched and the build
+      # below can run `--offline`. A release must not resolve a dependency version nobody
+      # reviewed; dependency moves are a human's pass, per docs/agent/dependency-update.md.
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+
+      # `cargo auditable` puts the dependency list, from `Cargo.lock`, into the binary as a
+      # compressed `.dep-v0` section of a few kilobytes. `cargo audit bin` and other scanners read
+      # it from a downloaded `nvs`, so a RUSTSEC advisory can be matched to a release without its
+      # sources. Pinned and `--locked`, like every tool CI installs.
+      - name: Install cargo-auditable
+        run: cargo install cargo-auditable --version 0.7.7 --locked
+
+      # `plan` rendered these notes from this same commit. `nvs agent changes` reads `CHANGELOG.md`
+      # from the binary, so the section is prepended before the build, and the binary carries the
+      # section of the version it is (`rule:tooling/nvs-agent-changes-prints-the-changelog`).
+      - if: inputs.version != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-notes-preview
+          path: ${{ runner.temp }}/notes
+
+      # In this working copy only. Nothing is committed here — see `release.yml`'s header.
+      - name: Set the version being released, and prepend its notes
+        if: inputs.version != ''
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes/release-notes.md"
+
+      # `NVS_RELEASE` tells crates/nvs-cli/build.rs that this build is the release. The tag
+      # `v<version>` does not exist yet, and without it `nvs --version` would print `+dev`. A dev
+      # build leaves it empty, which names no version.
+      - name: Build
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          NVS_RELEASE: ${{ inputs.version }}
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo auditable build --release --locked --offline -p nvs-cli --target "$TARGET"
+
+      # A release's binary prints its version alone, and a dev build's prints `+dev`: a binary from
+      # a push must never claim to be a release.
+      - name: The binary prints the version it is
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          exe="target/$TARGET/release/nvs"
+          if [ -f "$exe.exe" ]; then exe="$exe.exe"; fi
+          out="$("$exe" --version)"
+          echo "$out"
+          if [ -n "$VERSION" ]; then
+            case "$out" in
+              "nvs $VERSION (commit "*) ;;
+              *) echo "::error::nvs --version does not print $VERSION alone: $out"; exit 1 ;;
+            esac
+          else
+            case "$out" in
+              "nvs "*"+dev (commit "*) ;;
+              *) echo "::error::a dev build's nvs --version does not print +dev: $out"; exit 1 ;;
+            esac
+          fi
+
+      - name: Package
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          bun nv release --package \
+            --version "$LABEL" --target "$TARGET" --name "$NAME" \
+            --archive "$ARCHIVE" --out dist
+
+      # Signs a statement that *this* runner, from *this* commit, produced these bytes. Keyless:
+      # the signing identity is the run's OIDC token, so there is no key to store or leak, and
+      # `gh attestation verify` checks it against Sigstore's public log.
+      - if: inputs.version != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/nvs-*.${{ matrix.archive }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ inputs.version && 7 || 30 }}
+
+  # ---------------------------------------------------------------------------
+  # The VS Code extension.
+  #
+  # A release applies the same `--manifests-only` bump as `build`, in this job's own working copy,
+  # so the extension's `package.json` says the version the archives say. The caller's tests already
+  # ran the extension's suites on this commit, so this job packages, and runs none. The artifact's
+  # name starts `dist-`, so `release.yml`'s `publish` downloads it beside the archives.
+  # ---------------------------------------------------------------------------
+  vsix:
+    name: build the VS Code extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LABEL: ${{ inputs.version || 'dev' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Install tool dependencies
+        run: bun install --frozen-lockfile
+
+      # `--apply` reads the workspace with `cargo metadata` when the version moves, as in `build`.
+      - name: Install toolchain
+        if: inputs.version != ''
+        run: rustup toolchain install --no-self-update
+      - name: Fetch dependencies against the committed lock
+        if: inputs.version != ''
+        run: cargo fetch --locked
+
+      # In this working copy only. Nothing is committed here — see `release.yml`'s header.
+      - name: Set the version being released
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bun nv release --apply "$VERSION" --manifests-only
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: editors/vscode/.nvmrc
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      - name: Install
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Package
+        working-directory: editors/vscode
+        run: |
+          set -euo pipefail
+          npm run package
+          mkdir -p ../../dist
+          mv nvs.vsix "../../dist/nvs-$LABEL.vsix"
+
+      - if: inputs.version != ''
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/nvs-*.vsix
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dist-vsix
+          path: dist/
+          if-no-files-found: error
+          retention-days: ${{ inputs.version && 7 || 30 }}
