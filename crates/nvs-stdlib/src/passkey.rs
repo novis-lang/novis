@@ -1617,6 +1617,10 @@ mod tests {
     /// The flags a passkey with user verification sets at registration.
     const FLAGS: u8 = USER_PRESENT | USER_VERIFIED | ATTESTED;
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_software_authenticators_registration_is_verified_for_each_algorithm() {
         for (cose_alg, algorithm) in [(-7, Algorithm::Es256), (-8, Algorithm::Ed25519)] {
@@ -1646,6 +1650,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_software_authenticators_sign_in_is_verified_for_each_algorithm() {
         for (cose_alg, algorithm) in [(-7, Algorithm::Es256), (-8, Algorithm::Ed25519)] {
@@ -1668,6 +1676,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_wrong_signature_is_refused() {
         let challenge = [9_u8; CHALLENGE_LEN];
@@ -1700,6 +1712,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn a_counter_that_does_not_increase_throws() {
         let challenge = [9_u8; CHALLENGE_LEN];
@@ -1718,6 +1734,10 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn each_sign_in_check_refuses_what_it_reads() {
         let challenge = [9_u8; CHALLENGE_LEN];
@@ -1787,6 +1807,10 @@ mod tests {
         assert!(refused.contains("COSE algorithm -257"), "{refused}");
     }
 
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn each_check_refuses_what_it_reads() {
         let challenge = [9_u8; CHALLENGE_LEN];
@@ -1926,6 +1950,10 @@ mod tests {
 
     /// The options are built in memory the request's budget does not count, so the limit is
     /// checked against what they will cost before they are built: long names, and many long ids.
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn options_past_the_memory_limit_stop_before_they_are_built() {
         let mut ctx = session_ctx();
@@ -1969,6 +1997,10 @@ mod tests {
     }
 
     // covers: Core\Passkey::registerOptions, Core\Passkey::verifyRegistration
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_members_register_once_per_challenge() {
         let mut ctx = session_ctx();
@@ -2025,6 +2057,10 @@ mod tests {
     // covers: Core\Passkey::signInOptions, Core\Passkey::credentialId, Core\Passkey::verifySignIn
     // covers: Core\Passkey\Credential::of, Core\Passkey\Credential::id, Core\Passkey\Credential::publicKey
     // covers: Core\Passkey\Credential::algorithm, Core\Passkey\Credential::signCount
+    #[cfg_attr(
+        miri,
+        ignore = "`ring` runs C and assembly, which Miri cannot interpret"
+    )]
     #[test]
     fn the_members_sign_in_once_per_challenge() {
         let mut ctx = session_ctx();
