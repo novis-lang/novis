@@ -4,9 +4,10 @@
 //!
 //! # Why the door and not the program
 //!
-//! § 1 names three rules that were already written against a match the server
-//! had not got — `rule:security/csrf-is-on-by-default`'s CSRF check, `rule:observability/route-label-is-the-path-pattern`'s `route` label, and
-//! § 8's access decision — and each of them needs the answer *before* the
+//! That rule names three readers that were already written against a match the
+//! server had not got — `rule:security/csrf-is-on-by-default`'s CSRF check, `rule:observability/route-label-is-the-path-pattern`'s `route` label, and
+//! the access decision (`rule:security/access-is-checked-for-presence-not-meaning`)
+//! — and each of them needs the answer *before* the
 //! handler is called. A program that matched for itself would make two matches
 //! of one question and could not have answered the first three at all, so the
 //! match happens here and rides on the request:
@@ -14,17 +15,17 @@
 //! `Core\Request::route()` is the one reader.
 //!
 //! **This module dispatches nothing.** It computes a name and typed parameters
-//! and stops, which is § 1's own second rule and `rule:routing/matching-is-not-dispatching`'s refusal list
+//! and stops, which is `rule:routing/matching-is-not-dispatching`'s refusal list
 //! left untouched: nothing here calls the annotated method, and nothing here
 //! decides what a return value means.
 //!
 //! # What the answer is read for
 //!
-//! Two of § 1's three rules read it here: [`csrf`] is `rule:security/csrf-is-on-by-default`'s
+//! Two of the three readers read it here: [`csrf`] is `rule:security/csrf-is-on-by-default`'s
 //! refusal, over [`csrf_required`]'s question, and [`label`] is `rule:observability/route-label-is-the-path-pattern`'s `route` label. Neither matches
 //! anything — each is a field of the row the door already found — which is what
-//! § 1 buys and is why they live beside [`take`] rather than beside the
-//! subsystem each belongs to. § 8's access decision has no reader here on
+//! the single match buys and is why they live beside [`take`] rather than beside the
+//! subsystem each belongs to. The access decision has no reader here on
 //! purpose: it is the *dispatcher's*, and this crate does not dispatch.
 //!
 //! # The CSRF refusal, and what arms each half of it
@@ -76,7 +77,8 @@
 //! even selected. A match needs the *unit*, and which unit answers a request is
 //! `rule:http-server/a-request-resolves-in-five-steps`'s five steps — so this runs where the selected program and the
 //! arrived request are both in hand, which is the last point before the isolate
-//! is built. It is still "before the handler" in § 1's sense: no application
+//! is built. It is still "before the handler" in
+//! `rule:routing/matched-once-before-the-handler`'s sense: no application
 //! code has run.
 //!
 //! A request whose unit declares no route is matched against nothing and
@@ -103,7 +105,7 @@ use nvs_runtime::routes::Routes;
 /// prefixed path would fail every route in a table that is otherwise correct.
 ///
 /// Nothing is written for a request that matched nothing: `None` on the carrier
-/// is § 1's `null`, and the program may still serve the request however it
+/// is `Core\Request::route()`'s `null`, and the program may still serve the request however it
 /// likes.
 pub fn take(routes: &Routes, inbound: &mut Inbound) {
     // Resolved into a local first, which ends the borrow of the carrier before
@@ -119,10 +121,10 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
 /// this request CSRF-checked?
 ///
 /// `true` where the request matched a row an unsafe verb declared and whose
-/// `#[Access]` did not write § 1a's `csrf: false`. Both halves are read off
+/// `#[Access]` did not write `csrf: false` (`rule:attributes/access-payload`). Both halves are read off
 /// [`nvs_runtime::routes::Match::route`] — the row [`take`] already found —
 /// which is exactly what `rule:routing/matched-once-before-the-handler` removes: a check that matched for itself
-/// would make two matches of one question, and § 4 was specified against the
+/// would make two matches of one question, and the CSRF rule was specified against the
 /// answer this one already has.
 ///
 /// **A request that matched nothing is not covered here**, which is
@@ -131,7 +133,7 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
 /// `POST` would refuse every write it serves. [`csrf`] still refuses such a
 /// write when its `Origin` names another origin ([`unmatched_write`]).
 ///
-/// The refusal this answer feeds is [`csrf`], which is where § 4's other half —
+/// The refusal this answer feeds is [`csrf`], which is where the CSRF rule's other half —
 /// what makes a covered request acceptable — is decided.
 #[must_use]
 pub fn csrf_required(inbound: &Inbound) -> bool {
@@ -559,9 +561,10 @@ mod tests {
         );
     }
 
-    /// § 4's two answers over one verb, and the verb that was never covered:
-    /// an unsafe route that is checked, the same verb carrying § 1a's opt-out —
-    /// the webhook § 4 names as the legitimate case — and a safe one.
+    /// `rule:security/csrf-is-on-by-default`'s two answers over one verb, and the
+    /// verb that was never covered: an unsafe route that is checked, the same verb
+    /// carrying the `csrf: false` opt-out — the webhook that rule names as the
+    /// legitimate case — and a safe one.
     fn checked() -> Routes {
         Routes::new(vec![
             Route::new(
@@ -595,7 +598,7 @@ mod tests {
     ///
     /// **The table is dropped before either is asked**, which is the half a
     /// shape-only assertion would miss — an answer that survives with nothing
-    /// left to match against cannot have been re-derived. Both of § 4's answers
+    /// left to match against cannot have been re-derived. Both of the CSRF rule's answers
     /// are asserted over *one* verb, so a check that had read the request's
     /// method and stopped there passes neither: the opt-out row and the checked
     /// row are both `POST`.
@@ -614,7 +617,7 @@ mod tests {
         drop(routes);
 
         assert!(super::csrf_required(&checked_post));
-        // § 1a's opt-out, on the same verb as the row above it.
+        // The `csrf: false` opt-out, on the same verb as the row above it.
         assert!(!super::csrf_required(&exempt));
         assert!(!super::csrf_required(&safe));
         // `rule:routing/table-is-opt-in`: nothing matched declares no handler to protect.
@@ -632,7 +635,7 @@ mod tests {
     ///
     /// Asserted over one verb and one path again, so that a check which had read
     /// the method and stopped passes none of it. The opt-out row is in it
-    /// because § 4's escape hatch is per route and has to survive the origin
+    /// because the CSRF rule's escape hatch is per route and has to survive the origin
     /// half as well as the token half — a webhook arrives cross-origin by
     /// definition.
     #[test]
@@ -681,7 +684,7 @@ mod tests {
         // The bound the module doc states: no `Origin` is every non-browser
         // client, and the token half is what covers it.
         assert_eq!(door(&arrived("POST", "/orders", &[host])), Csrf::Passed);
-        // § 1a's opt-out, and a safe verb, neither of which the door covers.
+        // The `csrf: false` opt-out, and a safe verb, neither of which the door covers.
         assert_eq!(
             door(&arrived("POST", "/hooks/stripe", &[host, elsewhere])),
             Csrf::Passed
@@ -1116,7 +1119,8 @@ mod tests {
         assert_eq!(label("/users/new").as_deref(), Some("/users/new"));
     }
 
-    /// § 1's `null`: nothing matched is a served request like any other, and
+    /// `Core\Request::route()`'s `null` (`rule:routing/matched-once-before-the-handler`):
+    /// nothing matched is a served request like any other, and
     /// the door writes nothing onto it.
     #[test]
     fn a_request_nothing_claims_carries_no_match() {

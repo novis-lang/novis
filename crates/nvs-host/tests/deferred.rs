@@ -3,7 +3,7 @@
 //! isolate a request is.
 //!
 //! **Why this crate.** The queue and the drain are `nvs-runtime`'s and the
-//! connection is `nvs-server`'s, but what § 6 promises is about neither on its
+//! connection is `nvs-server`'s, but what that rule promises is about neither on its
 //! own — it is about a *task* still running once the task that was waiting for
 //! it has gone. `nvs-host` owns both halves of that: it is where the isolate's
 //! completion path files an answer and where a task's death cancels what it
@@ -103,7 +103,7 @@ fn callable_of(invoke: nvs_runtime::NvsFn) -> Value {
 /// the two things one does — it takes the answer, and then it returns — with
 /// the return being the load-bearing half. A task's death cancels whatever it
 /// left running (`nvs_host::scheduler`), so a tree that were still this
-/// joiner's child would be torn down by the very event § 6 says it must
+/// joiner's child would be torn down by the very event that rule says it must
 /// outlive, and the registered callable would never record anything.
 ///
 /// The ordering assertion is what separates this from "the work ran at all": a

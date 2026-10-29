@@ -3,9 +3,9 @@
 //!
 //! # Why this is a module of `nvs-host` and not of `nvs-runtime`
 //!
-//! Tier 3 *is* an isolate: § 3 says "the exact mechanism `rule:security/isolate-shares-nothing` already
-//! defines", so it is [`crate::isolate::Isolate`] with a different program and
-//! nothing else. That type lives here, and `nvs-runtime` is below it, so the
+//! Tier 3 *is* an isolate: that rule runs it as the same `spawn script`
+//! isolate `rule:security/isolate-shares-nothing` defines, so it is
+//! [`crate::isolate::Isolate`] with a different program and nothing else. That type lives here, and `nvs-runtime` is below it, so the
 //! spawn cannot live beside the record it reports. What does live beside the
 //! record is the argument — [`nvs_runtime::floor::report_argument`] — because
 //! turning a [`Record`] into a `Value` is a question about the record and not
@@ -23,7 +23,7 @@
 //! is
 //! `false`, and the caller reports the same record through
 //! [`nvs_runtime::floor::report`] as it would have with no handler at all. That
-//! is § 3's **zero retries** in the only form it can take here: there is one
+//! is `rule:errors/escalation-ladder`'s **zero retries** in the only form it can take here: there is one
 //! call, its failure is not inspected, and nothing is attempted twice.
 //!
 //! # Server work does not wait for its handler
@@ -67,8 +67,8 @@
 //! exactly as any other child's is.
 //!
 //! Its budget is **not** the failing request's: the spawn asks for
-//! [`Isolate::charged_to_the_engine_reserve`], so the handler runs under § 3's
-//! engine-owned allotment and a request already at its ceiling still has a
+//! [`Isolate::charged_to_the_engine_reserve`], so the handler runs under
+//! `rule:errors/handler-script`'s engine-owned allotment and a request already at its ceiling still has a
 //! report. [`nvs_runtime::Ctx::handler_isolate`] is the one home of what that
 //! reserve is and of what it changes; nothing about that exception is decided
 //! here.
@@ -109,8 +109,8 @@ impl Drop for Guard {
 /// stream the failing context was already writing to: the process's standard
 /// output for a CLI run, and the child's buffer for an isolate, which then
 /// crosses at that isolate's own await. A report that appeared somewhere other
-/// than the failing program's stream would be a second channel, and § 6 has
-/// exactly one.
+/// than the failing program's stream would be a second channel, and
+/// `rule:errors/log-write` has exactly one.
 pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     if RUNNING.with(Cell::get) || inside_a_handler() {
         return false;

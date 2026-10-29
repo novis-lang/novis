@@ -10,10 +10,10 @@
 //! 5. otherwise                                                                             -> run the mount's entry
 //! ```
 //!
-//! **Step 0 is § 5's probe and it is not one of § 4's steps** — it runs ahead of
-//! all of them, so no mount can shadow it and no application can answer it. That
-//! ordering is what the endpoint is *for*: it reports that the process is alive
-//! even when the application fails to compile, and a probe a mount could take
+//! **Step 0 is `rule:http-server/health-path-is-off-and-checks-nothing`'s probe
+//! and it is not one of the five steps** — it runs ahead of all of them, so no
+//! mount can shadow it and no application can answer it. That ordering is
+//! what the endpoint is *for*: it reports that the process is alive even when the application fails to compile, and a probe a mount could take
 //! over would fail exactly when the answer matters and produce a restart loop no
 //! restart fixes. It is off unless `[server] health_path` names a path
 //! ([`nvs_config::server::health_path`], which is also where a path no request
@@ -22,11 +22,12 @@
 //! across every instance — and it reports no version and no build.
 //!
 //! **The table is the whole of what a request may reach, and it is already
-//! literal.** § 2's rule is kept by [`nvs_config::mount::expand`], which walked
+//! literal.** `rule:http-server/a-path-is-never-derived-from-a-url` is kept by
+//! [`nvs_config::mount::expand`], which walked
 //! every `scan` glob against the disk before this server bound a socket; what
 //! this module does is *select* one of its rows. Steps 3 and 4 are the one place
 //! a remainder meets the filesystem at all, they run only where the two
-//! `[server]` switches turn them on, and § 4 makes them development's `try_files
+//! `[server]` switches turn them on, and the five steps make them development's `try_files
 //! $uri /index.nvs` rather than a path construction: the remainder is refused
 //! before it is joined ([`under`] below), the join is checked canonically
 //! against the mount root afterwards, and a production deployment
@@ -72,7 +73,8 @@
 //! taken literally.
 //!
 //! Step 3 has one addition to that, and it is lexical too: a remainder ending in
-//! `/` names a directory below the mount root, and § 4's **sole default
+//! `/` names a directory below the mount root, and
+//! `rule:http-server/static-serving-is-one-policy`'s **sole default
 //! document** `index.html` is looked for inside it ([`default_document`]). Never
 //! at the mount root, and never for step 4 — that is [`crate::statics`]'s docs
 //! § *Decision*.
@@ -99,13 +101,14 @@ use nvs_runtime::Inbound;
 
 pub use nvs_config::server::Dispatch;
 
-/// The one question § 4 steps 3 and 4 ask of a filesystem.
+/// The one question steps 3 and 4 ask of a filesystem.
 ///
 /// A trait for the reason [`nvs_config::resolve::Files`] is one: the cases below
 /// assert containment against a symlink, and planting one is a privileged
 /// operation on Windows. It is not that trait because the question is not that
 /// question — a router asks for an existing **file**, canonical, and a directory
-/// answers `None`, since § 4 serves an exact file and never a listing.
+/// answers `None`, since `rule:http-server/static-serving-is-one-policy` serves
+/// an exact file and never a listing.
 pub trait Existing {
     /// The canonical path of the regular file at `path`, or `None` for anything
     /// that is not one — absent, a directory, or unreadable.
@@ -190,19 +193,19 @@ fn spelled_through_links(path: &Path, held: &Path) -> bool {
 }
 
 /// The mount table a running server selects from, with the two `[server]`
-/// switches § 4 steps 3 and 4 are gated on.
+/// switches steps 3 and 4 are gated on.
 #[derive(Clone, Debug)]
 pub struct Table {
     /// The expanded rows, in [`nvs_config::mount::expand`]'s order. Step 1 scans
     /// them: a table is a handful of mounts, and a request that walked a map
     /// would still have to walk it twice for host and host-less.
     mounts: Vec<Mounted>,
-    /// § 4 step 4's switch.
+    /// Step 4's switch.
     dispatch: Dispatch,
-    /// § 4 step 3's switch.
+    /// Step 3's switch.
     serve_static: bool,
-    /// § 5's probe path, or `None` where this server reserves none. Step 0, and
-    /// the module docs own why it is not a step of § 4's.
+    /// The health probe's path, or `None` where this server reserves none. Step
+    /// 0, and the module docs own why it is not one of the five steps.
     health: Option<String>,
     /// The database files the `[db]` blocks name, canonical, with SQLite's
     /// `-wal`, `-shm` and `-journal` files beside each. Step 3 never sends one.
@@ -214,7 +217,7 @@ pub struct Table {
 
 impl Table {
     /// The table, with both switches already decided and no probe reserved —
-    /// [`with_health`](Table::with_health) is § 5's other half.
+    /// [`with_health`](Table::with_health) is the probe's other half.
     #[must_use]
     pub fn new(mounts: Vec<Mounted>, dispatch: Dispatch, serve_static: bool) -> Self {
         Self {
@@ -267,7 +270,7 @@ impl Table {
     /// Taken after the fact rather than as a fourth constructor argument because
     /// it is the one part of a table that is *not* about routing to an
     /// application: a table with no probe is the default state and the one every
-    /// case that is about § 4 wants.
+    /// case that is about the five steps wants.
     #[must_use]
     pub fn with_health(mut self, health: Option<String>) -> Self {
         self.health = health;
@@ -298,18 +301,20 @@ impl Table {
             .local_hosts_only(development)
     }
 
-    /// Every mount this table holds, which is § 2's executable set in full.
+    /// Every mount this table holds, which is the executable set
+    /// `rule:http-server/a-path-is-never-derived-from-a-url` fixes at boot, in full.
     #[must_use]
     pub fn mounts(&self) -> &[Mounted] {
         &self.mounts
     }
 
-    /// Step 0 and then § 4's five steps, over one arrived request.
+    /// Step 0 and then the five steps, over one arrived request.
     ///
     /// The host is [`host`]'s reading of the request, and a request whose
     /// host it refuses reaches no mount at all: the door answers it `400`
-    /// before it gets here. § 6's forwarded walk ([`crate::forwarded`]) does not reach this
-    /// value and never will: that section reads **no** `X-Forwarded-Host` and
+    /// before it gets here. The forwarded walk ([`crate::forwarded`]) does not reach this
+    /// value and never will: `rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`
+    /// reads **no** `X-Forwarded-Host` and
     /// generates no absolute URL from `Host`, because deriving an origin from a
     /// header is host-header injection and `rule:routing/matching-is-not-dispatching` already makes
     /// `Core\Router::url` answer with a path. What a trusted proxy may assert
@@ -351,12 +356,13 @@ impl Table {
                 .any(|mount| mount.host.as_deref() == Some(host))
     }
 
-    /// Step 0 and § 4's five steps over a host and a path, which is
+    /// Step 0 and the five steps over a host and a path, which is
     /// [`select`](Table::select) with the request already taken apart.
     ///
     /// `path` is the request target's path alone — a query string is not part of
     /// what selects a mount, and no step below ever sees one. The probe is
-    /// therefore matched against the path exactly and on every host: § 5 reserves
+    /// therefore matched against the path exactly and on every host:
+    /// `rule:http-server/health-path-is-off-and-checks-nothing` reserves
     /// **one** URL, and a probe that answered `/healthz?x=1` but not `/healthz`,
     /// or answered only on the host of whichever mount happened to cover it,
     /// would be a different endpoint on each deployment.
@@ -385,7 +391,8 @@ impl Table {
         // 2.
         let remainder = strip(&mount.prefix, path);
         // 3 and 4, in that order, and each only where its switch is on. One
-        // extension test read from either end: § 4's own last sentence is that a
+        // extension test read from either end:
+        // `rule:http-server/static-serving-is-one-policy` says a
         // `.nvs` is never served as source, so step 3 wants the file that is not
         // one and step 4 wants the file that is.
         let under_root = |wanted_nvs: bool| {
@@ -415,7 +422,8 @@ impl Table {
     /// Step 1: the longest prefix among the mounts answering on `host`, and then
     /// the longest among the host-less ones.
     ///
-    /// The two passes are ordered rather than merged because § 4 says so, and
+    /// The two passes are ordered rather than merged because
+    /// `rule:http-server/a-request-resolves-in-five-steps` says so, and
     /// because merging them would let a host-less `/blog` outrank a host mount's
     /// `/` — which is a request answered by the wrong tenant, not a longer
     /// match. A prefix matches on a **segment boundary**: `/blog` selects
@@ -469,19 +477,21 @@ fn names_this_machine(host: &str) -> bool {
             .is_ok_and(|ip| ip.to_canonical().is_loopback())
 }
 
-/// What the table made of one request: § 5's probe, or the mount § 4 selected.
+/// What the table made of one request: the health probe, or the mount the five
+/// steps selected.
 ///
 /// Two variants rather than a third [`What`], because a probe hit has no mount
 /// to carry — it is answered before step 1 has run, so there is nothing yet for
 /// a [`Selection`] to borrow. A caller that only asks about applications takes
-/// [`Resolved::selection`] and is back to § 4 alone; one that serves requests
+/// [`Resolved::selection`] and is back to the five steps alone; one that serves requests
 /// has to say what it does with the probe, which is the point of making it a
 /// variant instead of a flag beside the answer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Resolved<'a> {
     /// Step 0: `[server] health_path` names exactly this path. The answer is
     /// `200` while the server accepts and `503` while it drains, with an empty
-    /// body — a status and nothing else, since § 5's probe reports no version
+    /// body — a status and nothing else, since
+    /// `rule:http-server/health-path-is-off-and-checks-nothing`'s probe reports no version
     /// and runs no dependency check.
     Health,
     /// Steps 1 to 5: this mount, and what it says the request is.
@@ -489,7 +499,7 @@ pub enum Resolved<'a> {
 }
 
 impl<'a> Resolved<'a> {
-    /// The mount § 4 chose, or `None` for a probe hit.
+    /// The mount the five steps chose, or `None` for a probe hit.
     #[must_use]
     pub fn selection(self) -> Option<Selection<'a>> {
         match self {
@@ -499,7 +509,7 @@ impl<'a> Resolved<'a> {
     }
 }
 
-/// One request's answer to § 4: which mount it selected, and what that mount
+/// One request's answer to the five steps: which mount it selected, and what that mount
 /// says the request is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Selection<'a> {
@@ -530,7 +540,7 @@ pub struct Selection<'a> {
     pub path: Box<str>,
 }
 
-/// What § 4 decided the request is, once a mount had been selected.
+/// What the five steps decided the request is, once a mount had been selected.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum What {
     /// Step 3: this exact file's bytes, under `[server] static`. Never a
@@ -695,7 +705,8 @@ fn folded(authority: &str) -> Host<'_> {
 ///
 /// A `Host` header carries `name:port` and a mount's `host` is a name, so a
 /// comparison against the header as it arrived would never match the very
-/// deployment § 3's `host = "{1}.example.com"` is written for — a development
+/// deployment `rule:http-server/a-mount-table-expands-at-boot`'s
+/// `host = "{1}.example.com"` is written for — a development
 /// server on `:8123`. A bracketed IPv6 literal keeps its colons, since the port
 /// is the one after the `]`.
 fn named(authority: &str) -> &str {
@@ -719,7 +730,7 @@ fn covers(prefix: &str, path: &str) -> bool {
 ///
 /// A mount at `/blog` answers `/blog` with the remainder `/`, which is the same
 /// remainder `/blog/` has: a module is reached at its own root by either
-/// spelling, and § 4's steps 3 and 4 find nothing under either, so both run the
+/// spelling, and steps 3 and 4 find nothing under either, so both run the
 /// entry. That is what makes a module relocatable — the prefix is the only thing
 /// that moved.
 fn strip<'a>(prefix: &str, path: &'a str) -> &'a str {
@@ -738,8 +749,9 @@ fn strip<'a>(prefix: &str, path: &'a str) -> &'a str {
 /// Two independent checks, and the second is not the first done again. The
 /// lexical one refuses a segment that does not spell a name, so nothing
 /// traversing is ever *built*; the canonical one refuses a path that resolves
-/// outside `root` anyway, which is the symlink the lexical half cannot see. § 2
-/// is kept by both being true rather than by either.
+/// outside `root` anyway, which is the symlink the lexical half cannot see.
+/// `rule:http-server/a-path-is-never-derived-from-a-url` is kept by both being
+/// true rather than by either.
 ///
 /// A third refuses a remainder the disk holds **in another case**. A
 /// case-insensitive filesystem finds `style.css` for `/STYLE.CSS`, and the
@@ -783,7 +795,8 @@ fn differs_only_in_case(resolved: &Path, asked: &Path) -> bool {
     resolved != asked && folded(&resolved.to_string_lossy()).eq(folded(&asked.to_string_lossy()))
 }
 
-/// § 4's sole default document, or `None` where there is not one to serve.
+/// `rule:http-server/static-serving-is-one-policy`'s sole default document, or
+/// `None` where there is not one to serve.
 ///
 /// `index.html` and nothing else, for a remainder that spells a directory
 /// *below* the mount root — `/docs/` finds `docs/index.html` — and never for the
@@ -793,8 +806,8 @@ fn differs_only_in_case(resolved: &Path, asked: &Path) -> bool {
 ///
 /// The trailing `/` is the whole test, which keeps this lexical: a remainder
 /// that does not end in one is a *file* the peer named, and step 3 already
-/// declined it. There is no redirect from `/docs` to `/docs/` because § 4 has no
-/// spelling for one — that request reaches step 5 and the application answers
+/// declined it. There is no redirect from `/docs` to `/docs/` because the five
+/// steps have no spelling for one — that request reaches step 5 and the application answers
 /// it. The join goes through [`under`] like every other, so a default document
 /// is subject to the same two containment checks.
 fn default_document(mount: &Mounted, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
@@ -832,8 +845,8 @@ fn decode(segment: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// § 4's last sentence, as a predicate: **a `.nvs` file is never served as
-/// source**, under any dispatch, from any mount. Step 3 excludes what this
+/// `rule:http-server/static-serving-is-one-policy`, as a predicate: **a `.nvs`
+/// file is never served as source**, under any dispatch, from any mount. Step 3 excludes what this
 /// answers `true` for and step 4 requires it, so the two are one extension test
 /// read from either end.
 fn is_nvs(path: &Path) -> bool {
@@ -842,22 +855,23 @@ fn is_nvs(path: &Path) -> bool {
 }
 
 /// Records `rule:routing/a-request-reads-its-mount`'s mount on the carrier the selected program will
-/// answer: the prefix step 2 stripped, and § 3's glob captures of the row that
+/// answer: the prefix step 2 stripped, and the glob captures of the row that
 /// selected it.
 ///
 /// **Nothing here searches.** Both are fields of the [`Mounted`] that
 /// [`Table::resolve`] already chose, exactly as
 /// [`crate::route::csrf_required`] reads a field of the match rather than
 /// matching a second time — and for the same reason: the request was resolved
-/// once, before any application code, and § 7 is a *reading* of that answer.
+/// once, before any application code, and the mount a request reads is a
+/// *reading* of that answer.
 ///
-/// This is where the door's half of § 7 ends. What the two facts become for a
+/// This is where the door's half of that rule ends. What the two facts become for a
 /// program is `Core\Request::mount()`'s, one crate above this one, and that is
-/// also where § 7's `tainted` is declared: a qualifier is a fact about a
+/// also where the captures' `tainted` is declared: a qualifier is a fact about a
 /// registry row's signature and there is no such thing to write here.
 ///
 /// Called for every request that reached a mount at all, which is every request
-/// but § 5's health probe — that one is answered ahead of step 1, so no mount
+/// but the health probe — that one is answered ahead of step 1, so no mount
 /// ever claims it and no carrier is built for it.
 ///
 pub fn carry(mount: &Mounted, inbound: &mut Inbound) {
@@ -969,7 +983,7 @@ mod tests {
     }
 
     /// The same described filesystem, read the way a **boot** reads one, so that
-    /// a case can expand § 3's globs over exactly the tree its requests then
+    /// a case can expand the mount table's globs over exactly the tree its requests then
     /// probe through [`Existing`] above.
     ///
     /// It mirrors `nvs-config`'s own `tests/mount.rs` reader, which is where what
@@ -1056,7 +1070,8 @@ mod tests {
         }
     }
 
-    /// § 4's five steps, asserted **in order** and not one at a time.
+    /// `rule:http-server/a-request-resolves-in-five-steps`'s five steps, asserted
+    /// **in order** and not one at a time.
     ///
     /// The order is the whole rule: every request below matches the same mount
     /// and differs only in which step answers it, so a reading that ran step 4
@@ -1128,7 +1143,7 @@ mod tests {
             );
         }
 
-        // The same table with both switches off is § 4's production sequence:
+        // The same table with both switches off is the production sequence:
         // match, strip, run the entry, with steps 3 and 4 not running at all.
         let closed = Table::new(
             vec![mount("/", None, "/www/public/index.nvs")],
@@ -1295,7 +1310,7 @@ mod tests {
         let table = Table::new(mounts(), Dispatch::Path, true).with_health(Some("/healthz".into()));
         let off = Table::new(mounts(), Dispatch::Path, true);
 
-        // The hit, on the host-less mount and on the host one alike: § 5 reserves
+        // The hit, on the host-less mount and on the host one alike: the probe reserves
         // one URL from the whole server and not one per tenant.
         for host in [None, Some("blog.example.com"), Some("other.example.com")] {
             assert_eq!(
@@ -1337,7 +1352,8 @@ mod tests {
                 .resolve(None, "/healthz", &fs)
         );
 
-        // And the tree is where it comes from, read the way § 5 writes it.
+        // And the tree is where it comes from, read from the `[server]` block's
+        // `health_path`.
         let config = Config {
             server: Some(nvs_config::tree::Server {
                 health_path: Some("/healthz".into()),
@@ -1401,7 +1417,7 @@ mod tests {
     /// reaching its program with the row that claimed it.
     ///
     /// **The captures are the load-bearing half.** `prefix` alone is
-    /// `mountPrefix`, which § 7 replaces precisely for stating half the fact, so
+    /// `mountPrefix`, which `Core\Request::mount()` replaces precisely for stating half the fact, so
     /// the two mounts here differ in nothing else: same entry shape, same
     /// remainder, same everything a reading could accidentally answer from. One
     /// that carried the table's first row, or the written `"/{1}"` before
@@ -1409,9 +1425,9 @@ mod tests {
     /// either line alone.
     ///
     /// The stripped path is asserted **equal across the two**, which is what
-    /// `rule:http-server/a-mount-table-expands-at-boot` bought and what § 7 exists to give back: an application
-    /// written against its own root sees `/orders/17` under both mounts, and the
-    /// only thing telling it which tenant it is serving is the capture.
+    /// `rule:http-server/a-mount-table-expands-at-boot` bought and what the
+    /// mount's captures exist to give back: an application written against its
+    /// own root sees `/orders/17` under both mounts, and the only thing telling it which tenant it is serving is the capture.
     // covers: tools:server/what-a-program-reads-about-its-door
     #[test]
     fn a_mounts_captures_reach_the_request_the_handler_answers() {
@@ -1457,7 +1473,7 @@ mod tests {
         assert_eq!(globex.path(), acme.path());
 
         // And a carrier nothing mounted answers the empty pair rather than
-        // guessing: a CLI program and a test both build one, and § 7's `prefix`
+        // guessing: a CLI program and a test both build one, and a mount's `prefix`
         // is what was stripped.
         let unmounted = Inbound::new("GET", "/orders/17", "");
         assert_eq!(unmounted.mount_prefix(), "");
@@ -1475,13 +1491,14 @@ mod tests {
     /// the tree, asked on every host in the table and on one in no mount — and
     /// compares the **set** of files [`Table::resolve`] ever answers `Run` with
     /// against the expanded one. Both directions are the assertion: an answer
-    /// outside the set is § 2 broken, and an entry the sweep never reaches means
+    /// outside the set is `rule:http-server/a-path-is-never-derived-from-a-url`
+    /// broken, and an entry the sweep never reaches means
     /// the equality held over a corpus too thin to have shown it.
     ///
     /// The equality is stated at the production pair — what [`Table::from_config`]
     /// reads from a tree writing neither switch, and what `rule:config/a-startup-default-is-never-flipped` gives
     /// `production`. Development's pair is asserted separately and more weakly,
-    /// because § 4 step 4 *deliberately* widens the set to the `.nvs` files inside
+    /// because step 4 *deliberately* widens the set to the `.nvs` files inside
     /// a mount root: what is checked there is where the widening stops — never a
     /// `.nvs` elsewhere under `[server] root`, and never one a symlink points at
     /// outside it.
@@ -1503,7 +1520,7 @@ mod tests {
         .linking("/www/blog/public/away", "/secret");
 
         // Two blocks over one glob: every module reachable by prefix and by host,
-        // which is § 3's two spellings of a capture and gives step 1 both of its
+        // which is the mount table's two spellings of a capture and gives step 1 both of its
         // passes something to choose between.
         let config: Config = toml::from_str(
             "[server]\nroot = \"/www\"\n\n\
@@ -1579,7 +1596,8 @@ mod tests {
             (run, sent)
         };
 
-        // § 2, whole: what the server can run after boot *is* the expanded table.
+        // `rule:http-server/a-path-is-never-derived-from-a-url`, whole: what the
+        // server can run after boot *is* the expanded table.
         let (booted, sent) = sweep(&Table::from_config(mounts.clone(), &config));
         assert_eq!(booted, enumerated, "the executable set is the mount table");
         assert!(sent.is_empty(), "a tree writing no `static` serves no file");
@@ -1613,8 +1631,8 @@ mod tests {
             !widened.contains(&p("/secret/pwned.nvs")),
             "a `.nvs` the symlink points at outside the tree"
         );
-        // And § 4's last sentence, over the same sweep: static serving reaches
-        // the same roots and never hands back a `.nvs` as source.
+        // And `rule:http-server/static-serving-is-one-policy`, over the same
+        // sweep: static serving reaches the same roots and never hands back a `.nvs` as source.
         for file in &sent {
             assert!(
                 !is_nvs(file),
@@ -1628,7 +1646,7 @@ mod tests {
         assert!(sent.contains(&p("/www/blog/public/style.css")));
     }
 
-    /// The path traversal suite — `rule:http-server/a-path-is-never-derived-from-a-url` and § 4 step 3, one row per
+    /// The path traversal suite — `rule:http-server/a-path-is-never-derived-from-a-url` and step 3, one row per
     /// published technique rather than one case per file.
     ///
     /// The suite is run at the **widest** reading of the table, `dispatch =
@@ -1637,7 +1655,7 @@ mod tests {
     /// row with the entry without looking, so a suite asserted there would pass
     /// against a step 3 that had no containment check in it.
     ///
-    /// **Every row's expected answer is the mount's entry**, which is § 4 step 5.
+    /// **Every row's expected answer is the mount's entry**, which is step 5.
     /// That single expectation is the whole rule: a traversal attempt is not
     /// repaired into a neighbouring file and is not refused with a status of its
     /// own — it reaches the application as a path the application can 404, and
@@ -1731,7 +1749,7 @@ mod tests {
             assert_eq!(
                 what,
                 What::Run(entry.clone()),
-                "{technique}, spelled {path:?}, must answer § 4 step 5"
+                "{technique}, spelled {path:?}, must answer from step 5 of the five steps"
             );
         }
 

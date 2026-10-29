@@ -1,7 +1,7 @@
 //! `rule:http-server/secure-headers-with-nothing-written`'s secure header set: what every response this server writes carries
 //! when nothing is configured.
 //!
-//! § 1 is a table of shipped defaults rather than a feature — `nosniff`, `frame-ancestors
+//! That rule is a table of shipped defaults rather than a feature — `nosniff`, `frame-ancestors
 //! 'none'`, `strict-origin-when-cross-origin`, and HSTS on a `https` effective scheme — and
 //! the whole of the decision is that **an operator who wrote nothing gets all of them**.
 //! [`Secure::of`] reads `[http.headers]` once at boot and renders the set into header lines;
@@ -24,7 +24,7 @@
 //! `Content-Type` is untouched for the same reason and is never in this set: a body member
 //! owns its own media type (`rule:security/response-body-is-one-typed-member`).
 //!
-//! # Decision: the three details § 1 calls decisions rather than transcription
+//! # Decision: the three details the rule calls decisions rather than transcription
 //!
 //! **HSTS is emitted on an `https` effective scheme and not otherwise**, which is [`Scheme`]:
 //! a parameter of [`Secure::fill`] rather than a fact read off the socket, because Novis never
@@ -33,11 +33,13 @@
 //! [`crate::serve::serve_connection`] is the one call site that may pass [`Scheme::Https`] —
 //! it does so for a request whose peer is in `[server] trusted_proxies` and that said so.
 //! With that directive empty, which is its default, no forwarded header is read at all and
-//! every request this server serves is [`Scheme::Http`] with no HSTS sent — § 1's own answer
+//! every request this server serves is [`Scheme::Http`] with no HSTS sent —
+//! `rule:http-server/hsts-follows-the-effective-scheme`'s own answer
 //! for an unconfigured tree, and not a gap.
 //!
 //! **`hsts_subdomains` defaults to `false`**, so `includeSubDomains` is absent unless it is
-//! written. § 1's reason is that it is the HSTS setting that has taken deployments down, for a
+//! written. `rule:http-server/hsts-follows-the-effective-scheme`'s reason is that it is the
+//! HSTS setting that has taken deployments down, for a
 //! year, with no way to revoke it from a client.
 //!
 //! **There is no default `default-src`**, so with nothing written the `Content-Security-Policy`
@@ -53,8 +55,8 @@
 //! printable ASCII: a `\r\n` in one is a response-splitting attempt, whoever wrote it. Such a
 //! value is dropped and the shipped default stands in its place — the whole rule, one sentence,
 //! applied to every field. Emitting *nothing* for that header was rejected because it turns a
-//! typo in a `Referrer-Policy` into a silently weaker response, which is the direction § 1
-//! exists to close.
+//! typo in a `Referrer-Policy` into a silently weaker response, which is the direction the
+//! secure header set exists to close.
 //!
 //! Refusing the **boot** is better still and is not what this module does: a diagnostic
 //! naming the line is `nvs-config`'s to raise, this crate has no `nvs-diagnostics` dependency,
@@ -66,19 +68,20 @@ use hyper::header::{self, HeaderName, HeaderValue};
 use nvs_config::tree::{Http, HttpHeaders};
 use nvs_config::{Quantity, Setting, Unit};
 
-/// § 1's `referrer_policy` with nothing written.
+/// `[http.headers] referrer_policy` with nothing written.
 const REFERRER: &str = nvs_config::defaults::HTTP_HEADERS_REFERRER_POLICY;
 
-/// § 1's `hsts` with nothing written — `365d`, in the seconds the header is spelled in.
+/// `[http.headers] hsts` with nothing written — `365d`, in the seconds the header is spelled in.
 const MAX_AGE: u64 = nvs_config::defaults::HTTP_HEADERS_HSTS.as_secs();
 
-/// § 1's `frame_ancestors` with nothing written, as the CSP source it renders to.
+/// `[http.headers] frame_ancestors` with nothing written, as the CSP source it renders to.
 const NO_ANCESTOR: &str = "'none'";
 
 /// `Permissions-Policy`, which the `http` crate has no constant for.
 const PERMISSIONS_POLICY: HeaderName = HeaderName::from_static("permissions-policy");
 
-/// The scheme a request effectively arrived over — § 1's condition on HSTS, and nothing else
+/// The scheme a request effectively arrived over — the condition on HSTS
+/// (`rule:http-server/hsts-follows-the-effective-scheme`), and nothing else
 /// in this module reads it.
 ///
 /// **Declared one crate down**, in `nvs_runtime`, and re-exported here under the name every
@@ -95,13 +98,14 @@ pub use nvs_runtime::Scheme;
 ///
 #[derive(Clone, Debug)]
 pub struct Secure {
-    /// Every header that does not depend on the request, in the order § 1 lists them.
+    /// Every header that does not depend on the request, in the order
+    /// `rule:http-server/secure-headers-with-nothing-written` lists them.
     always: Vec<(HeaderName, HeaderValue)>,
     /// `Strict-Transport-Security`, held apart because [`Scheme`] decides whether it is sent.
     hsts: Option<HeaderValue>,
 }
 
-/// § 1's shipped set, which is what a tree writing no `[http.headers]` resolves to.
+/// The shipped set, which is what a tree writing no `[http.headers]` resolves to.
 impl Default for Secure {
     fn default() -> Self {
         Self::of(None)
@@ -109,7 +113,7 @@ impl Default for Secure {
 }
 
 impl Secure {
-    /// The set in force for a tree, with every absent key at § 1's shipped default.
+    /// The set in force for a tree, with every absent key at its shipped default.
     ///
     /// Takes the whole `[http]` block rather than `[http.headers]` so that a caller holding a
     /// [`nvs_config::Config`] passes `config.http.as_ref()` and never has to know which of the
@@ -153,7 +157,8 @@ impl Secure {
         for (name, value) in &self.always {
             headers.entry(name).or_insert_with(|| value.clone());
         }
-        // § 1: on a plaintext connection a browser ignores it, so sending it there is noise —
+        // `rule:http-server/hsts-follows-the-effective-scheme`: on a plaintext connection a
+        // browser ignores it, so sending it there is noise —
         // and it is a header that cannot be revoked from a client, so the unasserted scheme
         // is the one that must not send it.
         if let (Scheme::Https, Some(hsts)) = (scheme, self.hsts.as_ref()) {
@@ -180,7 +185,7 @@ fn content_security_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue>
         .unwrap_or_default()
         .trim();
     let whole = match (policy.is_empty(), ancestors.as_deref()) {
-        // § 1's "empty: nothing emitted beyond frame-ancestors", with the frame-ancestors
+        // An empty `content_security_policy` emits nothing beyond frame-ancestors, with the frame-ancestors
         // directive itself turned off: there is no policy left to send.
         (true, None) => return None,
         (true, Some(ancestors)) => ancestors.to_string(),
@@ -190,7 +195,7 @@ fn content_security_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue>
     spell(&whole, ancestors.as_deref())
 }
 
-/// § 1's `frame_ancestors` as a CSP directive, and [`None`] for the `false` that drops it.
+/// `[http.headers] frame_ancestors` as a CSP directive, and [`None`] for the `false` that drops it.
 fn frame_ancestors(written: Option<&HttpHeaders>) -> Option<String> {
     let sources = match written.and_then(|headers| headers.frame_ancestors.as_ref()) {
         None => NO_ANCESTOR.to_string(),
@@ -208,7 +213,7 @@ fn frame_ancestors(written: Option<&HttpHeaders>) -> Option<String> {
     Some(format!("frame-ancestors {sources}"))
 }
 
-/// One `frame_ancestors` entry as CSP spells it: § 1's two keywords quoted, an origin as
+/// One `frame_ancestors` entry as CSP spells it: the two keywords `none` and `self` quoted, an origin as
 /// written.
 ///
 /// Case-insensitive, because a browser reads the directive that way and a tree writing `None`
@@ -224,7 +229,7 @@ fn source(written: &str) -> String {
     written.to_string()
 }
 
-/// § 1's `referrer_policy`, and [`None`] for the empty string that turns it off.
+/// `[http.headers] referrer_policy`, and [`None`] for the empty string that turns it off.
 fn referrer_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue> {
     match written.and_then(|headers| headers.referrer_policy.as_deref()) {
         None => Some(HeaderValue::from_static(REFERRER)),
@@ -233,7 +238,7 @@ fn referrer_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue> {
     }
 }
 
-/// § 1's `permissions_policy`, whose default is empty — "empty: nothing emitted".
+/// `[http.headers] permissions_policy`, whose default is empty, and empty emits nothing.
 fn permissions_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue> {
     let policy = written
         .and_then(|headers| headers.permissions_policy.as_deref())?
@@ -244,7 +249,7 @@ fn permissions_policy(written: Option<&HttpHeaders>) -> Option<HeaderValue> {
     spell(policy, None)
 }
 
-/// § 1's `hsts` and `hsts_subdomains` as the one header they spell, and [`None`] for the
+/// `[http.headers] hsts` and `hsts_subdomains` as the one header they spell, and [`None`] for the
 /// `false` that disables it.
 fn hsts(written: Option<&HttpHeaders>) -> Option<HeaderValue> {
     let seconds = match written.and_then(|headers| headers.hsts.as_ref()) {
@@ -297,7 +302,7 @@ mod tests {
         assert_eq!(
             line(&headers, "content-security-policy"),
             "frame-ancestors 'none'",
-            "§ 1's CSP is frame-ancestors alone — there is no default `default-src`"
+            "the shipped CSP is frame-ancestors alone — there is no default `default-src`"
         );
         assert_eq!(
             line(&headers, "referrer-policy"),
@@ -306,11 +311,12 @@ mod tests {
         assert_eq!(
             line(&headers, "permissions-policy"),
             "<absent>",
-            "§ 1's `permissions_policy` defaults to empty, which emits nothing"
+            "`permissions_policy` defaults to empty, which emits nothing"
         );
     }
 
-    /// § 1's first decision, both sides of it: the same set answers differently for the two
+    /// `rule:http-server/hsts-follows-the-effective-scheme`, both sides of it: the same set
+    /// answers differently for the two
     /// schemes, and the plaintext one — every request this server sees today — sends nothing.
     #[test]
     fn hsts_is_sent_on_an_https_effective_scheme_and_not_on_a_plaintext_one() {
@@ -322,7 +328,7 @@ mod tests {
         assert_eq!(
             line(&filled(&secure, Scheme::Https), "strict-transport-security"),
             "max-age=31536000",
-            "§ 1 ships `365d` and defaults `hsts_subdomains` to false"
+            "HSTS ships `365d` and defaults `hsts_subdomains` to false"
         );
     }
 
@@ -402,7 +408,7 @@ mod tests {
         assert_eq!(
             line(&headers, "x-content-type-options"),
             "nosniff",
-            "the field nobody wrote is still § 1's"
+            "the field nobody wrote still has its shipped value"
         );
     }
 

@@ -705,7 +705,7 @@ mod tests {
     ///
     /// The second half is what a per-phase assertion cannot reach. Four defaults
     /// that happen to be finite say nothing about a phase wired to the wrong
-    /// field, and two of § 5's four numbers are equal — `body_idle` and
+    /// field, and two of the four shipped waits are equal — `body_idle` and
     /// `write_idle` are both `30s` — so a connection reading a body under the
     /// write wait would read as correct against the defaults alone. The sweep
     /// below gives all four distinct values for exactly that reason.
@@ -723,12 +723,12 @@ mod tests {
                 wait > Duration::ZERO,
                 "{phase:?} is unbounded with nothing configured"
             );
-            // Not a tautology about `Duration`: § 5's defaults are seconds, and
+            // Not a tautology about `Duration`: the shipped waits are seconds, and
             // a phase that reached for an unset field would read as zero rather
             // than as anything near this.
             assert!(
                 wait <= Duration::from_secs(300),
-                "{phase:?} waits {wait:?}, which is not one of § 5's numbers"
+                "{phase:?} waits {wait:?}, which is not one of the shipped waits"
             );
         }
 

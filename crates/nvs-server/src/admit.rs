@@ -48,8 +48,9 @@
 //! # Refusing before allocating, and not after
 //!
 //! [`Admission::admit`] is taken at the top of a request, **before** a mount is
-//! selected, before an isolate exists and before any Novis code runs. § 5 is
-//! explicit that the order is the whole point: a cap that allocates in order to
+//! selected, before an isolate exists and before any Novis code runs.
+//! `rule:http-server/max-in-flight-refuses-before-allocating` is explicit that
+//! the order is the whole point: a cap that allocates in order to
 //! refuse does not protect what it exists to protect. The consequence to accept
 //! is that this path has no custom error page — the answer is a fixed `503`
 //! with `Retry-After: 1` and no body, and there is nowhere for an application
@@ -104,7 +105,7 @@ pub const ENGINE_RESERVE: u64 = 128 * 1024 * 1024;
 /// The numbers admission compares against, resolved from one configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ceiling {
-    /// `[server] max_in_flight`, or § 5's own default where it is unwritten.
+    /// `[server] max_in_flight`, or its shipped `10000` where it is unwritten.
     pub max_in_flight: usize,
     /// The most one request may hold, or `None` where the tree states no cap.
     pub per_request: Option<u64>,
@@ -152,7 +153,7 @@ const NO_CAP: u64 = 0;
 /// against.
 ///
 /// Shared across every core rather than divided among them, which the module
-/// doc owns. Nothing here is generic over a clock or a policy: § 5's valve is
+/// doc owns. Nothing here is generic over a clock or a policy: the valve is
 /// two comparisons, and a valve with a strategy in it is a scheduler.
 #[derive(Debug)]
 pub struct Admission {
@@ -332,7 +333,8 @@ impl Drop for InFlight<'_> {
     }
 }
 
-/// § 5's fixed answer at the ceiling: `503`, `Retry-After: 1`, no body.
+/// `rule:http-server/max-in-flight-refuses-before-allocating`'s fixed answer at
+/// the ceiling: `503`, `Retry-After: 1`, no body.
 ///
 /// Fixed in every sense — no application was asked, because not asking is the
 /// point, and `Retry-After` is what gives a proxy in front of this something to

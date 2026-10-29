@@ -1,13 +1,13 @@
 //! `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin policy: which origins `[http.cors] origins` names, and what a
 //! request from one of them — or from anybody else — is answered with.
 //!
-//! § 2's shipped default is `origins = []`, and closed has two observable halves: **no CORS
+//! The shipped default is `origins = []`, and closed has two observable halves: **no CORS
 //! header is emitted at all**, and **a preflight is answered `403`**. They are kept here in
 //! two different ways, on purpose.
 //!
 //! The first is kept by there being nothing in this crate that writes such a header. A policy
 //! that can emit `Access-Control-Allow-Origin` before it has a list to match an origin against
-//! is the failure § 2 exists to prevent, so the emitting half is written when there is
+//! is the failure the closed default exists to prevent, so the emitting half is written when there is
 //! something to match and not one release earlier;
 //! [`crate::serve`]'s `cors_is_closed_with_nothing_configured` is that half asserted over the
 //! wire.
@@ -51,8 +51,8 @@
 //!
 //! A wildcard list is the exception, and it is the honest one: `origins = ["*"]` answers `*` to
 //! everybody, so nothing about that answer depends on who asked and saying it varies would be
-//! false. § 2 permits the wildcard only beside `credentials = false`, which `nvs_config::http`
-//! is where that is refused.
+//! false. `rule:http-server/a-wildcard-origin-with-credentials-is-refused` permits the wildcard
+//! only beside `credentials = false`, which `nvs_config::http` is where that is refused.
 //!
 //! # What a preflight is answered with
 //!
@@ -63,12 +63,12 @@
 //! and stating it once is what keeps the refusal from being a second matcher that could disagree
 //! with the first.
 //!
-//! The granting answer carries § 2's configured lines beside the allow: `Allow-Methods` from
+//! The granting answer carries `[http.cors]`'s configured lines beside the allow: `Allow-Methods` from
 //! `methods` — `GET, HEAD, POST` with nothing written — `Allow-Headers` from `headers`, and
 //! `Max-Age` from `max_age` in the whole seconds that header is counted in. **Each is written
 //! verbatim out of the block and never reflected back off the request.** A preflight that echoed
 //! `Access-Control-Request-Headers` would allow whatever was asked for, which is a policy the
-//! operator did not write and could not read out of their own configuration; § 2 configures what
+//! operator did not write and could not read out of their own configuration; the block configures what
 //! may be allowed, so the request's own asking is the browser's side of the exchange and not the
 //! server's. A list that is empty — written so, or the shipped default for the lists that ship
 //! empty — is **no header at all** rather than an empty one, because a line naming nothing permits
@@ -87,7 +87,7 @@
 //!
 //! # `credentials` and `expose`
 //!
-//! The other keys § 2 configures are carried by [`Crossing`], and one rule covers them:
+//! The other keys `[http.cors]` configures are carried by [`Crossing`], and one rule covers them:
 //! **nothing but the `Vary` is written onto an answer with no origin to allow.** A refused origin
 //! and a closed policy have no permission to qualify, and `Access-Control-Allow-Credentials` beside
 //! no `Access-Control-Allow-Origin` describes a crossing that was not granted.
@@ -104,7 +104,8 @@
 //!
 //! # What is elsewhere
 //!
-//! § 2's other rule is not this module's: `origins = ["*"]` together with `credentials = true`
+//! `rule:http-server/a-wildcard-origin-with-credentials-is-refused` is not this module's:
+//! `origins = ["*"]` together with `credentials = true`
 //! is refused at boot and by `Core\Config::set`, both through `nvs_config::http`, because it is
 //! a question about a written configuration rather than about a request.
 //!
@@ -133,18 +134,18 @@ pub struct Cors {
     methods: Option<HeaderValue>,
     /// `[http.cors] headers`, on the same terms, as `Access-Control-Allow-Headers`.
     headers: Option<HeaderValue>,
-    /// `[http.cors] max_age` in the whole seconds `Access-Control-Max-Age` counts, § 2's `10m`
-    /// with nothing written. Not optional: § 2 ships a value, so every grant states one.
+    /// `[http.cors] max_age` in the whole seconds `Access-Control-Max-Age` counts, the shipped
+    /// `10m` with nothing written. Not optional: the key ships a value, so every grant states one.
     max_age: HeaderValue,
     /// `[http.cors] expose` as its `Access-Control-Expose-Headers` line, or [`None`] where the
-    /// list is empty — which is § 2's shipped value.
+    /// list is empty — which is the shipped value.
     expose: Option<HeaderValue>,
-    /// `[http.cors] credentials`; § 2's default is `false`. The wildcard beside `true` is refused
+    /// `[http.cors] credentials`; the shipped default is `false`. The wildcard beside `true` is refused
     /// at boot by `nvs_config::http`, so no started server reaches this holding both.
     credentials: bool,
 }
 
-/// What § 2 has to say about one request's answer, decided before the handler ran.
+/// What the policy has to say about one request's answer, decided before the handler ran.
 ///
 /// The door computes this while the request is in hand and writes it once the answer exists,
 /// because [`crate::serve`]'s handler takes the request by value. Carrying the decision rather
@@ -169,12 +170,12 @@ pub struct Crossing {
     credentials: bool,
 }
 
-/// § 2's whole answer to one preflight, decided before any handler and before any mount.
+/// The policy's whole answer to one preflight, decided before any handler and before any mount.
 ///
 /// It carries a [`Crossing`] rather than deciding an origin again: which origins may cross is one
 /// question with one answer, and a preflight that matched separately could permit what an ordinary
-/// request from the same peer is refused. What this adds is the status and the lines § 2
-/// configures.
+/// request from the same peer is refused. What this adds is the status and the lines
+/// `[http.cors]` configures.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Preflight {
     /// `204` where the policy has permission to give this origin, `403` where it has none.
@@ -189,7 +190,7 @@ pub struct Preflight {
     max_age: Option<HeaderValue>,
 }
 
-/// § 2's shipped policy, which is what a tree writing no `[http.cors]` resolves to.
+/// The shipped policy, which is what a tree writing no `[http.cors]` resolves to.
 impl Default for Cors {
     fn default() -> Self {
         Self::of(None)
@@ -220,7 +221,7 @@ impl Cors {
         }
     }
 
-    /// § 2's answer to one preflight, or [`None`] where this request is not a preflight at all.
+    /// The policy's answer to one preflight, or [`None`] where this request is not a preflight at all.
     ///
     /// A preflight is an `OPTIONS` carrying **both** `Origin` and `Access-Control-Request-Method`,
     /// which is `rule:http-server/a-preflight-is-answered-before-any-code-runs`'s own definition and is read here as written. Neither header alone
@@ -259,10 +260,10 @@ impl Cors {
         })
     }
 
-    /// § 2's answer for one request, read off the headers it arrived with.
+    /// The policy's answer for one request, read off the headers it arrived with.
     ///
-    /// A closed policy answers [`Crossing::default`] — nothing at all, which is § 2's first
-    /// half and the reason this returns a value rather than writing one: there is a case where
+    /// A closed policy answers [`Crossing::default`] — nothing at all, which is the first half of
+    /// closed and the reason this returns a value rather than writing one: there is a case where
     /// the right thing to write is nothing, and a writer is easy to call unconditionally.
     #[must_use]
     pub fn answer(&self, request: &HeaderMap) -> Crossing {
@@ -345,7 +346,7 @@ impl Crossing {
 }
 
 impl Preflight {
-    /// The status § 2 answers this preflight with.
+    /// The status the policy answers this preflight with.
     #[must_use]
     pub fn status(&self) -> StatusCode {
         self.status
@@ -372,10 +373,10 @@ impl Preflight {
     }
 }
 
-/// One configured list as the single header line § 2 sends it as, or [`None`] where there is
+/// One configured list as the single header line it is sent as, or [`None`] where there is
 /// nothing to send.
 ///
-/// An absent key is `default`, which is § 2's shipped value for that key — a list for `methods`
+/// An absent key is `default`, which is the shipped value for that key — a list for `methods`
 /// and empty for the rest. An empty list either way is no header at all, which the module
 /// doc's preflight section owns.
 ///
@@ -396,7 +397,7 @@ fn line(written: Option<&[String]>, default: &str) -> Option<HeaderValue> {
 /// `[http.cors] max_age` as the whole seconds `Access-Control-Max-Age` is counted in.
 ///
 /// The parse is [`nvs_config::value`]'s, so `"10m"`, `"600s"` and `"600"` are one value and a
-/// suffix it does not know is not one — and an unparseable value falls to § 2's own `10m` here for
+/// suffix it does not know is not one — and an unparseable value falls to the shipped `10m` here for
 /// [`line`]'s reason, boot having refused it. Sub-second is truncated rather than rounded up,
 /// which only reaches `0`: a browser may not cache the preflight, which is the honest reading of a
 /// duration written shorter than the unit the header can state.
@@ -490,7 +491,7 @@ mod tests {
         (answer.status(), headers)
     }
 
-    /// § 2's second half: with `origins = []` there is no permission to give, and the refusal
+    /// The second half of closed: with `origins = []` there is no permission to give, and the refusal
     /// says nothing beyond the status — a closed policy emits no CORS header even on its own
     /// answer.
     #[test]
@@ -503,7 +504,7 @@ mod tests {
         );
         assert!(
             answer.is_empty(),
-            "§ 2's closed policy wrote a header onto its own refusal"
+            "the closed policy wrote a header onto its own refusal"
         );
     }
 
@@ -570,7 +571,7 @@ mod tests {
         );
     }
 
-    /// § 2's shipped values are what a block that named an origin and nothing else grants — and
+    /// The shipped values are what a block that named an origin and nothing else grants — and
     /// an empty list is no header at all, whether the operator wrote it empty or left the key out
     /// for a default that is empty. Both spellings are asserted together because a writer that
     /// sent `Access-Control-Allow-Headers:` with nothing after it passes either alone.
@@ -591,7 +592,7 @@ mod tests {
                 .get(ACCESS_CONTROL_MAX_AGE)
                 .map(HeaderValue::as_bytes),
             Some(&b"600"[..]),
-            "`max_age` left out is not § 2's own `10m`"
+            "`max_age` left out is not the shipped `10m`"
         );
         assert!(
             !shipped.contains_key(ACCESS_CONTROL_ALLOW_HEADERS),
@@ -628,7 +629,7 @@ mod tests {
         );
     }
 
-    /// § 2's `credentials` is the one key qualifying both answers a policy gives, so a named
+    /// `[http.cors] credentials` is the one key qualifying both answers a policy gives, so a named
     /// origin is told it may send them on the ordinary answer and on its preflight alike — and an
     /// origin the list does not name is told neither, there being no crossing to qualify.
     #[test]
@@ -661,7 +662,7 @@ mod tests {
             );
         }
 
-        // `false` is § 2's shipped value and is sent as nothing at all: the header has one
+        // `false` is the shipped value and is sent as nothing at all: the header has one
         // meaningful spelling, and a browser reads every other one as its absence.
         assert!(
             !answered(&naming(&["https://a.example"]), &from("https://a.example"))
@@ -670,8 +671,8 @@ mod tests {
         );
     }
 
-    /// § 2's `expose` reaches the answer a script reads and not the preflight standing in front of
-    /// it, and the empty list § 2 ships is no header at all.
+    /// `[http.cors] expose` reaches the answer a script reads and not the preflight standing in
+    /// front of it, and the empty list it ships is no header at all.
     #[test]
     fn expose_reaches_a_simple_answer_and_not_the_preflight() {
         let policy = configured(HttpCors {
@@ -696,7 +697,7 @@ mod tests {
         assert!(
             !answered(&naming(&["https://a.example"]), &from("https://a.example"))
                 .contains_key(ACCESS_CONTROL_EXPOSE_HEADERS),
-            "§ 2's shipped empty list was sent as a header naming nothing"
+            "the shipped empty list was sent as a header naming nothing"
         );
     }
 
@@ -730,7 +731,7 @@ mod tests {
         }
     }
 
-    /// § 2's first half, over the writer rather than over the wire: a closed policy has no
+    /// The first half of closed, over the writer rather than over the wire: a closed policy has no
     /// answer to write, so a response it touched is one it did not touch.
     #[test]
     fn a_closed_policy_writes_nothing_at_all() {

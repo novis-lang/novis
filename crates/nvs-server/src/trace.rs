@@ -4,8 +4,8 @@
 //!
 //! # Why the door, and why it is one call
 //!
-//! § 2 gives every request a trace id whatever the sampling decision, and makes
-//! that id Novis's *only* request identifier — `Core\Server::traceId()` reads
+//! Every request has a trace id whatever the sampling decision, and that id is
+//! Novis's *only* request identifier — `Core\Server::traceId()` reads
 //! it, every `[log]` record carries it, and there is deliberately no second one
 //! and no inbound `X-Request-ID` (`rule:observability/a-trace-id-exists-for-every-request`). An id that a subsystem drew
 //! for itself on first ask would be a second place for two readers to disagree
@@ -63,7 +63,8 @@
 //! It starts a new trace, and that is the rule rather than a leniency: a
 //! `traceparent` arrived from outside, it is `tainted`, and refusing a request
 //! over a malformed tracing header would turn an observability feature into an
-//! availability one (§ 2). [`nvs_runtime::TraceContext::continuing`] owns the
+//! availability one (`rule:observability/an-inbound-traceparent-is-continued`).
+//! [`nvs_runtime::TraceContext::continuing`] owns the
 //! parse and every way one can be unusable; what this module adds is the one
 //! way *two* of them can be, below.
 //!
@@ -89,7 +90,7 @@ use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
 use rand::RngExt;
 use std::time::Duration;
 
-/// The field name § 2 names, lower case because `hyper` normalises a
+/// The field name W3C Trace Context names, lower case because `hyper` normalises a
 /// `HeaderName` on the way in and the carrier keeps what it was given.
 const TRACEPARENT: &str = "traceparent";
 
@@ -106,11 +107,12 @@ const TRACEPARENT: &str = "traceparent";
 /// format has no rule for combining them and neither of them is more the
 /// caller's than the other, so continuing either would be a coin flip recorded
 /// as a causal fact — and continuing the joined value is not a trace anybody
-/// sent. A new trace is what § 2 already prescribes for a header this process
-/// cannot read, and this is one more way for that to be true.
+/// sent. A new trace is what `rule:observability/an-inbound-traceparent-is-continued`
+/// already prescribes for a header this process cannot read, and this is one
+/// more way for that to be true.
 ///
 /// Something is always written: a request that carried no header at all is a
-/// root, which is § 2's "an id exists for every request" stated where the
+/// root, which is `rule:observability/a-trace-id-exists-for-every-request` stated where the
 /// request is.
 ///
 /// `sample` is `[trace] sample` off the snapshot this request reads
@@ -563,7 +565,7 @@ mod tests {
         // generated id an identifier rather than a constant.
         assert_ne!(generated, decided(&[("host", "localhost")]));
 
-        // § 2's malformed case, at the door: a header this process cannot read
+        // The malformed case, at the door: a header this process cannot read
         // is a new trace and not a refusal. `nvs_runtime::trace_context` owns
         // every way one can be unreadable; what is asserted here is that the
         // door reaches that rule rather than passing the bytes on.
@@ -655,7 +657,8 @@ mod tests {
             "a continued trace was re-decided at this hop"
         );
 
-        // A header this process cannot read is a new trace (§ 2), so it is the
+        // A header this process cannot read is a new trace
+        // (`rule:observability/an-inbound-traceparent-is-continued`), so it is the
         // head draw's to decide and not the header's — asserted over both of the
         // door's own unusable shapes, each carrying a bit that says *not*
         // recorded, so continuing one would answer the opposite.
@@ -768,7 +771,7 @@ mod tests {
     /// id would each pass their own crate's tests and produce a line no backend
     /// could join to anything.
     ///
-    /// Asked on both sides of § 2's sampling bound, because they fail
+    /// Asked on both sides of the sampling bound (`rule:observability/sampling-is-head-based`), because they fail
     /// differently: a continued trace pins the ids against the *arrived*
     /// header, and a root — which has an id and no spans being recorded — pins
     /// that `request_id` still names the door's id rather than falling back to
@@ -800,7 +803,7 @@ mod tests {
             "the record names a trace the request did not arrive in: {line}"
         );
 
-        // § 2's other side: a request that carried no header is a root, and its
+        // The other side: a request that carried no header is a root, and its
         // record still reads the door's id — the half that makes the trace id
         // Novis's only request identifier rather than a tracing detail.
         let (root, line) = reported(&[("host", "localhost")], "the queue was empty");

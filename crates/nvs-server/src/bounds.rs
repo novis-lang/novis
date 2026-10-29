@@ -2,7 +2,7 @@
 //! connection bounds: the numbers an open WebSocket is held inside, every one
 //! of them finite before anything is configured.
 //!
-//! § 7's first bullet lists them, and its load-bearing word is
+//! The rule lists them, and its load-bearing word is
 //! *nothing*: "every bound is finite with nothing configured". A connection is
 //! the one thing this server holds that no request ever ends, so a bound left
 //! to a later configuration pass is a bound that is absent on every deployment
@@ -23,10 +23,11 @@
 //! `nvs_runtime::stream::open` — a message, which on that door is one event.
 //! Which field each door leaves alone is stated where it is left alone, because
 //! an absent bound is the one thing a list of bounds cannot show.
-//! [`Connection::drain`] is a field here without belonging to that bullet — it
-//! is § 7's *third* bullet, the period after which a draining server ends an
+//! [`Connection::drain`] is a field here without belonging to that list — it
+//! is `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain period,
+//! after which a draining server ends an
 //! event stream that is still being written, and it lives here because it is
-//! one more instant the same framing layer arms a wait by. The bounds § 7
+//! one more instant the same framing layer arms a wait by. The bounds the rule
 //! names that are not fields here are owned elsewhere on purpose:
 //!
 //! - **Connections per process** is [`Slot`], counted here because the resource
@@ -36,14 +37,15 @@
 //!   connection holding a coroutine, 128 KiB of codec buffer and a root isolate
 //!   would be charged to nothing. The two numbers are the same magnitude for
 //!   the same reason — `rule:http-server/admission-is-arithmetic-not-a-number` makes room for what one
-//!   isolate may hold, and § 1 gives a connection isolate exactly that budget.
+//!   isolate may hold, and `rule:concurrency/a-connection-is-a-root-isolate`
+//!   gives a connection isolate exactly that budget.
 //! - **An event stream's keep-alive** is [`Heartbeat`], derived rather than
 //!   configured: what closes an idle event stream is the response wait
 //!   `nvs_config::server::Waits::write_idle` and not any field here, so the
 //!   interval that keeps one open is read off that wait
 //!   ([`heartbeat`]) and is a number no operator writes twice.
-//! - **Connections per tenant** is not a bound of this server's at all, which
-//!   is what § 7's parenthetical says: `rule:core-classes/ratelimit-two-members`
+//! - **Connections per tenant** is not a bound of this server's at all,
+//!   because `rule:core-classes/ratelimit-two-members`
 //!   applies to the upgrade request "like any other", so a per-tenant ceiling is
 //!   the rate limit an application already declares on the route that upgrades.
 //!   A second one here would be a second policy over the same request.
@@ -57,7 +59,8 @@
 //! observable: a connection that says nothing for [`Connection::idle`] is
 //! closed, and one that has been open for [`Connection::lifetime`] is closed
 //! however busy it was. An application that wants a longer-lived connection
-//! sends anything at all — a ping is a frame, and § 3's loop never sees one.
+//! sends anything at all — a ping is a frame, and the program's `receive()`
+//! loop never sees one.
 //!
 //! # What a deployment may write, and what it may not
 //!
@@ -67,7 +70,7 @@
 //! [`nvs_config::server::waits_for`]'s, and applied over the defaults below by
 //! [`Connection::configured`]. A key left out keeps its default and a key
 //! written as `false` or as zero is refused at boot, so configuring this block
-//! can move a bound but cannot remove one — which is § 7's property stated
+//! can move a bound but cannot remove one — which is the rule's property stated
 //! against a file rather than against a rebuild.
 //!
 //! [`Connection::drain`], [`Connection::subscriber_queue`] and
@@ -108,10 +111,11 @@ pub struct Connection {
     pub idle: Duration,
     /// How long a connection may stay open at all, however busy.
     pub lifetime: Duration,
-    /// How long one `send` may take before it throws, which is § 3's "throws on
-    /// the send timeout rather than waiting forever".
+    /// How long one `send` may take before it throws, which is
+    /// `rule:concurrency/a-connection-is-a-loop`'s "throws on the send timeout
+    /// rather than waiting forever".
     pub send: Duration,
-    /// § 7's third bullet: how long an event stream that is still writing
+    /// The drain period: how long an event stream that is still writing
     /// keeps being written after its server has begun draining, before its
     /// body is ended. A stream with nothing to write, and a WebSocket whose
     /// program is waiting on its peer, close the moment they see the drain and
@@ -119,10 +123,11 @@ pub struct Connection {
     /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`);
     /// [`EventStream`] owns when the period starts.
     pub drain: Duration,
-    /// § 4's per-subscriber delivery queue, restated here so that "every bound"
-    /// has one place to be read off. The number is
+    /// `rule:core-classes/topic`'s per-subscriber delivery queue, restated here
+    /// so that "every bound" has one place to be read off. The number is
     /// [`nvs_runtime::INBOX_CAP`]'s and this field is a copy of it, because the
-    /// queue is the runtime's and the bound is § 7's.
+    /// queue is the runtime's and the bound is
+    /// `rule:concurrency/connection-bounds-are-finite`'s.
     pub subscriber_queue: usize,
     /// How long a client is told to wait before reconnecting an event stream,
     /// before the draw — [`reconnect_hint`] is what a stream is actually
@@ -135,11 +140,12 @@ pub struct Connection {
 }
 
 impl Default for Connection {
-    /// § 7's numbers, chosen against § 1's own worked example rather than
+    /// The shipped bounds, chosen against one worked example rather than
     /// against the codec's defaults.
     ///
-    /// The example in § 2 gives a connection `{ memory: 8mb, idle: 5m }`, and
-    /// that is the whole of where these come from. `idle` is transcribed from
+    /// The example is an upgrade that gives its connection
+    /// `limits: {memory: 8mb, idle: 5m}`, and that is the whole of where these
+    /// come from. `idle` is transcribed from
     /// it. [`frame`](Connection::frame) and [`message`](Connection::message)
     /// are **below** it on purpose: `tungstenite`'s own defaults are 16 MiB and
     /// 64 MiB, either of which is a single peer frame an 8 MiB connection
@@ -152,7 +158,7 @@ impl Default for Connection {
     /// [`lifetime`](Connection::lifetime) is the one number no rule states, and
     /// a day is picked rather than derived: it is long enough that no
     /// application notices it and short enough that a process cannot accumulate
-    /// connections older than a deploy. § 7's own drain closes them sooner on
+    /// connections older than a deploy. A reload's drain closes them sooner on
     /// any host that reloads, so this bound is what catches the host that never
     /// does.
     ///
@@ -352,7 +358,7 @@ const RECONNECT_SPREAD: u32 = 3;
 /// instance is told to come back at the same moment by a constant, so the
 /// instance that replaces it takes the whole fleet in one arrival —
 /// `rule:http-server/retry-is-opt-in-jittered-and-closed` is the same argument
-/// on the outbound side, and § 7's drain is what makes it reachable here: a
+/// on the outbound side, and a reload's drain is what makes it reachable here: a
 /// deploy drains every connection this process holds at once.
 ///
 /// **What it spends**, per `rule:programs/memory-priority`: one draw from
@@ -504,8 +510,9 @@ pub struct EventStream {
     /// hint redrawn per poll would be a different wait every time the client
     /// read one.
     opening: Option<Vec<u8>>,
-    /// The drain of the server this stream is being written by — § 7's third
-    /// bullet, read on every poll because a bit is the whole of what
+    /// The drain of the server this stream is being written by —
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain, read on
+    /// every poll because a bit is the whole of what
     /// `nvs_runtime::Drain` carries.
     draining: Draining,
     /// The drain period this stream is given once it has seen the drain, and
@@ -641,12 +648,12 @@ mod tests {
 
     use super::{Connection, HEARTBEAT_FLOOR, Slot, heartbeat, reconnect_hint};
 
-    /// `rule:concurrency/connection-bounds-are-finite`'s first bullet, as the assertion it is: with nothing
+    /// `rule:concurrency/connection-bounds-are-finite`'s first sentence, as the assertion it is: with nothing
     /// configured, every bound a connection is held inside is a finite number.
     ///
     /// Destructured rather than read field by field, so that a bound added to
     /// [`Connection`] without a default fails this test by failing to compile —
-    /// which is the only way the list stays complete. The bounds § 7 names
+    /// which is the only way the list stays complete. The bounds the rule names
     /// that are not fields are asserted beside them: the process
     /// ceiling is
     /// [`Slot`]'s and is exercised here at a ceiling of one, and the per-tenant
@@ -690,9 +697,9 @@ mod tests {
         assert_eq!(
             subscriber_queue,
             nvs_runtime::INBOX_CAP,
-            "§ 4's queue depth is the runtime's number and this is a copy of it"
+            "a topic subscriber's queue depth is the runtime's number and this is a copy of it"
         );
-        // The two magnitudes § 1's own example is what these are read against: a
+        // The worked example on `Connection::default` is what these are read against: a
         // frame and a message must both fit inside the 8 MiB budget it gives a
         // connection isolate, or the codec's bound is not the one that binds.
         assert!(

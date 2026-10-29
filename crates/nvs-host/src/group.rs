@@ -548,7 +548,8 @@ impl Drop for Child {
 )]
 const STACK_CHARGE: isize = crate::stack::TASK_STACK_SIZE as isize;
 
-/// The module doc's § 2 sequence, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
+/// The module doc's § *2. The sequence, which is the whole guarantee*, which is
+/// `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>) -> Outcome {
     let count = jobs.len();
     let group = Rc::new(RefCell::new(Group {
@@ -576,7 +577,8 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
             // no child to run after it is gone. This loop does not return while
             // `outstanding` is non-zero, and a parent torn down before that
             // cancels its children, which the scheduler unwinds without
-            // resuming — the module doc's § 1 is the whole argument.
+            // resuming — the module doc's § *1. What a child gets for a `Ctx`* is
+            // the whole argument.
             #[expect(
                 unsafe_code,
                 reason = "the parent-outlives-child obligation is discharged by \
@@ -693,7 +695,8 @@ fn disarm_deadline() {
 fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) -> Outcome {
     let mut group = group.borrow_mut();
 
-    // Job order, not completion order — the module doc's § 1 owns why, and it
+    // Job order, not completion order — the module doc's § *1. What a child
+    // gets for a `Ctx`* owns why, and it
     // happens on every path because a child that echoed before a sibling threw
     // did echo.
     for slot in &mut group.slots {

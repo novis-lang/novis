@@ -97,7 +97,7 @@ unsafe extern "C" fn answers_nothing(_ctx: *mut Ctx, args: *const Value, out: *m
     nvs_runtime::OK
 }
 
-/// What the handler below read off the CPU half of § 1's slice: the ceiling in
+/// What the handler below read off the CPU half of `rule:errors/on-limit`'s slice: the ceiling in
 /// force, and whether the flag that stopped the request was still raised.
 /// `u64::MAX` and `true` are the readings of a handler that has not run.
 static SEEN_CPU_CEILING: AtomicU64 = AtomicU64::new(u64::MAX);
@@ -127,8 +127,8 @@ unsafe extern "C" fn reports_its_time(ctx: *mut Ctx, args: *const Value, out: *m
     nvs_runtime::OK
 }
 
-/// What the handler below read out of § 1's report, or `None` before it has
-/// run.
+/// What the handler below read out of `rule:errors/on-limit`'s report, or
+/// `None` before it has run.
 ///
 /// **A slot per test, not one shared by all of them**, which is why the spawn
 /// case further down has its own beside this one rather than reusing this
@@ -137,7 +137,7 @@ unsafe extern "C" fn reports_its_time(ctx: *mut Ctx, args: *const Value, out: *m
 /// of this file is a *difference* for the same reason.
 static SEEN_LIMIT: Mutex<Option<String>> = Mutex::new(None);
 
-/// A handler that declares § 1's `LimitReport` parameter and records the limit
+/// A handler that declares `rule:errors/on-limit`'s `LimitReport` parameter and records the limit
 /// it names — the callee side of a report that has to arrive as an argument
 /// rather than as a message the ladder prints afterwards.
 #[expect(
@@ -158,7 +158,7 @@ unsafe extern "C" fn records_the_report(
         // reserve, where a key string of its own would be refused.
         let named = report
             .as_array()
-            .expect("§ 1's report reaches the handler as one array")
+            .expect("the limit's report reaches the handler as one array")
             .get(b"limit");
         *SEEN_LIMIT.lock().expect("no test panics holding this") =
             named.and_then(|named| named.as_text().map(str::to_owned));
@@ -193,7 +193,7 @@ unsafe extern "C" fn records_the_spawn_report(
         let report = *args.add(1);
         let named = report
             .as_array()
-            .expect("§ 1's report reaches the handler as one array")
+            .expect("the limit's report reaches the handler as one array")
             .get(b"limit");
         *SEEN_SPAWN_LIMIT
             .lock()
@@ -227,7 +227,7 @@ unsafe extern "C" fn records_the_task_report(
         let report = *args.add(1);
         let named = report
             .as_array()
-            .expect("§ 1's report reaches the handler as one array")
+            .expect("the limit's report reaches the handler as one array")
             .get(b"limit");
         *SEEN_TASK_LIMIT.lock().expect("no test panics holding this") =
             named.and_then(|named| named.as_text().map(str::to_owned));
@@ -259,7 +259,7 @@ unsafe extern "C" fn records_the_child_memory_report(
         let report = *args.add(1);
         let named = report
             .as_array()
-            .expect("§ 1's report reaches the handler as one array")
+            .expect("the limit's report reaches the handler as one array")
             .get(b"limit");
         *SEEN_CHILD_MEMORY_LIMIT
             .lock()
@@ -293,7 +293,7 @@ unsafe extern "C" fn records_the_child_cpu_report(
         let report = *args.add(1);
         let named = report
             .as_array()
-            .expect("§ 1's report reaches the handler as one array")
+            .expect("the limit's report reaches the handler as one array")
             .get(b"limit");
         *SEEN_CHILD_CPU_LIMIT
             .lock()
@@ -453,7 +453,7 @@ fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
     );
     assert!(
         !ctx.has_limit_handler(),
-        "the CPU branch reaches § 1's tier 1 rather than returning above it",
+        "the CPU branch reaches the ladder's tier 1 rather than returning above it",
     );
 }
 
@@ -526,7 +526,7 @@ fn a_limit_fatal_reaches_on_limit_and_never_a_catch() {
     assert_eq!(
         ENTERED.load(Ordering::SeqCst) - before,
         1,
-        "§ 1's zero retries: one call for the request, however many polls see \
+        "a limit is never retried: one call for the request, however many polls see \
          the breach",
     );
     assert!(
@@ -836,7 +836,7 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
     assert_eq!(
         HANDLER_RUNS.load(Ordering::SeqCst) - before,
         1,
-        "and ran once — § 3's zero retries, with nothing attempted twice",
+        "and ran once — the handler is never retried, with nothing attempted twice",
     );
     assert_eq!(
         RESOLVED_PATH
@@ -869,7 +869,7 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
             .take()
             .as_deref(),
         Some("the request ran out of memory"),
-        "the record reaches the handler as § 1's argument rather than as a sentence printed \
+        "the record reaches the handler as its argument rather than as a sentence printed \
          after it",
     );
     assert_eq!(

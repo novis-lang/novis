@@ -16,13 +16,14 @@
 //! right of the first untrusted one was written by something this deployment
 //! vouches for and everything to its left is the untrusted client's own text.
 //! Leftmost-wins is fully attacker-controlled and is the version most
-//! frameworks shipped first; § 6 names it as the thing this is not.
+//! frameworks shipped first; the rule names it as the thing this is not.
 //!
 //! A token the walk **lands on** and cannot read as an IP address is a `400`
 //! ([`Unusable`]), because that value was about to become the client address.
 //! A token further left is never examined and so never refuses — and an
 //! `X-Forwarded-For` from an *untrusted* peer is ignored silently, never
-//! refused, which § 6 calls load-bearing: any client can set that header, so
+//! refused, which `rule:http-server/x-forwarded-for-is-the-only-address-header`
+//! calls load-bearing: any client can set that header, so
 //! refusing on its mere presence would let anyone deny service by sending one.
 //!
 //! # Decision: a port is not part of the address, and a withheld hop is not a defect
@@ -31,7 +32,8 @@
 //! neither is a repair. A token may carry the **port** the hop connected from —
 //! `203.0.113.9:54321`, and `[2001:db8::1]:443` for the one form in which a v6
 //! address may, its own colons being the separator otherwise — which Azure's
-//! front ends and IIS emit by default. Stripping it is § 6's `Host` rule
+//! front ends and IIS emit by default. Stripping it is
+//! `rule:http-server/host-matching-is-on-the-host-part-only`
 //! applied to the same kind of value: a port names no different address, so
 //! this is `rule:errors/ambiguous-input-refused`'s *accept verbatim* branch. A port that is not a number
 //! is **not** accepted, because then the token means nothing definite and
@@ -71,15 +73,18 @@ use hyper::header::HeaderName;
 
 use crate::secure::Scheme;
 
-/// § 6's only forwarded-address header. RFC 7239's `Forwarded` is deliberately
+/// The only forwarded-address header
+/// (`rule:http-server/x-forwarded-for-is-the-only-address-header`). RFC 7239's `Forwarded` is deliberately
 /// not read: supporting both is what *creates* an ambiguity that would then
 /// have to be refused.
 const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
 
-/// § 6's scheme assertion, read from a trusted peer and from nobody else.
+/// The scheme assertion (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`),
+/// read from a trusted peer and from nobody else.
 const X_FORWARDED_PROTO: HeaderName = HeaderName::from_static("x-forwarded-proto");
 
-/// The client-address headers § 6 answers with a `Warn` rather than a parse:
+/// The client-address headers `rule:http-server/x-forwarded-for-is-the-only-address-header`
+/// answers with a `Warn` rather than a parse:
 /// RFC 7239's `Forwarded`, nginx's `X-Real-IP`, and the vendor spellings a CDN
 /// puts in front of a deployment.
 ///
@@ -132,7 +137,7 @@ impl Arrival {
         }
     }
 
-    /// Whether this peer may assert anything — § 6's first question, asked
+    /// Whether this peer may assert anything — the walk's first question, asked
     /// before a header is looked at.
     #[must_use]
     fn may_speak(self, trusted: &Trusted) -> bool {
@@ -224,7 +229,8 @@ fn canonical(ip: IpAddr) -> IpAddr {
 /// headers this server reads.
 ///
 /// **Empty is the default and it is not "trust nobody" but "read nothing"** —
-/// § 6's first line, and the whole difference between a deployment that forgot
+/// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and the
+/// whole difference between a deployment that forgot
 /// the directive and one that has no proxy.
 #[derive(Clone, Debug, Default)]
 pub struct Trusted {
@@ -269,7 +275,7 @@ impl Trusted {
     }
 }
 
-/// What the walk answers: the facts a request arrives with once § 6 has
+/// What the walk answers: the facts a request arrives with once the walk has
 /// decided who was allowed to state them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Origin {
@@ -288,7 +294,8 @@ impl Origin {
     }
 
     /// The effective scheme, which feeds HSTS emission ([`crate::secure`]) and
-    /// `Core\Request::scheme()`, and nothing else. § 6 states the rest of
+    /// `Core\Request::scheme()`, and nothing else.
+    /// `rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only` states the rest of
     /// that list as absences — it does not feed redirects, and it does not feed
     /// the cookie `Secure` flag.
     #[must_use]
@@ -297,7 +304,8 @@ impl Origin {
     }
 
     /// A trusted peer sent one of [`OTHER_ADDRESS_HEADERS`] and no
-    /// `X-Forwarded-For`: § 6's one `Warn`, reported by the caller because this
+    /// `X-Forwarded-For`: the walk's one `Warn`
+    /// (`rule:http-server/x-forwarded-for-is-the-only-address-header`), reported by the caller because this
     /// module has no log.
     ///
     /// The request is served either way, with the peer as the client. Refusing
@@ -315,12 +323,14 @@ impl Origin {
     }
 }
 
-/// The walk landed on a token that is not an IP address — § 6's `400`, and the
+/// The walk landed on a token that is not an IP address —
+/// `rule:http-server/a-forwarded-token-is-read-withheld-or-refused`'s `400`, and the
 /// only refusal in this module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Unusable;
 
-/// § 6's walk: the client address and the effective scheme for one request.
+/// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk: the
+/// client address and the effective scheme for one request.
 ///
 /// # Errors
 ///
@@ -367,7 +377,8 @@ fn named_elsewhere(headers: &HeaderMap) -> bool {
 ///
 /// Several field lines are **joined** rather than refused: RFC 7230 § 3.2.2
 /// permits combining a list-valued field, so every conforming reader agrees on
-/// what this means and § 6 calls it *unusual* rather than *ambiguous*. Empty
+/// what this means and `rule:http-server/x-forwarded-for-is-the-only-address-header`
+/// calls it *unusual* rather than *ambiguous*. Empty
 /// tokens are dropped, because a trailing comma is punctuation and not a hop.
 fn chain(headers: &HeaderMap) -> Vec<&str> {
     let mut tokens = Vec::new();
@@ -385,7 +396,7 @@ fn chain(headers: &HeaderMap) -> Vec<&str> {
 /// there is no untrusted hop to find, and the address the chain says the
 /// request started at is the honest remaining answer. Falling back to the peer
 /// instead would report the nearest proxy as the client, which is the failure
-/// § 6's `Warn` exists to catch elsewhere.
+/// the walk's one `Warn` exists to catch elsewhere.
 fn untrusted_in(chain: &[&str], trusted: &Trusted) -> Result<Option<IpAddr>, Unusable> {
     let mut leftmost = None;
     for token in chain.iter().rev() {
@@ -563,7 +574,8 @@ mod tests {
         let trusted = proxies(&["10.0.0.0/8", "2001:db8::/32"]);
 
         // Non-empty, peer untrusted ⇒ ignored silently, never refused. Same
-        // answer as above, and reached by the other of § 6's two arms.
+        // answer as above, and reached by the other of `trusted_proxies`'s two
+        // arms, empty and non-empty.
         let ignored = walk(from("198.51.100.4"), &trusted, &asserting).expect("never a refusal");
         assert_eq!(
             ignored,
@@ -622,7 +634,8 @@ mod tests {
         assert_eq!(quiet.client(), None);
     }
 
-    /// § 6's four defect rows, which do not resolve alike.
+    /// The four defect rows of `rule:http-server/a-forwarded-token-is-read-withheld-or-refused`
+    /// and `rule:http-server/x-forwarded-for-is-the-only-address-header`, which do not resolve alike.
     #[test]
     fn the_four_defects_resolve_four_ways() {
         let trusted = proxies(&["10.0.0.0/8"]);
@@ -742,7 +755,8 @@ mod tests {
         assert_eq!(answered.scheme(), Scheme::Http);
     }
 
-    /// § 6's two conforming spellings that are not defects: a port on the
+    /// `rule:http-server/a-forwarded-token-is-read-withheld-or-refused`'s two conforming
+    /// spellings that are not defects: a port on the
     /// token, and a hop that withheld the address.
     #[test]
     fn a_port_is_not_part_of_the_address_and_a_withheld_hop_answers_none() {

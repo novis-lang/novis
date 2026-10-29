@@ -15,8 +15,8 @@
 //! where it is argued. What makes a *synchronous* codec the right one here is
 //! [`nvs_host::NvsConnection`]: its `Read` and `Write` park the coroutine instead of
 //! blocking the core, so a `read()` that finds nothing suspends the isolate's
-//! own task and resumes inside the same call. § 3's straight-line `while (var
-//! $msg = $conn->receive())` is what that buys, and it is why nothing in this
+//! own task and resumes inside the same call. `rule:concurrency/a-connection-is-a-loop`'s
+//! straight-line `while (var $msg = $conn->receive())` is what that buys, and it is why nothing in this
 //! module has a `poll`, a waker or a state machine — [`crate::io`]'s adapter
 //! exists because `hyper` is `async`, and this one is not.
 //!
@@ -58,8 +58,9 @@
 //!
 //! A timeout is therefore **not** an error a program sees on `receive()`: an
 //! idle or expired connection is closed with its code and answers `None`, which
-//! is § 3's `null` and the condition every connection loop already ends on. A
-//! `send` that times out is the one that throws, because § 3 says it does and
+//! is `receive()`'s `null` and the condition every connection loop already ends on. A
+//! `send` that times out is the one that throws, because
+//! `rule:concurrency/a-connection-is-a-loop` says it does and
 //! because a program that could not tell a delivered frame from an abandoned
 //! one has no way to be correct.
 
@@ -155,14 +156,16 @@ impl Write for Prefixed {
 ///
 /// It owns the descriptor from the `101` onwards: dropping it closes the
 /// socket, which is what makes a connection isolate's teardown the connection's
-/// end with no second path to keep in step. It owns § 7's clock for the same
+/// end with no second path to keep in step. It owns the connection's clock
+/// (`rule:concurrency/connection-bounds-are-finite`) for the same
 /// reason — the descriptor's deadline is one field of one stream, and this is
 /// the last object that holds it.
 #[derive(Debug)]
 pub struct Framed {
-    /// The codec, already carrying § 7's two size bounds as its own config.
+    /// The codec, already carrying the frame and message size bounds as its own config.
     socket: WebSocket<Prefixed>,
-    /// § 7's numbers for this connection, copied at the `101`.
+    /// `rule:concurrency/connection-bounds-are-finite`'s numbers for this
+    /// connection, copied at the `101`.
     bounds: Connection,
     /// When [`Connection::lifetime`] runs out, computed once so that every wait
     /// is capped by the same instant rather than by a duration re-measured from
@@ -172,8 +175,9 @@ pub struct Framed {
     /// connection the process had no room for. Held here so the count falls
     /// exactly when the descriptor does.
     slot: Option<Slot>,
-    /// The drain of the server that accepted this connection — § 7's third
-    /// bullet, read by [`PeerSocket::receive`] and by nothing else here.
+    /// The drain of the server that accepted this connection —
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly`, read by
+    /// [`PeerSocket::receive`] and by nothing else here.
     ///
     /// A handle on the *server's* bit rather than the process's, because a
     /// process may run more than one accept loop and only the one that took
@@ -213,8 +217,8 @@ impl Framed {
     ///
     /// A connection this process has no room for is framed anyway and reports
     /// [`Self::admitted`] as `false`. Refusing before framing would leave the
-    /// caller a raw descriptor and no way to say why it is closing, and § 7
-    /// asks for a defined code rather than a reset.
+    /// caller a raw descriptor and no way to say why it is closing, and
+    /// `rule:concurrency/connection-bounds-are-finite` asks for a defined close rather than a reset.
     #[must_use]
     pub fn new(
         stream: NvsConnection,
@@ -273,14 +277,15 @@ impl Framed {
     /// instant here: it ends a parked `receive` through the cut
     /// [`PeerSocket::receive`] registers, and a `send` past the drain deadline
     /// throws before it starts ([`PeerSocket::send`]) — one in flight is never
-    /// cut, because § 3 makes a send timeout the one failure a program has to
+    /// cut, because `rule:concurrency/a-connection-is-a-loop` makes a send timeout
+    /// the one failure a program has to
     /// see and a half-written frame tells the peer nothing.
     fn arm(&mut self, window: std::time::Duration) {
         let at = (Instant::now() + window).min(self.expires_at);
         self.socket.get_mut().set_deadline(at);
     }
 
-    /// Which of § 7's two clocks a `TimedOut` was, or `None` for an error that
+    /// Which of the two clocks, idle or lifetime, a `TimedOut` was, or `None` for an error that
     /// is not one.
     ///
     /// Read off the *deadlines* rather than off which window was armed, because
@@ -315,24 +320,26 @@ impl PeerSocket for Framed {
     /// itself and hands the ping up anyway; a program has no use for either, so
     /// this reads again rather than making every loop in every application
     /// filter control frames it did not ask about. A close — orderly, or the
-    /// socket ending under us — is `None`, which is § 3's `null`.
+    /// socket ending under us — is `None`, which is `receive()`'s `null`
+    /// (`rule:concurrency/a-connection-is-a-loop`).
     ///
     /// **A ping re-arms the idle window**, which is the arming being inside the
-    /// loop rather than above it. That is what makes § 7's idle bound usable at
+    /// loop rather than above it. That is what makes the idle bound usable at
     /// all: a client with nothing to say keeps its connection by doing what RFC
     /// 6455 already tells it to do, and a client that has genuinely gone is the
     /// one that stops.
     ///
-    /// § 7's two timeouts end the connection here rather than reporting one:
+    /// The idle and lifetime timeouts end the connection here rather than reporting one:
     /// the peer is told [`Closing::Idle`] or [`Closing::Expired`] and the
     /// member answers `None`, so a program's loop ends exactly as it does on an
     /// ordinary disconnect. A connection closed on the clock is not a fault of
     /// the program's, and there is nothing for it to catch.
     ///
-    /// # § 7's shutdown, and why it is a close taken here
+    /// # The drain's shutdown, and why it is a close taken here
     ///
     /// **A drained server's connections are closed by their own loops, and not
-    /// by the accept loop that spawned them.** § 7's third bullet asks a
+    /// by the accept loop that spawned them.**
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` asks a
     /// shutdown and a reload to leave the peer "a clean close rather
     /// than a reset", and both ways of reaching one from outside are refused.
     /// Cancelling the connection isolate tears its task down at its next
@@ -426,7 +433,8 @@ impl PeerSocket for Framed {
 
     /// Sends one frame and flushes it, parking until the bytes are out.
     ///
-    /// § 3's *send timeout* is [`Connection::send`], armed here and reported as
+    /// The *send timeout* of `rule:concurrency/a-connection-is-a-loop` is
+    /// [`Connection::send`], armed here and reported as
     /// an error rather than as a close: this is the one operation whose failure
     /// a program must see, because a peer that stopped reading and a frame that
     /// went out are the same call otherwise.
@@ -509,7 +517,8 @@ impl PeerSocket for Framed {
     /// set here rather than through [`Framed::arm`]: the connection being over
     /// is the commonest reason to be closing one, and a close capped by an
     /// instant already in the past would send nothing at all — turning every
-    /// [`Closing::Expired`] into the reset § 7 asks this to replace. The send
+    /// [`Closing::Expired`] into the reset `rule:concurrency/connection-bounds-are-finite`
+    /// asks this to replace. The send
     /// timeout still applies, so a peer that has stopped reading costs one
     /// window and not a stuck coroutine.
     fn close(&mut self, why: Closing) {

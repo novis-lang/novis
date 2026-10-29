@@ -267,7 +267,8 @@ pub(crate) fn merged(cores: &[Registry]) -> BTreeMap<Series, Value> {
 /// Adds one core's value into the running total for the same series.
 ///
 /// Saturating rather than wrapping: a counter that wrapped would be read as a
-/// process restart by every backend, which is § 7's argument against evicting a
+/// process restart by every backend, which is
+/// `rule:observability/past-max-series-a-new-series-is-refused`'s argument against evicting a
 /// series stated over the merge instead of over the registry.
 ///
 /// A pair that does not match is dropped, which is the kind disagreement above

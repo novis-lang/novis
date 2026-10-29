@@ -81,7 +81,7 @@
 //! core runs one task at a time.
 //!
 //! What that unwind runs is native `Drop` and nothing else: no `catch`, no
-//! cleanup block, no user handler, which is § 5's rule and the same mechanism
+//! cleanup block, no user handler, which is that rule and the same mechanism
 //! `Drop for Scheduler` already relies on for a worker retiring with requests
 //! still parked. A cancelled task hands back **no** [`Finished`] — its `Ctx` is
 //! dropped on its own stack rather than returned, so the output and exit code of
@@ -100,8 +100,8 @@
 //! remembers. A task standing on a helper frame is **resumed** with
 //! [`Resume::Cancelled`] in place of what it was waiting for; the member it is
 //! inside stops the request with `Ctx::cancel`, and it dies by `rule:errors/propagation`'s
-//! return status at the safepoint compiled code was going to poll anyway. § 5
-//! is untouched by the difference — the status is a `FATAL` no `catch` sees,
+//! return status at the safepoint compiled code was going to poll anyway.
+//! `rule:concurrency/cancellation-runs-no-user-code` is untouched by the difference — the status is a `FATAL` no `catch` sees,
 //! and what runs between the notice and the death is native `Drop` and a
 //! `return`, not user code.
 //!
@@ -118,7 +118,8 @@
 //! does not leave the call with work still running", enforced one level below
 //! the member that promises it: a parent that forgets to wait leaves no orphan,
 //! it only loses the child's result. The one shape that outlives its spawning
-//! *call* is § 6's `afterResponse`, and it is not an exception — that callable is
+//! *call* is `rule:concurrency/after-response-outlives-the-connection`'s
+//! `afterResponse`, and it is not an exception — that callable is
 //! a child of the request tree rather than of the task that registered it, and
 //! [`detach_current`] is what takes that tree out from under the connection
 //! before it runs. Cutting the link is the tree's **own** act, taken with its
@@ -153,7 +154,8 @@
 //! depend on and published in a thread-local the way [`crate::reactor`] and
 //! this module's own `TREE` already are. That module's own docs are the one home for the
 //! decisions behind it, including why what crosses is a whole group rather than
-//! a `spawn`/`wait`/`cancel` for the caller to sequence: § 4's "nothing still
+//! a `spawn`/`wait`/`cancel` for the caller to sequence:
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "nothing still
 //! running" is a property of the sequence, so the seam owns the sequence.
 //!
 //! # What this module deliberately does not know

@@ -14,7 +14,8 @@
 //! # The clock is asked, never counted from
 //!
 //! Every fire is computed by [`nvs_config::schedule::Cron::next_after`] from
-//! **now**, never from the entry's last fire. § 6 is what makes that the whole
+//! **now**, never from the entry's last fire.
+//! `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once` is what makes that the whole
 //! implementation of two rules at once: a missed interval — the host was down,
 //! the machine was suspended, a fire ran long — is *skipped* rather than
 //! replayed, and the two DST answers are decided in the one place a civil minute
@@ -30,7 +31,8 @@
 //!
 //! # Where a `fleet` entry's lease comes from
 //!
-//! § 3 makes a fleet-scoped interval exactly one run *across* the deployment,
+//! `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` makes a fleet-scoped interval
+//! one run *across* the deployment,
 //! held by a lease in the shared store. The store is `Core\Cache`'s shared tier,
 //! and **this crate cannot reach it**: `nvs-server` names `hyper`, `nvs-host`,
 //! `nvs-config`, `nvs-runtime` and two codecs, and `nvs-stdlib` is not among
@@ -45,7 +47,7 @@
 //! The ticker therefore holds no store, no client and no backend. It asks two
 //! questions about one key — take it for this long, and hold it that long
 //! again — and the first one's answer decides whether this host runs the fire.
-//! § 3's key is the entry's `name` plus the fire's *scheduled* instant rather
+//! The lease's key is the entry's `name` plus the fire's *scheduled* instant rather
 //! than the instant it was noticed, so two hosts whose clocks differ by a second
 //! still ask for the same key. The second question is asked on the fire's own
 //! task for as long as that run is in flight, which is what keeps the key this
@@ -58,14 +60,14 @@
 //! to know and not this module's, because the ticker has no type for a store: a
 //! tree naming no shared store, and a store that would not answer the boot, both
 //! arrive here as the same absence. Firing the entry on each host's own clock
-//! instead is the precise failure § 3's key exists to prevent, so the safe half
+//! instead is the precise failure the `scope` key exists to prevent, so the safe half
 //! is to run none of them and name each one while an operator is still reading
 //! the boot.
 //!
 //! # An entry never overlaps itself
 //!
-//! § 6's three modes are all here, and what they share is the count they are
-//! asked of: the entry's **own** fires still running, and not the process-wide
+//! `rule:config/overlap-is-skip-queue-or-kill`'s three modes are all here, and what they
+//! share is the count they are asked of: the entry's **own** fires still running, and not the process-wide
 //! tally this loop keeps for its teardown — two entries sharing one would let a
 //! nightly report suppress an hourly one. A fire that is dropped or held rearms
 //! like any other, so a job that runs long falls behind by intervals rather than
@@ -81,7 +83,8 @@
 //! because this crate holds no snapshot and no holder to read one out of. The
 //! deployment therefore arrives the way the isolate does — through
 //! [`Fires::isolate`], which is handed that context and owes it the tree before
-//! it returns. § 5's two halves are measured against it: the run's budget is
+//! it returns. `rule:config/a-scheduled-run-is-a-root-isolate`'s two halves are measured against
+//! it: the run's budget is
 //! `[limits]` and its grants are `[capabilities]`, so a context still holding
 //! neither has no ceiling for the entry's `limits` to be tighter than and is
 //! denied `script.spawn` at the door.
@@ -101,7 +104,7 @@
 //! this crate never holds one.
 //!
 //! An entry whose `name` is in both rosters keeps its run count, its held fire
-//! and the task it last fired as, so § 6 still sees a run the old roster started;
+//! and the task it last fired as, so `overlap` still sees a run the old roster started;
 //! it keeps its next fire too when its expression and zone did not change, so a
 //! re-arm landing on the entry's own minute does not lose that fire. An entry the
 //! reload removed is dropped from the roster, and its run in flight is still one
@@ -133,30 +136,33 @@ use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 /// two short strings, a [`Cron`] that is `Copy`, and a [`TimeZone`] whose clone is a handle.
 #[derive(Clone, Debug)]
 pub struct Armed {
-    /// § 1's `name` — the label a log line and a metric carry, and what the script is handed.
+    /// The entry's `name` — the label a log line and a metric carry, and what the script is handed.
     name: String,
-    /// § 1's `script`, as the operator wrote it. The boot resolved it against the `script.spawn`
+    /// The entry's `script`, as the operator wrote it. The boot resolved it against the `script.spawn`
     /// roots and refused one outside them, so what is left here is a path the compiler may take.
     script: String,
-    /// § 2's expression, parsed at boot. The one dialect, read once.
+    /// The `cron` expression, parsed at boot (`rule:config/cron-is-five-fields-and-nothing-more`).
+    /// The one dialect, read once.
     cron: Cron,
-    /// § 6's zone: `timezone`, or UTC. Every civil question about this entry is asked in it.
+    /// The entry's zone: `timezone`, or UTC. Every civil question about this entry is asked in it.
     zone: TimeZone,
     /// The next instant this entry fires, or [`None`] when it has none left inside
     /// [`Cron::next_after`]'s horizon — `30 2 30 2 *` is the honest example. A retired entry stays
     /// in the roster and never fires again, which is the same answer as removing it and keeps the
     /// indices a tick walked stable.
     next: Option<Zoned>,
-    /// This entry's own fires, spawned and not yet finished — § 6's question, asked per entry
+    /// This entry's own fires, spawned and not yet finished — `overlap`'s question, asked per entry
     /// rather than of the process-wide tally the tick keeps for its teardown.
     ///
     /// An [`Rc`] because the [`Ran`] guard that gives a run back outlives the pass that took it,
     /// and a [`Cell`] because a roster and its fires are all on one core. The clone a fire carries
     /// shares this count, which costs nothing and keeps the two from disagreeing.
     running: Rc<Cell<usize>>,
-    /// § 6's `overlap`, read once at boot: what this entry does when it is due and still running.
+    /// The entry's `overlap`, read once at boot: what this entry does when it is due and still
+    /// running.
     overlap: Overlap,
-    /// § 5's `limits` and `grants`, read at boot into the one shape a spawn site hands a child.
+    /// The entry's `limits` and `grants`, read at boot into the one shape a spawn site hands a
+    /// child.
     ///
     /// The ticker's question rather than the implementor's, for `overlap`'s reason: what a run may
     /// spend and which capabilities it may ask for is the entry's configuration, and a [`Fires`]
@@ -169,7 +175,8 @@ pub struct Armed {
     /// asked beside the deployment's `[capabilities]` rather than instead of it — which is why
     /// `rule:config/a-schedule-entry-narrows-only`'s *narrowing only* needs no check here.
     narrowing: Narrowing,
-    /// § 3's `scope`, as the one question the ticker asks of it: whether each fire of this entry
+    /// The entry's `scope` (`rule:config/scope-has-no-default`), as the one question the ticker
+    /// asks of it: whether each fire of this entry
     /// has to take a lease before it runs.
     ///
     /// A `bool` and not the word, because `host` and `fleet` are the only two the boot accepts
@@ -178,7 +185,7 @@ pub struct Armed {
     /// [`Leases`], so a `true` here means a lease can actually be taken.
     fleet: bool,
     /// Whether a fire is held for this entry — `queue`'s single pending run, and never more than
-    /// one of them (§ 6).
+    /// one of them (`rule:config/overlap-is-skip-queue-or-kill`).
     ///
     /// The tick is the only reader and the only writer, so this is a plain [`Cell`] rather than a
     /// shared one; the copy a fire's clone carries is dead weight and is never asked.
@@ -191,7 +198,8 @@ pub struct Armed {
     fired_as: Cell<Option<TaskId>>,
 }
 
-/// § 6's `overlap`: what a fire does when the previous run of the same entry is still going.
+/// The entry's `overlap` (`rule:config/overlap-is-skip-queue-or-kill`): what a fire does when the
+/// previous run of the same entry is still going.
 ///
 /// The mode is the entry's, read at boot and never re-read, because it is configuration rather
 /// than state — [`arm`] is the one place a written word becomes one of these.
@@ -211,13 +219,13 @@ enum Overlap {
 }
 
 impl Armed {
-    /// § 1's `name`, which is also what the run is logged under.
+    /// The entry's `name`, which is also what the run is logged under.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// § 1's `script` — the path [`Fires::isolate`] compiles.
+    /// The entry's `script` — the path [`Fires::isolate`] compiles.
     #[must_use]
     pub fn script(&self) -> &str {
         &self.script
@@ -229,7 +237,7 @@ impl Armed {
         self.next.as_ref()
     }
 
-    /// Whether a fire of this entry is still going — § 6's question, asked of the entry the tick is
+    /// Whether a fire of this entry is still going — `overlap`'s question, asked of the entry the tick is
     /// about to fire and of nothing else.
     fn busy(&self) -> bool {
         self.running.get() > 0
@@ -247,21 +255,22 @@ impl Armed {
             .is_some_and(|next| next.timestamp() <= now.timestamp())
     }
 
-    /// § 3's key for one fire: the entry's `name`, plus the instant that fire was *scheduled* for.
+    /// The lease's key for one fire (`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`):
+    /// the entry's `name`, plus the instant that fire was *scheduled* for.
     ///
     /// The scheduled instant and not the one the tick noticed it at, which is the whole of what
     /// makes this the same key on two hosts: a ticker wakes a few milliseconds after its minute and
     /// two machines never agree on how many, so a key carrying the observed time would be two keys
     /// and both hosts would win. As a UTC timestamp for the same reason — the same fire written in
-    /// two zones is one instant, and § 6 already decided the zone question where the civil minute
-    /// becomes one.
+    /// two zones is one instant, and `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`
+    /// already decided the zone question where the civil minute becomes one.
     fn lease_key(&self, scheduled: &Zoned) -> String {
         format!("nvs.schedule.{}@{}", self.name, scheduled.timestamp())
     }
 
     /// How long that key is held: to this entry's **next** fire.
     ///
-    /// The interval rather than a number, so that § 3's "once per interval" is the lease's own
+    /// The interval rather than a number, so that `"fleet"`'s "once per interval" is the lease's own
     /// arithmetic and there is no constant for a deployment to be surprised by. A key that outlived
     /// its interval would leave the following fire unrunnable by anyone; one that expired well
     /// inside it would let a second host take the same fire while the first is still in it, which
@@ -280,7 +289,8 @@ impl Armed {
     }
 
     /// The fire has happened: ask for the next one **from the clock**, never from the one that just
-    /// ran (§ 6). Answers `false` when there is no next fire, which is the entry retiring.
+    /// ran (`rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`). Answers `false` when
+    /// there is no next fire, which is the entry retiring.
     fn rearm(&mut self, now: &Zoned) -> bool {
         self.next = self.cron.next_after(&now.with_time_zone(self.zone.clone()));
         self.next.is_some()
@@ -294,7 +304,7 @@ impl Armed {
 /// itself — and a single `FnMut` would have to be shared across a task boundary to answer all
 /// three.
 ///
-/// **Only `nvs serve` implements this** (§ 5): `nvs run`, `nvs check` and a bundled `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
+/// **Only `nvs serve` implements this** (`rule:config/a-scheduled-run-is-a-root-isolate`): `nvs run`, `nvs check` and a bundled `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
 /// executable run no schedules, because a schedule is a property of a running deployment rather than
 /// of executing a file.
 pub trait Fires {
@@ -306,8 +316,8 @@ pub trait Fires {
     /// reported; the ticker adds nothing to it, because the front end's diagnostic is the message
     /// and a second line saying so is noise on every interval.
     ///
-    /// § 5's shape, and the implementation owes all of it: the deployment's configuration on the
-    /// context it is handed, `Isolate::new` with the entry's `name` as the argument the script reads
+    /// `rule:config/a-scheduled-run-is-a-root-isolate`'s shape, and the implementation owes all of
+    /// it: the deployment's configuration on the context it is handed, `Isolate::new` with the entry's `name` as the argument the script reads
     /// back through `Core\Script::args()`, and [`nvs_host::Output`] `Capture`, because a scheduled
     /// run's output is logged rather than delivered.
     ///
@@ -318,7 +328,8 @@ pub trait Fires {
     /// which is the first thing `nvs_runtime::script::resolve` asks for.
     fn isolate(&self, entry: &Armed, ctx: &mut Ctx) -> Option<Isolate>;
 
-    /// § 5's log line: what the run answered, delivered to nobody.
+    /// The run's log line (`rule:config/a-scheduled-run-is-a-root-isolate`): what the run answered,
+    /// delivered to nobody.
     ///
     /// A top-level `return` is [`Completion::value`], an uncaught throw is its `error`, and what the
     /// script echoed is its captured output (`rule:tooling/echo-always-has-a-sink`'s table).
@@ -328,12 +339,14 @@ pub trait Fires {
     /// once, for every fire. An implementation that wants the value in its line renders it here.
     fn ran(&self, entry: &Armed, done: &Completion);
 
-    /// The ticker's own notes — an entry that retired, and a fire § 6's `skip` dropped because the
+    /// The ticker's own notes — an entry that retired, and a fire `overlap = "skip"` dropped because the
     /// entry's previous run had not finished.
     fn note(&self, note: &str);
 }
 
-/// The caller's other half: § 3's lease, as the one question the ticker asks about a shared store.
+/// The caller's other half: the `fleet` lease
+/// (`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`), as the one question the ticker
+/// asks about a shared store.
 ///
 /// One method rather than a store, a client or a connection, because this crate has none of those
 /// and must not grow one — the module doc § *Where a `fleet` entry's lease comes from* is that
@@ -342,23 +355,25 @@ pub trait Fires {
 /// **Only `nvs serve` implements this**, over `Core\Cache`'s shared tier's set-if-absent, on a
 /// connection of its own and under a token naming the process that took the key. A tree with no
 /// such store, or one whose store will not answer the boot, is where the binary passes [`None`]
-/// and § 3's fallback holds — the module doc's section on it states the rest.
+/// and the fallback holds — the module doc § *The fallback, when there is no lease to take* states
+/// the rest.
 pub trait Leases {
     /// Take the lease named `key`, to be held for `ttl`, and report whether **this** host got it.
     ///
     /// A set-if-absent with an expiry, and nothing else: `true` when the key was absent (or had
     /// expired) and is now this host's, `false` when another host holds it. The implementation
-    /// never blocks and never retries — a host that lost this interval has lost it, and § 3 has the
-    /// next interval ask again rather than queueing behind the winner.
+    /// never blocks and never retries — a host that lost this interval has lost it, and the
+    /// next interval asks again rather than queueing behind the winner.
     ///
     /// **A store that cannot answer this atomically must not implement it.** The whole value of the
     /// method is that two hosts asking at once get two different answers; one that read-then-wrote
     /// would hand both of them `true` under exactly the load that makes it matter, which is the
-    /// failure § 3's `scope` exists to prevent and is worse than the [`None`] fallback because it
+    /// failure the `scope` key exists to prevent and is worse than the [`None`] fallback because it
     /// is silent.
     ///
     /// A failure to reach the store at all is a `false`: not running this interval is the safe
-    /// answer, and § 3 already says a partition can leave one unrun.
+    /// answer, and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` already says a
+    /// partition can leave one unrun.
     fn take(&self, key: &str, ttl: Duration) -> bool;
 
     /// Hold the lease named `key` for another `ttl`, and report whether it is **still** this
@@ -368,10 +383,11 @@ pub trait Leases {
     /// was scheduled for keeps its key rather than having the store expire it underneath. The
     /// implementation extends the key **only while this host is what holds it** — extending one
     /// that has already passed to another host would hand one interval to two of them, which is
-    /// the failure § 3's `scope` exists to prevent.
+    /// the failure the `scope` key exists to prevent.
     ///
-    /// A `false` is not an error: § 3 bounds `"fleet"` at at-most-once per interval, and a lease
-    /// lost under a live run is the example it gives. The ticker stops asking and says so, and the
+    /// A `false` is not an error: `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`
+    /// bounds `"fleet"` at at-most-once per interval, and a lease lost under a live run is the
+    /// example it gives. The ticker stops asking and says so, and the
     /// run is left alone — ending work that is halfway through is not something a lease answers. A
     /// failure to reach the store is a `false` for [`Leases::take`]'s reason.
     fn renew(&self, key: &str, ttl: Duration) -> bool;
@@ -382,12 +398,12 @@ pub trait Leases {
 /// **`fleet` entries are armed only when `leases` is [`Some`]**, and skipped with one note each
 /// otherwise: the module doc § *The fallback, when there is no lease to take* is why, and it is a
 /// refusal to run rather than an omission. An entry that cannot be read at all — no `cron`,
-/// an expression outside § 2's dialect, a `timezone` no IANA database knows — is skipped with a note
+/// an expression outside the five-field dialect, a `timezone` no IANA database knows — is skipped with a note
 /// as well, and is unreachable: [`nvs_config::schedule::validate`] refused the boot over every one of
 /// those before a socket existed. The note is what makes a hole in that argument visible rather than
 /// silent, which is the failure mode a schedule has by construction.
 ///
-/// An entry naming an `overlap` § 6 does not is armed under `skip` and noted once, for the same
+/// An entry naming an `overlap` that is none of the three modes is armed under `skip` and noted once, for the same
 /// reason and with the same unreachability: the boot refuses an unknown word before this is
 /// reached, so the note exists to make a hole in *that* argument visible rather than silent.
 pub fn arm(
@@ -405,7 +421,7 @@ pub fn arm(
         let fleet = entry.scope.as_deref().map(str::trim) == Some("fleet");
         if fleet && leases.is_none() {
             note(&format!(
-                "`{name}` is `scope = \"fleet\"` and is not armed on this host: § 3's lease needs a \
+                "`{name}` is `scope = \"fleet\"` and is not armed on this host: its lease needs a \
                  shared store that can compare-and-set, and firing it on each host's own clock is \
                  what that key exists to prevent",
             ));
@@ -428,19 +444,20 @@ pub fn arm(
             ));
             continue;
         };
-        // § 6's mode, read once here rather than at each fire: it is configuration, and a tick that
-        // re-read a string every minute would be deciding the same thing over and over from a
+        // The `overlap` mode, read once here rather than at each fire: it is configuration, and a
+        // tick that re-read a string every minute would be deciding the same thing over and over from a
         // field nothing can change without a reload.
         let overlap = match entry.overlap.as_deref().map(str::trim) {
             None | Some("skip") => Overlap::Skip,
             Some("queue") => Overlap::Queue,
             Some("kill") => Overlap::Kill,
             // Not reachable through a boot that validated the tree, and here for the same reason
-            // the refusals above are: a word § 6 does not name falls back to the mode that starts
+            // the refusals above are: a word that is none of the three falls back to the mode that starts
             // the fewest runs, and says so rather than choosing quietly.
             Some(word) => {
                 note(&format!(
-                    "`{name}` names `overlap = \"{word}\"`, which § 6 does not, and runs as `skip`"
+                    "`{name}` names `overlap = \"{word}\"`, which is not `skip`, `queue` or `kill`, and runs \
+                     as `skip`"
                 ));
                 Overlap::Skip
             }
@@ -471,7 +488,7 @@ pub fn arm(
     armed
 }
 
-/// § 5's `limits` table as the pairs a [`Narrowing`] carries: the bare directive name, and the
+/// The entry's `limits` table as the pairs a [`Narrowing`] carries: the bare directive name, and the
 /// value **as the operator wrote it**.
 ///
 /// The text and not a parsed quantity, because `nvs_config::value::as_written` is then the one
@@ -514,7 +531,7 @@ fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
     .collect()
 }
 
-/// § 5's `grants` table as the capability names a [`Narrowing`] carries.
+/// The entry's `grants` table as the capability names a [`Narrowing`] carries.
 ///
 /// Presence is the whole question — [`Cap::grant`] answers [`None`] for a row the entry did not
 /// write — because this list only ever subtracts: a name here buys the right to *ask*, and the
@@ -551,7 +568,7 @@ impl std::fmt::Debug for Rearm<'_> {
 }
 
 /// What [`Rearm::roster`] answers: the entries to tick from now on, and the store their `fleet`
-/// fires take § 3's key in.
+/// fires take their lease's key in.
 ///
 /// The two travel together because a reload can move either. A new store takes the next fire's
 /// key, and a fire already running goes on renewing in the store it took its key from, because its
@@ -593,8 +610,8 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
     fresh
 }
 
-/// § 5's ticker, on the core this is called from: sleep until the soonest fire, fire everything the
-/// clock has reached, and ask again.
+/// `rule:config/a-scheduled-run-is-a-root-isolate`'s ticker, on the core this is called from: sleep
+/// until the soonest fire, fire everything the clock has reached, and ask again.
 ///
 /// `now` is the clock rather than [`Zoned::now`] called inline, for the reason
 /// [`serve_on_this_core`](crate::serve::serve_on_this_core) takes `keep_serving`: a loop that reads a
@@ -602,8 +619,9 @@ fn carry_over(old: Vec<Armed>, mut fresh: Vec<Armed>) -> Vec<Armed> {
 ///
 /// `leases` is the same value [`arm`] was given, until a [`Rearm`] answers a [`Roster`] carrying
 /// another, and is asked once per fire of a `fleet` entry — the
-/// key § 3 names, held for the interval, and a refusal means another host has this one. It is asked
-/// *after* § 6's overlap question and never before it: an entry still running its own previous fire
+/// key `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` names, held for the interval,
+/// and a refusal means another host has this one. It is asked
+/// *after* the `overlap` question and never before it: an entry still running its own previous fire
 /// has already lost this interval on this host, and taking the lease only to drop the fire under
 /// `skip` would leave the interval unrun by the whole deployment rather than by one machine. An
 /// [`Rc`] rather than a borrow because the renewal the key is then held under outlives this call's
@@ -677,20 +695,20 @@ where
             .map(|(index, _)| index)
             .collect();
         for index in due {
-            // § 6, and the whole of it: an entry that is due while its own previous run is still
-            // going is answered by its mode, and the rearm below happens whichever answer it gets —
+            // `rule:config/overlap-is-skip-queue-or-kill`, and the whole of it: an entry that is due
+            // while its own previous run is still going is answered by its mode, and the rearm below happens whichever answer it gets —
             // an entry left due would make the next wait zero and turn one long run into a spin.
             let entry = &entries[index];
             if entry.busy() {
                 match entry.overlap {
                     Overlap::Skip => fires.note(&format!(
-                        "`{}` is still running its previous fire, so this one is dropped (§ 6's \
-                         `overlap = \"skip\"`)",
+                        "`{}` is still running its previous fire, so this one is dropped \
+                         (`overlap = \"skip\"`)",
                         entry.name()
                     )),
                     Overlap::Queue if entry.held() => fires.note(&format!(
                         "`{}` is still running and already holds a fire, so this one is dropped \
-                         (§ 6's `overlap = \"queue\"` holds one)",
+                         (`overlap = \"queue\"` holds one)",
                         entry.name()
                     )),
                     // Held rather than started, and started by the pass at the top of this loop as
@@ -700,8 +718,8 @@ where
                     Overlap::Queue => entry.held.set(true),
                     Overlap::Kill => {
                         // The run is cancelled at its next safepoint and its teardown *waited for*
-                        // before the new one starts, which is the ordering § 6 states: the two must
-                        // not be alive together, or `kill` would be `skip` with an extra run. The
+                        // before the new one starts, which is the ordering `overlap` states: the two
+                        // must not be alive together, or `kill` would be `skip` with an extra run. The
                         // wait is a park over the entry's own count, given back by the run's guard
                         // however it ended — `rule:concurrency/cancellation-runs-no-user-code`'s teardown runs no user code, so that
                         // `Drop` is the whole of what there is to wait for.
@@ -721,7 +739,7 @@ where
                         if entry.busy() {
                             fires.note(&format!(
                                 "`{}` did not tear down, so this fire is dropped rather than \
-                                 started beside it (§ 6's `overlap = \"kill\"`)",
+                                 started beside it (`overlap = \"kill\"`)",
                                 entry.name()
                             ));
                         } else {
@@ -730,7 +748,8 @@ where
                     }
                 }
             } else if entry.fleet {
-                // § 3, and the key travels with the fire: what this host took is what that run
+                // `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, and the key travels
+                // with the fire: what this host took is what that run
                 // holds for as long as it is in flight. A lease another host has is noted rather
                 // than silent, because "the nightly did not run here" is a thing an operator
                 // reading one host's log has to be able to tell from a failure — and on a fleet of
@@ -739,8 +758,8 @@ where
                     start(entry, fires, &outstanding, &parent, Some(held))?;
                 } else {
                     fires.note(&format!(
-                        "`{}` is held by another host for this interval and is not run here (§ 3's \
-                         lease)",
+                        "`{}` is held by another host for this interval and is not run here \
+                         (`scope = \"fleet\"`)",
                         entry.name()
                     ));
                 }
@@ -754,14 +773,15 @@ where
                 ));
             }
         }
-        // § 6's `queue`: a held fire starts the moment the run before it has ended, and this is
+        // `overlap = "queue"`: a held fire starts the moment the run before it has ended, and this is
         // that moment. The wait above is the only line in this loop that hands the core back, so a
         // run can only have finished while this task was parked in it — which makes this pass the
         // first look after every ending rather than a poll. After the due walk rather than before
         // it, so that a pass finding the entry both free and due answers the clock: the held fire
-        // is not lost by that, it starts when *that* run ends, and either order keeps § 6's bound
-        // of one held fire per entry. It carries no lease: the pass that held it answered § 6
-        // before § 3 was asked, so this host never took a key for the interval it was held from.
+        // is not lost by that, it starts when *that* run ends, and either order keeps `queue`'s
+        // bound of one held fire per entry. It carries no lease: the pass that held it answered
+        // the `overlap` question before the lease was asked for, so this host never took a key for
+        // the interval it was held from.
         for entry in entries.iter() {
             if entry.held() && !entry.busy() {
                 entry.held.set(false);
@@ -779,8 +799,8 @@ where
     // work. It parks instead, and each fire's guard wakes it on the way out.
     while outstanding.get() > 0 {
         let resumed = suspend_current(Waiting::Parked);
-        // Cancelled: the caller is being torn down and the fires go with it, which is § 4's own
-        // answer and not something to wait out. Not suspended: there is no core to hand back, so
+        // Cancelled: the caller is being torn down and the fires go with it, which is that
+        // rule's own answer for a cancelled caller and not something to wait out. Not suspended: there is no core to hand back, so
         // there is no turn in which a fire could ever finish and this would spin.
         if resumed.cancelled() || !resumed.suspended() {
             break;
@@ -827,7 +847,7 @@ where
 struct Ran {
     /// The ticker's count of fires spawned and not yet finished.
     outstanding: Rc<Cell<usize>>,
-    /// This fire's own entry's count, which is § 6's question and is the same count
+    /// This fire's own entry's count, which is `overlap`'s question and is the same count
     /// [`Armed::busy`] reads on the next pass.
     mine: Rc<Cell<usize>>,
     /// The ticking task, which may be parked on that count reaching zero.
@@ -846,7 +866,7 @@ impl Drop for Ran {
 
 /// One fire: a **root** isolate on its own task, and not a child of anything that is serving.
 ///
-/// § 5's rule is that a scheduled run is a second root — `rule:security/isolate-shares-nothing`'s other existing shape, the one an
+/// `rule:config/a-scheduled-run-is-a-root-isolate` is that a scheduled run is a second root — `rule:security/isolate-shares-nothing`'s other existing shape, the one an
 /// inbound request already is — so what is spawned here is a task with its own fresh [`Ctx`] and an
 /// [`Isolate`] with no `inbound`. `OutputSink::Sink` on that context for the reason the accept loop
 /// holds it: the run's own output is captured by its isolate and comes back as data (`rule:tooling/echo-always-has-a-sink`),
@@ -856,7 +876,7 @@ impl Drop for Ran {
 /// run that takes an hour from being the reason the next minute's entry is late.
 ///
 /// `renewal` is the key a `fleet` entry's fire took, and is [`None`] for every other fire. It is
-/// started here rather than by the caller because this is the task § 3's renewal is held for: the
+/// started here rather than by the caller because this is the task the lease's renewal is held for: the
 /// timer is a child of it, so the run ending is what stops the key being extended.
 fn fire<F>(
     entry: &Armed,
@@ -877,7 +897,7 @@ where
         let Some(isolate) = fires.isolate(&entry, ctx) else {
             return;
         };
-        // § 5's sub-caps, on the isolate and not on the context the implementor was handed: what a
+        // The entry's sub-caps, on the isolate and not on the context the implementor was handed: what a
         // narrowing means is *tighter than what remains of the parent*, and the parent is this
         // task's own root. `Isolate::start` applies it to the child's context before its first
         // statement, which is the only point at which that context exists.
@@ -901,7 +921,7 @@ where
                 if let Some((trace, started)) = &recording {
                     crate::trace::record(entry.name(), trace, *started, &done.trace);
                 }
-                // Nothing is waiting for a scheduled run (§ 5), so this frame is where the answer
+                // Nothing is waiting for a scheduled run, so this frame is where the answer
                 // stops — and `Completion::value` is a reference copied into *this* ownership
                 // rather than a borrow of the arena that has already gone. Dropping it without
                 // releasing it leaks the returned graph once per fire, which grows with runs served
@@ -919,12 +939,12 @@ where
             )),
         }
     });
-    // The id is `kill`'s handle on this run and nothing else's: § 6's other two modes never reach
+    // The id is `kill`'s handle on this run and nothing else's: `overlap`'s other two modes never reach
     // for it, and it is answered here because this is where the task exists.
     spawned.ok_or_else(|| io::Error::other("the ticker must run as a task on a core"))
 }
 
-/// § 3's lease for the fire this entry is due for: the key this host took, or [`None`] when the
+/// The `fleet` lease for the fire this entry is due for: the key this host took, or [`None`] when the
 /// interval is another host's.
 ///
 /// The whole of the fleet decision, in one place the tick reaches and a test can reach without a
@@ -947,7 +967,8 @@ fn took_the_lease(entry: &Armed, leases: Option<&Rc<dyn Leases>>) -> Option<Rene
     leases.take(&held.key, held.ttl).then_some(held)
 }
 
-/// § 3's renewal: the key one fire took, and what it takes to go on holding it.
+/// The lease's renewal (`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`): the key one
+/// fire took, and what it takes to go on holding it.
 ///
 /// Built by [`took_the_lease`] and carried onto the fire's own task, because that is the task whose
 /// life the key is held for — the ticker's own would hold it long past the run, and a task of its
@@ -959,7 +980,7 @@ struct Renewal {
     key: String,
     /// [`Armed::lease_ttl`]'s interval, asked for again at each renewal, so the key is always held
     /// one whole interval from now. A host that dies mid-run therefore releases it by expiry
-    /// inside the bound § 3 states rather than blocking a later interval forever.
+    /// inside one interval rather than blocking a later interval forever.
     ttl: Duration,
     /// The store the question goes to, as an [`Rc`] because this outlives the frame [`arm`] and
     /// the tick were called from.
@@ -970,7 +991,7 @@ impl Renewal {
     /// How often the key is extended: half of what it is held for.
     ///
     /// A fraction rather than a constant, for [`Armed::lease_ttl`]'s reason — the interval is the
-    /// only number § 3 has, and a second one here would be a thing a deployment could be surprised
+    /// only number the lease has, and a second one here would be a thing a deployment could be surprised
     /// by. Half of it leaves a whole renewal's worth of slack for a store that answers slowly,
     /// which asking at the expiry itself would not.
     fn every(&self) -> Duration {
@@ -980,9 +1001,9 @@ impl Renewal {
     /// Hold the key for as long as this fire runs, on a task of the fire's own.
     ///
     /// Spawned as a child of the caller, which is the fire's task: the run ending cancels it, and
-    /// so does the cancellation § 6's `kill` sends, so there is no state to give back and no guard
-    /// to write. A key this host no longer holds stops the timer and is one line an operator sees;
-    /// the run itself is left alone, because § 3 bounds `fleet` at at-most-once and ending work
+    /// so does the cancellation `overlap = "kill"` sends, so there is no state to give back and no
+    /// guard to write. A key this host no longer holds stops the timer and is one line an operator
+    /// sees; the run itself is left alone, because `fleet` is at-most-once and ending work
     /// that is halfway through is not what a lease answers.
     fn keep<F>(self, fires: &Rc<F>, name: &str)
     where
@@ -1007,7 +1028,7 @@ impl Renewal {
                 if !self.leases.renew(&self.key, self.ttl) {
                     fires.note(&format!(
                         "`{name}` is still running here, but its lease is no longer this host's \
-                         and was not renewed (§ 3's at-most-once bound)"
+                         and was not renewed, so a second host may run it"
                     ));
                     return;
                 }
@@ -1059,11 +1080,12 @@ mod tests {
         }
     }
 
-    /// One `[[schedule]]` block carrying § 5's two optional tables, written the way an operator
+    /// One `[[schedule]]` block carrying the two optional tables, `limits` and `grants`, written the
+    /// way an operator
     /// writes them.
     ///
     /// Through TOML rather than through the struct, because the dotted key in
-    /// `grants = {net.connect = [...]}` is § 5's own spelling and the deserializer is the one thing
+    /// `grants = {net.connect = [...]}` is the block's own spelling and the deserializer is the one thing
     /// that turns it into the `[capabilities.net] connect` the rest of this tree reads. A case
     /// building `Capabilities` by hand would be asserting against its own idea of that mapping.
     fn sub_capped(name: &str, tables: &str) -> Schedule {
@@ -1108,28 +1130,29 @@ mod tests {
     struct Watcher {
         /// How long each fire's program holds its task before returning. Zero for a run that ends
         /// inside the pass that started it; anything else outlives the next interval, which is the
-        /// only way to ask § 6's question.
+        /// only way to ask `overlap`'s question.
         holds: Duration,
         /// What a run with a nonzero `holds` waits for before it returns, checked once per `holds`.
         /// [`None`] returns after one `holds`. A case whose claim is a count of things that happen
         /// during the run waits for that count here, because a loaded machine wakes a timer late.
         held_until: Option<Rc<dyn Fn() -> bool>>,
-        /// How many fires were asked for an isolate — a run § 6's `skip` dropped never gets here,
+        /// How many fires were asked for an isolate — a run `overlap = "skip"` dropped never gets here,
         /// which is what makes this different from counting the runs that *finished*.
         started: Cell<usize>,
         /// The task [`Fires::isolate`] was asked on — the fire's own, never the tick's.
         asked_on: Cell<Option<TaskId>>,
         /// Whether the isolate's **own** context carried a request, which is what
-        /// `Core\Request` reads and what a root has none of (§ 5, `rule:statements/no-host-populated-variables`).
+        /// `Core\Request` reads and what a root has none of (`rule:config/a-scheduled-run-is-a-root-isolate`,
+        /// `rule:statements/no-host-populated-variables`).
         answering: Rc<Cell<Option<bool>>>,
         /// The task the program itself ran on.
         ran_on: Rc<Cell<Option<TaskId>>>,
-        /// § 5's log line, one per completed run.
+        /// The run's log line, one per completed run.
         logged: RefCell<Vec<String>>,
         /// [`Fires::note`]'s lines — a retired entry, and a fire `skip` dropped.
         noted: RefCell<Vec<String>>,
         /// The deployment every fire runs under, put on the fire's own context before its isolate
-        /// is built. [`None`] for a case whose subject is not § 5's sub-caps, which is every case
+        /// is built. [`None`] for a case whose subject is not an entry's sub-caps, which is every case
         /// but one: a context holding no configuration has no ceiling for a `limits` table to
         /// narrow and grants nothing at all, so a fake that always installed one would be answering
         /// a question those cases do not ask.
@@ -1137,11 +1160,11 @@ mod tests {
         /// The ceiling the fire's **own** context resolved out of that deployment — the number a
         /// sub-cap is tighter than, read where the parent is still reachable.
         ceiling: Cell<usize>,
-        /// What each fire's own context said about § 5's two tables, in the order the fires ran.
+        /// What each fire's own context said about `limits` and `grants`, in the order the fires ran.
         narrowed: Rc<RefCell<Vec<(String, Narrowed)>>>,
     }
 
-    /// What a fire's context answers about § 5's sub-caps, read inside the run itself.
+    /// What a fire's context answers about its entry's sub-caps, read inside the run itself.
     ///
     /// Read from the child rather than from the [`Armed`] it came off, because the claim is about
     /// what the run *spends and may ask for* and not about what the ticker carried: a narrowing
@@ -1231,7 +1254,7 @@ mod tests {
                 ));
                 if !holds.is_zero() {
                     // The core is handed back, so the tick beside this one keeps its own intervals
-                    // while this run is outstanding — which is the state § 6 is about.
+                    // while this run is outstanding — which is the state `overlap` is about.
                     nvs_host::sleep(holds);
                     while held_until.as_ref().is_some_and(|until| !until()) {
                         nvs_host::sleep(holds);
@@ -1338,7 +1361,7 @@ mod tests {
     /// hour cannot be why the next minute's entry is late; the isolate's own context carries **no
     /// request**, which is what makes `Core\Request` throw inside it (`rule:statements/no-host-populated-variables`) and is the whole
     /// difference between this root and the one an inbound request is; and what it echoed comes
-    /// back through [`Fires::ran`] as § 5's logged result rather than being delivered anywhere.
+    /// back through [`Fires::ran`] as the run's logged result rather than being delivered anywhere.
     ///
     /// The clock is the parameter and not the wall, which is what keeps this test at a tenth of a
     /// second rather than at the minute a `* * * * *` entry otherwise costs: it stands still at
@@ -1422,7 +1445,7 @@ mod tests {
                 .next()
                 .map(|next| next.timestamp().to_string()),
             Some("2026-01-01T00:02:00Z".to_owned()),
-            "§ 6: the next fire is asked from the clock, so the minute that passed \
+            "a missed fire is skipped: the next fire is asked from the clock, so the minute that passed \
              while the host was busy is skipped rather than replayed"
         );
     }
@@ -1557,8 +1580,9 @@ mod tests {
     /// interval: waiting one out would make these cases take a day.
     ///
     /// **One store, two rosters** is what makes these two hosts rather than one machine asked
-    /// twice. That is the whole of the fleet in a unit test, and it is faithful for the reason § 3
-    /// gives — coordination is the store's, and a host contributes nothing to it but the question.
+    /// twice. That is the whole of the fleet in a unit test, and it is faithful for the reason
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` gives — coordination is the
+    /// store's, and a host contributes nothing to it but the question.
     struct Store {
         /// Each key held, with the second on this store's clock that it expires at.
         held: RefCell<Vec<(String, u64)>>,
@@ -1593,8 +1617,8 @@ mod tests {
             match held.iter_mut().find(|(name, _)| name == key) {
                 // Held by someone, and still inside its expiry: this host loses the interval.
                 Some(entry) if entry.1 > now => false,
-                // Expired, so it is takeable again — § 3's "a host that dies mid-run releases it by
-                // expiry rather than blocking the next interval forever".
+                // Expired, so it is takeable again — the lease rule's "a host that dies mid-run
+                // releases it by expiry rather than blocking the next interval forever".
                 Some(entry) => {
                     entry.1 = until;
                     true
@@ -1609,7 +1633,7 @@ mod tests {
         /// Extend a key this store still holds, and refuse one it does not.
         ///
         /// Presence rather than a token, because this fake has no second holder to be confused
-        /// with: the token half of § 3's renewal is the store's own question and is asserted where
+        /// with: the token half of the lease's renewal is the store's own question and is asserted where
         /// the wire is, in `nvs-stdlib`'s lease cases. What this answers is the half the ticker
         /// asks — is the key still there to go on holding.
         fn renew(&self, key: &str, ttl: Duration) -> bool {
@@ -1629,7 +1653,8 @@ mod tests {
     /// One second short of a day, and a day: the two sides of the lease's bound.
     const DAY: u64 = 24 * 60 * 60;
 
-    /// § 3: one fire across the deployment, decided by which host took the lease.
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`: one fire across the deployment,
+    /// decided by which host took the lease.
     ///
     /// Two rosters over one store is the fleet, and all three claims are read off that: both hosts
     /// arm the entry, exactly one of them takes the fire, and — the half a fake would otherwise
@@ -1680,7 +1705,7 @@ mod tests {
         );
     }
 
-    /// § 3's expiry: a lease nobody released is taken by another host once its interval is out.
+    /// The lease's expiry: a lease nobody released is taken by another host once its interval is out.
     ///
     /// The bound is asserted on both sides — a second short of the day it is still the first host's,
     /// and at the day it is not — because a store that expired a lease early would let a second host
@@ -1723,7 +1748,7 @@ mod tests {
         );
     }
 
-    /// § 3's renewal: the key a fire took stays this host's for as long as that run is in flight,
+    /// The lease's renewal: the key a fire took stays this host's for as long as that run is in flight,
     /// and stops being extended the moment it ends.
     ///
     /// Both halves, because either one alone passes on a bug that ships. A renewal that never
@@ -1823,7 +1848,7 @@ mod tests {
         );
     }
 
-    /// § 3's fallback: with no lease to take, a `fleet` entry is not armed and the boot says so.
+    /// The fallback: with no lease to take, a `fleet` entry is not armed and the boot says so.
     ///
     /// The refusal and not the omission is the point. A tree naming no shared store and a store
     /// that will not answer the boot both arrive here as the same absence — and firing a
@@ -1857,7 +1882,8 @@ mod tests {
         );
     }
 
-    /// § 6, on the entry itself: a fire that was missed is skipped, never replayed.
+    /// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`, on the entry itself: a fire
+    /// that was missed is skipped, never replayed.
     ///
     /// Asserted at the boundary the loop actually uses — `rearm` from an instant an hour past the
     /// fire that should have happened — because a ticker that counted forward from the last fire
@@ -1962,13 +1988,14 @@ mod tests {
             .map(|next| next.timestamp().to_string())
     }
 
-    /// § 6's `skip`, the default: an entry whose previous run is still going has this fire dropped,
+    /// `overlap = "skip"`, the default: an entry whose previous run is still going has this fire dropped,
     /// and is rearmed anyway.
     ///
     /// Both halves matter and only the second is cheap to get wrong. A ticker that dropped the fire
     /// but left the entry due would make the next wait zero and spin for as long as the run lasts,
     /// which is worse than the overlap it was avoiding; a ticker that started the run beside its
-    /// predecessor is what § 6 says a job that is already behind must not do.
+    /// predecessor is what `rule:config/overlap-is-skip-queue-or-kill` says a job that is already
+    /// behind must not do.
     ///
     /// Two passes: the first minute starts a run that holds its task for far longer than the second
     /// minute's wait, so the second pass is the overlap.
@@ -2002,7 +2029,7 @@ mod tests {
         );
     }
 
-    /// § 6's `queue`: the overlapping fire is **held**, and it starts the moment the run before it
+    /// `overlap = "queue"`: the overlapping fire is **held**, and it starts the moment the run before it
     /// ends rather than at the next minute the expression names.
     ///
     /// The third pass is the one this case exists for. Its wait is a whole minute of the schedule's
@@ -2036,7 +2063,7 @@ mod tests {
         );
     }
 
-    /// § 6's `kill`: the running isolate is cancelled, its teardown is waited for, and only then
+    /// `overlap = "kill"`: the running isolate is cancelled, its teardown is waited for, and only then
     /// does the new run start.
     ///
     /// The ordering is the claim. A ticker that cancelled and started in the same breath would show
@@ -2071,7 +2098,7 @@ mod tests {
         );
     }
 
-    /// § 6's three modes are read at boot, and a word that is none of them is armed as `skip` and
+    /// `overlap`'s three modes are read at boot, and a word that is none of them is armed as `skip` and
     /// named.
     ///
     /// `nvs_config::schedule::validate` refuses that word before this can be reached, and the
@@ -2111,7 +2138,7 @@ mod tests {
         assert_eq!(
             notes.len(),
             1,
-            "and only the word § 6 does not name is reported"
+            "and only the word that is not an `overlap` mode is reported"
         );
         assert!(
             notes[0].contains("invoices") && notes[0].contains("replace"),

@@ -1,7 +1,8 @@
 //! The built-in HTTP server: a socket to a root isolate and back.
 //!
 //! `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
-//! is this crate's specification, and its § 2 is the rule everything else here
+//! is this crate's specification, and `rule:http-server/a-path-is-never-derived-from-a-url`
+//! is the rule everything else here
 //! is built to keep: **a filesystem path is never derived from a URL at request
 //! time.** A request *selects* an entry point from a table expanded against
 //! disk at boot; it never constructs one. Nothing in this crate resolves a path
@@ -28,21 +29,23 @@
 //! they are enforced — idle waits refreshed by the bytes that move, never a
 //! total, and no state a connection can be in that is not one of them.
 //!
-//! [`mount`] is which isolate a request selects: § 4's steps over the table
+//! [`mount`] is which isolate a request selects:
+//! `rule:http-server/a-request-resolves-in-five-steps`'s steps over the table
 //! `nvs_config::mount::expand` walked against the disk at boot, answering either
 //! the file to run or the file to send. It is the only module here that touches a
 //! filesystem at all, and its own docs § *What a remainder may be* are why doing
-//! so keeps § 2 rather than spending it.
+//! so keeps the path rule rather than spending it.
 //!
-//! [`statics`] is the other half of that answer: the file § 4 step 3 chose,
-//! turned into a response under that section's own paragraph — the exact file
+//! [`statics`] is the other half of that answer: the file step 3 chose,
+//! turned into a response under `rule:http-server/static-serving-is-one-policy` — the exact file
 //! and never a listing, `no-cache` with a strong `ETag` over `(size,
 //! mtime_nanos)`, one `Range` and a refused multi-range, a fixed extension
 //! table. **One policy in both deployments**, because a second one is a second
 //! security model: nothing in that module takes a mode or a switch, so the
 //! `[server]` switches decide only whether step 3 runs.
 //!
-//! [`admit`] is § 5's admission, and it reads the memory the process holds
+//! [`admit`] is `rule:http-server/max-in-flight-refuses-before-allocating`'s
+//! admission, and it reads the memory the process holds
 //! rather than assuming each request takes its cap:
 //! `rule:http-server/admission-is-arithmetic-not-a-number` admits while fewer
 //! than `max_in_flight` requests are in flight and what every core holds leaves
@@ -55,7 +58,8 @@
 //! against the mount-stripped path, taken **once** and written onto the request
 //! rather than left for the program to ask a second time. It dispatches
 //! nothing — a name and typed parameters, and then it stops — which is why the
-//! CSRF check, the `route` metric label and § 8's access decision can each read
+//! CSRF check, the `route` metric label and the access decision
+//! (`rule:security/access-is-checked-for-presence-not-meaning`) can each read
 //! one answer instead of each making its own.
 //!
 //! [`socket`] is where this crate stops speaking HTTP:

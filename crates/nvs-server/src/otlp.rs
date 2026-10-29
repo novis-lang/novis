@@ -144,7 +144,8 @@ const OTLP_PORT: u16 = 4318;
 
 /// Which signal an endpoint carries.
 ///
-/// OTLP/HTTP puts each signal on a path of its own, and § 6 gives each a block
+/// OTLP/HTTP puts each signal on a path of its own, and
+/// `rule:observability/metrics-and-trace-blocks-are-system` gives each a block
 /// of its own to be written in, so the two things an [`Endpoint`] needs that
 /// differ between them — the path a base URL takes, and the key a refusal
 /// quotes back — are both read from this.
@@ -1428,7 +1429,7 @@ mod tests {
     /// a monotonic `Sum`, a `Gauge` and a `Histogram` — and getting one of them
     /// wrong is a series a backend reads as the wrong thing rather than one it
     /// refuses. What is not asserted is the count of messages: a registry
-    /// carries § 1's unlabelled families from the moment it is built, so what
+    /// carries `rule:observability/default-series`'s unlabelled families from the moment it is built, so what
     /// the wire owes is one `Metric` per merged series and not a number written
     /// down here.
     #[test]

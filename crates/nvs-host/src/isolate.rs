@@ -61,7 +61,7 @@
 //! what the child echoed before the safepoint. Both are `rule:concurrency/cancellation-runs-no-user-code`, and
 //! neither runs a line of the child's own code on the way out.
 //!
-//! § 2's *unresolvable class* is asked in both directions, each against the
+//! `rule:classes/graph-copy`'s *unresolvable class* is asked in both directions, each against the
 //! receiving side's class table. At the spawn that is the child's: its
 //! program's prologue installs it only once the child runs, so the
 //! [`nvs_runtime::script`] seam answers with it beside the program
@@ -210,7 +210,7 @@ enum Form {
 /// named exception to it.
 ///
 /// Private, and a builder rather than a parameter of [`Isolate::new`], because
-/// § 3 states that the exception is not a precedent. Nothing a program writes
+/// `rule:errors/handler-script` states that the exception is not a precedent. Nothing a program writes
 /// can reach it — `nvs_runtime::host`'s seam is what `spawn script` arrives
 /// through, and it never calls the builder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -496,7 +496,7 @@ impl Isolate {
     /// the isolate* holds here unchanged. What differs is who is offered one:
     /// **every request a server answers gets this cell**, because an event
     /// stream takes nothing of the connection but the response the request
-    /// already has, where § 1's slot is offered only where an upgrade was
+    /// already has, where the upgrade slot is offered only where an upgrade was
     /// framed. `nvs_runtime::Inbound::offer_sse` is the one home of that
     /// difference.
     ///
@@ -551,8 +551,8 @@ impl Isolate {
     /// `None` to say so. What it changes is one field of the child's context —
     /// [`Ctx::set_peer`] owns what that field means and when it may be read.
     ///
-    /// **It is called after the upgrade was framed and never before.** § 1's
-    /// socket does not exist until the `101` is on the wire, so an isolate
+    /// **It is called after the upgrade was framed and never before.** The
+    /// connection's socket does not exist until the `101` is on the wire, so an isolate
     /// started with the program in hand and the peer still to come would run
     /// its first `receive()` against nothing; `nvs_server::serve_connection`'s
     /// own docs are the home of that ordering.
@@ -570,8 +570,8 @@ impl Isolate {
     /// built the half the bytes go through, and hands it to the isolate that is
     /// about to own it. What differs is what was handed over, and that is the
     /// whole of what separates the two doors — an event stream takes no socket,
-    /// so this isolate has a body and no peer where § 1's has a peer and no
-    /// body.
+    /// so this isolate has a body and no peer where a WebSocket connection's has
+    /// a peer and no body.
     ///
     /// **It marks as well as hands over**, because the two are one fact about
     /// this isolate rather than two: [`Ctx::mark_event_stream`] is what
@@ -610,7 +610,7 @@ impl Isolate {
     /// that spawned it.
     ///
     /// [`Ctx::handler_isolate`] is the one home of what that changes and why
-    /// § 3 wants it. Here it changes two things and no more: the context this
+    /// that rule wants it. Here it changes two things and no more: the context this
     /// isolate runs under, and the tree-depth refusal below, which is asked of
     /// the tree only.
     #[must_use]
@@ -727,8 +727,9 @@ impl Isolate {
         // (`Ctx::class_table`).
         let receiving = ctx.class_table();
 
-        // The isolate's own root. Buffered under both options; § 4's fresh
-        // statics base is `Ctx::isolate`'s whole reason for existing.
+        // The isolate's own root. Buffered under both options;
+        // `rule:statements/an-isolate-has-its-own-statics`'s fresh statics base is
+        // `Ctx::isolate`'s whole reason for existing.
         //
         // *Which* buffer is `rule:tooling/echo-always-has-a-sink`'s table, and this is the one place it
         // is read: an isolate handed a request attaches the HTML sink, because
@@ -747,8 +748,8 @@ impl Isolate {
         // is holding, there being no second unit to install and so no
         // `install_in` to run inside the program — `Ctx::method_isolate` owns
         // that reading. The handler's reserve is asked first because it is a
-        // question about the budget rather than about the entry, and § 3's
-        // handler is a path by construction (`crate::ladder` compiles one).
+        // question about the budget rather than about the entry, and
+        // `rule:errors/handler-script`'s handler is a path by construction (`crate::ladder` compiles one).
         // Boxed here, where it is made, and carried by pointer to the child's
         // task: by value, the moves into the task cost this frame several
         // copies of a context, and each was resident on a waiting connection's
@@ -1170,7 +1171,8 @@ fn start_as_task(
             let mut completion = finish(child, answer, receiving.as_ref());
             completion.wall = wall;
             // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
-            // and § 7 asks for a defined code rather than the reset a dropped
+            // and `rule:concurrency/a-drain-closes-a-connection-cleanly` asks for a
+            // defined code rather than the reset a dropped
             // descriptor gives. This is the one place that holds both halves — the
             // socket is a field of this child's context and the answer it ended
             // with is in hand — so a close written anywhere else would be reading
@@ -1185,12 +1187,13 @@ fn start_as_task(
             // survives it and [`Started::join`] hands the waiter a cancelled
             // completion — but the unwind runs [`Ended`]'s `Drop` and leaves,
             // closing the descriptor with the child's context and giving the peer
-            // the reset § 7 asks this branch to replace. Moving the close into that
+            // the reset that rule asks this branch to replace. Moving the close into that
             // guard is the only way to answer otherwise and it is refused twice
             // over: the guard holds no context to reach a peer through, and a close
             // is a *write*, which parks — where a stack being unwound may not
             // (`crate::scheduler`'s module doc, `nvs_runtime::HelperFrame`). Nor is
-            // it the case § 1 is about: a panic is `rule:errors/escalation-ladder`'s engine floor rather
+            // it the case `rule:concurrency/a-connection-is-a-root-isolate` is about:
+            // a panic is `rule:errors/escalation-ladder`'s engine floor rather
             // than one of the `[limits]` a connection has a budget of, and every
             // one of *those* arrives here as a fault because
             // `nvs_runtime::run_helper` caught it a frame earlier.
@@ -1199,8 +1202,8 @@ fn start_as_task(
                     nvs_runtime::Closing::Done
                 } else {
                     // Including a `[limits]` budget the connection ran past, which
-                    // is what makes this the answer to § 1's "closed with a defined
-                    // code": the limit machinery has already torn the isolate down
+                    // is what makes this the answer to the root-isolate rule's
+                    // defined close code: the limit machinery has already torn the isolate down
                     // by here, so the peer is told why instead of reading a reset.
                     nvs_runtime::Closing::Faulted
                 });
@@ -1219,7 +1222,7 @@ fn start_as_task(
             *filed.borrow_mut() = Some(completion);
             // The answer is filed and the guard publishes it, so from here whoever
             // was waiting may take it and go. Everything below therefore runs on a
-            // tree its joiner has already let go of, which is what § 6 means by the
+            // tree its joiner has already let go of, which is what that rule means by the
             // connection ending while the request tree does not.
             drop(ended);
             if deferred {
@@ -1231,7 +1234,7 @@ fn start_as_task(
                 // reached its own end in between — this is the last moment the link
                 // can be cut, and the first at which cutting it costs nothing.
                 crate::scheduler::detach_current();
-                // Then the core, to whoever was waiting. § 6's work runs *after
+                // Then the core, to whoever was waiting. After-response work runs *after
                 // the response is written*, and on one core that is a scheduling
                 // fact rather than a turn of phrase: this task is runnable and the
                 // joiner has only just been woken, so a drain started here would
@@ -1580,7 +1583,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
 /// it is built — `max_script_depth` or `max_tasks`.
 ///
 /// The safepoint's memory branch, in its order and for its reason
-/// (`nvs_runtime::nvs_safepoint`): § 1's tier 1 runs before the breach becomes
+/// (`nvs_runtime::nvs_safepoint`): `rule:errors/on-limit`'s tier 1 runs before the breach becomes
 /// the message the ladder prints, so a throw of the handler's own is
 /// overwritten by `set_pending` rather than reported in place of the limit
 /// that stopped the request. The report names the directive, which is what
@@ -2761,7 +2764,8 @@ mod tests {
             let done = Isolate::new(program, Value::null(), Output::Capture)
                 .run(parent_ctx)
                 .expect("a null argument crosses");
-            // Read at the join and nowhere else: § 4's "control does not leave
+            // Read at the join and nowhere else:
+            // `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "control does not leave
             // the call with work still running", holding through a
             // cancellation rather than only through a return.
             observed.set(at_join.get());

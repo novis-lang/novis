@@ -36,11 +36,12 @@
 //!   `rule:http-server/a-request-resolves-in-five-steps`
 //!   's five steps to answer with, and [`Reply`] is the two things this loop
 //!   can do with one. Nothing here reads a path from request bytes — that
-//!   module's docs own the one place a remainder meets a filesystem, and § 2's
-//!   rule with it.
+//!   module's docs own the one place a remainder meets a filesystem, and
+//!   `rule:http-server/a-path-is-never-derived-from-a-url` with it.
 //! - **No file policy of its own, for a selection or for a program.** A
 //!   [`crate::mount::What::Static`] selection is answered in full by
-//!   [`crate::statics`] — § 4's `ETag`, `Range` and MIME policy, one policy in
+//!   [`crate::statics`] — `rule:http-server/static-serving-is-one-policy`'s
+//!   `ETag`, `Range` and MIME policy, one policy in
 //!   both deployments — and this loop only carries the [`Reply`] back. A
 //!   request that *ran* and named a file with `Core\Response::sendFile` reaches
 //!   that same policy through `sent`, so the two deployments and the two ways
@@ -53,8 +54,10 @@
 //!   configuration slice's, because a mode is what decides it and this loop has
 //!   not been given one.
 //!   `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is not
-//!   on that list: § 1's header set is filled into every response this loop
-//!   writes ([`crate::secure`]) and § 2's closed CORS refuses a preflight above
+//!   on that list: `rule:http-server/secure-headers-with-nothing-written`'s
+//!   header set is filled into every response this loop writes
+//!   ([`crate::secure`]) and `rule:http-server/cors-is-closed-until-origins-are-named`'s
+//!   closed CORS refuses a preflight above
 //!   the handler ([`crate::cors`]), neither of which a mode changes.
 //! - **The accept loop backs off.** `rule:http-server/the-server-block-is-boot-class`'s last process-wide bound, as
 //!   `rule:http-server/the-accept-loop-backs-off`
@@ -64,7 +67,8 @@
 //!   attempt. [`AcceptBackoff`] is both halves and nothing else in this file
 //!   knows the condition. `max_in_flight` is here too: [`crate::admit`] is the
 //!   memory condition and the counter, and the refusal is taken in the service below
-//!   *before* the handler is asked for a [`Reply`], which is the order § 5 makes
+//!   *before* the handler is asked for a [`Reply`], which is the order
+//!   `rule:http-server/max-in-flight-refuses-before-allocating` makes
 //!   the whole point of the valve. The four waits are here too:
 //!   [`crate::io::Phase`] is which one is in force, and the connection loop
 //!   below is what moves it.
@@ -565,7 +569,7 @@ impl Body for Answer {
     }
 }
 
-/// What a handler answers one request with — `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s § 4 outcomes, as the
+/// What a handler answers one request with — `rule:http-server/a-request-resolves-in-five-steps`'s outcomes, as the
 /// two things this loop can do with them.
 ///
 /// A handler used to answer with an [`Isolate`] and nothing else, which was
@@ -577,7 +581,7 @@ impl Body for Answer {
 #[derive(Debug)]
 pub enum Reply {
     /// Run this isolate as a child of the connection, and answer with what it
-    /// echoed — § 4 steps 4 and 5, and `rule:security/sink-predicate`'s table.
+    /// echoed — the five steps' steps 4 and 5, and `rule:security/sink-predicate`'s table.
     ///
     /// **The second field is the connection's half of that request's body**, and
     /// it comes back out of the handler because it may not travel with the
@@ -606,7 +610,7 @@ pub enum Reply {
         Option<Arc<nvs_config::Snapshot>>,
         Rerun,
     ),
-    /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
+    /// Answer with this, having run nothing: the five steps' step 1 `404`, step 3's static
     /// file, and every refusal a mount table can reach before a program exists.
     Done(Response<Answer>),
 }
@@ -771,8 +775,8 @@ impl Reply {
     /// with an empty body, no dependency check and no version.
     ///
     /// Spelled here for [`not_found`](Reply::not_found)'s reason, and because
-    /// the whole of the endpoint is its status — a body would be the thing § 5
-    /// says it does not report.
+    /// the whole of the endpoint is its status — a body would be the thing
+    /// `rule:http-server/health-path-is-off-and-checks-nothing` says it does not report.
     #[must_use]
     pub fn healthy() -> Self {
         Self::status(StatusCode::OK)
@@ -790,7 +794,7 @@ impl Reply {
         Self::status(StatusCode::SERVICE_UNAVAILABLE)
     }
 
-    /// § 5's probe as this server's own state — `200` while it accepts, `503`
+    /// The `health_path` probe as this server's own state — `200` while it accepts, `503`
     /// while it drains — which is the one place that choice is made.
     ///
     /// A server answering it from anywhere else would be a second reading of the
@@ -971,7 +975,8 @@ impl Generations {
 /// the ones already open ([`Generations`]).
 #[derive(Clone, Debug)]
 pub struct Serving {
-    /// § 5's in-flight ceiling, asked before the handler is.
+    /// `rule:http-server/max-in-flight-refuses-before-allocating`'s in-flight
+    /// ceiling, asked before the handler is.
     admission: Arc<Admission>,
     /// The header set, the cross-origin policy and the proxy list of the last
     /// snapshot a request was answered under, shared by every core
@@ -1482,7 +1487,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// 's cap bounds what a program *asks* for, and draining what it did not ask
 /// for would spend the same bytes with nobody having wanted them.
 ///
-/// **`serving` carries § 5's valve, and it is asked before `handler` is.** A
+/// **`serving` carries the `max_in_flight` valve, and it is asked before `handler` is.** A
 /// request over the ceiling is answered with [`crate::admit::over_capacity`] and
 /// nothing is started for it; [`crate::admit`]'s own docs own the order and why
 /// it is the whole of the guarantee.
@@ -1490,7 +1495,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// **It carries `rule:http-server/secure-headers-with-nothing-written`'s header set too, and this function is the one
 /// place that set is applied.** Every response that leaves here goes through
 /// [`Secure::fill`] — a program's, a mount table's `404`, a static file's and
-/// § 5's `503` alike — and it *fills* rather than overwrites, which is what
+/// the valve's `503` alike — and it *fills* rather than overwrites, which is what
 /// leaves `Core\Response::setHeader` its override on one response.
 /// [`crate::secure`]'s own docs own that direction, and the effective scheme
 /// this passes.
@@ -1519,12 +1524,13 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// prepared. `nvs_stdlib::socket`'s module doc is the home of why the member
 /// cannot start one itself.
 ///
-/// **Every request is offered § 5's cell, and both cells are read at one
-/// point.** An event stream takes nothing of this connection — its response is
+/// **Every request is offered `rule:concurrency/two-doors-one-isolate`'s
+/// event-stream cell, and both cells are read at one point.** An event stream
+/// takes nothing of this connection — its response is
 /// an ordinary `200 text/event-stream` the request already has — so
 /// [`nvs_runtime::SseSlot`] is made for every request rather than for an
 /// upgradable one ([`Isolate::offering_sse`]), and what it holds opens the same
-/// root isolate § 1's slot does. A request that filled **both** is answered
+/// root isolate the upgrade slot does. A request that filled **both** is answered
 /// `500` and neither isolate is started: it asked for two responses where this
 /// connection has one, and `nvs_runtime::SseSlot::fill` is the home of why that
 /// refusal belongs here rather than in a cell that cannot see the other one.
@@ -1533,7 +1539,8 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// the `unsafe` that a release takes.
 ///
 /// **This function starts what the slot was filled with, and it starts it after
-/// the request has ended.** § 1's ordering is the security property rather than
+/// the request has ended.** `rule:concurrency/a-connection-is-a-root-isolate`'s
+/// ordering is the security property rather than
 /// a sequencing detail: the request's isolate is joined first, so its arena and
 /// its carrier are already released when the connection's own isolate is built,
 /// and the connection cannot reach the request's session, cookies or headers
@@ -1560,7 +1567,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// request missing either is offered no slot at all, so it cannot upgrade and
 /// is answered as the ordinary request it is.
 ///
-/// § 5's `200 text/event-stream` is written here and never by the program that
+/// The event stream's `200 text/event-stream` is written here and never by the program that
 /// asked for one: the request's own answer is replaced by [`event_stream`],
 /// whose body is the half [`nvs_host::Isolate::over_event_stream`] hands the
 /// connection's isolate, exactly as the `101` replaces an upgrading request's.
@@ -1624,7 +1631,8 @@ where
     // request.
     let connection_isolate: RefCell<Option<Box<dyn Running>>> = RefCell::new(None);
     let connection_isolate = &connection_isolate;
-    // § 1's socket hand-over, waiting for the two things it needs that the
+    // `rule:concurrency/a-connection-is-a-root-isolate`'s socket hand-over,
+    // waiting for the two things it needs that the
     // request cannot give it: the `101` on the wire, and the descriptor back
     // from `hyper`. A request that filled the slot leaves its prepared isolate
     // here beside the `OnUpgrade` that will yield the socket, and the end of
@@ -1725,7 +1733,7 @@ where
         // alone (`crate::spooled`).
         let mut ending = crate::spooled::Ending::Door;
         // One place, and every answer below reaches it: a request the forwarded
-        // walk refused, one the ceiling refused, a preflight § 2 answered, and
+        // walk refused, one the ceiling refused, a preflight the CORS policy answered, and
         // the one the handler ran. All four are responses this server wrote, so
         // all four are requests a scrape is owed — a `503` that went uncounted
         // would hide exactly the overload the series exists to show.
@@ -1885,7 +1893,9 @@ where
         // `X-Forwarded-Proto` is the only thing that can assert it.
         let origin = match crate::forwarded::walk(arrival, &policy.trusted, request.headers()) {
             Ok(origin) => origin,
-            // § 6's one refusal: the walk stopped on a token that was about to
+            // The forwarded walk's one refusal
+            // (`rule:http-server/a-forwarded-token-is-read-withheld-or-refused`):
+            // the walk stopped on a token that was about to
             // become the client address and is not one.
             Err(crate::forwarded::Unusable) => {
                 phase.set(Phase::Write);
@@ -1910,7 +1920,8 @@ where
         // read again for `rule:http-server/secure-headers-with-nothing-written`'s header set at the end of this Rust closure:
         // an `Origin` is `Copy`, so the two readings are one decision.
         //
-        // `origin.ignored_address_header()` is § 6's one `Warn` and still has
+        // `origin.ignored_address_header()` is the walk's one `Warn`
+        // (`rule:http-server/x-forwarded-for-is-the-only-address-header`) and still has
         // nowhere to go: it goes wherever this loop's other reports go once it
         // has been given a log, and it changes nothing about what is served.
         let scheme = origin.scheme();
@@ -1945,7 +1956,7 @@ where
         let mut place = Some(place);
         // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
         // preflight selects no mount, allocates no isolate and runs no Novis
-        // code, under an open policy exactly as under a closed one — § 2
+        // code, under an open policy exactly as under a closed one — `[http.cors]`
         // configures the whole answer, so an application asked to produce it
         // would be answering a question already decided above it. Under the
         // valve rather than over it, because the ceiling is what protects the
@@ -1969,7 +1980,7 @@ where
             );
             return Ok::<_, Infallible>(permitted);
         }
-        // § 2's other half, decided here because the handler below takes the
+        // The CORS policy's other half, decided here because the handler below takes the
         // request by value and the `Origin` it must read is on it. The valve's
         // own `503` carries none of this on purpose: it is the door's answer
         // rather than the policy's, it carries no CORS header under any policy,
@@ -2165,7 +2176,8 @@ where
                         Some((slot, _accept)) => isolate.offering_upgrade(slot.clone()),
                         None => isolate,
                     };
-                    // § 5's cell, offered unconditionally beside it and in the same
+                    // The event-stream cell (`rule:concurrency/two-doors-one-isolate`),
+                    // offered unconditionally beside it and in the same
                     // hand for the same reason. No `match`, because there is no
                     // question to ask: every request the server runs is offered
                     // one, and a reply that answers no request is left alone by
@@ -2289,7 +2301,8 @@ where
                             // `Phase::Write` and starts the keep-alive clock
                             // (`crate::io`'s § *The clock*), so without a second
                             // poll an idle connection would sit under the write
-                            // wait instead of § 5's keep-alive one. One wake is the
+                            // wait instead of the keep-alive one
+                            // (`rule:http-server/four-idle-waits-all-finite`). One wake is the
                             // whole fix: `rule:concurrency/a-waker-is-one-permission-to-poll`'s loop re-polls with the
                             // response written and the dispatcher idle, which is
                             // where `hyper` reads again.
@@ -2411,7 +2424,7 @@ where
             }
         };
         // `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/two-doors-one-isolate`'s other half, and the line above is what makes it
-        // § 1 rather than a resumed request: the request has been joined, so
+        // a root isolate rather than a resumed request: the request has been joined, so
         // its arena, its carrier and everything the peer authenticated with are
         // released before anything of the connection's exists. Both cells are
         // taken unconditionally — a `Reply::Done` never filled either, and a
@@ -2422,19 +2435,20 @@ where
         // the request's: that is the whole of "a root isolate, not a child of
         // the request tree", spelled as the parent it is given rather than as
         // a rule to remember. `Output::Capture` in both doors, because what a
-        // connection *echoes* is no part of a response either way: § 1's bytes
-        // are frames on a socket this response is over, and § 5's events reach
+        // connection *echoes* is no part of a response either way: a socket's bytes
+        // are frames on a socket this response is over, and an event stream's events reach
         // the wire through the writing half the isolate is handed
         // (`nvs_host::Isolate::over_event_stream`) rather than through a sink,
         // so a stray `echo` between two events cannot land inside the framing a
         // client is parsing.
         //
-        // Both cells are read here and § 5's contradiction is decided here,
+        // Both cells are read here and the contradiction between them is decided here,
         // which is what `nvs_runtime::SseSlot::fill` means by "decided where
         // the response is written": a request that filled both asked for a
         // socket *and* an event stream, which is two responses where this
         // connection has one, and neither cell could have seen the other
-        // without being the single tagged slot § 5 spends two types to refuse.
+        // without being the single tagged slot `rule:concurrency/two-doors-one-isolate`
+        // spends two types to refuse.
         // Neither isolate is started, both prepared upgrades are discarded —
         // `nvs_runtime::Upgrade::discard` is what gives their arguments back,
         // since this crate forbids the `unsafe` a release takes — and the peer
@@ -2442,7 +2456,7 @@ where
         // was asked for. As with the refusals above it, there is no `catch`
         // left to report it to: the request that asked is over.
         //
-        // The two are not started in the same place, and that is § 1's own
+        // The two are not started in the same place, and that is the hand-over's own
         // ordering rather than a shape this function chose: a socket isolate's
         // peer does not exist until the `101` is on the wire and `hyper` has
         // given the descriptor back, so it is prepared here and started at the
@@ -2456,7 +2470,7 @@ where
                 answered = failed();
                 None
             }
-            // § 1's `101`, and it **replaces** whatever the request wrote for
+            // The upgrade's `101`, and it **replaces** whatever the request wrote for
             // itself: this connection has one response left and the peer is
             // owed the handshake rather than a page it cannot read. The request
             // still ended normally — that is what makes the upgrade legal — and
@@ -2485,7 +2499,7 @@ where
             {
                 // The head goes out here and the events after it, so this
                 // **replaces** whatever the request wrote for itself, for the
-                // reason § 1's `101` does: this connection has one response
+                // reason the upgrade's `101` does: this connection has one response
                 // left and the peer is owed the stream it asked for rather than
                 // a page it stopped reading for.
                 Ok(running) => {
@@ -2517,7 +2531,8 @@ where
         phase.set(Phase::Write);
         // Last, and once for every path above: `rule:http-server/secure-headers-with-nothing-written`'s set is what this
         // response carries beside whatever wrote it, and filling leaves a name
-        // the answer already spelled for itself exactly as it is. § 2's answer
+        // the answer already spelled for itself exactly as it is. The CORS answer
+        // (`rule:http-server/cors-is-closed-until-origins-are-named`)
         // is written on the same terms and at the same point, so a response has
         // one place where policy reaches it rather than two.
         policy.secure.fill(answered.headers_mut(), scheme);
@@ -2709,17 +2724,19 @@ fn after_the_drive(
         let peer = crate::socket::Framed::new(
             io.into_stream(),
             read_buf.into(),
-            // § 7's numbers, the same ones every response on this connection
+            // `rule:concurrency/connection-bounds-are-finite`'s numbers, the same
+            // ones every response on this connection
             // was written under: they are read at the top of
             // [`serve_connection`], which is the one place they are read.
             bounds,
-            // § 7's third bullet: this server's drain, handed to the object
+            // `rule:concurrency/a-drain-closes-a-connection-cleanly`: this server's drain, handed to the object
             // that acts on it. The close a shutdown sends is taken by the
             // connection's own loop, and [`crate::socket`]'s `receive` is
             // where that is argued.
             draining.clone(),
         );
-        // § 7's per-process ceiling, and the ordering is the whole of what it
+        // The per-process connection ceiling (`rule:concurrency/connection-bounds-are-finite`),
+        // and the ordering is the whole of what it
         // buys: a connection the process has no room for is told 1013 and
         // dropped *before* an isolate is allocated for it, which is
         // `crate::admit`'s rule about refusing before allocating applied to the
@@ -2841,7 +2858,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
         return failed();
     }
     // `rule:security/response-body-is-one-typed-member`: the request's own body member said what these bytes are,
-    // and an `echo` said nothing, which § 4 reads as HTML.
+    // and an `echo` said nothing, which that rule reads as HTML.
     let declared = done.content_type.as_deref().unwrap_or(ECHOED);
     let content_type =
         HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
@@ -3109,7 +3126,7 @@ fn switching(accept: &str) -> Response<Answer> {
 ///
 /// [`switching`] one door over, and the same replacement: a request that opened
 /// an event stream is answered with this instead of with what it wrote for
-/// itself. What differs is that there is a body — § 1's hand-over takes the
+/// itself. What differs is that there is a body — the upgrade's hand-over takes the
 /// socket and this one takes nothing but the response the request already had.
 ///
 /// **The status is `200` because the protocol says so**, which is why nothing
@@ -3261,7 +3278,7 @@ impl Listening for nvs_host::NvsUnixListener {
 /// parked in `accept` would otherwise find out when the next connection
 /// arrived: the wake registered for the loop's whole life is what ends that
 /// park, and [`nvs_host::wake_at_drain`] owns its contract. Written, because a
-/// loop that stopped for `keep_serving` is draining too, and § 5's probe
+/// loop that stopped for `keep_serving` is draining too, and the `health_path` probe
 /// answers `503` through [`Reply::health`] from that line on — the tail below
 /// is that drain. Handed in rather than returned because the handler is built
 /// before the loop is, and it is what the probe is answered from.
@@ -3384,7 +3401,8 @@ where
             metered = published;
         }
         let handler = Rc::clone(handler);
-        // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and `rule:http-server/secure-headers-with-nothing-written`
+        // `Arc`s and not `Rc`s: the `max_in_flight` valve is counted process-wide
+        // and `rule:http-server/secure-headers-with-nothing-written`
         // 's header set is one policy for the whole server, so what a
         // connection clones is shared by every core rather than by every
         // connection on this one.
@@ -3463,7 +3481,7 @@ where
     while outstanding.get() > 0 {
         let resumed = suspend_current(Waiting::Parked);
         // Cancelled: the caller is being torn down and the children go with it,
-        // which is § 4's own answer and not something to wait out. Not
+        // which is that rule's own answer and not something to wait out. Not
         // suspended: there is no core to hand back, so there is no turn in
         // which a child could ever run and this would spin.
         if resumed.cancelled() || !resumed.suspended() {
@@ -3490,7 +3508,7 @@ const LONGEST_WAIT: Duration = Duration::from_secs(1);
 /// line a second for as long as the condition lasts.
 const REPORT_WINDOW: Duration = Duration::from_secs(60);
 
-/// The two error numbers § 8 names, because `io::ErrorKind` has no stable
+/// The two error numbers `rule:http-server/the-accept-loop-backs-off` names, because `io::ErrorKind` has no stable
 /// variant for either: `EMFILE` and `ENFILE` on Unix, and on Windows
 /// `WSAEMFILE` with the file-table exhaustion that reaches an `accept` through
 /// the same door.
@@ -3698,7 +3716,7 @@ pub(crate) mod tests {
         assert_eq!(
             echoed.headers().get(header::CONTENT_TYPE).unwrap(),
             ECHOED,
-            "a request that only echoed did not get § 4's HTML default"
+            "a request that only echoed did not get the HTML default"
         );
     }
 
@@ -4148,7 +4166,8 @@ pub(crate) mod tests {
         let mut declared = completed("ok", Some("text/plain"));
         declared.headers = vec![
             nvs_runtime::DeclaredHeader::set("X-Request-Id", "9f2"),
-            // The override § 1 exists to allow, beside an attempt to smuggle a
+            // The override `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
+            // allows, beside an attempt to smuggle a
             // second policy header in on the back of one this server writes.
             // `Secure::fill` writes a name the answer does not already carry,
             // so an accepted injection here would be a policy header the
@@ -4170,7 +4189,7 @@ pub(crate) mod tests {
         assert_eq!(
             headers.get(header::REFERRER_POLICY).unwrap(),
             "no-referrer",
-            "§ 1's set overwrote the program's override of one of its members"
+            "the secure header set overwrote the program's override of one of its members"
         );
         assert_eq!(
             headers.get("x-content-type-options").unwrap(),
@@ -4185,7 +4204,7 @@ pub(crate) mod tests {
         assert_eq!(
             headers.get(header::CONTENT_SECURITY_POLICY).unwrap(),
             "frame-ancestors 'none'",
-            "one overridden header took the rest of § 1's set with it"
+            "one overridden header took the rest of the secure header set with it"
         );
         // The governing rule, over the whole head at once rather than over the
         // name a row happened to choose: nothing a program declared can put a
@@ -4600,7 +4619,7 @@ pub(crate) mod tests {
                 let filled = door.fill(child, opened);
                 // What the *other* cell says about this same request, reported
                 // beside the fill because it is what tells the two doors apart:
-                // § 1's slot is there only where `hyper` framed an upgrade, so
+                // the upgrade slot is there only where `hyper` framed an upgrade, so
                 // an event stream that opened without one opened over a
                 // connection with no socket behind it — and nothing a `receive`
                 // could ever read from.
@@ -4622,7 +4641,7 @@ pub(crate) mod tests {
                 // arena at its peak — the number the connection's own reading
                 // is compared against — and what this request answered with
                 // beside it. That line is reported rather than read off the
-                // wire because § 5's door replaces it there: the peer gets the
+                // wire because the event-stream door replaces it there: the peer gets the
                 // event stream, and the one place a case can still see what the
                 // request said for itself is here.
                 said.borrow_mut().push(format!(
@@ -4642,7 +4661,7 @@ pub(crate) mod tests {
     const CARRIED: usize = 2 * 1024 * 1024;
 
     /// What a connection isolate holds that the request's own reading did not:
-    /// its context, its output buffer, and for § 1 the 128 KiB input buffer
+    /// its context, its output buffer, and for a socket the 128 KiB input buffer
     /// `tungstenite` allocates per socket ([`crate::socket`]'s docs § *What it
     /// spends*). A quarter of [`CARRIED`], so the allowance cannot hide the
     /// failure the cases using it are there for.
@@ -4687,31 +4706,31 @@ pub(crate) mod tests {
     /// `101`.
     const ACCEPT: &str = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
 
-    /// What a request reports about § 1's slot when `hyper` framed an upgrade
+    /// What a request reports about the upgrade slot when `hyper` framed an upgrade
     /// for it.
     const FRAMED: &str = "over a framed upgrade";
-    /// And when it framed none, which is the half § 5's case reads back.
+    /// And when it framed none, which is the half the event-stream case reads back.
     const NO_FRAMING: &str = "with no framed upgrade";
 
-    /// Which of `rule:concurrency/a-connection-is-a-root-isolate`'s
-    /// two cells a case's request fills — § 1's socket hand-over or § 5's event
+    /// Which of `rule:concurrency/two-doors-one-isolate`'s
+    /// two cells a case's request fills — the socket hand-over or the event
     /// stream — which on this side is the whole of what separates the two
     /// doors.
     ///
     /// It decides three things at once: what the client sends, which cell the
     /// program fills, and the line the case reads back. They are one type
-    /// because they are one claim — § 1's slot is offered only where an upgrade
-    /// was framed and § 5's cell to every request — and a case that sent one
+    /// because they are one claim — the upgrade slot is offered only where an upgrade
+    /// was framed and the event-stream cell to every request — and a case that sent one
     /// door's opening and read the other's answer would assert nothing while
     /// still going green.
     #[derive(Clone, Copy)]
     enum Door {
-        /// § 1: the socket, taken over RFC 6455's opening handshake.
+        /// The socket, taken over RFC 6455's opening handshake.
         Socket,
-        /// § 5: the event stream, opened out of an ordinary `GET`.
+        /// The event stream, opened out of an ordinary `GET`.
         Sse,
         /// Both cells at once, which is the contradiction the door refuses: it
-        /// takes § 1's opening, because a request that framed no upgrade is
+        /// takes the socket's opening, because a request that framed no upgrade is
         /// offered only one of the two and could not ask for both.
         Both,
     }
@@ -4874,7 +4893,8 @@ pub(crate) mod tests {
     /// resumed the request under another name, or that started the isolate while
     /// the response was still open to it, fails here — where a case that only
     /// counted the isolate's runs would pass either way. The order of `said`'s
-    /// two lines is § 1's ordering: the request reports before the connection
+    /// two lines is `rule:concurrency/a-connection-is-a-root-isolate`'s ordering:
+    /// the request reports before the connection
     /// exists.
     #[test]
     fn an_upgrade_opens_a_root_isolate_and_the_upgrading_request_ends() {
@@ -5143,7 +5163,7 @@ pub(crate) mod tests {
 
     /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// "closed with a defined code": a connection that ran past one of the
-    /// `[limits]` values § 1 gives it its own budget of is **told** why, and
+    /// `[limits]` values that rule gives it its own budget of is **told** why, and
     /// what the peer reads is RFC 6455's 1011 rather than the reset a process
     /// killed for the memory it was holding leaves behind. That contrast is
     /// what "not OOM" names — `nvs_runtime::Closing::Faulted`'s own doc is
@@ -5152,7 +5172,7 @@ pub(crate) mod tests {
     /// **The breach is induced rather than compiled**, and the two halves are
     /// separate on purpose. The close itself is landed and keyed off
     /// `Completion::ok`, so what a fixture owes is a connection isolate that
-    /// ends *not ok* for the reason § 1 names: this one sets its own ceiling —
+    /// ends *not ok* for the reason that rule names: this one sets its own ceiling —
     /// `Ctx::set_memory_limit`, the way an isolate holding no configuration
     /// gets one — allocates past it, and then makes the two calls
     /// `nvs_runtime`'s safepoint poll makes on a memory breach. A hand-written
@@ -5399,7 +5419,7 @@ pub(crate) mod tests {
     /// [`crate::socket::Framed`]'s `receive` is where that is argued and why
     /// the two alternatives are refused.
     ///
-    /// The isolate is § 3's loop with nothing to say: it waits for a frame that
+    /// The isolate is `rule:concurrency/a-connection-is-a-loop`'s loop with nothing to say: it waits for a frame that
     /// never comes, which is exactly the connection the bullet is about — one
     /// doing nothing when its server stops still has to be *told*, and it is
     /// told at once. **What makes the case deterministic** is the ordering the
@@ -5497,7 +5517,7 @@ pub(crate) mod tests {
             closed,
             Ok((1001, nvs_runtime::Closing::ShuttingDown.reason().to_owned())),
             "the drain did not leave the peer RFC 6455's `going away`, which is \
-             the clean close § 7 asks for in place of a reset"
+             the clean close a drain owes in place of a reset"
         );
         let said = said.borrow();
         assert_eq!(
@@ -5508,7 +5528,7 @@ pub(crate) mod tests {
         );
         assert_eq!(
             said[1], "connection the loop ended after 0 frames",
-            "the close reached the peer without `receive` answering § 3's \
+            "the close reached the peer without `receive` returning \
              `null`, so the program's loop was not what ended: {said:?}"
         );
         assert_eq!(
@@ -5631,7 +5651,7 @@ pub(crate) mod tests {
         let said = said.borrow();
         assert!(
             said.iter().any(|line| line == "connection the loop ended"),
-            "the close reached the peer without `receive` answering § 3's \
+            "the close reached the peer without `receive` returning \
              `null`: {said:?}"
         );
     }
@@ -5893,14 +5913,14 @@ pub(crate) mod tests {
 
     /// `rule:concurrency/two-doors-one-isolate`:
     /// "the isolate is the same; the door is not". An event stream opens the
-    /// same root isolate the three cases above assert of § 1 — its own context,
+    /// same root isolate the three cases above assert of an upgrade — its own context,
     /// its own output, none of the request's state — out of a request nothing
     /// framed an upgrade for.
     ///
-    /// **The plain `GET` is the case.** § 5's cell is offered to *every*
+    /// **The plain `GET` is the case.** The event-stream cell is offered to *every*
     /// request the server runs, so the opening carries no `Connection:
-    /// Upgrade`, and the request reports § 1's slot absent in the same line it
-    /// reports § 5's cell filled. That pair is the whole of "with no receive",
+    /// Upgrade`, and the request reports the upgrade slot absent in the same line it
+    /// reports the event-stream cell filled. That pair is the whole of "with no receive",
     /// and it is permanent rather than a stage of the work: there is no socket
     /// behind this connection for a peer frame to arrive on, so the isolate has
     /// nothing to wait on and nothing but `send` to do — where an implementation
@@ -5949,7 +5969,7 @@ pub(crate) mod tests {
         );
         assert!(
             said[0].ends_with(&Door::Sse.answered("/live", NO_FRAMING)),
-            "an ordinary request was offered no event stream cell, or § 1's \
+            "an ordinary request was offered no event stream cell, or the upgrade \
              slot was offered to it as well: {said:?}"
         );
         assert_eq!(
@@ -6133,7 +6153,7 @@ pub(crate) mod tests {
     }
 
     /// [`the_upgrading_requests_arena_is_released_while_the_connection_is_open`]
-    /// for § 5's door, where the ordering is tighter and the claim is the same:
+    /// for the event-stream door, where the ordering is tighter and the claim is the same:
     /// `rule:concurrency/a-connection-is-a-root-isolate`'s "the request that
     /// upgraded it ends" holds for an isolate started **inside** the request's
     /// own future, a slice after that request was joined rather than after
@@ -6976,8 +6996,8 @@ pub(crate) mod tests {
     /// Asked from the client thread at the one moment it is answerable — the
     /// head read, the program still parked — and again on the main thread once
     /// the loop has ended, because a place held forever fails the same rule
-    /// from the other side. What is *not* asserted is any of § 7's connection
-    /// bounds: a streaming request frames no connection and takes no
+    /// from the other side. What is *not* asserted is any of the connection
+    /// bounds (`rule:concurrency/connection-bounds-are-finite`): a streaming request frames no connection and takes no
     /// `crate::bounds::Slot`, the send timeout it writes under being the one
     /// number of the connection's it meets at all.
     #[test]
@@ -9197,7 +9217,7 @@ pub(crate) mod tests {
 
     /// The same suite, run where the second run is the **connection isolate**
     /// an upgrade opens: the upgrading request plants every row and fills
-    /// § 1's slot, and the isolate in the slot probes them once that request
+    /// the upgrade slot, and the isolate in the slot probes them once that request
     /// has ended (`rule:concurrency/a-connection-is-a-root-isolate`).
     ///
     /// The request's marker rides on its query, because an upgradable request
@@ -9305,7 +9325,7 @@ pub(crate) mod tests {
     /// call site on this path says so — the isolate was handed a request, and
     /// that is the whole of what attaches the sink.
     ///
-    /// The contrast is the load-bearing half, because § 3's direction is the
+    /// The contrast is the load-bearing half, because that rule's direction is the
     /// fail-closed one. Every other context this path runs is a terminal sink's
     /// and stays one: the coroutine the accept loop runs on and the one a
     /// connection is served on both discard what they are handed, and neither
@@ -9463,7 +9483,7 @@ pub(crate) mod tests {
     }
 
     /// A valve every case but the last one is not about, beside `rule:http-server/secure-headers-with-nothing-written`'s
-    /// shipped header set: § 5's own default ceiling with no memory budget to
+    /// shipped header set: `max_in_flight`'s own default ceiling with no memory budget to
     /// admit against.
     fn wide_open() -> Serving {
         Serving::new(
@@ -10283,7 +10303,8 @@ pub(crate) mod tests {
     /// that case pins that the drive resumes at all, this one pins where. Both
     /// ids are read inside the handler, which `hyper` calls from inside the
     /// connection future's own `poll`, so what they name is the stack that poll
-    /// ran on — and the third assertion is § 1's first property from the other
+    /// ran on — and the third assertion is `rule:concurrency/one-future-per-connection`'s
+    /// first property from the other
     /// end, that the stack is not the accept loop's.
     #[test]
     fn a_connection_future_is_driven_by_block_on_over_the_parking_stream() {
@@ -10637,7 +10658,7 @@ pub(crate) mod tests {
     /// of them.
     ///
     /// The third measurement is the other side of the same bound, and it is the
-    /// distinction § 1 draws: a *request* does cost a second task, because an
+    /// distinction `rule:concurrency/one-future-per-connection` draws: a *request* does cost a second task, because an
     /// [`Isolate`] asks the **scheduler** for one exactly as `Core\Task` does.
     /// What the seam may not do is hand one out itself, and a count that only
     /// ever went up by one per connection could not tell the two apart.
@@ -10817,12 +10838,12 @@ pub(crate) mod tests {
         ] {
             assert!(
                 sent.contains(line),
-                "§ 1's `{line}` was not on the response: {answer}"
+                "the secure header `{line}` was not on the response: {answer}"
             );
         }
         assert!(
             !sent.contains("strict-transport-security"),
-            "HSTS reached a plaintext connection, which § 1 sends it on nothing but an \
+            "HSTS reached a plaintext connection, and it is sent on nothing but an \
              `https` effective scheme: {answer}"
         );
     }
@@ -10899,7 +10920,8 @@ pub(crate) mod tests {
     ///
     /// The assertion is over the whole `access-control-` prefix rather than over
     /// `Access-Control-Allow-Origin` alone, because "no CORS header is emitted at
-    /// all" is what § 2 means by closed: a response that withheld the allow line
+    /// all" is what `rule:http-server/cors-is-closed-until-origins-are-named` means
+    /// by closed: a response that withheld the allow line
     /// while still sending an exposed-header list or a `max-age` would pass the
     /// narrow assertion having told a browser something nobody configured it to
     /// say. The `200` and the echoed path are asserted with it so that a request
@@ -10939,7 +10961,7 @@ pub(crate) mod tests {
         );
         assert!(
             !sent.contains("access-control"),
-            "§ 2 emits no CORS header at all with `origins = []`, and this answer carried \
+            "the closed CORS policy emits no CORS header at all with `origins = []`, and this answer carried \
              one: {answer}"
         );
     }
@@ -11003,8 +11025,8 @@ pub(crate) mod tests {
         }
     }
 
-    /// [`wide_open`] with one origin named, which is the only difference between § 2's two
-    /// halves as a request meets them.
+    /// [`wide_open`] with one origin named, which is the only difference between the
+    /// CORS policy's two halves as a request meets them.
     fn naming_one_origin() -> Serving {
         let http = nvs_config::tree::Http {
             cors: Some(nvs_config::tree::HttpCors {
@@ -11034,7 +11056,7 @@ pub(crate) mod tests {
     /// the wire and are not the same guarantee — [`crate::cors`]'s reason for
     /// refusing here is that a preflight nobody configured must select no mount
     /// and allocate no isolate — so what is asserted is that the handler was
-    /// never reached at all. § 1's set is asserted on it beside that, because a
+    /// never reached at all. The secure header set is asserted on it beside that, because a
     /// refusal is a response and is owed the same policy as the request it
     /// refused.
     #[test]
@@ -11074,7 +11096,7 @@ pub(crate) mod tests {
         let answer = served_by(listener, &handler, client);
         assert!(
             answer.starts_with("HTTP/1.1 403 Forbidden"),
-            "§ 2 answers a preflight `403` while no origin is named: {answer}"
+            "the CORS policy answers a preflight `403` while no origin is named: {answer}"
         );
         assert!(
             !asked.get(),
@@ -11085,7 +11107,7 @@ pub(crate) mod tests {
             answer
                 .to_ascii_lowercase()
                 .contains("x-content-type-options: nosniff"),
-            "§ 1's set did not reach a response this server wrote: {answer}"
+            "the secure header set did not reach a response this server wrote: {answer}"
         );
     }
 
@@ -11095,7 +11117,7 @@ pub(crate) mod tests {
     ///
     /// The flag is again the load-bearing half. `403` and `204` are two answers
     /// to the same question, and the reason the second one may not come from a
-    /// handler is the reason the first may not: § 2 configures the whole answer,
+    /// handler is the reason the first may not: `[http.cors]` configures the whole answer,
     /// so an application producing it would be answering a question already
     /// decided above it — and the two could disagree. What is asserted beside it
     /// is that the shipped `methods` and `max_age` reach the wire, `[http.cors]`
@@ -11138,7 +11160,7 @@ pub(crate) mod tests {
         let sent = answer.to_ascii_lowercase();
         assert!(
             answer.starts_with("HTTP/1.1 204 No Content"),
-            "§ 2 answers a named origin's preflight `204`: {answer}"
+            "the CORS policy answers a named origin's preflight `204`: {answer}"
         );
         assert!(
             !asked.get(),
@@ -12232,7 +12254,8 @@ pub(crate) mod tests {
     /// the handler is never asked, so no mount was selected, no isolate was
     /// allocated and no Novis code ran for a request the ceiling refused. A
     /// case that only asserted the `503` would pass just as well against a cap
-    /// that allocated in order to refuse, which is the cap § 5 says does not
+    /// that allocated in order to refuse, which is the cap
+    /// `rule:http-server/max-in-flight-refuses-before-allocating` says does not
     /// protect what it exists to protect.
     #[test]
     fn an_over_capacity_request_is_refused_with_503_before_it_is_allocated() {
@@ -12895,8 +12918,9 @@ pub(crate) mod tests {
         );
     }
 
-    /// § 8's second half: once per window, not once per attempt — the reason
-    /// the section gives for the wait is the disk it would otherwise fill.
+    /// `rule:http-server/the-accept-loop-backs-off`'s second half: once per window,
+    /// not once per attempt — the reason the rule gives for the wait is the disk
+    /// it would otherwise fill.
     /// Asserted by **counting** the notes over a long episode, because a
     /// backoff that reports every time still produces a correct-looking line at
     /// each individual attempt.
@@ -14225,7 +14249,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// § 7's third bullet on the door with no close frame: **a drained server
+    /// `rule:concurrency/a-drain-closes-a-connection-cleanly` on the door with no close frame: **a drained server
     /// ends an event stream's body**, and a client reading a stream that
     /// finished reconnects where one reading a reset has nothing to go on.
     ///

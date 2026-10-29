@@ -2,17 +2,18 @@
 //! is, and the four headers that decide whether the peer needs them.
 //!
 //! [`crate::mount`] answered *which* file; this module answers *with* it. The
-//! two are deliberately separate — selection is where § 2's rule lives and it
+//! two are deliberately separate — selection is where
+//! `rule:http-server/a-path-is-never-derived-from-a-url` lives and it
 //! touches a filesystem only to ask whether a path is a file, while sending is
 //! where a response is shaped and it reads bytes — but they are one policy, and
-//! § 4's own paragraph is why: **static serving is the same in both
+//! `rule:http-server/static-serving-is-one-policy` is why: **static serving is the same in both
 //! deployments, because a second policy is a second security model.** Nothing
 //! here takes a mode, a [`Dispatch`](crate::mount::Dispatch) or a `[server]`
 //! switch as an argument, so there is no development reading of freshness and
 //! no production one; the switch decides *whether* step 3 runs, never what it
 //! does.
 //!
-//! What § 4 states, in the order [`serve`] and [`send`] answer it:
+//! What that rule states, in the order [`serve`] and [`send`] answer it:
 //!
 //! - **`GET` and `HEAD` only.** Any other method at a static file is a `405`
 //!   with `Allow: GET, HEAD`, which is [`serve`]'s test in front of [`send`].
@@ -37,7 +38,7 @@
 //!
 //! # Decision: the default document is not the mount's root
 //!
-//! § 4 makes `index.html` the sole default document, and [`crate::mount`]
+//! The static policy makes `index.html` the sole default document, and [`crate::mount`]
 //! applies it to a remainder that spells a directory *below* the mount root —
 //! `/docs/` finds `docs/index.html` — but never to the mount root itself, where
 //! step 5's entry is what a mount means. A mount whose root holds both
@@ -86,7 +87,7 @@ pub struct Stat {
     /// against.
     pub len: u64,
     /// The modification time in nanoseconds since the epoch, negative before
-    /// it. Nanoseconds rather than seconds is § 4's own choice, and the whole
+    /// it. Nanoseconds rather than seconds is the static policy's own choice, and the whole
     /// reason the validator is not `Last-Modified`.
     pub mtime_nanos: i128,
 }
@@ -229,7 +230,8 @@ pub fn serve(file: &Path, method: &Method, headers: &HeaderMap, source: &dyn Sou
 /// so nothing here goes near request bytes.
 ///
 /// A file that vanished between selection and this call answers `404` rather
-/// than falling back to the mount's entry: re-entering § 4 at step 5 from here
+/// than falling back to the mount's entry: re-entering
+/// `rule:http-server/a-request-resolves-in-five-steps` at step 5 from here
 /// would be a second resolution of the same request, and the file genuinely is
 /// not there. A file that is there and unreadable is a `500`, since that is a
 /// deployment's problem and not the peer's.
@@ -313,17 +315,18 @@ fn body(contents: Contents, wanted: Window) -> Option<Answer> {
     }
 }
 
-/// § 4's strong validator: `(size, mtime_nanos)` and nothing else, so two
+/// The static policy's strong validator: `(size, mtime_nanos)` and nothing else, so two
 /// writes of the same length inside the same second are two different tags.
 fn etag(stat: Stat) -> String {
     format!("\"{:x}-{:x}\"", stat.len, stat.mtime_nanos)
 }
 
-/// § 4's fixed extension table, matched case-insensitively, with
+/// The static policy's fixed extension table, matched case-insensitively, with
 /// `application/octet-stream` for everything it does not name.
 ///
 /// Fixed is the point: a table read from configuration is a per-deployment
-/// content type, which is the second policy § 4 refuses. A `charset` is stated
+/// content type, which is the second policy
+/// `rule:http-server/static-serving-is-one-policy` refuses. A `charset` is stated
 /// wherever the type is text, because a browser that guesses one is a browser
 /// that can be made to guess `UTF-7`.
 fn mime(path: &Path) -> &'static str {
@@ -724,7 +727,7 @@ mod tests {
             What::Static(p("/www/public/style.css"))
         );
 
-        // The exact file, with § 4's freshness pair and the fixed table's type.
+        // The exact file, with the static policy's freshness pair and the fixed table's type.
         let whole = sent("/style.css", &[]);
         assert_eq!(whole.0, StatusCode::OK);
         assert_eq!(whole.2, b"body{}");
@@ -805,7 +808,7 @@ mod tests {
                 matches!(selected(table, "/index.nvs"), What::Run(file) if file == p("/www/public/index.nvs"))
             );
         }
-        // § 4's sole default document, below the root and by its own spelling.
+        // The static policy's sole default document, below the root and by its own spelling.
         let indexed = sent("/docs/", &[]);
         assert_eq!(indexed.2, b"<p>hi");
         assert_eq!(header(&indexed, "content-type"), "text/html; charset=utf-8");

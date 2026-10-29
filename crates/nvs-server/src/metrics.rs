@@ -39,13 +39,13 @@ mod tests {
     }
 
     /// `rule:observability/default-series`: the eleven series exist the moment an exporter is configured,
-    /// each fixed to the kind and the labels that section gives it.
+    /// each fixed to the kind and the labels that rule gives it.
     ///
     /// Asserted by **counting** as well as by name: a roster that grew a
     /// twelfth entry or lost one would otherwise pass every row below.
     ///
     /// Here rather than beside the registry because the claim is this crate's:
-    /// what § 1 promises is that a *configured exporter* has these eleven to
+    /// what that rule promises is that a *configured exporter* has these eleven to
     /// report, and the exporter is what this crate is.
     #[test]
     fn the_default_metric_series_are_exported() {
