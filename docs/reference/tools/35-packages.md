@@ -156,6 +156,10 @@ Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1
 | `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
 | `[grants]` | the capabilities each namespace may use, in an application's file only |
 | `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
+| `[bundle] icon` | the `.ico` file a Windows executable from `nvs build --compile` shows, as a path from this file's folder |
+
+On Windows, `nvs build --compile` writes the package's name and `version` into the executable. Explorer
+and Task Manager show them. Without a name, the executable shows its file name, and without a version, `0.0.0`.
 
 `version`, `files`, `supersedes`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
 other key is error `E0659`, and the `nvs pkg` commands stop.

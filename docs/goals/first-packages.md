@@ -13,8 +13,8 @@ stages:
         rules: [packaging/package-toml-is-a-tool-input, routing/api-document-is-a-deterministic-build-artifact]
   - id: 2
     title: a Windows bundle carries the program's own version information and icon
-    status: open
-    context: [crates/nvs-cli/src/bundle.rs, crates/nvs-cli/build/winres.rs, crates/nvs-cli/tests/windows_resource.rs, data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json, docs/rules/packaging/the-windows-binary-says-what-it-is.md]
+    status: done
+    context: [crates/nvs-cli/src/bundle.rs, crates/nvs-cli/src/bundle/resource.rs, crates/nvs-cli/build/winres.rs, crates/nvs-cli/tests/windows_resource.rs, docs/rules/packaging/the-windows-binary-says-what-it-is.md]
     extra:
       context:
         rules: [packaging/the-windows-binary-says-what-it-is, packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host, packaging/package-toml-is-a-tool-input, packaging/a-c-dependency-answers-two-questions]
@@ -87,6 +87,15 @@ questions. The crate must run on every build host, so a crate that calls the Win
 the `object` crate the tree already has (`Cargo.toml:112`). Why: security and simplicity favour no new
 supply chain for four fixed layouts the tree already writes and tests.
 
+**The bundle's resource: the in-tree rewrite, in a new section, and `[bundle]` added here.** No
+PE-resource crate is in the lock, so the default above holds: `crates/nvs-cli/src/bundle/resource.rs`
+reads the host's tree with `object`, builds the icon and version with `build/winres.rs` (included by
+`#[path]`), and appends a new `.rsrc` section rather than resizing the old one, since `.reloc` follows
+it. Goal `package-client` was reached without a `[bundle]` table, so this goal added it to
+`package/manifest.rs`, allowed in an application's file too; there is no duplicate. With a manifest
+but no name the bundle is named after its file stem, and with no version it is `0.0.0`, as
+`info.version` is.
+
 **`Novis\Rest` lives in this repository under `packages/rest/`**, so CI tests it with the toolchain it
 targets. It is published by the project account from that directory, which `nvs pkg publish` sends with the
 commit (goal `registry-service`). It is about seven types over OAuth grants (client credentials,
@@ -144,10 +153,10 @@ Explorer and in a process list.
 **Split:** before the session starts, an `Explore` subagent checks the PE-resource crates as the
 standing decision says and returns one line per crate with its verdict.
 
-- [ ] The crate chosen, or the in-tree rewrite argued, in the rule (`rule:packaging/the-windows-binary-says-what-it-is`). `docs/rules/packaging/the-windows-binary-says-what-it-is.md:1`
-- [ ] The resource rewritten in the copy, from the manifest's version, name and `[bundle] icon`. `crates/nvs-cli/src/bundle.rs:615`
-- [ ] A test that reads the bundle's resource back, beside the host's own test, with and without a manifest. `crates/nvs-cli/tests/windows_resource.rs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
+- [x] The crate chosen, or the in-tree rewrite argued, in the rule (`rule:packaging/the-windows-binary-says-what-it-is`). `docs/rules/packaging/the-windows-binary-says-what-it-is.md:1`
+- [x] The resource rewritten in the copy, from the manifest's version, name and `[bundle] icon`. `crates/nvs-cli/src/bundle.rs:615`
+- [x] A test that reads the bundle's resource back, beside the host's own test, with and without a manifest. `crates/nvs-cli/tests/windows_resource.rs:1`
+- [x] The gap record deleted. `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
 
 ### 3. `Novis\Rest` gives OAuth grants, discovery and DPoP
 
@@ -195,33 +204,37 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `nvs build --openapi` (`run_build` in `crates/nvs-cli/src/main.rs`) finds the
-nearest `package.toml` from the working directory and passes its `version` to
-`openapi::document`, which is `0.0.0` without one; a refused manifest fails the build.
-`openapi::document` now returns `Result<Value, Collision>`: two routes that write one template are
-an error (standing decision *The emitter's two other gaps*). `package::manifest` is `pub(crate)`.
-The three gap records are deleted, and `docs/reference/lang/90-attributes.md` and
-`docs/reference/tools/10-cli.md` say where the version comes from. Four new tests in
-`crates/nvs-cli/tests/openapi.rs` passed when run by name; the rest of that binary was not run.
+Stages 1 and 2 are done. `nvs build --openapi` writes the nearest `package.toml`'s `version` as
+`info.version` (`run_build` in `crates/nvs-cli/src/main.rs`).
 
-Expected red: none known. If a fixture or example writes `/a/{id}` and `/a/{key}` under two verbs,
-`nvs build --openapi` over it now fails; the gate stage's run of `tests/openapi.rs` would show it.
-The sweep's `env-secret-proofs` red is stale (its log, from 2026-10-22, reads `exit 0`, and no check
-has that name), and nightly run 40662443492 was cancelled by newer pushes.
+`nvs build --compile` on Windows now writes the program's own resource: `bundle::identity` reads the
+nearest `package.toml` from the working directory, and `bundle/resource.rs::rewrite` replaces the
+copy's version information, and its icon when `[bundle] icon` names one, in a new `.rsrc` section
+(standing decision *The bundle's resource*). `package::manifest` gained `[bundle] icon` and `load`.
+`build/winres.rs` was split into `icon` and `version_resource`, which `resource` and the bundle share.
+The rule, `docs/reference/tools/10-cli.md` and `35-packages.md` say it, and the gap record is deleted.
+`tests/windows_resource.rs` (all five tests) and the unit test
+`bundle::resource::tests::a_written_directory_reads_back_as_the_same_resources` passed; the rewritten
+bundle loads and runs. Nothing else was run.
+
+Expected red: none known. A test that builds a bundle from a folder under a `package.toml` with an
+unknown key would now see the manifest's error; none is known. The sweep's `env-secret-proofs` red
+is stale (its log reads `exit 0`), and nightly run 40662443492 was cancelled by newer pushes.
 
 ### Next
 
-Stage 2, the bundle's resource. Its gate holds: `docs/goals/package-client.md` is gone. Follow the
-stage's `**Split:**`: an `Explore` subagent checks `editpe` and other pure-Rust PE-resource crates
-against `deny.toml` first.
-- [ ] The crate chosen, or the in-tree rewrite argued, in the rule. `docs/rules/packaging/the-windows-binary-says-what-it-is.md:1`
-- [ ] The resource rewritten in the copy, from the manifest's version, name and `[bundle] icon`. `crates/nvs-cli/src/bundle.rs:615`
-- [ ] A test that reads the bundle's resource back, with and without a manifest. `crates/nvs-cli/tests/windows_resource.rs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
+Stage 3, `packages/rest/`. Its gate holds: `docs/goals/package-client.md` is gone. Follow the stage's
+`**Split:**`: an `Explore` subagent first returns the `Core\Jwt`, HTTP client and `Core\Session` calls
+the package uses; the session lands the manifest and `Client`, then writing subagents write the other
+six types one after another.
+- [ ] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
+- [ ] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache. `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
+- [ ] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
+- [ ] `Discovery` and `DPoP`. `packages/rest/src/DPoP.nvs:1`
+- [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`
 
 ### Backlog
 
-- Stage 3 (`packages/rest/`) is a lane beside stage 2; its gate holds too.
 - Publishing `Novis\Rest` to the live registry is the project account's step, done by a person once the registry is deployed (`apps/registry/README.md`).
 - From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
   `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. A goal that changes

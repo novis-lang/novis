@@ -679,17 +679,41 @@ resource and is otherwise the same binary. The two `.ico` files under `crates/nv
 committed, and `bun nv exe-icons` cuts them again from the drawings when one changes. A
 resource that cannot be written is a build warning and a binary without one, never a failed build.
 
-A program built with `nvs build --compile` is a copy of the host, so on Windows it carries this icon
-and this version information too, the way it already carries the host's notice. The bundler takes no
-icon of an author's own; one is set with a resource editor.
+A program built with `nvs build --compile` is a copy of the host, and on Windows it says what *it* is
+when a `package.toml` is found from the working directory, as every package command finds it:
+
+| Field | Value |
+|---|---|
+| `ProductName`, `FileDescription` | the package's name, else the executable's file stem |
+| `FileVersion`, `ProductVersion` and both numeric versions | the package's `version`, else `0.0.0` |
+| `InternalName`, `OriginalFilename` | the executable's file stem and file name |
+| the icon | the `.ico` file `[bundle] icon` names, else the host's |
+
+Without a `package.toml` the copy carries the host's icon and version information unchanged, the way it
+carries the host's notice. An icon that does not read or is not an `.ico` file fails the build. The other
+resources, the message table and the linker's manifest, are the host's.
+
+`crates/nvs-cli/src/bundle/resource.rs` writes it. It reads the host's resources with `object`, which the
+tree already has, builds the icon and the version block with `build/winres.rs`'s own layouts, and writes
+the whole resource tree into a new section after the image's last one. The resource data directory names
+the new section, and the old one stays in the file, unread, under the name `.oldrsrc`. A host image with
+no room in its headers for one more section, or with a resource named by a string, keeps its own resource,
+with a warning. Any change to the image breaks an Authenticode signature, so the certificate table is
+dropped, as appending the payload already breaks it.
 
 **Memory:** the icon's bytes, a few tens of kilobytes of data no request path reads, spent on the
-program being recognisable to the person and the operating system running it.
+program being recognisable to the person and the operating system running it. A bundle also carries the
+host's resources twice, a few tens of kilobytes more, and nothing of it is read when the bundle starts.
 
 **Declined:**
 - **A build dependency that drives the resource compiler**, such as `winresource` or `embed-resource`.
   It adds a crate to a build script that declines dependencies on supply-chain grounds, and a lookup of
   `rc.exe` or `windres` that can fail a build.
+- **A crate that edits a PE file's resources for the bundle**, such as `editpe`. It is a new supply
+  chain for four layouts this tree already writes and tests, and a crate that calls Windows's
+  `UpdateResource` would not run on the other build hosts.
+- **Rewriting the old resource section in place.** A new tree larger than the old one would move every
+  section after it, `.reloc` among them, and every address those sections hold.
 - **A checked-in `.res` file compiled by hand.** The version and the commit would be frozen in a binary
   file nobody regenerates.
 - **An application manifest in the same resource.** The linker already embeds its default manifest, a

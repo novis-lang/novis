@@ -12,16 +12,20 @@
 //! owns what goes in, and `tests/windows_resource.rs` reads it back out of the
 //! linked binary.
 //!
+//! `src/bundle/resource.rs` includes this file too, and builds a bundle's icon
+//! and version information with [`icon`] and [`version_resource`], so the two
+//! binaries carry one layout.
+//!
 //! Every length in these layouts is a fixed-width field, so every function
 //! here returns `None` for an input too large for its field instead of
 //! truncating it, and `build.rs` links nothing in that case.
 
 /// `RT_ICON`: one image of an icon.
-const RT_ICON: u16 = 3;
+pub(crate) const RT_ICON: u16 = 3;
 /// `RT_GROUP_ICON`: the directory naming the `RT_ICON` images of one icon.
-const RT_GROUP_ICON: u16 = 14;
+pub(crate) const RT_GROUP_ICON: u16 = 14;
 /// `RT_VERSION`: the version information.
-const RT_VERSION: u16 = 16;
+pub(crate) const RT_VERSION: u16 = 16;
 /// `RT_MESSAGETABLE`: the text of every event-log record the service writes.
 const RT_MESSAGETABLE: u16 = 11;
 
@@ -37,7 +41,7 @@ const MESSAGE_TEXT: &str = "%1";
 
 /// US English, the language the resource compiler stamps by default, and with
 /// [`CODEPAGE`] the one translation the version information declares.
-const LANGUAGE: u16 = 0x0409;
+pub(crate) const LANGUAGE: u16 = 0x0409;
 /// Unicode, which is what every string below is written as.
 const CODEPAGE: u16 = 0x04B0;
 
@@ -61,6 +65,13 @@ pub(crate) struct VersionInfo<'a> {
     pub(crate) strings: &'a [(&'a str, &'a str)],
 }
 
+/// One resource, named by number.
+pub(crate) struct Resource {
+    pub(crate) kind: u16,
+    pub(crate) id: u16,
+    pub(crate) data: Vec<u8>,
+}
+
 /// The whole `.res` file: every image of `ico` as icon `1`, and `info` as
 /// version resource `1`.
 ///
@@ -70,7 +81,30 @@ pub(crate) fn resource(ico: &[u8], info: &VersionInfo<'_>) -> Option<Vec<u8>> {
     // A `.res` file opens on one empty entry, which is how a reader tells the
     // 32-bit format from the 16-bit one.
     entry(&mut out, 0, 0, 0, 0, &[])?;
+    let mut all = icon(ico)?;
+    all.push(version_resource(info)?);
+    all.push(Resource {
+        kind: RT_MESSAGETABLE,
+        id: 1,
+        data: messages()?,
+    });
+    for Resource { kind, id, data } in &all {
+        let memory_flags = match *kind {
+            RT_ICON => 0x1010,
+            RT_GROUP_ICON => 0x1030,
+            _ => 0x0030,
+        };
+        entry(&mut out, *kind, *id, memory_flags, LANGUAGE, data)?;
+    }
+    Some(out)
+}
 
+/// Every image of `ico` as an `RT_ICON` numbered from 1, then the
+/// `RT_GROUP_ICON` `1` that names them.
+///
+/// `None` if `ico` is not an icon file or a length does not fit its field.
+pub(crate) fn icon(ico: &[u8]) -> Option<Vec<Resource>> {
+    let mut out = Vec::new();
     let mut group = Vec::new();
     let images = images(ico)?;
     group.extend_from_slice(&[0, 0, 1, 0]);
@@ -79,14 +113,31 @@ pub(crate) fn resource(ico: &[u8], info: &VersionInfo<'_>) -> Option<Vec<u8>> {
         // Image ids start at 1; the group entry is the file's own directory
         // entry with the image's offset replaced by that id.
         let id = u16::try_from(index + 1).ok()?;
-        entry(&mut out, RT_ICON, id, 0x1010, LANGUAGE, image.data)?;
+        out.push(Resource {
+            kind: RT_ICON,
+            id,
+            data: image.data.to_vec(),
+        });
         group.extend_from_slice(image.directory);
         push_u16(&mut group, id);
     }
-    entry(&mut out, RT_GROUP_ICON, 1, 0x1030, LANGUAGE, &group)?;
-    entry(&mut out, RT_VERSION, 1, 0x0030, LANGUAGE, &version(info)?)?;
-    entry(&mut out, RT_MESSAGETABLE, 1, 0x0030, LANGUAGE, &messages()?)?;
+    out.push(Resource {
+        kind: RT_GROUP_ICON,
+        id: 1,
+        data: group,
+    });
     Some(out)
+}
+
+/// `info` as the `RT_VERSION` resource `1`.
+///
+/// `None` if a length does not fit its field.
+pub(crate) fn version_resource(info: &VersionInfo<'_>) -> Option<Resource> {
+    Some(Resource {
+        kind: RT_VERSION,
+        id: 1,
+        data: version(info)?,
+    })
 }
 
 /// The message table: one block covering [`MESSAGE_IDS`], every entry

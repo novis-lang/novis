@@ -24,6 +24,9 @@
 //! urls = ["https://example.com/Big.otf"]
 //! sha256 = "<64 hex digits>"
 //! size = 16384000
+//!
+//! [bundle]
+//! icon = "assets/app.ico"
 //! ```
 //!
 //! **Every key is known, and an unknown one is refused**
@@ -39,6 +42,10 @@
 //!
 //! **A file with a `[package] name` is a package's, and one without is an application's.** Only a
 //! package has a `version`, `files`, `[capabilities]` and `[[download]]`.
+//!
+//! **`[bundle]` is what `nvs build --compile` writes into a Windows executable**
+//! (`rule:packaging/the-windows-binary-says-what-it-is`). Its `icon` is a path from this file's
+//! directory to an `.ico` file, and an application's file may have it too.
 //!
 //! **A package's name is its namespace** (`rule:packaging/a-package-name-is-vendor-slash-name`),
 //! and [`Name::slug`] derives `acme/http` from `Acme\Http`. Two dependencies whose slugs are equal
@@ -238,6 +245,8 @@ pub(crate) struct Manifest {
     pub(crate) downloads: Vec<Download>,
     /// `[grants]`.
     pub(crate) grants: Grants,
+    /// `[bundle] icon`, joined onto the file's directory.
+    pub(crate) icon: Option<PathBuf>,
 }
 
 impl Manifest {
@@ -303,13 +312,19 @@ pub(crate) fn parse(
 /// The `version` in `<dir>/package.toml`, or `None` when there is no such file or no such key.
 /// A file this module refuses has already been reported on standard error.
 pub(crate) fn version(dir: &Path) -> Result<Option<Version>, ExitCode> {
+    Ok(load(dir)?.and_then(|manifest| manifest.version))
+}
+
+/// `<dir>/package.toml`, or `None` when there is no such file. A file this module refuses has
+/// already been reported on standard error.
+pub(crate) fn load(dir: &Path) -> Result<Option<Manifest>, ExitCode> {
     let path = dir.join(FILE);
     if !path.is_file() {
         return Ok(None);
     }
     let mut sources = SourceMap::new();
     match read(&path, &mut sources) {
-        Ok(manifest) => Ok(manifest.version),
+        Ok(manifest) => Ok(Some(manifest)),
         Err(diagnostic) => {
             let mut err = std::io::stderr().lock();
             // Standard error that cannot be written to has nobody to tell.
@@ -340,6 +355,16 @@ struct File {
     grants: Option<toml::Table>,
     #[serde(default)]
     download: Option<Spanned<Vec<Download>>>,
+    #[serde(default)]
+    bundle: Option<BundleTable>,
+}
+
+/// `[bundle]`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BundleTable {
+    #[serde(default)]
+    icon: Option<String>,
 }
 
 /// `[package]`.
@@ -511,6 +536,10 @@ fn parse_in(
         });
     }
     registries.sort_by(|a, b| a.vendor.cmp(&b.vendor));
+    let icon = file
+        .bundle
+        .and_then(|bundle| bundle.icon)
+        .map(|icon| dir.join(icon));
 
     Ok(Manifest {
         path: path.to_path_buf(),
@@ -523,6 +552,7 @@ fn parse_in(
         registries,
         downloads: file.download.map(Spanned::into_inner).unwrap_or_default(),
         grants,
+        icon,
     })
 }
 

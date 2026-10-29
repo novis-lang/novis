@@ -3,8 +3,15 @@
 //! it is a reader that shares none of that code walking the `.exe` the linker
 //! produced. The icon is compared image for image with the committed `.ico`,
 //! and the version strings with the manifest and `LICENSE` they are taken from.
+//!
+//! A bundle `nvs build --compile` writes is read the same way: with a
+//! `package.toml` it carries the program's name, version and icon, and without
+//! one it carries the host's.
 
 #![cfg(all(windows, target_env = "msvc"))]
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use object::LittleEndian as LE;
 use object::read::pe::{
@@ -24,11 +31,24 @@ const ICON: &[u8] = if cfg!(debug_assertions) {
     include_bytes!("../assets/nvs.ico")
 };
 
+/// The icon of the other profile, which a bundle's `package.toml` names, so it
+/// differs from the host's.
+const OTHER_ICON: &[u8] = if cfg!(debug_assertions) {
+    include_bytes!("../assets/nvs.ico")
+} else {
+    include_bytes!("../assets/nvs-debug.ico")
+};
+
 const LICENSE: &str = include_str!("../../../LICENSE");
 
 /// Every resource in the built `nvs.exe`, as its numeric type and its data.
 fn resources() -> Vec<(u16, Vec<u8>)> {
-    let exe = std::fs::read(env!("CARGO_BIN_EXE_nvs")).expect("the built binary is readable");
+    resources_of(Path::new(env!("CARGO_BIN_EXE_nvs")))
+}
+
+/// Every resource in the executable at `path`, as its numeric type and its data.
+fn resources_of(path: &Path) -> Vec<(u16, Vec<u8>)> {
+    let exe = std::fs::read(path).expect("the built binary is readable");
     let file = PeFile64::parse(&*exe).expect("the built binary is a 64-bit PE file");
     let sections = file.section_table();
     let directory = file
@@ -79,10 +99,14 @@ fn collect(
 }
 
 fn of_kind(kind: u16) -> Vec<Vec<u8>> {
-    resources()
-        .into_iter()
+    kind_in(&resources(), kind)
+}
+
+fn kind_in(resources: &[(u16, Vec<u8>)], kind: u16) -> Vec<Vec<u8>> {
+    resources
+        .iter()
         .filter(|(found, _)| *found == kind)
-        .map(|(_, data)| data)
+        .map(|(_, data)| data.clone())
         .collect()
 }
 
@@ -139,7 +163,11 @@ fn strings(block: &[u8], at: usize, out: &mut Vec<(String, String)>) {
 }
 
 fn version_string(key: &str) -> String {
-    let blocks = of_kind(RT_VERSION);
+    version_string_in(&resources(), key)
+}
+
+fn version_string_in(resources: &[(u16, Vec<u8>)], key: &str) -> String {
+    let blocks = kind_in(resources, RT_VERSION);
     let [block] = blocks.as_slice() else {
         panic!(
             "the binary carries one version resource, found {}",
@@ -155,23 +183,25 @@ fn version_string(key: &str) -> String {
         .1
 }
 
-#[test]
-fn the_icon_is_this_profiles_committed_file_image_for_image() {
-    let linked = of_kind(RT_ICON);
-    let count = u16_at(ICON, 4);
+/// Asserts that `resources` carry every image of `ico`, and one icon naming
+/// them all.
+fn assert_icon(resources: &[(u16, Vec<u8>)], ico: &[u8]) {
+    let linked = kind_in(resources, RT_ICON);
+    let count = u16_at(ico, 4);
     assert!(count > 0, "the committed icon has images");
     for index in 0..count {
         let entry = 6 + index * 16;
-        let len = u32_at(ICON, entry + 8);
-        let offset = u32_at(ICON, entry + 12);
-        let image = &ICON[offset..offset + len];
+        let len = u32_at(ico, entry + 8);
+        let offset = u32_at(ico, entry + 12);
+        let image = &ico[offset..offset + len];
         assert!(
             linked.iter().any(|data| data == image),
             "image {index} of the committed icon is in the binary"
         );
     }
+    assert_eq!(linked.len(), count, "and no image of another icon");
 
-    let groups = of_kind(RT_GROUP_ICON);
+    let groups = kind_in(resources, RT_GROUP_ICON);
     let [group] = groups.as_slice() else {
         panic!("the binary carries one icon, found {}", groups.len());
     };
@@ -180,6 +210,97 @@ fn the_icon_is_this_profiles_committed_file_image_for_image() {
         count,
         "the icon names every image of the file"
     );
+}
+
+#[test]
+fn the_icon_is_this_profiles_committed_file_image_for_image() {
+    assert_icon(&resources(), ICON);
+}
+
+/// `nvs build --compile app.nvs` run in a new folder holding `files`, and the
+/// executable it wrote there. The program prints `ready`.
+fn bundle(name: &str, files: &[(&str, &[u8])]) -> (nvs_repo::Scratch, PathBuf) {
+    let dir = nvs_repo::scratch(&format!("winres-{name}"));
+    std::fs::write(dir.join("app.nvs"), "<?nvs\necho \"ready\\n\";\n").expect("writes");
+    for (file, bytes) in files {
+        std::fs::write(dir.join(file), bytes).expect("writes");
+    }
+    let exe = dir.join("app.exe");
+    let data = nvs_repo::scratch_private("nvsdata");
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--data")
+        .arg(&*data)
+        .arg("--no-init")
+        .args(["build", "--compile", "app.nvs", "-o"])
+        .arg(&exe)
+        .current_dir(&*dir)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        out.status.success(),
+        "the program builds: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        out.stderr.is_empty(),
+        "and with no warning: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (dir, exe)
+}
+
+/// Runs `exe` in its own folder, and asserts it prints what the program does.
+fn assert_runs(exe: &Path) {
+    let out = nvs_repo::spawn(exe, &[])
+        .current_dir(exe.parent().expect("a folder"))
+        .output()
+        .expect("the bundle is an executable this host can run");
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "ready\n",
+        "the bundle runs its program: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// A bundle with a `package.toml` names itself after the package, at its
+/// version, with the icon `[bundle]` names, and still loads and runs.
+#[test]
+fn a_bundle_carries_the_programs_name_version_and_icon() {
+    let manifest =
+        b"[package]\nname = 'Acme\\Shop'\nversion = \"2.3.4\"\n\n[bundle]\nicon = \"shop.ico\"\n";
+    let (_dir, exe) = bundle(
+        "manifest",
+        &[("package.toml", manifest), ("shop.ico", OTHER_ICON)],
+    );
+    let found = resources_of(&exe);
+    assert_eq!(version_string_in(&found, "ProductName"), "Acme\\Shop");
+    assert_eq!(version_string_in(&found, "FileDescription"), "Acme\\Shop");
+    assert_eq!(version_string_in(&found, "FileVersion"), "2.3.4");
+    assert_eq!(version_string_in(&found, "ProductVersion"), "2.3.4");
+    assert_eq!(version_string_in(&found, "OriginalFilename"), "app.exe");
+    assert_icon(&found, OTHER_ICON);
+    assert_eq!(
+        kind_in(&found, RT_MESSAGETABLE),
+        of_kind(RT_MESSAGETABLE),
+        "the host's other resources are kept"
+    );
+    assert_runs(&exe);
+}
+
+/// Without a `package.toml`, a bundle carries the host's icon and version
+/// information unchanged.
+#[test]
+fn a_bundle_without_a_manifest_carries_the_hosts_resource() {
+    let (_dir, exe) = bundle("plain", &[]);
+    let found = resources_of(&exe);
+    assert_eq!(version_string_in(&found, "ProductName"), "Novis");
+    assert_eq!(
+        version_string_in(&found, "FileVersion"),
+        env!("CARGO_PKG_VERSION")
+    );
+    assert_icon(&found, ICON);
+    assert_runs(&exe);
 }
 
 #[test]

@@ -76,9 +76,16 @@
 //! that directory refuses the run as the configuration error it is, before the
 //! bundled program is parsed.
 //!
-//! ## Known gap
+//! ## What it says about itself on Windows
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/bundle.rs` lists them.
+//! With a `package.toml` found from the working directory, as every package command finds it,
+//! [`resource`] writes the program's own version information into the copy, and its icon when
+//! `[bundle] icon` names one (`rule:packaging/the-windows-binary-says-what-it-is`). The name is
+//! the package's, else the executable's file stem, and the version is the package's, else
+//! `0.0.0`. Without a `package.toml` the copy keeps the host's. An icon that does not read is a
+//! failed build, and a host image the rewrite cannot take is a warning and the host's resource.
+
+mod resource;
 
 use std::collections::HashSet;
 use std::fs;
@@ -429,7 +436,11 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> Exi
         Some(path) => path.to_path_buf(),
         None => default_output(entry),
     };
-    match write_bundle(&files, &output) {
+    let identity = match identity(&output) {
+        Ok(identity) => identity,
+        Err(code) => return code,
+    };
+    match write_bundle(&files, &output, identity.as_ref()) {
         Ok(()) => {
             // ASCII on purpose: this line is captured by `bun nv try` and by
             // the acceptance check behind it, and a Windows console's legacy
@@ -449,6 +460,64 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>, config: &[PathBuf]) -> Exi
             ExitCode::FAILURE
         }
     }
+}
+
+/// What a bundle says about itself on Windows: § *What it says about itself on Windows*.
+struct Identity {
+    name: String,
+    version: [u64; 3],
+    file: String,
+    icon: Option<Vec<u8>>,
+}
+
+/// The [`Identity`] the nearest `package.toml` gives the executable `output`, or `None` without
+/// one.
+///
+/// # Errors
+///
+/// The exit code after the manifest's diagnostic, or after one line naming an icon that does not
+/// read or is not an `.ico` file.
+fn identity(output: &Path) -> Result<Option<Identity>, ExitCode> {
+    let Some(dir) = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| crate::package::manifest::find(&cwd))
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+    else {
+        return Ok(None);
+    };
+    let Some(manifest) = crate::package::manifest::load(&dir)? else {
+        return Ok(None);
+    };
+    let icon = match &manifest.icon {
+        Some(path) => {
+            let bytes = fs::read(path).map_err(|err| {
+                eprintln!("error: cannot read the icon {}: {err}", path.display());
+                ExitCode::FAILURE
+            })?;
+            if !resource::is_icon(&bytes) {
+                eprintln!(
+                    "error: {} is not an icon file. `[bundle] icon` needs an `.ico` file",
+                    path.display()
+                );
+                return Err(ExitCode::FAILURE);
+            }
+            Some(bytes)
+        }
+        None => None,
+    };
+    let text = |name: Option<&std::ffi::OsStr>| {
+        name.map_or_else(|| "app".to_owned(), |n| n.to_string_lossy().into_owned())
+    };
+    Ok(Some(Identity {
+        name: manifest
+            .name
+            .map_or_else(|| text(output.file_stem()), |name| name.to_string()),
+        version: manifest
+            .version
+            .map_or([0; 3], |v| [v.major, v.minor, v.patch]),
+        file: text(output.file_name()),
+        icon,
+    }))
 }
 
 /// What [`extensions_of`] carries into the payload: each `.nvsx` under its payload name, and the
@@ -613,9 +682,13 @@ fn manifest(files: &[(String, Vec<u8>)]) -> Vec<u8> {
     out
 }
 
-/// Copies this `nvs` binary, appends the payload, and makes the result
-/// runnable.
-fn write_bundle(files: &[(String, Vec<u8>)], out: &Path) -> std::io::Result<()> {
+/// Copies this `nvs` binary, writes `identity` into its resources, appends the
+/// payload, and makes the result runnable.
+fn write_bundle(
+    files: &[(String, Vec<u8>)],
+    out: &Path,
+    identity: Option<&Identity>,
+) -> std::io::Result<()> {
     let exe = std::env::current_exe()?;
     let mut host = fs::read(&exe)?;
     // Rebundling from a bundle is § 5's ordinary case — the author reruns the
@@ -623,6 +696,23 @@ fn write_bundle(files: &[(String, Vec<u8>)], out: &Path) -> std::io::Result<()> 
     // rather than a second payload stacked on the first.
     if let Ok(Some(offset)) = payload_offset(&exe) {
         host.truncate(usize::try_from(offset).unwrap_or(host.len()));
+    }
+    if let Some(identity) = identity {
+        let program = resource::Program {
+            name: &identity.name,
+            version: identity.version,
+            file: &identity.file,
+            icon: identity.icon.as_deref(),
+        };
+        match resource::rewrite(&host, &program) {
+            Ok(Some(rewritten)) => host = rewritten,
+            Ok(None) => {}
+            Err(reason) => eprintln!(
+                "warning: {} has the icon and version information of nvs, because this nvs \
+                 cannot change them: {reason}",
+                out.display()
+            ),
+        }
     }
 
     let body = manifest(files);

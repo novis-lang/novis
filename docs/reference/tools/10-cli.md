@@ -573,6 +573,10 @@ total: 420 MB
   bundle, with its `sha256` and its `grants`. The bundle checks each `sha256` when it starts and
   loads these extensions before the ones in the configuration file it reads. A file that does not
   match its `sha256` stops the build.
+- On Windows, the executable shows the program's own name, version and icon in Explorer and in
+  Task Manager. They come from the nearest `package.toml`, found from the current directory: the
+  package's `name` and `version`, and the `.ico` file `[bundle] icon` names. Without a
+  `package.toml`, the executable shows the icon and version of `nvs`.
 
 # nvs build --openapi
 
