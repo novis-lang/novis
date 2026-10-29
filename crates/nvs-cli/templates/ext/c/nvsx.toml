@@ -9,3 +9,7 @@ module = "greeting.wasm"
 [[methods]]
 signature = "hello(string $name): string"
 help = "Returns a greeting for `name`."
+
+[[methods]]
+signature = "reverse(bytes $data): bytes"
+help = "Returns the bytes of `data` in reverse order."

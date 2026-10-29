@@ -83,11 +83,15 @@ Each WIT type has one Novis type:
 |---|---|
 | `bool`, `s64`, `u64`, `f64` | `bool`, `int`, `uint`, `float` |
 | `string` | `string` |
-| `list<u8>` | `bytes` |
+| `borrow<bytes>` as a parameter, `bytes` as a result | `bytes` |
 | `list<T>` | `array<T>` |
 | `record` | an anonymous object, such as `{ level: int, text: string }` |
 | `option<T>` | `?T` |
 | `enum` | an enum |
+
+A WIT `bytes` is a byte string that Novis keeps. The extension reads it with `read()`. It builds a
+result with `append()`. A WIT file that uses `bytes` needs the line
+`use nvs:ext/types@1.0.0.{error, bytes};`. A `list<u8>` for a Novis `bytes` does not load.
 
 The record `heading` is the anonymous object `{ level: int, text: string }` in Novis.
 
@@ -113,6 +117,19 @@ struct.
 
 `to_html` changes HTML in the Markdown to plain text. Without this, the parser copies a `<script>`
 tag from the text into the result unchanged. Step 6 makes the result safe a second time, in Novis.
+
+This extension uses only strings. A function with a `bytes` parameter or result uses two helpers.
+They are in the template's `src/lib.rs` from Step 1. `read_all` reads a `bytes` parameter into a
+`Vec<u8>`. `bytes_from` returns a `Vec<u8>` as a new `Bytes`. In Rust, `Bytes` is
+`nvs::ext::types::Bytes`. The template's `reverse` uses both:
+
+```rust
+fn reverse(data: &Bytes) -> Result<Bytes, Error> {
+    let mut bytes = read_all(data);
+    bytes.reverse();
+    Ok(bytes_from(&bytes))
+}
+```
 
 If the Rust code panics, the program gets an `ExtensionError`. The request goes on. The next call to
 the extension gets a new copy of it.
@@ -253,6 +270,10 @@ This extension needs no files and no network. An extension that needs them asks 
 with a `[requests]` table. The person who runs the server then allows them in the `[[extension]]`
 entry. The extension gets only what both allow. See
 [the `[[extension]]` entry](/reference/config/extension/).
+
+Pass a large file on disk to the extension as a path. Do not pass its content as `bytes`. The
+extension asks for its folder with `read` in the `[requests]` table. The `[[extension]]` entry
+allows that folder with `grants = { read = [...] }`. Then the extension reads the file itself.
 
 ## All the files
 

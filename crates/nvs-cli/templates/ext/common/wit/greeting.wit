@@ -3,10 +3,15 @@ package example:greeting;
 /// The functions a Novis program can call. Each one returns a `result`: the
 /// value, or an `error` that the program gets as an exception.
 interface api {
-    use nvs:ext/types@1.0.0.{error};
+    use nvs:ext/types@1.0.0.{error, bytes};
 
     /// Returns a greeting for `name`. An empty name returns an error.
     hello: func(name: string) -> result<string, error>;
+
+    /// Returns the bytes of `data` in reverse order. A Novis `bytes` value
+    /// is a `bytes` that the host keeps: the code reads it, and it writes
+    /// the result into a new one.
+    reverse: func(data: borrow<bytes>) -> result<bytes, error>;
 }
 
 /// What this project builds: the `nvs:ext` world, plus the functions above.

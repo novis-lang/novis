@@ -37,9 +37,12 @@ A call to an extension takes about 10 nanoseconds longer than a call to a built-
 first call in a request also creates the new copy of the extension. That takes about 8 to 23
 microseconds.
 
-The values are copied into the extension and back. So write functions that do a lot of work in one
-call: give the whole document, and get the whole result. A function that is called once for each
-character of a text is slow.
+The values are copied into the extension and back. A `bytes` value (a byte string) is copied once
+into the extension and once back. So a large file or an image costs about the time to copy its
+bytes.
+
+Write functions that do a lot of work in one call: give the whole document, and get the whole
+result. A function that is called once for each character of a text is slow.
 
 ## Which language
 

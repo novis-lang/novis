@@ -11,4 +11,10 @@ class GreetingTest
     {
         Test::assertSame(Greeting::hello('Ada'), 'Hello, Ada!');
     }
+
+    #[Test]
+    public function reverseTurnsTheBytesAround(): void
+    {
+        Test::assertTrue(Greeting::reverse('abc' as bytes) == ('cba' as bytes));
+    }
 }
