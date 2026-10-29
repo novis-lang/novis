@@ -67,12 +67,12 @@ Start the server from the folder `apps/paperwork`:
 nvs serve public/index.nvs
 ```
 
-Open `http://127.0.0.1:8000/` in your browser. The home page has a link to each document. You can
+Open `http://127.0.0.1:8143/` in your browser. The home page has a link to each document. You can
 also open each address directly:
 
-- `http://127.0.0.1:8000/invoice.pdf`
-- `http://127.0.0.1:8000/report.pdf`
-- `http://127.0.0.1:8000/tickets.pdf`
+- `http://127.0.0.1:8143/invoice.pdf`
+- `http://127.0.0.1:8143/report.pdf`
+- `http://127.0.0.1:8143/tickets.pdf`
 
 The app renders the document again for each request. It writes no file.
 
@@ -116,7 +116,7 @@ The tests open each finished PDF file with `Novis\Pdf\Reader` and check the text
 
 ```txt
 paperwork/
-  nvs.toml             the configuration: the app may read its logo, and no other file
+  nvs.toml             the configuration: the port, and the app may read its logo and no other file
   assets/
     logo.svg           the logo that the three documents show
   public/
@@ -139,8 +139,10 @@ paperwork/
     Totals.nvs         the sums of the invoice, for the PDF and for the XML
 ```
 
-`nvs.toml` has one section. `[capabilities.fs]` allows the app to read the file `assets/logo.svg`.
-The app cannot read any other file, and it cannot write a file.
+`nvs.toml` has two sections. `[server] listen` sets the port of the server to 8143. The other
+example apps use other ports, so you can run them at the same time. `[capabilities.fs]` allows the
+app to read the file `assets/logo.svg`. The app cannot read any other file, and it cannot write a
+file.
 
 `public/index.nvs` calls `Core\Router::dispatch(new Paperwork\Gate())`. `dispatch` finds the route
 that matches the request and calls its method.

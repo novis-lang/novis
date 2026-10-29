@@ -1,3 +1,8 @@
+# The server listens on port 8143. The other apps in this repository use other ports,
+# so all of them can run at the same time.
+[server]
+listen = ["127.0.0.1:8143"]
+
 # The app reads one file: the logo that the three documents show.
 # The path is relative to this folder. The app may read no other file, and it may write none.
 [capabilities.fs]

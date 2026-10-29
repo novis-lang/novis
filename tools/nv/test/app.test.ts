@@ -14,9 +14,9 @@ describe("nv app", () => {
     expect(listens("")).toEqual(["127.0.0.1:8000"]);
   });
 
-  test("the registry and the telemetry collector listen on different addresses, so both run at once", () => {
-    expect(apps()).toEqual(expect.arrayContaining(["registry", "telemetry"]));
-    const read = (name: string) => listens(readFileSync(join(ROOT, "apps", name, "nvs.toml"), "utf8"));
-    expect(read("registry")).not.toEqual(read("telemetry"));
+  test("every application listens on its own address, so all of them run at once", () => {
+    expect(apps()).toEqual(expect.arrayContaining(["notes", "paperwork", "registry", "telemetry"]));
+    const addresses = apps().flatMap((name) => listens(readFileSync(join(ROOT, "apps", name, "nvs.toml"), "utf8")));
+    expect(new Set(addresses).size).toBe(addresses.length);
   });
 });

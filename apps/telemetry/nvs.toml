@@ -6,7 +6,8 @@ default = "production"
 [log]
 client_ip = false
 
-# The server listens on port 8141. The registry uses port 8140, so both can run on one computer.
+# The server listens on port 8141. The other apps in this repository use other ports,
+# so all of them can run at the same time.
 # Caddy runs on the same machine and sends each request from 127.0.0.1. The server reads
 # the address of the sender from Caddy's `X-Forwarded-For` header.
 [server]

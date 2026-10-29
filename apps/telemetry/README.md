@@ -14,7 +14,7 @@ nvs test .                   # runs the tests
 ```
 
 In a clone of the repository, `bun nv app telemetry` starts the app from any folder. The app uses
-port 8141 and the registry uses port 8140, so both can run at the same time.
+port 8141. The other apps use other ports, so all of them can run at the same time.
 
 | File | What it does |
 |---|---|

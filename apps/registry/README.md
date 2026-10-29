@@ -11,7 +11,7 @@ nvs test . --config nvs.toml                   # runs the tests
 ```
 
 In a clone of the repository, `bun nv app registry` starts the registry from any folder. The
-registry uses port 8140 and the telemetry service uses port 8141, so both can run at the same time.
+registry uses port 8140. The other apps use other ports, so all of them can run at the same time.
 
 ## The settings
 

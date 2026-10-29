@@ -42,7 +42,7 @@ Start the server from the folder `apps/notes`:
 nvs serve public/index.nvs
 ```
 
-Open `http://127.0.0.1:8000/` in your browser. The first request creates the file `notes.sqlite` in
+Open `http://127.0.0.1:8142/` in your browser. The first request creates the file `notes.sqlite` in
 the same folder. Your notes are kept there, so they are still there after a restart.
 
 ## Run the tests
@@ -79,7 +79,7 @@ nvs test .
 
 ```txt
 notes/
-  nvs.toml             the configuration: the two databases and the permission to open them
+  nvs.toml             the configuration: the port, the two databases and the permission to open them
   public/
     index.nvs          the entry file: every request starts here
   src/
@@ -93,6 +93,9 @@ notes/
     Store.nvs          reads and saves notes in the database
     StoreTest.nvs      tests saving and reading notes
 ```
+
+`[server] listen` in `nvs.toml` sets the port of the server to 8142. The other example apps use
+other ports, so you can run them at the same time.
 
 `nvs.toml` names two SQLite databases. `notes` is the file `notes.sqlite`. `scratch` is kept in
 memory, and only the tests use it. The section `[capabilities.db]` allows the app to open these two
@@ -139,8 +142,8 @@ A note with the title `<b>Milk</b>` shows those characters as text.
 Try the API with `curl` while the server runs:
 
 ```sh
-curl -H "content-type: application/json" -d '{"title": "Milk", "body": "Buy two"}' http://127.0.0.1:8000/api/notes
-curl http://127.0.0.1:8000/api/notes
+curl -H "content-type: application/json" -d '{"title": "Milk", "body": "Buy two"}' http://127.0.0.1:8142/api/notes
+curl http://127.0.0.1:8142/api/notes
 ```
 
 ## Start your own app from it

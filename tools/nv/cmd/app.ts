@@ -6,9 +6,10 @@
 //
 // An application is a folder under `apps/` with `public/index.nvs`. Each runs as `nvs serve
 // public/index.nvs --config nvs.toml` in its own folder, so its relative paths are its own. The address
-// is its `nvs.toml`'s `[server] listen`, the one home of it: the registry's is `127.0.0.1:8140` and the
-// telemetry collector's `127.0.0.1:8141`, so the two run at the same time. An application with no
-// `listen` gets `nvs serve`'s default, `127.0.0.1:8000`.
+// is its `nvs.toml`'s `[server] listen`, the one home of it. Each application has its own port, from
+// 8140 up (the registry, the telemetry collector, notes, paperwork), so all of them run at the same
+// time, and `test/app.test.ts` fails on two that share one. An application with no `listen` gets
+// `nvs serve`'s default, `127.0.0.1:8000`.
 //
 // The `nvs` is the newest built one (`lib/nvs-binary.ts`), or `NVS_BIN` when it is set. A server waits
 // on purpose, so its run has no hang watch and no timeout; Ctrl+C stops it.

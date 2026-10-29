@@ -1,3 +1,8 @@
+# The server listens on port 8142. The other apps in this repository use other ports,
+# so all of them can run at the same time.
+[server]
+listen = ["127.0.0.1:8142"]
+
 # The notes are kept in the SQLite file `notes.sqlite`, next to this file.
 # Novis creates the file when the first request opens the database.
 [db.notes]
