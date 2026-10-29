@@ -1,6 +1,29 @@
 {
   "how": "`cargo bench -p nvs-ext --bench ext_bytes -- --record <row>`: the median of 9 calls of the ledger fixture's `echoBytes` at each size after 2 untimed ones, in a release build, through `Request::call_values`. `allocated_bytes` is every host heap byte one call allocated, and `peak_bytes` the most it held at once; guest linear memory is not on the host heap. `before` is the dynamic path, which crosses a byte list as one wasmtime `Val` per byte; `after` is the host-held `bytes` resource.",
   "rows": {
+    "after": {
+      "host": "x86_64-windows",
+      "sizes": {
+        "1 KiB": {
+          "allocated_bytes": 2909,
+          "bytes": 1024,
+          "median_ns": 22000,
+          "peak_bytes": 1613
+        },
+        "1 MiB": {
+          "allocated_bytes": 2098013,
+          "bytes": 1048576,
+          "median_ns": 455600,
+          "peak_bytes": 1049165
+        },
+        "16 MiB": {
+          "allocated_bytes": 33555293,
+          "bytes": 16777216,
+          "median_ns": 5499600,
+          "peak_bytes": 16777805
+        }
+      }
+    },
     "before": {
       "host": "x86_64-windows",
       "sizes": {
