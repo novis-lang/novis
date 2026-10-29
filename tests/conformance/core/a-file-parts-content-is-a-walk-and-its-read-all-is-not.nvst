@@ -21,7 +21,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
 
 --EXPECTF-ERROR--
 error[E0401]: expected `array<bytes>`, found `Core\Request\PartContent`
-   --> case.nvs:12:28
+   --> case.nvs:13:28
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

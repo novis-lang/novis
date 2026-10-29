@@ -17,7 +17,7 @@ array<mixed> $wrong = $db->query("select 1", []);
 
 --EXPECTF-ERROR--
 error[E0401]: expected `array<mixed>`, found `Core\Db\Rows<Core\Db\Row>`
-   --> case.nvs:11:23
+   --> case.nvs:12:23
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

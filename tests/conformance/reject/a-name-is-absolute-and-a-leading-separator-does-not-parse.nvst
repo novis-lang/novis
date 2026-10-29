@@ -40,16 +40,16 @@ error[E0243]: a file has only one namespace
   --> case.nvs:2:1
 %A
 error[E0240]: a name is already absolute
-   --> case.nvs:14:5
+   --> case.nvs:15:5
 %A
 error[E0322]: `Models\Module` is not declared
-   --> case.nvs:19:27
+   --> case.nvs:21:27
 %A
 error[E0303]: `Module\Missing` is not declared
-   --> case.nvs:25:34
+   --> case.nvs:27:34
 %A
 error[E0240]: a name is already absolute
-   --> case.nvs:28:32
+   --> case.nvs:30:32
 %A
 error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

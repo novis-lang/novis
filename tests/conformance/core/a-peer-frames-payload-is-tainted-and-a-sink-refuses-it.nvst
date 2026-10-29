@@ -45,9 +45,9 @@ try {
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string`, found `tainted string`
-   --> case.nvs:26:27
+   --> case.nvs:27:27
    |
-26 |             Core\IO::read($payload);
+27 |             Core\IO::read($payload);
    |                           ^^^^^^^^ this is `tainted string`
 
 error: aborting due to 1 error

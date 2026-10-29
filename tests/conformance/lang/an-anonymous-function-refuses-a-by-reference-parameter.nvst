@@ -28,13 +28,13 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0493]: an anonymous function cannot take `$n` as `inout`
-  --> case.nvs:9:32
+   --> case.nvs:10:32
 %A
 error[E0493]: an anonymous function cannot take `$a` as `inout`
-   --> case.nvs:12:32
+   --> case.nvs:13:32
 %A
 error[E0493]: an anonymous function cannot take `$b` as `inout`
-   --> case.nvs:12:46
+   --> case.nvs:13:46
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

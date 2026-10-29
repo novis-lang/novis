@@ -93,22 +93,22 @@ final class TwiceTest {
 }
 --EXPECTF-ERROR--
 error[E0735]: the `#[Fixture]` method `notStatic` is not `static`
-   --> case.nvs:46:21
+   --> case.nvs:47:21
 %A
 error[E0735]: the `#[Fixture]` method `notPublic` is not `public`
-   --> case.nvs:52:29
+   --> case.nvs:53:29
 %A
 error[E0735]: the `#[Fixture]` method `suppliesNothing` returns `void`
-   --> case.nvs:58:28
+   --> case.nvs:59:28
 %A
 error[E0454]: `name` is not an option of `#[Fixture]`
-   --> case.nvs:63:15
+   --> case.nvs:64:15
 %A
 error[E0735]: the `#[Fixture]` method `bothAtOnce` is also a `#[Test]`
-   --> case.nvs:72:28
+   --> case.nvs:73:28
 %A
 error[E0304]: `TwiceTest` declares two `#[Fixture]` methods returning `Schema`
-   --> case.nvs:86:28
+   --> case.nvs:87:28
 %A
 error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

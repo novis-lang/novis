@@ -46,10 +46,10 @@ final class AcceptedTest {
 }
 --EXPECTF-ERROR--
 error[E0734]: `retries` is given with no `because`
-   --> case.nvs:31:12
+   --> case.nvs:32:12
 %A
 error[E0734]: `retries` is given with no `because`
-   --> case.nvs:38:53
+   --> case.nvs:39:53
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

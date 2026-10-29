@@ -76,16 +76,16 @@ class Pages
 
 --EXPECTF-ERROR--
 error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::json`
-   --> case.nvs:13:9
+   --> case.nvs:14:9
 %A
 error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `echo`
-   --> case.nvs:23:9
+   --> case.nvs:24:9
 %A
 error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::text`
-   --> case.nvs:33:9
+   --> case.nvs:34:9
 %A
 error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `Core\Response::json`
-   --> case.nvs:44:9
+   --> case.nvs:45:9
 %A
 error: aborting due to 4 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

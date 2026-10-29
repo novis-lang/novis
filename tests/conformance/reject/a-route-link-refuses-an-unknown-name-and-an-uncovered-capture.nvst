@@ -35,10 +35,10 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0754]: `Core\Router::url` links to `Users::format`, and that method has no `#[Route]`
-   --> case.nvs:21:23
+   --> case.nvs:23:23
 %A
 error[E0755]: `Users::show`'s path `/users/{id}` captures `id`, and this `$params` supplies no keys at all
-   --> case.nvs:26:6
+   --> case.nvs:28:6
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

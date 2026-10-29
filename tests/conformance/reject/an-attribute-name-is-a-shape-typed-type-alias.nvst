@@ -64,16 +64,16 @@ error[E0303]: `Undeclared` is not declared
    --> case.nvs:32:3
 %A
 error[E0726]: an attribute's name must be a shape-typed `type` alias, and `NotAnAttribute` is not a `type` alias
-   --> case.nvs:36:7
+   --> case.nvs:37:7
 %A
 error[E0726]: an attribute's name must be a shape-typed `type` alias, and `Id` is a `type` alias for `int`, which is not a shape
-   --> case.nvs:41:28
+   --> case.nvs:42:28
 %A
 error[E0401]: expected `{ method: string, path: string }`, found `{ method: string, path: int }`
-   --> case.nvs:49:8
+   --> case.nvs:50:8
 %A
 error[E0401]: expected `{ method: string, path: string }`, found `{ path: string }`
-   --> case.nvs:52:8
+   --> case.nvs:53:8
 %A
 error: aborting due to 5 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

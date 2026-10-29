@@ -112,22 +112,22 @@ final class UninjectableTest {
 }
 --EXPECTF-ERROR--
 error[E0736]: nothing supplies `$w` of the #[Test] method `itMisses`, which `MissingTest` declares as `Widget`
-   --> case.nvs:42:21
+   --> case.nvs:41:21
 %A
 error[E0736]: nothing supplies `$w` of the #[Fixture] method `derived`, which `MissingTest` declares as `Widget`
-   --> case.nvs:49:28
+   --> case.nvs:48:28
 %A
 error[E0737]: `CycleTest`'s `#[Fixture]` methods require each other: left -> right -> left
-   --> case.nvs:72:28
+   --> case.nvs:71:28
 %A
 error[E0733]: the `#[Test]` method `itSpreads` declares a variadic parameter
-   --> case.nvs:97:21
+   --> case.nvs:96:21
 %A
 error[E0733]: the `#[Test]` method `itWritesBack` declares an `inout` parameter
-    --> case.nvs:102:21
+    --> case.nvs:101:21
 %A
 error[E0735]: the `#[Fixture]` method `spreading` declares a variadic parameter
-    --> case.nvs:107:28
+    --> case.nvs:106:28
 %A
 error: aborting due to 6 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

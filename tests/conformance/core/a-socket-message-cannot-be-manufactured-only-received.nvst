@@ -45,9 +45,9 @@ var $forged = new Core\Socket\Message();
 
 --EXPECTF-ERROR--
 error[E0405]: `Core\Socket\Message` has no member named `constructor`
-   --> case.nvs:39:15
+   --> case.nvs:40:15
    |
-39 | var $forged = new Core\Socket\Message();
+40 | var $forged = new Core\Socket\Message();
    |               ^^^^^^^^^^^^^^^^^^^^^^^^^ referenced here
 
 error: aborting due to 1 error
