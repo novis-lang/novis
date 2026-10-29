@@ -18,7 +18,7 @@
     "Core\\Router\\Gate": "c4adb277c541ba28",
     "Core\\Router\\Refusal": "54a1cc05b2b1e7da",
     "Core\\Router\\Responder": "c0dec1200f6ca4ab",
-    "lang:attributes/core-api-and-the-openapi-document": "e5633a12dc3237a9",
+    "lang:attributes/core-api-and-the-openapi-document": "a7eea746e456ce35",
     "lang:attributes/core-route-and-core-access-the-route-table": "d25b5e9578379966"
   },
   "syntax/attributes/writing-and-reading.mdx": {
@@ -367,7 +367,7 @@
   },
   "tools/api-document/index.mdx": {
     "tools:cli/nvs-api-diff": "776eaa9ca908be4a",
-    "tools:cli/nvs-build-openapi": "14f26ed23fbbc008"
+    "tools:cli/nvs-build-openapi": "23005b01a5dbbfb1"
   },
   "tools/cli/index.mdx": {
     "tools:cli/nvs-check": "85533fbb31eceea9",

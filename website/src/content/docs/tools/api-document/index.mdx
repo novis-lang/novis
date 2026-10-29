@@ -32,7 +32,9 @@ The document has one entry in `paths` for each route. Each entry has these parts
   as `string` or `int`.
 - `summary` is the first sentence of the `///` comment above the method.
 
-`title` is the name of the file without `.nvs`. `version` is always `0.0.0`.
+`title` is the name of the file without `.nvs`. `version` is the `version` in the nearest
+`package.toml`, found from the folder where you run the command. Without a `package.toml`, it is
+`0.0.0`.
 
 The command prints to standard output. To keep the document, write it to a file:
 
@@ -43,6 +45,9 @@ nvs build --openapi shop.nvs > openapi.json
 A program with no `#[Core\Route]` writes no document. The command prints a message, and the exit code
 is `0`. A program with a compile error writes no document either. The command prints the errors, and
 the exit code is `1`.
+
+Two routes can have the same path in the document. An example is `/a/{id}` and `/a/{key}`. Then the
+command prints an error that names both routes, and writes no document.
 
 ## Describe a route with `#[Core\Api]`
 

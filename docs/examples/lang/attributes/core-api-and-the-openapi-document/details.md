@@ -1,8 +1,12 @@
 `nvs build --openapi main.nvs` writes the document to standard output and runs nothing. The document's
-`info.title` is the file name without `.nvs`, and `info.version` is always `0.0.0`. A program with no
+`info.title` is the file name without `.nvs`. `info.version` is the `version` in the nearest
+`package.toml`, found from the folder you run the command in. Without one, it is `0.0.0`. A program with no
 `#[Core\Route]` writes no document. The command prints a message to standard error that says so, and
 exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
+Two routes can have the same OpenAPI path: `/files/{path}` and `/files/{path...}` with one HTTP
+method, or `/a/{id}` and `/a/{key}` with any two. Then the command prints an error that names both
+routes, and writes no document.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
 the same file give the same bytes. Each operation's `operationId` is the full name of its method,

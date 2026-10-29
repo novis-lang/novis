@@ -27186,10 +27186,14 @@ Each name in `security:` must be declared by a `#[Core\Api\Scheme]` on a class o
 everything a client generator needs. The last one shows an `example:` that does not compile.
 
 `nvs build --openapi main.nvs` writes the document to standard output and runs nothing. The document's
-`info.title` is the file name without `.nvs`, and `info.version` is always `0.0.0`. A program with no
+`info.title` is the file name without `.nvs`. `info.version` is the `version` in the nearest
+`package.toml`, found from the folder you run the command in. Without one, it is `0.0.0`. A program with no
 `#[Core\Route]` writes no document. The command prints a message to standard error that says so, and
 exits with status 0. A program that does not compile writes no document either.
 The command prints the compile errors and exits with status 1.
+Two routes can have the same OpenAPI path: `/files/{path}` and `/files/{path...}` with one HTTP
+method, or `/a/{id}` and `/a/{key}` with any two. Then the command prints an error that names both
+routes, and writes no document.
 
 The paths are sorted by their text, and the operations of one path by their HTTP method. Two builds of
 the same file give the same bytes. Each operation's `operationId` is the full name of its method,
@@ -56721,14 +56725,19 @@ total: 420 MB
   bundle, with its `sha256` and its `grants`. The bundle checks each `sha256` when it starts and
   loads these extensions before the ones in the configuration file it reads. A file that does not
   match its `sha256` stops the build.
+- On Windows, the executable shows the program's own name, version and icon in Explorer and in
+  Task Manager. They come from the nearest `package.toml`, found from the current directory: the
+  package's `name` and `version`, and the `.ico` file `[bundle] icon` names. Without a
+  `package.toml`, the executable shows the icon and version of `nvs`.
 
 ### nvs build --openapi
 
     nvs build --openapi <file>
 
 Writes an OpenAPI 3.1 document for the program's `#[Route]` methods to standard output: `openapi:
-"3.1.0"`, an `info` block whose `title` is the entry file's stem, and one `paths` entry per route
-with its method, an `operationId` of `Class::method`, its path parameters with their schemas, and
+"3.1.0"`, an `info` block whose `title` is the entry file's stem and whose `version` is the nearest
+`package.toml`'s `version` (`0.0.0` without one), and one `paths` entry per route
+with its method, an `operationId` of `Class.method`, its path parameters with their schemas, and
 its responses. Nothing runs. `nvs build` with neither `--compile` nor `--openapi` is refused rather
 than doing nothing. The output below, for a program with one route, is trimmed at the `...`.
 
@@ -56744,7 +56753,7 @@ $ cat openapi.json
   "paths": {
     "/orders": {
       "get": {
-        "operationId": "Orders::index",
+        "operationId": "Orders.index",
         ...
         "summary": "Lists every open order."
       }
@@ -59075,6 +59084,10 @@ Acme = { url = "https://packages.example.com", key = "packages.example.com+6c1a1
 | `[capabilities]` | the capabilities a package needs, as `required` and `optional` |
 | `[grants]` | the capabilities each namespace may use, in an application's file only |
 | `[[download]]` | a large file a package downloads from another host, with its size and SHA-256 hash |
+| `[bundle] icon` | the `.ico` file a Windows executable from `nvs build --compile` shows, as a path from this file's folder |
+
+On Windows, `nvs build --compile` writes the package's name and `version` into the executable. Explorer
+and Task Manager show them. Without a name, the executable shows its file name, and without a version, `0.0.0`.
 
 `version`, `files`, `supersedes`, `[capabilities]` and `[[download]]` are allowed only in a package's file. Any
 other key is error `E0659`, and the `nvs pkg` commands stop.

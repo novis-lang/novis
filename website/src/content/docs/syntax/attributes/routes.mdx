@@ -90,6 +90,10 @@ More facts about the document:
 - When the method reads the body with `Core\Request::jsonAs<T>()` or `Core\Request::postAs<T>()`,
   the document describes that body with the schema of `T`. The call must be in the route method
   itself. A body that another method reads is not in the document.
+- The document's `info.version` is the `version` in the nearest `package.toml`. Without one, it is
+  `0.0.0`.
+- Two routes can have the same path in the document, such as `/a/{id}` and `/a/{key}`. Then
+  `nvs build --openapi` prints an error that names both routes, and writes no document.
 
 ## Do and don't
 

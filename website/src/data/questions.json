@@ -1065,24 +1065,26 @@
   },
   "/reference/cli/nvs-build-compile/": {
     "feature": "tools:cli/nvs-build-compile",
-    "hash": "8cd7f8327ab517f6",
+    "hash": "4be3dd0df63c992b",
     "questions": [
       "Build a single executable from my program",
       "How do I ship my script as one file without installing Novis?",
       "Bundle all required source files into a standalone binary",
       "Where does a bundled executable read its configuration from?",
-      "Choose the output file name for a packaged program"
+      "Choose the output file name for a packaged program",
+      "Set the version and icon of my Windows executable"
     ]
   },
   "/reference/cli/nvs-build-openapi/": {
     "feature": "tools:cli/nvs-build-openapi",
-    "hash": "14f26ed23fbbc008",
+    "hash": "23005b01a5dbbfb1",
     "questions": [
       "Generate API documentation from my route methods",
       "How do I create an OpenAPI spec for my web server?",
       "Export my HTTP routes as an OpenAPI 3.1 JSON file",
       "Describe my endpoints in a standard format without running the server",
-      "Which operationId does each route get in the OpenAPI file?"
+      "Which operationId does each route get in the OpenAPI file?",
+      "Where does the version in my OpenAPI document come from?"
     ]
   },
   "/reference/cli/nvs-check/": {
@@ -17312,7 +17314,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "54c177b77da93288",
+    "hash": "8fcb31fd369f92a7",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -17999,11 +18001,11 @@
   },
   "/tools/api-document/": {
     "feature": "tools/api-document/index.mdx",
-    "hash": "2b4d64122a049e4e",
+    "hash": "3a20468213a34f9d",
     "questions": [
       "Does Novis write a Swagger document for my web API?",
       "Add tags, error responses and an auth scheme to my OpenAPI document",
-      "How do I declare a bearer token security scheme for my routes?",
+      "Set the version of my API document from package.toml",
       "Which API changes break old clients, and which are safe?",
       "Is a new query parameter with a default value a breaking change?",
       "Set my own operationId for one route in the API document"
