@@ -104,16 +104,18 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `d81d444ba`, the end of `section-marks`. CI 40872102212 (push lane, 39 jobs)
-and Website 40872102234 are green on it. That push carried the fixes for the nightly run
-40847802941's nine reds: `ef7e629e2` (`CHANGELOG.md` in the proxied image's build context),
-`dafe6c98d` (the spool wake test reads the writer's deadline) and `df208a541` (passkey tests that
-use `ring` are ignored under Miri). The push lane does not run Miri or the proxied bench, so the
-next nightly run on `d81d444ba` is their check.
+`origin/main` is at `c04ab07ac`, the end of `extension-bytes`. Website 40888327275 is green on
+it. CI 40888327175 is red on one job alone, `ext templates` on all three platforms: the guide's
+Markdown example kept the old `wit/deps/nvs-ext/types.wit`, without the `bytes` resource.
+`cb5bd8d08` copies `wit/nvs-ext/types.wit` into it, and the example's guest builds for
+`wasm32-wasip2` with it. It goes out with the next goal end's push.
 
-Before that push, `proofs --gate` and `site --check stale` were red at `41a0c8149` on the perf
-figures and a page stamp that `section-marks`' own comment commits had staled. They were handed to
-the main loop, and its goal end's `ci --check` passed, so they went out recorded.
+`proofs / linux-x86_64` failed once on that run, and passed on the rerun. The Ldap SID attack's
+first `connect` got `the bind: peer closed` from the samba-ad service. A second time is not noise:
+see the LDAP item below.
+
+The nightly runs on `d81d444ba` and `c04ab07ac` were not seen yet. The three nightly fixes
+(`ef7e629e2`, `dafe6c98d`, `df208a541`) are still unchecked by Miri and the proxied bench.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
@@ -127,8 +129,9 @@ target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper 
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch`, for the nightly run on `d81d444ba` and the next push. `tools/nv/cmd/ci.ts:265`
-  The nightly run is the check of the three fixes above: if a `miri units` shard fails again, read
+- [ ] Watch with `bun nv ci --watch --next`, for the next nightly run and the next push. `tools/nv/cmd/ci.ts:265`
+  Without `--next` the watch exits 1 at once on 40888327175's `ext templates`, which `cb5bd8d08`
+  fixes. The nightly run is the check of the three fixes above: if a `miri units` shard fails again, read
   which test it names before you think the passkey fix missed one. A new test that signs or
   verifies through `ring` carries the same ignore. Run 40484733037 on `1467fa8f6` is green. If `tsan`'s allocation test fails
   again with a different batch off by one, the first-use allocation is elsewhere on the core:
@@ -167,7 +170,9 @@ target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper 
   `0cc897b74` fixed. Another gap on "a second cold run" means a per-run input moves the collections.
 - [ ] If the LDAP login attack fails again, read the `proofs / linux-x86_64` log. `tests/hostile/core/Ldap-Connection/authenticate/01-guess-logins-and-passwords.nvs:1`
   It passed on `88fb690a3`. A second `whoami: Timeout` is not noise. Compare the socket deadline with the slice yield
-  commits `13004e4f9` and `2b292f862`.
+  commits `13004e4f9` and `2b292f862`. If an Ldap attack's first `connect` fails again with `the
+  bind: peer closed`, check whether the login-guessing attack ran beside it: the proofs run two
+  attacks at a time, and many wrong binds may make samba-ad drop other connections.
 - [ ] If `five-driver matrix` fails again, read SQL Server's own log. `tools/nv/cmd/db-matrix.ts:367`
   The step now prints `db-matrix: the last 60 lines of `mssql`'s log:` above its error. Fix what
   that log names, in `tests/db/compose.yaml`'s `mssql` service. When every service is `Healthy` and
