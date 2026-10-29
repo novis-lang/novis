@@ -1,13 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "Settings for your program",
-      "text": "Your program reads its own settings and secrets from `nvs.toml`. `nvs config check` warns about a setting that no program reads.",
-      "goals": [
-        "app-settings"
-      ]
-    }
-  ]
+  "themes": []
 }
