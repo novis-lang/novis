@@ -126,16 +126,132 @@ final class PackagePage
         return 'released';
     }
 
-    // The capabilities this version requests, and what changed from the version before.
+    // The capabilities this version requests, and each capability that is new, removed,
+    // or moved between required and optional since the version before.
     private function capabilities(string $key, Row $row): Markup
     {
-        return html``;
+        tainted string $json = PackagePage::raw($row, 'capabilities');
+        array<tainted string> $required = PackagePage::names($json, 'required');
+        array<tainted string> $optional = PackagePage::names($json, 'optional');
+        var $content = html`<h2>Capabilities</h2>
+<p>A capability is something the package may do, such as <code>net.connect</code> to open a network connection. The package needs each required capability. It can work without an optional one.</p>`;
+        if (Arr::count($required) + Arr::count($optional) == 0) {
+            $content = $content + html`<p>This version requests no capabilities.</p>`;
+        } else {
+            $content = $content
+                + html`<h3>Required</h3>` + PackagePage::nameList($required)
+                + html`<h3>Optional</h3>` + PackagePage::nameList($optional);
+        }
+        int $major = $row->int('major') ?? 0;
+        int $minor = $row->int('minor') ?? 0;
+        int $patch = $row->int('patch') ?? 0;
+        var $found = $this->db->query(
+            'select version, capabilities from releases where package = ? '
+                . 'and (major < ? or (major = ? and minor < ?) or (major = ? and minor = ? and patch < ?)) '
+                . 'order by major desc, minor desc, patch desc limit 1',
+            [$key, $major, $major, $minor, $major, $minor, $patch],
+        );
+        foreach ($found as Row $before) {
+            string $version = PackagePage::text($before, 'version');
+            tainted string $old = PackagePage::raw($before, 'capabilities');
+            array<tainted string> $oldRequired = PackagePage::names($old, 'required');
+            array<tainted string> $oldOptional = PackagePage::names($old, 'optional');
+            var $items = html``;
+            bool $any = false;
+            foreach ($required as tainted string $name) {
+                if (Arr::contains($oldOptional, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> was optional and is now required.</li>`;
+                    $any = true;
+                } elseif (!Arr::contains($oldRequired, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> is new and required.</li>`;
+                    $any = true;
+                }
+            }
+            foreach ($optional as tainted string $name) {
+                if (Arr::contains($oldRequired, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> was required and is now optional.</li>`;
+                    $any = true;
+                } elseif (!Arr::contains($oldOptional, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> is new and optional.</li>`;
+                    $any = true;
+                }
+            }
+            foreach ($oldRequired as tainted string $name) {
+                if (!Arr::contains($required, $name) && !Arr::contains($optional, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> is removed. It was required.</li>`;
+                    $any = true;
+                }
+            }
+            foreach ($oldOptional as tainted string $name) {
+                if (!Arr::contains($required, $name) && !Arr::contains($optional, $name)) {
+                    $items = $items + html`<li><code>{$name}</code> is removed. It was optional.</li>`;
+                    $any = true;
+                }
+            }
+            var $list = $any ? html`<ul>{$items}</ul>` : html`<p>The capabilities are the same as in version {$version}.</p>`;
+            return $content + html`<h3>Changes from version {$version}</h3>` + $list;
+        }
+        return $content + html`<h3>Changes from the version before</h3><p>This is the first version of the package.</p>`;
     }
 
     // The changes to the API from the version before, as the build of this version found them.
+    // The breaking changes come first.
     private function changes(Row $row): Markup
     {
-        return html``;
+        tainted string $json = PackagePage::raw($row, 'changes');
+        if ($json == '') {
+            return html`<h2>Changes to the API</h2><p>The registry has no comparison of the API for this version.</p>`;
+        }
+        array<mixed> $report = Json::decode($json) as array<mixed>;
+        tainted string $from = ($report['from'] ?? '') as tainted string;
+        var $intro = $from == '' ? html`` : html`<p>These are the changes from version {$from}.</p>`;
+        var $breaking = html``;
+        var $additive = html``;
+        bool $any = false;
+        foreach (($report['changes'] as array<mixed>) as mixed $entry) {
+            array<mixed> $change = $entry as array<mixed>;
+            tainted string $at = $change['at'] as tainted string;
+            tainted string $what = $change['what'] as tainted string;
+            if (($change['class'] as tainted string) == 'breaking') {
+                $breaking = $breaking + html`<tr><td>Breaking</td><td><code>{$at}</code></td><td>{$what}</td></tr>`;
+            } else {
+                $additive = $additive + html`<tr><td>Added</td><td><code>{$at}</code></td><td>{$what}</td></tr>`;
+            }
+            $any = true;
+        }
+        if (!$any) {
+            return html`<h2>Changes to the API</h2>{$intro}<p>The API did not change.</p>`;
+        }
+        return html`<h2>Changes to the API</h2>{$intro}
+<p>A breaking change can stop code that uses the package from working. An added change cannot.</p>
+<table><tr><th>Kind</th><th>Where</th><th>What</th></tr>{$breaking}{$additive}</table>`;
+    }
+
+    // The capability names in the list `$kind` of a `capabilities` column, or none when the column is empty.
+    private static function names(tainted string $json, string $kind): array<tainted string>
+    {
+        array<tainted string> $names = [];
+        if ($json == '') {
+            return $names;
+        }
+        array<mixed> $lists = Json::decode($json) as array<mixed>;
+        foreach ((($lists[$kind] ?? []) as array<mixed>) as mixed $name) {
+            $names[] = $name as tainted string;
+        }
+        return $names;
+    }
+
+    // A list of capability names, or a sentence when it is empty.
+    private static function nameList(array<tainted string> $names): Markup
+    {
+        if (Arr::count($names) == 0) {
+            return html`<p>None.</p>`;
+        }
+        var $items = html``;
+        foreach ($names as tainted string $name) {
+            $items = $items + html`<li><code>{$name}</code></li>`;
+        }
+        return html`<ul>{$items}</ul>`;
     }
 
     // Every release of the package with its state, the newest version first.
