@@ -1,13 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "Packages and the registry",
-      "text": "`nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.",
-      "goals": [
-        "first-packages"
-      ]
-    }
-  ]
+  "themes": []
 }

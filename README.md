@@ -119,7 +119,7 @@ This is the work that is planned, in the order it is planned. The order can chan
 dates. The [roadmap page](https://novis-lang.org/in-depth/roadmap/) has the same list.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-1. **Packages and the registry.** *Working on it now.* `nvs` installs and locks the packages your program uses, and the registry builds every package from its source code. `nvs pkg audit` lists the known security problems in your packages, and the version that fixes each one.
+
 <!-- roadmap:end -->
 
 ## Contributing
