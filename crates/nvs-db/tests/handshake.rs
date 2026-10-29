@@ -26,16 +26,18 @@
 //!
 //! **MariaDB is where the twinning pays for itself.** Its driver borrows
 //! `mysql.rs`'s framing and nothing above it — its own authentication roster,
-//! its own § 8 code table — so a scripted peer can only ever confirm that this
-//! crate agrees with itself about a protocol two servers implement differently.
+//! its own `rule:core-classes/db-error` code table — so a scripted peer can
+//! only ever confirm that this crate agrees with itself about a protocol two
+//! servers implement differently.
 //! `mariadb()` below is `mysql()`'s twin and the leg it selects is the matrix's
 //! own, so the same facts are asked of a real MariaDB: the session it ends up
 //! holding is encrypted, it is authenticated as the account named, and the
 //! credential it refuses is refused by *MariaDB's* table rather than by
 //! MySQL's.
 //!
-//! **SQL Server is the only driver whose TLS is not a socket upgrade.** § 3's
-//! session is negotiated *inside* TDS: the handshake records ride PRELOGIN
+//! **SQL Server is the only driver whose TLS is not a socket upgrade.** The
+//! session `rule:core-classes/db-safe-connection-defaults` requires is
+//! negotiated *inside* TDS: the handshake records ride PRELOGIN
 //! messages one packet at a time and the stream goes raw again once the login
 //! is sent, so `tds.rs`'s own cases hold each step of that tunnel against a
 //! peer that agrees with whatever was written. What is left over is the same
@@ -60,7 +62,8 @@
 //! `Ssl_version` **session** status variable, which is the version negotiated
 //! on this session's own socket and is empty on one that never upgraded;
 //! `CURRENT_USER()`; and a refusal that arrives as a [`ServerError`] rather
-//! than as a sentence, so § 8's `SQLSTATE` and `driverCode` are read off the
+//! than as a sentence, so the `SQLSTATE` and `driverCode` of
+//! `rule:core-classes/db-error` are read off the
 //! access denial a real server sends rather than off a peer script that was
 //! told what to send.
 //!
@@ -120,7 +123,8 @@ const QUIET: &str = "SELECT pg_sleep(0.5)";
 /// keeping that wire quiet for the same half second.
 ///
 /// `SLEEP` is what `pg_sleep` is. The cast is owed to the helper rather than to
-/// the case: `SLEEP` answers a `BIGINT`, § 9 decodes that as
+/// the case: `SLEEP` answers a `BIGINT`, `rule:core-classes/db-column-types`
+/// decodes that as
 /// [`MySqlScalar::Int`], and [`mysql_one_value`] reads a text column — so the
 /// statement asks for its answer in the one shape both drivers' helpers carry,
 /// the way the `GROUP_CONCAT` below already does.
@@ -350,7 +354,7 @@ fn mysql_open(leg: &Leg) -> MySqlConn {
 /// The first column of the first row `sql` returns, as text.
 ///
 /// [`one_value`]'s twin over the binary protocol, so the column arrives already
-/// typed and the text is read through § 9's own decoder rather than by parsing
+/// typed and the text is read through the type map's own decoder rather than by parsing
 /// the octets here: a statement that answered something other than a string
 /// panics rather than rendering into one, since every caller below is asking a
 /// server for a name or a version.
@@ -364,7 +368,7 @@ fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
 /// The walk itself, shared by the two drivers that speak this result set.
 ///
 /// [`MariaConn::query`] answers the *same* [`MySqlRows`] as [`MySqlConn::query`]
-/// — one binary protocol, and § 9's decoder is one decoder — so this is the one
+/// — one binary protocol, and the type map's decoder is one decoder — so this is the one
 /// helper of the MariaDB set that is not a twin of a MySQL one. What that driver
 /// does not share is above the framing, and that is what the cases below ask
 /// about.
@@ -378,11 +382,12 @@ fn first_text(mut rows: MySqlRows<'_>) -> Option<String> {
         if first {
             first = false;
             let value = row.value(0).expect("the row has a first column");
-            answer = match scalar(&columns[0], value).expect("the column decodes under § 9") {
-                MySqlScalar::Null => None,
-                MySqlScalar::Text(text) => Some(text.to_owned()),
-                other => panic!("the statement answered {other:?}, which is not text"),
-            };
+            answer =
+                match scalar(&columns[0], value).expect("the column decodes under the type map") {
+                    MySqlScalar::Null => None,
+                    MySqlScalar::Text(text) => Some(text.to_owned()),
+                    other => panic!("the statement answered {other:?}, which is not text"),
+                };
         }
     }
     answer
@@ -423,7 +428,7 @@ fn mariadb() -> Option<Leg> {
 }
 
 /// The zone [`a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it`]
-/// declares, as § 9's seconds east of UTC.
+/// declares, as `rule:core-classes/db-column-types`'s seconds east of UTC.
 ///
 /// `+01:30`, chosen because no container sets it and no half-hour zone is any
 /// server's default: a driver that had sent nothing at all would leave the
@@ -434,7 +439,7 @@ const ZONE: i32 = 5_400;
 /// One MariaDB handshake against `server`, offering `password` and declaring
 /// `time_zone`.
 ///
-/// [`mysql_connect_as`]'s twin, with § 9's zone lifted into a parameter for the
+/// [`mysql_connect_as`]'s twin, with the type map's zone lifted into a parameter for the
 /// same reason the password is one: the two cases below differ in exactly one
 /// field each, so what the server then reports is attributable to that field.
 fn mariadb_connect_as(leg: &Leg, password: &str, time_zone: i32) -> io::Result<MariaConn> {
@@ -478,7 +483,8 @@ fn mariadb_one_value(conn: &mut MariaConn, sql: &str) -> Option<String> {
 /// did rather than what it returned.
 ///
 /// [`mysql_run`]'s twin, and the drain is not optional here for that helper's
-/// reason: § 4 lets one statement be in flight at a time.
+/// reason: `rule:core-classes/db-connection-busy-state` lets one statement be
+/// in flight at a time.
 fn mariadb_run(conn: &mut MariaConn, sql: &str) {
     let mut rows = conn.query(sql, &[]).expect("the server ran the statement");
     while rows
@@ -560,7 +566,9 @@ fn mssql_one_value(conn: &mut TdsConn, sql: &str) -> Option<String> {
         if first {
             first = false;
             let value = row.column(0).expect("the row has a first column");
-            answer = match tds_scalar(&columns[0], value).expect("the column decodes under § 9") {
+            answer = match tds_scalar(&columns[0], value)
+                .expect("the column decodes under the type map")
+            {
                 TdsScalar::Null => None,
                 TdsScalar::Text(text) => Some(text.into_owned()),
                 other => panic!("the statement answered {other:?}, which is not text"),
@@ -572,7 +580,8 @@ fn mssql_one_value(conn: &mut TdsConn, sql: &str) -> Option<String> {
 
 /// One statement run for its effect, over a real SQL Server.
 ///
-/// [`mysql_run`]'s twin, spelled as § 4's `executeMany` with a single empty set
+/// [`mysql_run`]'s twin, spelled as `rule:core-classes/db-statement-members`'s
+/// `executeMany` with a single empty set
 /// — which is how this crate's surface says *run this once and bind nothing*,
 /// there being no `execute` on [`TdsConn`] to say it more directly.
 fn mssql_run(conn: &mut TdsConn, sql: &str) {
@@ -580,14 +589,15 @@ fn mssql_run(conn: &mut TdsConn, sql: &str) {
         .unwrap_or_else(|refused| panic!("the server refused `{sql}`: {refused}"));
 }
 
-/// § 3: the connection this driver opens is TLS-wrapped and authenticated, and
-/// the server is the one that says so.
+/// `rule:core-classes/db-safe-connection-defaults`: the connection this driver
+/// opens is TLS-wrapped and authenticated, and the server is the one that says
+/// so.
 ///
 /// Each question is answered by a fact only the other end holds.
 /// `pg_stat_ssl` reports the version negotiated on *this* backend's socket, so a
 /// row at all is the upgrade having happened and the version is which one; a
 /// driver that had used the connection in the clear — what `sslmode=prefer`
-/// does and what § 3 refuses — answers nothing here. `current_user` is the role
+/// does and what `VerifyFull` refuses — answers nothing here. `current_user` is the role
 /// the startup message named, arriving back through the encrypted session. And
 /// the same handshake with a password the server cannot verify is refused
 /// `28P01`, which is what makes the first two an authentication rather than an
@@ -634,7 +644,7 @@ fn a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream(
     );
 }
 
-/// § 3, the half a real server is needed for: a read this connection is waiting
+/// The open's other half, the one a real server is needed for: a read this connection is waiting
 /// on parks the coroutine, so the core turns another task in the meantime.
 ///
 /// `nvs_host::net`'s own cases hold that an `NvsTcp` read with nothing to read
@@ -710,14 +720,15 @@ fn a_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
     );
 }
 
-/// § 3 on the other driver: the connection MySQL's handshake opens is
-/// TLS-wrapped and authenticated, and the server is the one that says so.
+/// `rule:core-classes/db-safe-connection-defaults` on the other driver: the
+/// connection MySQL's handshake opens is TLS-wrapped and authenticated, and
+/// the server is the one that says so.
 ///
 /// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
 /// questions, asked of MySQL. `Ssl_version` is a **session** status
 /// variable, so it is this connection's socket and not the server's
 /// configuration, and it is the empty string on a session that stayed in the
-/// clear — which is what a driver that had let § 3's upgrade be skipped would
+/// clear — which is what a driver that had let the TLS upgrade be skipped would
 /// produce. `CURRENT_USER()` is the account the handshake response named,
 /// arriving back inside the encrypted session; its `@host` half is cut off
 /// because the server fills it with the pattern the grant was written for
@@ -725,8 +736,9 @@ fn a_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
 ///
 /// The refusal is read as a [`ServerError`] rather than as a sentence, which is
 /// where this differs from the PostgreSQL case above and is not a difference in
-/// taste: § 8's kind is keyed on MySQL's **vendor integer**, `mysql.rs`'s own
-/// cases hold that table against a scripted peer, and a table is only as right
+/// taste: `rule:core-classes/db-error`'s kind is keyed on MySQL's **vendor
+/// integer**, `mysql.rs`'s own cases hold that table against a scripted peer,
+/// and a table is only as right
 /// as the codes a server actually sends. This is the one place a real one says
 /// what an access denial is.
 #[test]
@@ -764,17 +776,18 @@ fn a_mysql_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_s
     assert_eq!(
         (refusal.sql_state.as_str(), refusal.driver_code),
         ("28000", Some(1045)),
-        "the refusal is the server's access denial, carrying § 8's raw pair: {refusal}",
+        "the refusal is the server's access denial, carrying the raw code and message: {refusal}",
     );
 }
 
-/// § 7 against a real MySQL: a nested `transaction()` is a `SAVEPOINT`, and
-/// rolling back to it undoes its own work and none of the work around it.
+/// `rule:core-classes/db-transactions` against a real MySQL: a nested
+/// `transaction()` is a `SAVEPOINT`, and rolling back to it undoes its own work
+/// and none of the work around it.
 ///
 /// `mysql.rs`'s own cases hold which *command* each depth is given, against a
 /// peer that agrees with whatever was written. What only a server can say is
 /// what those commands then did to the rows, and the three inserts here are
-/// arranged so that a driver which had sent `ROLLBACK` where § 7 asks for
+/// arranged so that a driver which had sent `ROLLBACK` where that rule asks for
 /// `ROLLBACK TO SAVEPOINT` — the failure a scripted peer cannot notice, because
 /// it has no rows — loses the first row as well and answers `3` rather than
 /// `1,3`.
@@ -831,7 +844,7 @@ fn a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
     );
 }
 
-/// § 8 against a real MySQL: a duplicate key is `1062`, `23000` and
+/// `rule:core-classes/db-error` against a real MySQL: a duplicate key is `1062`, `23000` and
 /// [`DbErrorKind::UniqueViolation`], and the server is what says the first two.
 ///
 /// `mysql.rs`'s code table is asserted there as a table, against a `Peer` that
@@ -839,7 +852,7 @@ fn a_mysql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
 /// wrong the codes are. This asks the server to produce one, so the entry every
 /// application branches on is anchored to what MySQL actually sends rather than
 /// to what the table's author believed. The `SQLSTATE` rides along because it
-/// is the half that is *not* keyed on here: § 8's kind comes from the integer
+/// is the half that is *not* keyed on here: the kind comes from the integer
 /// precisely because `23000` is one of the few classes MySQL fills honestly,
 /// and a case that asserted only the kind would not notice the pair coming
 /// apart.
@@ -867,11 +880,11 @@ fn a_mysql_duplicate_key_carries_section_8s_kind_and_the_servers_own_code() {
             refusal.sql_state.as_str()
         ),
         (DbErrorKind::UniqueViolation, Some(1062), "23000"),
-        "the server's duplicate key did not land on § 8's row for it: {refusal}",
+        "the server's duplicate key did not land on the duplicate-key kind: {refusal}",
     );
 }
 
-/// § 3 on the other driver: a read a MySQL connection is waiting on parks the
+/// The open's other half on the other driver: a read a MySQL connection is waiting on parks the
 /// coroutine, so the core turns another task in the meantime.
 ///
 /// [`a_connection_read_parks_its_coroutine_rather_than_blocking_the_core`]'s
@@ -880,8 +893,9 @@ fn a_mysql_duplicate_key_carries_section_8s_kind_and_the_servers_own_code() {
 /// drivers sit on `NvsTls<NvsTcp>`, so the socket and the `rustls` session are
 /// shared, but everything above them is written per driver: MySQL reads a
 /// length-prefixed packet header and then its body, where PostgreSQL reads a
-/// tagged message, and § 1's `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` pair means a
-/// first execution waits on the wire twice rather than once. A read-until-whole
+/// tagged message, and `rule:core-classes/db-one-api`'s
+/// `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` pair means a first execution waits on
+/// the wire twice rather than once. A read-until-whole
 /// loop that had turned into a spin would be invisible to `mysql.rs`'s own
 /// cases for the reason the PostgreSQL twin gives: a scripted peer always has
 /// the next byte ready.
@@ -949,36 +963,37 @@ fn a_mysql_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
     );
 }
 
-/// § 13 against a real MySQL: after the reset there is no temporary table, no
-/// session variable, no open transaction and no prepared statement the cache
-/// still believes in.
+/// `rule:security/db-pool-reset-is-a-boundary` against a real MySQL: after the
+/// reset there is no temporary table, no session variable, no open transaction
+/// and no prepared statement the cache still believes in.
 ///
 /// `mysql.rs`'s own cases hold that `reset` sends `COM_RESET_CONNECTION` and
 /// then re-sends the declared zone, against a peer that answers `OK` to
-/// whatever arrives. § 13 deliberately states the reset as a **property** and
+/// whatever arrives. That rule deliberately states the reset as a **property** and
 /// not as that command list — "a backend added later satisfies that property or
 /// is not pooled" — and a property about what a *session* no longer holds is
 /// one only the session's own server can answer. This is where the two meet:
 /// the same connection, before and after, asked what survived.
 ///
 /// The prepared-statement half is the one that needs its shape explaining.
-/// § 1's cache is keyed on SQL text, and `COM_RESET_CONNECTION` drops the
-/// server's side of it — § 13 names that asymmetry with PostgreSQL as the
-/// protocol's rather than a choice. So the probe below is run *twice, spelled
-/// identically*: a driver that had kept the cache across the reset would send a
-/// `COM_STMT_EXECUTE` naming a statement id the server has already forgotten,
-/// and the server would refuse it with `1243`. The second run therefore proves
-/// the cache was invalidated by succeeding at all, and proves the session
-/// variable is gone by answering `NULL` — one statement for the two, which is
-/// also why it is a `CAST(… AS CHAR)`: a user variable's own column type is not
-/// something this case wants to be asserting about.
+/// The statement cache is keyed on SQL text, and `COM_RESET_CONNECTION` drops
+/// the server's side of it — the reset rule records that this backend's atomic
+/// reset takes the cache with it, which PostgreSQL's reset does not. So the
+/// probe below is run *twice, spelled identically*: a driver that had kept the
+/// cache across the reset would send a `COM_STMT_EXECUTE` naming a statement id
+/// the server has already forgotten, and the server would refuse it with
+/// `1243`. The second run therefore proves the cache was invalidated by
+/// succeeding at all, and proves the session variable is gone by answering
+/// `NULL` — one statement for the two, which is also why it is a
+/// `CAST(… AS CHAR)`: a user variable's own column type is not something this
+/// case wants to be asserting about.
 #[test]
 fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
     let Some(server) = mysql() else {
         return;
     };
     // Spelled once and used twice on purpose — the two runs must hash to the
-    // same entry of § 1's cache or the paragraph above is asserting nothing.
+    // same entry of the statement cache or the paragraph above is asserting nothing.
     const PROBE: &str = "SELECT CAST(@novis_reset AS CHAR)";
 
     let mut conn = mysql_open(&server);
@@ -994,7 +1009,7 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
     );
 
     // Reset from *inside* a transaction: a connection is released at teardown
-    // whatever it was in the middle of, and § 13's first property is that the
+    // whatever it was in the middle of, and the reset's first property is that the
     // next request does not inherit it.
     conn.begin(None, false).expect("the server began one");
     assert_eq!(conn.depth(), 1, "the reset below runs inside a transaction");
@@ -1024,8 +1039,9 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
     );
 }
 
-/// § 3 against a real MariaDB: the connection this driver opens is TLS-wrapped
-/// and authenticated, and the server is the one that says so.
+/// `rule:core-classes/db-safe-connection-defaults` against a real MariaDB: the
+/// connection this driver opens is TLS-wrapped and authenticated, and the
+/// server is the one that says so.
 ///
 /// [`a_mysql_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
 /// twin, asking the same facts of the other server, and the twinning is
@@ -1041,7 +1057,8 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
 /// the socket this process is holding, so a driver that had fallen back to
 /// plaintext cannot produce it.
 ///
-/// The refusal is asserted as § 8's *kind* and not only as the raw pair, because
+/// The refusal is asserted as `rule:core-classes/db-error`'s *kind* and not
+/// only as the raw pair, because
 /// the kind is the half a shared table would get wrong: MariaDB's `1045` and
 /// MySQL's happen to agree, and
 /// [`mariadb_uses_its_own_code_table_and_not_mysqls`](/crates/nvs-db/src/maria.rs) is where
@@ -1089,10 +1106,11 @@ fn a_mariadb_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking
     );
 }
 
-/// § 9: the zone a connection declares is the zone the server then holds, and
-/// the driver keeps the same number to decode zone-less columns with.
+/// `rule:core-classes/db-column-types`: the zone a connection declares is the
+/// zone the server then holds, and the driver keeps the same number to decode
+/// zone-less columns with.
 ///
-/// The declared zone is the one field of § 9's map that is not a property of a
+/// The declared zone is the one field of the type map that is not a property of a
 /// column, so it is the one a scripted peer cannot check: `mysql.rs`'s cases
 /// hold that `SET time_zone` is sent and what its literal reads, and only a
 /// server can say that the session moved. Both halves are asked here — the
@@ -1116,7 +1134,7 @@ fn a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it() {
     assert_eq!(
         conn.time_zone(),
         ZONE,
-        "the connection's own record of § 9's zone is not the one the handshake declared",
+        "the connection's own record of the declared zone is not the one the handshake declared",
     );
     assert_eq!(
         mariadb_one_value(&mut conn, "SELECT @@session.time_zone").as_deref(),
@@ -1147,8 +1165,9 @@ fn a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it() {
 ///
 /// The refusal is the server's own — `1064`, the parse error, arriving from the
 /// `COM_STMT_PREPARE` rather than from the execute, since MySQL cannot get as
-/// far as a statement to run. That it is `Syntax` and not `Permission` is § 8's
-/// normalisation of it, and each driver reaches that kind through its own table.
+/// far as a statement to run. That it is `Syntax` and not `Permission` is
+/// `rule:core-classes/db-error`'s normalisation of it, and each driver reaches
+/// that kind through its own table.
 #[test]
 fn mariadb_returning_is_available_and_mysqls_is_not() {
     // Spelled once for the two legs: the case is asserting that one statement
@@ -1191,23 +1210,24 @@ fn mariadb_returning_is_available_and_mysqls_is_not() {
     );
 }
 
-/// § 3 against a real SQL Server: the session is the TLS one this driver
-/// tunnelled, it is authenticated as the login the block names, and the
-/// statement that reports both ran over it.
+/// `rule:core-classes/db-safe-connection-defaults` against a real SQL Server:
+/// the session is the TLS one this driver tunnelled, it is authenticated as the
+/// login the block names, and the statement that reports both ran over it.
 ///
 /// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
 /// questions, asked of the one driver whose TLS is not a socket upgrade.
 /// `encrypt_option` is the server's own view of the connection this process
 /// opened, and it reads `TRUE` only for a session that server is itself
 /// encrypting — a driver that had left the tunnel and carried on in the clear,
-/// which § 3 has no spelling for, cannot produce it. `SUSER_SNAME()` is the
+/// which that rule has no spelling for, cannot produce it. `SUSER_SNAME()` is the
 /// login LOGIN7 named, arriving back through that session. And the same
 /// handshake offering a password the server cannot verify is refused `18456`,
 /// which is what makes the first two an authentication rather than an
 /// admission: against a server that accepted anything, the two lines above
 /// would read identically.
 ///
-/// **The first assertion is also § 1's one statement.** `sp_prepexec` is how
+/// **The first assertion is also `rule:core-classes/db-one-api`'s one
+/// statement.** `sp_prepexec` is how
 /// [`TdsConn::query`] asks it, so a green leg here has carried a prepare, an
 /// execution and a result set back through the tunnel rather than only a login
 /// — which is the half `tds.rs`'s scripted peer answers about itself.
@@ -1250,7 +1270,7 @@ fn a_mssql_connection_is_opened_tls_tunnelled_and_authenticated_over_the_parking
     );
 }
 
-/// § 7 against a real SQL Server: a nested `transaction()` is a
+/// `rule:core-classes/db-transactions` against a real SQL Server: a nested `transaction()` is a
 /// `SAVE TRANSACTION`, rolling back to it undoes its own work and none of the
 /// work around it — and every request inside the transaction names it.
 ///
@@ -1315,7 +1335,8 @@ fn a_mssql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
     );
 }
 
-/// § 13 against a real SQL Server: a connection released from *inside* a
+/// `rule:security/db-pool-reset-is-a-boundary` against a real SQL Server: a
+/// connection released from *inside* a
 /// transaction comes back with no transaction, at the login's own isolation
 /// level, and able to run a statement at all.
 ///
@@ -1324,7 +1345,7 @@ fn a_mssql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
 /// question. `SET TRANSACTION ISOLATION LEVEL` is **session**-scoped here, so a
 /// level asked for by one request outlives the transaction that asked for it and
 /// would silently become the next request's — `sp_reset_connection` putting it
-/// back is what § 13's property means on this driver, and `sys.dm_exec_sessions`
+/// back is what the reset's property means on this driver, and `sys.dm_exec_sessions`
 /// is the server's own view of it rather than the driver's own flag. And the
 /// reset is the one request that names **no** transaction however deep the
 /// session was: the header bit is honoured before the message it rides is
@@ -1352,7 +1373,7 @@ fn a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level() {
     assert_eq!(
         mssql_one_value(&mut conn, LEVEL).as_deref(),
         Some("Serializable"),
-        "the session is not at the level § 7's option asked for, so the restore proves nothing",
+        "the session is not at the level the isolation option asked for, so the restore proves nothing",
     );
     assert_eq!(
         mssql_one_value(&mut conn, OPEN).as_deref(),
@@ -1379,8 +1400,9 @@ fn a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level() {
     );
 }
 
-/// § 9's `bytes` row against a real SQL Server: the octets a program bound are
-/// stored in a `varbinary` column and come back equal, which is the half
+/// `rule:core-classes/db-column-types`'s `bytes` row against a real SQL Server:
+/// the octets a program bound are stored in a `varbinary` column and come back
+/// equal, which is the half
 /// `tds::plan`'s `tds_round_trips_a_bytes_through_varbinary` cannot ask — a
 /// scripted server answers with whatever the case wrote for it.
 ///
@@ -1396,7 +1418,7 @@ fn a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal() {
     };
     let octets: [u8; 5] = [0x00, 0x61, 0xFF, 0xFE, 0x80];
     let bound = tds_encode(Value::bytes(NvsStr::new(&octets)))
-        .expect("a `bytes` § 9 binds")
+        .expect("a `bytes` value the type map binds")
         .expect("a value and not SQL NULL");
 
     let mut conn = mssql_open(&server);
@@ -1424,7 +1446,9 @@ fn a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal() {
     while let Some(row) = rows.next_row().expect("a row, or the end of the stream") {
         if back.is_none() {
             let value = row.column(0).expect("the row has a first column");
-            back = match tds_scalar(&columns[0], value).expect("the column decodes under § 9") {
+            back = match tds_scalar(&columns[0], value)
+                .expect("the column decodes under the type map")
+            {
                 TdsScalar::Bytes(stored) => Some(stored.to_vec()),
                 other => panic!("the column answered {other:?}, which is not `bytes`"),
             };

@@ -116,7 +116,8 @@ pub const PARSEC: &str = "parsec";
 /// metadata MySQL's own framing already carries — a driver that asked for a
 /// wider or a suppressed form would be decoding two layouts to answer one
 /// table. `MARIADB_CLIENT_BULK_UNIT_RESULTS` changes what a bulk command
-/// answers with, and § 4's `executeMany` reports one sum.
+/// answers with, and `rule:core-classes/db-statement-members`'s `executeMany`
+/// reports one sum.
 pub(crate) const EXTENDED_CAPABILITIES: MariadbCapabilities =
     MariadbCapabilities::MARIADB_CLIENT_STMT_BULK_OPERATIONS;
 
@@ -160,7 +161,8 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // `ER_CONSTRAINT_FAILED` — the row above says why it is not MySQL's.
         4025 => DbErrorKind::CheckViolation,
         // `ER_LOCK_DEADLOCK`: InnoDB rolled this transaction back whole, so
-        // § 7's retry re-runs the transaction's callable from nothing.
+        // `rule:core-classes/db-transactions`'s retry re-runs the
+        // transaction's callable from nothing.
         1213 => DbErrorKind::Deadlock,
         // `ER_LOCK_WAIT_TIMEOUT` is a `Timeout` and not a `Deadlock` here for
         // the reason `crate::mysql::kind_of` argues at length: the transaction
@@ -252,7 +254,7 @@ impl<'a> MariaTarget<'a> {
     ///
     /// [`BlockError`], in the order the checks run: the `driver`, then a field
     /// belonging to another driver, then the fields the handshake sends, then
-    /// § 9's zone.
+    /// the zone `rule:core-classes/db-column-types` decodes with.
     pub fn resolve(block: &'a Database) -> Result<MariaTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -434,10 +436,10 @@ impl MariaConn {
             // What the greeting already carried — see the field.
             server_version: greeting.banner,
             cache: StatementCache::new(target.statement_cache),
-            // § 9's zone-less row is decoded a layer up, where the target is
+            // The type map's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
-            // § 7's nesting, which a fresh connection is outside of.
+            // The transaction nesting depth, which a fresh connection is outside of.
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
@@ -504,10 +506,11 @@ impl MariaConn {
     ///
     /// The two-line delegation the playbook prescribes, into the *same*
     /// sequencing [`crate::MySqlConn::query`] runs: `COM_STMT_PREPARE` and
-    /// `COM_STMT_EXECUTE` are one protocol's commands, and § 1's cache in front
-    /// of them is one rule. Where the two drivers will part is MariaDB's own
-    /// `RETURNING`, which MySQL does not have and which is not here yet —
-    /// `COM_STMT_BULK_EXECUTE` is not a second such place, because
+    /// `COM_STMT_EXECUTE` are one protocol's commands, and the statement cache in
+    /// front of them is one rule, `rule:core-classes/db-one-api`. Where the two
+    /// drivers will part is MariaDB's own `RETURNING`, which MySQL does not
+    /// have and which is not here yet — `COM_STMT_BULK_EXECUTE` is not a second
+    /// such place, because
     /// `rule:core-classes/db-statement-members` runs `executeMany` as N
     /// executions on every driver.
     ///
@@ -572,7 +575,8 @@ impl MariaConn {
         crate::mysql::next_row_of(&mut self.wire, &self.state, reading)
     }
 
-    /// § 11's trace event for the parked walk —
+    /// The `rule:observability/a-query-is-a-trace-event` trace event for the
+    /// parked walk —
     /// [`crate::MySqlConn::stream_span`].
     #[must_use]
     pub fn stream_span(&self) -> Option<&crate::QuerySpan> {
@@ -632,13 +636,13 @@ impl MariaConn {
     }
 
     /// How many transaction levels are open — [`crate::MySqlConn::depth`] owns
-    /// why § 7 needs this to be public.
+    /// why `rule:core-classes/db-transactions` needs this to be public.
     #[must_use]
     pub fn depth(&self) -> u32 {
         self.depth.get()
     }
 
-    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one.
+    /// The `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one.
     ///
     /// # Errors
     ///
@@ -647,7 +651,7 @@ impl MariaConn {
         crate::mysql::commit(&mut self.wire, &self.state, self.capabilities, &self.depth)
     }
 
-    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one.
+    /// The `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one.
     ///
     /// # Errors
     ///
@@ -802,8 +806,8 @@ mod tests {
         }
     }
 
-    /// § 8's table is MariaDB's, asserted where it diverges from MySQL's rather
-    /// than where the two agree.
+    /// The `rule:core-classes/db-error` code table is MariaDB's, asserted where
+    /// it diverges from MySQL's rather than where the two agree.
     ///
     /// The codes below are the whole divergence, and each is a condition
     /// an application branches on: read against `crate::mysql`'s table they all

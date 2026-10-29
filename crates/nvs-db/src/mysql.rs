@@ -2,17 +2,17 @@
 //! upgrading the socket in band, authenticating with a proof rather than a
 //! password, forcing the connection's charset to `utf8mb4`, and running one
 //! statement over `COM_STMT_PREPARE` and `COM_STMT_EXECUTE` — the prepare only
-//! the first time, which is § 1's cache.
+//! the first time, which is `rule:core-classes/db-one-api`'s statement cache.
 //!
 //! **The statement path runs to the end of the result set.**
 //! [`start_statement`] answers a [`MySqlRows`], and [`MySqlRows::next_row`]
 //! takes one binary row packet at a time until the terminator returns the
 //! connection to [`State::Idle`]. [`cached_statement`] is what sits in front of
 //! the prepare: a statement this connection has already run costs the single
-//! round trip § 1 prices a cached re-execution at, and § 13's
-//! `COM_RESET_CONNECTION` empties the cache along with the statements it names
-//! — the asymmetry with PostgreSQL that § 13 calls the protocol's rather than a
-//! choice.
+//! round trip that rule prices a cached re-execution at, and
+//! `rule:security/db-pool-reset-is-a-boundary`'s `COM_RESET_CONNECTION` empties
+//! the cache along with the statements it names — an asymmetry with PostgreSQL
+//! that is the protocol's rather than a choice.
 //!
 //! A statement whose rows a *held* cursor walks cannot be a borrow — the program
 //! advances it from a later call, with nothing borrowed in between — so its read
@@ -21,7 +21,8 @@
 //! that state, both paths carry one, and [`next_row_of`] is the single place a
 //! binary row packet is read.
 //!
-//! **A value is finished in two places, and § 9's table says which.**
+//! **A value is finished in two places, and the type map
+//! (`rule:core-classes/db-column-types`) says which.**
 //! [`scalar`] reads one column against its definition and answers a
 //! [`MySqlScalar`]; [`decode`] mints the [`Value`] for the rows that are
 //! values, and the rows that are `Core\Time` instances stay components for
@@ -43,7 +44,7 @@
 //! offset at all. The two are not interchangeable and a driver that used one
 //! for the other reads every row shifted by two columns.
 //!
-//! [`column_type`] is the other half: § 9's type map, read off a column
+//! [`column_type`] is the other half: the type map, read off a column
 //! definition and never off a value. What it does *not* do is turn a value into
 //! a Novis one — that is the slice after this, on the boundary
 //! [`crate::PgColumn::decode`] already occupies for the other driver.
@@ -87,7 +88,8 @@
 //! 4. **The session's declared zone**, [`set_session_time_zone`] — one
 //!    `COM_QUERY`, because MySQL has no startup-parameter list to carry it the
 //!    way PostgreSQL's does. It costs a round trip per *connection*, not per
-//!    request; § 13's pool is what makes that the right place to spend it, and
+//!    request; the per-core pool (`rule:security/db-pool-reset-is-a-boundary`)
+//!    is what makes that the right place to spend it, and
 //!    the reset that pool performs is `COM_RESET_CONNECTION`, which clears
 //!    session variables — so whatever lands that reset owes this call again
 //!    after it.
@@ -197,7 +199,7 @@ pub const MYSQL_NATIVE_PASSWORD: &str = "mysql_native_password";
 
 /// `COM_QUERY` — the only text command this driver composes, and the whole of
 /// what it carries is this module's own SQL: [`set_session_time_zone`]'s
-/// declared zone, and § 7's transaction commands.
+/// declared zone, and `rule:core-classes/db-transactions`'s transaction commands.
 const COM_QUERY: u8 = 0x03;
 
 /// `COM_QUIT`, the goodbye a destroyed connection writes.
@@ -213,7 +215,7 @@ const COM_RESET_CONNECTION: u8 = 0x1F;
 /// already writes is a place for the two to disagree.
 const COM_STMT_PREPARE: u8 = 0x16;
 
-/// `COM_STMT_CLOSE`, which an eviction from § 1's statement cache sends.
+/// `COM_STMT_CLOSE`, which an eviction from the statement cache sends.
 ///
 /// It has a constant where `COM_STMT_EXECUTE` does not because this module
 /// writes the packet itself — a command byte and a handle, with no builder in
@@ -521,23 +523,24 @@ impl<'a> MySqlTarget<'a> {
     /// outlives the [`MySqlConn::connect`] call that opens with it because the
     /// configuration snapshot it borrows does; owning the four strings would
     /// mean a second copy of the password — a `secret` at the language level
-    /// (§ 3) — in a struct nothing zeroes.
+    /// (`rule:core-classes/db-capabilities`) — in a struct nothing zeroes.
     ///
     /// The address is not here, for the reason [`MySqlTarget`] gives: `host` is
     /// the name the certificate is checked against, and resolving it to a
     /// [`std::net::SocketAddr`] belongs to whoever checked the `db.connect`
     /// capability.
     ///
-    /// § 1's `statement_cache` goes through [`statement_cache_for`], the reader
-    /// PostgreSQL's block goes through, so a block sized for either driver is
-    /// sized by one rule and neither connect path reaches into a config tree.
+    /// `rule:core-classes/db-one-api`'s `statement_cache` goes through
+    /// [`statement_cache_for`], the reader PostgreSQL's block goes through, so a
+    /// block sized for either driver is sized by one rule and neither connect
+    /// path reaches into a config tree.
     ///
     /// # Errors
     ///
     /// [`BlockError`], in the order the checks run: the `driver` first, since a
     /// PostgreSQL block resolved as MySQL would send this handshake to a server
     /// that cannot answer it; then a field belonging to another driver; then the
-    /// fields the handshake sends, each by its own key; then § 9's zone.
+    /// fields the handshake sends, each by its own key; then the declared zone.
     pub fn resolve(block: &'a Database) -> Result<MySqlTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -649,8 +652,8 @@ pub(crate) struct Backend {
     /// from — the word an operator reads in the rendered sentence.
     pub(crate) name: &'static str,
     /// `rule:core-classes/db-error`'s table for this
-    /// server's vendor codes. MariaDB's is not MySQL's, which is § 8's own
-    /// sentence and the reason this field is a function rather than a bool.
+    /// server's vendor codes. MariaDB's is not MySQL's, which that rule says in
+    /// as many words, and is the reason this field is a function rather than a bool.
     pub(crate) kind_of: fn(u16, &str) -> DbErrorKind,
     /// The extended capability word this driver claims, which is the *only*
     /// place either handshake packet's last four reserved bytes get a value —
@@ -1155,7 +1158,8 @@ impl AuthContextTrait for AuthContext<'_> {
 ///
 /// `ConnectionRefused` for a plugin this driver does not answer, an `Other`
 /// carrying a [`ServerError`] for the server's own refusal — a wrong password, a
-/// schema that does not exist — with § 8's kind, its `SQLSTATE` and its message,
+/// schema that does not exist — with `rule:core-classes/db-error`'s kind, its
+/// `SQLSTATE` and its message,
 /// `InvalidData` for a packet the protocol does not allow at that point, and
 /// whatever the stream reported.
 pub(crate) fn authenticate<S: Read + Write>(
@@ -1260,18 +1264,20 @@ fn auth_failed(error: mysql_common::auth::plugins::Error) -> io::Error {
 ///
 /// An `Other` holding a [`ServerError`], which is [`crate::pg`]'s `server_error`
 /// and its reasons: a caller that prints the sentence has the server's own
-/// words, and one that branches — § 7's retry rule among them — asks
+/// words, and one that branches — `rule:core-classes/db-transactions`'s retry
+/// among them — asks
 /// [`ServerError::of`] rather than matching on the text.
 ///
 /// **Deliberately not a `PermissionDenied`.** That kind says only "the server
 /// worded this", to [`poison_on_write`], the one caller that has to know, and
 /// it says it about a duplicate key as loudly as about a rejected credential —
-/// a classification only § 8's table can make, and one `io::ErrorKind` has no
+/// a classification only the kind table can make, and one `io::ErrorKind` has no
 /// room to hold. It would also put every MySQL refusal outside the arm
 /// `nvs_stdlib::db` throws `Db\DbError` from, which reads `Other`.
 ///
 /// Both raw values ride along, because they are what an operator greps for and
-/// § 8 keeps them available for the conditions normalising does not reach. MySQL
+/// `rule:core-classes/db-error` keeps them available for the conditions
+/// normalising does not reach. MySQL
 /// sends neither a severity nor a constraint name, so the first is the constant
 /// the packet means and the second is `None`.
 pub(crate) fn server_refusal(
@@ -1310,7 +1316,7 @@ pub(crate) fn server_refusal(
     })
 }
 
-/// The § 8 kind a MySQL error code means.
+/// The `rule:core-classes/db-error` kind a MySQL error code means.
 ///
 /// **Keyed on the vendor integer where [`crate::pg`]'s table is keyed on the
 /// `SQLSTATE`**, because the two servers specify opposite halves. MySQL's
@@ -1321,7 +1327,7 @@ pub(crate) fn server_refusal(
 /// name: the classes MySQL does fill mean what PostgreSQL's mean.
 ///
 /// Everything unnamed is [`DbErrorKind::Other`] rather than a guess, as on the
-/// other driver — § 8 normalises the conditions applications branch on, and a
+/// other driver — that rule normalises the conditions applications branch on, and a
 /// code outside that set is one they read `driverCode` for. MariaDB's codes
 /// diverge above 1900 and it is its own driver with its own table, so none of
 /// them is here.
@@ -1337,7 +1343,8 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // server that does not enforce `CHECK` cannot raise it.
         3819 => DbErrorKind::CheckViolation,
         // `ER_LOCK_DEADLOCK`: InnoDB rolled this transaction back whole to break
-        // the cycle, so the callable § 7 re-runs starts from nothing.
+        // the cycle, so the callable `rule:core-classes/db-transactions`
+        // re-runs starts from nothing.
         1213 => DbErrorKind::Deadlock,
         // **`ER_LOCK_WAIT_TIMEOUT` is a `Timeout` and not a `Deadlock`**, which
         // is the row of this table worth arguing: it is the other code an
@@ -1357,7 +1364,8 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
         // Access denied — to the server, to a schema, a table, a column, a
         // routine, or to the privilege the statement itself needs.
         1044 | 1045 | 1130 | 1142 | 1143 | 1227 | 1370 | 1698 => DbErrorKind::Permission,
-        // A parse error and the "no such thing" codes, which § 8 makes one
+        // A parse error and the "no such thing" codes, which
+        // `rule:core-classes/db-error` makes one
         // kind: an undefined table and a malformed statement are the same bug to
         // a caller.
         1049 | 1051 | 1054 | 1064 | 1146 => DbErrorKind::Syntax,
@@ -1371,7 +1379,7 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
             // an unnamed member is a condition of the same shape: the work is
             // undone and re-running it is sound.
             Some("40") => DbErrorKind::SerializationFailure,
-            // Class 42 — syntax error or access rule violation, § 8's `Syntax`
+            // Class 42 — syntax error or access rule violation, the `Syntax` kind
             // being the half an application branches on.
             Some("42") => DbErrorKind::Syntax,
             _ => DbErrorKind::Other,
@@ -1380,7 +1388,8 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
 }
 
 /// Reads the answer to a command that returns no rows — the handshake's
-/// `SET time_zone`, and § 13's `COM_RESET_CONNECTION`.
+/// `SET time_zone`, and `rule:security/db-pool-reset-is-a-boundary`'s
+/// `COM_RESET_CONNECTION`.
 ///
 /// [`read_answer`] is the reader and owns every packet shape, including
 /// `rule:core-classes/db-safe-connection-defaults`'s `LOCAL INFILE` refusal.
@@ -1428,7 +1437,8 @@ pub enum Answer {
         /// it generated none. The status packet spells that absence `0` and
         /// `mysql_common` maps it, so the absence is an absence in the first
         /// place that holds it: the server reports no key as `0` and reports a
-        /// generated key from `1` upward, and § 4's `lastId` is `?uint`.
+        /// generated key from `1` upward, and `rule:core-classes/db-statement-members`'s
+        /// `lastId` is `?uint`.
         last_id: Option<u64>,
     },
     /// A result set of this many columns. That many column definition packets
@@ -1575,18 +1585,19 @@ const BINARY_CHARSET: u16 = 63;
 /// and [`ColumnType`]'s own doc owns why describing a column and decoding one
 /// of its values are two functions rather than one.
 ///
-/// Some of § 9's rows are decided by something other than the type byte, and
-/// each is a place where MySQL reuses one code for two column types:
+/// Some of the type map's rows (`rule:core-classes/db-column-types`) are decided
+/// by something other than the type byte, and each is a place where MySQL
+/// reuses one code for two column types:
 ///
 /// - **`UNSIGNED` is a flag**, so `BIGINT` and `BIGINT UNSIGNED` are one type
-///   code and § 9's `uint` row is the flag rather than the code.
+///   code and the type map's `uint` row is the flag rather than the code.
 /// - **`ENUM` and `SET` arrive as `MYSQL_TYPE_STRING`** with a flag, never as
-///   their own code, and § 9 sends them to different rows — `ENUM` is `tainted
+///   their own code, and the type map sends them to different rows — `ENUM` is `tainted
 ///   string`, `SET` is `array<string>` and so [`ColumnType::Other`].
 /// - **`BIT(1)` is a `bool` and `BIT(n>1)` is not**, and the width is in the
 ///   column length; PostgreSQL draws the identical line off its type modifier.
 ///
-/// `TINYINT(1)` is deliberately **not** `bool`. § 6 says so: MySQL has no
+/// `TINYINT(1)` is deliberately **not** `bool`. That rule says so: MySQL has no
 /// boolean of its own, the display width is not a type, and a driver that
 /// guessed here would read one application's `0`/`1` flag as a `bool` and
 /// another's small integer as one too.
@@ -1612,7 +1623,7 @@ pub(crate) fn column_type(column: &Column) -> ColumnType {
         MyColumnType::MYSQL_TYPE_BIT if column.column_length() == 1 => ColumnType::Bool,
         MyColumnType::MYSQL_TYPE_DATE | MyColumnType::MYSQL_TYPE_NEWDATE => ColumnType::Date,
         MyColumnType::MYSQL_TYPE_TIME | MyColumnType::MYSQL_TYPE_TIME2 => ColumnType::Time,
-        // § 9's zone-less row, and MySQL's `TIMESTAMP` is in it: the column
+        // The type map's zone-less row, and MySQL's `TIMESTAMP` is in it: the column
         // stores no offset, so what makes it a point in time is the zone
         // `set_session_time_zone` declared rather than anything on the wire.
         MyColumnType::MYSQL_TYPE_DATETIME
@@ -1637,7 +1648,7 @@ pub(crate) fn column_type(column: &Column) -> ColumnType {
                 ColumnType::Text
             }
         }
-        // § 9's last row: `BIT(n>1)`, `GEOMETRY`, a vector, and every code this
+        // The type map's last row: `BIT(n>1)`, `GEOMETRY`, a vector, and every code this
         // driver has never heard of. `Other` is a true answer rather than a
         // failure — the value still reads as a `tainted string`.
         _ => ColumnType::Other,
@@ -1647,7 +1658,7 @@ pub(crate) fn column_type(column: &Column) -> ColumnType {
 /// Sends `rule:core-classes/db-column-types`'s declared zone as a session variable.
 ///
 /// A numeric offset and never a zone name, because a name needs the
-/// `mysql.time_zone` tables populated and they usually are not — § 9 says so,
+/// `mysql.time_zone` tables populated and they usually are not — that rule says so,
 /// and this is the one place that rule is spent.
 ///
 /// # Errors
@@ -1683,9 +1694,10 @@ fn offset_literal(seconds_east: i32) -> String {
 }
 
 impl MySqlConn {
-    /// Opens a connection: the transport [`Endpoint`] names, the greeting, § 3's
-    /// in-band upgrade where there is a network to upgrade, the authentication
-    /// exchange, and the declared zone.
+    /// Opens a connection: the transport [`Endpoint`] names, the greeting,
+    /// `rule:core-classes/db-safe-connection-defaults`'s in-band upgrade where
+    /// there is a network to upgrade, the authentication exchange, and the
+    /// declared zone.
     ///
     /// A socket endpoint is **opened as written**.
     /// `rule:core-classes/db-unix-socket-path` leaves MySQL's socket in the
@@ -1779,10 +1791,11 @@ impl MySqlConn {
             // takes a number and has no opinion about where an unwritten
             // field's default comes from.
             cache: StatementCache::new(target.statement_cache),
-            // § 9's zone-less row is decoded a layer up, where the target is
+            // The type map's zone-less row is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
-            // § 7's nesting, which a fresh connection is outside of.
+            // `rule:core-classes/db-transactions`'s nesting, which a fresh
+            // connection is outside of.
             depth: Cell::new(0),
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
@@ -1982,8 +1995,9 @@ impl MySqlConn {
     /// `rule:core-classes/db-transactions`'s `START TRANSACTION`,
     /// or the `SAVEPOINT` a nested `transaction()` is.
     ///
-    /// The driver half of § 7 and nothing more — the callable, the
-    /// rollback-only flag and the retry rule are `nvs-stdlib`'s, exactly as on
+    /// The driver half of `rule:core-classes/db-transactions` and nothing more —
+    /// the callable, the rollback-only flag and the retry rule are
+    /// `nvs-stdlib`'s, exactly as on
     /// [`crate::PgConn::begin`]. [`begin`] owns which command a nesting depth
     /// gets and how the two options are rendered, including the second round
     /// trip an isolation level costs on this protocol and not on PostgreSQL's.
@@ -2009,7 +2023,8 @@ impl MySqlConn {
     /// How many transaction levels are open on this connection — 0 outside one,
     /// 1 inside an outermost `transaction()`, deeper inside a nested one.
     ///
-    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries a
+    /// [`crate::PgConn::depth`] owns why this is public at all:
+    /// `rule:core-classes/db-transactions` retries a
     /// serialization failure only for an outermost transaction, and the caller
     /// cannot tell the two apart on its own.
     #[must_use]
@@ -2017,7 +2032,7 @@ impl MySqlConn {
         self.depth.get()
     }
 
-    /// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
+    /// The `COMMIT`, or the `RELEASE SAVEPOINT` closing a nested one — a
     /// normal return out of the callable either way.
     ///
     /// # Errors
@@ -2027,7 +2042,7 @@ impl MySqlConn {
         commit(&mut self.wire, &self.state, self.capabilities, &self.depth)
     }
 
-    /// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
+    /// The `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` undoing a nested one —
     /// a throw out of the callable, or `rollBack`'s own signal.
     ///
     /// # Errors
@@ -2079,12 +2094,13 @@ impl Drop for MySqlConn {
 /// `COM_RESET_CONNECTION`, and the one session variable it clears that this
 /// driver put there.
 ///
-/// § 13 calls this reset "atomic and complete", which is what makes it the
-/// right primitive and also what obliges the second half: it drops session
-/// variables, so `rule:core-classes/db-column-types`'s declared zone has to be sent again or the next
-/// request decodes every zone-less column in UTC while believing otherwise.
-/// The prepared-statement cache goes with it too — § 13 names that as the real
-/// asymmetry with PostgreSQL, and it is the protocol's rather than a choice.
+/// `rule:security/db-pool-reset-is-a-boundary` takes this reset because it is
+/// atomic and complete, which is what makes it the right primitive and also
+/// what obliges the second half: it drops session variables, so
+/// `rule:core-classes/db-column-types`'s declared zone has to be sent again or
+/// the next request decodes every zone-less column in UTC while believing
+/// otherwise. The prepared-statement cache goes with it too — the real
+/// asymmetry with PostgreSQL, and the protocol's rather than a choice.
 ///
 /// Free and generic in the stream for this crate's usual reason: a
 /// `Wire<MyStream>` needs a socket and a certificate that no unit test has.
@@ -2105,7 +2121,8 @@ pub(crate) fn reset_session<S: Read + Write>(
     // forgotten by whoever pools the connection: the statements are gone from
     // the server the moment that `OK` arrives, and a cache still naming them
     // would bind the next request against handles this session no longer has. A
-    // reset that failed destroys the connection (§ 13), so what the cache holds
+    // reset that failed destroys the connection
+    // (`rule:security/db-pool-reset-is-a-boundary`), so what the cache holds
     // on that path is nobody's business.
     cache.clear();
     set_session_time_zone(wire, capabilities, seconds_east)
@@ -2129,13 +2146,13 @@ pub struct Prepared {
 
 /// `rule:core-classes/db-one-api`'s first round trip: `COM_STMT_PREPARE`.
 ///
-/// **This is the round trip § 1 says is recorded rather than hidden.** A
+/// **This is the round trip that rule says is recorded rather than hidden.** A
 /// statement's first execution on a connection costs two — this one and
 /// [`execute`] — where PostgreSQL's extended protocol pays nothing extra. The
 /// honest answer to that asymmetry is [`cached_statement`], which is why this
 /// function runs once per statement per connection rather than once per
 /// execution; an emulated prepare that spliced the value into the SQL to save
-/// the packet is the thing § 1 removes and was never the other option.
+/// the packet is the thing that rule removes and was never the other option.
 ///
 /// The prepare's own column and parameter definition packets are read and
 /// dropped. They have to be read — they are packets in the stream and the next
@@ -2195,7 +2212,7 @@ pub(crate) fn prepare<S: Read + Write>(
 /// protocol.
 ///
 /// **Every parameter goes in the packet and none of them goes in the SQL.**
-/// That is § 1's no-emulated-prepares rule as a property of this function
+/// That is the rule's no-emulated-prepares half as a property of this function
 /// rather than a claim about it: the SQL was sent by [`prepare`] and is not an
 /// argument here at all, so there is no string for a value to be spliced into.
 /// Values are bound as length-encoded strings and the server casts each to its
@@ -2258,10 +2275,10 @@ pub(crate) fn execute<S: Read + Write>(
     read_answer(wire, capabilities)
 }
 
-/// § 1's cache in front of [`prepare`]: the statement this connection is
+/// `rule:core-classes/db-one-api`'s cache in front of [`prepare`]: the statement this connection is
 /// already holding for `sql`, or a fresh one recorded under it.
 ///
-/// **This is where the first of § 1's two round trips is skipped.** The key is
+/// **This is where the first of that rule's two round trips is skipped.** The key is
 /// the SQL text plus the parameter count — [`crate::StatementCache`]'s own key,
 /// so `IN` over three ids and over four stay two statements — and the handle is
 /// what MySQL *hands back* rather than a name this side minted. That is the
@@ -2328,8 +2345,8 @@ fn close_statement<S: Read + Write>(wire: &mut Wire<S>, stmt: Prepared) -> io::R
 /// It stops at the row boundary deliberately. The column definitions are the
 /// last thing whose count is known ahead of time, and a binary row decoder is
 /// what reads past them — so this returns with the wire pointing at the first
-/// row packet and the connection [`State::Streaming`], which is the state § 4
-/// refuses a second statement in.
+/// row packet and the connection [`State::Streaming`], which is the state
+/// `rule:core-classes/db-connection-busy-state` refuses a second statement in.
 ///
 /// # Errors
 ///
@@ -2350,9 +2367,10 @@ pub(crate) fn open_result<S: Read + Write>(
     }
 
     // `rule:observability/a-query-is-a-trace-event`'s span, opened before the prepare rather than around the
-    // execute alone: § 1 says a statement's first run on this connection costs
-    // two round trips, and what the caller waited is both of them. It is handed
-    // `sql` and never `params`, which is the whole of § 11's "never parameters"
+    // execute alone: `rule:core-classes/db-one-api` says a statement's first run
+    // on this connection costs two round trips, and what the caller waited is
+    // both of them. It is handed `sql` and never `params`, which is the whole of
+    // that span rule's "never a bound parameter"
     // — `crate::span`'s module doc owns why that is a signature and not a rule.
     let mut span = QuerySpan::opened(Driver::MySql, sql);
 
@@ -2433,7 +2451,8 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// stream with no per-command numbering. A MySQL command restarts the packet
 /// sequence id ([`Wire::codec`]'s `reset_seq_id`), so two commands in flight are
 /// two packet runs numbered from the same 0 and nothing framing them tells the
-/// second reply from the first. What § 4 buys here is therefore § 1's prepare —
+/// second reply from the first. What `executeMany` buys here is therefore the
+/// one prepare —
 /// paid once for the whole batch, which is what the cache gives a loop of
 /// [`start_statement`] anyway — and one member's worth of round trips is the
 /// honest price rather than a hidden one: `rule:core-classes/db-one-api` records the cost of this
@@ -2446,13 +2465,13 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// So the two drivers agree on what a caller observes — the writes before a
 /// failure stand, the ones after are still attempted, and the **first** error is
 /// what the batch reports. A caller who wants all-or-nothing writes
-/// `transaction(fn ($tx) => $tx->executeMany(…))`, which is § 4's answer on
-/// either driver.
+/// `transaction(fn ($tx) => $tx->executeMany(…))`, which is that rule's answer
+/// on either driver.
 ///
 /// **This is the loop on MariaDB too, and `COM_STMT_BULK_EXECUTE` is the thing
 /// it is deliberately not.** That command carries every set at once and would
 /// turn this member's N round trips into one, which is the only reason to want
-/// it — and § 4 refuses the trade because the ways it diverges are mostly in
+/// it — and the trade is refused because the ways it diverges are mostly in
 /// what a caller observes rather than in what the wire costs. A bulk command
 /// **ends** at a refusal where the paragraph above has the batch carry on, and
 /// no driver can hide the difference: PostgreSQL's flush is already gone by the
@@ -2472,15 +2491,15 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// the number [`MySqlRows::affected`] reports for one and the number
 /// PostgreSQL's `SELECT n` tag contributes to the other driver's sum.
 ///
-/// An empty `sets` is § 4's no-op answering `0`, with the busy check still ahead
-/// of it for [`crate::pg`]'s reason: § 4's refusal is a property of the
-/// connection and not of the payload.
+/// An empty `sets` is the no-op answering `0`, with the busy check still ahead
+/// of it for [`crate::pg`]'s reason: `rule:core-classes/db-connection-busy-state`'s
+/// refusal is a property of the connection and not of the payload.
 ///
 /// # Errors
 ///
 /// `InvalidInput` for a statement written to a connection that is not idle, and
 /// for a `sets` whose members do not all bind the same number of parameters —
-/// one prepare has one parameter count, and it is what § 1's cache is keyed on
+/// one prepare has one parameter count, and it is what the statement cache is keyed on
 /// beside the SQL. Otherwise the first error any execution drew, or the wire
 /// failure that stopped the batch.
 pub(crate) fn execute_many<S: Read + Write>(
@@ -2555,7 +2574,7 @@ fn execute_one<S: Read + Write>(
 /// `rule:core-classes/db-transactions`'s `START TRANSACTION`, or
 /// the `SAVEPOINT` a nested `transaction()` opens.
 ///
-/// **The depth decides which**, as in [`crate::pg`]'s `begin`, and § 7's
+/// **The depth decides which**, as in [`crate::pg`]'s `begin`, and that rule's
 /// composition is the reason: a library that wraps its own writes cannot ask
 /// whether it is already inside a caller's transaction, so which command a
 /// level gets is the connection's answer rather than the caller's.
@@ -2565,17 +2584,18 @@ fn execute_one<S: Read + Write>(
 /// characteristic is set by a `SET TRANSACTION` that applies to the *next*
 /// transaction started on this session, so a level asked for is a command of
 /// its own ahead of the one that opens the transaction. Both are inside one
-/// § 11 span, because the caller waited for both and timing only the second
-/// would price a serializable transaction as a plain one.
+/// `rule:observability/a-query-is-a-trace-event` span, because the caller
+/// waited for both and timing only the second would price a serializable
+/// transaction as a plain one.
 ///
 /// **A `START TRANSACTION` the server refuses after it accepted the
 /// `SET TRANSACTION` poisons the connection**, which is this module's one use
 /// of that state for a wire that is still at a boundary. The armed
 /// characteristic belongs to the *session* and no command disarms it, so a
-/// connection returned to § 13's pool would run some later request's
-/// unqualified `transaction()` at a level nobody there asked for — and where
-/// the armed level is `READ UNCOMMITTED`, that request gets weaker isolation
-/// than it asked for, and nothing says so.
+/// connection returned to the pool (`rule:security/db-pool-reset-is-a-boundary`)
+/// would run some later request's unqualified `transaction()` at a level
+/// nobody there asked for — and where the armed level is `READ UNCOMMITTED`,
+/// that request gets weaker isolation than it asked for, and nothing says so.
 /// [`State::is_poolable`] is the only lever that says "close this rather than
 /// reuse it", and one handshake on a path a healthy server never takes is
 /// cheap for it.
@@ -2640,13 +2660,14 @@ pub(crate) fn begin<S: Read + Write>(
     Ok(span)
 }
 
-/// The `SET TRANSACTION` one of § 7's isolation levels renders to.
+/// The `SET TRANSACTION` one of `rule:core-classes/db-transactions`'s isolation
+/// levels renders to.
 ///
 /// **Only [`Isolation::Snapshot`] collapses**, onto `REPEATABLE READ`: InnoDB
 /// reads that level from one snapshot established at the transaction's first
 /// read, which is the guarantee `Snapshot` names — so asking for either gets
 /// the same thing under the name this server uses, and neither is the missing
-/// level § 7 says to throw over. Every other level is MySQL's own spelling.
+/// level that rule says to throw over. Every other level is MySQL's own spelling.
 ///
 /// A `&'static str` per level rather than [`crate::pg`]'s composed `String`,
 /// because nothing composes here: the command that opens a MySQL transaction
@@ -2662,7 +2683,7 @@ fn isolation_command(level: Isolation) -> &'static str {
     }
 }
 
-/// § 7's `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
+/// The `COMMIT`, or the `RELEASE SAVEPOINT` that closes a nested level.
 ///
 /// # Errors
 ///
@@ -2670,14 +2691,15 @@ fn isolation_command(level: Isolation) -> &'static str {
 /// [`simple_command`]. **The count follows the connection where the server took
 /// it**: an outermost `COMMIT` the server refused has already rolled the
 /// transaction back, so that level really is gone and the depth goes to 0 — a
-/// caller that opens the next transaction on the connection, which § 7's
-/// `{ retries: n }` is, must get a `START TRANSACTION` and not a `SAVEPOINT`
-/// against nothing. Which refusals those are is asked of the error itself —
+/// caller that opens the next transaction on the connection, which
+/// `rule:core-classes/db-transactions`'s `{ retries: n }` is, must get a
+/// `START TRANSACTION` and not a `SAVEPOINT` against nothing. Which refusals
+/// those are is asked of the error itself —
 /// [`ServerError::of`], the same question [`poison_on_write`] asks — and not
 /// read back off the [`State`] that answer left. The state is a *summary* of it,
 /// two calls apart and writable by anything else holding the connection, so
 /// reading it here would make a claim about the transaction out of a fact about
-/// the wire. § 4's busy check never reached the server and a wire failure was
+/// the wire. The busy check never reached the server and a wire failure was
 /// never worded by one, so neither carries a [`ServerError`] and neither moves
 /// the depth. A refused `RELEASE SAVEPOINT` says nothing of the kind and moves
 /// nothing either, as in [`roll_back`].
@@ -2710,7 +2732,7 @@ pub(crate) fn commit<S: Read + Write>(
     Ok(span)
 }
 
-/// § 7's `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
+/// The `ROLLBACK`, or the `ROLLBACK TO SAVEPOINT` that undoes a nested level.
 ///
 /// **One command where [`crate::pg`]'s nested rollback is two, and MySQL's own
 /// savepoint rule is what decides that.** PostgreSQL releases the savepoint it
@@ -2755,16 +2777,17 @@ pub(crate) fn roll_back<S: Read + Write>(
 /// One of `rule:core-classes/db-transactions`'s commands, sent as text, as `rule:observability/a-query-is-a-trace-event`'s
 /// span.
 ///
-/// **`COM_QUERY` rather than § 1's prepared statements**, which is where the
-/// two halves of § 1 stop pulling together: a prepare would cost the extra
-/// round trip § 1 charges for a first execution and then hold a slot in a cache
-/// sized for the request's real statements, to run a command of a few words
-/// that binds nothing. It is the second text this driver composes, after
-/// [`set_session_time_zone`], and § 1's no-emulated-prepares rule has nothing to
+/// **`COM_QUERY` rather than `rule:core-classes/db-one-api`'s prepared
+/// statements**, which is where the two halves of that rule stop pulling
+/// together: a prepare would cost the extra round trip it charges for a first
+/// execution and then hold a slot in a cache sized for the request's real
+/// statements, to run a command of a few words that binds nothing. It is the
+/// second text this driver composes, after [`set_session_time_zone`], and the
+/// no-emulated-prepares rule has nothing to
 /// bite on either time: no caller's SQL and no bound value reaches this path,
 /// and the only thing interpolated is a savepoint name this module minted.
 ///
-/// The span carries no count. § 7's commands change no rows themselves, and
+/// The span carries no count. Transaction commands change no rows themselves, and
 /// `affected` says "this statement reported a count" rather than "it reported
 /// zero".
 ///
@@ -2793,9 +2816,10 @@ fn simple_command<S: Read + Write>(
 /// # Errors
 ///
 /// `InvalidInput` for a connection that is not [`State::Idle`], in
-/// [`crate::pg`]'s `second_statement` wording because § 4 is the rule being
-/// broken and both of its fixes are what that caller needs to hear; otherwise
-/// as [`read_ok`]. [`poison_on_write`] decides what a failure leaves behind —
+/// [`crate::pg`]'s `second_statement` wording because
+/// `rule:core-classes/db-streaming` is the rule being broken and both of its
+/// fixes are what that caller needs to hear; otherwise as [`read_ok`].
+/// [`poison_on_write`] decides what a failure leaves behind —
 /// the server's own refusal leaves the connection idle and poolable, and
 /// anything else leaves a wire no packet boundary can be found in.
 fn text_command<S: Read + Write>(
@@ -2873,7 +2897,8 @@ impl MySqlRow {
     ///
     /// SQL `NULL` is [`MyValue::NULL`] and not this `None`: the two are
     /// different facts — a column that was null, and a column that was never
-    /// described — and § 9's `?T` is only the first of them.
+    /// described — and `rule:core-classes/db-column-types`'s `?T` is only the
+    /// first of them.
     #[must_use]
     pub fn value(&self, index: usize) -> Option<&MyValue> {
         self.values.get(index)
@@ -2883,10 +2908,11 @@ impl MySqlRow {
 /// Decodes one binary row packet against the definitions it belongs to.
 ///
 /// The walk `mysql_common`'s own `RowDeserializer` performs, written out here
-/// for one reason: **that deserializer cannot represent § 9's `uint` row.** Its
+/// for one reason: **that deserializer cannot represent the `uint` row of
+/// `rule:core-classes/db-column-types`.** Its
 /// integer path reads the right width and the right signedness and then packs
 /// every result into `Value::Int(x as i64)`, so a `BIGINT UNSIGNED` past
-/// `i64::MAX` — the half of that range § 9 names `uint` precisely because PHP
+/// `i64::MAX` — the half of that range the type map names `uint` precisely because PHP
 /// loses it to a float — comes back negative. The bits survive the cast, so the
 /// fix is to put them back under the type the column declared, and doing it
 /// here is what keeps [`MySqlRows::column_type`] and [`MySqlRow::value`]
@@ -2961,7 +2987,8 @@ impl std::fmt::Debug for MySqlDate {
 ///
 /// **A `TIME` that is not a time of day never reaches this struct.** MySQL's
 /// `TIME` is a signed interval of `-838:59:59` to `838:59:59` — it carries a
-/// sign and a day count — while § 9 reads the column as a `Core\Time\TimeOfDay`,
+/// sign and a day count — while the type map (`rule:core-classes/db-column-types`)
+/// reads the column as a `Core\Time\TimeOfDay`,
 /// which has neither. [`time_of_day`] refuses the values that fall outside a
 /// day, so what this holds is always a clock reading.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2987,17 +3014,18 @@ impl std::fmt::Debug for MySqlTime {
 
 /// One column's value, decoded but not yet allocated as a [`Value`].
 ///
-/// [`crate::PgScalar`]'s opposite number, one row of § 9's table per variant,
-/// and it exists here for the reasons it exists there: everything that can go
-/// wrong with a column happens before anything is allocated, so § 9's whole
-/// table is assertable in a `-p nvs-db` test that leaks nothing, and the rows
-/// whose Novis type is a class instance have somewhere to be returned as
-/// components — see [`MySqlDate`].
+/// [`crate::PgScalar`]'s opposite number, one row of the type map
+/// (`rule:core-classes/db-column-types`) per variant, and it exists here for the
+/// reasons it exists there: everything that can go wrong with a column happens
+/// before anything is allocated, so the whole table is assertable in a
+/// `-p nvs-db` test that leaks nothing, and the rows whose Novis type is a
+/// class instance have somewhere to be returned as components — see
+/// [`MySqlDate`].
 ///
 /// **Fewer rows than [`crate::PgScalar`] carries.** MySQL has no
-/// `TIMESTAMPTZ`, so nothing here carries its own offset — § 9's zone-less row
+/// `TIMESTAMPTZ`, so nothing here carries its own offset — the zone-less row
 /// is [`Self::DateTime`] and the zone is the one `set_session_time_zone`
-/// declared — and MySQL has no `UUID` column type either: § 9 sends its
+/// declared — and MySQL has no `UUID` column type either: the type map sends its
 /// `BINARY(16)` to the `bytes` row, and the backend that does have the type is
 /// MariaDB, which is its own driver. There is no array variant for the matching
 /// PostgreSQL's `array<T>` is a type and MySQL's `SET` is a text column with a
@@ -3008,14 +3036,14 @@ impl std::fmt::Debug for MySqlTime {
 /// themselves rather than as a text rendering that had to be unhexed, so there
 /// is nothing for the decoder to own and no `into_owned` to make.
 pub enum MySqlScalar<'a> {
-    /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
+    /// SQL `NULL`: the row of the type map that makes every column `?T`.
     Null,
-    /// `BIT(1)`. MySQL has no `BOOLEAN` — `TINYINT(1)` is § 6's `int` — so this
+    /// `BIT(1)`. MySQL has no `BOOLEAN` — `TINYINT(1)` is naturally an `int` — so this
     /// is the one column type that reaches it.
     Bool(bool),
     /// A signed `TINYINT`/`SMALLINT`/`MEDIUMINT`/`INT`/`BIGINT`, and `YEAR`.
     Int(i64),
-    /// The same set carrying `UNSIGNED`, which is § 9's `uint` row and the
+    /// The same set carrying `UNSIGNED`, which is the type map's `uint` row and the
     /// range `BIGINT UNSIGNED` needs.
     UInt(u64),
     /// `FLOAT`/`DOUBLE`.
@@ -3031,7 +3059,7 @@ pub enum MySqlScalar<'a> {
     Date(MySqlDate),
     /// `TIME`, which is a `Core\Time\TimeOfDay`.
     Time(MySqlTime),
-    /// `DATETIME` and `TIMESTAMP`: § 9's zone-less row, a `Core\Time\DateTime`
+    /// `DATETIME` and `TIMESTAMP`: the zone-less row, a `Core\Time\DateTime`
     /// in the zone [`MySqlTarget::time_zone`] declared and the server was told.
     DateTime {
         /// The civil date, as the server sent it.
@@ -3042,7 +3070,7 @@ pub enum MySqlScalar<'a> {
 }
 
 impl std::fmt::Debug for MySqlScalar<'_> {
-    /// Which row of § 9's table this landed on, and never the value: a column
+    /// Which row of the type map this landed on, and never the value: a column
     /// in flight is one request's data, which is the rule [`MySqlRow`]'s own
     /// rendering holds.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3066,7 +3094,7 @@ impl MySqlScalar<'_> {
     /// The Novis value, taking on the one reference a `string` or a `bytes`
     /// costs and nothing at all for the rest.
     ///
-    /// `None` for § 9's structured rows, whose Novis type is a class instance
+    /// `None` for the type map's structured rows, whose Novis type is a class instance
     /// this crate cannot allocate — [`MySqlDate`] owns why. A caller that wants
     /// the whole table matches those first and reaches this for everything
     /// left, which is what [`crate::PgScalar::into_value`]'s caller already
@@ -3113,9 +3141,9 @@ impl MySqlScalar<'_> {
 ///   column. PostgreSQL accepts all three, and that divergence is the servers'
 ///   rather than this crate's.
 ///
-/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
-/// marker has expanded into one bound value per element by the time a statement
-/// has its bind list.
+/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason:
+/// `rule:core-classes/db-parameters`'s marker has expanded into one bound value
+/// per element by the time a statement has its bind list.
 ///
 /// # Errors
 ///
@@ -3175,7 +3203,8 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
     Ok(Some(rendered.into_bytes()))
 }
 
-/// One column's value as the Novis value § 9's table names, or `None` for the
+/// One column's value as the Novis value `rule:core-classes/db-column-types`'s
+/// table names, or `None` for the
 /// rows that are class instances.
 ///
 /// [`crate::PgColumn::decode`] on the other driver, and free rather than a
@@ -3190,7 +3219,7 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 }
 
 /// [`decode`]'s whole decision, before anything is allocated, and every row of
-/// § 9's table rather than the scalar half.
+/// the type map rather than the scalar half.
 ///
 /// `nvs-stdlib` calls this one: it is the only crate that can turn a
 /// [`MySqlScalar::Date`] and its two siblings into the `Core\Time` instances
@@ -3198,7 +3227,7 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 ///
 /// **The column decides the row and the value only fills it in**, which is why
 /// this takes both and why [`column_type`] is the match's subject: a `BIT(1)`
-/// and a `BIT(8)` arrive as the same [`MyValue::Bytes`] and § 9 sends them to
+/// and a `BIT(8)` arrive as the same [`MyValue::Bytes`] and the type map sends them to
 /// different rows, exactly as `ENUM` and `SET` do. The one thing read off the
 /// value instead is `NULL`, which every column type may be.
 ///
@@ -3214,7 +3243,7 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 /// [`crate::PgColumn::decode`] gives.
 pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar<'a>> {
     Ok(match (column_type(column), value) {
-        // Asked first and off the value, because § 9's `?T` is every row's
+        // Asked first and off the value, because the type map's `?T` is every row's
         // and a column that was null says nothing about its type.
         (_, MyValue::NULL) => MySqlScalar::Null,
         (ColumnType::Int, MyValue::Int(number)) => MySqlScalar::Int(*number),
@@ -3227,14 +3256,14 @@ pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar
         (ColumnType::Decimal, MyValue::Bytes(digits)) => {
             MySqlScalar::Decimal(decimal(column, text(column, digits)?)?)
         }
-        // § 9's `BIT(1)` row: one octet, and the width is what said this
+        // The type map's `BIT(1)` row: one octet, and the width is what said this
         // column was a `bool` at all.
         (ColumnType::Bool, MyValue::Bytes(bits)) => MySqlScalar::Bool(match bits.as_slice() {
             [0] => false,
             [1] => true,
             _ => return Err(malformed(column, "a one-bit string")),
         }),
-        // § 9 keeps JSON at `tainted string`: it is never auto-decoded, and
+        // The type map keeps JSON at `tainted string`: it is never auto-decoded, and
         // `Core\Json::decode` is one honest call.
         (ColumnType::Text | ColumnType::Json, MyValue::Bytes(body)) => {
             MySqlScalar::Text(text(column, body)?)
@@ -3254,13 +3283,13 @@ pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar
                 column, *negative, *days, *hour, *minute, *second, *micros,
             )?)
         }
-        // § 9's last row, which on this protocol is two rows and not one.
-        // `BIT(n>1)` and `GEOMETRY` are octets that are not text in any
+        // The type map's last row, which on this protocol is two rows and not
+        // one. `BIT(n>1)` and `GEOMETRY` are octets that are not text in any
         // encoding, while a `SET` is its members joined by commas; the charset
         // is what separates them, exactly as it separates a `BLOB` from a
-        // `TEXT` one arm up. § 9 words that row as `tainted string` because it
-        // was written against PostgreSQL, whose server renders every one of
-        // them as text before it reaches a driver.
+        // `TEXT` one arm up. The type map words that row as `tainted string`
+        // because PostgreSQL's server renders every one of them as text before
+        // it reaches a driver.
         (ColumnType::Other, MyValue::Bytes(body)) => {
             if column.character_set() == BINARY_CHARSET {
                 MySqlScalar::Bytes(body)
@@ -3275,14 +3304,15 @@ pub fn scalar<'a>(column: &Column, value: &'a MyValue) -> io::Result<MySqlScalar
     })
 }
 
-/// A `FLOAT`'s four bytes as the `float` § 9 makes them, by way of the
-/// shortest decimal that reads back as the same `f32`.
+/// A `FLOAT`'s four bytes as the `float` `rule:core-classes/db-column-types`
+/// makes them, by way of the shortest decimal that reads back as the same
+/// `f32`.
 ///
 /// `f64::from` would be free and would answer the `f32`'s *exact* value:
 /// `0.100000001490116119384765625` for a column holding `0.1`. That is a
 /// different double from the one [`crate::PgColumn::scalar`] answers for the
 /// same row — PostgreSQL renders `float4` as `0.1` and that driver parses the
-/// rendering — and § 9's table is one table for every backend, so the same
+/// rendering — and the type map is one table for every backend, so the same
 /// column on two of them reading back as two different numbers is the thing
 /// worth a `to_string` per value. `DOUBLE`, which is every wider column, takes
 /// neither path.
@@ -3315,7 +3345,7 @@ fn civil_time(hour: u8, minute: u8, second: u8, micros: u32) -> MySqlTime {
     }
 }
 
-/// A `TIME` column's value as the clock reading § 9 makes it.
+/// A `TIME` column's value as the clock reading `rule:core-classes/db-column-types` makes it.
 ///
 /// # Errors
 ///
@@ -3345,7 +3375,8 @@ fn time_of_day(
 ///
 /// The connection's charset is `utf8mb4` and the server was told so, but a
 /// column's own charset is per column and a `latin1` one still arrives; the
-/// check is what keeps § 9's `tainted string` a Novis `string`, which
+/// check is what keeps `rule:core-classes/db-column-types`'s `tainted string` a
+/// Novis `string`, which
 /// `rule:types/bytes` makes UTF-8 by
 /// definition.
 fn text<'a>(column: &Column, body: &'a [u8]) -> io::Result<&'a str> {
@@ -3373,8 +3404,8 @@ pub fn label(column: &Column) -> io::Result<&str> {
     })
 }
 
-/// § 9's `DECIMAL` row: the server's own rendering as a [`Decimal`], and the
-/// two reasons it may not be one.
+/// `rule:core-classes/db-column-types`'s `DECIMAL` row: the server's own
+/// rendering as a [`Decimal`], and the two reasons it may not be one.
 ///
 /// `crate::pg::PgColumn::decimal` is the same split on the other wire driver
 /// and owns why there are two — a value past `rule:types/decimal`'s range is a
@@ -3473,8 +3504,8 @@ pub(crate) struct MySqlCursor {
     ended: bool,
     /// `rule:observability/a-query-is-a-trace-event`'s trace event for this statement, opened when it went out
     /// and ended by whatever ends the stream — [`crate::PgRows`]' field, for
-    /// [`crate::span`]'s reasons, and the reason § 11 reads across drivers at
-    /// all.
+    /// [`crate::span`]'s reasons, and the reason that event reads across
+    /// drivers at all.
     span: QuerySpan,
 }
 
@@ -3679,7 +3710,8 @@ pub(crate) fn next_row_of<S: Read + Write>(
             reading.ended = true;
             reading.affected = reading.rows;
             // No affected count on the span, as [`crate::PgRows::next_row`]
-            // does it: § 11 gives a span no success field to lose, so a
+            // does it: `rule:observability/a-query-is-a-trace-event` gives a
+            // span no success field to lose, so a
             // refused statement reports the rows that did arrive and the
             // error is the caller's own return value.
             reading.span.finished(None);
@@ -3970,8 +4002,8 @@ impl<S: Read + Write> Drop for MySqlRows<'_, S> {
 /// wire is no longer a sequence of packets". A [`ServerError`] is the server's
 /// own `ERR` packet, which arrived whole and left the connection at a boundary —
 /// the next statement on it is fine. Anything else reached here with the stream
-/// in a position nothing has proven, and § 4's answer to a boundary that cannot
-/// be proven is poison.
+/// in a position nothing has proven, and `rule:core-classes/db-connection-busy-state`'s
+/// answer to a boundary that cannot be proven is poison.
 ///
 /// Asking [`ServerError::of`] rather than the `io::ErrorKind` also moves the
 /// `LOCAL INFILE` refusal to the poisoning side, where it belongs: [`read_answer`]
@@ -4037,8 +4069,8 @@ mod tests {
         sized_cache(0)
     }
 
-    /// A cache of `capacity` statements, for the cases that are about § 1's
-    /// cache itself.
+    /// A cache of `capacity` statements, for the cases that are about the
+    /// statement cache itself.
     fn sized_cache(capacity: usize) -> crate::sql::StatementCache<Prepared> {
         crate::sql::StatementCache::new(capacity)
     }
@@ -4210,8 +4242,9 @@ mod tests {
         peer.sent.iter().flatten().copied().collect()
     }
 
-    /// `rule:core-classes/db-capabilities`'s third default and § 1's proof-not-password rule, in the
-    /// one exchange that decides both.
+    /// `rule:core-classes/db-safe-connection-defaults`'s third default and the
+    /// proof-not-password rule this module's *Two plugins, and the rest are
+    /// refused* states, in the one exchange that decides both.
     ///
     /// Properties of the same handshake response, because they are readings of
     /// one packet and splitting them would script the same server once each:
@@ -4784,7 +4817,7 @@ mod tests {
     /// back with those two fields swapped. Its *reader* is the one that agrees
     /// with the protocol — charset first — and it is the reader this driver
     /// runs against a real server, so a test that used the writer would be
-    /// pinning the bug rather than the wire. § 9's split between `tainted
+    /// pinning the bug rather than the wire. The type map's split between `tainted
     /// string` and `tainted bytes` is read off the charset, which is exactly
     /// the field the swap corrupts.
     fn typed_column_def(
@@ -4892,8 +4925,8 @@ mod tests {
     /// statement. A driver that interpolated would still answer `Done` here and
     /// would fail on exactly one of those two lines.
     ///
-    /// The count of sends is § 1's other half — the cost recorded rather than
-    /// hidden. Two, for a statement no cache has seen.
+    /// The count of sends is `rule:core-classes/db-one-api`'s other half — the
+    /// cost recorded rather than hidden. Two, for a statement no cache has seen.
     #[test]
     fn a_statement_is_prepared_and_executed_and_no_parameter_reaches_the_sql() {
         const SQL: &str = "INSERT INTO t (a) VALUES (?)";
@@ -4972,7 +5005,8 @@ mod tests {
     ///
     /// **The count of commands is the assertion**, because a driver that
     /// re-prepared every time answers every row of every case above correctly
-    /// and still costs twice what § 1 prices a cached re-execution at. The two
+    /// and still costs twice what `rule:core-classes/db-one-api` prices a
+    /// cached re-execution at. The two
     /// executions also have to name the *same* handle: a cache that kept the
     /// SQL but not the id would send the server a statement it never issued.
     #[test]
@@ -5071,8 +5105,8 @@ mod tests {
     /// `rule:security/db-pool-reset-is-a-boundary`'s asymmetry: `COM_RESET_CONNECTION` drops the server's
     /// prepared statements, so the reset empties the cache with them.
     ///
-    /// This is the one place the two drivers deliberately disagree. § 13 has
-    /// PostgreSQL reset with `RESET ALL` rather than `DISCARD ALL` *because*
+    /// This is the one place the two drivers deliberately disagree. That rule
+    /// has PostgreSQL reset with `RESET ALL` rather than `DISCARD ALL` *because*
     /// its cache must survive; MySQL has no reset primitive that keeps one, and
     /// a cache that survived here would bind the next request against statement
     /// ids this session no longer has — a wrong answer rather than a slow one.
@@ -5083,7 +5117,7 @@ mod tests {
         let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
             Some(0x16) => packet(1, &prepare_ok(4, 0, 0)),
             // The execution, the reset, and the `SET time_zone` the reset owes
-            // because it cleared the session variable § 9 declared.
+            // because it cleared the declared zone's session variable.
             Some(0x17 | 0x1F | 0x03) => packet(1, &ok_packet(0, 0)),
             other => panic!("the driver sent command {other:?}"),
         }));
@@ -5100,7 +5134,7 @@ mod tests {
             .expect("a reset the server acknowledged");
         assert!(
             cache.is_empty(),
-            "§ 13: the reset drops every prepared statement, so a cache that \
+            "the reset drops every prepared statement, so a cache that \
              kept one is naming a handle the server does not have"
         );
 
@@ -5118,7 +5152,7 @@ mod tests {
                 Some(0x16),
                 Some(0x17)
             ],
-            "the same statement after a reset costs the prepare again — § 13's \
+            "the same statement after a reset costs the prepare again — the reset's \
              asymmetry with PostgreSQL, which is the protocol's"
         );
     }
@@ -5163,7 +5197,7 @@ mod tests {
 
     /// The text of every `COM_QUERY` the driver flushed.
     ///
-    /// § 7's cases assert this rather than [`commands`]' bytes, because every
+    /// The transaction cases assert this rather than [`commands`]' bytes, because every
     /// one of these commands is this module's own SQL and *which* one a level
     /// got is the whole question.
     fn text_commands(sent: &[Vec<u8>]) -> Vec<String> {
@@ -5224,7 +5258,7 @@ mod tests {
                 "RELEASE SAVEPOINT nvs_1",
                 "COMMIT",
             ],
-            "§ 7's nesting is a savepoint named by the depth it opened at, and \
+            "a nested transaction is a savepoint named by the depth it opened at, and \
              MySQL deletes a same-named one rather than stacking it — so the \
              `RELEASE` PostgreSQL owes after a rollback buys nothing here"
         );
@@ -5232,8 +5266,9 @@ mod tests {
         assert_eq!(state.get(), State::Idle, "the connection is poolable");
     }
 
-    /// § 7's isolation level is a command of its own on MySQL, and `Snapshot`
-    /// is the one level that collapses onto another.
+    /// `rule:core-classes/db-transactions`'s isolation level is a command of its
+    /// own on MySQL, and `Snapshot` is the one level that collapses onto
+    /// another.
     ///
     /// The `SET TRANSACTION` has to come *first* and has to be its own round
     /// trip: MySQL takes no isolation option on the statement that opens a
@@ -5259,7 +5294,7 @@ mod tests {
         assert_eq!(
             span.sql(),
             "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; START TRANSACTION READ ONLY",
-            "§ 11's one span covers both round trips the caller waited for"
+            "the query's one span covers both round trips the caller waited for"
         );
 
         commit(&mut wire, &state, CLIENT_CAPABILITIES, &depth).expect("a commit");
@@ -5283,7 +5318,7 @@ mod tests {
                 "START TRANSACTION",
             ],
             "the level is armed by its own command, `readOnly` rides on the \
-             start and never spells `READ WRITE`, and § 7's `Snapshot` is what \
+             start and never spells `READ WRITE`, and the `Snapshot` level is what \
              InnoDB calls `REPEATABLE READ`"
         );
     }
@@ -5324,7 +5359,8 @@ mod tests {
     /// connection.
     ///
     /// Two counts that only look alike. The server rolls the transaction back
-    /// before it refuses a commit, so the level is gone and § 7's `{ retries: n }`
+    /// before it refuses a commit, so the level is gone and
+    /// `rule:core-classes/db-transactions`'s `{ retries: n }`
     /// must get a `START TRANSACTION` on the next attempt rather than a
     /// savepoint against nothing. The armed `SET TRANSACTION`, by contrast,
     /// survives on the *session* with no command able to clear it — so that
@@ -5425,7 +5461,8 @@ mod tests {
     /// null bitmap is offset by two bits because a *server* wrote it, so a
     /// driver that used the client-side offset reads the wrong column as
     /// absent. A value states no width, so `name` can only be found by having
-    /// decoded `id` at the width its column declared. And § 9's `uint` row is
+    /// decoded `id` at the width its column declared. And
+    /// `rule:core-classes/db-column-types`'s `uint` row is
     /// an `UNSIGNED` flag on an ordinary `BIGINT` rather than a type code of
     /// its own, so a driver reading the code alone answers `int` and overflows
     /// on the half of that range PHP hands back as a float.
@@ -5509,7 +5546,7 @@ mod tests {
             assert_eq!(
                 state.get(),
                 State::Streaming,
-                "rows remain unread, which is the state § 4 refuses a second statement in"
+                "rows remain unread, which is the state the busy-state rule refuses a second statement in"
             );
             assert_eq!(
                 rows.affected(),
@@ -5534,7 +5571,7 @@ mod tests {
             assert_eq!(
                 row.value(0),
                 Some(&MyValue::UInt(42)),
-                "an `UNSIGNED BIGINT` is § 9's `uint` row, and the flag is what says so"
+                "an `UNSIGNED BIGINT` is the type map's `uint` row, and the flag is what says so"
             );
             assert_eq!(row.value(1), Some(&MyValue::Bytes(b"ada".to_vec())));
             assert_eq!(
@@ -5564,7 +5601,8 @@ mod tests {
         );
     }
 
-    /// The bound § 9's `uint` row exists for, asserted on both sides of it.
+    /// The bound `rule:core-classes/db-column-types`'s `uint` row exists for,
+    /// asserted on both sides of it.
     ///
     /// `i64::MAX` and `i64::MAX + 1` are the last `BIGINT UNSIGNED` an `int`
     /// could have carried and the first it could not. Either alone reads
@@ -5629,7 +5667,7 @@ mod tests {
             read,
             [MyValue::UInt(last), MyValue::UInt(first)],
             "the first of these is past `i64::MAX`, and a driver that packed it into \
-             an `int` answers a negative number for a column § 9 makes a `uint`"
+             an `int` answers a negative number for a column the type map makes a `uint`"
         );
     }
 
@@ -5648,10 +5686,12 @@ mod tests {
     }
 
     /// A complete block resolves to exactly what the handshake sends, and the
-    /// two fields with readers of their own are asserted through them: § 9's
-    /// zone arrives as the seconds `set_session_time_zone` renders rather than
-    /// as the text an operator wrote, and an unwritten `statement_cache` is
-    /// § 1's default where a written `0` is the cache off.
+    /// two fields with readers of their own are asserted through them:
+    /// `rule:core-classes/db-column-types`'s declared zone arrives as the
+    /// seconds `set_session_time_zone` renders rather than as the text an
+    /// operator wrote, and an unwritten `statement_cache` is
+    /// `rule:core-classes/db-one-api`'s default where a written `0` is the
+    /// cache off.
     #[test]
     fn a_complete_block_resolves_to_the_target_the_handshake_sends() {
         let mut block = block();
@@ -5665,7 +5705,7 @@ mod tests {
         assert_eq!(
             target.statement_cache,
             crate::sql::DEFAULT_STATEMENT_CACHE,
-            "an unwritten field is § 1's default and not zero"
+            "an unwritten field is the statement cache's default and not zero"
         );
 
         block.statement_cache = Some(0);
@@ -5674,7 +5714,7 @@ mod tests {
                 .expect("a block that turns the cache off resolves")
                 .statement_cache,
             0,
-            "a written `0` is § 1's cache turned off, which is the answer an \
+            "a written `0` is the statement cache turned off, which is the answer an \
              `unwrap_or_default` reader loses"
         );
         block.statement_cache = None;
@@ -5745,7 +5785,8 @@ mod tests {
     /// The two resolvers refuse one broken block the same way, and each names
     /// its own backend when it does.
     ///
-    /// § 2 makes a `[db.<name>]` block one file format with a discriminant, so
+    /// `rule:core-classes/db-connection-is-named` makes a `[db.<name>]` block
+    /// one file format with a discriminant, so
     /// a fault an operator can write is a fault under every driver — and the
     /// thing a per-driver refusal quietly grows is a second vocabulary for the
     /// same file. Asserted as agreement rather than as two rosters: each
@@ -6007,12 +6048,13 @@ mod tests {
     /// reading two different things — a definition packet and a value — and a
     /// driver where they disagree answers a `Core\Db\Column::type` that no
     /// column of that name ever yields. Asserted as one table rather than a
-    /// line each so that a row added to § 9 with no arm here fails the count
+    /// line each so that a row added to `rule:core-classes/db-column-types`'s
+    /// type map with no arm here fails the count
     /// as well as the comparison.
     ///
     /// The type codes that are two rows apiece are all here: `BIGINT` and
     /// `BIGINT UNSIGNED`, `ENUM` and `SET`, `BIT(1)` and `BIT(8)`. So is the
-    /// one place this driver reads § 9's last row as `bytes` rather than as
+    /// one place this driver reads the type map's last row as `bytes` rather than as
     /// `tainted string` — a binary-charset column with no Novis type, whose
     /// octets are not text in any encoding — which `super::scalar`'s own
     /// comment owns.
@@ -6251,13 +6293,13 @@ mod tests {
                 ("timestamp", NovisType::DateTime, "datetime".to_owned()),
                 ("time", NovisType::Time, "time".to_owned()),
                 // Every column type may be null, and the description is still
-                // the column's: § 9's `?T` is a value's fact and not a
+                // the column's: the type map's `?T` is a value's fact and not a
                 // column's.
                 ("null", NovisType::Int, "null".to_owned()),
             ]
         );
 
-        // The rows § 9 gives MySQL no column type for, asserted as an
+        // The rows the type map gives MySQL no column type for, asserted as an
         // absence over the sweep rather than trusted from reading the arms:
         // `TIMESTAMPTZ` is PostgreSQL's and `UUID` is MariaDB's, and MariaDB
         // is its own driver.
@@ -6269,7 +6311,8 @@ mod tests {
         );
     }
 
-    /// § 9's structured rows answer no [`Value`], and every other row does.
+    /// `rule:core-classes/db-column-types`'s structured rows answer no
+    /// [`Value`], and every other row does.
     ///
     /// They are class instances `nvs-stdlib` builds — this crate cannot
     /// allocate one — so a `None` here is what routes a column to that crate
@@ -6366,7 +6409,7 @@ mod tests {
         ];
         for (value, octets) in sent {
             assert_eq!(
-                encode(value).expect("a value § 9 binds"),
+                encode(value).expect("a value the type map binds"),
                 Some(octets),
                 "bound as MySQL reads it"
             );
@@ -6374,7 +6417,7 @@ mod tests {
 
         for divergent in [Value::bool(true), Value::bytes(NvsStr::new(&[0x61]))] {
             assert_ne!(
-                encode(divergent).expect("a value § 9 binds"),
+                encode(divergent).expect("a value the type map binds"),
                 crate::encode(divergent).expect("the other driver binds it too"),
                 "the two drivers render this row differently, and this is what says so"
             );
@@ -6391,7 +6434,8 @@ mod tests {
         }
     }
 
-    /// § 9's `TIME` row is a `Core\Time\TimeOfDay`, and MySQL's `TIME` is not:
+    /// `rule:core-classes/db-column-types`'s `TIME` row is a
+    /// `Core\Time\TimeOfDay`, and MySQL's `TIME` is not:
     /// the bound is asserted on both sides of itself.
     ///
     /// The column doubles as an interval type — `-838:59:59` to `838:59:59` —
@@ -6470,7 +6514,8 @@ mod tests {
     ///
     /// This is the ordinary case rather than an error: the rows are already on
     /// their way, so draining to the terminator is deterministic and is what
-    /// lets § 13's pool take the connection instead of closing it. A driver
+    /// lets the pool (`rule:security/db-pool-reset-is-a-boundary`) take the
+    /// connection instead of closing it. A driver
     /// that walked away would leave the next statement reading this one's rows.
     #[test]
     fn an_abandoned_result_set_is_drained_and_the_connection_comes_back() {
@@ -6698,7 +6743,8 @@ mod tests {
         assert_eq!(taken.columns().len(), 1);
     }
 
-    /// § 11's span over this driver, and the property that makes it exportable
+    /// `rule:observability/a-query-is-a-trace-event`'s span over this driver,
+    /// and the property that makes it exportable
     /// at all: the bound value goes out on the wire and appears in no field of
     /// the span, in neither of its renderings, and in nothing a field added
     /// later could carry, since the `Debug` it is asserted over is derived.
@@ -6707,7 +6753,8 @@ mod tests {
     /// the same question of the other driver, and the two are deliberately
     /// separate cases: what survives in the text is this driver's **own**
     /// placeholder — a `?` where PostgreSQL keeps `$1` — so one case over both
-    /// would have to stop asserting the thing § 5's rewrite decides.
+    /// would have to stop asserting the thing `rule:core-classes/db-parameters`'s
+    /// rewrite decides.
     ///
     /// The positive half is asserted first and is not decoration: "contains no
     /// parameter value" is trivially true of a span that carries nothing, so
@@ -6806,7 +6853,8 @@ mod tests {
     /// The arm that would otherwise be missed: there is no terminator to reach
     /// and no row to count, so a driver that only ended a span in `next_row`
     /// would file a write's event with the duration still running and no
-    /// affected count at all — and § 11's whole point on a write is that count.
+    /// affected count at all — and the whole point of
+    /// `rule:observability/a-query-is-a-trace-event` on a write is that count.
     #[test]
     fn a_statement_with_no_result_set_ends_its_span_at_the_status_packet() {
         let mut wire = Wire::new(Peer::new(|sent: &[u8]| match sent.get(4) {
@@ -6881,8 +6929,8 @@ mod tests {
         );
     }
 
-    /// The code table, asserted as a table — and the two codes § 7's
-    /// `{ retries: n }` turns on named against each other.
+    /// The code table, asserted as a table — and the two codes
+    /// `rule:core-classes/db-transactions`'s `{ retries: n }` turns on named against each other.
     ///
     /// `1213` and `1205` are the pair worth pinning together: they are what an
     /// application reads when it is deciding whether to retry, they are a digit
@@ -6917,13 +6965,13 @@ mod tests {
             assert_eq!(
                 kind_of(code, sql_state),
                 expected,
-                "MySQL {code} (SQLSTATE {sql_state}) is not the § 8 kind it means"
+                "MySQL {code} (SQLSTATE {sql_state}) is not the `DbError` kind it means"
             );
         }
 
         assert!(
             kind_of(1213, "40001").is_retryable(),
-            "§ 7 re-runs the callable over a deadlock: the server rolled the \
+            "the retry option re-runs the callable over a deadlock: the server rolled the \
              transaction back and there is nothing left of it to run twice"
         );
         assert!(
@@ -6937,13 +6985,14 @@ mod tests {
     /// it a caller cannot see from a loop of `execute`: one prepare for the
     /// whole batch and one execution per set.
     ///
-    /// **The count of commands is the assertion**, as § 1's cache case does it.
-    /// A batch that re-prepared per set answers the same sum and costs twice
-    /// what § 1 prices it at, and this driver's N executions are the protocol's
-    /// price rather than an oversight — `execute_many`'s own doc owns why one
-    /// flush is not available here.
+    /// **The count of commands is the assertion**, as the statement cache's case
+    /// does it. A batch that re-prepared per set answers the same sum and costs
+    /// twice what `rule:core-classes/db-one-api` prices it at, and this driver's
+    /// N executions are the protocol's price rather than an oversight —
+    /// `execute_many`'s own doc owns why one flush is not available here.
     ///
-    /// The empty batch is asserted first and on the same wire: § 4's no-op
+    /// The empty batch is asserted first and on the same wire:
+    /// `rule:core-classes/db-statement-members`'s no-op
     /// answers `0` and must not prepare a statement for executions that will
     /// not happen.
     #[test]
@@ -6964,7 +7013,7 @@ mod tests {
 
         assert_eq!(
             execute_many(&mut wire, &state, CLIENT_CAPABILITIES, &mut cache, SQL, &[])
-                .expect("§ 4's no-op"),
+                .expect("an empty batch is a no-op"),
             0
         );
         assert!(
@@ -6987,7 +7036,7 @@ mod tests {
 
         assert_eq!(
             written, 6,
-            "§ 4's answer is the sum of what each execution changed"
+            "`executeMany`'s answer is the sum of what each execution changed"
         );
         assert_eq!(
             commands(&wire.peer().sent),
@@ -7001,7 +7050,8 @@ mod tests {
         );
     }
 
-    /// § 4's batch is not a transaction, asserted where it is visible: a set the
+    /// `rule:core-classes/db-statement-members`'s batch is not a transaction,
+    /// asserted where it is visible: a set the
     /// server refuses does not end the batch, and the **first** refusal is what
     /// the batch reports.
     ///
@@ -7050,7 +7100,7 @@ mod tests {
         assert_eq!(
             ServerError::of(&refused).map(|server| server.kind),
             Some(DbErrorKind::UniqueViolation),
-            "the batch answers the server's own refusal, § 8's kind and all: {refused}"
+            "the batch answers the server's own refusal, `DbError` kind and all: {refused}"
         );
         assert!(
             refused.to_string().contains("duplicate boom"),
@@ -7063,7 +7113,7 @@ mod tests {
         assert_eq!(
             commands(&wire.peer().sent),
             [Some(0x16), Some(0x17), Some(0x17), Some(0x17), Some(0x17)],
-            "every set was attempted: § 4's batch is not a transaction, so a \
+            "every set was attempted: `executeMany` is not a transaction, so a \
              refusal does not cancel the writes after it"
         );
         assert_eq!(
@@ -7087,7 +7137,8 @@ mod tests {
     ///
     /// The batch refuses a set for the same reason
     /// [`a_refused_set_does_not_end_the_batch_and_the_first_refusal_is_reported`]
-    /// does, because that is the observable § 4 spends the round trips on: a
+    /// does, because that is the observable `rule:core-classes/db-statement-members`
+    /// spends the round trips on: a
     /// bulk command ends at a refusal, so a batch that carries past one is the
     /// evidence the loop is what ran. Counting `0xFA` alone would still pass on
     /// a driver that sent the bulk command and stopped.
@@ -7144,13 +7195,13 @@ mod tests {
         let sent = commands(&wire.peer().sent);
         assert!(
             !sent.contains(&Some(COM_STMT_BULK_EXECUTE)),
-            "§ 4 runs executeMany as N executions on every driver: {sent:?}"
+            "executeMany runs as N executions on every driver: {sent:?}"
         );
         assert_eq!(
             sent,
             [Some(0x16), Some(0x17), Some(0x17), Some(0x17)],
             "one prepare and one execution per set, the third of them written \
-             after the second was refused — which is the half of § 4's \
+             after the second was refused — which is the half of `executeMany`'s \
              semantics a bulk command cannot reproduce"
         );
     }
@@ -7164,7 +7215,8 @@ mod tests {
     /// against `SET` — which share a code and differ only by a flag — and text
     /// against binary, which share a code and differ only by the collation.
     ///
-    /// `TINYINT(1)` is in here as `int`. § 6 is explicit that MySQL's display
+    /// `TINYINT(1)` is in here as `int`. `rule:core-classes/db-column-types` is
+    /// explicit that MySQL's display
     /// width is not a type, and a driver that read it as `bool` would answer
     /// one application's flag column correctly and another's small integer
     /// wrongly, with nothing on the wire to tell them apart.
@@ -7324,7 +7376,7 @@ mod tests {
 
         assert!(
             disagreed.is_empty(),
-            "every row of § 9's table, and the four pairs in it that share a type code \
+            "every row of the type map, and the four pairs in it that share a type code \
              differ only by a flag, a width or a collation: {disagreed:?}"
         );
     }
