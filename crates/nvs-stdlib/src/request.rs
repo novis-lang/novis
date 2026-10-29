@@ -15,7 +15,7 @@
 //! parts a `multipart/form-data` body declares
 //! (`rule:http-server/an-upload-is-received-only-through-files`
 //! , the parse itself being [`crate::multipart`]'s), read to its end as
-//! the form it submitted (§ 2, and `post` is the one of the five that reads
+//! the form it submitted (`post` is the one of the five that reads
 //! either the octets or a parse another reader left behind — [`claim_body`]),
 //! or decoded as the one JSON document those octets spell, which is
 //! [`crate::json`]'s reader over this module's hold.
@@ -1078,14 +1078,15 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// `rule:routing/a-request-reads-its-mount`
 /// 's mount, as the program answering the request reads it.
 ///
-/// # Why a class, where § 7 spells a shape
+/// # Why a class, and not a shape
 ///
-/// § 7 writes `{ prefix: string, captures: array<tainted string> }`, and that is
-/// not spellable in return position: [`CoreTy::Shape`] is a parameter-only
-/// variant whose own doc says no runtime representation of a shape appears
-/// anywhere, and `nvs_ir::erase_checked_ty` erases a `Ty::Shape` value to
-/// `Ty::Object` — so a program holding one would reach both fields through
-/// `mixed` and the `tainted` § 7 exists to state would be gone with them. The
+/// The pair as a shape is `{ prefix: string, captures: array<tainted string> }`,
+/// and that is not spellable in return position: [`CoreTy::Shape`] is a
+/// parameter-only variant whose own doc says no runtime representation of a
+/// shape appears anywhere, and `nvs_ir::erase_checked_ty` erases a `Ty::Shape`
+/// value to `Ty::Object` — so a program holding one would reach both fields
+/// through `mixed`, and the `tainted` that `rule:routing/a-request-reads-its-mount`
+/// states for the captures would be gone with them. The
 /// alternative was a return-position shape, which is a type-system feature
 /// bought for one member. `Core\Router\Match` is the same pair of answers six
 /// sections earlier and is already a class, so this costs a reader nothing new
@@ -1097,10 +1098,11 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// Both come off the `nvs_config::mount` row that
 /// `rule:http-server/a-request-resolves-in-five-steps`
 /// step 1 selected, and every such row was expanded against the disk at
-/// boot — § 2's rule that a path is never derived from a URL at request time is
-/// exactly what makes that so. The prefix is therefore one of a set the
-/// operator wrote, and plain. **The captures are `tainted` anyway**, which is
-/// § 7's own call and the fail-closed one: which row answers is the peer's
+/// boot — `rule:http-server/a-path-is-never-derived-from-a-url`, that a path is
+/// never derived from a URL at request time, is exactly what makes that so. The
+/// prefix is therefore one of a set the operator wrote, and plain. **The
+/// captures are `tainted` anyway**, which is
+/// `rule:routing/a-request-reads-its-mount`'s own call and the fail-closed one: which row answers is the peer's
 /// choice, a capture is what a multi-tenant program keys its data by, and
 /// laundering one for a query is the ordinary path rather than a cost.
 ///
@@ -1283,7 +1285,8 @@ const FILES_CARD: ClassDoc = ClassDoc {
 /// That class's own doc is the argument, one layer down, and this is the third
 /// `Core` class to take the shape after `Core\Task\Channel` and the body walk.
 ///
-/// **Advancing past a part nobody read drains it** — § 1, where skipping an
+/// **Advancing past a part nobody read drains it** —
+/// `rule:http-server/an-upload-is-received-only-through-files`, where skipping an
 /// upload the application does not recognise is simply not touching it. The
 /// drain is the parse's and costs a walk over bytes the door already charged
 /// against `upload_total`, never memory.
@@ -1327,14 +1330,18 @@ const PART_ORDINAL: usize = 3;
 ///
 /// # A part is a file part iff it declared a `filename`
 ///
-/// RFC 7578's own distinction, and § 2 refuses to invent a second one. Every
+/// RFC 7578's own distinction, and
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` refuses to
+/// invent a second one. Every
 /// other part is an ordinary form field, which [`crate::multipart`] buffers as
 /// the walk passes it and `post()` reads back — so this class is never a form
 /// field's carrier and has no member that would answer for one.
 ///
 /// # All three readers are `tainted`
 ///
-/// `filename` and `contentType` are what § 2 marks, and `name` is marked here
+/// `filename` and `contentType` are what
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` marks, and
+/// `name` is marked here
 /// as well: a field name arrives off the same wire, from a peer that is under
 /// no obligation to send back the names the form declared, and
 /// `rule:security/tainted-qualifier`'s
@@ -1345,7 +1352,8 @@ const PART_ORDINAL: usize = 3;
 ///
 /// # There is no `size`, and there is no `filename` that is a path
 ///
-/// § 2 refuses a `size`: there is no honest value before the part has been
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` refuses a
+/// `size`: there is no honest value before the part has been
 /// consumed, and inventing one is the repair
 /// `rule:errors/ambiguous-input-refused`
 /// exists to forbid. `filename` is the client's *claim* and is never treated as
@@ -1360,7 +1368,8 @@ const PART_ORDINAL: usize = 3;
 ///
 /// # Two consumers beside the three declarations, and both are the same pull
 ///
-/// § 3's `content()` and `readAll()`, which are the two ways to reach a part's
+/// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s `content()` and
+/// `readAll()`, which are the two ways to reach a part's
 /// *bytes*: the walk that holds one chunk at a time, and the buffer that holds
 /// the part. Both pull [`crate::multipart::Multipart::next_chunk`] and neither
 /// accumulates anything the other does not — `readAll` is that walk with a
@@ -1368,7 +1377,8 @@ const PART_ORDINAL: usize = 3;
 /// one level down.
 ///
 /// **Both are valid only while this part is the walk's current one**, which is
-/// § 3's own words and [`PART_ORDINAL`]'s whole purpose. A program that keeps a
+/// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s own words and
+/// [`PART_ORDINAL`]'s whole purpose. A program that keeps a
 /// part past the `advance()` that opened the next one is holding a name for
 /// bytes the parse has already drained, and handing it the *current* part's
 /// bytes would be the silent wrong answer — so it is refused, by
@@ -1433,12 +1443,14 @@ pub(crate) const PART: CoreClass = CoreClass {
         CoreMethod {
             name: "saveTo",
             names: &["path"],
-            // The path is a sink and `filename()` is `tainted`, which is § 2's
+            // The path is a sink and `filename()` is `tainted`, which is
+            // `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s
             // whole point standing where it bites: the one place an upload
             // could choose where it lands is the one place the qualifier
             // refuses, and `Core\IO::within` is the launderer. The options are
             // `Core\IO::writeStream`'s own bag rather than a copy of it —
-            // § 4 makes this member that one's delegation, and a default
+            // `rule:core-classes/io-write-stream` makes this member that one's
+            // delegation, and a default
             // written twice is a default that can disagree with itself.
             params: &[
                 CoreTy::Path(Qual::Sink),
@@ -1526,11 +1538,11 @@ const CONTENT_DOC: MethodDoc = MethodDoc {
 ///
 /// **`max` is a count of bytes and `0` is the absent one.** A bound of zero
 /// accepts only an empty part, so no caller means it, and a sentinel is what
-/// lets the two bounds § 3 states be told apart at all: a call that says
+/// lets the two bounds the rule states be told apart at all: a call that says
 /// nothing is held to `[limits] request_body`, and a call that names a number
 /// is held to that number and checked against the request's own `[limits]
 /// memory` instead. Without the sentinel there is one bound and the 200M
-/// buffer § 3 makes expressible would have to be the default for everyone.
+/// buffer the rule makes expressible would have to be the default for everyone.
 const READ_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "max",
     ty: CoreTy::Uint,
@@ -1661,7 +1673,8 @@ const PART_CONTENT_CARD: ClassDoc = ClassDoc {
 /// request's — but a part is a *position* in one, and the parse moves whether or
 /// not this walk is the thing that moved it. So the ordinal the part was stamped
 /// with is copied in when the walk is named and compared on every pull, which is
-/// § 3's "valid only while this part is the iterator's current one" made
+/// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only
+/// while this part is the iterator's current one" made
 /// checkable rather than documented.
 ///
 /// **What it spends:** one chunk, resident, for as long as the loop body holds
@@ -2097,8 +2110,8 @@ fn method_ordinal(verb: &str) -> Option<i64> {
     })
 }
 
-/// Every line the request carried under `name`, joined by `, ` — RFC 9110
-/// § 5.3's own equivalence — or `None` where it carried none.
+/// Every line the request carried under `name`, joined by `, ` —
+/// RFC 9110 § 5.3's own equivalence — or `None` where it carried none.
 ///
 /// The comparison is ASCII-case-insensitive on both sides (RFC 9110 § 5.1), and
 /// the join preserves arrival order, which is part of the value for every
@@ -2230,7 +2243,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Nothing here matches.** The row was chosen by `nvs_server::route`
     /// before this program started and travels on the [`Inbound`]; this member
-    /// hands it over. A second match here is precisely what § 1 exists to
+    /// hands it over. A second match here is precisely what the rule exists to
     /// remove, and it would also be a *different* match — the door held the
     /// unit's own table and the mount-stripped path, and neither is a fact this
     /// call can re-derive.
@@ -2240,7 +2253,7 @@ nvs_runtime::nvs_helper! {
     /// declared no `#[Route]`, or the table claimed nothing for this method and
     /// path, or the request reached this program by a door that takes no match.
     /// A program cannot act differently on those three — in all of them there
-    /// is no route, and § 1's rule is that having none is a served request like
+    /// is no route, and the rule says that having none is a served request like
     /// any other — so splitting them would be surface with no decision behind
     /// it. **No request at all is the fourth case and is not one of them**: it
     /// refuses through [`inbound_of`], on the terms every other reader of this
@@ -4063,12 +4076,12 @@ nvs_runtime::nvs_helper! {
     /// buffered reading of one upload.
     ///
     /// **Two bounds, and which one applies is what the argument says**, which
-    /// is § 3's own split: a bare call is held to `[limits] request_body`,
+    /// is the rule's own split: a bare call is held to `[limits] request_body`,
     /// because what arrives unasked is what that directive governs, and a call
     /// naming a `max` is held to that number and checked against the request
     /// tree's `[limits] memory` instead, because what an application chooses to
     /// hold is what *that* one governs. The bare call is therefore safe by
-    /// construction while § 3's deliberate 200M buffer stays expressible, and
+    /// construction while the rule's deliberate 200M buffer stays expressible, and
     /// neither reading needs a directive of its own.
     ///
     /// **A `max` over the request's memory ceiling is refused, not clamped.** A
@@ -4196,11 +4209,11 @@ nvs_runtime::nvs_helper! {
     /// `Core\Request\Part::saveTo(string $path, {max?, overwrite?}): void` —
     /// `rule:core-classes/io-write-stream`, and the path 99.9% of uploads take.
     ///
-    /// **A delegation, not an implementation.** § 4 says `Core\IO::writeStream`
+    /// **A delegation, not an implementation.** The rule says `Core\IO::writeStream`
     /// is where a stream reaches disk and that this member delegates to it, so
     /// what is here is the walk `content()` already answers with, handed to
     /// [`crate::io::stream_to_disk`] under the same `{max?, overwrite?}` bag.
-    /// The two rules § 4 gives that member — `overwrite` defaulting to `false`,
+    /// The two rules it gives that member — `overwrite` defaulting to `false`,
     /// and a failure removing the partial file — are therefore this member's
     /// too without being restated anywhere: they are one implementation with
     /// two doors, which is `rule:core-classes/io-write-stream`'s own argument for writing it that way.
@@ -4634,7 +4647,7 @@ mod tests {
         assert_eq!(
             captures,
             vec!["acme".to_owned()],
-            "`{{1}}` is `captures[0]`, which is § 7's whole spelling of how one \
+            "`{{1}}` is `captures[0]`, which is the whole of how one \
              table serves many tenants"
         );
 
@@ -4655,7 +4668,7 @@ mod tests {
             .find(|method| method.name == "mount")
             .expect("the member is registered");
         let CoreTy::Instance(answered) = &row.return_ty else {
-            panic!("`mount()` answers an instance class, because § 7's shape has no spelling here")
+            panic!("`mount()` answers an instance class, because a shape has no spelling here")
         };
         assert_eq!(
             *answered, MOUNT_NAME,
@@ -4680,7 +4693,7 @@ mod tests {
         };
         assert!(
             matches!(*element, CoreTy::TaintedStr),
-            "§ 7 states the captures as `tainted string`, and the qualifier sits on \
+            "the captures are `tainted string`, and the qualifier sits on \
              the value a program reaches because there is no `tainted array<T>`"
         );
     }
@@ -5720,8 +5733,8 @@ mod tests {
     /// whose `Content-Type` is not multipart at all, and one that declared a
     /// multipart body and then sent none.
     ///
-    /// The parts are walked without their bytes ever being read, which is § 1's
-    /// drain: a walk that could not skip an unconsumed part would stall on the
+    /// The parts are walked without their bytes ever being read, which is
+    /// `rule:http-server/an-upload-is-received-only-through-files`'s drain: a walk that could not skip an unconsumed part would stall on the
     /// first one here.
     ///
     /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
@@ -5790,8 +5803,9 @@ mod tests {
     /// "The only way in" is asked of the registry rather than of a body, by
     /// **counting** rather than by reading one row: exactly one member in the
     /// whole `Core` surface answers the walk, and no member anywhere answers a
-    /// part — a part exists only as the walk's current one, which is what § 3's
-    /// ordinal check is written around. A second door added later fails this
+    /// part — a part exists only as the walk's current one, which is what
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s ordinal check
+    /// is written around. A second door added later fails this
     /// without anyone having to remember the rule, which a test naming
     /// `Core\Request::files` alone would not.
     #[test]
@@ -5889,7 +5903,7 @@ mod tests {
     /// above asks its question — and by **counting** rather than by naming the
     /// row that must not be there: a filesystem path crosses this surface
     /// exactly once, as `saveTo`'s *parameter*, which is the destination the
-    /// application chose and § 1's whole argument. A `tmpName` added later
+    /// application chose and the rule's whole argument. A `tmpName` added later
     /// fails this without anyone having to remember the rule.
     ///
     /// The sweep is over spellings rather than over types because no
@@ -6167,7 +6181,8 @@ mod tests {
         Ok(bytes)
     }
 
-    /// § 3's two consumers over the part the walk is on: the content walk
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s two
+    /// consumers over the part the walk is on: the content walk
     /// yields the part's bytes and nothing of the delimiter that ends them, the
     /// walk carries on to the next part afterwards, and `readAll` answers the
     /// same bytes in one value.
@@ -6175,7 +6190,8 @@ mod tests {
     /// The two parts are read the two different ways on purpose — what would
     /// otherwise go unasserted is that a part *consumed* by one of them leaves
     /// the parse where the outer walk can still find the next one, which is the
-    /// same seam § 1's drain sits on.
+    /// same seam `rule:http-server/an-upload-is-received-only-through-files`'s
+    /// drain sits on.
     ///
     /// The receivers are driven by hand rather than by a `.nvst` `foreach`,
     /// because a case is a program with no request in front of it — the
@@ -6338,7 +6354,8 @@ mod tests {
         dropped(files);
     }
 
-    /// § 3's second bound: a `max` larger than the whole of what this request
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s second
+    /// bound: a `max` larger than the whole of what this request
     /// may hold is refused **at the call**, before a byte is pulled, and the
     /// part is still readable under a bound the request can honour.
     ///
@@ -6417,7 +6434,7 @@ mod tests {
         assert_eq!(
             consumers,
             vec!["content", "readAll", "saveTo"],
-            "§ 3's consumers are three, and the partition is by what the row answers: the walk \
+            "a part's consumers are three, and the partition is by what the row answers: the walk \
              itself, the octets held whole, and the `void` of having written them to a \
              destination the application named"
         );
@@ -6575,14 +6592,15 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// § 3's identity, on the third consumer: a part the walk has moved past
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s identity,
+    /// on the third consumer: a part the walk has moved past
     /// refuses, and it refuses **before the destination is created**.
     ///
     /// The second half is the one worth a case. `stream_to_disk` opens the file
     /// before it pulls a chunk, so an identity check made any later would have
     /// left an empty file at a name the program was right to be refused — a
     /// destination created by a call that failed is exactly the partial write
-    /// § 4's cleanup exists to prevent, arriving through the door that cleanup
+    /// `rule:core-classes/io-write-stream`'s cleanup exists to prevent, arriving through the door that cleanup
     /// does not cover.
     ///
     /// No case can reach this: a `.nvst` program answers no request, so it
@@ -6705,7 +6723,7 @@ mod tests {
         assert_eq!(
             nested.as_array().map(|values| values.count()),
             Some(1),
-            "§ 9's bracket convention is `query`'s over a form field too: `notes[first]` is \
+            "the bracket convention is `query`'s over a form field too: `notes[first]` is \
              reached under `notes`, not under its whole written name"
         );
         dropped(nested);

@@ -9,8 +9,8 @@
 //! table does not have a row for because a body written over time is
 //! `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 //! subject rather than that one's. `sendFile` is the one that hands over a
-//! **name**: its path is § 1's sink, the file is opened by whoever answers the
-//! request, and what the bytes are called is the static-file policy's table
+//! **name**: its path is a `rule:security/sink-predicate` sink, the file is
+//! opened by whoever answers the request, and what the bytes are called is the static-file policy's table
 //! rather than anything this module declares.
 //!
 //! Beside them, `setStatus`, `setHeader`, `redirect` and `addCookie`,
@@ -30,21 +30,23 @@
 //!
 //! # Why five members and not one `write`
 //!
-//! § 4's whole argument, and the three that are here are what makes it visible:
-//! each owns one body shape and **sets its own `Content-Type`**, so no call
+//! `rule:security/response-body-is-one-typed-member` is the whole argument, and
+//! the three that are here are what makes it visible: each owns one body shape and **sets its own `Content-Type`**, so no call
 //! site ever names a header and no endpoint can answer JSON labelled as HTML.
 //! `json` serializes the value itself, which is why it takes `mixed` and a
 //! tainted value inside it is safe; `bytes` is the one that cannot know, so its
-//! content type is a parameter — and § 1 makes that parameter a **sink**.
+//! content type is a parameter — and `rule:security/sink-predicate` makes that
+//! parameter a **sink**.
 //!
 //! # What a written body is
 //!
-//! **The bytes are `echo`'s and the declaration is this class's.** § 3's table
-//! already binds a request's `echo` to the response body, and
+//! **The bytes are `echo`'s and the declaration is this class's.**
+//! `rule:tooling/echo-always-has-a-sink`'s table already binds a request's `echo` to the response body, and
 //! `nvs_runtime::Ctx` is where those bytes accumulate, so a body member writes
 //! through [`Ctx::write_output`](nvs_runtime::Ctx::write_output) like every
 //! other writer in the language. What it adds over an `echo` is one string —
-//! the `Content-Type` § 4 gives it — and that is the whole of the new state:
+//! the `Content-Type` `rule:security/response-body-is-one-typed-member` gives
+//! it — and that is the whole of the new state:
 //! `Ctx::declare_content_type` records it, the isolate's finish path carries
 //! it out on `nvs_runtime::host::Completion`, and `nvs_server`'s `answer`
 //! turns it into the header. A second buffer beside the output would have been
@@ -87,7 +89,8 @@
 //! member and a status by exactly one member, and a single declaration holding
 //! both would let a body member reach a status it has no business setting.
 //!
-//! **A status is not a body, so § 4's sixth row does not reach it.** `E0801`
+//! **A status is not a body, so the `echo` refusal of
+//! `rule:security/response-body-is-one-typed-member` does not reach it.** `E0801`
 //! refuses an `echo` beside one of the five body members and `setStatus` is not
 //! one of them — `nvs_types::response`'s roster is the five names — so a
 //! handler that sets a status and then `echo`es is the ordinary spelling rather
@@ -122,10 +125,10 @@
 //!
 //! **`Content-Type` is refused here**, and that is this module's call: neither
 //! that rule nor `rule:security/response-body-is-one-typed-member` states it.
-//! § 4's whole argument is that a body
+//! The second rule's whole argument is that a body
 //! member owns one shape *and* its media type, so that no call site names that
 //! header; admitting it here would let a handler answer `json` and then
-//! relabel it `text/html`, which is the mislabelling § 4 exists to make
+//! relabel it `text/html`, which is the mislabelling that rule exists to make
 //! unspellable. Nothing is lost, because `bytes` is the member that takes a
 //! media type and it takes it beside the body it describes. The refusal is
 //! ASCII-case-insensitive, a field name being.
@@ -137,8 +140,8 @@
 //! split with no newline in it. The other three describe the connection, and
 //! only the server knows it.
 //!
-//! **Both parameters are sinks.** § 1's rule is that a parameter whose content
-//! becomes an instruction is one, and a header line is two instructions: a
+//! **Both parameters are sinks.** `rule:security/sink-predicate` is that a
+//! parameter whose content becomes an instruction is one, and a header line is two instructions: a
 //! `tainted` name or value would let what arrived on the request choose what
 //! the peer is told about the answer. [`nameable`] and [`carriable`] are the
 //! runtime half of the same question, and they are narrower than RFC 9110 on
@@ -153,7 +156,8 @@
 //! without the other is not a redirect. A `303` with no destination sends a
 //! peer somewhere unnamed, and a `Location` under a `200` is a header every
 //! client ignores; one member is what makes the pair unforgettable, which is
-//! the argument § 4 already makes for a body member owning its own media type.
+//! the argument `rule:security/response-body-is-one-typed-member` already makes
+//! for a body member owning its own media type.
 //!
 //! **The status is [`REDIRECT`]'s three cases and not any `3xx`.** `303`, `307`
 //! and `308` are the codes whose meaning is stated without reference to what a
@@ -166,8 +170,8 @@
 //! `301` exactly writes `setStatus(301)` beside `setHeader("Location", …)`,
 //! which is the general pair this member is the safe shorthand for.
 //!
-//! **The URL is § 1's sink**, and it is the sink on this class that carries the
-//! most: a destination chosen by the request is an open redirect, which is a
+//! **The URL is a `rule:security/sink-predicate` sink**, and it is the sink on
+//! this class that carries the most: a destination chosen by the request is an open redirect, which is a
 //! peer trusting this origin about where it goes next. Beyond that the value is
 //! checked exactly as a header value is — [`carriable`], and non-empty, an
 //! empty `Location` naming nothing — and a relative reference that starts with
@@ -176,9 +180,10 @@
 //! may otherwise be is not asked here, because the qualifier has already
 //! answered the question that made it worth asking.
 //!
-//! # `text` takes `tainted`, and the mark is not the word § 4 uses
+//! # `text` takes `tainted`, and the mark is not the word its rule uses
 //!
-//! § 4's table says the body is **contagious**, and
+//! `rule:security/response-body-is-one-typed-member`'s table says the body is
+//! **contagious**, and
 //! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is why
 //! it may be: `X-Content-Type-Options: nosniff` is on with nothing configured,
 //! so a `text/plain` body is not re-parsed as HTML. Removing that default is
@@ -187,13 +192,13 @@
 //!
 //! The registry spelling of that row is nonetheless
 //! [`Qual::Neutral`](crate::registry::Qual::Neutral), because the two
-//! taxonomies are over different things. § 4's word is about the **body**: the
+//! taxonomies are over different things. The table's word is about the **body**: the
 //! argument's bytes go out unchanged, so the member is not a sink. `Qual` is
 //! about the **answer**, and `nvs_types`' `admits_tainted_argument` says a
 //! [`Qual::Contagious`](crate::registry::Qual::Contagious) parameter admits
 //! `tainted` only where the return type has somewhere to carry the bit — a
 //! `void` member has nowhere, so that mark would *refuse* the very argument
-//! § 4 admits. `Core\Cli::write`'s `string` arm is the same shape and the same
+//! the table admits. `Core\Cli::write`'s `string` arm is the same shape and the same
 //! mark: a writer that answers nothing, and takes what it is given.
 //!
 //! **A body member declares and then writes, and nothing here arbitrates
@@ -210,8 +215,8 @@
 //!
 //! **Every body member writes its bytes with no rendering over them, under
 //! whichever sink is in force**, and that is each media type's own contract
-//! rather than a transform nobody got around to. § 3's table picks a rendering
-//! for `echo`, whose operand is data interpolated into a page, and
+//! rather than a transform nobody got around to.
+//! `rule:tooling/echo-always-has-a-sink`'s table picks a rendering for `echo`, whose operand is data interpolated into a page, and
 //! `nvs_runtime`'s `write_rendered` is where that pick happens — escaping
 //! inside an HTTP request and substituting everywhere else. A body member is
 //! the table's other half and takes neither: a `Markup`'s bytes already passed
@@ -219,7 +224,8 @@
 //! framing is the serializer's and never concatenation's, and `bytes` and
 //! `sendFile` carry a media type that says what the octets are. A rendering
 //! over any of them would be a second framing of bytes already framed, which is
-//! what § 4 exists to make unspellable.
+//! what `rule:security/response-body-is-one-typed-member` exists to make
+//! unspellable.
 //!
 //! **Off a request every member here still runs, onto a context nobody will
 //! ask**: the media type, a status and a header are declared and then read by
@@ -228,7 +234,8 @@
 //! body assertable from a `.nvst` case, none of which is a request a server is
 //! answering, and `stream` off a connection and `sendFile` off a request are
 //! the same degradation, stated on each of those members. Nothing refuses the
-//! call, because the refusal § 4 asks for is about two *writers* of one body
+//! call, because the refusal `rule:security/response-body-is-one-typed-member`
+//! asks for is about two *writers* of one body
 //! (`nvs_types::response`), and one member on a terminal is not that.
 //!
 //! **A body that will become a carrier takes the sink's rendering first.**
@@ -248,18 +255,20 @@ use crate::registry::{
     ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
-/// What `html` declares — § 4's `text/html`, with the charset every other
-/// text-shaped answer in this runtime carries, and the same string
+/// What `html` declares — the `text/html` of
+/// `rule:security/response-body-is-one-typed-member`, with the charset every
+/// other text-shaped answer in this runtime carries, and the same string
 /// `nvs_server::serve` answers a request that only echoed with: the sink and
 /// the member write one kind of body, so they say one thing about it.
 const HTML_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 
-/// What `text` declares — § 4's `text/plain`, with the charset every other
-/// text-shaped answer in this runtime carries.
+/// What `text` declares — the `text/plain` of
+/// `rule:security/response-body-is-one-typed-member`, with the charset every
+/// other text-shaped answer in this runtime carries.
 ///
 /// A constant rather than a literal at the write, because each body member owns
 /// one of these and reading them in a column is how a reviewer checks the table
-/// against § 4.
+/// against that rule.
 const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 
 /// How much of a file one write moves where `sendFile` is the one writing it —
@@ -271,7 +280,8 @@ const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 /// memory, and the path that reads the bytes itself keeps it too.
 const SEND_FILE_CHUNK: usize = 64 * 1024;
 
-/// What `json` declares — § 4's `application/json`, and no `charset`: the
+/// What `json` declares — the `application/json` of
+/// `rule:security/response-body-is-one-typed-member`, and no `charset`: the
 /// media type's own registration fixes the encoding at UTF-8, so a parameter
 /// saying so again is one more thing two members could disagree about.
 const JSON_MEDIA_TYPE: &str = "application/json";
@@ -347,8 +357,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "html",
             names: &["body"],
-            // Unmarked, and the row where that is the *point*: § 4 says the
-            // HTML member "takes the carrier and so has nothing to refuse",
+            // Unmarked, and the row where that is the *point*:
+            // `rule:security/response-body-is-one-typed-member` says the HTML
+            // member "takes the carrier and so has nothing to refuse",
             // because `Core\Html\Markup` is reached only through
             // `rule:core-classes/html-auto-escape`'s own doors — an html
             // template, `as` on a string literal, a launderer — each of which
@@ -372,8 +383,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "text",
             names: &["body"],
-            // `Neutral`, not `Contagious` — the module doc owns why § 4's word
-            // and this enum's case part company at a `void` member.
+            // `Neutral`, not `Contagious` — the module doc owns why the word of
+            // `rule:security/response-body-is-one-typed-member` and this enum's case part company at a `void` member.
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
@@ -384,7 +395,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "bytes",
             names: &["body", "contentType"],
             // The body takes what it is given for `text`'s reason; the content
-            // type is § 1's sink, because it is the one string here that
+            // type is a `rule:security/sink-predicate` sink, because it is the one string here that
             // becomes an *instruction* to the peer about how to read the rest.
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Text(Qual::Sink)],
             defaults: &[],
@@ -395,8 +406,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "sendFile",
             names: &["path"],
-            // § 1's sink, and the one on this class whose argument reaches the
-            // filesystem: `..` and the separators direct the resolver, so a
+            // A `rule:security/sink-predicate` sink, and the one on this class
+            // whose argument reaches the filesystem: `..` and the separators direct the resolver, so a
             // path the request chose is the traversal that reads whatever this
             // program was granted. The bytes at it are data and carry no mark
             // of their own — nothing here re-parses them, and what they are
@@ -431,7 +442,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: STREAM_SYMBOL,
             doc: Some(&STREAM_DOC),
         },
-        // § 4's body table ends above; the members that shape a response
+        // The body table of `rule:security/response-body-is-one-typed-member`
+        // ends above; the members that shape a response
         // without writing one follow it, `setStatus` first. Two groups rather
         // than one because the two lists answer different questions — which
         // shape a body is, and what else a response says — and interleaving
@@ -463,7 +475,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "setHeader",
             names: &["name", "value"],
-            // Both are § 1 sinks, unlike `setStatus`' number: a header line is
+            // Both are `rule:security/sink-predicate` sinks, unlike `setStatus`' number: a header line is
             // an instruction to the peer at both ends, so a `tainted` name and
             // a `tainted` value are refused at compile time alike.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
@@ -475,7 +487,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "redirect",
             names: &["url", "status"],
-            // The URL is § 1's sink on `setHeader`'s reasoning and then some:
+            // The URL is a `rule:security/sink-predicate` sink on
+            // `setHeader`'s reasoning and then some:
             // a `Location` is an instruction about where the peer goes next,
             // so a `tainted` one is an open redirect written by whoever sent
             // the request. The status is not classified because it cannot be
@@ -491,7 +504,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "addCookie",
             names: &["name", "value"],
             params: &[
-                // Both § 1 sinks on `setHeader`'s reasoning, and the value for
+                // Both `rule:security/sink-predicate` sinks on `setHeader`'s
+                // reasoning, and the value for
                 // one more: a cookie is the one header the *server* reads back
                 // on the next request, so a `tainted` value laundered by
                 // nothing would arrive at that request looking like state this
@@ -502,7 +516,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Options(&[
                     // Every one of the four `[http.cookies]` states defaults
-                    // to `Const::Null` rather than to § 3's shipped value:
+                    // to `Const::Null` rather than to the shipped value of
+                    // `rule:http-server/cookies-are-secure-httponly-and-lax`:
                     // written here, the default would be the *shipped* one at
                     // every call site and the configured block would reach
                     // nothing. Null is "the call site said nothing", which is
@@ -521,7 +536,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                     },
                     CoreOption {
                         name: "sameSite",
-                        // An enum and never the string § 3's block writes
+                        // An enum and never the string the `[http.cookies]`
+                        // block writes
                         // (`rule:core-api/shape-rules` R11), which is also why the boot refusal
                         // for a fourth spelling is `E0624` and not this
                         // member's problem: by the time a case arrives here
@@ -534,14 +550,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         ty: CoreTy::Text(Qual::Sink),
                         default: Const::Null,
                     },
-                    // The two § 3 does not configure, and they are here for
+                    // The two `rule:http-server/cookies-are-secure-httponly-and-lax`
+                    // does not configure, and they are here for
                     // separate reasons. `domain` exists because `rule:errors/cookie-name-bytes`
                     // *forbids* it under a `__Host-` prefix, and a rule the
                     // runtime enforces about a spelling the language does not
                     // have is not a rule. `maxAge` exists because a cookie
                     // with no expiry is a session cookie and there would
                     // otherwise be no way to write any other kind. Neither
-                    // takes a configured default — § 3 states none, and a
+                    // takes a configured default — that rule states none, and a
                     // shipped lifetime is a policy nobody asked for.
                     CoreOption {
                         name: "domain",
@@ -1441,7 +1458,8 @@ nvs_runtime::nvs_helper! {
         head_open(ctx, "Core\\Response::setHeader")?;
         // Unreachable from source for both: the row's parameters are
         // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
-        // and refuses a `tainted` one besides, both being § 1's sink.
+        // and refuses a `tainted` one besides, both being
+        // `rule:security/sink-predicate` sinks.
         let name = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Response::setHeader expected a `string` for the name, got tag {}",
@@ -1523,7 +1541,8 @@ nvs_runtime::nvs_helper! {
         head_open(ctx, "Core\\Response::redirect")?;
         // Unreachable from source: the row's first parameter is a
         // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
-        // and refuses a `tainted` one besides, that being § 1's sink.
+        // and refuses a `tainted` one besides, that being a
+        // `rule:security/sink-predicate` sink.
         let url = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Response::redirect expected a `string` for the URL, got tag {}",
@@ -1662,7 +1681,8 @@ const SECURE_PREFIX: &str = "__Secure-";
 /// `setHeader`'s two refusals share theirs.
 const ADD_COOKIE: &str = "Core\\Response::addCookie()";
 
-/// § 3's four defaults as they stand for this request.
+/// The four defaults of `rule:http-server/cookies-are-secure-httponly-and-lax`
+/// as they stand for this request.
 ///
 /// A program with no configuration at all still gets them: `Cookies::of(None)`
 /// is `rule:http-server/cookies-are-secure-httponly-and-lax`'s shipped set, which is the answer a `nvs.toml`-less run
@@ -1815,7 +1835,7 @@ nvs_runtime::nvs_helper! {
         head_open(ctx, "Core\\Response::addCookie")?;
         // Unreachable from source for both: the row types them `CoreTy::Text`,
         // so `E0401` refuses a non-`string` — and a `tainted` one besides,
-        // both being § 1 sinks.
+        // both being `rule:security/sink-predicate` sinks.
         let name = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "{ADD_COOKIE}: expected a `string` for the name, got tag {}",
@@ -1942,7 +1962,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// The same encoder `Core\Json::encode` is, reached through the same
     /// [`crate::json::Encodable`] rather than through a second walk: one
-    /// serializer is what makes § 4's claim about tainted values true, since a
+    /// serializer is what makes the claim of
+    /// `rule:security/response-body-is-one-typed-member` about tainted values
+    /// true, since a
     /// second one could frame a string differently and there would be nothing
     /// to compare it against. `pretty` is not an option here — a response body
     /// is read by a program, and whitespace for a human belongs to whatever is
@@ -1988,7 +2010,8 @@ nvs_runtime::nvs_helper! {
         })?;
         // Unreachable from source for the same reason: the second parameter is
         // a `CoreTy::Text`, so `E0401` refuses anything that is not a `string`
-        // — and refuses a `tainted` one besides, that being § 1's sink.
+        // — and refuses a `tainted` one besides, that being a
+        // `rule:security/sink-predicate` sink.
         let media_type = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Response::bytes expected a `string` for the content type, got tag {}",
@@ -2019,8 +2042,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::sendFile(string $path): void` — § 4's file row, the one
-    /// body member whose bytes do not pass through this call.
+    /// `Core\Response::sendFile(string $path): void` — the file row of
+    /// `rule:security/response-body-is-one-typed-member`, the one body member whose bytes do not pass through this call.
     ///
     /// **A name is what it leaves**, and that is the whole shape:
     /// [`nvs_runtime::Ctx::declare_file_body`] records the path, the request's
@@ -2055,7 +2078,8 @@ nvs_runtime::nvs_helper! {
         head_open(ctx, "Core\\Response::sendFile")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs —
-        // and refuses a `tainted` one besides, that being § 1's sink.
+        // and refuses a `tainted` one besides, that being a
+        // `rule:security/sink-predicate` sink.
         let named = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Response::sendFile expected a `string` for the path, got tag {}",
@@ -2151,7 +2175,8 @@ nvs_runtime::nvs_helper! {
         head_open(ctx, "Core\\Response::stream")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs — and
-        // refuses a `tainted` one besides, that being § 1's sink.
+        // refuses a `tainted` one besides, that being a
+        // `rule:security/sink-predicate` sink.
         let media_type = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Response::stream expected a `string` for the content type, got tag {}",
@@ -2465,11 +2490,12 @@ mod tests {
     ///
     /// Three claims rather than one row each, because a member that answered a
     /// neighbour's media type would still read plausibly on its own line: the
-    /// declarations are asserted against § 4's column, asserted to be
+    /// declarations are asserted against the column of
+    /// `rule:security/response-body-is-one-typed-member`, asserted to be
     /// *distinct*, and — for the one member that is told its type — asserted to
     /// carry two different ones rather than a constant that happened to match.
     ///
-    /// `sendFile` is § 4's one row that is not here, and not for want of having
+    /// `sendFile` is that rule's one row that is not here, and not for want of having
     /// landed: it declares no media type at all, the static-file policy's table
     /// naming what a file's bytes are, so there is nothing of this claim to ask
     /// it. What that member leaves instead is a name, which
@@ -2524,12 +2550,13 @@ mod tests {
             assert_eq!(
                 said.as_deref(),
                 Some(*expected),
-                "Core\\Response::{member} declares § 4's own media type"
+                "Core\\Response::{member} declares its own media type"
             );
         }
 
         // And they are its own: two members answering one type is the endpoint
-        // that serves JSON labelled as HTML, which is what § 4 exists to make
+        // that serves JSON labelled as HTML, which is what
+        // `rule:security/response-body-is-one-typed-member` exists to make
         // unwritable. Counted rather than compared pairwise, so another row
         // added above is covered by this line as it stands.
         let distinct: std::collections::BTreeSet<_> =
@@ -2560,13 +2587,13 @@ mod tests {
     /// `rule:http-server/cookies-are-secure-httponly-and-lax`, at the member that owns it: a cookie written with no options bag carries
     /// `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`. The four come off `[http.cookies]`, and a
     /// context with no configuration attached is the tree that wrote no such block — which is the
-    /// case § 3 is a statement about, since a deployment that configured the block chose its own.
+    /// case the rule is a statement about, since a deployment that configured the block chose its own.
     ///
     /// The whole line is compared rather than four `contains` calls, because the failure this is
     /// written against is an attribute that went *missing*: every `contains` still passes on a line
     /// that grew a fifth attribute nobody asked for, and on one whose parts fell in an order no peer
-    /// parses. `Path` first and `SameSite` last is the render's own order and is not § 3's claim —
-    /// what § 3 claims is that all four are there with nothing configured.
+    /// parses. `Path` first and `SameSite` last is the render's own order and is not the rule's claim —
+    /// what the rule claims is that all four are there with nothing configured.
     // covers: Core\Response::addCookie
     #[test]
     fn a_cookie_is_secure_httponly_samesite_lax_by_default() {
@@ -2604,7 +2631,7 @@ mod tests {
             &*headers[0].value,
             "session=abc123; Path=/; Secure; HttpOnly; SameSite=Lax",
         );
-        // Appends rather than replaces, which is § 3's neighbour and the reason this member is not
+        // Appends rather than replaces, which is the reason this member is not
         // `setHeader`: a second cookie may not silently take the first one's place.
         assert!(headers[0].append);
 

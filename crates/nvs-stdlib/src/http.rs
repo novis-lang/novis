@@ -2,7 +2,7 @@
 //! which is one member: the launderer every outbound URL has to pass through, and the pinned
 //! `Core\Http\Target` it answers with.
 //!
-//! `rule:http-server/allow-url-pins-the-address` places the class and § 2 gives the signature; what belongs here is why the answer is a
+//! `rule:http-server/allow-url-pins-the-address` places the class and gives the signature; what belongs here is why the answer is a
 //! value rather than a `string`, why `Core\Http\Target` has no members at all, and which half of
 //! the policy this module holds and which half it does not.
 //!
@@ -47,8 +47,9 @@
 //! member the same two parameters: the URL, and one trailing [`OPTIONS`] bag. The URL is `rule:security/outbound-url-is-a-sink`
 //! 's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
 //! diagnostic and [`allowUrl`](CLASS) is the only way past it. A `Target` argument was pinned by
-//! the launderer that built it and is not pinned again; a plain `string` — the form § 1 keeps for a
-//! URL the program itself authored — goes through the same questions [`pin`] asks for
+//! the launderer that built it and is not pinned again; a plain `string` — the form
+//! `rule:security/outbound-url-is-a-sink` keeps for a URL the program itself authored — goes
+//! through the same questions [`pin`] asks for
 //! `allowUrl`, so there is one implementation of the policy and not two.
 //!
 //! **`retry` is three flat options, not a nested shape.** A bag flattens
@@ -58,13 +59,14 @@
 //! call site and costs seven characters at each of them.
 //! `rule:http-server/retry-is-opt-in-jittered-and-closed` writes its keys in the same flat form.
 //!
-//! **§ 7's refusal is a diagnostic, and so it is not in this module.** A `post` that asks for
+//! **`rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s refusal is a
+//! diagnostic, and so it is not in this module.** A `post` that asks for
 //! retries needs [`RETRY_KEY_OPTION`], and both halves of that question are written at the call
 //! site — the verb is the member's own name, the bag is an `rule:core-api/shape-rules` R2 anonymous object — so
 //! `nvs_types::expr::args`' `reject_keyless_retry` reports it while compiling and the body has
 //! nothing left to judge. What this module owns is the two option names the rule is written over,
 //! handed to the checker by [`crate::registry::idempotent_retry_rule`] rather than copied into it.
-//! The dynamic half § 7 also names — a verb chosen at run time — is `request(Core\Http\Method, …)`,
+//! The dynamic half that rule also names — a verb chosen at run time — is `request(Core\Http\Method, …)`,
 //! which throws before the first attempt rather than before the second.
 //!
 //! # The reply is read through members, and its body is `tainted`
@@ -448,7 +450,8 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// scheme judged first, because both are statements about the argument and
 /// neither tells a caller anything about the deployment. Then
 /// `nvs_runtime::capability::pin_host_addresses` asks the capability about the
-/// host and § 3's table about every address it resolves to — in that order, so
+/// host and `rule:security/net-address-policy`'s table about every address it
+/// resolves to — in that order, so
 /// an ungranted program cannot use this member as a resolver for names it was
 /// never allowed to reach.
 ///
@@ -531,7 +534,8 @@ impl Roster {
 /// asks exactly these of a faked call and none of the ones below them: a call
 /// answered from a test's table is still refused for a scheme nothing here
 /// speaks, because that is a statement about what the program wrote, while
-/// resolution and § 3's address table have nothing to judge where no
+/// resolution and `rule:security/net-address-policy`'s address table have
+/// nothing to judge where no
 /// connection is made.
 ///
 /// # Errors
@@ -823,11 +827,13 @@ const URL: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Instance(T
 /// **The absence is the decision.** Every bound here is a `Duration`, which has
 /// no infinite value; none is nullable, so `{ deadline: null }` does not compile;
 /// and an omitted option passes `Const::Null`, which the body reads as *not
-/// given* and the transport will answer from `[http.client]` — § 5's rule that
+/// given* and the transport will answer from `[http.client]` — the rule says
 /// leaving a field out inherits the bound rather than removing it. There is no
 /// spelling left over for "wait forever".
 ///
-/// The three `retry*` options are § 6's one shape, flattened for the reason
+/// The three `retry*` options are
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed`'s one shape, flattened
+/// for the reason
 /// this module's own docs give.
 ///
 /// The keys every outbound call carries, whatever it opens: the two waits, the
@@ -1630,8 +1636,9 @@ const DEFAULT_CONNECT_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_CONN
 const DEFAULT_IDLE: Duration = nvs_config::defaults::HTTP_CLIENT_IDLE;
 /// See [`DEFAULT_DEADLINE`]. `[http.client] max_duration`'s shipped value.
 const DEFAULT_MAX_DURATION: Duration = nvs_config::defaults::HTTP_CLIENT_MAX_DURATION;
-/// § 6's base delay, which the same section leaves out of the block because it
-/// is only reachable once a program has opted into retrying at all.
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed`'s base delay. It is not
+/// in the `[http.client]` block, because it is only reachable once a program has
+/// opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 /// See [`DEFAULT_DEADLINE`]. `[http.client] pool_idle`'s shipped value: enough
 /// idle connections for a handful of upstream APIs, per core
@@ -1656,7 +1663,8 @@ const DEFAULT_SEND_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_SOCKET_
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
 /// One shape, and one row per verb: the verb is the member's own name, which
-/// is what makes § 7's idempotency question answerable while compiling.
+/// is what makes `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s
+/// question answerable while compiling.
 /// `request` is the row for a verb that is not known until it runs — it takes a
 /// `Core\Http\Method` case at slot 0, which is also how `Options` and `Trace`
 /// are sent, and pays for it by answering that question at the call instead.
@@ -1668,8 +1676,8 @@ const DEFAULT_SEND_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_SOCKET_
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
 /// makes it and whose one trailing shape has no spelling for an
 /// unbounded wait. Five rows over one bag: the verb is the member's own
-/// name, which is what lets § 7 answer "is this retry idempotent" while
-/// compiling.
+/// name, which is what lets the compiler answer "is this retry idempotent"
+/// (`rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`).
 // rank: 1170
 pub(crate) const CLIENT: CoreClass = CoreClass {
     name: CLIENT_NAME,
@@ -2680,7 +2688,8 @@ const OPEN_SOCKET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// One of § 5's time bounds, judged: present and positive, or left out.
+/// One of `rule:http-server/no-spelling-for-an-unbounded-wait`'s time bounds,
+/// judged: present and positive, or left out.
 ///
 /// # Errors
 ///
@@ -2762,7 +2771,8 @@ fn written_body_key(args: &[Value]) -> Option<&'static str> {
     None
 }
 
-/// § 6's attempt count, judged: at least one, or left out.
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed`'s attempt count,
+/// judged: at least one, or left out.
 ///
 /// # Errors
 ///
@@ -2995,10 +3005,11 @@ fn pins_of(args: &[Value], member: &str, bag: Bag) -> Result<Vec<String>, Fault>
     Ok(pins)
 }
 
-/// One of § 5's time bounds as the transport wants it: the option if it was
-/// given, then the `[http.client]` directive, then `fallback`.
+/// One of `rule:http-server/no-spelling-for-an-unbounded-wait`'s time bounds as
+/// the transport wants it: the option if it was given, then the `[http.client]`
+/// directive, then `fallback`.
 ///
-/// The three-step order is § 5's "the absence is the decision" read forwards —
+/// The three-step order is the rule's "the absence is the decision" read forwards —
 /// leaving a field out inherits the deployment's bound rather than removing it,
 /// and a deployment that configured nothing inherits the shipped one.
 ///
@@ -3267,7 +3278,8 @@ fn judge_downgrade(ctx: &Ctx, args: &[Value], hop: &str, member: &str) -> Result
 /// A `Target` argument was pinned by the launderer that built it, and asking
 /// again would be the second resolution `rule:http-server/allow-url-pins-the-address` exists to remove — so its
 /// two slots are read back here and no name is looked up. A plain `string` is
-/// the form § 1 keeps for a URL the program authored, and it goes through the
+/// the form `rule:security/outbound-url-is-a-sink` keeps for a URL the program
+/// authored, and it goes through the
 /// same door — or through [`named_address`], where the call named the address
 /// itself.
 ///
@@ -3689,7 +3701,8 @@ fn fields_of(
 }
 
 /// Every request member's body: the URL through the outbound policy, the
-/// options through § 5's bounds, and then the exchange itself.
+/// options through `rule:http-server/no-spelling-for-an-unbounded-wait`'s bounds,
+/// and then the exchange itself.
 ///
 /// The order is the contract. Everything a caller can get wrong is decided
 /// before anything leaves the process, so a program's own tests find a refused
@@ -4510,8 +4523,8 @@ fn header_map(lines: &[(String, String)]) -> Value {
 /// a reader that only looks at one pays nothing.
 ///
 /// The lookup lower-cases what the caller wrote and nothing else: the slot's
-/// keys were lower-cased where they were parsed, so the comparison RFC 9110
-/// § 5.1 asks for is one lookup rather than a walk that compares
+/// keys were lower-cased where they were parsed, so the comparison
+/// RFC 9110 § 5.1 asks for is one lookup rather than a walk that compares
 /// case-insensitively at every entry, and a name written in lower case costs
 /// no allocation at all.
 pub(crate) fn field_lines(
@@ -4654,7 +4667,8 @@ fn listed_field(object: *mut nvs_runtime::ObjHeader, at: usize, name: &str) -> V
 /// ever *narrows* what a program may reach, and nothing here reaches anything.
 ///
 /// **Everything decided from the arguments is still decided**, and in the same
-/// order: the scheme roster, the demand for a host, and § 5's bounds. A test
+/// order: the scheme roster, the demand for a host, and
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s bounds. A test
 /// that takes its subject off the network keeps every refusal its subject
 /// would have met on it, so a wrong URL fails the same way faked and real.
 ///
@@ -4767,10 +4781,11 @@ fn unanswered(named: &str, url: &str) -> Fault {
 /// `[trace] propagate` is on.
 ///
 /// `rule:observability/an-outbound-call-propagates-traceparent` — propagating
-/// it is what makes a trace cross a service boundary at all — and § 6 ships the
-/// directive **on**, so a deployment that configured nothing propagates. There
-/// is no per-call option beside it: which traces leave this process is a
-/// deployment decision, which is why § 6 makes the whole `[trace]` block
+/// it is what makes a trace cross a service boundary at all — and
+/// `rule:observability/metrics-and-trace-blocks-are-system` ships the directive
+/// **on**, so a deployment that configured nothing propagates. There is no
+/// per-call option beside it: which traces leave this process is a deployment
+/// decision, which is why that rule makes the whole `[trace]` block
 /// `System`.
 ///
 /// Off is the word `false` and nothing else. A value that is not a boolean is
@@ -5352,7 +5367,8 @@ mod tests {
     };
 
     /// The grant every case here starts from: the host is reachable and no
-    /// address is excepted, which is § 3's table exactly as it ships.
+    /// address is excepted, which is `rule:security/net-address-policy`'s table
+    /// exactly as it ships.
     const GRANTED: &str = "[capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n";
 
     /// A loopback origin that answers `replies` in order, one connection each,
@@ -5418,7 +5434,8 @@ mod tests {
         args
     }
 
-    /// The one event a call files, and § 15's field set inside it: what was
+    /// The one event a call files, and `rule:observability/trace-events-carry-a-kind`'s
+    /// field set inside it: what was
     /// asked, of whom, what came back, how many tries it took and where the
     /// time went.
     ///
@@ -5519,7 +5536,8 @@ mod tests {
         assert!(line.contains("status=200"), "{line}");
     }
 
-    /// § 15's exclusion, over a call carrying one of each: a query string, a
+    /// `rule:observability/trace-events-carry-a-kind`'s exclusion, over a call
+    /// carrying one of each: a query string, a
     /// header value and a body. None of the three reaches the event, and the
     /// path does — a line that dropped the path with the query would pass an
     /// assertion written only on the secrets.
@@ -5576,7 +5594,8 @@ mod tests {
         }
     }
 
-    /// § 15's last sentence: a call the table answered files no event, because
+    /// `rule:testing/an-outbound-call-is-answered-from-a-table`: a call the table
+    /// answered files no event, because
     /// nothing crossed a network — there is no address to name and no time to
     /// report, and an event of zeroes would read as a call that was made.
     #[test]
@@ -5729,7 +5748,8 @@ mod tests {
     /// answer the *same thing* — a client that had grown a table of its own
     /// would read plausibly on either line alone and disagree only here.
     ///
-    /// Both of § 3's keys, because both are the operator's: `net.connect`
+    /// Both of `rule:security/net-address-policy`'s keys, because both are the
+    /// operator's: `net.connect`
     /// decides the host and `net.internal` decides the address, and nothing a
     /// caller writes reaches either one.
     #[test]
@@ -5738,12 +5758,13 @@ mod tests {
         const URL: &str = "http://127.0.0.1:8099/ok";
         const HOST: &str = "127.0.0.1";
 
-        // The deployment grants the host and excepts no address, so § 3's table
-        // refuses what the name resolves to.
+        // The deployment grants the host and excepts no address, so
+        // `rule:security/net-address-policy`'s table refuses what the name
+        // resolves to.
         let mut denied = Ctx::buffered();
         denied.set_config(granting(GRANTED));
         let by_client = super::pin(&mut denied, URL, MEMBER, super::Roster::Request)
-            .expect_err("loopback is the first range § 3 denies");
+            .expect_err("loopback is the first range the address policy denies");
         let by_door = nvs_runtime::capability::pin_host_addresses(&denied, HOST, MEMBER)
             .expect_err("and the door is where that refusal is written");
         assert_eq!(
@@ -5890,8 +5911,8 @@ mod tests {
         }
     }
 
-    /// The address [`unhurried`] answers with: TEST-NET-3, which § 3's table
-    /// does not deny and which no machine a case can reach answers on.
+    /// The address [`unhurried`] answers with: TEST-NET-3, which
+    /// `rule:security/net-address-policy`'s table does not deny and which no machine a case can reach answers on.
     const UNHURRIED: IpAddr = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 9));
 
     /// A resolver that takes its time, and takes it **off the core**: the sleep
@@ -6045,7 +6066,7 @@ mod tests {
     fn traceparent_is_the_requests_own_id_and_only_while_propagate_is_on() {
         let mut on = Ctx::buffered();
         on.set_config(granting(GRANTED));
-        let sent = super::traceparent_of(&on).expect("§ 6 ships `propagate` on");
+        let sent = super::traceparent_of(&on).expect("`propagate` ships on");
         assert_eq!(sent, on.trace_context().traceparent());
         assert_eq!(
             super::traceparent_of(&on).as_deref(),
@@ -6061,7 +6082,8 @@ mod tests {
             "`propagate = false` is the whole of how a trace stops here"
         );
 
-        // A context nobody configured is § 6's shipped defaults and not a
+        // A context nobody configured is the shipped defaults of
+        // `rule:observability/metrics-and-trace-blocks-are-system`, and not a
         // refusal — the same reading `bound_of` gives a directive nothing set.
         let unconfigured = Ctx::buffered();
         let other = super::traceparent_of(&unconfigured).expect("nothing configured propagates");

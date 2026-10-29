@@ -11,9 +11,10 @@
 //! # Why the enum is here rather than in a module of its own
 //!
 //! [`crate::registry::ENUMS`] states the rule: one line per enum, declared
-//! beside the member that takes it. Three take this one — § 1's
-//! `#[Route(method: …)]` payload, § 4's `Core\Router::match`/`methodsFor`, and
-//! `Core\Request::method`, which is what answers with one. The
+//! beside the member that takes it. Three take this one —
+//! `rule:routing/route-attribute`'s `#[Route(method: …)]` payload,
+//! `rule:routing/matching-is-not-dispatching`'s
+//! `Core\Router::match`/`methodsFor`, and `Core\Request::method`, which is what answers with one. The
 //! first of those is the only one on disk, and it reads the name through
 //! `nvs_types::routes::OPTIONS` rather than through this constant, because
 //! `nvs-types` interns a roster row by name.
@@ -53,7 +54,8 @@
 //! itself gets.
 //!
 //! **A method reference this module is handed is one passed as a value.** The
-//! route table is built and § 4's link is resolved against it while compiling:
+//! route table is built and `rule:routing/link-target-and-params-are-checked`'s
+//! link is resolved against it while compiling:
 //! a reference written in the call reaches [`link`]'s symbols as a prepared
 //! path — written positionally or as `route:`, which `nvs_types::links` reads
 //! through the call's own argument mapping — and a method with no route is
@@ -151,9 +153,11 @@ pub(crate) const AUDIENCE_NAME: &str = r"Core\Audience";
 /// `rule:attributes/access-payload`'s `Core\Audience` — the one access decision `Core` names.
 ///
 /// `Public` exists so that *this route is open* is a name that resolves rather
-/// than a magic string or an absent attribute, which is the whole of § 3. It
-/// **will not grow a second case**: a roster of access levels is exactly the
-/// interpretation § 2 refuses to hold, so every other decision is the
+/// than a magic string or an absent attribute, which is the whole of
+/// `rule:attributes/access-is-a-required-sibling`. It **will not grow a second
+/// case**: a roster of access levels is exactly the interpretation
+/// `rule:security/access-is-checked-for-presence-not-meaning` refuses to hold,
+/// so every other decision is the
 /// application's own enum case or class constant and the compiler never asks
 /// what it means.
 pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
@@ -266,7 +270,8 @@ pub(crate) const NAME: &str = r"Core\Router";
 /// one element type, because a Novis array's keys are `int|string` by
 /// construction and are not part of its type. So the row declares the half that
 /// *is* representable, `array<mixed>`, and the key rule is enforced where it
-/// can be — § 4 makes a literal key that names neither a capture nor a declared
+/// can be — `rule:routing/a-leftover-link-key-is-a-query-string` makes a
+/// literal key that names neither a capture nor a declared
 /// `#[Query]` parameter a compile error, which is a question about this route's
 /// own captures rather than about a type.
 const PARAMS: CoreTy = CoreTy::Array(&CoreTy::Mixed);
@@ -297,11 +302,13 @@ const CARD: ClassDoc = ClassDoc {
 ///
 /// `match` asks *of the table*, about a verb and a path the caller chose, and
 /// so does `methodsFor` — neither reads the request, which is why both are here
-/// rather than on `Core\Request`. § 1's own match is the other member entirely:
+/// rather than on `Core\Request`. The match
+/// `rule:routing/matched-once-before-the-handler` puts on the request is the
+/// other member entirely:
 /// the door takes it once, before any of this program ran, and
 /// `Core\Request::route()` hands that one back. A program asking this class
 /// about the path it is already serving would be matching twice, which is what
-/// § 1 exists to remove.
+/// that rule exists to remove.
 ///
 /// The link half only — `rule:routing/link-target-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
 /// `methodsFor` answer a request and land with the server; [`crate::router`]
@@ -643,8 +650,9 @@ const MATCH_ROW: usize = 3;
 /// `rule:routing/a-capture-narrows-to-a-closed-set`'s capture as a program reaches it, and the one place the five
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
 ///
-/// A union rather than a `string`, because § 1 says the server computes "typed
-/// parameters" and answering the segment text for a `{ id: uint }` route would
+/// A union rather than a `string`, because
+/// `rule:routing/the-servers-match-dispatches-nothing` says the server computes
+/// "typed parameters" and answering the segment text for a `{ id: uint }` route would
 /// make the program parse a second time what the matcher already parsed — the
 /// two-readings-that-can-disagree shape this crate refuses everywhere else. A
 /// union rather than [`CoreTy::Mixed`] because the text arm is `tainted`: a
@@ -653,8 +661,8 @@ const MATCH_ROW: usize = 3;
 /// neither subsumes the other — `nvs_types`' assignment relation widens each
 /// only to `float` — so a `uint` capture past `i64::MAX` still has a type.
 ///
-/// **Every conversion the matcher performs is a member here**, and a type § 5
-/// admits that it does not convert yet arrives on the text arm — which is what
+/// **Every conversion the matcher performs is a member here**, and a type that
+/// rule admits that it does not convert yet arrives on the text arm — which is what
 /// makes this union the readable statement of where
 /// [`nvs_runtime::routes::CaptureConv`] currently stands. A `decimal` and a
 /// `Core\Uuid` joined it once the parses reached the crate the walk is in; a
@@ -690,7 +698,8 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// door on [`nvs_runtime::Inbound`]; this class holds the three answers a
 /// dispatcher reads and the row's index in the unit's table, built by
 /// [`match_value`] each time `Core\Request::route()` is read. So the row stays
-/// where § 1 put it — on the request, taken once — and nothing about the
+/// where `rule:routing/matched-once-before-the-handler` put it — on the
+/// request, taken once — and nothing about the
 /// compiled table is reachable through an object a program is holding: the
 /// index is an integer no member returns, and only `attribute<T>()` and `is`
 /// read it, on this side. What it spends
@@ -744,7 +753,8 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 ///
 /// `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
 /// module — but is produced by `Core\Request::route()` rather than by
-/// anything on `Core\Router` itself, because § 1 puts the match on the *request*.
+/// anything on `Core\Router` itself, because that rule puts the match on the
+/// *request*.
 // rank: 390
 pub(crate) const MATCH: CoreClass = CoreClass {
     name: MATCH_NAME,
@@ -1185,7 +1195,7 @@ const GATE_FAILED_DOC: MethodDoc = MethodDoc {
 /// entry points, never two implementations.
 ///
 /// **Argument 0 is the route's path, already split.** `nvs_types::routes`'
-/// `link_pieces` reads § 2's grammar — the only reading of it anywhere — and
+/// `link_pieces` reads `rule:routing/path-grammar`'s grammar — the only reading of it anywhere — and
 /// `nvs_types::UrlPiece::prepared` writes its answer out in this format:
 /// pieces separated by [`link::PIECE_SEPARATOR`], each one a tag byte from the
 /// constants below followed by its text. Reading it back is a `split` and a
@@ -1214,7 +1224,8 @@ pub mod link {
     /// carry. Here beside the link symbols because the same pass folds it.
     pub const IS_SYMBOL: &str = "nvs_core_router_match_is_route";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
-    /// one: § 2's capture names are identifiers and its fixed segments come
+    /// one: `rule:routing/path-grammar`'s capture names are identifiers and its
+    /// fixed segments come
     /// out of a `#[Route]` payload that a control byte would already have made
     /// unusable as a URL.
     pub const PIECE_SEPARATOR: char = '\u{1}';
@@ -1382,16 +1393,17 @@ fn spelled(rows: &[(&str, &str, &str)], key: &str, text: String) -> String {
 /// helpers below, since they differ only in what stands in front of it.
 ///
 /// Each substituted value is percent-encoded under
-/// [`Form::Component`](crate::uri::Form::Component), which is § 4's launder for
-/// the URL-path sink: a value holding a `/` cannot climb out of its segment.
-/// A `{name...}` is the one exception, and § 2 is why — that form *is* every
+/// [`Form::Component`](crate::uri::Form::Component), which is
+/// `rule:routing/link-target-and-params-are-checked`'s launder for the URL-path
+/// sink: a value holding a `/` cannot climb out of its segment. A `{name...}`
+/// is the one exception, and `rule:routing/path-grammar` is why — that form *is* every
 /// remaining segment, so its `/`s are structure rather than content, and each
 /// segment between them is encoded on its own.
 ///
 /// **What the path did not take becomes the query string**, which is
 /// `rule:routing/a-leftover-link-key-is-a-query-string`'s rule: the prepared pieces name every capture, so a
 /// `$params` key left over once they have been substituted is by construction
-/// not one, and § 6 makes it a query parameter. It is written by
+/// not one, and that rule makes it a query parameter. It is written by
 /// [`crate::uri::build`] — `Core\Uri::buildQuery`'s own pass, run over the same
 /// array with the captures omitted — so a link's query string is
 /// `http_build_query`'s spelling down to its nesting and its `Form::FormValue`
@@ -1399,29 +1411,31 @@ fn spelled(rows: &[(&str, &str, &str)], key: &str, text: String) -> String {
 /// walk is O(`$params`) whether or not anything is left over; `$params` is a
 /// literal written at the call site and is small.
 ///
-/// The **refusal** half of § 6 — a key that is neither a capture nor a declared
+/// The **refusal** half of that rule — a key that is neither a capture nor a declared
 /// `#[Query]` parameter is a compile error — is not here and never will be: it
 /// reads the handler's parameter attributes, so it is `E0759` in
 /// `nvs_types::links`, over the same literal keys the fold already collected.
 /// It is a check over what the *call site* wrote, though, not over what the
 /// array holds: a `$params` whose keys are not literals has none for that pass
 /// to read, so a key computed at run time still reaches the walk below and
-/// still becomes a query parameter. § 6 makes that the answer rather than an
+/// still becomes a query parameter. That rule makes this the answer rather than an
 /// error — a link cannot know which of a program's own keys is a typo.
 ///
 /// **A value outside `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set is substituted here, and throws
 /// nothing.** Its literal spelling is `E0772` in `nvs_types::links`, over the
 /// same folded entries `E0759` reads, and a computed one reaches this walk with
 /// nothing left to check it against: the closed set is the *handler's* declared
-/// type, and what crosses into a prepared template is § 2's path pieces and no
-/// type at all. Carrying the sets across so this could refuse would put a table
-/// on every link a program builds, to re-answer at run time what § 5 already
-/// answers at the only place the value is knowable — and the answer would be a
-/// throw where § 5's own is a `404`, since an out-of-set *segment* is a request
+/// type, and what crosses into a prepared template is
+/// `rule:routing/path-grammar`'s path pieces and no type at all. Carrying the
+/// sets across so this could refuse would put a table on every link a program
+/// builds, to re-answer at run time what the closed set already answers at the
+/// only place the value is knowable — and the answer would be a throw where the
+/// closed set's own is a `404`, since an out-of-set *segment* is a request
 /// that does not match rather than a program that is wrong. Nothing about the
 /// laundering changes either way: the value is percent-encoded into its own
 /// segment above whatever it holds, so what a bad link produces is a dead URL
-/// and never an escape from one. This is § 6's rule for a computed key, applied
+/// and never an escape from one. This is
+/// `rule:routing/a-leftover-link-key-is-a-query-string` for a computed key, applied
 /// to a computed value for the same reason — the two halves of one entry answer
 /// the same way.
 ///
@@ -1458,7 +1472,8 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
             Fault::fatal("a prepared route link's piece is a tag byte and its text")
         })?;
         // The same writer, and the same reason it is unreachable from source:
-        // `prepared` builds a Rust `String` out of § 2's capture names and
+        // `prepared` builds a Rust `String` out of `rule:routing/path-grammar`'s
+        // capture names and
         // fixed segments, so the bytes it hands over are UTF-8 by
         // construction rather than by a check anything here could fail.
         let key = std::str::from_utf8(key)
@@ -1568,7 +1583,8 @@ nvs_runtime::nvs_helper! {
     /// [`Ctx::origin`](nvs_runtime::Ctx::origin), and never a value the
     /// request could have influenced. A unit that resolves none throws here
     /// rather than answering with an empty authority in it, which is `rule:http-server/a-mount-table-expands-at-boot`
-    /// 's rule at the one place a CLI run can enforce it: § 6 puts the
+    /// 's rule at the one place a CLI run can enforce it:
+    /// `rule:routing/an-origin-is-per-mount-and-checked-at-boot` puts the
     /// *boot* error at mount expansion, and there is no mount off the command
     /// line to expand.
     fn nvs_core_router_link_absolute(ctx, args: [2]) {
@@ -2195,7 +2211,8 @@ nvs_runtime::nvs_helper! {
 /// took — the whole of how [`nvs_runtime::routes`]' row reaches a program.
 ///
 /// `pub(crate)` because the readers are [`crate::request`]'s `route()` and
-/// [`nvs_core_router_match`]: § 1 puts the match on the request rather than on
+/// [`nvs_core_router_match`]: `rule:routing/matched-once-before-the-handler`
+/// puts the match on the request rather than on
 /// the router, and the class both answer with is this module's because
 /// `Core\Router\Match` is a `Core\Router` name.
 ///
@@ -2346,7 +2363,7 @@ nvs_runtime::nvs_helper! {
     /// [`Ctx::routes`](nvs_runtime::Ctx::routes) holds.
     ///
     /// **An empty array is the `404` and a non-empty one is the `405`**, whose
-    /// `Allow:` the caller writes out of it. § 2's own rule is that this is
+    /// `Allow:` the caller writes out of it. That rule also says this is
     /// asked *only after* `Core\Request::route()` answered `null`, so nothing
     /// here is on a served request's path; the walk it performs is
     /// [`nvs_runtime::routes::Routes::methods_for`]'s, which is where the two
@@ -2721,7 +2738,8 @@ nvs_runtime::nvs_helper! {
     /// **`null` for a name the route does not declare**, rather than a throw,
     /// and that is [`MATCH_PARAM_DOC`]'s stated answer rather than
     /// `Core\Regex\Match::group`'s: an optional `{name?}` the request left off
-    /// is absent from the array and is the ordinary case § 4 exists for, so a
+    /// is absent from the array and is the ordinary case
+    /// `rule:routing/a-trailing-segment-may-be-absent` exists for, so a
     /// member that threw for an unknown name would have to tell two absences
     /// apart that the table itself does not.
     fn nvs_core_router_match_param(_ctx, args: [2]) {
@@ -4134,7 +4152,8 @@ mod tests {
         assert!(dotted.contains("leave its route"), "{dotted}");
     }
 
-    /// § 4 calls `url` the launderer for the URL-path sink, and `urlSigned` is
+    /// `rule:routing/link-target-and-params-are-checked` calls `url` the
+    /// launderer for the URL-path sink, and `urlSigned` is
     /// that member with a parameter on the end — so the claim is an
     /// *agreement* rather than a second escaping rule, and it is asserted on
     /// both halves.

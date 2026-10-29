@@ -41,8 +41,8 @@
 //! differs by one byte and nothing says why. Both spellings decode
 //! identically, so nothing is lost by keeping both.
 //!
-//! Hex digits are emitted **upper case**, which is PHP's choice and RFC 3986
-//! § 2.1's recommendation. Both cases are read on the way back in.
+//! Hex digits are emitted **upper case**, which is PHP's choice and
+//! RFC 3986 § 2.1's recommendation. Both cases are read on the way back in.
 //!
 //! # Decoding is total, and a malformed escape is text
 //!
@@ -66,7 +66,8 @@
 //! the one that cannot drift from `parse` because it *is* `parse`.
 //!
 //! **`$text as ?Uri` does not compile**, and an earlier revision of `rule:expressions/nullable-conversion`
-//! said it did. Its § 3 withdrew that closed two-class "parse roster": `as?`
+//! said it did. `rule:expressions/nullable-conversion-availability` withdrew
+//! that closed two-class "parse roster": `as?`
 //! spells a *downcast* in every language a reader arrives from, so spelling a
 //! parse that way inverted the one intuition the syntax carried — and it never
 //! removed the second spelling it was justified by removing, since
@@ -88,22 +89,22 @@
 //! — a canonical form used by nothing but a signature is a form no other test
 //! constrains, which is where every framework's signed-URL bug in this space
 //! has come from (`rule:core-api/signing-is-over-a-payload`). It is the whole
-//! of § 6.2.2 and no more:
+//! of RFC 3986 § 6.2.2 and no more:
 //!
-//! - **§ 6.2.2.1, case.** The scheme and the host fold to lower case; every
-//!   other component keeps its own. Every `%XX` escape's hex digits fold to
-//!   upper case, everywhere.
-//! - **§ 6.2.2.2, percent-encoding.** An escape that spells an *unreserved*
-//!   character (§ 2.3: `A-Z a-z 0-9 - . _ ~`) becomes that character. An
-//!   escape that spells anything else is left escaped, which is what keeps
-//!   `/a%2Fb` from ever comparing equal to `/a/b`.
-//! - **§ 6.2.2.3, dot segments.** [`remove_dot_segments`] runs over an
-//!   **absolute** path only. § 6.2.2.3's own wording is about dot segments
+//! - **RFC 3986 § 6.2.2.1, case.** The scheme and the host fold to lower
+//!   case; every other component keeps its own. Every `%XX` escape's hex
+//!   digits fold to upper case, everywhere.
+//! - **RFC 3986 § 6.2.2.2, percent-encoding.** An escape that spells an
+//!   *unreserved* character (RFC 3986 § 2.3: `A-Z a-z 0-9 - . _ ~`) becomes
+//!   that character. An escape that spells anything else is left escaped,
+//!   which is what keeps `/a%2Fb` from ever comparing equal to `/a/b`.
+//! - **RFC 3986 § 6.2.2.3, dot segments.** [`remove_dot_segments`] runs over
+//!   an **absolute** path only. RFC 3986 § 6.2.2.3's own wording is about dot segments
 //!   "in non-relative paths"; a relative reference's `..` is meaningful until
 //!   something resolves it, so folding it here would make `../a` and `a` one
 //!   URI when they are two.
 //!
-//! It stops short of § 6.2.3's *scheme-based* normalization, deliberately:
+//! It stops short of RFC 3986 § 6.2.3's *scheme-based* normalization, deliberately:
 //! `http://h:80/` and `http://h/` stay two URIs here. Knowing that `80` is
 //! `http`'s default port is knowledge about a scheme, and a comparison that
 //! carried a table of them would answer differently as the table grew — while
@@ -225,11 +226,11 @@
 //! # Decision: normalization happens at the comparison, not at the parse
 //!
 //! The rule above says what `parse` does not do; this says where the
-//! normalizing does happen. `==` over two `Uri` values applies RFC 3986
-//! § 6.2.2's syntax-based normalization — scheme and host lower-cased, a
+//! normalizing does happen. `==` over two `Uri` values applies
+//! RFC 3986 § 6.2.2's syntax-based normalization — scheme and host lower-cased, a
 //! default port dropped, unreserved percent-escapes decoded, dot segments
 //! removed — and then compares **component by component, never as strings**.
-//! The two rules are the same rule seen from both ends: § 3.1 makes a scheme
+//! The two rules are the same rule seen from both ends: RFC 3986 § 3.1 makes a scheme
 //! case-insensitive *to compare*, which is a different thing from rewriting
 //! what was sent, so the case survives the parse and stops mattering at the
 //! comparison.
@@ -1419,15 +1420,15 @@ fn read<'a>(text: &'a str, member: &str) -> Result<UriRef<&'a str>, Fault> {
 ///
 /// # Errors
 ///
-/// A [`Fault::thrown`] where the digits do not fit a [`u16`]. RFC 3986
-/// § 3.2.3's *grammar* is `*DIGIT` while its *prose* defines the component as
+/// A [`Fault::thrown`] where the digits do not fit a [`u16`].
+/// RFC 3986 § 3.2.3's *grammar* is `*DIGIT` while its *prose* defines the component as
 /// a TCP port number, so `//h:99999/` is text the grammar admits and a port
 /// nothing can dial. Storing it would answer with a number no caller could
 /// use and truncating it would answer with a different URI's port, so the
 /// member refuses instead — the same line [`crate::validate`] draws, drawn
 /// where the caller can read it.
 ///
-/// An **empty** port is `None` rather than an error, which is § 3.2.3's own
+/// An **empty** port is `None` rather than an error, which is RFC 3986 § 3.2.3's own
 /// instruction to a producer. `toString` still gives the `:` back, because it
 /// answers with the text that was parsed rather than with a recomposition.
 fn port_of(authority: &Authority<'_>, member: &str) -> Result<Option<u16>, Fault> {
@@ -1448,8 +1449,8 @@ fn port_of(authority: &Authority<'_>, member: &str) -> Result<Option<u16>, Fault
 /// both of its ends.
 fn port_out_of_range(member: &str) -> Fault {
     Fault::thrown(format!(
-        "Core\\Uri::{member}(): the authority's port is not a TCP port number. RFC 3986 \
-         § 3.2.3 admits any run of digits and defines the component as a port, so a value \
+        "Core\\Uri::{member}(): the authority's port is not a TCP port number. \
+         RFC 3986 § 3.2.3 admits any run of digits and defines the component as a port, so a value \
          outside 0-65535 has no `int` this member could answer with"
     ))
 }
@@ -1457,7 +1458,7 @@ fn port_out_of_range(member: &str) -> Fault {
 /// Whether `text` is a URI reference `Core\Uri::parse` would answer for, for
 /// a caller that wants the refusal and not the object —
 /// `rule:expressions/intrinsic-constant-arguments`'s fold,
-/// which reads a **literal** URI while checking and reports § 3's diagnostic
+/// which reads a **literal** URI while checking and reports a compile-time diagnostic
 /// instead of the throw [`nvs_core_uri_parse`] would have made.
 ///
 /// # Errors
@@ -1831,13 +1832,13 @@ fn with_parameter(
 // Equivalence — RFC 3986 § 6.2.2, run at the comparison and never at the parse
 // ============================================================================
 
-/// Whether `byte` is RFC 3986 § 2.3's *unreserved* — the set § 6.2.2.2
-/// restores from its escaped spelling.
+/// Whether `byte` is RFC 3986 § 2.3's *unreserved* — the set
+/// RFC 3986 § 6.2.2.2 restores from its escaped spelling.
 ///
 /// Deliberately not [`Form::unreserved`]: that one answers for an *encoder*
 /// and carries the `~` disagreement between a URI component and a form value,
-/// which is a question about producing text. This one answers § 2.3's set and
-/// nothing else, because § 6.2.2.2 names that set by reference. Collapsing the
+/// which is a question about producing text. This one answers RFC 3986 § 2.3's
+/// set and nothing else, because RFC 3986 § 6.2.2.2 names that set by reference. Collapsing the
 /// two would tie a comparison's meaning to which encoder ran last.
 const fn unreserved(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~')
@@ -1848,7 +1849,7 @@ const fn unreserved(byte: u8) -> bool {
 /// character replaced by that character, and the ASCII letters folded to lower
 /// case where `fold` says this component is case-insensitive.
 ///
-/// `fold` is § 6.2.2.1's first half, applied per component rather than to the
+/// `fold` is RFC 3986 § 6.2.2.1's first half, applied per component rather than to the
 /// whole reference: the scheme and the host are case-insensitive and nothing
 /// else is, so a path's `A` stays an `A`.
 ///
@@ -1889,7 +1890,7 @@ fn normalized(text: &str, fold: bool) -> String {
 
 /// `byte` lower-cased where `fold`, and itself otherwise.
 ///
-/// ASCII only, and that is § 6.2.2.1's own scope: a scheme is ASCII by grammar
+/// ASCII only, and that is RFC 3986 § 6.2.2.1's own scope: a scheme is ASCII by grammar
 /// and a host that is not is punycode, which is ASCII too. Folding by Unicode
 /// rules here would make the answer depend on a case table rather than on the
 /// RFC.
@@ -1902,9 +1903,9 @@ const fn fold_ascii(byte: u8, fold: bool) -> u8 {
 }
 
 /// RFC 3986 § 5.2.4's `remove_dot_segments` over `path`, which is what
-/// § 6.2.2.3 asks a normalizer to apply.
+/// RFC 3986 § 6.2.2.3 asks a normalizer to apply.
 ///
-/// Runs on an **absolute** path only — one beginning with `/`. § 6.2.2.3's own
+/// Runs on an **absolute** path only — one beginning with `/`. RFC 3986 § 6.2.2.3's own
 /// wording is about dot segments "in non-relative paths", and the restriction
 /// matters: a relative reference's leading `..` is meaningful until something
 /// resolves it, so folding it away here would answer that `../a` and `a` are
@@ -1916,7 +1917,7 @@ const fn fold_ascii(byte: u8, fold: bool) -> u8 {
 /// a cost the caller chooses. The two produce the same answer, including on
 /// the two cases a segment list makes easy to get wrong — an **empty interior
 /// segment is kept** (`/a//b` is not `/a/b`), and a **trailing** `.` or `..`
-/// leaves the path ending in `/`, which is § 5.2.4 steps 2C and 2D appending
+/// leaves the path ending in `/`, which is RFC 3986 § 5.2.4 steps 2C and 2D appending
 /// an empty segment.
 fn remove_dot_segments(path: &str) -> String {
     if !path.starts_with('/') {
@@ -2048,7 +2049,7 @@ fn is_signature_name(written: &str) -> bool {
 /// (`rule:core-api/signing-is-over-a-payload`).
 ///
 /// **The token is taken undecoded, and needs no decoding**: unpadded URL-safe
-/// base64 is unreserved from end to end, so § 6.2.2.2 has already restored any
+/// base64 is unreserved from end to end, so RFC 3986 § 6.2.2.2 has already restored any
 /// escaped spelling of one in [`equivalent`]'s query, and a served request's
 /// own query string — which is what `crate::router`'s `signedRoute` hands over,
 /// having had no normalization at all — carries those characters themselves. A
@@ -2558,7 +2559,7 @@ nvs_runtime::nvs_helper! {
     /// **Both** of `parse`'s throwing steps are folded, not just the grammar
     /// one: [`read`] refuses text RFC 3986 § 4.1 does not admit, and [`built`]
     /// refuses an authority whose port is outside `0-65535` ([`port_of`] —
-    /// § 3.2.3's grammar admits the digits and its prose does not admit the
+    /// RFC 3986 § 3.2.3's grammar admits the digits and its prose does not admit the
     /// number). Folding only the first would make `tryParse` throw for one of
     /// the two texts `parse` throws for, which is exactly the parser/validator
     /// divergence the paragraph above says this member exists to prevent.
@@ -2586,8 +2587,8 @@ nvs_runtime::nvs_helper! {
     /// `$uri->userInfo(): ?string` — the whole `user:password` subcomponent as
     /// written, or `null` where no `@` was.
     ///
-    /// One reader rather than `parse_url`'s two keys, because RFC 3986
-    /// § 3.2.1 deprecates the `user:password` form outright and a member that
+    /// One reader rather than `parse_url`'s two keys, because
+    /// RFC 3986 § 3.2.1 deprecates the `user:password` form outright and a member that
     /// split it would be a member that suggested writing one.
     fn nvs_core_uri_user_info(_ctx, args: [1]) {
         component(args, "userInfo", USER_INFO_SLOT)
@@ -2662,8 +2663,9 @@ nvs_runtime::nvs_helper! {
     /// `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` —
     /// replacing reassembly by hand.
     ///
-    /// A fresh `Uri`, not a mutated one: every `Core` class except § 9's
-    /// collections is built once and read, and a URI that could change under a
+    /// A fresh `Uri`, not a mutated one: every `Core` class except the
+    /// collections (`Core\ObjectMap`, `Core\ObjectSet`, `Core\Heap`) is built
+    /// once and read, and a URI that could change under a
     /// caller who had already validated it is the shape this exists to avoid.
     ///
     /// **Three of the six components can be removed, and `null` is how** —
@@ -2907,12 +2909,12 @@ nvs_runtime::nvs_helper! {
     /// resolution, which PHP has no function for at all.
     ///
     /// The receiver is the **base** and must therefore be an absolute URI
-    /// (§ 5.2.1), so resolving against a relative one throws rather than
+    /// (RFC 3986 § 5.2.1), so resolving against a relative one throws rather than
     /// guessing. Its fragment is dropped first, which is not a normalization:
-    /// § 5.1 defines a base URI as one without a fragment, and every
+    /// RFC 3986 § 5.1 defines a base URI as one without a fragment, and every
     /// implementation that "supports" a base with one is doing this silently.
     ///
-    /// This is the one member here that rewrites a path — § 5.2.4's
+    /// This is the one member here that rewrites a path — RFC 3986 § 5.2.4's
     /// dot-segment removal — and it is the place the RFC asks for it. An
     /// **opaque** base, one with a rootless path and no authority
     /// (`mailto:a@b`), has no path to merge a relative reference into and
@@ -2931,8 +2933,8 @@ nvs_runtime::nvs_helper! {
             .ok_or_else(|| Fault::fatal("Core\\Uri::resolve found a null `text` slot"))?;
         let base = Uri::parse(base_text).map_err(|_| {
             Fault::thrown(
-                "Core\\Uri::resolve(): the receiver is a relative reference, and RFC 3986 \
-                 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, \
+                "Core\\Uri::resolve(): the receiver is a relative reference, and \
+                 RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, \
                  or resolve against one that has one"
                     .to_owned(),
             )
@@ -3868,8 +3870,8 @@ mod tests {
             value.as_bytes().expect("a value is `bytes`"),
             [0xff, 0xfe, 0xfd]
         );
-        // The same query read as a served request's parameters keeps § 15's
-        // refusal, which is the whole of what `Values` decides.
+        // The same query read as a served request's parameters keeps
+        // `Core\Request`'s refusal, which is the whole of what `Values` decides.
         assert!(
             super::parse_query("n=%ff%fe%fd", "Core\\Request", "query", super::Values::Text)
                 .is_err()
@@ -4238,8 +4240,8 @@ mod tests {
     // covers: Core\Uri::compareTo
     #[test]
     fn two_uris_compare_by_normalized_components() {
-        // One URI, two spellings, per § 6.2.2.1 (case), § 6.2.2.2
-        // (percent-encoding) and § 6.2.2.3 (dot segments).
+        // One URI, two spellings, per RFC 3986 § 6.2.2.1, § 6.2.2.2 and § 6.2.2.3:
+        // case, percent-encoding and dot segments.
         for (left, right) in [
             ("HTTP://example.com/a", "http://example.com/a"),
             ("http://Example.COM/a", "http://example.com/a"),
@@ -4264,12 +4266,12 @@ mod tests {
             (
                 "http://example.com:80/",
                 "http://example.com/",
-                "a default port is § 6.2.3, which needs a table of schemes",
+                "a default port is RFC 3986 § 6.2.3, which needs a table of schemes",
             ),
             (
                 "http://example.com",
                 "http://example.com/",
-                "an empty path is § 6.2.3 for the same reason",
+                "an empty path is RFC 3986 § 6.2.3 for the same reason",
             ),
             (
                 "http://example.com/a%2Fb",
@@ -4979,8 +4981,8 @@ mod tests {
     }
 
     /// RFC 3986 § 5.4.1's normal examples against its own base, the base's
-    /// fragment dropped before § 5.3 recomposes, and the two bases § 5.2.1 and
-    /// § 5.2.3 leave without an answer — each a throw rather than a guess.
+    /// fragment dropped before RFC 3986 § 5.3 recomposes, and the two bases
+    /// RFC 3986 § 5.2.1 and § 5.2.3 leave without an answer — each a throw rather than a guess.
     // covers: Core\Uri::resolve
     #[test]
     fn resolve_runs_the_rfc_normal_examples_and_throws_for_a_base_with_no_answer() {
@@ -5010,7 +5012,7 @@ mod tests {
         assert_eq!(
             resolved("http://a/b?q#f", "").as_deref(),
             Ok("http://a/b?q"),
-            "§ 5.1: a base carries no fragment"
+            "RFC 3986 § 5.1: a base carries no fragment"
         );
 
         let relative = resolved("/relative/base", "g").expect_err("a relative base has no answer");
@@ -5263,7 +5265,7 @@ mod tests {
         dropped(keys);
     }
 
-    /// § 6.2.2.1's fold, reached through the same function `compareTo` reaches
+    /// RFC 3986 § 6.2.2.1's fold, reached through the same function `compareTo` reaches
     /// it through: an escape rewritten in the other case is not a tampered
     /// URL.
     #[test]
@@ -5328,7 +5330,7 @@ mod tests {
         assert_eq!(
             compared(plain, dressed),
             0,
-            "§ 6.2.2 folds the scheme, the host and the dot segment"
+            "RFC 3986 § 6.2.2 folds the scheme, the host and the dot segment"
         );
         assert_eq!(
             token_of(&signed_text(plain, keys)),

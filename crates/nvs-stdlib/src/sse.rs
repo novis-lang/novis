@@ -1,9 +1,10 @@
 //! `Core\Sse` — `rule:concurrency/two-doors-one-isolate`
 //! 's event stream, as the signature a program writes.
 //!
-//! § 5 makes an SSE connection "the same model without `receive`": the isolate
-//! is § 1's root one — its own arena, its own `[limits]` budget, its own grants
-//! — and the operand is § 2's, under
+//! That rule makes an SSE connection "the same model without `receive`": the
+//! isolate is `rule:concurrency/a-connection-is-a-root-isolate`'s root one —
+//! its own arena, its own `[limits]` budget, its own grants — and the operand is
+//! `rule:concurrency/an-upgrade-is-spawn-shaped`'s, under
 //! `rule:security/isolate-shares-nothing`'s rule. So
 //! everything behind the door is [`crate::socket`]'s, shared outright and
 //! documented there once: why the member *prepares* an isolate the connection
@@ -13,7 +14,8 @@
 //! # What is different is the door, and it is the whole module
 //!
 //! **The cell is [`nvs_runtime::SseSlot`] and not
-//! [`nvs_runtime::UpgradeSlot`]**, and § 5 states why as a difference between
+//! [`nvs_runtime::UpgradeSlot`]**, and `rule:concurrency/two-doors-one-isolate`
+//! states why as a difference between
 //! two hand-overs rather than as a preference. A WebSocket upgrade *takes the
 //! socket*: the hand-over is the socket itself, it happens after the request's
 //! own future has ended, and only a request the server framed an upgrade for
@@ -26,7 +28,8 @@
 //! Two consequences, and they are this module's whole surface area:
 //!
 //! - **Every request a server answers is offered the cell**, where its sibling
-//!   is offered only to an upgradable one. That is § 1's fail-closed rule read
+//!   is offered only to an upgradable one. That is the fail-closed rule of
+//!   `rule:concurrency/a-connection-is-a-root-isolate` read
 //!   against a different hand-over rather than a relaxation of it — what still
 //!   has no cell, and so still throws, is everything that is not a served
 //!   request: a command-line program, a `spawn script` child, a `#[Test]`
@@ -157,8 +160,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // — `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
             // what may cross at run time, and the last three are
             // `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
-            // narrowings. `crate::socket`'s row is where they are argued; § 5
-            // gives this member "the identical clause", so a difference between
+            // narrowings. `crate::socket`'s row is where they are argued;
+            // `rule:concurrency/two-doors-one-isolate` gives this member "the identical clause", so a difference between
             // the two signatures would be one the rule does not license.
             params: &[
                 CoreTy::Entry,
@@ -1039,7 +1042,8 @@ mod tests {
     }
 
     /// A carrier for an ordinary request a server is answering — no upgrade
-    /// offered, which is the difference § 5 turns on.
+    /// offered, which is the difference `rule:concurrency/two-doors-one-isolate`
+    /// turns on.
     fn served(ctx: &mut Ctx, cell: &SseSlot) {
         let mut inbound = Inbound::new("GET", "/events", "");
         inbound.offer_sse(cell.clone());
@@ -1054,13 +1058,15 @@ mod tests {
         Value::array(map)
     }
 
-    /// § 5's hand-over, asserted as the sibling's is: after the call the cell
+    /// The hand-over of `rule:concurrency/two-doors-one-isolate`, asserted as the
+    /// sibling's is: after the call the cell
     /// holds the resolver's program for the path that was *written*, and the
     /// argument beside it is a **copy** rather than the request's own graph.
     ///
     /// What this adds over the sibling's assertion is the carrier it runs on —
-    /// a plain `GET` no upgrade was framed for, which is the request § 5 says
-    /// is offered a cell and § 1 says is not offered a slot.
+    /// a plain `GET` no upgrade was framed for, which is the request that rule
+    /// says is offered a cell and `rule:concurrency/a-connection-is-a-root-isolate`
+    /// says is not offered a slot.
     // covers: Core\Sse::upgrade
     #[test]
     fn an_event_stream_leaves_the_resolvers_program_and_a_copy_of_its_argument_in_the_cell() {
@@ -1357,7 +1363,8 @@ mod tests {
     ///
     /// It goes through `Core\Topic`'s own members rather than queueing on the
     /// context directly, because what is claimed is that the *bus* reaches a
-    /// door it was written before: § 4's table holds a handle onto the queue,
+    /// door it was written before: `rule:core-classes/topic`'s table holds a
+    /// handle onto the queue,
     /// and a stream that subscribed is an entry in it like any connection.
     // covers: Core\Sse\Message::topic, Core\Sse\Message::value
     #[test]

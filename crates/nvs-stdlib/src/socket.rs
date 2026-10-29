@@ -1,16 +1,18 @@
 //! `Core\Socket` — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`
 //! 's WebSocket upgrade, as the signature a program writes.
 //!
-//! § 1 makes a connection a **root isolate** rather than a suspended request:
-//! its own arena, its own `[limits]` budget, its own grants, and none of the
-//! upgrading request's heap. § 2 makes opening one `spawn script`-shaped, so
+//! `rule:concurrency/a-connection-is-a-root-isolate` makes a connection a
+//! **root isolate** rather than a suspended request: its own arena, its own
+//! `[limits]` budget, its own grants, and none of the upgrading request's heap.
+//! `rule:concurrency/an-upgrade-is-spawn-shaped` makes opening one `spawn script`-shaped, so
 //! the operand here is that construct's operand under exactly
 //! `rule:security/isolate-shares-nothing`'s rule — a path, or
 //! a static method written `Chat::run`, and never an anonymous function.
 //!
 //! # What is here, and what is not
 //!
-//! The row, its signature, and **the body that fills § 1's slot**: a path
+//! The row, its signature, and **the body that fills the slot
+//! `rule:concurrency/a-connection-is-a-root-isolate` gives a connection**: a path
 //! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by the
 //! graph copy (`rule:classes/graph-copy`), and the pair left on the request's carrier for the
 //! connection to start. Behind it the framing has landed — `nvs_server::serve`
@@ -18,17 +20,19 @@
 //! the isolate as a [`nvs_runtime::PeerSocket`] — so an upgrade prepared here
 //! opens a root isolate that **has** a peer.
 //!
-//! § 3's surface is over it as well — `current()`, `receive()` and the two
-//! `send` rows, plus the [`MESSAGE`] each wait answers with. [`crate::topic`]
-//! is the far half of `receive()`'s second source and is whole: § 4's
-//! `subscribe`, `unsubscribe` and the `publish` that fans out across cores.
-//! The waits both members sit inside are `nvs_server::bounds`' — § 7's idle,
+//! `rule:concurrency/a-connection-is-a-loop`'s surface is over it as well —
+//! `current()`, `receive()` and the two `send` rows, plus the [`MESSAGE`] each
+//! wait answers with. [`crate::topic`] is the far half of `receive()`'s second
+//! source and is whole: `rule:core-classes/topic`'s `subscribe`, `unsubscribe`
+//! and the `publish` that fans out across cores. The waits both members sit
+//! inside are `nvs_server::bounds`' — `rule:concurrency/connection-bounds-are-finite`'s idle,
 //! lifetime and send timeout, armed by the framing layer because the deadline
 //! belongs to the descriptor. Nothing here can name a duration, which is why
 //! `send`'s own doc says only that the failure arrives as a throw.
 //!
-//! `Core\Sse` (§ 5) is [`crate::sse`], and it is a module of its own rather
-//! than a second class here because what § 5 splits is the **door** and never
+//! `Core\Sse` (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`)
+//! is [`crate::sse`], and it is a module of its own rather than a second class
+//! here because what that rule splits is the **door** and never
 //! the isolate: an SSE connection takes no socket, so it is offered a second
 //! cell on the carrier — [`nvs_runtime::SseSlot`], one every request the server
 //! runs gets — rather than [`nvs_runtime::UpgradeSlot`], which exists to carry
@@ -48,7 +52,8 @@
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds mechanically.
 //!
 //! The `entry` parameter is a [`CoreTy::Entry`](crate::registry::CoreTy::Entry)
-//! and that is the whole of how § 2's operand rule reaches a call site: the
+//! and that is the whole of how `rule:concurrency/an-upgrade-is-spawn-shaped`'s
+//! operand rule reaches a call site: the
 //! mark is what `nvs_types::expr::isolate` finds, so `Chat::run` is
 //! accepted here and a `callable` in a variable is refused with the same
 //! `E0802` a `spawn script` reports. Its variant doc is the home of why the
@@ -56,7 +61,8 @@
 //!
 //! # Decision: this member spawns nothing, and the connection starts it
 //!
-//! § 1's root isolate is not started here, and it cannot be. A `Core` member
+//! The root isolate of `rule:concurrency/a-connection-is-a-root-isolate` is
+//! not started here, and it cannot be. A `Core` member
 //! runs on the request isolate's own task holding the request's
 //! `nvs_runtime::Ctx`, so every route out of this body reaches
 //! `nvs_runtime::host::Host::start_isolate` with *that* context — which is
@@ -64,7 +70,7 @@
 //! deadline is the same word the request's `wall_time` expires, and it is a
 //! task under the request's, so the request cannot return while it runs
 //! (`rule:concurrency/nothing-is-still-running-when-a-call-returns`). Each
-//! of those is the opposite of what § 1 states, and none of them is a builder
+//! of those is the opposite of what that rule states, and none of them is a builder
 //! away.
 //!
 //! So the member **prepares** an isolate and records it; the **connection**
@@ -76,7 +82,8 @@
 //! - **The capability.** `rule:security/isolate-shares-nothing`'s `script.spawn` grant, and the root check
 //!   under it, are asked against the request's own configuration overlay, so a
 //!   request that narrowed its grants cannot upgrade into a connection holding
-//!   the ones it gave up — § 1's "narrowed from the request's, never widened".
+//!   the ones it gave up — `rule:concurrency/a-connection-is-a-root-isolate`'s
+//!   "narrowed from the request's, never widened".
 //! - **The argument.** `rule:classes/graph-copy`'s refusal is the *parent's* fault, and
 //!   `nvs_host`'s `isolate` module doc owns that asymmetry; here is the one
 //!   point at which a `secret` passed to a socket is still a throw the program
@@ -86,7 +93,7 @@
 //!   context is the only place that unit's statics recipes and class table can
 //!   be taken from.
 //!
-//! Both of § 2's entry forms therefore collapse to one prepared `Program`, and
+//! Both of `rule:concurrency/an-upgrade-is-spawn-shaped`'s entry forms therefore collapse to one prepared `Program`, and
 //! that is what makes them one isolate at the far end rather than two shapes to
 //! keep in step. A path is the resolver's program unchanged, and that is the
 //! form the body below prepares.
@@ -135,7 +142,8 @@
 //! upgrade for — has no slot to write into and this member throws, for the
 //! reason `Core\Request::method()` throws there
 //! (`rule:security/request-state-throws-in-an-isolate`). And the server holds
-//! the other half of that slot, so § 1's ordering is what the code can express
+//! the other half of that slot, so `rule:concurrency/a-connection-is-a-root-isolate`'s
+//! ordering is what the code can express
 //! rather than what it must remember: the request is joined, its context is
 //! dropped and its arena with it, and only then is there a caller left holding
 //! the program.
@@ -157,7 +165,8 @@
 //! error is bounded by the size of one `args` graph.
 //!
 //! Two alternatives were refused. **The request isolate becoming the
-//! connection** keeps the arena § 1 says is released and hands the connection
+//! connection** keeps the arena `rule:concurrency/a-connection-is-a-root-isolate`
+//! says is released and hands the connection
 //! the request's session, headers and statics. **Riding out on the isolate's
 //! completion** instead of on the carrier makes a value boundary carry a
 //! connection, and gives a `spawn script` child a completion its parent would
@@ -219,20 +228,21 @@ const CARD: ClassDoc = ClassDoc {
 };
 
 /// `Core\Socket`'s registry rows — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `upgrade` at the door, and
-/// § 3's three inside. See [`crate::registry::CLASSES`].
+/// `rule:concurrency/a-connection-is-a-loop`'s three inside. See [`crate::registry::CLASSES`].
 ///
 /// # It is a namespace class and an instance class at once
 ///
 /// `upgrade` is called on the class from the *request*, and `receive`/`send`
 /// are called on a value inside the *connection*: two rosters, one name,
-/// because § 2 and § 3 are two ends of one thing and a program that had to
+/// because `rule:concurrency/an-upgrade-is-spawn-shaped` and
+/// `rule:concurrency/a-connection-is-a-loop` are two ends of one thing and a program that had to
 /// learn a second class name for the far end would be learning the boundary
 /// twice.
 ///
 /// **The instance carries no slots**, which is [`CLASS`]'s one unusual
 /// property and the reason [`crate::instance`]'s descriptor table stopped
-/// keying on slots alone. A connection's state — the peer, and § 3's second
-/// source — lives on [`nvs_runtime::Ctx`], because it is the *isolate* that
+/// keying on slots alone. A connection's state — the peer, and the second
+/// source `receive()` waits on — lives on [`nvs_runtime::Ctx`], because it is the *isolate* that
 /// holds a socket and the isolate outlives every value a program makes from
 /// it. So `current()` answers a handle, and two calls to it answer two objects
 /// that are not identical: identity is `Core\Socket`'s wrong question, since
@@ -253,7 +263,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "upgrade",
             names: &["entry", "args", "limits", "grants", "on"],
-            // [`CoreTy::Entry`] is § 2's `spawn script` operand, as the one mark that
+            // [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s
+            // `spawn script` operand, as the one mark that
             // carries `rule:security/isolate-shares-nothing`'s whole operand rule to a call site: a path or a static
             // method written `Chat::run`, and never a `callable` in a
             // variable. It classifies as a sink for the reason a path always does
@@ -314,7 +325,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         // calls rather than the tag of the value it passes. The qualifier does
         // not argue either way — each parameter carries [`Qual::Neutral`], and
         // a union of the two would answer the same mark
-        // ([`CoreTy::classification`]), so § 3's own loop, which forwards what
+        // ([`CoreTy::classification`]), so `rule:concurrency/a-connection-is-a-loop`'s
+        // own loop, which forwards what
         // the peer sent, compiles under either spelling.
         CoreMethod {
             name: "send",
@@ -515,18 +527,19 @@ const MESSAGE_VALUE: usize = 3;
 ///
 /// # One class, not two, and `topic` is what tells them apart
 ///
-/// § 3's loop is written `if ($msg->topic() != null)`, so the discrimination is
-/// a reader on the message rather than a type the caller matches on. Two
-/// classes would make the loop a type switch and would give `receive` a union
-/// return, which is a second control-flow style for the one member § 3 exists
-/// to keep straight-line.
+/// `rule:concurrency/a-connection-is-a-loop`'s loop is written
+/// `if ($msg->topic() != null)`, so the discrimination is a reader on the
+/// message rather than a type the caller matches on. Two classes would make the
+/// loop a type switch and would give `receive` a union return, which is a
+/// second control-flow style for the one member that rule exists to keep
+/// straight-line.
 ///
 /// # Four readers, and each answers `null` for what it is not
 ///
 /// A peer frame fills exactly one of `text` and `bytes` — RFC 6455 has two
 /// payload kinds and the framing layer has already decided which arrived
 /// ([`nvs_runtime::PeerFrame`]) — and a delivery fills `topic` and `value`.
-/// `bytes` is not in § 3's example and is here because the seam underneath
+/// `bytes` is not in `rule:concurrency/a-connection-is-a-loop`'s example and is here because the seam underneath
 /// already carries binary frames: leaving it out would make a binary payload
 /// unreachable from Novis while the peer is free to send one, which is the
 /// silent wrong answer `rule:errors/ambiguous-input-refused`
@@ -534,8 +547,8 @@ const MESSAGE_VALUE: usize = 3;
 /// the other kind, and it costs a caller the `?` it was already writing around
 /// `receive`.
 ///
-/// **`text` and `bytes` are `tainted` and `value` is not.** § 3 marks a
-/// received frame's payload as untrusted input, which is what those two carry;
+/// **`text` and `bytes` are `tainted` and `value` is not.**
+/// `rule:concurrency/a-peer-frame-is-tainted` marks a received frame's payload as untrusted input, which is what those two carry;
 /// a delivery's value came from another isolate on this side of the wire and
 /// crossed by `rule:classes/graph-copy`'s copy, so it arrives with whatever qualifiers it
 /// already had and this row may not add one.
@@ -763,7 +776,8 @@ impl Drop for HeldCallable {
 /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s **method entry**, prepared: the callable the request is
 /// holding, the names its target declares, and the recipes that arm the child.
 ///
-/// The connection's context is not this one's child — § 1 makes it a *root*
+/// The connection's context is not this one's child —
+/// `rule:concurrency/a-connection-is-a-root-isolate` makes it a *root*
 /// isolate started from the connection's own context, which never ran the unit
 /// — so `nvs_runtime::Ctx::method_isolate`, which re-materializes off the
 /// spawning context, has nothing to work from at the far end. What replaces it
@@ -781,7 +795,8 @@ impl Drop for HeldCallable {
 /// **What it spends:** one retained reference to a thunk object for the length
 /// of the connection's preparation, plus one materialized slot per static
 /// property the unit declares, released with the connection. The thunk is the
-/// object `lower_method_ref` built and holds no capture — § 2's entry rule
+/// object `lower_method_ref` built and holds no capture —
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s entry rule
 /// admits only a *static* method, so there is no receiver field and nothing of
 /// the request's heap rides across inside it.
 ///
@@ -846,7 +861,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
             }
             // A thunk that is not callable at the arity it recorded: an engine
             // fault at the far end, and the connection is the unit a fatal
-            // tears down (§ 3's escalation). Recorded rather than panicked,
+            // tears down (`rule:errors/escalation-ladder`). Recorded rather than panicked,
             // because a connection may not end the process.
             Err(Fault::Fatal(message)) => {
                 child.set_pending(message);
@@ -1014,7 +1029,8 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The refusal every § 3 member makes on a context that was handed no socket.
+/// The refusal `current()`, `receive()` and `send()` make on a context that
+/// was handed no socket.
 ///
 /// One helper rather than three messages, because the three are the same fact
 /// about the same context and a program reading two of them should not have to
@@ -1145,12 +1161,12 @@ nvs_runtime::nvs_helper! {
     /// loop drains again. A connection that never subscribed parks on the
     /// socket alone and leaves nothing.
     ///
-    /// **This is also where a slow subscriber is closed** (§ 4). The publisher
+    /// **This is also where a slow subscriber is closed** (`rule:core-classes/topic`). The publisher
     /// that overflowed this connection's queue could not reach its peer — it is
     /// a field of this context, on this isolate's own stack — so it raised the
     /// overflow on the queue and this wait is what obeys it: the peer is told
     /// [`nvs_runtime::Closing::SlowSubscriber`]'s code and the member answers
-    /// § 3's `null`, which is the condition the connection loop already ends
+    /// `null`, which is the condition the connection loop already ends
     /// on. It is asked before the drain rather than after, because a connection
     /// being closed for missing one value has no business being handed the
     /// values it did not miss.
@@ -1176,7 +1192,7 @@ nvs_runtime::nvs_helper! {
                 return Ok(message_of_delivery(delivery));
             }
             match wait_on_both(ctx) {
-                // § 3's `null`, and the condition the connection loop ends on.
+                // `null`, the condition the connection loop ends on.
                 // Not an error: an orderly close is how every connection
                 // finishes.
                 Ok(Received::Closed) => return Ok(Value::null()),
@@ -1334,7 +1350,8 @@ mod tests {
         /// What a `send` fails with, if it fails — `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s finite wait, in
         /// the wording the framing layer would report it with.
         refuse_send: Option<String>,
-        /// Why this socket was closed, once something closed it — § 4's code
+        /// Why this socket was closed, once something closed it —
+        /// `rule:core-classes/topic`'s code
         /// is a thing a case reads back rather than a thing it takes on trust.
         closed: Option<Closing>,
     }
@@ -1391,7 +1408,7 @@ mod tests {
 
     /// `rule:concurrency/a-connection-is-a-loop`'s one wait is one member over two sources, so a connection
     /// holding a queued delivery *and* a frame from the peer answers both from
-    /// the same call site — which is the whole reason § 3 refuses a second
+    /// the same call site — which is the whole reason that rule refuses a second
     /// `Core\Topic::receive()`.
     ///
     /// The bus is drained first, and the case pins that order: the peer's read
@@ -1700,7 +1717,7 @@ mod tests {
         }
     }
 
-    /// § 3's `null`: an orderly close ends the loop rather than throwing, which
+    /// `receive()` returns `null`: an orderly close ends the loop rather than throwing, which
     /// is what makes `while (var $msg = $conn->receive())` the whole of a
     /// connection script's control flow.
     // covers: Core\Socket::receive
@@ -1720,7 +1737,8 @@ mod tests {
         dropped(conn);
     }
 
-    /// § 3's "throws on the send timeout rather than waiting forever", which is
+    /// `rule:concurrency/a-connection-is-a-loop`'s "throws on the send timeout
+    /// rather than waiting forever", which is
     /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule that no outbound wait has an unbounded spelling. The
     /// wait itself is the framing layer's, so what this crate owes is that the
     /// failure arrives as a *throw* at the call site — catchable, with the
@@ -1794,7 +1812,7 @@ mod tests {
     }
 
     /// A socket that failed under a wait is a throw as well, and for the same
-    /// reason: § 3 tears a connection down through `rule:errors/escalation-ladder`'s ladder, so the
+    /// reason: a connection is torn down through `rule:errors/escalation-ladder`'s ladder, so the
     /// script gets to see what happened before the isolate ends.
     // covers: Core\Socket::receive
     #[test]
@@ -1820,7 +1838,7 @@ mod tests {
         dropped(conn);
     }
 
-    /// Every § 3 member refuses a context that was handed no socket, and all
+    /// `current()`, `receive()` and `send()` each refuse a context that was handed no socket, and all
     /// three say so the same way — an ordinary request, a `spawn script` child
     /// and a command each reach this, because none of them is a connection.
     // covers: Core\Socket::current, Core\Socket::receive, Core\Socket::send
@@ -2023,7 +2041,8 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// `rule:concurrency/a-connection-is-a-root-isolate` gives the connection the slot and § 2's member fills it, so
+    /// `rule:concurrency/a-connection-is-a-root-isolate` gives the connection the slot and
+    /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s member fills it, so
     /// what this asserts is the hand-over itself: after the call the slot holds
     /// the resolver's program for the path that was *written*, and the argument
     /// beside it is a **copy** rather than the request's own graph.
@@ -2223,8 +2242,9 @@ mod tests {
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s two written entry forms, prepared side by side and
     /// asserted to differ **only** in what the connection runs.
     ///
-    /// § 2's rule is that the target is `spawn script`'s operand — a path or a
-    /// static method — and § 1's is that either one opens the same kind of
+    /// That rule says the target is `spawn script`'s operand — a path or a
+    /// static method — and `rule:concurrency/a-connection-is-a-root-isolate`
+    /// says either one opens the same kind of
     /// thing. A member that grew a second hand-over for the method form would
     /// pass a test that only asked whether each form worked, so what is
     /// asserted here is the *sameness*: the same cell filled, the same crossing

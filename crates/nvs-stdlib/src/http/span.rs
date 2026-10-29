@@ -2,7 +2,7 @@
 //! outbound call contributes to a trace, and why a header value is not one of
 //! them.
 //!
-//! § 15 fixes the field set — the method, the scheme, host and port, the path
+//! That rule fixes the field set — the method, the scheme, host and port, the path
 //! without its query, the status, the attempt and hop counts, the address
 //! connected to, and the time spent resolving, connecting, in the handshake, to
 //! the first byte and in total — and then says *never a query string, a header
@@ -110,8 +110,9 @@ impl HttpSpan {
     /// copy that disagrees.
     ///
     /// **The `Call` is deliberately not an argument.** The headers and the body
-    /// are on it, and the whole of § 15's "never a header value or a body" is
-    /// that they are not passed here — see the module docs.
+    /// are on it, and the whole of `rule:observability/trace-events-carry-a-kind`'s
+    /// "never a header value or a body" is that they are not passed here — see
+    /// the module docs.
     pub(crate) fn opened(method: &str, resolve: Duration) -> HttpSpan {
         HttpSpan {
             method: method.to_owned(),
@@ -228,7 +229,8 @@ impl HttpSpan {
 }
 
 impl fmt::Display for HttpSpan {
-    /// The trace line, in § 15's own order: what was asked, of whom, what came
+    /// The trace line, in the order of
+    /// `rule:observability/trace-events-carry-a-kind`: what was asked, of whom, what came
     /// back, how many tries it took and where the time went.
     ///
     /// Every field is written even where it is zero, because a fixed field set
@@ -267,7 +269,8 @@ mod tests {
 
     use super::HttpSpan;
 
-    /// § 15's exclusion, over the two renderings a consumer can reach: neither
+    /// The exclusion of `rule:observability/trace-events-carry-a-kind`, over the
+    /// two renderings a consumer can reach: neither
     /// the trace line nor the `Debug` one holds the query string, and neither
     /// has anywhere a header value or a body octet could have been put, since
     /// nothing hands one in.

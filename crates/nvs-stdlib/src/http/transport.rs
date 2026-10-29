@@ -15,7 +15,7 @@
 //! [`send`] takes a `repin` Rust closure and calls it for every redirect hop, which
 //! is `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 //! "every hop is re-checked and re-pinned" with the checking left where the
-//! checking lives. A retry never calls it: § 4's other half is that every
+//! checking lives. A retry never calls it: that rule's other half is that every
 //! attempt of one call reuses the address the launderer approved, so there is
 //! no second resolution for a rebinding attack to answer differently.
 //!
@@ -1227,8 +1227,9 @@ fn sent(call: &Call<'_>, repin: &mut Repin<'_>, bounds: Bounds) -> Result<Stream
         call.span.borrow_mut().hopped();
         hop = next_hop;
         url = next;
-        // Before the connection and not after it: § 4 refuses a hop on its
-        // *address*, and an address that has not been asked about yet is one
+        // Before the connection and not after it:
+        // `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`
+        // refuses a hop on its *address*, and an address that has not been asked about yet is one
         // the first URL's approval is standing in for. The second argument is
         // the question this module can answer and must not decide — a hop out
         // of TLS into plaintext, which is the module doc's paragraph above.
@@ -2647,8 +2648,9 @@ fn parts(url: &str, member: &str) -> Result<Parts, Fault> {
     })
 }
 
-/// A `Location` resolved against the URL that sent it, since § 4's re-check is
-/// of an *address* and a relative reference has none of its own.
+/// A `Location` resolved against the URL that sent it, since the re-check of
+/// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned` is of an
+/// *address* and a relative reference has none of its own.
 fn resolved(base: &str, location: &str, member: &str) -> Result<String, Fault> {
     let malformed = || {
         Fault::thrown(format!(
@@ -2727,8 +2729,8 @@ fn retry_after(reply: &Streamed) -> Option<Duration> {
         .filter(|wait| !wait.is_zero())
 }
 
-/// The instant an IMF-fixdate names — `Sun, 06 Nov 1994 08:49:37 GMT`, RFC 9110
-/// § 5.6.7's preferred form and the one every origin writing a date sends.
+/// The instant an IMF-fixdate names — `Sun, 06 Nov 1994 08:49:37 GMT`,
+/// RFC 9110 § 5.6.7's preferred form and the one every origin writing a date sends.
 ///
 /// The two obsolete forms that section still lists are not read. Each is a
 /// two-digit year a reader has to guess a century for, and the guess is the
@@ -2905,8 +2907,8 @@ fn field_of(line: &str, member: &str) -> Result<(String, String), Fault> {
 /// What the head says delimits the body under it.
 ///
 /// Only a `Transfer-Encoding` whose last coding is `chunked` frames the body in
-/// chunks. Any other one leaves the body ending with the connection, as RFC
-/// 9112 § 6.3 reads a reply. A `Content-Length` must be one run of digits on
+/// chunks. Any other one leaves the body ending with the connection, as
+/// RFC 9112 § 6.3 reads a reply. A `Content-Length` must be one run of digits on
 /// one line, and it may not stand beside a `Transfer-Encoding` field, even one
 /// that names no coding: two lengths, or a length and an encoding, are two
 /// answers to where the body ends, and `rule:errors/http-message-defects`
@@ -5212,7 +5214,8 @@ pub(crate) mod tests {
         served.join().expect("the origin thread");
     }
 
-    /// § 6's retry, and where it stops. The head is retried like any other
+    /// The retry of `rule:http-server/retry-is-opt-in-jittered-and-closed`, and
+    /// where it stops. The head is retried like any other
     /// answer; once it has arrived the body is on one connection, and a body
     /// the origin cut short is not a second request — retrying there would send
     /// the request twice for one walk and splice the second reply's tail onto
