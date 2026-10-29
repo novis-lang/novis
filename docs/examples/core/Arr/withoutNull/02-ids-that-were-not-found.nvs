@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to keep only the results of a lookup that found something.
+
+array<string> $names = ['7' => 'Ada', '9' => 'Ben'];
+
+// The lookup returns `null` for an id that is not in `$names`.
+array<int> $ids = [7, 3, 9, 5];
+array<?string> $found = [];
+foreach ($ids as int $id) {
+    $found[] = $names[$id as string] ?? null;
+}
+
+// This prints 4. Two of the four values are `null`.
+echo Core\Arr::count($found), "\n";
+
+array<string> $known = Core\Arr::withoutNull($found);
+
+// This prints "Ada, Ben".
+echo Core\Str::join($known, ', '), "\n";
+
+// Only `null` is removed. An empty string, 0 and `false` stay,
+// so this prints 3.
+echo Core\Arr::count(Core\Arr::withoutNull(['', 0, false, null])), "\n";

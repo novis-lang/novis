@@ -9904,6 +9904,40 @@ mod tests {
         dropped(none);
     }
 
+    /// Every `null` entry is removed, and every other entry keeps the key it
+    /// was stored under, so a gap in a list stays a gap.
+    ///
+    /// **Only the `null` tag goes.** The empty string is the value most often
+    /// mistaken for "nothing", so it is in the subject and must survive.
+    // covers: Core\Arr::withoutNull
+    #[test]
+    fn without_null_removes_null_and_keeps_every_other_key() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let mut array = NvsArray::new();
+        array.set(NvsStr::new(b"x"), Value::text("a"));
+        array.set(NvsStr::new(b"10"), Value::null());
+        array.set(NvsStr::new(b"y"), Value::text(""));
+        array.set(NvsStr::new(b"z"), Value::null());
+        let subject = Value::array(array);
+        let result = call(super::nvs_core_arr_without_null, &mut ctx, &[subject])
+            .expect("removing null never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"y".to_vec(), b"".to_vec()),
+            ]
+        );
+        dropped(subject);
+
+        let none = list_of(&[]);
+        let still_empty = call(super::nvs_core_arr_without_null, &mut ctx, &[none])
+            .expect("removing null never fails");
+        assert!(entries_of(still_empty).is_empty());
+        dropped(none);
+    }
+
     /// The padding lands in front of the subject's own values, and the whole
     /// result is renumbered from `"0"` whatever the subject's keys were.
     ///

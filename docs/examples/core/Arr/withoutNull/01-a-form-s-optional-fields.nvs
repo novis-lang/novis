@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to keep only the form fields somebody filled in.
+
+// The fields `phone` and `company` were left empty, so their value is `null`.
+array<?string> $form = [
+    'name' => 'Ada',
+    'phone' => null,
+    'email' => 'ada@example.com',
+    'company' => null,
+];
+
+// `Core\Arr::withoutNull` returns a new array without the `null` values.
+// The type of the result is `array<string>`, so no cast is needed.
+array<string> $filled = Core\Arr::withoutNull($form);
+
+// This prints "name: Ada" and "email: ada@example.com".
+foreach ($filled as string $field => string $value) {
+    echo $field, ': ', $value, "\n";
+}
+
+// Your own array is not changed, so this prints 4.
+echo Core\Arr::count($form), "\n";

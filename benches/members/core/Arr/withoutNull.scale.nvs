@@ -1,0 +1,28 @@
+<?nvs
+// Measures `Core\Arr::withoutNull` on one list of numbers with some `null` values, at growing list lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        array<?int> $fields = [];
+        int $n = 0;
+        while ($n < $size as int) {
+            $fields[] = $n % 3 == 0 ? null : $n;
+            $n = $n + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $fields[1] = ($total % 7) as int;
+            array<int> $filled = Core\Arr::withoutNull($fields);
+            $total = $total + ($filled[1] as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

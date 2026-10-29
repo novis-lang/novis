@@ -1,0 +1,49 @@
+<?nvs
+// Attack: `Core\Arr::withoutNull` copies every entry that is not `null` into a
+// new array. Each step below asks it for a copy it should not be able to make.
+// Every step should finish, and the last one should stop the program at its
+// memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early 6 FATAL
+
+// 1. The largest whole number there is, as the key of an entry that stays.
+// The result still has that key.
+array<?string> $taken = ['0' => null, '9223372036854775807' => 'b'];
+echo 'step 1: ', Core\Str::join(Core\Arr::keys(Core\Arr::withoutNull($taken)), ','), "\n";
+
+// 2. An empty array, and an array where every entry is `null`. Both give an
+// empty array.
+array<?int> $none = [];
+array<?int> $allNull = [null, null, null];
+echo 'step 2: ', Core\Arr::count(Core\Arr::withoutNull($none)), ' ',
+    Core\Arr::count(Core\Arr::withoutNull($allNull)), "\n";
+
+// 3. Values that look empty but are not `null`. All four stay.
+array<mixed> $looksEmpty = [0, '', false, [], null];
+echo 'step 3: ', Core\Arr::count(Core\Arr::withoutNull($looksEmpty)), "\n";
+
+// 4. One call over 400000 entries, where every second entry is `null`.
+array<?int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i % 2 == 0 ? $i : null;
+    $i = $i + 1;
+}
+echo 'step 4: ', Core\Arr::count(Core\Arr::withoutNull($wide)), "\n";
+
+// 5. The result is changed after the call. The array it came from is not.
+array<?int> $source = [1, null, 3];
+array<int> $copy = Core\Arr::withoutNull($source);
+$copy[] = 4;
+echo 'step 5: ', Core\Arr::count($source), ' ', Core\Arr::count($copy), "\n";
+
+// 6. Every result is kept, so the copies add up. The program should stop at
+// its memory limit.
+echo "step 6\n";
+array<mixed> $kept = [];
+int $round = 0;
+while ($round < 400000) {
+    $kept[] = Core\Arr::withoutNull($wide);
+    $round = $round + 1;
+}
+echo 'step 6: ', Core\Arr::count($kept), "\n";

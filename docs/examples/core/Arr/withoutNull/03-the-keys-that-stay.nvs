@@ -1,0 +1,17 @@
+<?nvs
+// Shows which keys the result has. Every entry that stays keeps its own key.
+
+array<?int> $scores = [12, null, 30, null, 7];
+
+array<int> $given = Core\Arr::withoutNull($scores);
+
+// The entries under the keys 1 and 3 are gone. The other keys stay as they
+// were, so this prints 0, 2 and 4.
+foreach (Core\Arr::keys($given) as string $key) {
+    echo $key, "\n";
+}
+
+// `Core\Arr::values` numbers the keys from 0 again. This prints 0, 1 and 2.
+foreach (Core\Arr::keys(Core\Arr::values($given)) as string $key) {
+    echo $key, "\n";
+}
