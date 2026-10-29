@@ -1,8 +1,8 @@
 //! The extension's target table and the release matrix name one set of archives.
 //!
 //! `editors/vscode/src/install.ts` decides which archive a machine needs, and
-//! `.github/workflows/release.yml`'s `build` matrix decides which archives
-//! exist. Nothing links the two: a target the workflow gains is one the
+//! `.github/workflows/build.yml`'s `build` matrix, which every release runs,
+//! decides which archives exist. Nothing links the two: a target the workflow gains is one the
 //! extension never offers, and a row the extension claims that no leg builds is
 //! a 404 the user meets only after asking for an install — which is the worst
 //! possible moment, because it is the moment the extension promised to fix the
@@ -58,12 +58,12 @@ struct Row {
 
 /// The lines of the `build` job's `matrix.include` list.
 ///
-/// Scoped to that job because `docker` further down the file has an `include`
-/// of its own, and the two matrices have nothing to do with each other.
+/// Scoped to that job, so an `include` that another job in the file gains is
+/// never read as an archive.
 fn matrix_lines(workflow: &str) -> Vec<&str> {
     let mut lines = workflow.lines();
     let job = lines.by_ref().find(|line| line.trim_end() == "  build:");
-    assert!(job.is_some(), "the release workflow has no `build` job");
+    assert!(job.is_some(), "the build workflow has no `build` job");
 
     let body: Vec<&str> = lines
         .take_while(|line| line.trim().is_empty() || indent(line) > 2)
@@ -81,9 +81,9 @@ fn matrix_lines(workflow: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Every archive the release workflow builds, by name.
+/// Every archive a release builds, by name.
 fn release_matrix() -> BTreeMap<String, Archive> {
-    let path = nvs_repo::path(".github/workflows/release.yml");
+    let path = nvs_repo::path(".github/workflows/build.yml");
     let workflow = read(&path);
 
     let mut built: BTreeMap<String, Archive> = BTreeMap::new();
@@ -216,7 +216,7 @@ fn every_claimed_platform_pair_resolves_to_an_archive_the_workflow_builds() {
         );
         assert!(
             built.contains_key(&row.name),
-            "{} {} claims {}, which the release workflow does not build",
+            "{} {} claims {}, which the build workflow does not build",
             row.platform,
             row.arch,
             row.name

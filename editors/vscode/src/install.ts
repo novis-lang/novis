@@ -15,7 +15,7 @@
 // Nothing here imports `vscode`, for the reason `version.ts` gives: both halves are checkable in
 // plain Node, and one of them is checkable from outside the extension entirely.
 // `crates/nvs-lsp/tests/extension_release.rs` reads `TARGETS` below as *text* and holds it against
-// `.github/workflows/release.yml`'s build matrix, because the two lists drifting apart is a 404 the
+// `.github/workflows/build.yml`'s build matrix, because the two lists drifting apart is a 404 the
 // user meets only after asking for an install. **That test parses one row per line with the fields
 // in the order `Target` declares them** — a row wrapped across lines compiles and fails the pin.
 
@@ -47,7 +47,7 @@ export interface Target {
 /**
  * Every machine this extension can fetch a binary for.
  *
- * The names are `.github/workflows/release.yml`'s and are not this file's to choose. What is
+ * The names are `.github/workflows/build.yml`'s and are not this file's to choose. What is
  * missing is as deliberate as what is here: there is no musl row for `arm64`, because the workflow
  * builds no such archive, so an Alpine machine on ARM resolves to nothing — the same answer as any
  * other unsupported pair, and the same one command reports it.
