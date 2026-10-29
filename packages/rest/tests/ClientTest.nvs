@@ -1,0 +1,135 @@
+<?nvs
+namespace Novis\Rest;
+
+use Core\Arr;
+use Core\Crypto;
+use Core\Random;
+use Core\Secret;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+use RuntimeError;
+
+// Tests for `Client`, `Token` and the client credentials grant. The token endpoint is a fake
+// server from `Test::answerHttp`, so no test uses the network.
+final class ClientTest
+{
+    public const string TOKENS = 'https://login.example.com/oauth/token';
+
+    #[Test]
+    public function theClientCredentialsGrantSendsTheSecretAndReadsTheToken(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-1', 'token_type' => 'bearer', 'expires_in' => 600, 'scope' => 'read write'],
+        });
+        Token $token = ClientCredentials::request(ClientTest::client('shop'), 'read write');
+
+        Test::assertSame(ClientTest::reveal($token->authorization()), 'Bearer at-1');
+        Test::assertSame($token->type, 'Bearer');
+        Test::assertSame($token->scope, 'read write');
+        Test::assertTrue($token->refreshToken == null);
+        Test::assertTrue(!$token->isExpired());
+
+        // The form has the grant, the scope, the client id and the secret (`client_secret_post`).
+        string $body = ClientTest::onlyBody();
+        Test::assertTrue(Str::contains($body, 'grant_type=client_credentials'));
+        Test::assertTrue(Str::contains($body, 'scope=read+write') || Str::contains($body, 'scope=read%20write'));
+        Test::assertTrue(Str::contains($body, 'client_id=shop'));
+        Test::assertTrue(Str::contains($body, 'client_secret=s3cret'));
+    }
+
+    #[Test]
+    public function aCachedTokenSendsNoSecondRequest(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-2', 'token_type' => 'Bearer', 'expires_in' => 600],
+        });
+        Client $client = ClientTest::client('cache-' . Random::token(8));
+        array<secret bytes> $keys = [Crypto::generateKey()];
+
+        Token $first = ClientCredentials::token($client, 'read', $keys);
+        Token $second = ClientCredentials::token($client, 'read', $keys);
+        Test::assertSame(ClientTest::reveal($second->authorization()), 'Bearer at-2');
+        Test::assertSame($second->expiresAt->toEpochSeconds(), $first->expiresAt->toEpochSeconds());
+        Test::assertSame(Arr::count(Test::sentHttp()), 1);
+
+        // Another scope is another token, so it sends a request.
+        ClientCredentials::token($client, 'write', $keys);
+        Test::assertSame(Arr::count(Test::sentHttp()), 2);
+    }
+
+    #[Test]
+    public function anErrorReplyThrowsWithItsErrorCode(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 401, {
+            json: ['error' => 'invalid_client', 'error_description' => "unknown\nclient"],
+        });
+        try {
+            ClientCredentials::request(ClientTest::client('shop'), '');
+            Test::assertTrue(false);
+        } catch (RuntimeError $error) {
+            Test::assertSame($error->message, 'the server replied with status 401: invalid_client: unknownclient');
+        }
+        // An empty scope sends no `scope`.
+        Test::assertTrue(!Str::contains(ClientTest::onlyBody(), 'scope='));
+    }
+
+    #[Test]
+    public function aTokenWithCharactersAHeaderMayNotHaveThrows(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => "at-3\r\nX-Injected: 1", 'token_type' => 'Bearer'],
+        });
+        Test::assertThrows(fn(): void => { ClientCredentials::request(ClientTest::client('shop'), ''); }, RuntimeError::class);
+    }
+
+    #[Test]
+    public function anUnknownTokenTypeThrows(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-4', 'token_type' => 'mac'],
+        });
+        Test::assertThrows(fn(): void => { ClientCredentials::request(ClientTest::client('shop'), ''); }, RuntimeError::class);
+    }
+
+    #[Test]
+    public function aRequestCarriesTheToken(): void
+    {
+        Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+        Token $token = new Token('at-5', 'Bearer', Core\Time::now()->plus(Core\Time\Duration::seconds(600)), null, '');
+        Core\Http\Response $response = ClientTest::client('shop')->get('https://api.example.com/orders', $token);
+
+        Test::assertSame($response->status(), 200);
+        SentRequest $sent = Test::sentHttp()[0];
+        Test::assertSame($sent->header('Authorization'), 'Bearer at-5');
+        Test::assertTrue($sent->header('DPoP') == null);
+    }
+
+    #[Test]
+    public function aDPoPTokenNeedsADPoPClient(): void
+    {
+        Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+        Token $token = new Token('at-6', 'DPoP', Core\Time::now()->plus(Core\Time\Duration::seconds(600)), null, '');
+        Test::assertThrows(fn(): void => { ClientTest::client('shop')->get('https://api.example.com/orders', $token); }, RuntimeError::class);
+        Test::assertSame(Arr::count(Test::sentHttp()), 0);
+    }
+
+    public static function client(string $id): Client
+    {
+        secret string $secret = 's3cret';
+        return Client::confidential(ClientTest::TOKENS, $id, $secret);
+    }
+
+    public static function reveal(secret string $value): string
+    {
+        return Secret::reveal($value, 'the test compares the value it sent');
+    }
+
+    // The body of the one request the test sent.
+    public static function onlyBody(): string
+    {
+        array<SentRequest> $sent = Test::sentHttp();
+        Test::assertSame(Arr::count($sent), 1);
+        return $sent[0]->body() as string;
+    }
+}

@@ -1,0 +1,111 @@
+<?nvs
+namespace Novis\Rest;
+
+use Core\Arr;
+use Core\Charset;
+use Core\Crypto;
+use Core\Encoding;
+use Core\Hash;
+use Core\Http\Method;
+use Core\Json;
+use Core\Str;
+use Core\Test;
+use Core\Test\SentRequest;
+use RuntimeError;
+
+// Tests for `DPoP` proofs, and for a client that sends them.
+final class DPoPTest
+{
+    #[Test]
+    public function aProofHasTheMethodTheUrlAndTheTokenHash(): void
+    {
+        DPoP $dpop = DPoP::generate();
+        secret string $token = 'at-12';
+        string $proof = $dpop->proof(Method::Get, 'https://api.example.com/orders?page=2#top', $token);
+
+        array<mixed> $header = DPoPTest::part($proof, 0);
+        Test::assertSame($header['typ'] as string, 'dpop+jwt');
+        Test::assertSame($header['alg'] as string, 'ES256');
+        Test::assertTrue($header['jwk'] != null);
+
+        array<mixed> $claims = DPoPTest::part($proof, 1);
+        Test::assertSame($claims['htm'] as string, 'GET');
+        Test::assertSame($claims['htu'] as string, 'https://api.example.com/orders');
+        Test::assertSame($claims['ath'] as string, Encoding::toBase64Url(Hash::of('at-12', Hash::Digest::Sha256)));
+        Test::assertTrue(!Arr::hasKey($claims, 'nonce'));
+
+        // Every proof has its own `jti`.
+        array<mixed> $again = DPoPTest::part($dpop->proof(Method::Get, 'https://api.example.com/orders', $token), 1);
+        Test::assertTrue(($again['jti'] as string) != ($claims['jti'] as string));
+    }
+
+    #[Test]
+    public function aProofForTheTokenEndpointHasNoTokenHash(): void
+    {
+        array<mixed> $claims = DPoPTest::part(DPoP::generate()->proof(Method::Post, ClientTest::TOKENS, null), 1);
+        Test::assertSame($claims['htm'] as string, 'POST');
+        Test::assertTrue(!Arr::hasKey($claims, 'ath'));
+    }
+
+    #[Test]
+    public function theThumbprintIsTheSameForTheSameKey(): void
+    {
+        Core\Crypto\KeyPair $pair = Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+        Test::assertSame((new DPoP($pair))->thumbprint(), (new DPoP($pair))->thumbprint());
+        Test::assertTrue(DPoP::generate()->thumbprint() != (new DPoP($pair))->thumbprint());
+    }
+
+    #[Test]
+    public function aNewNonceSendsTheRequestOnceMore(): void
+    {
+        // The server always asks for the nonce `n-1`. The second request has it, and the
+        // client does not send a third request for the same nonce.
+        Test::answerHttp(ClientTest::TOKENS, 400, {
+            json: ['error' => 'use_dpop_nonce'],
+            headers: ['DPoP-Nonce' => 'n-1'],
+        });
+        Client $client = ClientTest::client('shop')->withDPoP(DPoP::generate());
+        Test::assertThrows(fn(): void => { ClientCredentials::request($client, ''); }, RuntimeError::class);
+
+        array<SentRequest> $sent = Test::sentHttp();
+        Test::assertSame(Arr::count($sent), 2);
+        array<mixed> $first = DPoPTest::part($sent[0]->header('DPoP') ?? '', 1);
+        array<mixed> $second = DPoPTest::part($sent[1]->header('DPoP') ?? '', 1);
+        Test::assertTrue(!Arr::hasKey($first, 'nonce'));
+        Test::assertSame($second['nonce'] as string, 'n-1');
+    }
+
+    #[Test]
+    public function aDPoPClientSendsAProofWithTheToken(): void
+    {
+        Test::answerHttp('https://api.example.com/orders', 200, { json: ['count' => 3] });
+        Token $token = new Token('at-13', 'DPoP', Core\Time::now()->plus(Core\Time\Duration::seconds(600)), null, '');
+        ClientTest::client('shop')->withDPoP(DPoP::generate())->get('https://api.example.com/orders', $token);
+
+        SentRequest $sent = Test::sentHttp()[0];
+        Test::assertSame($sent->header('Authorization'), 'DPoP at-13');
+        array<mixed> $claims = DPoPTest::part($sent->header('DPoP') ?? '', 1);
+        Test::assertSame($claims['ath'] as string, Encoding::toBase64Url(Hash::of('at-13', Hash::Digest::Sha256)));
+    }
+
+    #[Test]
+    public function aNonceWithCharactersAHeaderMayNotHaveThrows(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 400, {
+            json: ['error' => 'use_dpop_nonce'],
+            headers: ['DPoP-Nonce' => 'n "2"'],
+        });
+        Client $client = ClientTest::client('shop')->withDPoP(DPoP::generate());
+        Test::assertThrows(fn(): void => { ClientCredentials::request($client, ''); }, RuntimeError::class);
+        Test::assertSame(Arr::count(Test::sentHttp()), 1);
+    }
+
+    // One part of a JWT, read as JSON: `0` is the header and `1` the claims.
+    public static function part(string $jwt, int $index): array<mixed>
+    {
+        array<string> $parts = Str::split($jwt, '.');
+        Test::assertSame(Arr::count($parts), 3);
+        string $json = Encoding::decodeText(Encoding::fromBase64Url($parts[$index]), Charset::Utf8);
+        return Json::decode($json) as array<mixed>;
+    }
+}

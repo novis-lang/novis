@@ -1,0 +1,85 @@
+<?nvs
+namespace Novis\Rest;
+
+use Core\Arr;
+use Core\Test;
+use RuntimeError;
+
+// Tests for `Discovery`. Each metadata document is a fake reply from `Test::answerHttp`.
+final class DiscoveryTest
+{
+    private const string ISSUER = 'https://login.example.com/tenant';
+
+    #[Test]
+    public function theOpenIdDocumentIsReadFirst(): void
+    {
+        Test::answerHttp(DiscoveryTest::ISSUER . '/.well-known/openid-configuration', 200, {
+            json: DiscoveryTest::metadata(DiscoveryTest::ISSUER, 'https://login.example.com/tenant/token'),
+        });
+        Discovery $found = Discovery::fetch(DiscoveryTest::ISSUER);
+
+        Test::assertSame($found->issuer, DiscoveryTest::ISSUER);
+        Test::assertSame($found->tokenEndpoint, 'https://login.example.com/tenant/token');
+        Test::assertSame($found->authorizationEndpoint, 'https://login.example.com/tenant/authorize');
+        Test::assertSame($found->jwksUri, 'https://login.example.com/tenant/keys');
+        Test::assertSame($found->dpopAlgorithms, ['ES256']);
+        Test::assertSame(Arr::count(Test::sentHttp()), 1);
+        Test::assertSame($found->client('shop', 's3cret')->tokenEndpoint, $found->tokenEndpoint);
+    }
+
+    #[Test]
+    public function theOAuthDocumentIsReadWhenThereIsNoOpenIdDocument(): void
+    {
+        Test::answerHttp(DiscoveryTest::ISSUER . '/.well-known/openid-configuration', 404);
+        Test::answerHttp('https://login.example.com/.well-known/oauth-authorization-server/tenant', 200, {
+            json: DiscoveryTest::metadata(DiscoveryTest::ISSUER, 'https://login.example.com/tenant/token'),
+        });
+        Discovery $found = Discovery::fetch(DiscoveryTest::ISSUER);
+        Test::assertSame($found->tokenEndpoint, 'https://login.example.com/tenant/token');
+        Test::assertSame(Arr::count(Test::sentHttp()), 2);
+    }
+
+    #[Test]
+    public function aDocumentForAnotherIssuerThrows(): void
+    {
+        Test::answerHttp(DiscoveryTest::ISSUER . '/.well-known/openid-configuration', 200, {
+            json: DiscoveryTest::metadata('https://evil.example.com', 'https://evil.example.com/token'),
+        });
+        Test::assertThrows(fn(): void => { Discovery::fetch(DiscoveryTest::ISSUER); }, RuntimeError::class);
+    }
+
+    #[Test]
+    public function anEndpointThatIsNotHttpsThrows(): void
+    {
+        Test::answerHttp(DiscoveryTest::ISSUER . '/.well-known/openid-configuration', 200, {
+            json: DiscoveryTest::metadata(DiscoveryTest::ISSUER, 'http://login.example.com/tenant/token'),
+        });
+        Test::assertThrows(fn(): void => { Discovery::fetch(DiscoveryTest::ISSUER); }, RuntimeError::class);
+    }
+
+    #[Test]
+    public function anIssuerThatIsNotHttpsThrowsBeforeAnyRequest(): void
+    {
+        Test::answerHttp('http://login.example.com/*', 200, { json: [] });
+        Test::assertThrows(fn(): void => { Discovery::fetch('http://login.example.com'); }, RuntimeError::class);
+        Test::assertSame(Arr::count(Test::sentHttp()), 0);
+    }
+
+    #[Test]
+    public function aServerWithoutKeysThrows(): void
+    {
+        Discovery $found = new Discovery(DiscoveryTest::ISSUER, 'https://login.example.com/tenant/token', null, null, []);
+        Test::assertThrows(fn(): void => { $found->keys(); }, RuntimeError::class);
+    }
+
+    public static function metadata(string $issuer, string $tokenEndpoint): array<mixed>
+    {
+        return [
+            'issuer' => $issuer,
+            'token_endpoint' => $tokenEndpoint,
+            'authorization_endpoint' => 'https://login.example.com/tenant/authorize',
+            'jwks_uri' => 'https://login.example.com/tenant/keys',
+            'dpop_signing_alg_values_supported' => ['ES256'],
+        ];
+    }
+}

@@ -1,0 +1,2 @@
+<?nvs
+autoload 'Novis\Rest' from '../src';

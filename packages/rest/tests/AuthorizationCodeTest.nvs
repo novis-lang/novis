@@ -1,0 +1,117 @@
+<?nvs
+namespace Novis\Rest;
+
+use Core\Arr;
+use Core\Encoding;
+use Core\Hash;
+use Core\Secret;
+use Core\Str;
+use Core\Test;
+use Core\Uri;
+use RuntimeError;
+
+// Tests for the authorization code grant with PKCE, and for a refresh.
+final class AuthorizationCodeTest
+{
+    private const string AUTHORIZE = 'https://login.example.com/oauth/authorize';
+    private const string BACK = 'https://shop.example.com/signed-in';
+
+    #[Test]
+    public function startSendsAPkceChallengeAndTheDPoPKey(): void
+    {
+        DPoP $dpop = DPoP::generate();
+        Client $client = Client::withoutSecret(ClientTest::TOKENS, 'cli')->withDPoP($dpop);
+        var $start = AuthorizationCode::start($client, AuthorizationCodeTest::AUTHORIZE, AuthorizationCodeTest::BACK, 'openid profile');
+
+        Uri $uri = Uri::parse($start->url);
+        Test::assertTrue(Str::startsWith($start->url, AuthorizationCodeTest::AUTHORIZE . '?'));
+        Test::assertSame(AuthorizationCodeTest::param($uri,'response_type'), 'code');
+        Test::assertSame(AuthorizationCodeTest::param($uri,'client_id'), 'cli');
+        Test::assertSame(AuthorizationCodeTest::param($uri,'redirect_uri'), AuthorizationCodeTest::BACK);
+        Test::assertSame(AuthorizationCodeTest::param($uri,'scope'), 'openid profile');
+        Test::assertSame(AuthorizationCodeTest::param($uri,'state'), $start->state);
+        Test::assertSame(AuthorizationCodeTest::param($uri,'code_challenge_method'), 'S256');
+        Test::assertSame(AuthorizationCodeTest::param($uri,'dpop_jkt'), $dpop->thumbprint());
+
+        // The challenge is the SHA-256 hash of the verifier (RFC 7636).
+        string $verifier = Secret::reveal($start->codeVerifier, 'the test hashes the verifier');
+        string $challenge = Encoding::toBase64Url(Hash::of($verifier, Hash::Digest::Sha256));
+        Test::assertSame(AuthorizationCodeTest::param($uri,'code_challenge'), $challenge);
+
+        // Each sign-in has its own state.
+        var $other = AuthorizationCode::start($client, AuthorizationCodeTest::AUTHORIZE, AuthorizationCodeTest::BACK, '');
+        Test::assertTrue($other->state != $start->state);
+        Test::assertTrue(Uri::parse($other->url)->queryParameter('scope') == null);
+    }
+
+    // One value from the query, as text.
+    public static function param(Uri $uri, string $name): ?tainted string
+    {
+        return $uri->queryParameter($name) as ?string;
+    }
+
+    #[Test]
+    public function checkStateThrowsForAnotherState(): void
+    {
+        AuthorizationCode::checkState('abc', 'abc');
+        Test::assertThrows(fn(): void => { AuthorizationCode::checkState('abd', 'abc'); }, RuntimeError::class);
+        Test::assertThrows(fn(): void => { AuthorizationCode::checkState('', 'abc'); }, RuntimeError::class);
+    }
+
+    #[Test]
+    public function exchangeSendsTheCodeAndTheVerifier(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-7', 'token_type' => 'Bearer', 'refresh_token' => 'rt-7', 'scope' => 'openid'],
+        });
+        Client $client = Client::withoutSecret(ClientTest::TOKENS, 'cli');
+        secret string $verifier = 'v-123';
+        Token $token = AuthorizationCode::exchange($client, 'code-9', AuthorizationCodeTest::BACK, $verifier);
+
+        Test::assertSame(ClientTest::reveal($token->authorization()), 'Bearer at-7');
+        Test::assertSame(ClientTest::reveal($token->refreshToken ?? ''), 'rt-7');
+        string $body = ClientTest::onlyBody();
+        Test::assertTrue(Str::contains($body, 'grant_type=authorization_code'));
+        Test::assertTrue(Str::contains($body, 'code=code-9'));
+        Test::assertTrue(Str::contains($body, 'code_verifier=v-123'));
+        Test::assertTrue(Str::contains($body, 'client_id=cli'));
+        Test::assertTrue(!Str::contains($body, 'client_secret'));
+    }
+
+    #[Test]
+    public function aRefreshKeepsTheRefreshTokenAndScopeTheServerDidNotSend(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-9', 'token_type' => 'Bearer', 'expires_in' => 60],
+        });
+        Token $old = new Token('at-8', 'Bearer', Core\Time::now(), 'rt-8', 'openid');
+        Token $fresh = AuthorizationCode::refresh(ClientTest::client('shop'), $old);
+
+        Test::assertSame(ClientTest::reveal($fresh->authorization()), 'Bearer at-9');
+        Test::assertSame(ClientTest::reveal($fresh->refreshToken ?? ''), 'rt-8');
+        Test::assertSame($fresh->scope, 'openid');
+        string $body = ClientTest::onlyBody();
+        Test::assertTrue(Str::contains($body, 'grant_type=refresh_token'));
+        Test::assertTrue(Str::contains($body, 'refresh_token=rt-8'));
+    }
+
+    #[Test]
+    public function aRefreshUsesTheNewRefreshTokenTheServerSent(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, {
+            json: ['access_token' => 'at-10', 'token_type' => 'Bearer', 'refresh_token' => 'rt-10'],
+        });
+        secret string $refresh = 'rt-9';
+        Token $fresh = AuthorizationCode::refresh(ClientTest::client('shop'), $refresh);
+        Test::assertSame(ClientTest::reveal($fresh->refreshToken ?? ''), 'rt-10');
+    }
+
+    #[Test]
+    public function aTokenWithoutARefreshTokenCannotBeRefreshed(): void
+    {
+        Test::answerHttp(ClientTest::TOKENS, 200, { json: ['access_token' => 'x', 'token_type' => 'Bearer'] });
+        Token $old = new Token('at-11', 'Bearer', Core\Time::now(), null, '');
+        Test::assertThrows(fn(): void => { AuthorizationCode::refresh(ClientTest::client('shop'), $old); }, RuntimeError::class);
+        Test::assertSame(Arr::count(Test::sentHttp()), 0);
+    }
+}
