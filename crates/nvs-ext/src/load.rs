@@ -57,7 +57,7 @@
 //! overwritten by the next store: `rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`. The
 //! store itself is `nvs-cli`'s artifact cache, which owns the directory's ownership check
 //! (`rule:packaging/a-wasm-module-cache-reuses-the-artifact-cache`); this crate never touches a file
-//! for it. Deserializing is the crate's one `unsafe` call, and [`Loader::cached`] states why it holds.
+//! for it. Deserializing is the library's one `unsafe` call, and [`Loader::cached`] states why it holds.
 //!
 //! Cost: one SHA-256 of the file, one wasmtime compile or one deserialize and SHA-256 of the
 //! compiled form, and one walk of the component's type, at boot and at reload. Nothing here runs on

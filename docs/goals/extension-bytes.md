@@ -6,7 +6,7 @@ context: [docs/rules/packaging/a-value-crosses-as-its-wit-type.md, docs/rules/pa
 stages:
   - id: 1
     title: "the dynamic path's cost is measured"
-    status: open
+    status: done
     context: [crates/nvs-ext/benches/image_guest.rs, crates/nvs-ext/Cargo.toml, crates/nvs-ext/src/call.rs, tests/conformance/ext/fixtures/ledger/manifest.json]
   - id: 2
     title: "a third-party export's bytes cross as the host's bytes resource"
@@ -168,9 +168,9 @@ result in place of a plain vector. The templates hide that behind one helper eac
 
 **Does:** a bench records what a third-party `bytes` crossing costs today, in time and in host bytes.
 
-- [ ] The bench, calling `echoBytes` at three sizes through `call_values`, and its Cargo entry. `crates/nvs-ext/benches/ext_bytes.rs:1`, `crates/nvs-ext/Cargo.toml:98`
-- [ ] The before row in `benches/results/ext-bytes.json`, with time and host bytes per call. `benches/results/ext-bytes.json:1`
-- [ ] Whether the `Val` vectors are charged to the request's budget, read from the code and recorded in the handoff. `crates/nvs-ext/src/convert.rs:196`, `crates/nvs-ext/src/call.rs:1376`
+- [x] The bench, calling `echoBytes` at three sizes through `call_values`, and its Cargo entry. `crates/nvs-ext/benches/ext_bytes.rs:1`, `crates/nvs-ext/Cargo.toml:98`
+- [x] The before row in `benches/results/ext-bytes.json`, with time and host bytes per call. `benches/results/ext-bytes.json:1`
+- [x] Whether the `Val` vectors are charged to the request's budget, read from the code and recorded in the handoff. `crates/nvs-ext/src/convert.rs:196`, `crates/nvs-ext/src/call.rs:1376`
 
 ### 2. a third-party export's bytes cross as the host's bytes resource
 
@@ -227,14 +227,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new and nothing is built. Every choice is settled in § *Standing decisions*.
+Stage 1 is done. `crates/nvs-ext/benches/ext_bytes.rs` counts host heap with a counting global
+allocator, named in `tools/nv/cmd/lints.ts`'s `nvs-ext` roster. Stage 4 runs it with
+`--record after`, or runs `target/release/deps/ext_bytes-<hash>.exe --record after` to skip the
+eight-minute relink. The before row, median of 9: 1 KiB in 0.052 ms, 1 MiB in 54.5 ms, 16 MiB in
+876 ms. Each call allocates 122 host bytes per byte and peaks at 79 (1.33 GB at 16 MiB).
+
+**The `Val` vectors are charged only in part.** `Request::run` (`crates/nvs-ext/src/call.rs:1176`)
+charges `size_of::<Val>()` per element (`on_heap`, `call.rs:1574`): the arguments while the guest
+runs, the results while they convert. Not charged: `to_wit_with` (`convert.rs:196`) builds the whole
+argument vector before `run` charges it, and the peak of 79 bytes per byte is more than any one
+charge covers (the program's `Vec<u8>`, the output built while the result `Val`s live, wasmtime's
+buffers). So one call can hold host memory past the request's cap. Stage 2 removes both gaps.
+
+The sweep's reds were stale. No goal or floor defines `env-secret-proofs`, and its last log exited
+0. Nightly 40847802941 ran on 8d39c49bb, and its three causes were fixed after it: `ef7e629e2`
+(`CHANGELOG.md` in the proxied image), `df208a541` (passkey tests under Miri, each checked) and
+`dafe6c98d` (the spool wake test).
 
 ### Next
 
-**Stage 1, one group**, on `nvs-ext`'s benches. No gate.
+**Stage 2, one group**, on `nvs-ext`'s handle and conversion. No gate.
 
-- [ ] The bench and its Cargo entry. `crates/nvs-ext/benches/ext_bytes.rs:1`, `crates/nvs-ext/Cargo.toml:98`
-- [ ] The before row. `benches/results/ext-bytes.json:1`
-- [ ] Whether the `Val` vectors are charged, recorded here. `crates/nvs-ext/src/convert.rs:196`, `crates/nvs-ext/src/call.rs:1376`
+- [ ] The resource in `nvs:ext/types`. `wit/nvs-ext/types.wit:12`
+- [ ] The five typed host methods, each asking the budget first. `crates/nvs-ext/src/handle.rs:194`
+- [ ] `to_wit_with` lends a `bytes`, `from_wit_with` takes an owned one without a copy. `crates/nvs-ext/src/convert.rs:196`, `crates/nvs-ext/src/convert.rs:349`
+- [ ] The loader's two holds and the refusal. `crates/nvs-ext/src/load.rs:951`
+- [ ] The convert module doc and the three rule fragments. `crates/nvs-ext/src/convert.rs:53`, `docs/rules/packaging/a-value-crosses-as-its-wit-type.md:1`
+- [ ] `crates/nvs-ext/tests/bytes.rs` with the seven tests the check names, and its `[[test]]` entry. `crates/nvs-ext/Cargo.toml:111`
+
+Expected red once stage 2 lands and before stage 3: every test whose third-party guest still
+declares a `bytes` as `list<u8>`, the committed ledger fixture and the test WAT guests both
+(`crates/nvs-ext/tests/convert.rs:321`, `crates/nvs-ext/tests/fixtures.rs:362`,
+`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`).
 
 ### Backlog

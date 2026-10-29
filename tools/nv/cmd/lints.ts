@@ -94,7 +94,8 @@ export const UNSAFE_CRATES: Record<string, string> = {
     "clock, the socket `umask`, making a cached code pointer callable, and the debug adapter's standard streams and " +
     "launch environment",
   "crates/nvs-ext":
-    "loading an extension's compiled component back from the artifact cache, whose bytes wasmtime runs as machine code without validating them",
+    "loading an extension's compiled component back from the artifact cache, whose bytes wasmtime runs as machine code without validating them; " +
+    "and the `ext_bytes` bench's global allocator, which forwards to `System` and counts the host bytes a call allocates",
   "benches/abi-probe":
     "it calls JIT-compiled code to measure it; `publish = false` and no shipped crate depends on it, so it does not widen the runtime's unsafe surface",
 };

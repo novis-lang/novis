@@ -47,9 +47,10 @@ Cargo.lock.bak
 /fuzz/artifacts
 
 # Profiling / benchmark output
-# Every file the acceptance sweep records there but the image component's committed figures.
+# Every file the acceptance sweep records there but the committed extension figures.
 /benches/results/*
 !/benches/results/image-guest.json
+!/benches/results/ext-bytes.json
 perf.data*
 flamegraph.svg
 *.profraw

@@ -100,6 +100,14 @@ name = "image_guest"
 harness = false
 required-features = ["engine", "pack"]
 
+# Times the ledger fixture's `echoBytes` at three sizes and counts the host
+# bytes each call allocates. With `--record <row>`, writes that row of
+# `benches/results/ext-bytes.json`.
+[[bench]]
+name = "ext_bytes"
+harness = false
+required-features = ["engine"]
+
 [[test]]
 name = "image_guest"
 required-features = ["engine", "pack"]
