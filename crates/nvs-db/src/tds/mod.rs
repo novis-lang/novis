@@ -56,10 +56,11 @@
 //! Framing; the block that says which server to frame *to*, since [`TdsTarget`]
 //! reads a `[db.<name>]` block the way every other driver's target does; and
 //! the handshake as far as encryption — [`prelogin`] asks for it and
-//! [`negotiate_tls`] tunnels `rule:core-classes/db-capabilities`'s TLS handshake inside PRELOGIN
-//! packets, after which the socket is an ordinary [`NvsTls`] stream carrying
-//! ordinary TDS packets; [`login7_request`], the credential-carrying message
-//! that rides that session and is the reason § 3's TLS is not optional here;
+//! [`negotiate_tls`] tunnels the TLS handshake
+//! (`rule:core-classes/db-safe-connection-defaults`) inside PRELOGIN packets,
+//! after which the socket is an ordinary [`NvsTls`] stream carrying ordinary
+//! TDS packets; [`login7_request`], the credential-carrying message that rides
+//! that session and is the reason that TLS is not optional here;
 //! and [`Tokens`], which reads that message's answer as far as `LOGINACK`,
 //! `ENVCHANGE`, `ERROR`, `INFO` and `DONE`.
 //!
@@ -74,12 +75,15 @@
 //! **A statement goes out**: [`sp_prepexec_request`] builds the RPC,
 //! `rule:core-classes/db-one-api`'s cache holds the handle the `RETURNVALUE` came back with,
 //! [`start_statement`] is the sequencing both `query` and `execute` are,
-//! [`execute_many`] is § 4's batch over that same sequencing once per parameter
-//! set, and [`reset_session`] is § 13's `sp_reset_connection`. **§ 7's commands
-//! are here**: [`begin`], [`commit`] and [`roll_back`] send T-SQL over
-//! [`batch_command`], the one path in this module that is text rather than an
-//! RPC, and [`begin`]'s own doc owns the rules that are this dialect's alone —
-//! a session-scoped isolation level this driver has to put back, and no
+//! [`execute_many`] is the batch member
+//! (`rule:core-classes/db-statement-members`) over that same sequencing once
+//! per parameter set, and [`reset_session`] is the pool's
+//! `sp_reset_connection` (`rule:security/db-pool-reset-is-a-boundary`). **The
+//! transaction commands are here** (`rule:core-classes/db-transactions`):
+//! [`begin`], [`commit`] and [`roll_back`] send T-SQL over [`batch_command`],
+//! the one path in this module that is text rather than an RPC, and
+//! [`begin`]'s own doc owns the rules that are this dialect's alone — a
+//! session-scoped isolation level this driver has to put back, and no
 //! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
 //! therefore reachable on this backend, and `rule:core-classes/db-column-types`'s table is whole in both directions: a `bytes`
 //! is read by [`decode_column`] from `varbinary`, `binary` and `image`, and
@@ -195,8 +199,8 @@ pub const DEFAULT_PORT: u16 = 1433;
 ///
 /// **The target borrows the block and copies nothing**, for the reason
 /// [`crate::MySqlTarget`] gives at length: owning these strings would put a
-/// second copy of the password — a `secret` at the language level (§ 3) — in a
-/// struct nothing zeroes.
+/// second copy of the password — a `secret` at the language level
+/// (`rule:core-classes/db-capabilities`) — in a struct nothing zeroes.
 ///
 /// The address is not here. `host` is the name the server's certificate is
 /// checked against; resolving it to a [`std::net::SocketAddr`] belongs to
@@ -211,20 +215,23 @@ pub struct TdsTarget<'a> {
     pub user: &'a str,
     /// The password. On this protocol it goes out *as* a password rather than
     /// as a challenge response — obfuscated by LOGIN7's nibble swap, which is
-    /// not encryption — which is why `rule:core-classes/db-capabilities`'s TLS is not optional here in
-    /// the way it merely defaults elsewhere.
+    /// not encryption — which is why TLS
+    /// (`rule:core-classes/db-safe-connection-defaults`) is not optional here
+    /// in the way it merely defaults elsewhere.
     pub password: &'a str,
     /// The database LOGIN7 selects.
     ///
     /// Required, though the protocol would let it be omitted: a login with no
     /// database named lands in whichever one the *server* made that login's
     /// default, so an omitted field would make a connection's meaning depend on
-    /// state no `[db.<name>]` block records and § 13's pool key does not cover.
+    /// state no `[db.<name>]` block records and the pool's key
+    /// (`rule:security/db-pool-reset-is-a-boundary`) does not cover.
     pub database: &'a str,
     /// The PEM bundle whose anchors this server's certificate is verified
     /// against, or the compiled-in Mozilla set where the block names none.
     ///
-    /// Not a way to turn verification off — `rule:core-classes/db-capabilities` has no spelling for
+    /// Not a way to turn verification off —
+    /// `rule:core-classes/db-safe-connection-defaults` has no spelling for
     /// that. What it changes is *whose* certificates are believed.
     pub tls_ca_file: Option<&'a Path>,
     /// The zone a `datetime2` or `datetime` off this connection is read in, as
@@ -236,8 +243,8 @@ pub struct TdsTarget<'a> {
     /// zone: `AT TIME ZONE` is an expression, and `SET` has no such setting, so
     /// there is nothing to send it to. The declared zone therefore governs
     /// decoding alone, and `GETDATE()` stays the server's own clock in the
-    /// server's own zone. § 9's sentence about the server agreeing is a MySQL
-    /// and PostgreSQL fact, not a property of the field.
+    /// server's own zone. The rule's sentence about the server agreeing is a
+    /// MySQL and PostgreSQL fact, not a property of the field.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
     /// server, `rule:core-classes/db-one-api`'s
@@ -257,7 +264,7 @@ impl<'a> TdsTarget<'a> {
     /// server that cannot answer it; then a field belonging to another driver;
     /// then each field LOGIN7 sends, by its own key — `host` twice, once for
     /// being unwritten and once for being a socket path this protocol has no
-    /// transport for; then § 9's zone.
+    /// transport for; then the declared zone.
     pub fn resolve(block: &'a Database) -> Result<TdsTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -367,11 +374,11 @@ impl TdsConn {
     /// as [`crate::PgConn::connect`] lifts its own and for that one's reason.
     ///
     /// Unlike every other driver here this one sends nothing after the login.
-    /// There is no charset to force — TDS carries text as UCS-2 and § 9's rows
-    /// decode from that — and no session time zone to set, which
+    /// There is no charset to force — TDS carries text as UCS-2 and every
+    /// column type decodes from that — and no session time zone to set, which
     /// [`TdsTarget::time_zone`] owns; LOGIN7's own option flags carry the ANSI
-    /// defaults § 7's `transaction()` rests on, so the connection is usable the moment
-    /// the login is acknowledged.
+    /// defaults `transaction()` rests on (`rule:core-classes/db-transactions`),
+    /// so the connection is usable the moment the login is acknowledged.
     ///
     /// # Errors
     ///
@@ -404,11 +411,12 @@ impl TdsConn {
             state: Cell::new(State::Idle),
             // The numbers LOGINACK sent, spelled once — see the field.
             server_version: ack.server_version(),
-            // § 9's zone-less row is decoded a layer up, where the target is
+            // A zone-less column is decoded a layer up, where the target is
             // gone — see the field.
             time_zone: target.time_zone,
-            // § 1's capacity is the `[db.<name>]` block's, already read by
-            // `statement_cache_for` and carried here on the target.
+            // The statement cache's capacity is the `[db.<name>]` block's,
+            // already read by `statement_cache_for` and carried here on the
+            // target.
             cache: StatementCache::new(target.statement_cache),
             depth: Cell::new(0),
             // LOGIN7 leaves the session at the login's own default, which is
@@ -489,13 +497,13 @@ impl TdsConn {
             &self.isolation_moved,
         )?;
         // `sp_reset_connection` rolls back whatever transaction was open, so
-        // § 7's depth is answered by it — and the isolation level is **not**,
-        // which is why the flag is cleared by the restore [`reset_session`] pays
-        // rather than here. The server's own transaction descriptor is cleared
-        // there too, that being where the request carrying it is written. A
-        // connection pooled at a depth it no longer has would open the next
-        // request's outermost `transaction()` as a `SAVE TRANSACTION` against
-        // nothing.
+        // the transaction depth is answered by it — and the isolation level is
+        // **not**, which is why the flag is cleared by the restore
+        // [`reset_session`] pays rather than here. The server's own
+        // transaction descriptor is cleared there too, that being where the
+        // request carrying it is written. A connection pooled at a depth it no
+        // longer has would open the next request's outermost `transaction()` as
+        // a `SAVE TRANSACTION` against nothing.
         self.depth.set(0);
         Ok(self)
     }
@@ -510,15 +518,17 @@ impl TdsConn {
     /// through a real socket and a real certificate and so cannot be unit-tested
     /// at all.
     ///
-    /// **`execute` is this same method**, unlike the separate members § 4
-    /// declares: `sp_prepexec` carries a statement that describes no result set
-    /// exactly as it carries one that does, and what tells them apart is
+    /// **`execute` is this same method**, unlike the separate members
+    /// `rule:core-classes/db-statement-members` declares: `sp_prepexec` carries
+    /// a statement that describes no result set exactly as it carries one that
+    /// does, and what tells them apart is
     /// [`TdsRows::affected`] rather than a second request. `crate::mysql` makes
     /// the same call for the same reason, and `nvs-stdlib` is where those
     /// members part.
     ///
     /// The result borrows the connection until it ends, which is [`TdsRows`]'
-    /// whole point: § 4's one-statement-at-a-time rule is not a check this
+    /// whole point: one statement at a time
+    /// (`rule:core-classes/db-connection-busy-state`) is not a check this
     /// method performs but a borrow the caller cannot get around.
     ///
     /// # Errors
@@ -556,7 +566,7 @@ impl TdsConn {
     /// that has not streamed since its last reset.
     ///
     /// It outlives the rows on purpose: a value is measured by the column it
-    /// belongs to, and § 9's decode of it happens after the step that produced
+    /// belongs to, and its decode happens after the step that produced
     /// it.
     #[must_use]
     pub fn stream_columns(&self) -> Option<&[TdsColumn]> {
@@ -625,8 +635,8 @@ impl TdsConn {
     /// `rule:core-classes/db-transactions`'s `BEGIN TRANSACTION`,
     /// or the `SAVE TRANSACTION` a nested `transaction()` is.
     ///
-    /// The driver half of § 7 and nothing more — the callable, the rollback-only
-    /// flag and the retry rule are `nvs-stdlib`'s, exactly as on
+    /// The driver half of a transaction and nothing more — the callable, the
+    /// rollback-only flag and the retry rule are `nvs-stdlib`'s, exactly as on
     /// [`crate::MySqlConn::begin`]. [`begin`] owns which command a nesting depth
     /// gets, why `read_only` is refused on this backend, and how a
     /// session-scoped isolation level is put back.
@@ -652,16 +662,16 @@ impl TdsConn {
     /// How many transaction levels are open on this connection — 0 outside one,
     /// 1 inside an outermost `transaction()`, deeper inside a nested one.
     ///
-    /// [`crate::PgConn::depth`] owns why this is public at all: § 7 retries a
-    /// serialization failure only for an outermost transaction, and the caller
-    /// cannot tell the two apart on its own.
+    /// [`crate::PgConn::depth`] owns why this is public at all: `transaction()`
+    /// retries a serialization failure only for an outermost transaction, and
+    /// the caller cannot tell the two apart on its own.
     #[must_use]
     pub fn depth(&self) -> u32 {
         self.depth.get()
     }
 
-    /// § 7's `COMMIT TRANSACTION`, or the nested commit that sends nothing — a
-    /// normal return out of the callable either way.
+    /// The outermost `COMMIT TRANSACTION`, or the nested commit that sends
+    /// nothing — a normal return out of the callable either way.
     ///
     /// # Errors
     ///
@@ -675,8 +685,9 @@ impl TdsConn {
         )
     }
 
-    /// § 7's `ROLLBACK TRANSACTION`, or the one naming the savepoint that undoes
-    /// a nested level — a throw out of the callable, or `rollBack`'s own signal.
+    /// The outermost `ROLLBACK TRANSACTION`, or the one naming the savepoint
+    /// that undoes a nested level — a throw out of the callable, or
+    /// `rollBack`'s own signal.
     ///
     /// # Errors
     ///
@@ -719,9 +730,10 @@ mod tests {
     use crate::tds::testing::*;
 
     /// A complete block resolves to what LOGIN7 sends, and the fields with
-    /// readers of their own are asserted through them: § 9's zone arrives as
-    /// seconds rather than as the text an operator wrote, and an unwritten
-    /// `statement_cache` is § 1's default where a written `0` is the cache off.
+    /// readers of their own are asserted through them: the declared zone
+    /// arrives as seconds rather than as the text an operator wrote, and an
+    /// unwritten `statement_cache` is the default size where a written `0` is
+    /// the cache off.
     #[test]
     fn a_complete_block_resolves_to_the_target_login7_sends() {
         let mut block = block();
@@ -735,7 +747,7 @@ mod tests {
         assert_eq!(
             target.statement_cache,
             crate::sql::DEFAULT_STATEMENT_CACHE,
-            "an unwritten field is § 1's default and not zero"
+            "an unwritten field is the default cache size and not zero"
         );
 
         block.statement_cache = Some(0);
@@ -744,7 +756,7 @@ mod tests {
                 .expect("a block that turns the cache off resolves")
                 .statement_cache,
             0,
-            "a written `0` is § 1's cache turned off, which is the answer an \
+            "a written `0` is the cache turned off, which is the answer an \
              `unwrap_or_default` reader loses"
         );
         block.statement_cache = None;

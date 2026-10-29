@@ -395,8 +395,8 @@ impl<'a> Tokens<'a> {
     /// bytes as chunks arrive so a `PLP` value never sits in the buffer twice;
     /// this one is reading a message [`Wire::read_message`] has already
     /// assembled, so there is no second copy to avoid. It is also the narrower
-    /// job: a `RETURNVALUE` is the only token that reaches here, and § 1 asks
-    /// for a four-byte handle.
+    /// job: a `RETURNVALUE` is the only token that reaches here, and the plan
+    /// cache asks it for a four-byte handle.
     fn value(&mut self, info: TypeInfo) -> io::Result<Option<Vec<u8>>> {
         const WHAT: &str = "value";
 
@@ -630,8 +630,8 @@ pub(super) const BACKEND: &str = "sqlserver";
 ///
 /// `constraint` is `None` on every refusal this backend words: SQL Server names
 /// the index or the key inside the sentence and in no field of its own, and
-/// § 8's rule against matching on message text is exactly the rule that stops
-/// this driver taking it from there.
+/// `rule:core-classes/db-error`, which exists so that nothing matches on message
+/// text, is exactly the rule that stops this driver taking it from there.
 pub(crate) fn server_refusal(message: &ServerMessage) -> io::Error {
     io::Error::other(ServerError {
         kind: message.kind(),
@@ -765,7 +765,8 @@ mod tests {
         );
     }
 
-    /// § 8's fields for a refusal this backend words, all of them at once.
+    /// `rule:core-classes/db-error`'s fields for a refusal this backend words,
+    /// all of them at once.
     ///
     /// Both absences are asserted here rather than left to a reader's
     /// assumption: TDS sends no `SQLSTATE`, and no constraint name outside the
@@ -786,7 +787,7 @@ mod tests {
         assert_eq!(
             server.driver_code,
             Some(18456),
-            "the number is the whole of what a caller branches on past § 8's kind"
+            "the number is the whole of what a caller branches on past the error's kind"
         );
         assert_eq!(server.sql_state, "", "TDS has no such field to fill");
         assert_eq!(server.severity, "ERROR");
@@ -809,7 +810,7 @@ mod tests {
         assert_eq!(server.driver_code, Some(90_001));
         assert_eq!(server.kind, DbErrorKind::Other);
 
-        // At `FATAL_CLASS` the server has already closed the socket, so § 13's
+        // At `FATAL_CLASS` the server has already closed the socket, so the
         // pool must destroy this connection rather than reset it — which is
         // what the kind says and what the severity has to agree with.
         let mut fatal = message_token(TOKEN_ERROR, 9001, 21, "the log is not available");
@@ -862,7 +863,7 @@ mod tests {
         assert!(
             ServerError::of(&refused).is_none(),
             "the server refused nothing, so this is a protocol failure and not \
-             a condition § 8 normalises"
+             a condition the error kinds normalise"
         );
 
         // TDS 7.3, which a server before SQL Server 2012 answers with. Its

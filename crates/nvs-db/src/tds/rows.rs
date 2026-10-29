@@ -22,10 +22,10 @@ use super::*;
 pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
-    /// § 1's cache, for the one moment reading an answer touches it, and `None`
-    /// for an answer with no plan to file — [`PendingPlan`] owns why the key
-    /// travels on the cursor while the cache is handed to the step that files
-    /// it.
+    /// The plan cache of `rule:core-classes/db-one-api`, for the one moment
+    /// reading an answer touches it, and `None` for an answer with no plan to
+    /// file — [`PendingPlan`] owns why the key travels on the cursor while the
+    /// cache is handed to the step that files it.
     cache: Option<&'a mut StatementCache<TdsPlan>>,
     reading: TdsCursor,
 }
@@ -81,8 +81,8 @@ pub(crate) struct TdsCursor {
     /// Whether the stream has ended, by any of the ways it can: a `DONE`, the
     /// server's refusal, or a decode this driver will not continue past.
     ended: bool,
-    /// The last `RETURNVALUE` the answer carried, which for § 1's `sp_prepexec`
-    /// is the handle the server allocated.
+    /// The last `RETURNVALUE` the answer carried, which for the prepared
+    /// statement's `sp_prepexec` is the handle the server allocated.
     ///
     /// The *last* rather than all of them because a procedure this driver calls
     /// declares one output parameter, and a `Vec` for a list that is one long
@@ -125,9 +125,9 @@ pub(crate) struct TdsCursor {
 struct Walk<'a, S: Read + Write> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
-    /// § 1's cache, where the answer being read is one whose plan is still to
-    /// be filed. `None` for a walk with nothing to file — a cache hit, a drain,
-    /// or a read a test scripted.
+    /// The plan cache, where the answer being read is one whose plan is still
+    /// to be filed. `None` for a walk with nothing to file — a cache hit, a
+    /// drain, or a read a test scripted.
     cache: Option<&'a mut StatementCache<TdsPlan>>,
     reading: &'a mut TdsCursor,
 }
@@ -148,9 +148,10 @@ struct Walk<'a, S: Read + Write> {
 /// worth the most on.
 #[derive(Debug)]
 pub(super) struct PendingPlan {
-    /// § 1's key, first half: the statement as written.
+    /// The cache key's first half: the statement as written.
     pub(super) sql: String,
-    /// § 1's key, second half: how many markers § 5's rewrite left in it.
+    /// The cache key's second half: how many markers the placeholder rewrite
+    /// of `rule:core-classes/db-parameters` left in it.
     pub(super) arity: usize,
     /// The `@params` the plan is being compiled against — [`TdsPlan::declared`]
     /// owns why a plan is not usable without it.
@@ -222,7 +223,8 @@ impl TdsCursor {
     /// The output parameter the procedure came back with, once the stream has
     /// reached it.
     ///
-    /// For § 1's `sp_prepexec` that is the statement handle, and it arrives
+    /// For the prepared statement's `sp_prepexec` that is the statement
+    /// handle, and it arrives
     /// **after** the rows: the server sends `RETURNVALUE` next to the
     /// `RETURNSTATUS` that ends the procedure, so the handle is filed when the
     /// stream has ended and not when it opened.  A statement that was never a
@@ -361,7 +363,7 @@ pub(crate) fn next_row_of<S: Read + Write>(
 }
 
 /// Abandons a parked walk and forgets what it read — [`TdsConn::end_stream`],
-/// and § 13's reset on its way past.
+/// and the pool's reset on its way past.
 ///
 /// **The walk is drained first**, because the rows are on their way whether or
 /// not anybody reads them and this protocol gives the next request nothing to
@@ -371,11 +373,12 @@ pub(crate) fn next_row_of<S: Read + Write>(
 /// here uses, and the loop ends because that leaves [`State::Streaming`].
 ///
 /// The cache is offered for the same drain's sake: an answer read to its end
-/// carries the `RETURNVALUE` § 1's plan is filed under, and a walk the program
-/// abandoned has compiled a plan on the server that nothing else will ever name
-/// again. Dropping the read state is the other half — a result set's shape and
-/// its counts are one request's, and `rule:security/db-pool-reset-is-a-boundary` is why the next
-/// one must not be able to read them.
+/// carries the `RETURNVALUE` the cached plan is filed under, and a walk the
+/// program abandoned has compiled a plan on the server that nothing else will
+/// ever name again. Dropping the read state is the other half — a result set's
+/// shape and its counts are one request's, and
+/// `rule:security/db-pool-reset-is-a-boundary` is why the next one must not be
+/// able to read them.
 pub(crate) fn end_stream_of<S: Read + Write>(
     wire: &mut Wire<S>,
     state: &Cell<State>,
@@ -418,8 +421,9 @@ impl<S: Read + Write> Walk<'_, S> {
                     return Ok(Some(row));
                 }
                 Some(_) => match self.token()? {
-                    // § 7's descriptor, which the next request has to carry —
-                    // [`EnvChange::Transaction`] owns what a missed one costs.
+                    // The transaction descriptor, which the next request has to
+                    // carry — [`EnvChange::Transaction`] owns what a missed one
+                    // costs.
                     Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
                     Some(
                         Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order,
@@ -437,8 +441,9 @@ impl<S: Read + Write> Walk<'_, S> {
                             self.reading.counted = Some(done.rows);
                         }
                         // `DONEINPROC` is never the last token of an answer —
-                        // § 1's `sp_prepexec` sends the `RETURNVALUE` carrying
-                        // its handle after one — and a `DONE` that says more
+                        // a prepared statement's `sp_prepexec` sends the
+                        // `RETURNVALUE` carrying its handle after one — and a
+                        // `DONE` that says more
                         // results follow is a batch this surface has nowhere to
                         // put: the second `COLMETADATA` below is where that is
                         // refused, once the tokens between here and it have been
@@ -486,23 +491,23 @@ impl<S: Read + Write> Walk<'_, S> {
     fn end(&mut self, refused: bool) -> io::Result<()> {
         self.reading.ended = true;
         // No affected count on a refusal, as `crate::MySqlRows::next_row` does
-        // it: § 11 gives a span no success field to lose, so a refused statement
-        // reports the rows that did arrive and the error is the caller's own
-        // return value.
+        // it: `rule:observability/a-query-is-a-trace-event` gives a span no
+        // success field to lose, so a refused statement reports the rows that
+        // did arrive and the error is the caller's own return value.
         let affected = if refused {
             None
         } else {
             self.reading.affected()
         };
         self.reading.span.finished(affected);
-        // § 1's cache is filed here and nowhere else, because here is the first
-        // moment the handle exists: `sp_prepexec` writes it into a `RETURNVALUE`
-        // that arrives after the rows, so a caller filing it would have to be
-        // told to read `returned()` and would be free to forget. A refusal files
-        // nothing — the server compiled no plan there is a number for — and
-        // neither does a stream that ended any other way, which leaves that plan
-        // alive on the server until the connection closes rather than filed
-        // under a handle this side never read.
+        // The plan cache is filed here and nowhere else, because here is the
+        // first moment the handle exists: `sp_prepexec` writes it into a
+        // `RETURNVALUE` that arrives after the rows, so a caller filing it would
+        // have to be told to read `returned()` and would be free to forget. A
+        // refusal files nothing — the server compiled no plan there is a number
+        // for — and neither does a stream that ended any other way, which leaves
+        // that plan alive on the server until the connection closes rather than
+        // filed under a handle this side never read.
         let handle = self.reading.returned.as_ref().and_then(ReturnValue::as_i32);
         let filing = self.reading.filing.take().filter(|_| !refused);
         if let (Some(filing), Some(handle), Some(cache)) =
@@ -613,8 +618,9 @@ impl<S: Read + Write> Walk<'_, S> {
     fn value(&mut self, index: usize, info: TypeInfo, bytes: &mut Vec<u8>) -> io::Result<bool> {
         // A `NULLTYPE` column carries no value and has no value to carry: the
         // one thing `SELECT NULL` can be is null, and reading it as a present
-        // value of no bytes would make § 9's `?T` depend on the type byte a
-        // layer up.
+        // value of no bytes would make the `?T` of
+        // `rule:core-classes/db-column-types` depend on the type byte a layer
+        // up.
         if info.id == TY_NULL {
             return Ok(false);
         }
@@ -864,8 +870,8 @@ impl<S: Read + Write> Walk<'_, S> {
 /// A free function generic in the stream for [`login`]'s reason: a method on
 /// [`TdsConn`] could only be reached through a real socket and a real
 /// certificate. The request is already on the wire when this is called — which
-/// of § 1's two ways it was written is the caller's business, and this reads the
-/// same tokens either way.
+/// of the two requests it was written as, `sp_prepexec` or `sp_execute`, is the
+/// caller's business, and this reads the same tokens either way.
 ///
 /// **The answer borrows nothing**, which is what makes it serve both halves of
 /// `rule:core-classes/db-statement-members`: [`open_result`] parks the cursor on the connection for
@@ -939,9 +945,9 @@ impl<S: Read + Write> Walk<'_, S> {
                     self.reading.columns = columns;
                     return Ok(());
                 }
-                // [`TdsRows::step`]'s arm, and this is where a § 7 command's
-                // own answer is read: a `BEGIN TRANSACTION` has no result set,
-                // so its `ENVCHANGE` arrives before the `DONE` here.
+                // [`TdsRows::step`]'s arm, and this is where a transaction
+                // command's own answer is read: a `BEGIN TRANSACTION` has no
+                // result set, so its `ENVCHANGE` arrives before the `DONE` here.
                 Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
                 Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order) => {}
                 Some(Token::ReturnValue(returned)) => self.reading.returned = Some(returned),

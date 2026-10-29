@@ -42,9 +42,9 @@ pub(super) const TOKEN_NBC_ROW: u8 = 0xD2;
 pub(super) const TOKEN_RETURN_STATUS: u8 = 0x79;
 /// `RETURNVALUE`: one of a procedure's output parameters, coming back.
 ///
-/// § 1's whole reason for calling `sp_prepexec` rather than `sp_executesql`:
-/// the handle the server allocated for the statement arrives in one of these,
-/// and the statement cache's key maps to it.
+/// The whole reason for calling `sp_prepexec` rather than `sp_executesql`: the
+/// handle the server allocated for the statement arrives in one of these, and
+/// the statement cache's key (`rule:core-classes/db-one-api`) maps to it.
 pub(super) const TOKEN_RETURN_VALUE: u8 = 0xAC;
 /// `ORDER`: which columns the result set that follows is ordered by.
 ///
@@ -57,8 +57,8 @@ pub(super) const TOKEN_RETURN_VALUE: u8 = 0xAC;
 pub(super) const TOKEN_ORDER: u8 = 0xA9;
 /// `DONE`: the end of one statement's answer.
 pub(super) const TOKEN_DONE: u8 = 0xFD;
-/// `DONEPROC`: `DONE` for a stored procedure, which § 13's `sp_reset_connection`
-/// and § 1's `sp_prepexec` both are.
+/// `DONEPROC`: `DONE` for a stored procedure, which the pool's
+/// `sp_reset_connection` and a statement's `sp_prepexec` both are.
 pub(super) const TOKEN_DONE_PROC: u8 = 0xFE;
 /// `DONEINPROC`: `DONE` for one statement *inside* a procedure, and the one of
 /// the three that is never the last token of a message.
@@ -100,11 +100,13 @@ pub(super) const ENV_ROLLBACK_TRANSACTION: u8 = 10;
 /// above the server closes the socket, so the read after one is an end of file
 /// whatever this driver decides. [`kind_of`] answers
 /// [`DbErrorKind::ConnectionLost`] for any unnamed number at this class for
-/// that reason — the connection really is gone, and § 13's pool must destroy it
-/// rather than reset it.
+/// that reason — the connection really is gone, and the pool
+/// (`rule:security/db-pool-reset-is-a-boundary`) must destroy it rather than
+/// reset it.
 pub(super) const FATAL_CLASS: u8 = 20;
 
-/// The § 8 kind a SQL Server error number means.
+/// The `DbError` kind (`rule:core-classes/db-error`) a SQL Server error number
+/// means.
 ///
 /// **Keyed on the number alone**, where [`crate::pg`]'s table is keyed on the
 /// `SQLSTATE` and [`crate::mysql`]'s reads one as a fallback: TDS has no
@@ -116,11 +118,11 @@ pub(super) const FATAL_CLASS: u8 = 20;
 ///
 /// - **`547` is both a foreign key and a `CHECK`**, and SQL Server merges them
 ///   into one number on purpose — only the message text separates them, and
-///   matching on message text is the thing § 8 exists to stop. It normalises as
-///   [`DbErrorKind::ForeignKeyViolation`], the far commoner reading, and
-///   § 8's `driverCode` still carries the number for a caller that needs the
-///   difference. [`DbErrorKind::CheckViolation`] is therefore **unreachable on
-///   this backend**, which is exactly what § 8 means when it says some
+///   matching on message text is the thing a normalised kind exists to stop. It
+///   normalises as [`DbErrorKind::ForeignKeyViolation`], the far commoner
+///   reading, and `driverCode` still carries the number for a caller that needs
+///   the difference. [`DbErrorKind::CheckViolation`] is therefore **unreachable
+///   on this backend**, which is exactly what the rule means when it says some
 ///   boundaries are driver-dependent.
 /// - **`4060` is a `Permission`**, not a `Syntax` the way MySQL's "unknown
 ///   database" is. SQL Server deliberately answers a database that does not
@@ -142,7 +144,7 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
         547 => DbErrorKind::ForeignKeyViolation,
         515 => DbErrorKind::NotNullViolation,
         // The deadlock victim: SQL Server rolled this transaction back whole,
-        // so § 7's callable re-runs from nothing.
+        // so the `transaction()` callable re-runs from nothing.
         1205 => DbErrorKind::Deadlock,
         // Snapshot isolation could not serialise this transaction against a
         // concurrent one, and aborted it.
@@ -152,7 +154,7 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
         // the callable would run its earlier statements again inside a
         // transaction that is still open.
         1222 => DbErrorKind::Timeout,
-        // A malformed statement, and the "no such thing" numbers § 8 makes one
+        // A malformed statement, and the "no such thing" numbers that are one
         // kind with it: an undefined object and a syntax error are the same bug
         // to a caller.
         102 | 156 | 207 | 208 | 2812 | 4104 => DbErrorKind::Syntax,
@@ -171,8 +173,8 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
 /// whether anything was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerMessage {
-    /// The server's own error number, which is § 8's `driverCode` and the key
-    /// [`kind_of`] reads.
+    /// The server's own error number, which is `DbError`'s `driverCode` and the
+    /// key [`kind_of`] reads.
     pub number: u32,
     /// Which of the places that raise this number raised it. Not normalised by
     /// anything: it is what a support article asks for.
@@ -197,7 +199,7 @@ impl ServerMessage {
         self.class >= FATAL_CLASS
     }
 
-    /// § 8's kind for this message, from [`kind_of`].
+    /// The `DbError` kind for this message, from [`kind_of`].
     #[must_use]
     pub fn kind(&self) -> DbErrorKind {
         kind_of(self.number, self.class)
@@ -246,9 +248,10 @@ impl LoginAck {
 /// stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvChange {
-    /// The database this session is in. Novis reads it because § 13's pool key
-    /// is a promise about which database a pooled connection is in, and a `USE`
-    /// is the one thing that could break it.
+    /// The database this session is in. Novis reads it because the pool key
+    /// (`rule:security/db-pool-reset-is-a-boundary`) is a promise about which
+    /// database a pooled connection is in, and a `USE` is the one thing that
+    /// could break it.
     Database {
         /// What it was.
         from: String,
@@ -299,7 +302,8 @@ pub enum EnvChange {
 /// One token of a response stream.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
-    /// The server refused something: [`ServerMessage::kind`] is § 8's kind.
+    /// The server refused something: [`ServerMessage::kind`] is the `DbError`
+    /// kind.
     Error(ServerMessage),
     /// The server said something and refused nothing.
     Info(ServerMessage),
@@ -337,12 +341,14 @@ pub enum Token {
 /// The value is owned rather than borrowed, unlike every other token's bytes,
 /// because [`TdsRows`] parses its tokens out of a buffer it then refills over —
 /// and this is the one token whose *payload* a caller keeps past the parse. It
-/// is at most a handle: § 1 calls one procedure and asks for one integer back.
+/// is at most a handle: the statement cache calls one procedure and asks for
+/// one integer back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnValue {
     /// Which parameter of the call this is, one-based, as the server counted
     /// it. Read for a caller that asked for more than one output parameter;
-    /// § 1 asks for a single one and reads [`ReturnValue::as_i32`] instead.
+    /// the statement cache asks for a single one and reads
+    /// [`ReturnValue::as_i32`] instead.
     pub ordinal: u16,
     /// The parameter's name as the procedure declares it — `@handle` for
     /// `sp_prepexec`'s. A caller that sent the parameter unnamed still gets
@@ -359,10 +365,11 @@ impl ReturnValue {
     /// The value as a four-byte little-endian integer, or `None` where it is
     /// null or is not four bytes wide.
     ///
-    /// The one shape § 1 reads: `sp_prepexec` hands its handle back as an
-    /// `INTN` of four bytes. Narrower is not silently widened — a server that
-    /// answered a two-byte handle is one this driver has no account of, and
-    /// reading it as a number would be inventing the two bytes it did not send.
+    /// The one shape the statement cache reads: `sp_prepexec` hands its handle
+    /// back as an `INTN` of four bytes. Narrower is not silently widened — a
+    /// server that answered a two-byte handle is one this driver has no account
+    /// of, and reading it as a number would be inventing the two bytes it did
+    /// not send.
     #[must_use]
     pub fn as_i32(&self) -> Option<i32> {
         let bytes: [u8; 4] = self.value.as_deref()?.try_into().ok()?;
@@ -386,7 +393,8 @@ pub struct Done {
     /// method over `status`: the three ends are three token *bytes*, and only
     /// this one is guaranteed to have something behind it. A reader that
     /// stopped on it would end an `sp_prepexec` answer before the
-    /// `RETURNVALUE` carrying § 1's handle, which is sent after the rows.
+    /// `RETURNVALUE` carrying the statement's handle, which is sent after the
+    /// rows.
     pub in_proc: bool,
     /// The row count, meaningful only where [`Done::counted`] says so.
     pub rows: u64,
@@ -473,7 +481,8 @@ mod tests {
         assert!(done.counted() && !done.more() && !done.failed());
     }
 
-    /// § 8's kinds, over the numbers this backend raises them as.
+    /// `rule:core-classes/db-error`'s kinds, over the numbers this backend
+    /// raises them as.
     ///
     /// One question of every row rather than a case each, so a table that grew
     /// a row meaning something else fails here: the numbers are the whole of
@@ -498,7 +507,7 @@ mod tests {
 
         assert!(
             kind_of(1205, 13).is_retryable() && kind_of(3960, 16).is_retryable(),
-            "§ 7 re-runs a callable over these two and nothing else"
+            "`transaction()` re-runs a callable over these two and nothing else"
         );
         assert!(
             !kind_of(1222, 16).is_retryable(),
@@ -550,8 +559,8 @@ mod tests {
         assert_eq!(read.len(), 2, "the DONE after it is still found");
     }
 
-    /// § 7's descriptor is read off the token that carries it, on all three of
-    /// the types that carry one.
+    /// A transaction's descriptor is read off the token that carries it, on all
+    /// three of the types that carry one.
     ///
     /// The begin is where the eight octets arrive; the commit and the rollback
     /// send an empty new value, and reading that as *no transaction* is what

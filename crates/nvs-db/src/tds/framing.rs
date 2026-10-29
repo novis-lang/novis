@@ -97,7 +97,8 @@ impl Status {
     /// It rides the **first** packet of that message — see [`Codec::encode`].
     ///
     /// **[`reset_session`] spends a message of its own on it rather than
-    /// letting it ride the next real one.** § 13 makes the reset a security
+    /// letting it ride the next real one.**
+    /// `rule:security/db-pool-reset-is-a-boundary` makes the reset a security
     /// boundary that a failed reset destroys the connection over, and a bit
     /// riding the next request cannot be proven until that request — belonging
     /// to the program this connection was just handed to — has already run on
@@ -105,7 +106,8 @@ impl Status {
     /// the wrong side of the boundary.
     pub const RESET_CONNECTION: Status = Status(0x08);
     /// [`Status::RESET_CONNECTION`] for a connection inside a transaction the
-    /// caller wants kept. Novis never sets it: § 13's reset happens at release,
+    /// caller wants kept. Novis never sets it: the pool's reset happens at
+    /// release,
     /// where an open transaction is a connection that is not poolable rather
     /// than one to preserve.
     pub const RESET_CONNECTION_SKIP_TRAN: Status = Status(0x10);

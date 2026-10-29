@@ -49,7 +49,8 @@ pub(super) const PL_ENCRYPTION_AT: u16 = PL_VERSION_AT + PL_VERSION_LEN;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Encryption {
     /// Encrypt the login and speak plaintext afterwards. **Refused**: it is
-    /// exactly the shape § 3 names when it calls `sslmode=prefer` a hole, and
+    /// exactly the shape `rule:core-classes/db-safe-connection-defaults` names
+    /// when it calls `sslmode=prefer` a hole, and
     /// on this protocol the credential is the *only* thing it would protect.
     Off,
     /// Encrypt the whole session. What this driver asks for, and one of the two
@@ -518,7 +519,7 @@ mod tests {
             prelogin(&mut wire).unwrap_or_else(|e| panic!("{setting:?} is usable, not {e}"));
         }
 
-        // Both refusals are the same refusal: § 3 has one setting and it is not
+        // Both refusals are the same refusal: TLS has one setting and it is not
         // negotiable downwards, so "login only" and "not at all" fail alike.
         for setting in [Encryption::Off, Encryption::NotSupported] {
             let mut wire = Wire::new(Script::answering(

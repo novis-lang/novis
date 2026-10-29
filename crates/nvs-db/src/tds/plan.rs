@@ -21,18 +21,19 @@ pub struct TdsPlan {
     /// The `@params` declaration this plan was compiled against, empty for a
     /// statement that binds nothing.
     ///
-    /// **§ 1's key is one component short on this protocol.** [`declarations`]
-    /// widens a marker to `nvarchar(max)` for a value past [`NVARCHAR_CHARS`]
-    /// and declares it `varbinary` for a value [`encode`] marked binary, so one
+    /// **The plan cache's key is one component short on this protocol.**
+    /// [`declarations`] widens a marker to `nvarchar(max)` for a value past
+    /// [`NVARCHAR_CHARS`] and declares it `varbinary` for a value [`encode`]
+    /// marked binary, so one
     /// statement run first with a short text value and then with a long one or
     /// with a `bytes` wants two different plans under a key — the SQL text and
     /// the arity — that cannot tell them apart. A long value bound against a
     /// plan declared narrow is *truncated* by SQL Server rather than refused,
     /// which is silent data loss, so this is carried and compared and a
     /// mismatch is a miss that unprepares the plan it did not fit. The key
-    /// itself is left alone: § 1
-    /// states it once, for every driver, and this is one driver's reason to
-    /// reject a hit rather than another way to spell the key.
+    /// itself is left alone: `rule:core-classes/db-one-api` states it once, for
+    /// every driver, and this is one driver's reason to reject a hit rather
+    /// than another way to spell the key.
     ///
     /// `Rc<str>` because [`StatementCache::lookup`] clones the handle on every
     /// hit, and a hit is the path the cache exists for.
@@ -44,10 +45,11 @@ pub struct TdsPlan {
 ///
 /// [`crate::mysql::start_statement`]'s shape and its reasons — free and generic
 /// in the stream so a unit test can script a server for it, and taking the busy
-/// state by reference so § 4's one-statement-at-a-time rule is enforced here
-/// rather than by each caller remembering to.
+/// state by reference so the one-statement-at-a-time rule
+/// (`rule:core-classes/db-connection-busy-state`) is enforced here rather than
+/// by each caller remembering to.
 ///
-/// **§ 1's cache decides which of two requests goes out.** A hit sends
+/// **The plan cache decides which of two requests goes out.** A hit sends
 /// [`execute_request`] — the handle and the values, no SQL — and files nothing,
 /// since the plan is already recorded. A miss sends [`prepexec_request`] and
 /// hands the walk a [`PendingPlan`], because the handle it will be recorded
@@ -87,9 +89,10 @@ pub(crate) fn open_result<S: Read + Write>(
     let declared = declarations(&bound);
     let declared: Rc<str> = Rc::from(declared.as_deref().unwrap_or_default());
 
-    // § 7's open transaction, read once: a statement is one request or two, and
-    // the descriptor cannot move between them — nothing here sends a `BEGIN`,
-    // and the eviction below runs on the same transaction the execution does.
+    // The open transaction's descriptor, read once: a statement is one request
+    // or two, and the descriptor cannot move between them — nothing here sends
+    // a `BEGIN`, and the eviction below runs on the same transaction the
+    // execution does.
     let descriptor = wire.descriptor();
 
     let mut stale = None;
@@ -176,22 +179,24 @@ pub(super) fn cache_declaration(declared: &Rc<str>) -> Option<&str> {
 /// is the one thing that ends it early, a poisoned connection having no packet
 /// boundary left for the next set to be written at.
 ///
-/// **The bulk command § 4 refuses has no spelling here at all.** What makes the
-/// batch cheaper than N `execute` calls on this driver is § 1's cache and
+/// **The bulk command `rule:core-classes/db-statement-members` declines has no
+/// spelling here at all.** What makes the batch cheaper than N `execute` calls
+/// on this driver is the plan cache (`rule:core-classes/db-one-api`) and
 /// nothing else: the first set is an `sp_prepexec` and every set after it an
 /// `sp_execute` naming the plan that prepare filed, which is the one prepare
-/// and N executions § 4 asks for, arrived at through [`start_statement`] rather
-/// than through a second request shape.
+/// and N executions `executeMany` promises, arrived at through
+/// [`start_statement`] rather than through a second request shape.
 ///
-/// An empty `sets` is § 4's no-op answering `0`, with the busy check still
-/// ahead of it for [`crate::pg`]'s reason: § 4's refusal is a property of the
+/// An empty `sets` is the no-op answering `0`, with the busy check still ahead
+/// of it for [`crate::pg`]'s reason: the busy refusal
+/// (`rule:core-classes/db-connection-busy-state`) is a property of the
 /// connection and not of the payload.
 ///
 /// # Errors
 ///
 /// `InvalidInput` for a batch written to a connection that is not idle, and for
 /// a `sets` whose members do not all bind the same number of parameters — one
-/// prepare has one parameter count, and it is what § 1's cache is keyed on
+/// prepare has one parameter count, and it is what the plan cache is keyed on
 /// beside the SQL text. Otherwise the first error any execution drew, or the
 /// wire failure that stopped the batch.
 pub fn execute_many<S: Read + Write>(
@@ -248,8 +253,9 @@ pub fn execute_many<S: Read + Write>(
 /// a stream held across the next iteration.
 ///
 /// A set that answered with rows contributes the rows it produced, which is the
-/// number [`TdsRows::affected`] already reports for one — § 4 gives the batch
-/// one sum and that method is where the two numbers became one. A `DONE` that
+/// number [`TdsRows::affected`] already reports for one —
+/// `rule:core-classes/db-statement-members` gives the batch one sum and that
+/// method is where the two numbers became one. A `DONE` that
 /// counted nothing reads as `0` here, the distinction it draws being one a sum
 /// has nothing to do with.
 ///
@@ -275,8 +281,8 @@ pub(super) fn execute_one<S: Read + Write>(
 /// spellings and the facts that are this backend's alone.
 ///
 /// **SQL Server has no read-only transaction at all**, so `read_only` is
-/// refused at any depth rather than dropped. Every other backend § 7 reaches
-/// enforces the option, and a driver that accepted it here and opened an
+/// refused at any depth rather than dropped. Every other backend that
+/// `transaction()` reaches enforces the option, and a driver that accepted it here and opened an
 /// ordinary writable transaction would hand a program the word without the
 /// guarantee — the one failure mode a `readOnly` exists to prevent.
 ///
@@ -288,8 +294,9 @@ pub(super) fn execute_one<S: Read + Write>(
 /// that a restore is owed, [`commit`] and [`roll_back`] pay it when the
 /// outermost level closes, and an outermost `begin` asking for no level pays it
 /// first. The second is not redundant — a `COMMIT TRANSACTION` the server
-/// refused ends the transaction with the restore still owed — and § 13's
-/// `sp_reset_connection` covers only the *pool*, not a second `transaction()`
+/// refused ends the transaction with the restore still owed — and the pool's
+/// `sp_reset_connection` (`rule:security/db-pool-reset-is-a-boundary`) covers
+/// only the *pool*, not a second `transaction()`
 /// in the same request.
 ///
 /// The flag is set **before** the `SET` is written rather than after it lands:
@@ -362,14 +369,15 @@ pub(crate) fn begin<S: Read + Write>(
     Ok(span)
 }
 
-/// The `SET TRANSACTION ISOLATION LEVEL` one of § 7's levels renders to.
+/// The `SET TRANSACTION ISOLATION LEVEL` one of the isolation levels
+/// (`rule:core-classes/db-transactions`) renders to.
 ///
 /// **Nothing collapses here, and this is the backend [`Isolation::Snapshot`] is
 /// named after**: SQL Server implements it as a level of its own rather than as
 /// a spelling of `REPEATABLE READ`, which is what the other row-versioning
 /// drivers fold it onto. A database with `ALLOW_SNAPSHOT_ISOLATION` off refuses
-/// the command, and that refusal is § 7's "throwing where a driver lacks the
-/// level" arriving as the server's own error rather than as a guess this driver
+/// the command, and that refusal is the rule's "throwing where a driver lacks
+/// the level" arriving as the server's own error rather than as a guess this driver
 /// made about the database's settings.
 pub(super) fn isolation_command(level: Isolation) -> &'static str {
     match level {
@@ -405,16 +413,17 @@ pub(super) fn restore_isolation<S: Read + Write>(
     Ok(())
 }
 
-/// § 7's `COMMIT TRANSACTION`, or the nested commit that has nothing to send.
+/// `rule:core-classes/db-transactions`'s `COMMIT TRANSACTION`, or the nested
+/// commit that has nothing to send.
 ///
 /// **T-SQL has no `RELEASE SAVEPOINT`**, and there is nothing to send in its
 /// place: a `COMMIT TRANSACTION` inside a nested level would commit the *whole*
 /// transaction, `@@TRANCOUNT` being 1 for a nesting this driver spells as
 /// `SAVE TRANSACTION`. So a nested commit moves the depth and costs no round
 /// trip, and the savepoint it leaves behind is released by the outermost commit
-/// along with every other one. Its span therefore carries no SQL text — § 11's
-/// event says a commit happened and that nothing went out, which is what
-/// happened, and naming a command the wire never saw would be the lie a trace
+/// along with every other one. Its span therefore carries no SQL text — the
+/// `query` trace event (`rule:observability/a-query-is-a-trace-event`) says a
+/// commit happened and that nothing went out, which is what happened, and naming a command the wire never saw would be the lie a trace
 /// exists to prevent.
 ///
 /// # Errors
@@ -423,7 +432,8 @@ pub(super) fn restore_isolation<S: Read + Write>(
 /// [`simple_command`]. **The count follows the connection where the server took
 /// it**, [`crate::mysql::commit`]'s rule and its reasoning in full: an outermost
 /// commit the server refused has already rolled the transaction back, so the
-/// depth goes to 0 and § 7's `{ retries: n }` opens the next attempt with a
+/// depth goes to 0 and `transaction()`'s `{ retries: n }` opens the next
+/// attempt with a
 /// `BEGIN TRANSACTION` rather than a `SAVE TRANSACTION` against nothing. That
 /// path leaves the isolation restore owed rather than sending it, so the error
 /// the caller sees is the server's own — [`begin`] pays it instead.
@@ -455,8 +465,8 @@ pub(crate) fn commit<S: Read + Write>(
     Ok(span)
 }
 
-/// § 7's `ROLLBACK TRANSACTION`, or the `ROLLBACK TRANSACTION <name>` that
-/// undoes a nested level.
+/// `rule:core-classes/db-transactions`'s `ROLLBACK TRANSACTION`, or the
+/// `ROLLBACK TRANSACTION <name>` that undoes a nested level.
 ///
 /// **One command where [`crate::pg`]'s nested rollback is two**, for
 /// [`crate::mysql::roll_back`]'s reason and under T-SQL's own savepoint rule: a
@@ -496,16 +506,19 @@ pub(crate) fn roll_back<S: Read + Write>(
     Ok(span)
 }
 
-/// One of § 7's commands, sent as a `SQL_BATCH` message, with
-/// `rule:observability/a-query-is-a-trace-event`'s span around it.
+/// One of the transaction commands (`rule:core-classes/db-transactions`), sent
+/// as a `SQL_BATCH` message, with `rule:observability/a-query-is-a-trace-event`'s
+/// span around it.
 ///
-/// **A batch rather than § 1's prepared statements**, which is where the two
-/// halves of § 1 stop pulling together — [`crate::mysql::simple_command`]'s
+/// **A batch rather than a prepared statement**, which is where the two halves
+/// of `rule:core-classes/db-one-api`, every statement prepared and its plan
+/// cached, stop pulling together — [`crate::mysql::simple_command`]'s
 /// reasoning, and one more that is this protocol's: an `sp_prepexec` of
 /// `BEGIN TRANSACTION` would file a plan in a cache sized for the request's real
 /// statements, to run a command of two words that binds nothing.
 ///
-/// The span carries no count. § 7's commands change no rows themselves, and
+/// The span carries no count. The transaction commands change no rows
+/// themselves, and
 /// `affected` says "this statement reported a count" rather than "it reported
 /// zero".
 ///
@@ -531,9 +544,9 @@ pub(super) fn simple_command<S: Read + Write>(
 ///
 /// # Errors
 ///
-/// `InvalidInput` for a command written to a connection that is not idle — § 4's
-/// rule, which is a property of the connection and not of what is being sent —
-/// otherwise as [`read_rows`]. A write that failed part-way leaves the
+/// `InvalidInput` for a command written to a connection that is not idle —
+/// `rule:core-classes/db-connection-busy-state`, which is a property of the
+/// connection and not of what is being sent — otherwise as [`read_rows`]. A write that failed part-way leaves the
 /// connection [`State::Poisoned`], because a half-written packet is not a
 /// boundary anything can be found from.
 pub(super) fn batch_command<S: Read + Write>(
@@ -557,8 +570,9 @@ pub(super) fn batch_command<S: Read + Write>(
 /// here names it: the bit resets the session before the message carrying it is
 /// processed, and [`RESET_STATEMENT`] is the smallest well-formed message there
 /// is to carry it. Its answer is what proves the reset landed, which is what
-/// § 13 asks of a reset and what a bit riding the *next* request could not give
-/// — that request already belongs to the program the connection was handed to.
+/// the rule asks of a reset and what a bit riding the *next* request could not
+/// give — that request already belongs to the program the connection was
+/// handed to.
 ///
 /// [`crate::mysql::reset_session`]'s twin with one half missing and one half
 /// this backend alone owes. TDS has no session time zone to send again,
@@ -568,10 +582,10 @@ pub(super) fn batch_command<S: Read + Write>(
 /// would bind the next request against handles this session no longer has.
 ///
 /// **The isolation level is put back by this driver, because the procedure does
-/// not put it back.** That is measured rather than assumed: the § 13 case in
-/// `crates/nvs-db/tests/handshake.rs` reads `sys.dm_exec_sessions` after a reset
-/// and finds the level the last `transaction()` asked for still in force. § 13
-/// states the reset as a *property* — after it, no session state the next
+/// not put it back.** That is measured rather than assumed: the pool-reset case
+/// in `crates/nvs-db/tests/handshake.rs` reads `sys.dm_exec_sessions` after a
+/// reset and finds the level the last `transaction()` asked for still in force.
+/// The rule states the reset as a *property* — after it, no session state the next
 /// request could observe — and names `sp_reset_connection` as the means; where
 /// the means falls short of the property, the property is what has to hold. The
 /// restore costs a round trip only for a session an isolation level actually
@@ -584,8 +598,8 @@ pub(super) fn batch_command<S: Read + Write>(
 ///
 /// # Errors
 ///
-/// As [`read_rows`], for the batch the bit rode in on. § 13 destroys the
-/// connection on any of them, so what the cache holds on that path is nobody's
+/// As [`read_rows`], for the batch the bit rode in on. A failed reset destroys
+/// the connection on any of them, so what the cache holds on that path is nobody's
 /// business.
 pub fn reset_session<S: Read + Write>(
     wire: &mut Wire<S>,
@@ -595,11 +609,12 @@ pub fn reset_session<S: Read + Write>(
 ) -> io::Result<()> {
     // The one request that names no transaction however deep the session was.
     // [`Status::RESET_CONNECTION`] is honoured *before* the request it rides is
-    // processed, so whatever § 7 had open is already rolled back by the time
+    // processed, so any open transaction is already rolled back by the time
     // this message's `ALL_HEADERS` is read, and a descriptor naming it would
     // name a transaction the server no longer has. Cleared before the request
     // is built rather than after the answer, so a reset that failed leaves
-    // nothing behind either: § 13 destroys the connection on any error here.
+    // nothing behind either: the pool destroys the connection on any error
+    // here (`rule:security/db-pool-reset-is-a-boundary`).
     wire.set_descriptor(NO_TRANSACTION);
     send_request(
         wire,
@@ -614,8 +629,8 @@ pub fn reset_session<S: Read + Write>(
     // the server is what says so: `crates/nvs-db/tests/handshake.rs`'s
     // `a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level`
     // reads `sys.dm_exec_sessions` after a reset and finds the level the last
-    // `transaction()` asked for still in force. § 13 states the reset as a
-    // *property* rather than as a command list for exactly this reason — a
+    // `transaction()` asked for still in force. The pool-reset rule states the
+    // reset as a *property* rather than as a command list for exactly this reason — a
     // pooled connection whose level one request moved would silently run the
     // next request's statements at it — so the restore this driver already owes
     // ([`begin`]) is paid here as well, and only where one is owed.
@@ -646,9 +661,9 @@ pub(super) fn send_request<S: Read + Write>(
 /// Reads an answer this driver sent for its own reasons to its end, and throws
 /// it away.
 ///
-/// The span it opens is dropped with the stream on purpose: § 11's trace event
-/// is one statement a *program* ran, and neither an eviction nor a reset is
-/// one. Reading to the end is not optional — a TDS answer left on the wire is
+/// The span it opens is dropped with the stream on purpose: the `query` trace
+/// event (`rule:observability/a-query-is-a-trace-event`) is one statement a
+/// *program* ran, and neither an eviction nor a reset is one. Reading to the end is not optional — a TDS answer left on the wire is
 /// read as the next statement's.
 ///
 /// # Errors
@@ -703,12 +718,13 @@ mod tests {
     use super::*;
     use crate::tds::testing::*;
 
-    /// `rule:security/db-pool-reset-is-a-boundary`'s reset on this backend, both halves of it: the session is
-    /// reset through `sp_reset_connection` — which MS-TDS spells as a header bit
-    /// rather than as a call — and § 1's cache is emptied with it, because the
-    /// reset drops the server's prepared statements.
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset on this backend, both
+    /// halves of it: the session is reset through `sp_reset_connection` — which
+    /// MS-TDS spells as a header bit rather than as a call — and the plan cache
+    /// is emptied with it, because the reset drops the server's prepared
+    /// statements.
     ///
-    /// The asymmetry § 13 names, from the other side: PostgreSQL's reset is a
+    /// The asymmetry that rule names, from the other side: PostgreSQL's reset is a
     /// command list picked so the cache *survives*, and this one has no such
     /// choice to make. A cache that survived here would bind the next request
     /// against plan handles this session no longer has — a wrong answer rather
@@ -738,7 +754,7 @@ mod tests {
             .expect("a reset the server acknowledged");
         assert!(
             cache.is_empty(),
-            "§ 13: the reset drops every prepared statement, so a cache that \
+            "the pool reset drops every prepared statement, so a cache that \
              kept one is naming a plan the server does not have"
         );
         assert_eq!(
@@ -768,7 +784,8 @@ mod tests {
         );
     }
 
-    /// § 1's "cached re-executions cost one round trip", on this protocol: the
+    /// `rule:core-classes/db-one-api`'s "cached re-executions cost one round
+    /// trip", on this protocol: the
     /// second execution names the plan and carries the values, and no byte of
     /// the statement is on the wire.
     #[test]
@@ -813,7 +830,8 @@ mod tests {
         assert_eq!(cache.len(), 1, "one plan, executed twice");
     }
 
-    /// § 1's capacity is what the *server* holds, so the eviction goes out
+    /// The plan cache's capacity is what the *server* holds, so the eviction
+    /// goes out
     /// before the prepare that needed the room and not after it.
     #[test]
     fn an_eviction_unprepares_before_the_prepare_that_needed_the_room() {
@@ -891,7 +909,8 @@ mod tests {
 
     /// The same comparison over the other thing a declaration varies with: a
     /// `bytes` declares its marker `varbinary`, so one statement binding one at
-    /// `@p1` and then at `@p2` wants two plans under the one key § 1 gives it.
+    /// `@p1` and then at `@p2` wants two plans under the one key the plan cache
+    /// gives it.
     ///
     /// The key is deliberately not widened to carry a type per marker —
     /// [`TdsPlan::declared`] is one driver's reason to reject a hit, where the
@@ -954,7 +973,7 @@ mod tests {
         const SQL: &str = "select b from t where b = @p1";
         let octets = [0x00, 0x61, 0xFF, 0xFE];
         let bound = encode(Value::bytes(NvsStr::new(&octets)))
-            .expect("a `bytes` § 9 binds")
+            .expect("a `bytes` parameter binds")
             .expect("a value and not SQL NULL");
 
         let mut answer = col_metadata(&[column(
@@ -977,7 +996,7 @@ mod tests {
         let read = drain_rows(&mut rows).expect("one row and the procedure's end");
         assert_eq!(read.len(), 1);
         let back = decode_column(&rows.columns()[0], read[0].column(0).flatten())
-            .expect("a `varbinary` column § 9 maps to `bytes`")
+            .expect("a `varbinary` column maps to `bytes`")
             .expect("a value and not SQL NULL");
 
         let sent = flushed(&wire.peer().sent);
@@ -1004,11 +1023,12 @@ mod tests {
     /// **The prepare is asserted to happen once**, because that is the whole of
     /// what this member buys over the loop of `execute` calls a caller could
     /// write by hand — the sum would be the same either way, and so would every
-    /// row it wrote. § 1's cache is what makes the second set an `sp_execute`,
+    /// row it wrote. The plan cache is what makes the second set an `sp_execute`,
     /// which is why the batch needs no request shape of its own here.
     ///
     /// The empty list and the sets that disagree are asserted beside it: both
-    /// are answers § 4 gives before anything reaches the wire, so a batch that
+    /// are answers `rule:core-classes/db-statement-members` gives before
+    /// anything reaches the wire, so a batch that
     /// wrote first would still look right from the count alone.
     #[test]
     fn a_batch_is_one_prepare_an_execution_per_set_and_the_counts_summed() {
@@ -1023,7 +1043,8 @@ mod tests {
         let mut cache = plans(2);
 
         assert_eq!(
-            execute_many(&mut wire, &state, &mut cache, SQL, &[]).expect("§ 4's no-op"),
+            execute_many(&mut wire, &state, &mut cache, SQL, &[])
+                .expect("an empty batch is a no-op"),
             0,
             "an empty set list is answered without a round trip"
         );
@@ -1035,7 +1056,7 @@ mod tests {
             execute_many(&mut wire, &state, &mut cache, SQL, &sets)
                 .expect("a batch the server took"),
             6,
-            "§ 4's answer is the sum of what the executions counted"
+            "`executeMany`'s count is the sum of what the executions counted"
         );
 
         let sent = flushed(&wire.peer().sent);
@@ -1056,7 +1077,8 @@ mod tests {
         );
     }
 
-    /// The half of § 4's semantics that costs the round trips: a refused set
+    /// The half of `executeMany`'s semantics that costs the round trips
+    /// (`rule:core-classes/db-statement-members`): a refused set
     /// does not end the batch, the sets behind it are still attempted, and the
     /// **first** refusal is what the batch answers with.
     ///
@@ -1099,7 +1121,7 @@ mod tests {
             state.get(),
             State::Idle,
             "a set the server refused leaves the connection at a boundary, so the batch \
-             could carry on and § 13 can still pool it"
+             could carry on and the pool can still keep it"
         );
     }
 
@@ -1135,7 +1157,7 @@ mod tests {
         assert_eq!(depth.get(), 1);
         assert!(
             span.sql().is_empty(),
-            "§ 11's event for a commit that sent nothing names no statement"
+            "the trace event for a commit that sent nothing names no statement"
         );
         commit(&mut wire, &state, &depth, &moved).expect("the outermost commit");
         assert_eq!(depth.get(), 0);
@@ -1153,7 +1175,8 @@ mod tests {
         );
     }
 
-    /// § 7's descriptor rides every request after the `BEGIN` that opened it —
+    /// An open transaction's descriptor rides every request after the `BEGIN`
+    /// that opened it —
     /// the batch commands this driver writes itself and the RPC a program's
     /// statement goes out as, alike.
     ///
@@ -1213,7 +1236,8 @@ mod tests {
         );
     }
 
-    /// § 13's reset is the one request that names no transaction however deep
+    /// The pool's reset (`rule:security/db-pool-reset-is-a-boundary`) is the
+    /// one request that names no transaction however deep
     /// the session was, because the bit it carries has already ended one.
     ///
     /// [`Status::RESET_CONNECTION`] is honoured *before* the request it rides is
@@ -1281,14 +1305,15 @@ mod tests {
         assert!(sent[0].1.contains(Status::RESET_CONNECTION));
     }
 
-    /// § 7's `{isolation}` on the one backend where it is a **session** setting:
+    /// `transaction()`'s `{isolation}` on the one backend where it is a
+    /// **session** setting:
     /// it is put back when the outermost transaction ends, and a transaction
     /// that asked for nothing pays for none of it.
     ///
     /// The restore is what the other drivers do not need and what
-    /// `sp_reset_connection` does not cover — § 13 resets a connection on its way
-    /// back to the pool, and a second `transaction()` in the *same request* never
-    /// goes near it. Without the restore here, that second transaction would
+    /// `sp_reset_connection` does not cover — the pool resets a connection on
+    /// its way back (`rule:security/db-pool-reset-is-a-boundary`), and a second
+    /// `transaction()` in the *same request* never goes near it. Without the restore here, that second transaction would
     /// silently run `SERIALIZABLE`.
     #[test]
     fn a_session_isolation_level_is_put_back_when_the_outermost_transaction_ends() {
@@ -1309,7 +1334,7 @@ mod tests {
         assert!(moved.get(), "the session no longer sits at its default");
         assert!(
             span.sql().contains("SERIALIZABLE") && span.sql().contains(BEGIN_TRANSACTION),
-            "§ 11's event names both round trips the level cost: {}",
+            "the trace event names both round trips the level cost: {}",
             span.sql()
         );
 
@@ -1333,12 +1358,12 @@ mod tests {
         );
     }
 
-    /// The refusals § 7 owes a program on this backend, none of which touches
-    /// the wire.
+    /// The refusals `rule:core-classes/db-transactions` owes a program on this
+    /// backend, none of which touches the wire.
     ///
     /// **`readOnly` is refused rather than dropped**: SQL Server has no
-    /// read-only transaction, and every other backend § 7 reaches enforces the
-    /// option — a driver that accepted it and opened an ordinary writable
+    /// read-only transaction, and every other backend that `transaction()`
+    /// reaches enforces the option — a driver that accepted it and opened an ordinary writable
     /// transaction would give a program the word without the guarantee. The
     /// nested one is [`crate::mysql::begin`]'s, for a reason this backend states
     /// more strongly: the level is not the nested transaction's to set, being the
@@ -1382,7 +1407,8 @@ mod tests {
     /// refused ends the transaction with the level still moved.
     ///
     /// The depth follows the connection where the server took it —
-    /// [`crate::mysql::commit`]'s rule — so § 7's `{ retries: n }` opens the next
+    /// [`crate::mysql::commit`]'s rule — so `transaction()`'s `{ retries: n }`
+    /// opens the next
     /// attempt with a `BEGIN TRANSACTION`. What this pins is that the restore
     /// rides that begin instead of the commit that could not carry it: the error
     /// the caller sees stays the server's own, and the next transaction still
@@ -1433,7 +1459,8 @@ mod tests {
 
     /// The parked form of a walk, which is the whole point of splitting the read
     /// state off the borrow: the cursor is a local of its own, and every row is
-    /// read through a **fresh** borrow of the wire, the state and § 1's cache.
+    /// read through a **fresh** borrow of the wire, the state and the plan
+    /// cache.
     ///
     /// The compiler is half the assertion, as it is in `crate::mysql`'s
     /// `mysql_stream_parks_its_read_and_answers_one_row_per_step`. A [`TdsRows`]
@@ -1442,7 +1469,7 @@ mod tests {
     /// holding a walk across `advance()` calls needs, the connection going back
     /// to the request in between. The other half is the run: one row per step,
     /// in order, the connection busy for as long as rows remain, and the `DONE`
-    /// leaving it idle with § 1's plan filed on the way past.
+    /// leaving it idle with the statement's plan filed on the way past.
     #[test]
     fn tds_stream_parks_its_read_and_answers_one_row_per_step() {
         const SQL: &str = "select v";
@@ -1450,7 +1477,7 @@ mod tests {
         answer.extend_from_slice(&row_token(&[7i32.to_le_bytes().to_vec()]));
         answer.extend_from_slice(&row_token(&[9i32.to_le_bytes().to_vec()]));
         // The tokens a `sp_prepexec` ends with, the handle among them: a walk
-        // that is nobody's borrow still files § 1's plan, and the step that
+        // that is nobody's borrow still files its plan, and the step that
         // reads the `RETURNVALUE` is where.
         answer.extend_from_slice(&prepexec_answer(3));
 
@@ -1492,7 +1519,7 @@ mod tests {
         assert_eq!(
             cache.lookup(SQL, 0).map(|plan| plan.handle),
             Some(3),
-            "the parked walk filed no plan under § 1's key"
+            "the parked walk filed no plan under the plan cache's key"
         );
     }
 }

@@ -68,10 +68,11 @@ pub(super) const OPT1_USE_DB_NOTIFY: u8 = 0x20;
 /// which leaves the connection open in whichever database the server made this
 /// login's default. [`TdsTarget::database`] is required precisely so that a
 /// connection cannot mean whatever that was, and a warning would give the
-/// field away at the last moment: § 13's pool would then hold connections
-/// whose database depends on server-side state no pool key covers, and a
-/// request would read the right rows or the wrong ones depending on how the
-/// login was provisioned.
+/// field away at the last moment: the pool would then hold connections whose
+/// database depends on server-side state no pool key
+/// (`rule:security/db-pool-reset-is-a-boundary`) covers, and a request would
+/// read the right rows or the wrong ones depending on how the login was
+/// provisioned.
 pub(super) const OPT1_INIT_DB_FATAL: u8 = 0x40;
 
 /// `fLanguage`: the same reading for the language, which this driver never
@@ -88,18 +89,20 @@ pub(super) const OPT2_INIT_LANG_FATAL: u8 = 0x01;
 ///
 /// The server answers it by setting `ANSI_DEFAULTS` on, `IMPLICIT_TRANSACTIONS`
 /// off, `TEXTSIZE` to its maximum and `ROWCOUNT` to unlimited, and two of those
-/// are load-bearing. Implicit transactions off is what makes `rule:core-classes/db-transactions`'s `transaction()` the only thing that ever
-/// opens a transaction on this connection — with them on, a bare `SELECT`
-/// opens one nothing commits, and § 13's reset would be destroying a connection
-/// per request. `ROWCOUNT` unlimited is what stops a server-side default from
-/// silently truncating a result set.
+/// are load-bearing. Implicit transactions off is what makes
+/// `rule:core-classes/db-transactions`'s `transaction()` the only thing that
+/// ever opens a transaction on this connection — with them on, a bare `SELECT`
+/// opens one nothing commits, and the pool's reset would be destroying a
+/// connection per request. `ROWCOUNT` unlimited is what stops a server-side
+/// default from silently truncating a result set.
 pub(super) const OPT2_ODBC: u8 = 0x02;
 
 /// `fUnknownCollationHandling`: this client accepts a collation newer than the
 /// ones TDS 7.0 knew about.
 ///
-/// Nothing here reads a collation — § 9's map decodes a column by its type —
-/// so what the bit buys is that the server is never pushed into describing one
+/// Nothing here reads a collation — the type map
+/// (`rule:core-classes/db-column-types`) decodes a column by its type — so
+/// what the bit buys is that the server is never pushed into describing one
 /// the older, lossier way on this client's account.
 pub(super) const OPT3_UNKNOWN_COLLATION: u8 = 0x08;
 
@@ -196,8 +199,9 @@ pub(super) fn placed(
 /// **Everything an eavesdropper would want is in it**, and only the password
 /// is disguised at all: the nibble swap and [`PASSWORD_XOR`] are public and
 /// reversible, so this message is a credential in the clear unless
-/// [`negotiate_tls`] has already run. That is the whole reason § 3's TLS is
-/// mandatory rather than defaulted on this backend. The returned buffer holds
+/// [`negotiate_tls`] has already run. That is the whole reason TLS
+/// (`rule:core-classes/db-safe-connection-defaults`) is mandatory rather than
+/// defaulted on this backend. The returned buffer holds
 /// that credential and nothing zeroes it — deliberately, since the plaintext
 /// it was built from lives in the configuration tree for the process's life,
 /// and zeroing the copy while the source stays would be a gesture rather than
@@ -210,7 +214,7 @@ pub(super) fn placed(
 /// The fields that go out empty are each a decision. `HostName` is the
 /// *client's* machine name, which nothing approved this driver to read and
 /// which no server acts on; `Language` is empty so the server's own default
-/// governs, and § 8 reads error numbers rather than message text; `SSPI`
+/// governs, and `DbError` reads error numbers rather than message text; `SSPI`
 /// belongs to integrated security, which [`OPTION_FLAGS_2`] turns off;
 /// `AtchDBFile` attaches a database file by path, which is a capability
 /// nothing in `rule:core-classes/db-one-api` grants; and `ChangePassword` changes the login's
@@ -258,8 +262,8 @@ pub fn login7_request(target: &TdsTarget<'_>, packet_size: u16) -> io::Result<Ve
     out.push(TYPE_FLAGS);
     out.push(OPTION_FLAGS_3);
     // `ClientTimZone`. MS-TDS documents it as unused, and this is the one
-    // driver with nowhere to send [`TdsTarget::time_zone`] anyway: § 9's zone
-    // decodes rows here rather than configuring a session.
+    // driver with nowhere to send [`TdsTarget::time_zone`] anyway: the declared
+    // zone decodes rows here rather than configuring a session.
     out.extend_from_slice(&0i32.to_le_bytes());
     out.extend_from_slice(&CLIENT_LCID.to_le_bytes());
 
@@ -367,7 +371,8 @@ mod tests {
         }
     }
 
-    /// § 3's reason the TLS is not optional, asserted from the wire side.
+    /// The reason TLS is not optional on this backend, asserted from the wire
+    /// side.
     #[test]
     fn a_password_is_nibble_swapped_and_xored_and_is_nowhere_in_the_message_in_the_clear() {
         let message = login7(&block());
@@ -414,7 +419,7 @@ mod tests {
         assert_eq!(
             message[25] & OPT2_ODBC,
             OPT2_ODBC,
-            "implicit transactions off is what makes § 7's `transaction()` the only transaction"
+            "implicit transactions off is what makes `transaction()` the only transaction"
         );
         assert_eq!(message[24], OPTION_FLAGS_1);
         assert_eq!(message[25], OPTION_FLAGS_2);
@@ -424,7 +429,7 @@ mod tests {
         assert_eq!(
             message[28..32],
             0i32.to_le_bytes(),
-            "the block declares +02:00 and § 9's zone still decodes rows rather than \
+            "the block declares +02:00 and the declared zone still decodes rows rather than \
              configuring a session there is no setting for"
         );
     }

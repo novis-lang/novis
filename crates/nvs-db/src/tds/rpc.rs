@@ -2,10 +2,12 @@
 //! and a bare batch, with the parameter encoding they carry.
 //!
 //! A parameter goes out in one of two forms [`Bound`] names: `nvarchar` for
-//! everything the server can cast from text, and `varbinary` for `rule:core-classes/db-column-types`'s `bytes`, which no text form recovers. The
-//! declaration is therefore a function of the values a call binds and not of
-//! the statement alone, which is what [`TdsPlan::declared`](super::TdsPlan)
-//! compares rather than § 1's cache key carrying a type per marker.
+//! everything the server can cast from text, and `varbinary` for
+//! `rule:core-classes/db-column-types`'s `bytes`, which no text form recovers.
+//! The declaration is therefore a function of the values a call binds and not
+//! of the statement alone, which is what [`TdsPlan::declared`](super::TdsPlan)
+//! compares rather than the statement cache's key
+//! (`rule:core-classes/db-one-api`) carrying a type per marker.
 //! [`all_headers`] is the transaction descriptor every request after a `BEGIN`
 //! must carry.
 //!
@@ -53,10 +55,11 @@ pub(super) const RESET_STATEMENT: &str = "select 1";
 /// here for an option to ask for ([`begin`]).
 pub(super) const BEGIN_TRANSACTION: &str = "BEGIN TRANSACTION";
 
-/// § 7's outermost commit.
+/// The outermost commit of a `transaction()`
+/// (`rule:core-classes/db-transactions`).
 pub(super) const COMMIT_TRANSACTION: &str = "COMMIT TRANSACTION";
 
-/// § 7's outermost rollback.
+/// The outermost rollback of a `transaction()`.
 pub(super) const ROLLBACK_TRANSACTION: &str = "ROLLBACK TRANSACTION";
 
 /// The level a session sits at when nothing has moved it, and what [`begin`],
@@ -122,28 +125,30 @@ pub(super) const BINARY_MARK: u8 = 0xFF;
 pub(super) const NO_COLLATION: [u8; 5] = [0; 5];
 
 /// `rule:core-classes/db-one-api`'s prepare and execute in
-/// one message: `sp_prepexec`, carrying § 5's rewritten SQL and its parameters
-/// as the procedure's own arguments.
+/// one message: `sp_prepexec`, carrying the SQL as the marker rewriter left it
+/// (`rule:core-classes/db-parameters`) and its parameters as the procedure's
+/// own arguments.
 ///
-/// **`sp_prepexec` rather than `sp_executesql` because § 1 keeps a statement
-/// cache.** Both send the SQL and the parameters in one round trip; only this
-/// one hands back a handle, and the handle is what a later `sp_execute` costs
-/// nothing to run. The first execution of a statement is therefore one round
-/// trip here — where § 1 records two for MySQL — and a cached one is one as
-/// well, with no SQL on the wire at all.
+/// **`sp_prepexec` rather than `sp_executesql` because every connection keeps a
+/// statement cache.** Both send the SQL and the parameters in one round trip;
+/// only this one hands back a handle, and the handle is what a later
+/// `sp_execute` costs nothing to run. The first execution of a statement is
+/// therefore one round trip here — where MySQL takes two — and a cached one is
+/// one as well, with no SQL on the wire at all.
 ///
 /// **A parameter with a text form goes out as `nvarchar` and the server casts
 /// it**, which is [`crate::mysql::execute`]'s `MYSQL_TYPE_VAR_STRING` account
 /// reached through a different protocol: the values arrive here already encoded
 /// by the layer that knows what they are, and no byte of one is ever parsed as
-/// SQL — § 1's no-emulated-prepares rule holds as a property of this function,
-/// since `sql` is a separate argument to the procedure and never a string a
-/// value is spliced into. The `@params` declaration beside it is what makes the
-/// cast the *server's* decision rather than a guess: it names each marker's
-/// type, and [`Dialect::marker`] is asked for the names so that the declaration
-/// and the rewritten SQL cannot drift apart.
+/// SQL — `rule:core-classes/db-one-api`'s no emulated prepares holds as a
+/// property of this function, since `sql` is a separate argument to the
+/// procedure and never a string a value is spliced into. The `@params`
+/// declaration beside it is what makes the cast the *server's* decision rather
+/// than a guess: it names each marker's type, and [`Dialect::marker`] is asked
+/// for the names so that the declaration and the rewritten SQL cannot drift
+/// apart.
 ///
-/// **§ 9's `bytes` is the one row with no text form, so it is declared
+/// **`bytes` is the one type with no text form, so it is declared
 /// `varbinary` and written as its own octets** — `nvarchar` → `varbinary` on
 /// SQL Server is a reinterpretation of UCS-2 code units rather than a parse, so
 /// there is nothing for a cast to recover. That makes the declaration a function
@@ -175,10 +180,10 @@ pub fn sp_prepexec_request(
 /// casts back to. The form is decided in [`encode`], where the value's tag is
 /// still in hand, and carried from there to the two places that act on it.
 pub(super) enum Bound {
-    /// UCS-2LE, under an `nvarchar` declaration — every § 9 row but one.
+    /// UCS-2LE, under an `nvarchar` declaration — every column type but one.
     Text(Vec<u8>),
-    /// The value's own octets, under a `varbinary` declaration — § 9's
-    /// `BINARY`/`BLOB`/`BYTEA` row.
+    /// The value's own octets, under a `varbinary` declaration — the
+    /// `BINARY`/`BLOB`/`BYTEA` row of the type map.
     Binary(Vec<u8>),
 }
 
@@ -186,8 +191,8 @@ pub(super) enum Bound {
 /// marker one of them was bound at.
 ///
 /// Done once per statement and before anything is written, so a refusal costs
-/// no bytes on the wire and choosing between § 1's request shapes does not
-/// repeat the conversion.
+/// no bytes on the wire and choosing between a first execution and a cached one
+/// does not repeat the conversion.
 ///
 /// A value [`encode`] marked is binary and the mark is dropped here, since it
 /// is a form and never a byte of the value; everything else is text and is
@@ -213,14 +218,16 @@ pub(super) fn bind(params: &[Option<&[u8]>]) -> io::Result<Vec<Option<Bound>>> {
 ///
 /// Every RPC body goes through here, which is why `descriptor` is taken here
 /// rather than defaulted: a request shape added later cannot forget the header
-/// § 7 needs, because it cannot be built without naming the transaction.
+/// a transaction needs, because it cannot be built without naming the
+/// transaction.
 pub(super) fn rpc_header(proc_id: u16, descriptor: u64) -> Vec<u8> {
     let mut out = Vec::new();
     all_headers(&mut out, descriptor);
     out.extend_from_slice(&PROC_ID_SWITCH.to_le_bytes());
     out.extend_from_slice(&proc_id.to_le_bytes());
     // `OptionFlags`: neither `fWithRecomp` nor the two metadata ones. A
-    // recompile on every execution is the opposite of what § 1's cache is for.
+    // recompile on every execution is the opposite of what the statement cache
+    // is for.
     out.extend_from_slice(&0u16.to_le_bytes());
     out
 }
@@ -245,7 +252,7 @@ pub(super) fn prepexec_request(
     Ok(out)
 }
 
-/// § 1's cached re-execution: `sp_execute`, naming the plan the server already
+/// A cached re-execution: `sp_execute`, naming the plan the server already
 /// holds and carrying the same values in the same order.
 ///
 /// **No SQL and no `@params`.** The plan already knows both, which is the whole
@@ -270,7 +277,8 @@ pub(super) fn execute_request(
     Ok(out)
 }
 
-/// § 1's eviction: `sp_unprepare`, dropping one plan the server is holding.
+/// A statement cache eviction: `sp_unprepare`, dropping one plan the server is
+/// holding.
 ///
 /// Sent as a message of its own and read to its `DONEPROC`, unlike MySQL's
 /// `COM_STMT_CLOSE`, which answers nothing. Every TDS request has an answer, so
@@ -286,12 +294,12 @@ pub(super) fn unprepare_request(handle: i32, descriptor: u64) -> Vec<u8> {
 /// The `SQL_BATCH` message one text goes out as, carrying no headers of its own
 /// beyond the transaction descriptor every request needs.
 ///
-/// Every caller is this driver's own text: § 13's
-/// [`RESET_STATEMENT`] and § 7's commands. **No caller's SQL ever reaches this
-/// function** — a program's statement is an `sp_prepexec` with its values as
-/// parameters ([`start_statement`]), which is § 1's no-emulated-prepares rule,
-/// and the only thing composed into a batch here is a savepoint name this
-/// module minted.
+/// Every caller is this driver's own text: the pool's [`RESET_STATEMENT`]
+/// (`rule:security/db-pool-reset-is-a-boundary`) and the transaction commands.
+/// **No caller's SQL ever reaches this function** — a program's statement is an
+/// `sp_prepexec` with its values as parameters ([`start_statement`]), which is
+/// `rule:core-classes/db-one-api`'s no emulated prepares, and the only thing
+/// composed into a batch here is a savepoint name this module minted.
 pub(super) fn batch_request(sql: &str, descriptor: u64) -> Vec<u8> {
     let mut out = Vec::new();
     all_headers(&mut out, descriptor);
@@ -299,8 +307,8 @@ pub(super) fn batch_request(sql: &str, descriptor: u64) -> Vec<u8> {
     out
 }
 
-/// One argument per marker, in § 5's order, for whichever procedure takes
-/// them, each written in the form [`bind`] gave it.
+/// One argument per marker, in the statement's order, for whichever procedure
+/// takes them, each written in the form [`bind`] gave it.
 ///
 /// A null is sent as the `nvarchar` one: it carries no octets, so there is
 /// nothing about it that wants the binary form, and [`declarations`] declares it
@@ -373,19 +381,21 @@ pub(super) fn all_headers(out: &mut Vec<u8>, descriptor: u64) {
     out.extend_from_slice(&TRANSACTION_HEADER_BYTES.to_le_bytes());
     out.extend_from_slice(&HEADER_TRANSACTION.to_le_bytes());
     out.extend_from_slice(&descriptor.to_le_bytes());
-    // `OutstandingRequestCount`: one, which is all § 4 ever allows in flight.
+    // `OutstandingRequestCount`: one, which is all a connection ever has in
+    // flight (`rule:core-classes/db-connection-busy-state`).
     out.extend_from_slice(&1u32.to_le_bytes());
 }
 
-/// `sp_prepexec`'s `@params`: § 5's markers with the type each is sent as, or
-/// `None` for a statement that binds nothing — which the procedure reads as a
-/// plan with no parameters, and an empty string would not.
+/// `sp_prepexec`'s `@params`: the statement's markers with the type each is
+/// sent as, or `None` for a statement that binds nothing — which the procedure
+/// reads as a plan with no parameters, and an empty string would not.
 ///
 /// **What this answers is a function of the values and not of the statement
 /// alone**, in two ways: a text value past [`NVARCHAR_CHARS`] widens its marker
 /// to the `MAX` form, and a [`Bound::Binary`] declares `varbinary` where every
-/// other row of § 9's table declares `nvarchar`. § 1's cache is keyed on the SQL
-/// text and the expansion arity, which cannot tell those apart, so
+/// other type declares `nvarchar`. The statement cache is keyed on the SQL text
+/// and the expansion arity (`rule:core-classes/db-one-api`), which cannot tell
+/// those apart, so
 /// [`TdsPlan::declared`](super::TdsPlan) carries this string and compares it on
 /// every lookup — one driver's reason to reject a hit rather than another way to
 /// spell the key.
@@ -569,13 +579,13 @@ pub(super) fn binary_param(out: &mut Vec<u8>, octets: &[u8], what: &str) -> io::
 ///   `varbinary` has no text input form a cast recovers — `'0x61'` casts to the
 ///   four characters and not to the octet — so the octets go out as themselves,
 ///   under [`BINARY_MARK`], and [`binary_param`] writes them beside the
-///   `nvarchar` arguments. Never as a `0x…` literal in the statement, which is §
-///   1's *no emulated prepares* and would be an injection this driver spelled
-///   itself.
+///   `nvarchar` arguments. Never as a `0x…` literal in the statement, which
+///   would break `rule:core-classes/db-one-api`'s *no emulated prepares* and be
+///   an injection this driver spelled itself.
 ///
-/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
+/// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: its
 /// marker has expanded into one bound value per element by the time a statement
-/// has its bind list.
+/// has its bind list (`rule:core-classes/db-parameters`).
 ///
 /// # Errors
 ///
@@ -706,10 +716,11 @@ mod tests {
         assert_eq!(params[2].text.as_deref(), Some("select 1"));
     }
 
-    /// Agreement, over § 5's own rewriter: the names `@params` declares are the
-    /// names the rewritten SQL uses, because both ask [`Dialect::marker`].
+    /// Agreement, over the marker rewriter itself: the names `@params` declares
+    /// are the names the rewritten SQL uses, because both ask
+    /// [`Dialect::marker`].
     #[test]
-    fn a_declarations_markers_are_the_ones_section_fives_rewriter_wrote() {
+    fn a_declarations_markers_are_the_ones_the_marker_rewriter_wrote() {
         let statement = crate::sql::rewrite(
             "insert into t values (?, ?, ?)",
             crate::sql::Params::Positional(&[
@@ -959,7 +970,8 @@ mod tests {
         assert_eq!(params[3].text.as_deref(), Some("7"));
     }
 
-    /// § 4's one statement at a time, held here rather than by every caller —
+    /// One statement at a time (`rule:core-classes/db-connection-busy-state`),
+    /// held here rather than by every caller —
     /// and a request this driver would not build never reaches the wire, so the
     /// connection it was refused on is still usable.
     #[test]
@@ -1001,7 +1013,7 @@ mod tests {
         ];
         for (value, octets) in sent {
             assert_eq!(
-                encode(value).expect("a value § 9 binds"),
+                encode(value).expect("a value of a mapped type binds"),
                 Some(octets),
                 "bound as SQL Server reads it"
             );
@@ -1017,7 +1029,7 @@ mod tests {
             "`t` is not a `bit`, so the two drivers must not agree here"
         );
 
-        // § 9's `bytes` row: the octets themselves under the mark that says
+        // The `bytes` type: the octets themselves under the mark that says
         // which form they are, and never PostgreSQL's hex rendering of them.
         let bytes = Value::bytes(nvs_runtime::NvsStr::new(&[0x00, 0x61, 0xFF]));
         let marked = encode(bytes)

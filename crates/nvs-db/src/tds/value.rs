@@ -61,8 +61,9 @@ impl TdsRow {
     ///
     /// **The two `None`s are two different facts**, which is why they are
     /// nested rather than flattened: the outer one is a column the result set
-    /// does not have, and the inner one is SQL `NULL` — § 9's `?T`, and the
-    /// only one of the two a program can see.
+    /// does not have, and the inner one is SQL `NULL` — the `?T` of
+    /// `rule:core-classes/db-column-types`, and the only one of the two a
+    /// program can see.
     #[must_use]
     pub fn column(&self, index: usize) -> Option<Option<&[u8]>> {
         self.values
@@ -142,7 +143,7 @@ impl std::fmt::Debug for TdsTime {
 /// is also why the borrow is narrower than [`crate::PgScalar`]'s — a `bytes` is
 /// the row's own octets rather than something unescaped into a buffer.
 pub enum TdsScalar<'a> {
-    /// SQL `NULL`: the row of § 9's table that makes every column `?T`.
+    /// SQL `NULL`: the row of the table that makes every column `?T`.
     Null,
     /// `bit`.
     Bool(bool),
@@ -150,8 +151,8 @@ pub enum TdsScalar<'a> {
     Int(i64),
     /// `real`/`float`.
     Float(f64),
-    /// `decimal`/`numeric`, and `money`/`smallmoney` — which § 9's table puts
-    /// on this row too, and which are a scaled integer on the wire rather than
+    /// `decimal`/`numeric`, and `money`/`smallmoney` — which the table puts on
+    /// this row too, and which are a scaled integer on the wire rather than
     /// a `numeric` with a sign byte.
     Decimal(Decimal),
     /// A `tainted string`'s text, already proven well-formed UTF-8.
@@ -167,8 +168,8 @@ pub enum TdsScalar<'a> {
     Date(TdsDate),
     /// `time`, which is a `Core\Time\TimeOfDay`.
     Time(TdsTime),
-    /// `datetime`, `smalldatetime` and `datetime2`: § 9's zone-less row, a
-    /// `Core\Time\DateTime` in the zone [`TdsTarget::time_zone`] declared.
+    /// `datetime`, `smalldatetime` and `datetime2`: the table's zone-less row,
+    /// a `Core\Time\DateTime` in the zone [`TdsTarget::time_zone`] declared.
     DateTime {
         /// The civil date, as stored.
         date: TdsDate,
@@ -196,9 +197,9 @@ pub enum TdsScalar<'a> {
 }
 
 impl std::fmt::Debug for TdsScalar<'_> {
-    /// Which row of § 9's table this landed on, and never the value: a column
-    /// in flight is one request's data, which is the rule [`TdsRow`]'s own
-    /// rendering holds.
+    /// Which row of `rule:core-classes/db-column-types`'s table this landed on,
+    /// and never the value: a column in flight is one request's data, which is
+    /// the rule [`TdsRow`]'s own rendering holds.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             TdsScalar::Null => "null",
@@ -221,8 +222,8 @@ impl TdsScalar<'_> {
     /// The Novis value, taking on the one reference a `string` or a `bytes`
     /// costs and nothing at all for the rest.
     ///
-    /// `None` for § 9's five structured rows, whose Novis type is a class
-    /// instance this crate cannot allocate at all — [`TdsDate`] owns why. A
+    /// `None` for the type table's five structured rows, whose Novis type is a
+    /// class instance this crate cannot allocate at all — [`TdsDate`] owns why. A
     /// caller that wants the whole table matches those five variants first and
     /// reaches this for everything left, exactly as it does on the other two
     /// drivers.
@@ -240,8 +241,8 @@ impl TdsScalar<'_> {
     }
 }
 
-/// One column's value as the Novis value § 9's table names, or `None` for the
-/// rows that are class instances.
+/// One column's value as the Novis value `rule:core-classes/db-column-types`'s
+/// table names, or `None` for the rows that are class instances.
 ///
 /// [`crate::mysql::decode`]'s twin, and free rather than a method for the same
 /// reason: the subject of the match is [`TdsColumn::type_info`], and the value
@@ -258,7 +259,7 @@ pub fn decode_column(column: &TdsColumn, value: Option<&[u8]>) -> io::Result<Opt
 }
 
 /// [`decode`]'s whole decision, before anything is allocated, and every row of
-/// § 9's table rather than the scalar half.
+/// the type table rather than the scalar half.
 ///
 /// `nvs-stdlib` calls this one: it is the only crate that can turn a
 /// [`TdsDate`] and its three siblings into the `Core\Time` instances the table
@@ -309,8 +310,9 @@ pub fn scalar<'a>(column: &TdsColumn, value: Option<&'a [u8]>) -> io::Result<Tds
     Ok(match info.id {
         TY_NULL => TdsScalar::Null,
         TY_BIT | TY_BITN => TdsScalar::Bool(octets::<1>(bytes, name, "a `bit`")?[0] != 0),
-        // `tinyint` is the unsigned one, and it is the reason § 9's `uint` row
-        // is not reachable on this driver: every value of it fits an `int`.
+        // `tinyint` is the unsigned one, and it is the reason the type table's
+        // `uint` row is not reachable on this driver: every value of it fits an
+        // `int`.
         TY_INT1 => TdsScalar::Int(i64::from(octets::<1>(bytes, name, "a `tinyint`")?[0])),
         TY_INT2 => TdsScalar::Int(i64::from(i16::from_le_bytes(octets(
             bytes,
@@ -384,7 +386,7 @@ pub fn scalar<'a>(column: &TdsColumn, value: Option<&'a [u8]>) -> io::Result<Tds
         }
         // `char`, `varchar`, `text` — and every type byte this driver has no
         // row for, which `TdsColumn::column_type` already answers `Other` for
-        // and § 9's last row reads as a `tainted string`.
+        // and the type table's last row reads as a `tainted string`.
         _ => TdsScalar::Text(Cow::Borrowed(narrow_text(bytes, name)?)),
     })
 }
@@ -753,9 +755,10 @@ mod tests {
     use super::*;
     use crate::tds::testing::*;
 
-    /// [`scalar`] and [`TdsColumn::column_type`] answer the same row of § 9's
-    /// table for every type this driver reads, and [`TdsScalar::into_value`]
-    /// answers `None` for exactly the five rows that are class instances.
+    /// [`scalar`] and [`TdsColumn::column_type`] answer the same row of
+    /// `rule:core-classes/db-column-types`'s table for every type this driver
+    /// reads, and [`TdsScalar::into_value`] answers `None` for exactly the five
+    /// rows that are class instances.
     ///
     /// The *agreement* shape rather than a row of expected values: the two
     /// functions are two independent tables over one type byte, and a decoder
@@ -808,7 +811,8 @@ mod tests {
         for (id, scale, octets) in sent {
             let column = described(id, scale);
             let published = column.column_type();
-            let decoded = scalar(&column, Some(&octets)).expect("a value § 9 has a row for");
+            let decoded = scalar(&column, Some(&octets))
+                .expect("a value the column-type table has a row for");
             assert_eq!(
                 format!("{decoded:?}"),
                 match published {
@@ -822,7 +826,7 @@ mod tests {
                     ColumnType::Time => "time",
                     ColumnType::DateTime => "datetime",
                     ColumnType::Instant => "instant",
-                    // § 9's last row, which is where `xml` lands.
+                    // The type table's last row, which is where `xml` lands.
                     ColumnType::Text | ColumnType::Other => "string",
                     other => panic!("no SQL Server column answers {other:?}"),
                 },
@@ -865,7 +869,7 @@ mod tests {
         // `money` puts its high four bytes first, and nothing else in TDS does.
         let raw = [0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00];
         let TdsScalar::Decimal(exact) =
-            scalar(&described(TY_MONEY, 0), Some(&raw)).expect("a `money` § 9 maps to `decimal`")
+            scalar(&described(TY_MONEY, 0), Some(&raw)).expect("a `money` maps to `decimal`")
         else {
             panic!("a `money` is not a `decimal`");
         };

@@ -349,8 +349,8 @@ pub(super) fn one_column(type_info: &[u8]) -> io::Result<TdsColumn> {
 }
 
 /// A `TYPE_INFO` for every type byte this driver reads, with the length
-/// family MS-TDS gives it and the § 9 row it classifies as. The sweeps below
-/// share it, which is what makes them ask about one table.
+/// family MS-TDS gives it and the column type it classifies as. The sweeps
+/// below share it, which is what makes them ask about one table.
 pub(super) fn every_type_info() -> Vec<(Vec<u8>, Length, ColumnType)> {
     vec![
         (vec![TY_NULL], Length::Fixed(0), ColumnType::Other),
@@ -483,7 +483,7 @@ pub(super) fn chunked(payload: &[u8], at: usize) -> Vec<Vec<u8>> {
     payload.chunks(at).map(<[u8]>::to_vec).collect()
 }
 
-/// The span every case here opens, since none of them is about § 11.
+/// The span every case here opens, since none of them is about tracing.
 pub(super) fn span() -> QuerySpan {
     QuerySpan::opened(Driver::SqlServer, "select 1")
 }
@@ -599,7 +599,7 @@ pub(super) fn drain_rows(rows: &mut TdsRows<'_, Script>) -> io::Result<Vec<TdsRo
     Ok(out)
 }
 
-// ---- The RPC out, and the two tokens a procedure answers with: §§ 1 and 5 -
+// ---- The RPC out, and the two tokens a procedure answers with -------------
 
 /// One argument of an RPC, read back off the request that carried it.
 #[derive(Debug, PartialEq, Eq)]
@@ -788,7 +788,7 @@ pub(super) fn described(id: u8, scale: u8) -> TdsColumn {
     }
 }
 
-/// An empty § 1 cache of `capacity` plans.
+/// An empty statement cache of `capacity` plans.
 pub(super) fn plans(capacity: usize) -> StatementCache<TdsPlan> {
     StatementCache::new(capacity)
 }
@@ -805,8 +805,8 @@ pub(super) fn answering_each(answers: &[Vec<u8>]) -> Wire<Script> {
 
 /// Every message the driver flushed, reassembled from the packets it wrote.
 ///
-/// `Script` records one stream of bytes, and § 1's cache is asserted on the
-/// *sequence* of requests rather than on any one of them: which procedure
+/// `Script` records one stream of bytes, and the statement cache is asserted on
+/// the *sequence* of requests rather than on any one of them: which procedure
 /// went out, in what order, is the whole of what a hit and an eviction are.
 /// Messages and not packets, because a `nvarchar(max)` value is longer than
 /// the negotiated packet size and a request counted in packets would make a
@@ -870,14 +870,18 @@ pub(super) fn batches(sent: &[u8]) -> Vec<String> {
     flushed(sent)
         .iter()
         .map(|(kind, _, body)| {
-            assert_eq!(*kind, PacketType::SqlBatch, "§ 7's commands are batches");
+            assert_eq!(
+                *kind,
+                PacketType::SqlBatch,
+                "the transaction commands are batches"
+            );
             batch_text(body)
         })
         .collect()
 }
 
-/// A `DONE` for a command that counted nothing, which is what every one of
-/// § 7's answers with.
+/// A `DONE` for a command that counted nothing, which is what every
+/// transaction command answers with.
 pub(super) fn done() -> Vec<u8> {
     done_token(0, 0)
 }

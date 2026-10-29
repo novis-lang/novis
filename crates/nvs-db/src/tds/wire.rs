@@ -16,7 +16,8 @@ use super::*;
 /// substitutes anything that reads and writes.
 ///
 /// That default carries a [`Tunnel`] where the other drivers' carry the socket
-/// itself, and it is not decoration: § 3's TLS handshake is *tunnelled* here,
+/// itself, and it is not decoration: the TLS handshake
+/// (`rule:core-classes/db-safe-connection-defaults`) is *tunnelled* here,
 /// so the `rustls` session a live connection ends up holding was handshaken
 /// over the framing rather than over the socket. [`TdsConn::connect`] is where
 /// that type is built, and [`negotiate_tls`] is what answers it.
@@ -34,8 +35,8 @@ pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// already holds the wire. A `Cell` on the connection would be the same
     /// value threaded through every signature that has it in hand — and one of
     /// them, [`TdsRows`], reads its tokens with nothing but the wire borrowed.
-    /// The depth stays on the connection because § 7's *nesting* is this
-    /// driver's own accounting; the descriptor is the server's.
+    /// The depth stays on the connection because a transaction's *nesting* is
+    /// this driver's own accounting; the descriptor is the server's.
     descriptor: u64,
     /// Whether the last failure was a read this end stopped — its deadline
     /// passed, or its task was cancelled — with every write whole.

@@ -235,17 +235,17 @@ impl TdsColumn {
     /// Server's `bit` *is* one bit — `BIT(n>1)` is not a type it has — so the
     /// byte is the answer and the width is never consulted.
     ///
-    /// Two more of § 9's rows fall out of the same table. `uniqueidentifier` is
+    /// Two more of that rule's rows fall out of the same table. `uniqueidentifier` is
     /// [`ColumnType::Uuid`] rather than [`ColumnType::Bytes`], unlike MySQL's
     /// `BINARY(16)`, because it is a type of its own here. And nothing answers
     /// [`ColumnType::Json`]: SQL Server through 2022 stores JSON in an
     /// `nvarchar` with a `CHECK` constraint, so a JSON column *is* a text
-    /// column and § 9's rule that JSON is never auto-decoded is what makes that
+    /// column and the rule that JSON is never auto-decoded is what makes that
     /// the honest answer rather than a lost one.
     ///
     /// [`ColumnType::Uint`] is likewise unreachable: `tinyint` is the only
     /// unsigned integer SQL Server has and it fits an `int` with room to spare,
-    /// so § 9's `uint` row is MySQL's and PostgreSQL's alone.
+    /// so the `uint` row is MySQL's and PostgreSQL's alone.
     #[must_use]
     pub const fn column_type(&self) -> ColumnType {
         match self.type_info.id {
@@ -263,8 +263,8 @@ impl TdsColumn {
             TY_DATETIME | TY_DATETIME4 | TY_DATETIMEN | TY_DATETIME2N => ColumnType::DateTime,
             TY_DATETIMEOFFSETN => ColumnType::Instant,
             // `sql_variant`, `xml`, every CLR type — `geometry` among them —
-            // and the column that has no type at all: § 9's last row, which
-            // reads as a `tainted string`.
+            // and the column that has no type at all: the column-type table's
+            // last row, which reads as a `tainted string`.
             _ => ColumnType::Other,
         }
     }
@@ -317,7 +317,8 @@ mod tests {
         );
     }
 
-    /// § 9's rows this backend can reach, asserted as a set — so a type that
+    /// The rows of `rule:core-classes/db-column-types` this backend can reach,
+    /// asserted as a set — so a type that
     /// classified as a plausible neighbour fails here even where its own row
     /// still passes.
     #[test]
@@ -330,7 +331,11 @@ mod tests {
             seen.insert(*expected);
         }
 
-        assert_eq!(seen.len(), 12, "twelve of § 9's fourteen rows, and these:");
+        assert_eq!(
+            seen.len(),
+            12,
+            "twelve of the column-type table's fourteen rows, and these:"
+        );
         assert!(
             !seen.contains(&ColumnType::Uint),
             "`tinyint` is the only unsigned integer here and it fits an `int`"
