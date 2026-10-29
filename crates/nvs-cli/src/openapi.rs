@@ -26,9 +26,21 @@
 //! table was built in, which `rule:programs/implementing` already makes independent of
 //! filesystem enumeration.
 //!
-//! ## Known gaps
+//! ## Bounds
 //!
-//! Each gap is a record, and `bun nv gaps --module crates/nvs-cli/src/openapi.rs` lists them.
+//! **Every OAuth2 requirement has an empty scope list.** A scope on an
+//! operation would be a claim the server never checks: access is decided by
+//! the handler and its gate (`rule:security/access-is-checked-for-presence-not-meaning`),
+//! not by `#[Api]`, so a scope list there could drift from what the code
+//! enforces, which `rule:attributes/api-adds-and-cannot-contradict` forbids.
+//!
+//! **Two routes that write one template are an error, not a document.** The
+//! router serves `/files/{path}` beside `/files/{path...}`, and `/a` beside
+//! `/a/{x?}`, but 3.1 has one operation per verb and template, and forbids two
+//! templates that differ only in capture names. [`Collision`] names both
+//! routes, and `nvs build --openapi` writes nothing.
+//!
+//! Each gap still open is a record, and `bun nv gaps --module crates/nvs-cli/src/openapi.rs` lists them.
 
 use std::collections::BTreeMap;
 
@@ -47,8 +59,18 @@ const VERSION: &str = "3.1.0";
 /// route table, and the JSON codec of each class a response names.
 ///
 /// `title` is the entry point's own file stem — the one name the compiler has
-/// for a program, since nothing in the language declares one.
-pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
+/// for a program, since nothing in the language declares one. `version` is the
+/// `package.toml`'s (`rule:packaging/package-toml-is-a-tool-input`), and a
+/// program with none is `0.0.0`, because 3.1 requires one.
+///
+/// # Errors
+///
+/// A [`Collision`] when two routes write one path template.
+pub(crate) fn document(
+    exprs: &ExprTypeTable,
+    title: &str,
+    version: Option<&str>,
+) -> Result<Value, Collision> {
     let routes = exprs.routes();
     let ids = operation_ids(routes);
     let mut schemas = Schemas {
@@ -60,22 +82,37 @@ pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
     // is handed to the JSON map — so the sort is this module's own fact rather
     // than a property of whichever map `serde_json` was compiled with.
     //
-    // A path and a verb identify at most one row of a program that compiles:
-    // the duplicate-route error is exactly that pair. `or_insert_with` is
-    // written rather than asserted because this is a renderer and the
-    // diagnostic is the front end's.
+    // Each template is also keyed by its shape, its capture names erased: 3.1
+    // forbids two templates of one shape, and the router serves routes the
+    // document cannot hold apart, such as `/files/{path}` beside
+    // `/files/{path...}`. Such a pair is a `Collision`, never a dropped row.
     let mut paths: BTreeMap<String, BTreeMap<String, Value>> = BTreeMap::new();
+    let mut shapes: BTreeMap<String, (String, BTreeMap<String, &Route>)> = BTreeMap::new();
     for (row, id) in routes.rows().iter().zip(&ids) {
         for (path, left_out) in templates(&row.path) {
+            let verb = row.verb.to_lowercase();
+            let (written, verbs) = shapes
+                .entry(shape(&path))
+                .or_insert_with(|| (path.clone(), BTreeMap::new()));
+            let prior = if *written == path {
+                verbs.get(&verb).copied()
+            } else {
+                verbs.values().next().copied()
+            };
+            if let Some(prior) = prior {
+                return Err(Collision {
+                    template: path,
+                    first: describe(prior),
+                    second: describe(row),
+                });
+            }
+            verbs.insert(verb.clone(), row);
             let id = match left_out {
                 Some(name) => format!("{id}.without-{name}"),
                 None => id.clone(),
             };
-            paths
-                .entry(path)
-                .or_default()
-                .entry(row.verb.to_lowercase())
-                .or_insert_with(|| operation(row, &id, left_out, &mut schemas));
+            let operation = operation(row, &id, left_out, &mut schemas);
+            paths.entry(path).or_default().insert(verb, operation);
         }
     }
 
@@ -91,7 +128,7 @@ pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
         "openapi": VERSION,
         "info": {
             "title": title,
-            "version": "0.0.0",
+            "version": version.unwrap_or("0.0.0"),
         },
         "paths": Value::Object(paths),
     });
@@ -106,7 +143,59 @@ pub(crate) fn document(exprs: &ExprTypeTable, title: &str) -> Value {
     if !components.is_empty() {
         document["components"] = Value::Object(components);
     }
-    document
+    Ok(document)
+}
+
+/// Two routes that write one path template, which the document cannot hold
+/// apart: one verb on one template, or two templates that differ only in
+/// their capture names.
+#[derive(Debug)]
+pub(crate) struct Collision {
+    /// The template the second route writes.
+    pub(crate) template: String,
+    /// The route written first, as `GET /path (Handler)`.
+    pub(crate) first: String,
+    /// The route that collides with it, in the same form.
+    pub(crate) second: String,
+}
+
+impl std::fmt::Display for Collision {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "`{}` and `{}` have the same OpenAPI path `{}`.\n\
+             An OpenAPI document cannot describe both routes.\n\
+             Give one of them a different fixed segment in its path.",
+            self.first, self.second, self.template
+        )
+    }
+}
+
+/// A route as a [`Collision`] names it: its verb, its written path and its method.
+fn describe(row: &Route) -> String {
+    format!("{} {} ({})", row.verb.to_uppercase(), row.path, row.handler)
+}
+
+/// A template with every capture name erased: `/a/{id}` and `/a/{key}` are
+/// both `/a/{}`.
+fn shape(template: &str) -> String {
+    let mut shape = String::with_capacity(template.len());
+    let mut inside = false;
+    for c in template.chars() {
+        match c {
+            '{' => {
+                inside = true;
+                shape.push('{');
+            }
+            '}' => {
+                inside = false;
+                shape.push('}');
+            }
+            _ if inside => {}
+            _ => shape.push(c),
+        }
+    }
+    shape
 }
 
 /// `components.schemas`, collected while the operations are rendered: one
@@ -459,7 +548,7 @@ fn operation(row: &Route, id: &str, left_out: Option<&str>, schemas: &mut Schema
     // `#[Api]`'s `security`, as 3.1's Security Requirement Object: one object per
     // scheme name, each holding the empty scope list. Every name is one of
     // `components.securitySchemes`, because the front end refuses any other.
-    // The scopes are empty because `#[Api]` has no field to name them yet.
+    // The scopes are empty, as the module's *Bounds* says.
     if !row.security.is_empty() {
         let schemes: Vec<Value> = row
             .security

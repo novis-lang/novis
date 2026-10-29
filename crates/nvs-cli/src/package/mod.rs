@@ -51,7 +51,7 @@ pub(crate) mod index;
 mod lock;
 pub(crate) mod log;
 mod login;
-mod manifest;
+pub(crate) mod manifest;
 mod minimum;
 pub(crate) mod note;
 mod pack;

@@ -26,8 +26,18 @@ fn in_repo(relative: &str) -> String {
 
 /// `nvs build --openapi <file>`, as `(stdout, stderr, success)`.
 fn build(file: &str) -> (String, String, bool) {
+    build_in(file, None)
+}
+
+/// [`build`], run from `cwd` where one is given, so the `package.toml` the
+/// command finds is that directory's.
+fn build_in(file: &str, cwd: Option<&std::path::Path>) -> (String, String, bool) {
     let data = nvs_repo::scratch_private("nvsdata");
-    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    if let Some(cwd) = cwd {
+        command.current_dir(cwd);
+    }
+    let out = command
         .arg("--data")
         .arg(&*data)
         .arg("--no-init")
@@ -106,6 +116,85 @@ fn a_program_declaring_no_route_emits_no_document() {
         "no document at all, not an empty one: {doc}"
     );
     assert!(err.contains("nothing to emit"), "and it says so: {err}");
+}
+
+/// A fresh folder under the target directory, named `name`, holding a
+/// `package.toml` of `manifest` when one is given.
+fn folder(name: &str, manifest: Option<&str>) -> std::path::PathBuf {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("openapi-version")
+        .join(name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("the target directory is writable");
+    if let Some(manifest) = manifest {
+        std::fs::write(dir.join("package.toml"), manifest).expect("the folder is writable");
+    }
+    dir
+}
+
+/// `info.version` of the document `nvs build --openapi` writes from `cwd`.
+fn info_version(cwd: &std::path::Path) -> String {
+    let (doc, err, ok) = build_in(&in_repo(ROUTES), Some(cwd));
+    assert!(ok, "the fixture compiles: {err}");
+    let doc: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
+    doc["info"]["version"]
+        .as_str()
+        .expect("`info.version` is a string")
+        .to_owned()
+}
+
+/// `rule:packaging/package-toml-is-a-tool-input`: the nearest `package.toml`'s
+/// `version` is the document's `info.version`, found from a folder below it.
+// covers: tools:cli/nvs-build-openapi
+#[test]
+fn info_version_is_the_package_tomls_version() {
+    let dir = folder(
+        "with",
+        Some("[package]\nname = 'Acme\\Shop'\nversion = \"2.3.4\"\n"),
+    );
+    let below = dir.join("src");
+    std::fs::create_dir_all(&below).expect("the folder is writable");
+    assert_eq!(info_version(&below), "2.3.4");
+}
+
+/// With no `package.toml`, or one without a `version`, `info.version` is
+/// `0.0.0`, which 3.1 needs a document to carry.
+#[test]
+fn info_version_is_zero_without_a_version_to_read() {
+    assert_eq!(info_version(&folder("without", None)), "0.0.0");
+    let application = folder("application", Some("[dependencies]\n"));
+    assert_eq!(info_version(&application), "0.0.0");
+}
+
+/// A `package.toml` the reader refuses stops the build, and no document is
+/// written with a version it could not read.
+#[test]
+fn a_package_toml_that_is_refused_writes_no_document() {
+    let dir = folder(
+        "refused",
+        Some("[package]\nname = 'Acme\\Shop'\nversion = \"2.3\"\n"),
+    );
+    let (doc, err, ok) = build_in(&in_repo(ROUTES), Some(&dir));
+    assert!(!ok, "a version that is not three numbers fails: {doc}");
+    assert!(doc.is_empty(), "and writes no document: {doc}");
+    assert!(
+        err.contains("`2.3` is not a version"),
+        "and says why: {err}"
+    );
+}
+
+/// Two routes the router serves apart, `/files/{path}` and `/files/{path...}`,
+/// write one 3.1 template. The command names both and writes nothing, so no
+/// operation is dropped from the document unseen.
+#[test]
+fn two_routes_that_write_one_template_write_no_document() {
+    let (doc, err, ok) = build(&fixture("one-template-twice"));
+    assert!(!ok, "the pair is an error: {doc}");
+    assert!(doc.is_empty(), "and writes no document: {doc}");
+    assert!(
+        err.contains("Files::one") && err.contains("Files::all") && err.contains("`/files/{path}`"),
+        "and names both routes and the template: {err}"
+    );
 }
 
 /// A program the front end refuses emits no document — the rule's whole premise

@@ -579,7 +579,8 @@ total: 420 MB
     nvs build --openapi <file>
 
 Writes an OpenAPI 3.1 document for the program's `#[Route]` methods to standard output: `openapi:
-"3.1.0"`, an `info` block whose `title` is the entry file's stem, and one `paths` entry per route
+"3.1.0"`, an `info` block whose `title` is the entry file's stem and whose `version` is the nearest
+`package.toml`'s `version` (`0.0.0` without one), and one `paths` entry per route
 with its method, an `operationId` of `Class::method`, its path parameters with their schemas, and
 its responses. Nothing runs. `nvs build` with neither `--compile` nor `--openapi` is refused rather
 than doing nothing. The output below, for a program with one route, is trimmed at the `...`.

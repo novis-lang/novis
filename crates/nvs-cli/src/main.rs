@@ -1591,7 +1591,25 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
         || path.display().to_string(),
         |stem| stem.to_string_lossy().into_owned(),
     );
-    let document = openapi::document(&checked.exprs, &title);
+    // The version is the nearest `package.toml`'s, found from the working
+    // directory as every `nvs pkg` command finds it.
+    let manifest = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| package::manifest::find(&cwd));
+    let version = match manifest.as_deref().and_then(std::path::Path::parent) {
+        Some(dir) => match package::manifest::version(dir) {
+            Ok(version) => version.map(|version| version.to_string()),
+            Err(code) => return code,
+        },
+        None => None,
+    };
+    let document = match openapi::document(&checked.exprs, &title, version.as_deref()) {
+        Ok(document) => document,
+        Err(collision) => {
+            eprintln!("error: {collision}");
+            return ExitCode::FAILURE;
+        }
+    };
     // Pretty rather than compact, because the artifact is read by people and
     // diffed by `git` as often as it is by § 4's own gate. It cannot fail: the
     // document is strings, bools and integers, and `serde_json` only errors on

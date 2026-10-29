@@ -6,8 +6,8 @@ context: [crates/nvs-cli/src/package/manifest.rs]
 stages:
   - id: 1
     title: "`package.toml`'s version is the API document's `info.version`"
-    status: open
-    context: [crates/nvs-cli/src/openapi.rs, crates/nvs-cli/tests/openapi.rs, data/gaps/nvs-cli/info-version.json]
+    status: done
+    context: [crates/nvs-cli/src/openapi.rs, crates/nvs-cli/tests/openapi.rs]
     extra:
       context:
         rules: [packaging/package-toml-is-a-tool-input, routing/api-document-is-a-deterministic-build-artifact]
@@ -117,16 +117,24 @@ itself. Nothing runs on the request path, and memory is unchanged. `Novis\Rest` 
 nothing they do not install, and keeps `Core` small. Simplicity: one manifest says what a program is,
 for every output that asks.
 
+**The emitter's two other gaps: scopes are a bound, a shared template is an error.** An OAuth2
+requirement keeps an empty scope list, because access is the handler's and its gate's, and a scope
+on `#[Api]` would be a claim the server never checks. Two routes that write one 3.1 template (one
+verb on one template, or two templates that differ only in capture names) make `nvs build --openapi`
+fail naming both, and write nothing. The front end does not refuse the pair, since the router serves
+it. Both are stated in `crates/nvs-cli/src/openapi.rs`'s *Bounds*. `Novis\Rest` is a client and
+reads no server's scopes.
+
 ## Stages
 
 ### 1. `package.toml`'s version is the API document's `info.version`
 
 **Does:** the generated document's `info.version` is the manifest's version.
 
-- [ ] Read the manifest's `version` into the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
-- [ ] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
-- [ ] The emitter's two other gaps built, or each struck as a stated bound in `openapi.rs`'s module doc, and their records deleted: OAuth2 scopes per operation, which `Novis\Rest`'s grants read, and two routes of one verb that write one path template. `data/gaps/nvs-cli/oauth2-scopes-per-operation.json:1`, `data/gaps/nvs-cli/two-routes-that-write-one-template.json:1`
+- [x] Read the manifest's `version` into the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
+- [x] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
+- [x] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
+- [x] The emitter's two other gaps built, or each struck as a stated bound in `openapi.rs`'s module doc, and their records deleted: OAuth2 scopes per operation, which `Novis\Rest`'s grants read, and two routes of one verb that write one path template. `data/gaps/nvs-cli/oauth2-scopes-per-operation.json:1`, `data/gaps/nvs-cli/two-routes-that-write-one-template.json:1`
 
 ### 2. a Windows bundle carries the program's own version information and icon
 
@@ -187,20 +195,33 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. No stage is started. `crates/nvs-cli/src/package/manifest.rs` does not exist yet;
-goal `api-compat` creates it, and stage 1 waits for it.
+Stage 1 is done. `nvs build --openapi` (`run_build` in `crates/nvs-cli/src/main.rs`) finds the
+nearest `package.toml` from the working directory and passes its `version` to
+`openapi::document`, which is `0.0.0` without one; a refused manifest fails the build.
+`openapi::document` now returns `Result<Value, Collision>`: two routes that write one template are
+an error (standing decision *The emitter's two other gaps*). `package::manifest` is `pub(crate)`.
+The three gap records are deleted, and `docs/reference/lang/90-attributes.md` and
+`docs/reference/tools/10-cli.md` say where the version comes from. Four new tests in
+`crates/nvs-cli/tests/openapi.rs` passed when run by name; the rest of that binary was not run.
+
+Expected red: none known. If a fixture or example writes `/a/{id}` and `/a/{key}` under two verbs,
+`nvs build --openapi` over it now fails; the gate stage's run of `tests/openapi.rs` would show it.
+The sweep's `env-secret-proofs` red is stale (its log, from 2026-10-22, reads `exit 0`, and no check
+has that name), and nightly run 40662443492 was cancelled by newer pushes.
 
 ### Next
 
-Stage 1, `info.version` from the manifest, on `crates/nvs-cli/src/openapi.rs` and
-`crates/nvs-cli/tests/openapi.rs`. Gate: `crates/nvs-cli/src/package/manifest.rs` exists.
-- [ ] The manifest's `version` in the emitter (`rule:packaging/package-toml-is-a-tool-input`). `crates/nvs-cli/src/openapi.rs:79`
-- [ ] Tests with and without a manifest. `crates/nvs-cli/tests/openapi.rs:1`
-- [ ] The gap record deleted. `data/gaps/nvs-cli/info-version.json:1`
+Stage 2, the bundle's resource. Its gate holds: `docs/goals/package-client.md` is gone. Follow the
+stage's `**Split:**`: an `Explore` subagent checks `editpe` and other pure-Rust PE-resource crates
+against `deny.toml` first.
+- [ ] The crate chosen, or the in-tree rewrite argued, in the rule. `docs/rules/packaging/the-windows-binary-says-what-it-is.md:1`
+- [ ] The resource rewritten in the copy, from the manifest's version, name and `[bundle] icon`. `crates/nvs-cli/src/bundle.rs:615`
+- [ ] A test that reads the bundle's resource back, with and without a manifest. `crates/nvs-cli/tests/windows_resource.rs:1`
+- [ ] The gap record deleted. `data/gaps/nvs-cli/a-bundle-carries-the-hosts-icon-and-version.json:1`
 
 ### Backlog
 
-- Stage 2, the bundle's resource, is a lane beside stage 1 (`crates/nvs-cli/src/bundle.rs`).
+- Stage 3 (`packages/rest/`) is a lane beside stage 2; its gate holds too.
 - Publishing `Novis\Rest` to the live registry is the project account's step, done by a person once the registry is deployed (`apps/registry/README.md`).
 - From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
   `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. A goal that changes

@@ -1,0 +1,23 @@
+<?nvs
+// Two routes the router serves apart and an OpenAPI document cannot: a
+// `{path}` capture beside a `{path...}` one write the same template, under
+// the same verb.
+
+class Files
+{
+    #[Core\Route(path: '/files/{path}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function one(string $path): string
+    {
+        return 'one ' . $path;
+    }
+
+    #[Core\Route(path: '/files/{path...}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function all(string $path): string
+    {
+        return 'all ' . $path;
+    }
+}
+
+echo 'GET /files/{path} -> Files::one', "\n";
