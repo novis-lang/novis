@@ -166,21 +166,22 @@ final class BackupTest
     // Publishes `$version` of `<vendor>\Http` with a build double that writes the archive.
     private static function publish(Site $site, tainted string $token, string $vendor, string $repository, string $version): void
     {
-        string $built = BackupTest::trusted(Json::encode({
-            schema: 1,
-            ok: true,
-            name: $vendor . '\\Http',
-            version: $version,
-            repository: $repository,
-            commit: Encoding::toHex(Random::bytes(20)),
-            directory: '',
-            digest: 'blake3:' . Encoding::toHex(Random::bytes(32)),
-            size: 23,
-            files: [{ path: 'src/A.nvs', size: 10 }],
-            dependencies: {},
-            capabilities: { required: ['net.connect'], optional: [] },
-            api: null,
-        }));
+        string $built = BackupTest::trusted(Json::encode([
+            'schema' => 3,
+            'ok' => true,
+            'name' => $vendor . '\\Http',
+            'version' => $version,
+            'repository' => $repository,
+            'commit' => Encoding::toHex(Random::bytes(20)),
+            'directory' => '',
+            'digest' => 'blake3:' . Encoding::toHex(Random::bytes(32)),
+            'size' => 23,
+            'files' => [{ path: 'src/A.nvs', size: 10 }],
+            'dependencies' => {},
+            'capabilities' => { required: ['net.connect'], optional: [] },
+            'api' => null,
+            'doc_coverage' => { documented: 0, public: 1 },
+        ]));
         var $builder = Test::double<Builder>({ build: fn(array<string> $arguments): string => BackupTest::build($arguments, $built) });
         var $done = new Publish(Schema::open(), $builder, $site)->publish($token, new PublishRequest($repository, BackupTest::commitOf($built), $version, ''));
         Test::assertSame($done->status, 201);

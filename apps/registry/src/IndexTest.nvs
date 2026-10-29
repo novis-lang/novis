@@ -124,21 +124,22 @@ final class IndexTest
         string $digest = 'blake3:' . Encoding::toHex(Random::bytes(32));
         string $commit = Encoding::toHex(Random::bytes(20));
         string $repository = 'https://git.example.com/' . $vendor . '/http.git';
-        string $built = Core\Taint::assertTrusted(Json::encode({
-            schema: 1,
-            ok: true,
-            name: $vendor . '\\Http',
-            version: $version,
-            repository: $repository,
-            commit: $commit,
-            directory: '',
-            digest: $digest,
-            size: 23,
-            files: [{ path: 'src/A.nvs', size: 10 }],
-            dependencies: {},
-            capabilities: { required: ['net.connect'], optional: [] },
-            api: null,
-        }), 'the test wrote this value');
+        string $built = Core\Taint::assertTrusted(Json::encode([
+            'schema' => 3,
+            'ok' => true,
+            'name' => $vendor . '\\Http',
+            'version' => $version,
+            'repository' => $repository,
+            'commit' => $commit,
+            'directory' => '',
+            'digest' => $digest,
+            'size' => 23,
+            'files' => [{ path: 'src/A.nvs', size: 10 }],
+            'dependencies' => {},
+            'capabilities' => { required: ['net.connect'], optional: [] },
+            'api' => null,
+            'doc_coverage' => { documented: 0, public: 1 },
+        ]), 'the test wrote this value');
         var $builder = Test::double<Builder>({ build: fn(array<string> $arguments): string => IndexTest::build($arguments, $built) });
         var $done = new Publish(Schema::open(), $builder, Site::load())->publish($token, new PublishRequest($repository, $commit, $version, ''));
         Test::assertSame($done->status, 201);

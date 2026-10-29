@@ -117,6 +117,10 @@ final class Backup
     public static function load(Transaction $tx, string $plain): void
     {
         array<string> $tables = Backup::tables($tx);
+        array<string> $virtual = [];
+        foreach ($tx->query("select name from sqlite_master where type = 'table' and sql like 'create virtual table%'", []) as Row $row) {
+            $virtual[] = Backup::trusted($row->string('name'));
+        }
         foreach (Str::split($plain, "\n") as string $line) {
             if ($line == '') {
                 continue;
@@ -128,17 +132,30 @@ final class Backup
             }
             array<string> $columns = [];
             array<string> $marks = [];
+            array<string> $same = [];
             array<mixed> $values = [];
             foreach (($entry['row'] as array<mixed>) as tainted string $column => mixed $value) {
-                $columns[] = Db::quoteIdentifier(Backup::trusted($column));
+                string $quoted = Db::quoteIdentifier(Backup::trusted($column));
+                $columns[] = $quoted;
                 $marks[] = '?';
+                $same[] = $quoted . ' is ?';
                 $values[] = $value;
             }
-            $tx->execute(
-                'insert into ' . Db::quoteIdentifier($table) . ' (' . Str::join($columns, ', ') . ') values ('
-                    . Str::join($marks, ', ') . ') on conflict do nothing',
-                $values,
-            );
+            string $into = 'insert into ' . Db::quoteIdentifier($table) . ' (' . Str::join($columns, ', ') . ') ';
+            if (Core\Arr::contains($virtual, $table)) {
+                // A full-text table has no key and no `on conflict`, so a row that is there already is not added again.
+                array<mixed> $twice = $values;
+                foreach ($values as mixed $value) {
+                    $twice[] = $value;
+                }
+                $tx->execute(
+                    $into . 'select ' . Str::join($marks, ', ') . ' where not exists (select 1 from '
+                        . Db::quoteIdentifier($table) . ' where ' . Str::join($same, ' and ') . ')',
+                    $twice,
+                );
+            } else {
+                $tx->execute($into . 'values (' . Str::join($marks, ', ') . ') on conflict do nothing', $values);
+            }
         }
     }
 
@@ -169,11 +186,18 @@ final class Backup
     }
 
     // Returns the tables of the database in the order they were made, so a row comes after the rows
-    // it refers to. `backups` is not in the list.
+    // it refers to. `backups` is not in the list. A full-text table such as `search` is in the list,
+    // and the tables SQLite keeps for its index, such as `search_data`, are not: the restore writes
+    // the rows of `search`, and SQLite builds the index again.
     private static function tables(Transaction $tx): array<string>
     {
         array<string> $tables = [];
-        var $rows = $tx->query("select name from sqlite_master where type = 'table' and name not like 'sqlite%' and name != 'backups' order by rowid", []);
+        var $rows = $tx->query(
+            "select m.name from sqlite_master m where m.type = 'table' and m.name not like 'sqlite%' and m.name != 'backups' "
+                . "and not exists (select 1 from sqlite_master v where v.type = 'table' and v.sql like 'create virtual table%' "
+                . "and m.name like v.name || '\\_%' escape '\\') order by m.rowid",
+            [],
+        );
         foreach ($rows as Row $row) {
             $tables[] = Backup::trusted($row->string('name'));
         }
