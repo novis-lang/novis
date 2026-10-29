@@ -104,11 +104,17 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `4e2d9d714`, the end of `registry-service`. CI 40787104125 and Website
-40787104169 are green on it, all 37 CI jobs included. The `ext_world` fix `73960ebbf` went out with
-it, and `cost guards / macos-aarch64` got a runner and passed. No fix is waiting for a push.
+`origin/main` is at `2dc0e99e5`, the end of `registry-website`. Website 40798057259 is green on it.
+CI 40798057255 is red in two jobs, both fixed and committed, not pushed:
 
-The next watch runs with no `--next`: the newest runs are green.
+- `docs`: `docs/rules/packaging.md` was stale against its fragments. `0d262b122` renders it, and
+  `c0a468946` adds `rules --render --check` to `bun nv ci`'s `PRE_PUSH`, which lacked it.
+- `proofs / windows-x86_64`: `tests/hostile/core/IO/append/01-empty-huge-and-impossible-appends.nvs`
+  passed its 30s limit after step 2, with no hang. Each append opens the file, about 85µs on
+  Windows, and the attack did 120000. `f931f5cef` cuts that to 12000, 1.5s here. A second timeout
+  in another IO attack is the same cause: count its file opens before you look for a hang.
+
+The next watch runs with `--next`: the red run would end it at once.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
