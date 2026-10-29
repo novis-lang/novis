@@ -58,16 +58,17 @@ fn canonical(path: &Path) -> String {
 
 #[test]
 fn an_ungranted_capability_throws_naming_the_capability() {
-    // The grant side of § 1, on a configuration that says yes to one capability and nothing about
-    // its neighbour: `fs.read` is granted, `fs.write` shares the block and is not.
+    // The grant side of `rule:security/capability-question-is-grant-and-scope`, on a configuration
+    // that says yes to one capability and nothing about its neighbour: `fs.read` is granted,
+    // `fs.write` shares the block and is not.
     let caps = reading(&["/srv/www"]);
     assert!(caps.allows(Cap::FsRead, Scope::Unscoped, &Disk));
     assert!(!caps.allows(Cap::FsWrite, Scope::Unscoped, &Disk));
     // Deny by default at every step: an absent block grants nothing either.
     assert!(!Capabilities::default().allows(Cap::ScriptSpawn, Scope::Unscoped, &Disk));
 
-    // § 5's refusal, on a context with no configuration — the same deny-by-default an absent block
-    // gets, and the message an operator reads.
+    // `rule:security/denial-is-a-runtime-error`'s refusal, on a context with no configuration — the
+    // same deny-by-default an absent block gets, and the message an operator reads.
     let ctx = nvs_runtime::Ctx::buffered();
     let path = Path::new("/var/tmp/x");
     let denied =
@@ -98,8 +99,9 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
     // The positive control, without which every assertion below passes vacuously.
     assert!(caps.allows(Cap::FsRead, Scope::Path(&src.join("registry.rs")), &Disk));
 
-    // § 4, on the real filesystem: `..` is resolved by the OS before the comparison, so a path that
-    // spells its way back out of the granted root does not reach anything under it.
+    // `rule:security/path-scope-canonicalise-then-prefix`, on the real filesystem: `..` is resolved
+    // by the OS before the comparison, so a path that spells its way back out of the granted root
+    // does not reach anything under it.
     let escaped = src.join("..").join("tests").join("capability.rs");
     assert!(
         !caps.allows(Cap::FsRead, Scope::Path(&escaped), &Disk),
@@ -121,9 +123,9 @@ fn a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match() {
         "`starts_with` compares whole components, so a name prefix is not a path prefix"
     );
 
-    // § 4's write case: a file that does not exist yet resolves through its deepest existing
-    // ancestor, so a create inside the root is allowed and one that `..` walks out of is not —
-    // without either path having to exist first.
+    // `rule:security/path-scope-canonicalise-then-prefix`'s write case: a file that does not exist
+    // yet resolves through its deepest existing ancestor, so a create inside the root is allowed and
+    // one that `..` walks out of is not — without either path having to exist first.
     let caps = reading(&[&canonical(&src)]);
     assert!(caps.allows(
         Cap::FsRead,
@@ -285,9 +287,9 @@ fn every_capability_entry_names_a_member() {
 /// class that genuinely needs none declares `None` in `registry::CAPABILITIES`, in the same table
 /// under the same review as one that needs `fs.read`.
 ///
-/// **The allowlist that used to sit here is gone rather than frozen.** § 7 forbids growing one to
-/// make a run go green — a member that is hard to classify is a member whose capability has not been
-/// thought about — and `Core\RateLimit::shed` was the sibling that had no other spelling: it reaches
+/// **The allowlist that used to sit here is gone rather than frozen.** The rule forbids growing one
+/// to make a run go green — a member that is hard to classify is a member whose capability has not
+/// been thought about — and `Core\RateLimit::shed` was the sibling that had no other spelling: it reaches
 /// nothing, and its class is a door because `consume` is. A list of two would have been a set claim
 /// with a growable hole in it; a `None` row costs the would-be exemption exactly what a declaration
 /// costs and leaves the claim below total. What the two rows say is in the table beside them, which
@@ -308,7 +310,8 @@ fn every_capability_bearing_member_declares_its_capability() {
         .collect();
 
     // The positive control, without which the whole set claim below passes by finding nothing to
-    // check. `Core\IO` is the class that made § 3's table necessary.
+    // check. `Core\IO` is the class that made `rule:security/capability-declaration-is-one-table`
+    // necessary.
     assert!(
         bearing.iter().any(|class| class.name == "Core\\IO"),
         "`Core\\IO` reaches the filesystem, so it is capability-bearing by construction; \
@@ -698,8 +701,8 @@ fn every_door_names_the_capability_its_member_declares() {
 
 /// `rule:security/a-path-is-not-a-url`'s closed door — a path is a filesystem path — asserted **by construction** rather
 /// than by a blocklist of the schemes PHP shipped. `phar://` is not named as forbidden anywhere
-/// below, because a rule that refused a roster of scheme names would be exactly the registry § 2
-/// refuses to have: what is asserted is that nothing reads a scheme off a path at all.
+/// below, because a rule that refused a roster of scheme names would be exactly the registry the
+/// rule refuses to have: what is asserted is that nothing reads a scheme off a path at all.
 ///
 /// Three claims, each total over what it sweeps. **The signature half:** a member that dispatched
 /// on a scheme would have to take one, and no member of a path-taking class names a scheme, a
@@ -920,7 +923,8 @@ fn sources(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// A canonicalizer with one symlink in it, and nothing else — see this file's own module doc for
-/// why the symlink half of § 4 is asserted against a fake and the `..` half is not.
+/// why the symlink half of `rule:security/path-scope-canonicalise-then-prefix` is asserted against
+/// a fake and the `..` half is not.
 struct Fake;
 
 impl Files for Fake {
@@ -976,7 +980,7 @@ fn an_open_file_is_an_object_and_never_a_resource() {
         .methods
         .iter()
         .find(|method| method.name == "open")
-        .expect("§ 14's *Handles* bullet is a member");
+        .expect("the handle's opener is a member");
     assert!(
         matches!(open.return_ty, nvs_stdlib::registry::CoreTy::Instance(name) if name == FILE),
         "`open` answers a named class rather than an integer with a tag on it"
@@ -1045,7 +1049,7 @@ fn a_file_mode_is_an_enum_and_never_a_string() {
         .methods
         .iter()
         .find(|method| method.name == "open")
-        .expect("§ 14's *Handles* bullet is a member");
+        .expect("the handle's opener is a member");
     assert!(
         matches!(open.params[1], nvs_stdlib::registry::CoreTy::Enum(name) if name == FILE_MODE),
         "the mode is a case of a closed enum and not text of any classification"

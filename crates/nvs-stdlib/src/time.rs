@@ -3129,8 +3129,8 @@ pub(crate) fn date_at(year: i32, month: u8, day: u8) -> Option<Value> {
     civil_date(year, month, day).map(date_built)
 }
 
-/// A `Core\Time\TimeOfDay` at that reading — [`date_at`]'s twin, for § 9's
-/// `TIME` column.
+/// A `Core\Time\TimeOfDay` at that reading — [`date_at`]'s twin, for
+/// `rule:core-classes/db-column-types`'s `TIME` column.
 ///
 /// `None` for a reading no clock has, PostgreSQL's `24:00:00` included.
 pub(crate) fn time_of_day_at(hour: u8, minute: u8, second: u8, nanosecond: u32) -> Option<Value> {
@@ -3138,7 +3138,8 @@ pub(crate) fn time_of_day_at(hour: u8, minute: u8, second: u8, nanosecond: u32) 
 }
 
 /// A `Core\Time\DateTime` reading `at` in the fixed zone `offset` seconds east
-/// of UTC — § 9's zone-less `TIMESTAMP`, in the zone its connection declared.
+/// of UTC — `rule:core-classes/db-column-types`'s zone-less `TIMESTAMP`, in
+/// the zone its connection declared.
 ///
 /// The zone is an offset and never a name, so the stored id is
 /// [`render_offset`]'s `±HH:MM[:SS]` and the reading is unambiguous: a fixed
@@ -3150,8 +3151,8 @@ pub(crate) fn datetime_at(at: &Civil, offset: i32) -> Option<Value> {
     zoned_at(at, offset).map(|at| datetime_built(&at))
 }
 
-/// A `Core\Time\Instant` at `at` read `offset` seconds east of UTC — § 9's
-/// `TIMESTAMPTZ`, whose rendering carries that offset itself.
+/// A `Core\Time\Instant` at `at` read `offset` seconds east of UTC —
+/// `rule:core-classes/db-column-types`'s `TIMESTAMPTZ`, whose rendering carries that offset itself.
 ///
 /// `None` on [`datetime_at`]'s conditions, plus a point outside
 /// [`Timestamp`]'s range.
@@ -3162,8 +3163,8 @@ pub(crate) fn instant_at(at: &Civil, offset: i32) -> Option<Value> {
 /// [`date_at`] off a rendered date rather than off three numbers — `rule:core-classes/db-column-types`'s SQLite half, where a `date` column holds text because SQLite has no
 /// type that holds anything else.
 ///
-/// `None` for text that is not a date, which is what § 9's "throws on a value
-/// that does not parse" is asked here: the caller holds the column's name and
+/// `None` for text that is not a date, which is what that rule's "throws on a
+/// value that does not parse" is asked here: the caller holds the column's name and
 /// this seam does not, exactly as [`date_at`]'s own `None` works.
 ///
 /// The grammar is [`jiff`]'s ISO 8601 reader and not a second one written here,
@@ -3177,7 +3178,8 @@ pub(crate) fn date_of_text(text: &str) -> Option<Value> {
     )
 }
 
-/// [`date_of_text`]'s twin for § 9's `TIME` column.
+/// [`date_of_text`]'s twin for `rule:core-classes/db-column-types`'s `TIME`
+/// column.
 pub(crate) fn time_of_day_of_text(text: &str) -> Option<Value> {
     let time: civil::Time = text.trim().parse().ok()?;
     time_of_day_at(
@@ -3188,13 +3190,13 @@ pub(crate) fn time_of_day_of_text(text: &str) -> Option<Value> {
     )
 }
 
-/// [`date_of_text`]'s twin for § 9's zone-less `DATETIME`, read in the zone the
-/// connection declared — `offset` is [`datetime_at`]'s, for its reason.
+/// [`date_of_text`]'s twin for `rule:core-classes/db-column-types`'s zone-less
+/// `DATETIME`, read in the zone the connection declared — `offset` is [`datetime_at`]'s, for its reason.
 ///
 /// The separator is either ISO 8601's `T` or the space SQLite's own `datetime()`
 /// writes, which [`jiff`] reads as one grammar; a rendering carrying an offset
 /// is refused here rather than silently dropping it, because a column declared
-/// `datetime` is § 9's zone-*less* row and an `Instant` is what carries one.
+/// `datetime` is that rule's zone-*less* row and an `Instant` is what carries one.
 pub(crate) fn datetime_of_text(text: &str, offset: i32) -> Option<Value> {
     let at: civil::DateTime = text.trim().parse().ok()?;
     datetime_at(
@@ -3657,8 +3659,8 @@ nvs_runtime::nvs_helper! {
     /// predictable not-taken branch and the fixed reading is unreachable from a
     /// program that is not a test.
     ///
-    /// `Core\Time::monotonic` is deliberately **not** fixed with it: § 12
-    /// declares a wall clock, and a monotonic reading is for measuring an
+    /// `Core\Time::monotonic` is deliberately **not** fixed with it: that
+    /// rule declares a wall clock, and a monotonic reading is for measuring an
     /// interval that really elapsed. Freezing it would make a test's own
     /// timing measurements answer zero, which is a different decision and one
     /// nothing has asked for.

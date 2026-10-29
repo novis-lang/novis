@@ -88,7 +88,7 @@ pub enum Unit {
 /// `a_grapheme_index_costs_more_than_a_code_point_index` in
 /// [`benches/abi-probe`](/benches/abi-probe/), which is where the
 /// figure and its bound live; `rule:types/bytes`'s *Revisiting* asked for exactly that
-/// test and its § 2 records the outcome.
+/// test and `rule:types/string-is-utf8` records the outcome.
 pub const DEFAULT: Unit = Unit::Grapheme;
 
 /// `rule:types/string-is-utf8`'s two primitives, whose home is the runtime.

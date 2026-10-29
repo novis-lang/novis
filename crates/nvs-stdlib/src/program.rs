@@ -1,11 +1,11 @@
-//! `Core\Program` — `rule:programs/implementing`'s program enumeration beside § 6's program identity: one member the
+//! `Core\Program` — `rule:programs/implementing`'s program enumeration beside `rule:programs/program-id`'s program identity: one member the
 //! compiler answers and one that is the only reason this module runs at all.
 //!
 //! # Why `implementing<T>()` never runs
 //!
 //! [`crate::attributes`] is the other class the compiler answers for, and the
 //! reason is the same one stated
-//! twice: § 3 says `implementing<T>()` "expands, at compile time, to an array
+//! twice: `rule:programs/implementing` says `implementing<T>()` "expands, at compile time, to an array
 //! literal of `new` expressions — one per non-abstract class in the program
 //! implementing `T`". The answer is decided by `nvs_hir::implementors` over a
 //! graph the whole program is already in, so there is no lookup left for a
@@ -36,7 +36,7 @@
 //!
 //! # Why `id()` is the one member here that cannot be folded
 //!
-//! § 6 states the circularity and this is the seam it lands on: folding the id
+//! `rule:programs/program-id` states the circularity and this is the seam it lands on: folding the id
 //! into a unit as a literal would change that unit's bytes, hence its content
 //! hash, hence the id just folded. So the answer arrives from the outside.
 //! `nvs_config::cache::program_id` combines every unit's content hash in

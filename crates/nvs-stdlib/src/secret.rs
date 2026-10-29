@@ -22,7 +22,7 @@
 //!
 //! # The reason is checked as a `string` and read by nobody
 //!
-//! § 3's written reason exists to be read by a human at the call site and by
+//! `rule:core-classes/secret-reveal`'s written reason exists to be read by a human at the call site and by
 //! `grep`; nothing consumes it at run time, and the helper never touches the
 //! slot. It is [`Qual::Neutral`] rather than unclassified because that is the
 //! honest classification — no byte of it reaches the answer — and because a

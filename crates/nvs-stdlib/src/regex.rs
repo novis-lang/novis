@@ -11,7 +11,7 @@
 //! * **`regex`** is `rule:core-classes/regex-two-tiers`'s linear tier. A finite-automata engine with
 //!   no backtracking to exhaust, so [`Compiled::Linear`] needs no budget and
 //!   is given none.
-//! * **`fancy-regex`** is § 2's backtracking tier, reached only by a pattern
+//! * **`fancy-regex`** is that rule's backtracking tier, reached only by a pattern
 //!   the linear engine cannot express. It is built *on* `regex` — it delegates
 //!   every non-fancy sub-expression to it — so the two agree on syntax, on
 //!   Unicode tables and on what a character class means, which two unrelated
@@ -914,9 +914,10 @@ const CACHE_CAPACITY: usize = if cfg!(miri) { 8 } else { 256 };
 /// answers a different question from the other.
 #[derive(Debug)]
 enum Compiled {
-    /// § 1's linear tier — no budget, because it needs none.
+    /// `rule:core-classes/regex-two-tiers`'s linear tier — no budget, because
+    /// it needs none.
     Linear(regex::Regex),
-    /// § 2's budgeted backtracking tier, reached only because the linear
+    /// That rule's budgeted backtracking tier, reached only because the linear
     /// engine refused this pattern.
     Backtracking(fancy_regex::Regex),
 }
@@ -1277,13 +1278,14 @@ fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled,
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
 /// `rule:core-classes/regex-compile-time-tiering`'s compile-time fact and not the automaton —
 /// `rule:expressions/intrinsic-constant-arguments`'s fold,
-/// which reads a **literal** pattern while checking and reports § 3's
+/// which reads a **literal** pattern while checking and reports its
 /// diagnostic instead of the throw [`compiled`] would have made.
 ///
 /// # Errors
 ///
 /// [`build`]'s own sentence, unchanged, so a pattern refused while checking is
-/// exactly one the first call would have thrown on (§ 4).
+/// exactly one the first call would have thrown on
+/// (`rule:expressions/preparation-preserves-behaviour`).
 ///
 /// The flags are **not** read: they reach [`effective`] as a `(?ims:…)` group
 /// wrapped around the pattern, which is balanced whatever the pattern is, so
@@ -1319,10 +1321,10 @@ pub fn validate(pattern: &str) -> Result<Tier, String> {
 /// disturb it either.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tier {
-    /// § 1's linear-time default: no backtracking, no budget, no pattern-
-    /// dependent blow-up.
+    /// `rule:core-classes/regex-two-tiers`'s linear-time default: no
+    /// backtracking, no budget, no pattern-dependent blow-up.
     Linear,
-    /// § 2's budgeted backtracking tier, reached only because the linear
+    /// That rule's budgeted backtracking tier, reached only because the linear
     /// engine could not express this pattern — a lookaround or a
     /// backreference — and never because a program was large.
     Backtracking,
@@ -2675,7 +2677,9 @@ mod tests {
         // so a message can never quote a bound that is not the enforced one.
         let Fault::Thrown(class, message) = budget_exhausted("matches", CATASTROPHIC, STEPS, &err)
         else {
-            panic!("§ 2 is an ordinary catchable throw, not a resource-limit fatal")
+            panic!(
+                "an exhausted step budget is an ordinary catchable throw, not a resource-limit fatal"
+            )
         };
         assert!(matches!(class, nvs_runtime::ThrownClass::Runtime));
         assert!(message.contains(&STEPS.to_string()), "{message}");

@@ -346,7 +346,9 @@ impl Connection {
     /// # Errors
     ///
     /// As [`Connection::set`]. Absence is [`Reply::Nil`] and an ordinary answer
-    /// rather than a failure, which is § 1's contract read off the wire.
+    /// rather than a failure, which is
+    /// `rule:concurrency/cross-request-state-is-explicit`'s contract read off the
+    /// wire.
     pub(crate) fn get(&mut self, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
         match self.command(&[b"GET", key], Replay::Idempotent)? {
             Reply::Bulk(bytes) => Ok(Some(bytes)),
@@ -1357,7 +1359,8 @@ mod tests {
     ///
     /// The second of two clients asking for a key the first holds is told
     /// `false` rather than made a second holder, and the same client asking
-    /// again once the TTL has passed is told `true`. Those are § 3's two halves:
+    /// again once the TTL has passed is told `true`. Those are the two halves of
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`:
     /// at most one run per interval, and a host that dies holding the lease
     /// releases it by expiry instead of blocking the next interval forever.
     ///

@@ -1,10 +1,10 @@
 //! `rule:core-api/core-means-always-present` as a gate:
 //! nothing outside Tier 0 registers a class under the `Core` namespace.
 //!
-//! § 1's table is what makes this checkable. Tier 0 is "compiled into every
+//! `rule:core-api/five-placements`'s table is what makes this checkable. Tier 0 is "compiled into every
 //! `nvs` binary, reachable under the `Core` namespace, **no build flag**";
 //! Tier 2 (Native) is "removable at build time by a Cargo feature". So the
-//! violation § 5 names — a `use Core\Intl;` that compiles in development and
+//! violation `rule:core-api/core-means-always-present` names — a `use Core\Intl;` that compiles in development and
 //! fails in production — is not a *naming* mistake that a grep for the prefix
 //! would find. It is a `Core\` name whose presence depends on how the binary
 //! was built, and the two shapes it can take are the two this file walks: a

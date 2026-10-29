@@ -514,7 +514,7 @@ nvs_runtime::nvs_helper! {
     /// Both arguments are required rather than optional, which is the one
     /// place this member parts from `rule:core-api/shape-rules` R3's trailing options shape: a
     /// default scale or a default mode would be exactly the ambient precision
-    /// § 3 refuses, moved from a global into a signature. A caller who wants
+    /// `rule:types/decimal` refuses, moved from a global into a signature. A caller who wants
     /// the language's own rule already has `/`.
     fn nvs_core_decimal_div_round(_ctx, args: [4]) {
         let value = decimal_at(args, 0, "divRound")?;

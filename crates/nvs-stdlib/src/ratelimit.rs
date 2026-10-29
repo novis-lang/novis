@@ -3,7 +3,7 @@
 //! over the shared store, `shed` over this process's own memory, and the
 //! `Core\RateLimit\Decision` each answers with.
 //!
-//! § 1's two members are two *jobs*. `consume` enforces a policy the
+//! The two members are two *jobs*. `consume` enforces a policy the
 //! application promised somebody — a plan quota, a login limit — so its state
 //! is the shared store and its answer is coherent across every core and every
 //! machine. `shed` drops load to keep a host up, so its state is the serving
@@ -38,7 +38,8 @@
 //! arrival time, decide, and write the new one — atomically, because two cores
 //! reading and writing the same key over two round trips would admit two
 //! requests where the policy admits one, and an approximate `consume` is the
-//! thing § 1 says is not a `consume` at all. A `WATCH`/retry loop is the
+//! thing `rule:core-classes/ratelimit-two-members` says is not a `consume` at
+//! all. A `WATCH`/retry loop is the
 //! alternative and it is more round trips on the request path exactly when the
 //! key is hot, which is when a limiter matters.
 //!
@@ -46,9 +47,10 @@
 //! *step*.** [`window`] turns `limit`, `per` and `burst` into GCRA's emission
 //! interval and delay-variation tolerance, and it is the one place that
 //! conversion happens — so [`step`] derives its window there rather than
-//! restating § 2's arithmetic in a second place, and the five lines that
-//! genuinely differ between an in-process decision and an atomic one are all
-//! that differ. § 2's "both tiers run the identical algorithm" is that
+//! restating `rule:core-classes/ratelimit-gcra`'s arithmetic in a second place,
+//! and the five lines that genuinely differ between an in-process decision and
+//! an atomic one are all that differ. That rule's "both tiers run the identical
+//! algorithm" is that
 //! factoring, and `shed_is_the_same_gcra_over_the_process_own_memory` is where
 //! it is checked rather than promised.
 //!
@@ -72,8 +74,9 @@
 //! of it shares one allowance, and a deployment that runs several processes or
 //! machines has one allowance in each.
 //!
-//! Three consequences, all § 1's approximation rather than defects. An entry
-//! this tier evicts is an arrival forgotten, so a shed key that loses its
+//! Three consequences, all the approximation
+//! `rule:core-classes/ratelimit-two-members` allows `shed`, and none of them a
+//! defect. An entry this tier evicts is an arrival forgotten, so a shed key that loses its
 //! timestamp admits a burst — which is why `consume` may not live here. A
 //! reload starts every key over, because the scope carries the configuration
 //! generation. And the clock is [`crate::time::monotonic_micros`], not
@@ -96,7 +99,8 @@
 //!
 //! # Decision: no configuration, and no key that can collide with a cache entry
 //!
-//! § 4's "no configuration at all" is the design: the limit is an argument
+//! No configuration at all is the design
+//! (`rule:core-classes/ratelimit-two-members`): the limit is an argument
 //! because only the application knows whether this is a plan quota or a login
 //! throttle, and there is no `[ratelimit]` block for an operator to move it
 //! into. `rate_limit_reads_no_directive` is that as a check — this module reads
@@ -110,7 +114,7 @@
 //! are written by different people in different files.
 //!
 //! **What it spends:** one entry per live key — one timestamp, not a window of
-//! arrivals, which is § 2's O(1)-per-key and what makes limiting per user
+//! arrivals, which is `rule:core-classes/ratelimit-gcra`'s O(1)-per-key and what makes limiting per user
 //! affordable at a million users. `consume`'s entry is in the shared store and
 //! expires on its own once the key drains; `shed`'s is in this process's
 //! memory tier, held once for every core and bounded by that tier's cap and by
@@ -138,8 +142,9 @@ pub(crate) const PREFIX: &str = "nvs:ratelimit:";
 /// `Core\Time\Duration`, as the two places below spell it.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
-/// `{ burst?: uint, cost?: uint }` — § 1's one trailing options shape, which both
-/// members take because § 2 gives them one algorithm.
+/// `{ burst?: uint, cost?: uint }` — the one trailing options shape, which both
+/// members take because `rule:core-classes/ratelimit-gcra` gives them one
+/// algorithm.
 ///
 /// `burst` defaults to `limit`, which is a value only the call knows, so its
 /// [`Const`] is the sentinel [`Const::Null`] that `uint` cannot otherwise hold
@@ -159,7 +164,7 @@ const OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// § 1's two members: the coherent one, and the approximate one.
+/// Two members: the coherent one, and the approximate one.
 ///
 /// `rule:core-classes/ratelimit-two-members`'s limiter for what only the application knows — per account, per
 /// tenant — with edge and flood limiting left to the proxy that owns them.
@@ -173,7 +178,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "consume",
             names: &["key", "limit", "per"],
-            // The key is `Qual::Neutral`, which is § 3's two sentences at once:
+            // The key is `Qual::Neutral`, which is the two sentences
+            // `rule:core-classes/ratelimit-gcra` gives the key, at once:
             // a `tainted` account id is admitted, because a key is one opaque
             // length-prefixed value on the wire and there is no injection to
             // prevent; and a `secret` one is refused, because every mark but
@@ -192,8 +198,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_ratelimit_consume",
             doc: Some(&CONSUME_DOC),
         },
-        // The same signature to the letter, which is § 2's "both tiers run the
-        // identical algorithm" said in the one place a caller reads: moving a
+        // The same signature to the letter, which is
+        // `rule:core-classes/ratelimit-gcra`'s "both tiers run the identical
+        // algorithm" said in the one place a caller reads: moving a
         // call between the two changes the guarantee and nothing else, not even
         // an argument's position.
         CoreMethod {
@@ -330,17 +337,17 @@ const SHED_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// § 3's decision: what was decided, what it was decided against, and the exact
-/// wait when it was refused.
+/// `rule:core-classes/ratelimit-gcra`'s decision: what was decided, what it was
+/// decided against, and the exact wait when it was refused.
 ///
 /// Four readers rather than four readonly properties, which is where this
-/// departs from § 3's sketch and has to: a `Core`-owned instance has no
+/// departs from the readonly fields that rule names, and has to: a `Core`-owned instance has no
 /// property a program can reach ([`CoreTy::Instance`] is the home of that
 /// rule), so `$d->allowed` would resolve a class, find no member and reach
 /// `nvs-ir` with nothing to call. `Core\Http\Response` is the same shape for
 /// the same reason and its `->status()` is the precedent.
 ///
-/// § 3's decision: what was decided, what against, and the exact wait when it
+/// The decision: what was decided, what against, and the exact wait when it
 /// was refused. Four readers rather than four readonly properties, for the
 /// reason [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states — a `Core` instance has no property a
 /// program can reach.
@@ -504,8 +511,8 @@ const EXACT_CEILING: i128 = 1 << 53;
 /// GCRA's two parameters, in microseconds: how long one unit takes to drain,
 /// and how far ahead of the drain an arrival may run.
 ///
-/// One place, per the module doc, because § 2's "both tiers run the identical
-/// algorithm" is a claim about *these two numbers* — the decision step that
+/// One place, per the module doc, because `rule:core-classes/ratelimit-gcra`'s
+/// "both tiers run the identical algorithm" is a claim about *these two numbers* — the decision step that
 /// reads them is five lines and is written where the state is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Window {
@@ -516,8 +523,9 @@ struct Window {
     tau: i128,
 }
 
-/// § 2's drain rate and burst tolerance, from the limit the caller wrote —
-/// `member` being whichever of § 1's two asked, since both derive one window.
+/// `rule:core-classes/ratelimit-gcra`'s drain rate and burst tolerance, from the
+/// limit the caller wrote — `member` being whichever of the two members asked,
+/// since both derive one window.
 ///
 /// # Errors
 ///
@@ -528,7 +536,7 @@ struct Window {
 ///
 /// The ceiling is [`SCRIPT`]'s rather than each tier's, so that a limit either
 /// tier refuses is a limit both refuse: the two members are one algorithm under
-/// § 2, and a window `shed` accepted and `consume` did not would make moving a
+/// `rule:core-classes/ratelimit-gcra`, and a window `shed` accepted and `consume` did not would make moving a
 /// call between them a rewrite.
 fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Fault> {
     let refuse = |why: String| Fault::thrown(format!("{NAME}::{member}(): {why}"));
@@ -572,7 +580,7 @@ fn window(limit: u64, per: i64, burst: u64, member: &str) -> Result<Window, Faul
     Ok(Window { interval, tau })
 }
 
-/// Refuses a `cost` the window could never admit, for whichever of § 1's two
+/// Refuses a `cost` the window could never admit, for whichever of the two
 /// members asked.
 ///
 /// A cost past `burst` puts the arrival past the tolerance even on a key with
@@ -632,7 +640,8 @@ fn step(stored: Option<i128>, now: i128, window: Window, cost: u64) -> ([i64; 3]
 /// `None` for a value that is not one of ours, too, which is the memory tier's
 /// contract rather than a defence: an entry may be absent at any time, and a
 /// program that overwrote this key through `Core\Cache::memory()` has forgotten
-/// one key's arrival — § 1's approximation, in the tier chosen for tolerating
+/// one key's arrival — `shed`'s approximation
+/// (`rule:core-classes/ratelimit-two-members`), in the tier chosen for tolerating
 /// it. Read as text and never as raw bytes, so no payload a program wrote can
 /// decode as anything but a number or nothing.
 fn stored_tat(held: Option<&[u8]>) -> Option<i128> {
@@ -653,7 +662,8 @@ const RETRY_AFTER_SLOT: usize = 3;
 
 /// One decision, as the instance a program reads it off.
 ///
-/// The **only** place this module builds one, which is § 5 as structure rather
+/// The **only** place this module builds one, which is
+/// `rule:core-classes/ratelimit-unreachable-store-throws` as structure rather
 /// than as a rule: every route to a `Decision` runs through here, and every
 /// route to here is downstream of the store having answered — so there is no
 /// arrangement of this file in which an unreachable store produces one.
@@ -686,7 +696,7 @@ fn decoded(reply: &[i64], limit: u64) -> Result<Value, String> {
     let allowed = *allowed != 0;
     let remaining = u64::try_from(*remaining).unwrap_or(0);
     // Microseconds on the wire, nanoseconds in a `Duration`. `null` exactly
-    // when allowed, per § 3 — not a zero the caller has to know to read as
+    // when allowed, per `rule:core-classes/ratelimit-gcra` — not a zero the caller has to know to read as
     // absence.
     let wait = (!allowed).then(|| retry_after.saturating_mul(1000).max(0));
     Ok(built(allowed, limit, remaining, wait))
@@ -884,28 +894,28 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit\Decision::allowed(): bool` — § 3's first field.
+    /// `Core\RateLimit\Decision::allowed(): bool` — the decision's first field.
     fn nvs_core_ratelimit_decision_allowed(_ctx, args: [1]) {
         slot_of(args, ALLOWED_SLOT, "allowed")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit\Decision::limit(): uint` — § 3's second field.
+    /// `Core\RateLimit\Decision::limit(): uint` — the decision's second field.
     fn nvs_core_ratelimit_decision_limit(_ctx, args: [1]) {
         slot_of(args, LIMIT_SLOT, "limit")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit\Decision::remaining(): uint` — § 3's third field.
+    /// `Core\RateLimit\Decision::remaining(): uint` — the decision's third field.
     fn nvs_core_ratelimit_decision_remaining(_ctx, args: [1]) {
         slot_of(args, REMAINING_SLOT, "remaining")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit\Decision::retryAfter(): ?Duration` — § 3's fourth field,
+    /// `Core\RateLimit\Decision::retryAfter(): ?Duration` — the decision's fourth field,
     /// and the one that is `null` rather than zero when there is no wait.
     fn nvs_core_ratelimit_decision_retry_after(_ctx, args: [1]) {
         slot_of(args, RETRY_AFTER_SLOT, "retryAfter")
@@ -983,7 +993,7 @@ mod tests {
     ///
     /// Three claims, because the arithmetic alone would pass a module that
     /// computed GCRA's parameters and then sent something else. The parameters
-    /// are § 2's; the script is a single stored timestamp rather than a window
+    /// are `rule:core-classes/ratelimit-gcra`'s; the script is a single stored timestamp rather than a window
     /// of arrivals; and a whole `EVAL` exchange carries those parameters and
     /// nothing else, with the reply read back as the decision it means.
     #[test]
@@ -1009,7 +1019,8 @@ mod tests {
         }
 
         // One timestamp per key, not a window of them — the property that makes
-        // § 2's memory O(1) per key rather than O(arrivals).
+        // `rule:core-classes/ratelimit-gcra`'s memory O(1) per key rather than
+        // O(arrivals).
         assert!(
             SCRIPT.contains("local next_tat = tat + cost * interval"),
             "the step is the theoretical arrival time moving forward by the cost"
@@ -1177,7 +1188,7 @@ mod tests {
     #[test]
     fn shed_is_the_same_gcra_over_the_process_own_memory() {
         let [consume, shed] = CLASS.methods else {
-            panic!("§ 1 is two members, and they are the whole class");
+            panic!("`consume` and `shed` are two members, and they are the whole class");
         };
         assert_eq!(
             consume.names, shed.names,
@@ -1322,7 +1333,7 @@ mod tests {
         assert_eq!(
             crate::cache::memory_get(&entry),
             None,
-            "the cap forgot the arrival, which § 1 says may happen at any time for any reason"
+            "the cap forgot the arrival, which `shed`'s approximation allows at any time"
         );
         assert!(
             arrival(&mut ctx),
@@ -1411,7 +1422,8 @@ mod tests {
             "the store's microseconds are the answer's nanoseconds, exactly"
         );
 
-        // And the other half of § 3: allowed carries no wait at all, rather
+        // And the other half of `rule:core-classes/ratelimit-gcra`'s
+        // `retryAfter`: allowed carries no wait at all, rather
         // than a zero a caller has to know to read as absence.
         let allowed = decoded(&[1, 0, 4], 5).expect("an allowance is a decision");
         let object = allowed.obj_ptr().expect("a decision is an instance");
@@ -1510,7 +1522,8 @@ mod tests {
             .count();
         assert_eq!(
             builds, 1,
-            "a `Decision` is built from {builds} places; § 5 holds because there is exactly one \
+            "a `Decision` is built from {builds} places; an unreachable store throws because \
+             there is exactly one \
              and it is downstream of the store's reply"
         );
         assert!(
@@ -1552,7 +1565,7 @@ mod tests {
         );
         assert!(
             !shipped.contains("\"ratelimit."),
-            "a `[ratelimit]` directive key is the configuration block § 4 refuses to have"
+            "a `[ratelimit]` directive key is a configuration block the limiter does not have"
         );
 
         // The policy is the argument list, and the whole of it: three
@@ -1562,7 +1575,7 @@ mod tests {
         assert_eq!(
             DECISION.slots,
             ["allowed", "limit", "remaining", "retryAfter"],
-            "§ 3's four fields, and the decision carries nothing else"
+            "the decision's four fields, and it carries nothing else"
         );
     }
 }

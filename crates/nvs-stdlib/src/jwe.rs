@@ -580,8 +580,8 @@ fn pbes2_key(password: &[u8], salt_input: &[u8], iterations: u32) -> [u8; crypto
     kek
 }
 
-/// The content-encryption key an `ECDH-ES` agreement answers, through RFC 7518
-/// § 4.6.2's Concat KDF with `A256GCM` as the algorithm identifier and empty
+/// The content-encryption key an `ECDH-ES` agreement answers, through
+/// RFC 7518 § 4.6.2's Concat KDF with `A256GCM` as the algorithm identifier and empty
 /// `apu` and `apv`.
 ///
 /// Direct agreement, so the derived key *is* the content key and there is no

@@ -3,7 +3,7 @@
 //! key derivations, key pairs and the half of one that is sent, agreement over the roster's curves, and
 //! signatures — each algorithm a case of a closed enum the call names, and not one of them defaulted.
 //!
-//! § 3 places the class and states the roster's one rule; what belongs here is
+//! `rule:core-api/tier-roster` places the class and states the roster's one rule; what belongs here is
 //! which constructions that rule picked, what the sealed bytes are, and why a
 //! `secret` key crosses this surface without any of it being a laundering.
 //!
@@ -4984,8 +4984,8 @@ mod tests {
             .expect("the field this vector stands in is 32 octets")
     }
 
-    /// Both agreements against the published evidence for their curve: RFC 7748
-    /// § 6.1, which the document prints, and the frozen WebCrypto set, which is
+    /// Both agreements against the published evidence for their curve:
+    /// RFC 7748 § 6.1, which the document prints, and the frozen WebCrypto set, which is
     /// where a P-256 exchange another implementation actually performed comes
     /// from — `crate::tests::vectors` is the home of why those octets are read
     /// from the file rather than copied into this one.

@@ -7,7 +7,8 @@
 //! `rule:tooling/echo-always-has-a-sink`
 //! 's table pairs every context with a sink and every sink with a *carrier*:
 //! `Core\Html\Markup` under an HTTP request, `Core\Cli\Text` everywhere else,
-//! and § 5 makes that carrier the return of `Core\Out::capture`. So the carrier
+//! and `rule:security/capture-answers-the-carrier` makes that carrier the
+//! return of `Core\Out::capture`. So the carrier
 //! had to exist before [`crate::out`] could, which is why it is in this file
 //! and was in it alone for a while.
 //!
@@ -790,7 +791,8 @@ const LIVE_CARD: ClassDoc = ClassDoc {
 /// section refuses.
 ///
 /// `Core\Cli`'s in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
-/// a region has to have an end for § 8's restoration to be enforceable.
+/// a region has to have an end for
+/// `rule:tooling/the-terminal-is-restored-on-every-exit-path` to be enforceable.
 // rank: 610
 pub(crate) const LIVE: CoreClass = CoreClass {
     name: LIVE_NAME,

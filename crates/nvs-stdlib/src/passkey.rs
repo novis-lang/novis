@@ -1842,8 +1842,8 @@ mod tests {
         assert!(refused.contains("after the new passkey"), "{refused}");
     }
 
-    /// WebAuthn Level 3 § 16.2 (none, ES256) and § 16.11 (packed, Ed25519): the credential id and
-    /// key the specification lists are what this module reads out of its attestation object, and
+    /// WebAuthn Level 3 § 16.2 (none, ES256) and WebAuthn Level 3 § 16.11 (packed, Ed25519): the
+    /// credential id and key the specification lists are what this module reads out of its attestation object, and
     /// the full check stops at the user-verified flag, which neither vector sets.
     #[test]
     fn the_specifications_vectors_read_and_stop_at_user_verification() {

@@ -1,13 +1,14 @@
 //! `Core\Html` — `rule:security/launderers-are-sink-named`'s narrow,
-//! sink-named launderer over the sink § 5 makes out of HTML text, and
-//! `rule:core-classes/html-parsing`'s WHATWG parser onto `Core\Xml`'s tree.
+//! sink-named launderer over the sink `rule:core-classes/html-auto-escape`
+//! makes out of HTML text, and `rule:core-classes/html-parsing`'s WHATWG
+//! parser onto `Core\Xml`'s tree.
 //!
-//! § 3 writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
+//! The launderer rule writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
 //! *the* worked example of what a launderer is allowed to be: one member, one
 //! sink, and a contract naming it. `sanitize` is the second member of that
 //! shape here and the last — it names the same sink and launders the other
 //! thing that arrives at it, untrusted markup rather than untrusted text. What
-//! § 3 refuses is a launderer naming **no** sink, and there is no generic
+//! that rule refuses is a launderer naming **no** sink, and there is no generic
 //! `clean()` here ever: a value safe for HTML text is not safe for a shell
 //! argument, and a catch-all buys the false confidence the qualifier exists to
 //! prevent.
@@ -65,7 +66,8 @@
 //! to make it. **An empty one is the body's**, below, because emptiness is a
 //! property of the text and the checker gains nothing by racing it there; that
 //! pass's own module doc is the home of the split. A `const REASON` holding
-//! the text still compiles, because § 3's argument is that the hatch be
+//! the text still compiles, because `rule:core-classes/html-to-source`'s
+//! argument is that the hatch be
 //! *greppable and justified* rather than inline, which is
 //! `Core\Secret::reveal`'s own position on the same question
 //! ([`crate::secret`]).
@@ -285,7 +287,7 @@ pub const MARKUP_NAME: &str = nvs_runtime::CARRIER_HTML_MARKUP;
 /// launderer, which earns the carrier by escaping; and the sink's own
 /// escape-and-lift of everything else. A constructor member *here* would be
 /// none of those — it would take a runtime `string`, which is exactly the
-/// bypass § 5's first bullet closes ("compute the escape-defeating payload at
+/// bypass `rule:core-classes/html-auto-escape` closes ("compute the escape-defeating payload at
 /// runtime, then cast it"). `Core\Cli\Text::plain` is the same shape one sink
 /// over and *does* have that member, because its argument is laundered on the
 /// way in; nothing here can launder markup, since raw markup is the whole
@@ -318,7 +320,7 @@ pub(crate) const MARKUP: CoreClass = CoreClass {
 ///
 /// No [`CoreMethod`] row, for the same reason [`MARKUP`] has no members at
 /// all: a member taking a `string` is precisely the runtime-computed bypass
-/// § 5 closes, so the only thing allowed to call this is the lowering of the
+/// the rule closes, so the only thing allowed to call this is the lowering of the
 /// construct that spells it, and a row would make it callable by name.
 /// `crate::script`'s two symbols are the same arrangement one construct over,
 /// and its module doc is the home of why a symbol without a row is a shape
@@ -334,7 +336,7 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// which is the second and last way a program obtains a [`MARKUP`].
 ///
 /// Row-less for [`MARKUP_SYMBOL`]'s reason and by the same argument: `+` is
-/// the spelling § 5 gives composition, so the operator's own lowering is the
+/// the spelling the rule gives composition, so the operator's own lowering is the
 /// only thing allowed to reach this, and a member row would be a third way in
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
@@ -711,7 +713,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Html::escape(tainted string $text): Core\Html\Markup` — `rule:security/launderers-are-sink-named`
-    /// 's launderer for the sink § 5 describes, replacing
+    /// 's launderer for the sink `rule:core-classes/html-auto-escape` describes, replacing
     /// `htmlspecialchars`.
     ///
     /// Removing the qualifier is the *registry row's* job, not this body's:
@@ -793,7 +795,7 @@ nvs_runtime::nvs_helper! {
     /// literal the author wrote and the only thing left is to put it in the
     /// carrier's one slot. A body that re-asked the question would be asking
     /// it of a value that no longer remembers where it came from, which is
-    /// exactly why § 5's rule is a compile-time one.
+    /// exactly why `rule:core-classes/html-auto-escape` is a compile-time one.
     ///
     /// **What it spends:** one object allocation per lift, which is
     /// [`crate::instance`]'s cost and charged to the request like every other
@@ -841,7 +843,7 @@ nvs_runtime::nvs_helper! {
     /// rule, and the whole of what [`MARKUP_CONCAT_SYMBOL`] does.
     ///
     /// **Nothing is checked and nothing is escaped**, which is the rule rather
-    /// than an omission: § 5 grants composition precisely because both
+    /// than an omission: the rule grants composition precisely because both
     /// fragments already passed whichever rule made them `Markup`, so
     /// re-escaping either here would corrupt the markup it was lifted for.
     /// The pair is the operator table's own — `nvs_types::expr::operators`
@@ -2493,7 +2495,7 @@ mod tests {
     /// one sink over, which is what makes a carrier a *set* rather than a
     /// special case.
     ///
-    /// The third assertion is § 5's own shape: the class is **memberless**,
+    /// The third assertion is `rule:core-classes/html-auto-escape`'s own shape: the class is **memberless**,
     /// because a `Markup` is obtained where the trust is written or from a
     /// member of [`CLASS`] over operands that already carry it, and a
     /// constructor *on the carrier* would take a runtime string instead. The
@@ -2522,15 +2524,15 @@ mod tests {
     /// `tainted` and not the other axis.
     ///
     /// The **and for no other** half is what makes this more than a row read
-    /// back. § 3's rule is that a launderer is narrow and *sink-named*, so the
+    /// back. `rule:security/launderers-are-sink-named` says a launderer is narrow and *sink-named*, so the
     /// claim under test is a set: the members spelled for the HTML sink are
     /// [`CLASS`]'s `escape` and `sanitize` and nothing else in the registry,
     /// and a third row here fails this on the day it is added — which is the
     /// day the decision to widen the sink's escape hatch is actually being
     /// made.
     ///
-    /// Two launderers on one class is not the catch-all § 3 refuses, and the
-    /// distinction is the one that section draws: what it forbids is a
+    /// Two launderers on one class is not the catch-all that rule refuses, and the
+    /// distinction is the one it draws: what it forbids is a
     /// `sanitize()` or `clean()` that names *no* sink, on the argument that a
     /// value safe for HTML text is not safe for a shell argument. Both of
     /// these name this sink, and they launder different things into it —
@@ -2982,9 +2984,9 @@ mod tests {
     /// sees it: the qualifier comes off a `tainted` argument, and what it
     /// answers is the sink's carrier rather than a `string`.
     ///
-    /// *Beside* `escape` is the part worth asserting. § 3 admits a launderer
-    /// only when it is narrow and names its sink, so this row has to be the
-    /// same *shape* as the one that section works through — same qualifier on
+    /// *Beside* `escape` is the part worth asserting. `rule:security/launderers-are-sink-named`
+    /// admits a launderer only when it is narrow and names its sink, so this row has to be the
+    /// same *shape* as the one that rule works through — same qualifier on
     /// the way in, same carrier on the way out — and differ only in what it
     /// launders. A `sanitize` answering a plain `string` would be the shape
     /// `rule:security/launderer-answers-a-carrier` refuses for this sink, and

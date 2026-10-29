@@ -109,7 +109,9 @@ pub fn validate_name(name: &str) -> Result<(), String> {
 /// The **value** position is a sink with no launderer
 /// (`rule:security/metric-label-refuses-tainted`): a user id, a tenant name or
 /// an error message in a label is unbounded cardinality, which is the one way a
-/// program can make a registry cost what § 7's bound exists to stop. What is
+/// program can make a registry cost what
+/// `rule:observability/past-max-series-a-new-series-is-refused`'s bound exists
+/// to stop. What is
 /// admitted instead is an enum case, an `as`-converted scalar or a route name.
 ///
 /// `$name` is a sink for the same reason and a stronger one: a label value
@@ -378,7 +380,8 @@ fn write(args: &[Value], member: &str, written: Written) -> Result<Value, Fault>
     }
 }
 
-/// A kind or label mismatch as the `LogicError` § 3 asks for, naming the call
+/// A kind or label mismatch as the `LogicError`
+/// `rule:observability/a-name-is-fixed-to-one-kind` asks for, naming the call
 /// that fixed the name as well as the one that disagreed with it.
 ///
 /// `LogicError` rather than a `RuntimeError`: which kind a name is is decided

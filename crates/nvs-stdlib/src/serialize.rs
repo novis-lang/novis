@@ -1,7 +1,7 @@
 //! `Core\Serialize` — `rule:classes/graph-copy`'s externalizing carrier, and nothing else.
 //!
 //! There is no walk in this file. The graph copy is
-//! [`nvs_runtime::graph`]'s, written once and reached by both of § 2's
+//! [`nvs_runtime::graph`]'s, written once and reached by both of that rule's
 //! carriers; what lives here is the pair of members that reach it, their
 //! qualifiers, and the two questions the signature answers that the walk does
 //! not.
@@ -33,7 +33,7 @@
 //!
 //! # There is no `Core\Serialize::clone`
 //!
-//! § 2's live carrier is reached at the `spawn` boundary rather than by a
+//! `rule:classes/graph-copy`'s live carrier is reached at the `spawn` boundary rather than by a
 //! member, and PHP's `clone` is the language's own operator. This class is the
 //! externalizing half only.
 

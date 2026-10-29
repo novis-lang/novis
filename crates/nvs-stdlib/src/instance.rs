@@ -300,7 +300,8 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::ldap::ENTRIES_CURRENT_SYMBOL),
         ],
     ),
-    // And § 11's sync, whose next answer is asked for the same way.
+    // And `rule:core-classes/ldap-search-pages-and-never-follows-a-referral`'s
+    // sync, whose next answer is asked for the same way.
     (
         crate::ldap::CHANGES_NAME,
         &[

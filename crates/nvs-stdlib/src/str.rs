@@ -200,7 +200,8 @@ const CARD: ClassDoc = ClassDoc {
 ///   in the answer; `CoreTy::classification` is what reads it through the
 ///   array.
 /// * **Sink** on `format`'s template, which is one of `rule:core-api/shape-rules` R11's four
-///   grammars — § 1's corollary makes every one of the four a sink, and the
+///   grammars — `rule:security/sink-predicate`'s corollary makes every one of
+///   the four a sink, and the
 ///   variadic arguments it renders stay data.
 // rank: 10
 pub const CLASS: CoreClass = CoreClass {
@@ -2079,7 +2080,7 @@ nvs_runtime::nvs_helper! {
         })?;
         let separator = text(&args[1], "join", "the separator")?;
 
-        // The one member § E named that is **left as it was**, because all
+        // The one member here that is **left as it was**, because all
         // three alternatives measured slower than accumulating into a `String`
         // and copying it: a writer at a guessed capacity grows two or three
         // times per call, a piece list spends a `Vec` per call, and measuring

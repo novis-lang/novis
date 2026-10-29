@@ -30,7 +30,7 @@
 //! `nvs-runtime` beside the ladder.
 //!
 //! **The second caller is `nvs_runtime::floor`**, and its module doc owns the
-//! floor's half of § 6. `floor::uncaught` builds the same [`Record`] out of an
+//! floor's half of `rule:errors/log-write`. `floor::uncaught` builds the same [`Record`] out of an
 //! uncaught `Throwable` and renders it through the same
 //! [`nvs_render::json::line`]; the one difference is *where* the bytes go, not
 //! what they are, and § *Where the bytes go* below owns that. The claim is
@@ -42,16 +42,16 @@
 //! sits* prices.
 //!
 //! **The envelope is `level` and `msg` for a CLI run, and six keys inside a
-//! request.** § 6's other four — `ts`, `request_id`, `trace_id` and `span_id` —
+//! request.** `rule:errors/log-write`'s other four — `ts`, `request_id`, `trace_id` and `span_id` —
 //! are stamped by
 //! [`Ctx::stamp_envelope`](nvs_runtime::Ctx::stamp_envelope), which is the
 //! method `nvs_runtime::floor` calls too and is the one home for which key
 //! comes from what: `request_id` is the id this process drew for the request
 //! (`rule:observability/a-trace-id-exists-for-every-request`), and
 //! `trace_id`/`span_id` arrive on top of it for a sampled or a continued
-//! trace, which is § 6's "whenever a trace is active". Without them a log line
-//! could not be jumped to from a trace,
-//! which is the whole of what § 6 asks for. An absent key is omitted rather
+//! trace, which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`.
+//! Without them a log line could not be jumped to from a trace, which is the
+//! whole of what that rule asks for. An absent key is omitted rather
 //! than written empty; `fields` follows that rule too, so an empty bag is an
 //! absent key and not `{}`.
 //!
@@ -61,7 +61,7 @@
 //! one reader of `[log] target`, `level` and `format`, and takes the channel to
 //! use when the first of those names nothing. **Both of `rule:errors/record-producers`'s writers call it**, so a
 //! deployment naming a destination gets one destination and not two —
-//! § 6's sameness is about the record, and a per-caller destination is the
+//! `rule:errors/log-write`'s sameness is about the record, and a per-caller destination is the
 //! other half of the same claim. That method's doc comment owns the routing,
 //! including why a named target is not captured by `Core\Out::capture`.
 //!
@@ -249,8 +249,8 @@ nvs_runtime::nvs_helper! {
         // carrying the count `nvs_runtime::floor` stamps on, and the writes it
         // stands for do not happen — over that module's table rather than a
         // window of this member's own, because what makes two records the same
-        // record has to be one answer for both of the writers § 6 keeps
-        // identical.
+        // record has to be one answer for both of the writers
+        // `rule:errors/log-write` keeps identical.
         if !nvs_runtime::floor::admit_log_record(&mut record) {
             return Ok(Value::null());
         }
@@ -330,8 +330,8 @@ fn record(ctx: &Ctx, source: Option<Source>, level: Level, message: &str, fields
     record.envelope.message = Some(Rendered::new(message));
     record.envelope.source = source;
     record.envelope.fields = named(fields);
-    // § 6's other four envelope keys, from the one place that has them and for
-    // both of that section's writers — [`Ctx::stamp_envelope`]'s own doc owns
+    // `rule:errors/log-write`'s other four envelope keys, from the one place that has them and for
+    // both of that rule's writers — [`Ctx::stamp_envelope`]'s own doc owns
     // which key comes from what and why a CLI run gets none of them.
     ctx.stamp_envelope(&mut record.envelope);
     record
@@ -451,10 +451,10 @@ mod tests {
     /// one order, one serialiser.
     ///
     /// The application's side is written the way a program writes it: the class
-    /// is an ordinary `fields` bag, since § 6 makes it a field and not an
+    /// is an ordinary `fields` bag, since `rule:errors/log-write` makes it a field and not an
     /// envelope key, and the level crosses as the integer a
     /// lowered case is. `ts`, `request_id`, `trace_id` and `span_id` are absent
-    /// from both, because this context answers no request and § 6's four
+    /// from both, because this context answers no request and that rule's four
     /// request keys are stamped from one — the same agreement one step further
     /// out, and a floor that filled an envelope key its ordinary-code twin does
     /// not would be the divergence this test exists to catch.
@@ -521,7 +521,7 @@ mod tests {
             written,
             "{\"level\":\"error\",\"msg\":\"the store said no\",\
              \"fields\":{\"class\":\"RuntimeError\"}}\n",
-            "and the shape both wrote is § 6's — the envelope keys they have a \
+            "and the shape both wrote is the log record's — the envelope keys they have a \
              source for, then the bag, and nothing empty"
         );
     }
@@ -695,7 +695,7 @@ mod tests {
 
         assert!(
             line.starts_with("{\"ts\":\""),
-            "§ 3 renders the envelope in reading order and `ts` leads it: {line}"
+            "the envelope renders in reading order and `ts` leads it: {line}"
         );
         assert_eq!(expected.len(), 32, "a trace id is sixteen bytes as hex");
         assert_eq!(
@@ -706,20 +706,22 @@ mod tests {
         );
         assert!(
             doc["ts"].as_str().is_some_and(|ts| ts.ends_with('Z')),
-            "§ 6 fixes RFC 3339 and the stamp renders in UTC: {line}"
+            "the stamp is RFC 3339 and renders in UTC: {line}"
         );
     }
 
-    /// § 6's `trace_id`/`span_id`, asked on **both sides of the bound**: a
+    /// `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s
+    /// `trace_id`/`span_id`, asked on **both sides of the bound**: a
     /// request whose trace is being recorded carries them, and the ordinary
     /// request — which has an id and is not sampled — does not.
     ///
     /// A stamp that wrote them unconditionally passes the first half on its own
     /// and makes every line claim a span no backend was ever sent, which is
-    /// exactly the thing § 6's "omitted rather than empty" is protecting.
+    /// exactly the thing that rule's "omitted rather than empty" is protecting.
     ///
     /// The trace id is compared against the *header* and not against the
-    /// context, so this pins the continuation too: § 2 adopts an inbound
+    /// context, so this pins the continuation too:
+    /// `rule:observability/an-inbound-traceparent-is-continued` adopts an inbound
     /// trace's id, and a line naming a freshly drawn one could not be joined to
     /// the caller's trace at all. The span goes the other way — a record names
     /// the span it was **written in**, which is this request's own root and
@@ -734,7 +736,7 @@ mod tests {
         assert_eq!(
             doc["trace_id"].as_str(),
             Some(TRACE),
-            "§ 2 continues the trace the request arrived carrying"
+            "the record continues the trace the request arrived carrying"
         );
         let own = sampled.trace_context().span_id_hex();
         assert_eq!(
@@ -770,11 +772,12 @@ mod tests {
             !quiet
                 .iter()
                 .any(|key| key == "trace_id" || key == "span_id"),
-            "§ 6 omits both while no trace is active: {quiet:?}"
+            "both are omitted while no trace is active: {quiet:?}"
         );
     }
 
-    /// § 6's omission rule, asserted by **counting the keys three shapes
+    /// `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s
+    /// omission rule, asserted by **counting the keys three shapes
     /// produce** rather than by reading one of them: a record carries exactly
     /// the envelope keys its context has a source for, and an absent one is
     /// gone rather than written empty.
@@ -805,7 +808,7 @@ mod tests {
             wanted.sort();
             assert_eq!(
                 found, wanted,
-                "§ 6: the keys this context has a source for, and no others: {line}"
+                "the keys this context has a source for, and no others: {line}"
             );
             assert!(
                 !line.contains("\"\""),
@@ -815,21 +818,21 @@ mod tests {
     }
 
     /// The two-key envelope a CLI run still produces, which is what makes
-    /// § 6's four request keys **additive**: no record that had a shape before
+    /// `rule:errors/log-write`'s four request keys **additive**: no record that had a shape before
     /// them has a different one now.
     ///
     /// Byte for byte rather than by key, because this is also the shape
     /// [`application_code_and_the_engine_floor_produce_schema_identical_records`]
     /// compares the engine floor against. A `ts` read off the clock regardless
     /// of context would pass a key count here and would put the two writers of
-    /// § 6 one key apart, which is the divergence that section forbids.
+    /// that rule one key apart, which is the divergence it forbids.
     #[test]
     fn a_cli_runs_record_is_still_level_and_msg_alone() {
         let mut ctx = Ctx::buffered();
         assert_eq!(
             written(&mut ctx, "the store said no"),
             "{\"level\":\"error\",\"msg\":\"the store said no\"}\n",
-            "§ 6's four request keys have no source outside a request, and a \
+            "the four request keys have no source outside a request, and a \
              record that had none of them still has none"
         );
     }
@@ -951,7 +954,7 @@ mod tests {
     /// and neither caller keeps a channel of its own beside it.
     ///
     /// Asserted as a destination the two of them *share* rather than as two
-    /// readings of the directive, which is § 6's sameness one step past the
+    /// readings of the directive, which is `rule:errors/log-write`'s sameness one step past the
     /// record's shape. The two channels a target displaces are checked as well
     /// as the file that replaced them, because a writer that wrote to both
     /// would satisfy every assertion about the file alone while doubling every

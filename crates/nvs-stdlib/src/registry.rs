@@ -805,7 +805,7 @@ pub enum CoreTy {
     /// argument, and the one PHP's own `iterator_to_array` has accepted since
     /// 8.2. The alternative was a second, narrower notion of iterability
     /// living in the registry, which is the drift AGENTS.md's one-home rule
-    /// exists to prevent: this variant *is* § 3's list, and a fourth shape
+    /// exists to prevent: this variant *is* that rule's list, and a fourth shape
     /// added there would be added here.
     ///
     /// **A helper reads one by tag, and never as a pre-drained array.** The
@@ -1811,7 +1811,7 @@ pub use crate::classes::CLASSES;
 ///
 /// **Nothing reads this at run time.** `nvs meta` renders it, the reference
 /// documentation prints it beside a member's card (`rule:core-api/reference-card`),
-/// § 7's completeness test reads it, and the checker reads it through
+/// `rule:testing/capability-completeness-test` reads it, and the checker reads it through
 /// [`crate::cap::needs`] to hold a call site to its namespace's grants
 /// (`rule:security/authority-is-the-enclosing-namespace`). The operator's grant
 /// is `nvs_runtime::capability::require`, called inside the door that performs
@@ -1836,8 +1836,9 @@ pub use crate::classes::CLASSES;
 /// that is wrong between every pair of additions, and `nvs meta` renders the
 /// table itself.
 ///
-/// **A `None` row is a declaration, not an exemption**, and that is § 7's
-/// completeness as a *shape* rather than as a promise to keep a list short. A class
+/// **A `None` row is a declaration, not an exemption**, and that is
+/// `rule:testing/capability-completeness-test` as a *shape* rather than as a
+/// promise to keep a list short. A class
 /// is a door once any one of its members is declared, and its remaining members
 /// then divide into two kinds a review has to tell apart: the ones nobody
 /// classified, and the ones classified as reaching nothing. Both used to look
@@ -2239,7 +2240,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // door would read and answers a `bool` — no name is resolved, no file is
     // opened and nothing leaves the process, so `rule:security/capability-question-is-grant-and-scope` has no door to put
     // a check at, exactly as `Core\Cache::memory` above. Requiring a grant
-    // to ask about grants would also close the shape § 6 opened: a package that
+    // to ask about grants would also close the shape
+    // `rule:security/optional-capability-degrades` opened: a package that
     // declared `fs.write` optional would need a second capability before it
     // could find out whether it had the first.
     (crate::cap::NAME, "has", None),
@@ -2290,10 +2292,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::DbSchema),
     ),
     // The other three reach no effect this table has anything to say about.
-    // `planAgainst` does reach the database — it issues § 4's two catalog
-    // queries — and still declares `None`, because the grant that let it reach
-    // that database was asked for at `Core\Db::connect` and § 9's first
-    // sentence is that nothing about computing a plan is privileged. The two
+    // `planAgainst` does reach the database — it issues two catalog queries
+    // (`rule:core-classes/schema-introspection`) — and still declares `None`,
+    // because the grant that let it reach that database was asked for at
+    // `Core\Db::connect`, and `rule:core-classes/schema-apply-capability` says
+    // nothing about computing a plan is privileged. The two
     // conversions touch nothing at all.
     (crate::db::SCHEMA_NAME, "planAgainst", None),
     (crate::db::SCHEMA_NAME, "fromArray", None),
@@ -2407,7 +2410,7 @@ pub const OWN_FILE_READS: &[(&str, &str)] = &[
 /// A **list, not a roster**: unlike [`CONSTRUCTORS`] this drives nothing at
 /// run time, because `tryParse` is an ordinary member with an ordinary symbol
 /// that an ordinary `Core\Uri::tryParse($s)` call site resolves. It exists so
-/// `a_try_parse_is_its_own_class_parse_made_nullable` can hold § 3a's three
+/// `a_try_parse_is_its_own_class_parse_made_nullable` can hold `rule:expressions/try-parse`'s three
 /// conditions mechanically, and so a class added here has to be added
 /// deliberately rather than by writing a member with a suggestive name.
 ///
@@ -3056,7 +3059,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
 /// because a second table was not updated. There is no roster to forget.
 ///
 /// `None` for a member with no entry parameter, which is every member but the
-/// two `rule:concurrency/an-upgrade-is-spawn-shaped` and § 5 name.
+/// two `rule:concurrency/an-upgrade-is-spawn-shaped` and
+/// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` name.
 #[must_use]
 pub fn entry_parameter(class: &str, method: &str) -> Option<usize> {
     self::class(class)?
@@ -3441,7 +3445,7 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     // instance `query` answers with, spelled as a [`CoreTy::InstanceAt`] — is
     // the unhydrated case of the same class rather than a second one.
     (crate::db::ROWS_NAME, &["T"]),
-    // § 18's other result, and generic for the same reason at the other end of
+    // `Core\Db`'s other result, and generic for the same reason at the other end of
     // the memory trade: a walk carries what each row was built into, a
     // `Core\Db\Row` for `stream` and the call site's own class for
     // `streamAs<T>`, so the two members answer one class at two arguments
@@ -3510,7 +3514,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::ldap::ENTRIES_NAME,
         &CoreTy::Instance(crate::ldap::ENTRY_NAME),
     ),
-    // And § 11's `changes(): Changes`, for the same reason.
+    // And `Core\Ldap\Connection`'s `changes(): Changes`, for the same reason.
     (
         crate::ldap::CHANGES_NAME,
         &CoreTy::Instance(crate::ldap::ENTRY_NAME),
@@ -3698,7 +3702,8 @@ pub struct IdempotentRetry {
 /// Asked by name for [`implements_comparable`]'s reason: a `Core` row has no
 /// cell for a rule this narrow, and a flag on [`CoreMethod`] would be a column
 /// six hundred rows wide to say one thing about one of them. The roster is
-/// § 7's: the verbs that repeat an effect rather than restate a question, which
+/// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s: the
+/// verbs that repeat an effect rather than restate a question, which
 /// is `post` and `patch` and nothing else `Core\Http\Client` offers.
 #[must_use]
 pub fn idempotent_retry_rule(class: &str, member: &str) -> Option<IdempotentRetry> {
@@ -5097,7 +5102,7 @@ mod tests {
     }
 
     /// A `Core` enum's name and cases follow `rule:core-api/identifier-casing`'s casing rules too —
-    /// `PascalCase` for both, since a case is a type-level name (§ 1's
+    /// `PascalCase` for both, since a case is a type-level name (that rule's
     /// enum-case row), not a member.
     #[test]
     fn every_core_enum_name_and_case_follows_the_casing_rules() {

@@ -352,7 +352,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ])
         // The sink carriers' row-less symbols, which are constructs rather than
         // members for the same reason those two are: `rule:core-classes/html-auto-escape`'s
-        // lift is `as` on a string literal, § 5's `Markup + Markup` and
+        // lift is `as` on a string literal, its `Markup + Markup` and
         // `rule:tooling/text-is-the-one-raw-path`'s `Text + Text` are an operator, and
         // `rule:core-classes/html-template`'s pair is an html template's segment
         // and hole. Each is reachable only from the lowering of the construct

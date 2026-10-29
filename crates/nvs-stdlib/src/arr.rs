@@ -4432,7 +4432,8 @@ nvs_runtime::nvs_helper! {
 
         // Read once for the whole fold: the key sits at the third position, so
         // a callback declaring `($carry, $value)` — the shape a sum is written
-        // in — never sees one and none is built. § D, and
+        // in — never sees one and none is built. The module doc § *A callback
+        // that does not want a key is never handed one*, and
         // [`nvs_core_arr_filter`] is the same reading two positions earlier.
         let wants_key = nvs_runtime::callable_arity(args[1])? >= 3;
 

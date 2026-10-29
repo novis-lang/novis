@@ -7,7 +7,7 @@
 //! [`nvs_syntax::walk::of_source`], which is the same call plus the walk — so
 //! a construct that parses when `nvs` compiles a file parses identically when
 //! a running program describes the same text, and a construct the parser
-//! refuses is refused identically in both places. § 3 states that as a rule
+//! refuses is refused identically in both places. `rule:core-classes/ast-is-inert` states that as a rule
 //! and this module is the whole of keeping it: there is no second grammar
 //! here, no tolerant re-lexing, and no arm that repairs input the compiler
 //! would reject (`rule:errors/ambiguous-input-refused`).
@@ -57,7 +57,7 @@
 //!
 //! # Decision: the tree is inert because there is nothing in it to run
 //!
-//! § 3's "no path from an AST value back into execution" is structural here,
+//! That rule's "no path from an AST value back into execution" is structural here,
 //! not a promise. A [`NODE`] instance holds ordinary Novis values — a kind
 //! string, an array of more nodes, and the three integers saying where in the
 //! source it starts — and `nvs_syntax::walk::Node`, the only thing that
@@ -182,8 +182,8 @@ const NODE_CARD: ClassDoc = ClassDoc {
 /// owns.
 ///
 /// The tree `parse` answers with — a kind and the nodes under it, and
-/// nothing that reaches back into execution, which is what makes § 3's
-/// inertness structural rather than promised.
+/// nothing that reaches back into execution, which is what makes
+/// `rule:core-classes/ast-is-inert`'s inertness structural rather than promised.
 // rank: 1480
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,

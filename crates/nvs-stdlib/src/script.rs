@@ -58,10 +58,12 @@
 //!
 //! What is unusual is that the routing is here rather than at the call site.
 //! [`run_exit_hooks`] is the one door between an ending and a hook: it turns
-//! the script frame's own ABI status into § 2's report and answers *early* for
-//! a `FATAL`, so § 3's "a limit breach runs no hook" is one branch in one
-//! function rather than a rule three call sites in `nvs-cli` each have to
-//! remember. It is here and not in `nvs_runtime` because the report is a
+//! the script frame's own ABI status into the report
+//! `rule:observability/three-endings-fire-the-exit-queue` describes, and
+//! answers *early* for a `FATAL`, so
+//! `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook` is one
+//! branch in one function rather than a rule three call sites in `nvs-cli` each
+//! have to remember. It is here and not in `nvs_runtime` because the report is a
 //! `Core` instance and this crate is what lays those out.
 //!
 //! **What it spends:** one reference per registration plus the hook's own
@@ -246,9 +248,10 @@ pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReport::Reason";
 /// `ExitCall` carries the suffix `rule:observability/script-on-exit` names: a case spelled `Exit`
 /// would share a spelling with the keyword, and a program writing
 /// `ExitReport::Reason::Exit` beside an `exit;` two lines down is reading one word two
-/// ways. There is deliberately no case for a `FATAL` or a cancellation — § 3
-/// makes those the two terminations no hook observes, so a case for either
-/// would be a value nothing can ever produce.
+/// ways. There is deliberately no case for a `FATAL` or a cancellation —
+/// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook` makes those
+/// the two terminations no hook observes, so a case for either would be a value
+/// nothing can ever produce.
 pub(crate) const EXIT_REASON: crate::registry::CoreEnum = crate::registry::CoreEnum {
     name: EXIT_REASON_NAME,
     cases: &[
@@ -311,8 +314,9 @@ const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 /// **Readonly is structural here rather than enforced.** There is no member
 /// that writes a slot, and a `Core` class has no constructor a program may
 /// reach, so the only thing that builds one is [`report_of`] — which is
-/// downstream of the ending having been decided, and that is § 5's "fixed
-/// before the first hook runs" as structure rather than as a rule.
+/// downstream of the ending having been decided, and that is
+/// `rule:observability/a-hook-observes-and-never-steers`'s "fixed before the
+/// first hook runs" as structure rather than as a rule.
 // rank: 550
 pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     name: EXIT_REPORT_NAME,
@@ -515,8 +519,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 
 /// One ending, as the report `rule:observability/three-endings-fire-the-exit-queue`'s table describes it.
 ///
-/// The **only** place this module builds a report, which is § 5's "fixed before
-/// the first hook runs" as structure rather than as a rule: every route to a
+/// The **only** place this module builds a report, which is
+/// `rule:observability/a-hook-observes-and-never-steers`'s "fixed before the
+/// first hook runs" as structure rather than as a rule: every route to a
 /// hook runs through [`run_exit_hooks`], and this is the one thing it hands
 /// them.
 ///
@@ -557,7 +562,9 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>, peak
 ///
 /// `outcome` is the script frame's own answer, as `nvs_runtime`'s ABI statuses
 /// spell it, and `thrown` is the exception for the one ending that has one.
-/// The routing is § 2's table and § 3's two terminations, in one `match`:
+/// The routing is `rule:observability/three-endings-fire-the-exit-queue`'s
+/// table and `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`'s
+/// two terminations, in one `match`:
 ///
 /// - `Ok(())` — the last top-level statement ran: `Normal`, status `0`.
 /// - `Err(EXITED)` — `exit`: `ExitCall`, and the status the call named, which
@@ -568,7 +575,8 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>, peak
 ///   ending all the same, which is why it is read before the arm below.
 /// - `Err(THROWN)` — an uncaught throw: `UncaughtThrow`, status `1`, and the
 ///   live `Throwable`.
-/// - **anything else** — a `FATAL`, which runs no hook at all. § 3 is the
+/// - **anything else** — a `FATAL`, which runs no hook at all.
+///   `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook` is the
 ///   argument: a resource-limit breach stopped the script *for exceeding its
 ///   budget*, and `Core\Fatal::onLimit` on `rule:errors/on-limit`'s reserved slice stays
 ///   its one observer. A cancellation never reaches here at all, because a
@@ -1183,7 +1191,8 @@ nvs_runtime::nvs_helper! {
     /// from the caller's frame and this one outlives the call by the whole of
     /// the script. What differs is on the other side of the boundary —
     /// `Ctx::push_exit_hook` appends where `Ctx::set_limit_handler` replaces,
-    /// which is § 1's FIFO queue rather than a slot.
+    /// which is `rule:observability/script-on-exit`'s FIFO queue rather than a
+    /// slot.
     fn nvs_core_script_on_exit(ctx, args: [1]) {
         // `crate::fatal`'s guard, for its reason: the row's one parameter is
         // `CoreTy::Callable`, so `E0401` refuses a `null` at the call and this
@@ -1244,23 +1253,26 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script\ExitReport::reason(): Core\Script\ExitReport::Reason` — § 2's first
-    /// column, as the enum integer the slot holds.
+    /// `Core\Script\ExitReport::reason(): Core\Script\ExitReport::Reason` —
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s first column, as
+    /// the enum integer the slot holds.
     fn nvs_core_script_exit_report_reason(_ctx, args: [1]) {
         slot_of(args, REASON_SLOT, "reason")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script\ExitReport::status(): int` — § 2's second column, fixed
-    /// before the first hook ran.
+    /// `Core\Script\ExitReport::status(): int` —
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s second column,
+    /// fixed before the first hook ran.
     fn nvs_core_script_exit_report_status(_ctx, args: [1]) {
         slot_of(args, STATUS_SLOT, "status")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script\ExitReport::error(): ?Throwable` — § 2's third column, and
+    /// `Core\Script\ExitReport::error(): ?Throwable` —
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s third column, and
     /// the live object rather than a report built from it.
     fn nvs_core_script_exit_report_error(_ctx, args: [1]) {
         slot_of(args, ERROR_SLOT, "error")
@@ -1433,7 +1445,8 @@ mod tests {
         ctx.set_isolate_argument(Value::null());
     }
 
-    /// `rule:observability/three-endings-fire-the-exit-queue`'s first row, and § 1's FIFO: two hooks registered in order
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s first row, and
+    /// `rule:observability/script-on-exit`'s FIFO: two hooks registered in order
     /// run in that order, once each, and are handed `Normal` with status `0`.
     // covers: Core\Script::onExit
     #[test]
@@ -1453,20 +1466,21 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| seen.borrow().iter().map(|saw| saw.who).collect::<Vec<_>>()),
             ["first", "second"],
-            "§ 1: hooks run FIFO in registration order"
+            "hooks run FIFO in registration order"
         );
         assert_eq!(
             SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
             (super::NORMAL, 0),
-            "§ 2's first row: the last statement ran, so `Normal` and status 0"
+            "the last statement ran, so `Normal` and status 0"
         );
         assert_eq!(
             SEEN.with(|seen| seen.borrow()[0].error),
             Value::null().bits(),
-            "§ 2: only an uncaught throw carries an error"
+            "only an uncaught throw carries an error"
         );
 
-        // § 2's "once, at most once per script": a second ending finds an
+        // `rule:observability/three-endings-fire-the-exit-queue`'s "once, at
+        // most once per script": a second ending finds an
         // already-drained queue and runs nothing, which is what keeps a report
         // that was fixed for one ending from being handed out at another.
         SEEN.with(|seen| seen.borrow_mut().clear());
@@ -1499,7 +1513,7 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
             (super::EXIT_CALL, 3),
-            "§ 2: `exit($n)` is `ExitCall` carrying `$n`, not a `Normal` end"
+            "`exit($n)` is `ExitCall` carrying `$n`, not a `Normal` end"
         );
         release(hook);
     }
@@ -1558,12 +1572,12 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
             (super::UNCAUGHT_THROW, 1),
-            "§ 2: an uncaught throw is `UncaughtThrow` at status 1"
+            "an uncaught throw is `UncaughtThrow` at status 1"
         );
         assert_eq!(
             SEEN.with(|seen| seen.borrow()[0].error),
             thrown.as_value().bits(),
-            "§ 1: the report carries the real `Throwable`, not a record built \
+            "the report carries the real `Throwable`, not a record built \
              from it"
         );
         // The report borrowed the exception rather than consuming it: this
@@ -1592,7 +1606,7 @@ mod tests {
 
         assert!(
             SEEN.with(|seen| seen.borrow().is_empty()),
-            "§ 3: a `FATAL` fires no hook"
+            "a `FATAL` fires no hook"
         );
         assert!(
             !ctx.exit_hooks_drained(),
@@ -1623,7 +1637,7 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| seen.borrow().iter().map(|saw| saw.who).collect::<Vec<_>>()),
             ["throws", "second"],
-            "§ 5: the throw is logged and abandoned, and the hook behind it runs"
+            "the throw is logged and abandoned, and the hook behind it runs"
         );
         assert!(
             ctx.take_thrown().is_none(),
@@ -1658,7 +1672,7 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| (seen.borrow()[0].reason, seen.borrow()[0].status)),
             (super::FINISH, 0),
-            "§ 2's fourth row: a finish is an ordinary end, so status 0"
+            "a finish is an ordinary end, so status 0"
         );
         assert_eq!(
             SEEN.with(|seen| seen.borrow()[0].error),
@@ -1695,7 +1709,7 @@ mod tests {
         assert_eq!(
             SEEN.with(|seen| seen.borrow().iter().map(|saw| saw.who).collect::<Vec<_>>()),
             ["finishes", "second"],
-            "§ 5: the refusal is logged and abandoned, and the hook behind it runs"
+            "the refusal is logged and abandoned, and the hook behind it runs"
         );
         assert_eq!(
             SEEN.with(|seen| (seen.borrow()[1].reason, seen.borrow()[1].status)),
@@ -1718,7 +1732,7 @@ mod tests {
         assert!(
             reported.contains(r#""class":"RuntimeError""#),
             "the marker was reported as itself rather than as the \
-             `RuntimeError` § 5 names, which is the whole of the refusal — a \
+             `RuntimeError` a hook's refusal names, which is the whole of the refusal — a \
              record naming the marker's own class says an internal one \
              escaped: {reported}"
         );
@@ -1840,8 +1854,8 @@ mod tests {
         nvs_runtime::EXITED
     }
 
-    /// A hook that records that it ran and then finishes, for § 5's second
-    /// refusal.
+    /// A hook that records that it ran and then finishes, which a hook may no
+    /// more do than it may `exit`.
     #[expect(unsafe_code, reason = "[`throws`]'s reason, on its twin")]
     unsafe extern "C" fn finishes(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
         unsafe { record("finishes", args, out) };
@@ -1920,7 +1934,8 @@ mod tests {
         unsafe { record("second", args, out) }
     }
 
-    /// A hook that records that it ran and then throws, for § 5.
+    /// A hook that records that it ran and then throws, for
+    /// `rule:observability/a-hook-observes-and-never-steers`.
     #[expect(
         unsafe_code,
         reason = "[`records_first`]'s reason, plus a context pointer the ABI \

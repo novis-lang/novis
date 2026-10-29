@@ -22,8 +22,8 @@ use nvs_runtime::{Ctx, Decimal, Fault, Tag, Value};
 ///   [`Decimal::compare`] and [`Decimal::compare_f64`]. It orders against the
 ///   other numeric rows rather than only against its own, because
 ///   `rule:types/conversion`'s first row
-///   makes an `int`/`uint` exact as a `decimal` and its § 3 permits the
-///   `decimal`/`float` comparison even where their *arithmetic* has no common
+///   makes an `int`/`uint` exact as a `decimal` and `rule:types/decimal`
+///   permits the `decimal`/`float` comparison even where their *arithmetic* has no common
 ///   type. Scale does not enter it: `1.10` and `1.1000` are equal.
 /// * `float` against anything numeric — `f64::total_cmp` over an [`ordered`]
 ///   `NaN`, which is a real total order (unlike `partial_cmp`, which a `NaN`

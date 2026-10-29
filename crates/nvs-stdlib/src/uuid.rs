@@ -28,10 +28,11 @@
 //! three forms writes the trim it means.
 //!
 //! **Any 128 bits in that shape parse**, including RFC 9562 § 5.9's nil UUID
-//! and § 5.10's max. The version and variant nibbles are a statement about how
-//! a UUID was *generated*, not a checksum, so refusing an unrecognised version
-//! would make `parse` reject identifiers a future RFC defines and ones this
-//! very module will emit if § 11 ever gains a `v8`.
+//! and RFC 9562 § 5.10's max. The version and variant nibbles are a statement
+//! about how a UUID was *generated*, not a checksum, so refusing an
+//! unrecognised version would make `parse` reject identifiers a future RFC
+//! defines and ones this very module will emit if `Core\Uuid` ever gains a
+//! `v8`.
 //!
 //! # The layout: two `uint` slots, not one `string`
 //!
@@ -404,8 +405,8 @@ pub(crate) const TEXT: Text = [0; uuid::fmt::Hyphenated::LENGTH];
 /// See [`TEXT`].
 pub(crate) type Text = [u8; uuid::fmt::Hyphenated::LENGTH];
 
-/// `octets` in the canonical rendering — hyphenated and lower case, § 9's own
-/// spelling and [`nvs_core_uuid_to_string`]'s answer.
+/// `octets` in the canonical rendering — hyphenated and lower case, which is
+/// [`nvs_core_uuid_to_string`]'s answer.
 ///
 /// A function rather than a second `encode_lower` at each caller, because
 /// `nvs_stdlib::router`'s `signedRoute` derives the text of a `Core\Uuid`
@@ -421,8 +422,8 @@ pub(crate) fn canonical(octets: [u8; 16], into: &mut Text) -> &str {
 /// SQLite half, where a `uuid` column holds the canonical rendering because
 /// SQLite has no type that holds sixteen octets as anything but a `BLOB`.
 ///
-/// `None` for text that is not one, which is § 9's "throws on a value that does
-/// not parse" asked here; the caller holds the column's name and this seam does
+/// `None` for text that is not one, which is that rule's "throws on a value
+/// that does not parse" asked here; the caller holds the column's name and this seam does
 /// not. It is [`read`] and therefore [`nvs_core_uuid_parse`] exactly, so a cell
 /// a database hands back and a string a program parses are one grammar.
 pub(crate) fn of_text(text: &str) -> Option<Value> {
@@ -625,11 +626,12 @@ nvs_runtime::nvs_helper! {
     /// This replaces the `isValid` that used to sit here, which was already
     /// [`read`] asked without the throw — so there is still one definition of
     /// "is a UUID", now with one spelling instead of two. Both go through
-    /// [`read`], which is condition 2 of § 3a and the only one a registry test
-    /// cannot check.
+    /// [`read`], which is the second of `rule:expressions/try-parse`'s three
+    /// conditions and the only one a registry test cannot check.
     ///
-    /// `$text as ?Core\Uuid` does **not** compile: § 3 withdrew the two-class
-    /// parse roster that spelling belonged to, and `as` targets no class at
+    /// `$text as ?Core\Uuid` does **not** compile:
+    /// `rule:expressions/nullable-conversion-availability` withdrew the
+    /// two-class parse roster that spelling belonged to, and `as` targets no class at
     /// all now. [`crate::uri`]'s module doc argues that withdrawal in full.
     fn nvs_core_uuid_try_parse(_ctx, args: [1]) {
         let text = text_of(args, "tryParse")?;

@@ -2,15 +2,18 @@
 //! sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request state,
 //! as a member per tier that hands back a store, and the operations on that store.
 //!
-//! § 1's tiers are a member each rather than one API with a flag, so the choice
-//! a program made is visible in review rather than in an argument list. Not one
+//! `rule:core-api/two-cache-tiers` makes the tiers a member each rather than one
+//! API with a flag, so the choice a program made is visible in review rather than in an argument list. Not one
 //! of them takes a parameter at all, which is what makes that structural: there
 //! is no spelling of `memory()` that can be turned into `shared()` by a value
 //! computed at run time.
 //!
-//! # Decision: an entry is § 3's byte payload, not a live graph
+//! # Decision: an entry is a byte payload, not a live graph
 //!
-//! § 2 fixes the *operation* — the recursive graph copy
+//! An entry is the byte payload `rule:classes/serialize-is-a-closed-format`
+//! describes.
+//! `rule:concurrency/a-cached-value-is-copied-across-the-boundary` fixes the
+//! *operation* — the recursive graph copy
 //! `rule:classes/two-copy-depths`
 //! already defines, not a third mechanism — and leaves which of its two
 //! carriers open. This tier uses the **byte** carrier
@@ -32,7 +35,8 @@
 //!
 //! What it costs is one encode per `put` and one decode per `get`, both
 //! O(graph) exactly as the live copy is, on a path that is already a copy by
-//! § 2's own decision. That is latency spent on security, which is the
+//! `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s own
+//! decision. That is latency spent on security, which is the
 //! direction `rule:programs/memory-priority`'s ordering allows.
 //!
 //! # Decision: the memory tier needs no grant
@@ -82,7 +86,8 @@
 //! **evicts rather than failing an allocation**, so [`Entries::put`] never
 //! refuses: it forgets entries until the arrival fits, and an arrival too large
 //! for the whole tier is itself forgotten as it lands. Nothing about `put`'s
-//! contract changes, because § 1 already says an entry may be absent at any
+//! contract changes, because `rule:concurrency/cross-request-state-is-explicit`
+//! already says an entry may be absent at any
 //! time — the cap is a second reason for the `null` a caller had to handle
 //! anyway, and a `put` that threw would be a third failure mode for a store
 //! whose whole contract is that it has none.
@@ -104,7 +109,8 @@
 //! required key. That rule is about a bearer credential that leaves the
 //! process and never stops being one; an entry left here without a lifetime
 //! is forgotten by the cap above and reaches nobody. So an omitted `ttl` is
-//! § 1's contract unchanged, and nothing a program already wrote reads
+//! `rule:concurrency/cross-request-state-is-explicit`'s contract unchanged, and
+//! nothing a program already wrote reads
 //! differently.
 //!
 //! **The memory tier holds a deadline read from [`Instant`]**, never
@@ -128,8 +134,9 @@
 //! **A lifetime already over is not a write.** A `ttl` of zero — and a
 //! negative one, which lands in the same place — forgets whatever was under
 //! the key and stores nothing, exactly as an arrival too large for the tier
-//! is forgotten as it lands. It is not a refusal, because § 1's store has no
-//! failure mode for one to be.
+//! is forgotten as it lands. It is not a refusal, because the store
+//! `rule:concurrency/cross-request-state-is-explicit` describes has no failure
+//! mode for one to be.
 //!
 //! # What it spends
 //!
@@ -196,7 +203,8 @@ const SECRET_ENTRY_CARD: ClassDoc = ClassDoc {
             The `fill` function of `getSecret` returns one.",
 };
 
-/// § 1's tiers, as a member per tier that hands one back.
+/// `rule:core-api/two-cache-tiers`'s tiers, as a member per tier that hands one
+/// back.
 ///
 /// `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
 /// sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
@@ -309,14 +317,16 @@ const GET_SECRET_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// § 1's store, as the two operations § 2 defines over it.
+/// `rule:concurrency/cross-request-state-is-explicit`'s store, as the two
+/// operations `rule:concurrency/a-cached-value-is-copied-across-the-boundary`
+/// defines over it.
 ///
 /// One class for both tiers rather than two, because a tier is a *destination*
 /// and not a different operation: `put` copies out and `get` copies in
 /// whichever end the copy is going to. Which tier this one is, is the `tier`
 /// slot, written by the member that produced it and readable by no program —
-/// asking a store what it is would be the flag § 1 refuses, arriving one call
-/// later.
+/// asking a store what it is would be the flag `rule:core-api/two-cache-tiers`
+/// refuses, arriving one call later.
 ///
 /// What those two answer with: one class for both tiers, because a tier is a
 /// destination and not a different operation. [`crate::cache`]'s module doc
@@ -334,7 +344,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             // difference is `rule:security/unclassified-parameter-refuses-tainted`'s. Not a byte of the key reaches any
             // answer, so a `tainted` one is admitted — a cache key derived from
             // a request is ordinary, and the key is data rather than an
-            // instruction (§ 7). The *value* is refused, because `mixed` has
+            // instruction (`rule:security/sink-predicate`). The *value* is refused, because `mixed` has
             // nowhere to carry the qualifier back out of `get` and admitting one
             // would launder it (`nvs_types`' `admits_tainted_argument`).
             params: &[
@@ -807,7 +817,9 @@ const ENTRY_OVERHEAD: usize = 64;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Lifetime {
     /// No `ttl` was written: the entry stays until the cap forgets it or a
-    /// `put` replaces it, which is § 1's contract for every entry.
+    /// `put` replaces it, which is
+    /// `rule:concurrency/cross-request-state-is-explicit`'s contract for every
+    /// entry.
     Forever,
     /// The `ttl` that was written, counted from the moment of the write. Zero
     /// is a lifetime that is already over, which is where a negative one lands
@@ -819,8 +831,9 @@ impl Lifetime {
     /// The lifetime `nanos` names, with everything at or below zero reading as
     /// one that is already over.
     ///
-    /// A negative `ttl` is not refused, because `put` has none to make: § 3
-    /// turns a tier at its cap into an eviction rather than a throw precisely
+    /// A negative `ttl` is not refused, because `put` has none to make:
+    /// `rule:concurrency/the-memory-tier-is-one-store-per-process` turns a tier
+    /// at its cap into an eviction rather than a throw precisely
     /// so that this store keeps the one contract it has, and a second answer
     /// for a duration a program computed to be negative would be the failure
     /// mode it says it has none of.
@@ -934,7 +947,9 @@ impl Entries {
         if lifetime.elapsed() || cap.is_some_and(|cap| incoming > cap) {
             // An arrival with nothing left to live, and one the tier could not
             // hold even empty, take the same exit: it is forgotten as it lands
-            // rather than failing the write — § 3 evicts, and § 1 has already
+            // rather than failing the write — the cap evicts
+            // (`rule:concurrency/the-memory-tier-is-one-store-per-process`), and
+            // `rule:concurrency/cross-request-state-is-explicit` has already
             // told the caller a `get` may answer nothing. What was under the
             // key goes with it, because `put` replaced it.
             self.forget(key);
@@ -2517,13 +2532,14 @@ impl Lease {
 
     /// Take `key` for `ttl`, writing `token`, and say whether this host got it.
     ///
-    /// § 3's set-if-absent, which is the store's decision and never this
-    /// process's: [`redis::Connection::set_if_absent`] owns why.
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s
+    /// set-if-absent, which is the store's decision and never this process's: [`redis::Connection::set_if_absent`] owns why.
     ///
     /// # Errors
     ///
     /// The store's refusal, or the failure to reach it. The caller turns either
-    /// into "this host does not run this interval", which is § 3's safe answer.
+    /// into "this host does not run this interval", which is the safe answer of
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`.
     pub fn take(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
         self.connection
             .set_if_absent(namespaced(key).as_bytes(), token, ttl)
@@ -2535,7 +2551,8 @@ impl Lease {
     /// # Errors
     ///
     /// As [`Lease::take`]. A `false` is a lease this host no longer holds, which
-    /// is not a failure: the run it was taken for outlived it, and § 3 bounds
+    /// is not a failure: the run it was taken for outlived it, and
+    /// `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` bounds
     /// `fleet` at at-most-once for exactly that case.
     pub fn renew(&mut self, key: &str, token: &[u8], ttl: Duration) -> Result<bool, String> {
         self.connection
@@ -2576,7 +2593,8 @@ nvs_runtime::nvs_helper! {
     /// A deployment that configured no store gets a refusal rather than a store
     /// that would silently behave like the memory one: the two tiers make
     /// different promises, and a `shared` that quietly served one process's
-    /// entries would be the accident § 1 splits the members to prevent.
+    /// entries would be the accident `rule:core-api/two-cache-tiers` splits the
+    /// members to prevent.
     ///
     /// # Errors
     ///
@@ -2610,7 +2628,8 @@ nvs_runtime::nvs_helper! {
     /// thrown `IOError` on the shared tier for a store that cannot be reached
     /// or that refuses the write.
     ///
-    /// **The copy happens before the tier is consulted**, which is § 2's "not a
+    /// **The copy happens before the tier is consulted**, which is
+    /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s "not a
     /// third mechanism" written as control flow: there is one call to the walk
     /// in this module and both tiers are downstream of it, so a tier cannot grow
     /// a representation of its own without deleting that structure first.
@@ -2662,7 +2681,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cache\Store::get(string $key): mixed` — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s copy back
-    /// in, and § 1's "may be absent at any time" as the `null` it answers.
+    /// in, and `rule:concurrency/cross-request-state-is-explicit`'s "may be
+    /// absent at any time" as the `null` it answers.
     ///
     /// # Errors
     ///
@@ -2671,7 +2691,8 @@ nvs_runtime::nvs_helper! {
     /// the same resolver — the program's own class table — and, on the shared
     /// tier, a thrown `IOError` for a store that cannot be reached. An
     /// entry that is simply not there is `null` on either tier, which is the
-    /// difference § 1 draws between a miss and a failure.
+    /// difference `rule:concurrency/cross-request-state-is-explicit` draws
+    /// between a miss and a failure.
     ///
     /// **The tier is consulted before the copy, and only for the bytes**: it
     /// answers where the payload comes from and nothing about how it is read
@@ -2698,8 +2719,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\Cache\Store::forget(string $key): void` — the second reason an
     /// entry goes, after the cap and the lifetime that are the tier's own.
     ///
-    /// **It answers nothing, not even whether there was an entry.** § 1 already
-    /// says one may be absent at any time for any reason, so a program that
+    /// **It answers nothing, not even whether there was an entry.**
+    /// `rule:concurrency/cross-request-state-is-explicit` already says one may be
+    /// absent at any time for any reason, so a program that
     /// could act on that answer would be acting on a coincidence of the cap and
     /// the clock; a store whose `get` reports a miss as an ordinary answer
     /// cannot report the same state as news here.
@@ -3070,7 +3092,7 @@ pub(crate) mod tests {
         for method in CLASS.methods {
             assert!(
                 method.params.is_empty(),
-                "{}::{} takes an argument, which is the flag § 1 refuses",
+                "{}::{} takes an argument, which is the flag the two tiers replace",
                 CLASS.name,
                 method.name
             );
@@ -3127,8 +3149,9 @@ pub(crate) mod tests {
 
     /// `rule:concurrency/the-memory-tier-is-one-store-per-process`: exceeding the
     /// cap **evicts** rather than failing an allocation. The write that crosses
-    /// it succeeds, and what goes is the key written longest ago — which § 1 has
-    /// already told every caller to expect, since an entry may be absent at any
+    /// it succeeds, and what goes is the key written longest ago — which
+    /// `rule:concurrency/cross-request-state-is-explicit` has already told every
+    /// caller to expect, since an entry may be absent at any
     /// time for any reason. Asked of one shard on its own, which is the unit a
     /// cap is enforced over.
     #[test]
@@ -3227,7 +3250,7 @@ pub(crate) mod tests {
         assert_eq!(
             tier.get(KEY),
             None,
-            "an entry past its lifetime is the `null` § 1 had already promised"
+            "an entry past its lifetime is the `null` a miss already answers"
         );
         assert!(
             tier.entries.contains_key(KEY),

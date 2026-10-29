@@ -160,7 +160,8 @@ const CARD: ClassDoc = ClassDoc {
 /// The third half of one request: what arrived, what goes back, and
 /// what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
 /// `start` is the member that talks to the store — [`crate::session`]'s own
-/// module doc owns which of § 2's four operations are on disk, why the local
+/// module doc owns which of
+/// `rule:http-server/a-session-store-answers-four-operations`'s four operations are on disk, why the local
 /// tier is unreachable from there rather than merely unselected, and why a
 /// presented identifier this store cannot have issued is *absent* rather
 /// than a second question about validity.
@@ -984,9 +985,8 @@ fn issue_cookie(ctx: &mut Ctx, who: &str, id: &str) -> Result<(), Fault> {
 /// agreement by counting the distinct answers rather than by reading any one of them.
 fn unstarted(member: &str) -> Fault {
     Fault::thrown(format!(
-        "{NAME}::{member}(): this request has not started a session — call `{NAME}::start()` \
-         first, which is the line in the source that says this request uses sessions (`rule:statements/no-host-populated-variables` \
-         § 4)"
+        "{NAME}::{member}(): this request has not started a session. Call `{NAME}::start()` \
+         first."
     ))
 }
 

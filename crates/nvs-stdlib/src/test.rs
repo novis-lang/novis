@@ -147,8 +147,8 @@
 //! `.nvst` case, no case ever being inside a `#[Test]`.
 //!
 //! A test reaching its own listener needs `rule:http-server/allow-url-pins-the-address`'s outbound pair granted —
-//! `net.connect` for the host and `net.internal` for § 3's denied loopback
-//! range — because `Core\Http\Client` is the way a program speaks HTTP and
+//! `net.connect` for the host and `net.internal` for the loopback range
+//! `rule:security/net-address-policy` denies — because `Core\Http\Client` is the way a program speaks HTTP and
 //! nothing about a listener being the test's own widens that policy. That is a
 //! real cost of the mechanism rather than an oversight; `Core\Test` handing
 //! back an already-pinned `Core\Http\Target` would remove it, and `rule:testing/in-process-request` does

@@ -11,8 +11,9 @@
 //! and their own doc comments are the home for the ownership rule.
 //!
 //! **Two tiers, two slots, one shape of registration.** The members differ in
-//! what fires them and in what the handler is handed — § 1's `LimitReport`
-//! array, § 2's real `Throwable` object — and in nothing else, so a program
+//! what fires them and in what the handler is handed — `rule:errors/on-limit`'s
+//! `LimitReport` array, `rule:errors/on-uncaught-throw`'s real `Throwable`
+//! object — and in nothing else, so a program
 //! registering both gets two independent handlers and neither registration
 //! disturbs the other.
 //!
@@ -23,7 +24,7 @@
 //! here would be the exact thing that section refuses: one request's safety net
 //! still armed while another request runs on the same core.
 //!
-//! **The row is `callable` whatever the report is.** § 1 gives the parameter a
+//! **The row is `callable` whatever the report is.** `rule:errors/on-limit` gives the parameter a
 //! signature taking a `LimitReport`, but `rule:types/callable-is-the-only-function-type` makes `callable` the only
 //! function type there is and it says nothing about what a callable takes, so
 //! what the handler is *handed* is decided at the call rather than here. It is
@@ -236,7 +237,7 @@ mod tests {
     /// and fired through the ladder: the context takes a reference of its own,
     /// a second registration replaces the first and gives that reference back,
     /// nothing runs until a limit is reached, and the ladder then runs the
-    /// *last* handler once — the slot is empty on the way in, which is § 1's
+    /// *last* handler once — the slot is empty on the way in, which is its
     /// zero-retry rule.
     ///
     /// The refcount is the half no `.nvst` case can see: a replacement that
@@ -288,7 +289,7 @@ mod tests {
         );
         assert!(
             !ctx.has_limit_handler(),
-            "§ 1's zero retries: the registration leaves the slot on the way in"
+            "a limit handler gets zero retries: the registration leaves the slot on the way in"
         );
         ctx.run_limit_handler(Limit::Memory);
         assert_eq!(CALLS.with(Cell::get), 1, "a second breach runs nothing");
@@ -327,15 +328,17 @@ mod tests {
     ///
     /// Comparing the payload bits is what makes that a check on the *ladder*
     /// rather than on a serialiser: a `Ctx::run_uncaught_handler` that built an
-    /// array like § 1's `LimitReport`, or that copied the exception across the
-    /// way an `rule:security/isolate-shares-nothing` boundary has to, would still carry the right class and
-    /// message and would differ here in the one respect § 2 names.
+    /// array like `rule:errors/on-limit`'s `LimitReport`, or that copied the
+    /// exception across the way an `rule:security/isolate-shares-nothing`
+    /// boundary has to, would still carry the right class and message and
+    /// would differ here in the one respect `rule:errors/on-uncaught-throw` names.
     ///
     /// Both halves are driven for real — the registration through
     /// [`super::nvs_core_fatal_on_uncaught_throw`] itself, the firing through
     /// the ladder — so this also pins the boundary between them: the member
     /// takes a reference of its own, and the ladder takes the registration out
-    /// of the slot on the way in, which is the whole of § 2's zero-retry rule.
+    /// of the slot on the way in, which is the whole of
+    /// `rule:errors/on-uncaught-throw`'s zero-retry rule.
     // covers: Core\Fatal::onUncaughtThrow
     #[test]
     fn on_uncaught_throw_receives_the_real_throwable() {
@@ -379,7 +382,7 @@ mod tests {
         );
         assert!(
             !ctx.has_uncaught_handler(),
-            "§ 2's zero retries: the registration leaves the slot on the way in"
+            "an uncaught-throw handler gets zero retries: the registration leaves the slot on the way in"
         );
         // The handler borrowed the exception rather than consuming it: this
         // frame still owns the only reference, and the object is still readable

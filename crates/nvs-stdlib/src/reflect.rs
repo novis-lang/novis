@@ -107,7 +107,7 @@
 //! declared property from inside the class, the `public` ones from anywhere
 //! else, filtered out of the roster [`describe`] built. The rosters are the
 //! other half of the same rule and do not move: naming a member is metadata,
-//! which § 2 makes always available, and the bit each row carries is what a
+//! which `rule:security/reflection-enforces-visibility` makes always available, and the bit each row carries is what a
 //! caller reads instead.
 //!
 //! # Decision: `TypeKind` is one case per representation, and no case is a
@@ -328,7 +328,8 @@ const ENUM_UNSIGNED_SLOT: usize = 3;
 ///
 /// `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only introspection, whose members are the door onto a
 /// description and nothing else — a program can reach a member it may not
-/// call only through the description, and § 2 makes that reach face the
+/// call only through the description, and
+/// `rule:security/reflection-enforces-visibility` makes that reach face the
 /// ordinary check.
 // rank: 1390
 pub(crate) const CLASS: CoreClass = CoreClass {

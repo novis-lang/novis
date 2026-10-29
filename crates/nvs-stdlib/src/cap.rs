@@ -2,7 +2,7 @@
 //! 's one member, and the whole class: does the code running here hold a
 //! capability, right now?
 //!
-//! It exists for one shape. § 6 splits what a package's manifest asks for into
+//! It exists for one shape. That rule splits what a package's manifest asks for into
 //! `required` and `optional`, and only a `required` one refuses to build; a
 //! package that declared `fs.write` optional compiles wherever it is not
 //! granted, and needs a way to take the other branch:
@@ -173,8 +173,8 @@ pub fn is_capability(name: &str) -> bool {
 
 /// Every roster name, comma-separated, for the help line of the refusal above.
 ///
-/// Ordered as `Cap::ALL` is, which is § 8's table order rather than an
-/// alphabetical one: an operator reading it is looking for the row they meant.
+/// Ordered as `Cap::ALL` is, which is `rule:security/capability-roster-is-closed`'s
+/// roster order rather than an alphabetical one: an operator reading it is looking for the row they meant.
 #[must_use]
 pub fn roster() -> String {
     Cap::ALL
@@ -239,7 +239,8 @@ nvs_runtime::nvs_helper! {
     /// deployment granted writing *somewhere* — the roots it named are still
     /// compared at the door, and this member has no path to compare them
     /// against. The alternative, answering `false` for every list-shaped grant,
-    /// would make the member useless to the one caller § 6 wrote it for.
+    /// would make the member useless to the one caller
+    /// `rule:security/optional-capability-degrades` wrote it for.
     ///
     /// A name no capability has answers `false` rather than throwing. The
     /// written case is already `E0616` at compile time, so what reaches this

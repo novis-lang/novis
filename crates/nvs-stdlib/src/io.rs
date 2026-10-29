@@ -3810,7 +3810,7 @@ mod tests {
         let overwrite = WRITE_STREAM_OPTIONS
             .iter()
             .find(|option| option.name == "overwrite")
-            .expect("§ 4's second option is a row");
+            .expect("`overwrite` is a row");
         assert!(
             matches!(overwrite.default, Const::Bool(false)),
             "a caller who says nothing must not replace what is there"

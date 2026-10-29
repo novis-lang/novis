@@ -460,7 +460,7 @@ fn key(keys: &serde_json::Value, name: &str) -> Result<Vec<u8>, String> {
 /// One `aes128gcm` message: `payload` encrypted for a browser's `p256dh` and `auth` under the
 /// sender's `secret` scalar and `salt`, RFC 8291 § 3.4 and RFC 8188 § 2.
 ///
-/// Every step is the RFC's, and its § 5 example is the test of this function. The salt and the
+/// Every step is the RFC's, and the example in RFC 8291 § 5 is the test of this function. The salt and the
 /// scalar are arguments so that example can fix them; [`seal`] is the one caller that is not a
 /// test, and it draws both.
 ///

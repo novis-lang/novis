@@ -292,8 +292,8 @@ fn code_at(secret: &[u8], step: i64) -> [u8; DIGITS as usize] {
 
     // Dynamic truncation: the low nibble of the last octet picks where to read
     // four octets, and the top bit of those is cleared so the number is
-    // positive in every language that has only signed integers — RFC 4226
-    // § 5.3's reason, kept because interoperability is the point.
+    // positive in every language that has only signed integers —
+    // RFC 4226 § 5.3's reason, kept because interoperability is the point.
     let offset = usize::from(mac[19] & 0x0f);
     let binary = u32::from_be_bytes([
         mac[offset] & 0x7f,

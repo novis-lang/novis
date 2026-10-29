@@ -10,7 +10,8 @@
 //!
 //! # What a page looks like, and why that is decided here
 //!
-//! § 6 says the usage page is *generated* and says nothing about its layout, so
+//! `rule:tooling/command-run-dispatches-and-help-is-generated` says the usage
+//! page is *generated* and says nothing about its layout, so
 //! the layout is this module's call and this is its one home:
 //!
 //! ```text
@@ -54,8 +55,9 @@
 //! declaration was read for, print no declaration column at all rather than
 //! half of one.
 //!
-//! A **flag** names its type and never a default. § 6 gives an option declared
-//! `bool` by its being *written*, so the one nobody wrote is `false` whatever
+//! A **flag** names its type and never a default.
+//! `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` gives an
+//! option declared `bool` by its being *written*, so the one nobody wrote is `false` whatever
 //! its declaration says (`nvs_runtime::commands::CommandArg::default`), and
 //! `bool = true` on a page would name a default the matcher does not honour.
 //!
@@ -70,7 +72,8 @@
 //!
 //! # What a completion script completes, and why that is decided here
 //!
-//! § 6 names the four shells and says nothing about what the script does, so
+//! `rule:tooling/command-run-dispatches-and-help-is-generated` names the four
+//! shells and says nothing about what the script does, so
 //! that is this module's call too, and this is its one home. **Every script
 //! completes two positions and no others**: the command word, from the table's
 //! own names, and the option spellings of whichever command the first word
@@ -377,8 +380,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Command::completions(Command::Shell $shell): string` — § 6's second
-    /// generated artefact, over the same table [`nvs_core_command_help`]
+    /// `Core\Command::completions(Command::Shell $shell): string` — the second
+    /// artefact `rule:tooling/command-run-dispatches-and-help-is-generated`
+    /// generates, over the same table [`nvs_core_command_help`]
     /// renders.
     ///
     /// The module doc owns the four layouts. What is decided here is the one
@@ -460,11 +464,12 @@ fn matched(row: &Command, words: &[String]) -> Result<Vec<Value>, String> {
 
 /// [`matched`]'s walk, which fills **every** slot or answers why it could not.
 ///
-/// § 6's rules, in the order a command line is read: a word beginning `-` is an
+/// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`'s rules, in
+/// the order a command line is read: a word beginning `-` is an
 /// option and is matched by its whole spelling; a `bool` option is a flag and
 /// takes no value; any other word fills the next positional. An argument nobody
 /// wrote takes its declared default where the row carries one, is `false` where
-/// it is a flag — § 6's rule, which outranks a flag's own declared default —
+/// it is a flag — the same rule's, which outranks a flag's own declared default —
 /// and is a usage error otherwise. A trailing `array<string>`
 /// ([`ArgConv::Words`]) takes every positional word left, and is an empty
 /// array when none is.
@@ -524,7 +529,9 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
             *slot = Some(Value::array(collected));
             continue;
         }
-        // § 6's flag is *given by being written*, so the one an author left
+        // A flag is *given by being written*
+        // (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`),
+        // so the one an author left
         // out is `false` whatever the declaration's own default says. Ahead of
         // the default below, because that rule is the one exception to it.
         if arg.is_option() && arg.conv == ArgConv::Flag {
@@ -552,7 +559,8 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
     Ok(())
 }
 
-/// One word, as the value the parameter behind `arg` receives — § 6's "a
+/// One word, as the value the parameter behind `arg` receives —
+/// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`'s "a
 /// matched value's type comes from the parameter", read off the conversion the
 /// checker recorded on the row.
 fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
@@ -599,7 +607,8 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         // reaches a parameter that declared a class — that second pass runs
         // over this same list before the handler is called.
         ArgConv::Parses(_) => Ok(Value::text(text)),
-        // § 3's closed set, and the one conversion whose refusal can name every
+        // `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set, and
+        // the one conversion whose refusal can name every
         // value it would have accepted — a command line is a person typing, so
         // the set is worth more in the message than the type's own spelling.
         // The word itself is the value, which is `nvs_runtime::commands::
@@ -619,7 +628,9 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
                 ))
             }
         }
-        // § 6's other closed set, and the refusal is the same sentence with the
+        // The enum, which is the other closed set
+        // `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+        // converts to, and the refusal is the same sentence with the
         // enum's own name in it — the words are cases *of* something here, which
         // is the one thing a set of allowed values has nothing to say. The value is
         // the case's backing integer under the enum tag (`rule:enums/representation`),
@@ -664,7 +675,8 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
 /// Two answers rather than one because [`parse_each`] reaches a program's own
 /// `parse`, and that call can fail in a way no usage page could honestly
 /// describe. A word the class refused is [`Self::Usage`] — the command line is
-/// input, and § 6 answers input with a page. Anything the *engine* could not do
+/// input, and `rule:tooling/command-run-dispatches-and-help-is-generated`
+/// answers input with a page. Anything the *engine* could not do
 /// is [`Self::Fault`] and is returned unchanged, so a fatal never reaches a
 /// person as advice about the word they typed.
 #[derive(Debug)]
@@ -765,7 +777,8 @@ fn summary_spelling(spellings: &[String]) -> &str {
         .map_or("", String::as_str)
 }
 
-/// § 6's first line: the command and the shape of a command line that runs it.
+/// The usage page's first line: the command and the shape of a command line
+/// that runs it.
 fn usage_line(row: &Command) -> String {
     let mut line = format!("usage: {}", row.name);
     for arg in &row.args {
@@ -1390,8 +1403,9 @@ mod tests {
     }
 
     /// A declared default rides with the type it was declared beside, and a
-    /// flag's is withheld: § 6 gives an option declared `bool` by its being
-    /// written, so `= true` on that line would name a default the matcher does
+    /// flag's is withheld:
+    /// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` gives an
+    /// option declared `bool` by its being written, so `= true` on that line would name a default the matcher does
     /// not honour — the same divergence
     /// [`an_unwritten_argument_takes_its_declared_default`] asserts on the
     /// values.
@@ -1530,7 +1544,9 @@ mod tests {
         );
     }
 
-    /// A `uint` option converts during matching (§ 6), and the three ways a
+    /// A `uint` option converts during matching
+    /// (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`), and
+    /// the three ways a
     /// command line can fail to give it one are usage errors rather than
     /// crashes — including leaving it out, which is a usage error exactly
     /// because this row declared no default for it.
@@ -1567,7 +1583,7 @@ mod tests {
         );
     }
 
-    /// § 6's `decimal`, on the side a command line fills: a written word
+    /// A `decimal` parameter, on the side a command line fills: a written word
     /// becomes `rule:types/decimal`'s exact number, so nothing declared
     /// `decimal` reaches a handler as the text somebody typed, and a word that
     /// is not one is a usage error rather than a throw.
@@ -1608,7 +1624,8 @@ mod tests {
         );
     }
 
-    /// § 3's set of allowed values, as the closed set a word is narrowed to:
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`'s set of allowed values,
+    /// as the closed set a word is narrowed to:
     /// every member converts to its own word, and anything else is a **usage**
     /// error naming every value that would have been accepted — a command line
     /// is input, so a word outside the set is never a throw.
@@ -1643,10 +1660,10 @@ mod tests {
         );
     }
 
-    /// § 6's own `#[Option] uint $retries = 3`: an argument the command line
-    /// left out takes its declared default, through the same conversion a
-    /// written word takes — and the flag beside it is `false` by § 6's rule
-    /// rather than by the `= true` its declaration wrote, which is the one
+    /// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`'s own
+    /// `#[Option] uint $retries = 3`: an argument the command line left out
+    /// takes its declared default, through the same conversion a written word
+    /// takes — and the flag beside it is `false` by that rule rather than by the `= true` its declaration wrote, which is the one
     /// place the two answers differ.
     #[test]
     fn an_unwritten_argument_takes_its_declared_default() {

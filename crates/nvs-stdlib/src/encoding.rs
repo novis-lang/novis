@@ -81,8 +81,8 @@
 //!
 //! | member | alphabet | padding |
 //! |---|---|---|
-//! | `toBase64` / `fromBase64` | `A-Za-z0-9+/` (§ 4) | **required** — `base64_encode`'s own output |
-//! | `toBase64Url` / `fromBase64Url` | `A-Za-z0-9-_` (§ 5) | **absent** — JWT, and the `rtrim(strtr(…))` idiom it replaces |
+//! | `toBase64` / `fromBase64` | `A-Za-z0-9+/` (RFC 4648 § 4) | **required** — `base64_encode`'s own output |
+//! | `toBase64Url` / `fromBase64Url` | `A-Za-z0-9-_` (RFC 4648 § 5) | **absent** — JWT, and the `rtrim(strtr(…))` idiom it replaces |
 //!
 //! Neither decoder accepts the other's spelling, and neither accepts
 //! whitespace, a newline or a stray `=`. That is the same rule `fromHex` reads
@@ -112,7 +112,7 @@
 //!   only in alphabet and padding, and a decoder taking both spellings could
 //!   not tell a caller which member they meant. There is one base32 pair, so
 //!   there is nothing to be ambiguous with.
-//! - Neither variance can change the octets. § 6's alphabet has no lower-case
+//! - Neither variance can change the octets. RFC 4648 § 6's alphabet has no lower-case
 //!   member, so folding case cannot collide with a symbol; padding carries no
 //!   bits. Every rule that *could* change the answer is still enforced —
 //!   a symbol outside the alphabet (a space grouping a secret for a reader is
@@ -534,8 +534,8 @@ const TO_BASE64_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Encoding::fromBase64`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE64_DOC: MethodDoc = MethodDoc {
-    short: "Reads the base64 text `$s` back to bytes. It accepts only the alphabet of RFC 4648 \
-            § 4, with correct padding and no unused bits in the last symbol. Use \
+    short: "Reads the base64 text `$s` back to bytes. It accepts only the alphabet of \
+            RFC 4648 § 4, with correct padding and no unused bits in the last symbol. Use \
             `fromBase64Url` for URL-safe text.",
     params: &[ParamDoc {
         name: "s",
@@ -1107,7 +1107,7 @@ nvs_runtime::nvs_helper! {
     /// `base64_decode`, and throwing where that function's default mode
     /// silently discarded whatever it did not recognise.
     ///
-    /// Strict on all three counts the module doc lists: § 4's alphabet only,
+    /// Strict on all three counts the module doc lists: RFC 4648 § 4's alphabet only,
     /// padding required and canonical, and no unread bits in the last symbol.
     /// A URL-safe operand is refused here rather than accepted as a courtesy —
     /// [`nvs_core_encoding_from_base64_url`] is the member that reads it, and a
@@ -1806,8 +1806,8 @@ mod tests {
             text
         };
 
-        // The empty buffer, one buffer per residue, and § 5's two symbols
-        // where § 4 writes `+` and `/`.
+        // The empty buffer, one buffer per residue, and RFC 4648 § 5's two
+        // symbols where RFC 4648 § 4 writes `+` and `/`.
         assert_eq!(spell(&mut ctx, b""), "");
         assert_eq!(spell(&mut ctx, b"abc"), "YWJj");
         assert_eq!(spell(&mut ctx, b"ab"), "YWI");
@@ -1853,7 +1853,7 @@ mod tests {
     /// are pinned by length as well as by text: an encoder that pads the
     /// wrong one still spells the aligned case correctly, and every sample a
     /// person picks by hand is likely to be aligned. `+` and `/` are asserted
-    /// to be present, because § 4's alphabet is the whole difference from
+    /// to be present, because RFC 4648 § 4's alphabet is the whole difference from
     /// [`nvs_core_encoding_to_base64_url`] and a table swapped for that one
     /// answers text a URL reader accepts and `fromBase64` does not.
     // covers: Core\Encoding::toBase64
@@ -1885,7 +1885,7 @@ mod tests {
         assert_eq!(spell(&mut ctx, b"ab"), "YWI=");
         assert_eq!(spell(&mut ctx, b"a"), "YQ==");
 
-        // § 4's two symbols, which are the whole difference from the URL-safe
+        // RFC 4648 § 4's two symbols, which are the whole difference from the URL-safe
         // alphabet, and the high bits that reach them.
         assert_eq!(spell(&mut ctx, &[0xfb, 0xff]), "+/8=");
         assert_eq!(spell(&mut ctx, &[0xff, 0xff, 0xff]), "////");
@@ -1928,7 +1928,7 @@ mod tests {
     /// vectors, and every length to 64 by the unpadded arithmetic, since an
     /// encoder that pads, or rounds a short group the wrong way, still spells
     /// every aligned sample right. The alphabet is asserted as a *set* over a
-    /// sweep of all 256 values, because § 6's alphabet skips `0`, `1`, `8` and
+    /// sweep of all 256 values, because RFC 4648 § 6's alphabet skips `0`, `1`, `8` and
     /// `9` and a table off by one there answers text that reads plausibly and
     /// that `fromBase32` refuses.
     // covers: Core\Encoding::toBase32
@@ -1953,7 +1953,7 @@ mod tests {
             text
         };
 
-        // § 10's vectors with the padding taken off: one per residue, and the
+        // RFC 4648 § 10's vectors with the padding taken off: one per residue, and the
         // sixth octet that opens a second group.
         for (octets, spelled) in [
             (b"".as_slice(), ""),
@@ -1968,7 +1968,7 @@ mod tests {
         }
 
         // Every octet value in one buffer, and the alphabet read off the
-        // answer as a set: exactly § 6's thirty-two symbols, and no `=`.
+        // answer as a set: exactly RFC 4648 § 6's thirty-two symbols, and no `=`.
         let every: Vec<u8> = (0..=255_u8).collect();
         let swept = spell(&mut ctx, &every);
         assert_eq!(

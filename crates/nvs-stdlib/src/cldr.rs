@@ -131,8 +131,9 @@
 //! `nvs_stdlib::cldr` already holds". That was never true of this module: what
 //! it held was the pattern grammar above and no plural data at all, so the row
 //! is a member *and* the table behind it. The row's reason survives unchanged —
-//! § 3's `Web\I18n` formats messages over this rather than shipping a second
-//! copy of CLDR — and it is why the member is `Core` at all.
+//! a package that formats messages works over this rather than shipping a
+//! second copy of CLDR (`rule:programs/no-first-party-framework`) — and it is
+//! why the member is `Core` at all.
 //!
 //! What is carried is CLDR's **cardinal** rules, as [`RuleSet`]'s arms and the
 //! language-subtag table [`RULES`] maps onto them. Ordinal rules (`1st`,
@@ -808,7 +809,7 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 /// Whether `pattern` is one [`compile`] can read, for a caller that wants the
 /// refusal and not the pieces —
 /// `rule:expressions/intrinsic-constant-arguments`'s fold,
-/// which reads a *literal* pattern while checking and reports § 3's diagnostic
+/// which reads a *literal* pattern while checking and reports its diagnostic
 /// instead of the throw the runtime would have made.
 ///
 /// # Errors

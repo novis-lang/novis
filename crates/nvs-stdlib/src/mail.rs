@@ -35,7 +35,7 @@
 //! `rule:core-classes/db-capabilities` is where that shape comes from and also why the address is **not** put through
 //! `rule:security/net-address-policy`'s denied ranges: an address
 //! an operator wrote into root-owned configuration carries the same authority as the grant itself,
-//! and a mail relay lives at `127.0.0.1` or on a container network precisely inside the set § 3
+//! and a mail relay lives at `127.0.0.1` or on a container network precisely inside the set that rule
 //! denies. `Core\Http`'s launderer pins because *its* host came from the program;
 //! [`resolve`] does not, because this one could not have.
 //!
@@ -71,7 +71,7 @@
 //! today; it belongs beside the anchor bundle that module already names as unlanded, and the two
 //! are one configuration slice.
 //!
-//! # Attachments and inline parts are composition, and composition is § 3's
+//! # Attachments and inline parts are composition, and composition is the program's
 //!
 //! `rule:programs/framework-core-half` puts this class's line exactly there. Two body parts are here because the
 //! transport has to choose a `Content-Type` regardless and a mail with no plain-text alternative is
@@ -407,7 +407,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
 
 /// Where the operator's `host` resolves to.
 ///
-/// **No `pin_host` and no § 3 table**, which the module doc argues in full: this
+/// **No `pin_host` and no `rule:security/net-address-policy` table**, which the module doc argues in full: this
 /// address came out of root-owned configuration, so the authority that would
 /// have granted an exception is the one that wrote it, and every ordinary relay
 /// sits inside the ranges `rule:security/net-address-policy` denies by default.
@@ -985,8 +985,8 @@ impl Session {
 /// where the endpoint did not advertise it at all.
 ///
 /// The reply's first line is the endpoint's own greeting rather than a keyword,
-/// so it is skipped; every other line is `250-KEYWORD PARAM PARAM`, and RFC 5321
-/// § 2.4 makes the keyword case-insensitive.
+/// so it is skipped; every other line is `250-KEYWORD PARAM PARAM`, and
+/// RFC 5321 § 2.4 makes the keyword case-insensitive.
 fn advertised<'a>(reply: &'a [String], keyword: &str) -> Option<&'a str> {
     reply.iter().skip(1).find_map(|line| {
         let rest = line.get(4..)?;

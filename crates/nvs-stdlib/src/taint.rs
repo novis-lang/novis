@@ -10,7 +10,7 @@
 //!
 //! # What it is for, and what it is not
 //!
-//! § 3's rule is that laundering is sink-named — a value safe for HTML text is
+//! `rule:security/launderers-are-sink-named` says that laundering is sink-named — a value safe for HTML text is
 //! not safe for a shell argument, so there is no generic `sanitize()`. This
 //! member is the case that rule cannot cover: the developer has validated the
 //! value themselves and needs to say so. It is modeled on this project's own

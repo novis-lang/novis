@@ -542,8 +542,9 @@ fn a_one_parameter_callback_synthesizes_no_key() {
     }
 }
 
-/// The second half of § D: `Core\Arr::sort($list)` renumbers, so it reads no
-/// key — and neither does one whose `by` declares a single parameter.
+/// The second half of `crate::arr`'s module doc § *A callback that does not
+/// want a key is never handed one*: `Core\Arr::sort($list)` renumbers, so it
+/// reads no key — and neither does one whose `by` declares a single parameter.
 ///
 /// **Preserving a key is not what costs anything, and measuring said so.**
 /// `preserveKeys: true` over a packed list was five allocations dearer than
@@ -568,7 +569,8 @@ fn a_sort_that_renumbers_builds_no_keys() {
     const ENTRIES: usize = 64;
 
     // `by`, and nothing else varying: `order` ascending, no `comparator`, and
-    // `preserveKeys` false throughout — the renumbering sort § D names.
+    // `preserveKeys` false throughout — the renumbering sort that module doc
+    // names.
     let mut spent = Vec::new();
     for by in [Value::null(), callback(1), callback(2)] {
         let args = vec![

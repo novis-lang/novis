@@ -2,7 +2,8 @@
 //! 's first roster entry: [`crate::crypto`]'s construction with a key ring
 //! over it and a cookie-safe spelling around it, and no second cipher anywhere.
 //!
-//! `rule:security/protocol-roster` places the class and § 2 says why the roster is closed at four;
+//! `rule:security/protocol-roster` places the class and
+//! `rule:security/protocol-admission-test` says why the roster is closed at four;
 //! what belongs here is which end of the ring is the newest key, why `open`
 //! answers `tainted string`, and why two members named `seal` and `open` are
 //! not a second way to reach `Core\Crypto`'s two.
@@ -95,8 +96,9 @@
 //! than by anything in this module: Poly1305's tag comparison is the
 //! `chacha20poly1305` crate's, done through `subtle`, and no member here
 //! exposes a tag, a key or a raw sealed buffer for a caller to compare with
-//! `==`. That is the whole of § 4's "no API exposes the raw value" for this
-//! entry — the only thing a caller ever holds is the cookie text and the
+//! `==`. That is the whole of
+//! `rule:security/verification-throws-and-compares-in-constant-time`'s "no
+//! member exposes the raw value" for this entry — the only thing a caller ever holds is the cookie text and the
 //! plaintext.
 
 use base64::Engine as _;

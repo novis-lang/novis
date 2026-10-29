@@ -2,10 +2,11 @@
 //! run.
 //!
 //! Every other class in this crate registers a signature *and* an
-//! implementation. This one registers a signature and nothing else, because §
-//! 5 says what the members do: a declaration's attached-attribute list is
-//! fully static and every payload is already a compile-time constant
-//! (§ 2), so `nvs check` **replaces the call with its answer** — a compiled-in
+//! implementation. This one registers a signature and nothing else, because
+//! `rule:attributes/retrieval-folds-while-checking` says what the members do: a
+//! declaration's attached-attribute list is fully static and every payload is
+//! already a compile-time constant
+//! (`rule:attributes/payload-is-a-compile-time-constant`), so `nvs check` **replaces the call with its answer** — a compiled-in
 //! `null`, the matched payload object itself, or the array of them. There is no
 //! lookup left for a helper to perform, and `nvs_types::attributes` is where
 //! the answer is computed.
@@ -19,7 +20,7 @@
 //!
 //! # Why `$member` is one optional parameter rather than two overloads
 //!
-//! § 4 writes each member twice, once with a `$member` name and once without.
+//! `rule:attributes/structural-retrieval` writes each member twice, once with a `$member` name and once without.
 //! The registry has no overloading and wants none: what the two spellings
 //! differ in is *which* declaration is named, which is one argument's worth of
 //! information. So the parameter is a single `string` defaulting to the empty
@@ -45,7 +46,8 @@ const T: CoreTy = CoreTy::Written("T");
 /// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
 /// that rule is written: neither member's answer can carry a byte of either
 /// argument. What comes back is a payload object read out of a *declaration*
-/// — § 5 folds the call to that constant before anything runs — so the name
+/// — `rule:attributes/retrieval-folds-while-checking` folds the call to that
+/// constant before anything runs — so the name
 /// selects which declaration is read rather than flowing into what is read.
 const MEMBER: CoreTy = CoreTy::Text(Qual::Neutral);
 

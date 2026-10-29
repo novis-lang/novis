@@ -79,14 +79,14 @@
 //! the opposite of the answer [`crate::encoding`]'s hex pair got, and worth
 //! reading beside it.
 //!
-//! Attacker-controlled data reaches every one of these members, so § 4's
+//! Attacker-controlled data reaches every one of these members, so that rule's
 //! second question applies and wants a demonstrable verification record. Each
 //! algorithm is an external specification with published test vectors and a
 //! decade of cryptanalysis attached, so a hand-written one would be a
 //! reimplementation that is *only* as good as its own test suite — which is
 //! the case where a dependency is strictly the safer trade. The RustCrypto
 //! family (`sha2`, `sha1`, `md-5`, `hmac`) is pure Rust with no build script
-//! and no C, so § 4's confine-to-wasm branch never opens; it verifies against
+//! and no C, so the rule's confine-to-wasm branch never opens; it verifies against
 //! each algorithm's own NIST or RFC vectors, and one `digest` trait set drives
 //! all five hashes *and* the HMAC construction, so [`DIGEST`] dispatches over
 //! one shape rather than five hand-fitted APIs. `crc32fast` is not from that

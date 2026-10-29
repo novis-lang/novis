@@ -3,7 +3,10 @@
 //! failures of *choice*: an algorithm chosen by the token, an expiry chosen by
 //! a flag, a verdict chosen by a falsy return.
 //!
-//! `rule:security/protocol-roster` places the class and § 4 states the three rules. What belongs here
+//! `rule:security/protocol-roster` places the class, and three rules hold it:
+//! `rule:security/algorithm-comes-from-the-key`,
+//! `rule:security/jwt-expiry-is-mandatory` and
+//! `rule:security/verification-throws-and-compares-in-constant-time`. What belongs here
 //! is why each of them ends up as a property of a signature rather than as a
 //! check inside a body, what a claim is on the way in and on the way out, and
 //! what this entry deliberately refuses to carry.
@@ -58,7 +61,7 @@
 //!
 //! # Expiry is not optional at either end
 //!
-//! § 4's second bullet makes a token without `exp`, or past it, fail
+//! `rule:security/jwt-expiry-is-mandatory` makes a token without `exp`, or past it, fail
 //! verification with no flag to disable the check. This class holds it twice.
 //! [`nvs_core_jwt_verify`] refuses a payload carrying no `exp`, and every
 //! member that signs takes the lifetime as a **positional `Duration`** and
@@ -81,7 +84,8 @@
 //! interesting answer is `false` on an ordinary request, while a JWT
 //! verification's only useful continuation is *with the claims*, and a member
 //! answering `?array` would put the entire failure surface behind a `??` that
-//! a loose comparison can flatten. § 4's third bullet says so directly, and it
+//! a loose comparison can flatten.
+//! `rule:security/verification-throws-and-compares-in-constant-time` says so directly, and it
 //! is the same reasoning `rule:core-classes/regex-two-tiers` applies to a budget exhaustion.
 //!
 //! Every way of not being a token this key signed is **one sentence**: three
@@ -100,7 +104,8 @@
 //! [`crate::registry::CoreTy::TaintedStr`] rather than left to a
 //! `Qual::Contagious` that would only have tainted the claims when the *token*
 //! was already tainted. Whether the token was written as a literal has nothing
-//! to do with whether the issuer is trusted, which is § 5's point.
+//! to do with whether the issuer is trusted, which is
+//! `rule:security/verification-does-not-launder`'s point.
 //!
 //! The qualifier is what fixes the element type. `nvs_types` defines
 //! `tainted` over `string` and `bytes` and over nothing else, so there is no
@@ -1419,7 +1424,8 @@ nvs_runtime::nvs_helper! {
     /// several userland libraries that wrap it.
     ///
     /// `$lifetime` is positional and not an option, which is the member's
-    /// whole answer to § 4's "there is no flag to disable the check": a caller
+    /// whole answer to `rule:security/jwt-expiry-is-mandatory`'s "there is no
+    /// flag to disable the check": a caller
     /// cannot leave out an argument that is not optional. The module doc's own
     /// section is the home of why `exp` is refused in `$claims` as well.
     ///
@@ -1581,10 +1587,8 @@ nvs_runtime::nvs_helper! {
             let text = claim_text(value).ok_or_else(|| {
                 Fault::thrown(format!(
                     "{NAME}::verify(): the claim `{name}` is not a string, a number or a \
-                     boolean, and every claim comes back as `tainted string` so that `rule:security/protocol-roster` \
-                     § 5's qualifier survives to the value a program reads. A null, an object \
-                     and an array are refused rather than given a text spelling nothing else \
-                     reads back."
+                     boolean. Every claim is returned as a `tainted string`. A null, an \
+                     object or an array has no text form, so this token is not accepted."
                 ))
             })?;
             out.set(
@@ -2246,8 +2250,8 @@ fn admitted_set(jwks: &str, scheme: Option<KeyKind>) -> Result<Vec<Admitted>, Fa
         .and_then(serde_json::Value::as_array)
         .ok_or_else(|| {
             not_a_key_set(
-                "it carries no `keys` array, which is the one member a JWKS document has (RFC \
-                 7517 § 5)",
+                "it carries no `keys` array, which is the one member a JWKS document has \
+                 (RFC 7517 § 5)",
             )
         })?;
 

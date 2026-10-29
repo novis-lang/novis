@@ -23,7 +23,7 @@
 //! alternative, and it loses twice. Its field names land in the *interned type*
 //! of every call site, so adding a fourth field later is a change to a type
 //! programs have written down; and a shape has no room for a member that
-//! computes, which is where § 1's later signatures (a `$result->ok()`, a
+//! computes, which is where that rule's later signatures (a `$result->ok()`, a
 //! decoded `text()`) would have to go. `Core\Regex\Match` is the precedent, for
 //! the same reasons stated there.
 //!
@@ -45,7 +45,7 @@
 //! same worker runs in between.
 //!
 //! Nothing else about the member changed when the wait moved — its signature,
-//! its door and its result are what § 1 already specified, and what a caller
+//! its door and its result are what `rule:core-classes/process-run` already specified, and what a caller
 //! can observe is unchanged. Off a core, which is every CLI program, the
 //! Rust closure is simply called on this thread, so the cheap case stays free.
 //!
@@ -2324,7 +2324,7 @@ mod tests {
                 nvs_runtime::capability::exec(&mut ctx, Path::new(target), &[], RUN_MEMBER)
                     .expect_err("a second command-line parser is not a target this API has");
             let Fault::Thrown(class, message) = refused else {
-                panic!("§ 4's refusal is catchable, like every refusal this member writes");
+                panic!("the refusal is catchable, like every refusal this member writes");
             };
             assert_eq!(class, ThrownClass::Runtime);
             assert!(
