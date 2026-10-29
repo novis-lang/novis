@@ -1,0 +1,114 @@
+<?nvs
+namespace Registry;
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Driver;
+use Core\Html;
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+use Core\Time;
+
+// Tests for the account page under a fixed clock, and for the policy page.
+// Each test of the account page has its own database in memory and reads the HTML of the page.
+final class AccountPageTest
+{
+    // One day in seconds.
+    private const int DAY = 86400;
+
+    // The account that is signed in, and a second owner of its vendor.
+    private const string OWNER = '0123456789abcdef0123456789abcdef';
+    private const string OTHER = 'fedcba9876543210fedcba9876543210';
+
+    // The page shows the passkeys, the tokens, the vendors and their owners, the channels, the inbox and the days left.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function thePageShowsEveryPartOfTheAccount(): void
+    {
+        int $now = Time::now()->toEpochSeconds();
+        int $day = AccountPageTest::DAY;
+        // The last sign-in was 20 days ago, so 40 days are left.
+        var $db = AccountPageTest::database($now - 20 * $day);
+        $db->execute("insert into passkeys (id, account, public_key, algorithm, sign_count, created_at, used_at) values ('pk1', ?, 'key', -7, 0, ?, ?)", [AccountPageTest::OWNER, $now - 100 * $day, $now - 20 * $day]);
+        // A token that works and was never used, a revoked one, and an expired one.
+        AccountPageTest::token($db, 't1', 'Acme', $now - 2 * $day, $now + 30 * $day, null);
+        AccountPageTest::token($db, 't2', 'Acme\\Http', $now - 50 * $day, $now + 30 * $day, $now - 40 * $day);
+        AccountPageTest::token($db, 't3', 'Acme', $now - 90 * $day, $now - 10 * $day, null);
+        $db->execute("insert into vendors (key, name, created_at) values ('acme', 'Acme', 0)", []);
+        $db->execute("insert into owners (vendor, account, added_at) values ('acme', ?, 1), ('acme', ?, 2)", [AccountPageTest::OWNER, AccountPageTest::OTHER]);
+        // A verified push device, a webhook that is not verified, and a webhook that stopped working.
+        AccountPageTest::channel($db, 'c1', 'push', '{}', $now - 30 * $day, $now - 30 * $day, $now - 3 * $day, null);
+        AccountPageTest::channel($db, 'c2', 'webhook', 'https://hooks.example.com/novis', $now - 5 * $day, null, null, null);
+        AccountPageTest::channel($db, 'c3', 'webhook', 'https://old.example.org/hook', $now - 60 * $day, $now - 60 * $day, $now - 9 * $day, $now - 8 * $day);
+        $db->execute("insert into notices (vendor, account, kind, text, at) values ('acme', null, 'publish', 'Acme\\Http 1.0.0 is published.', ?)", [$now - $day]);
+
+        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER), 'the test reads the page');
+        AccountPageTest::has($page, '<p>This account can publish for 40 days more, until 2026-07-25.</p>');
+        AccountPageTest::has($page, 'You get the first reminder after 30 days without a sign-in.');
+        AccountPageTest::has($page, '<tr><td>2026-03-07</td><td>2026-05-26</td></tr>');
+        AccountPageTest::has($page, '<tr><td><code>Acme</code></td><td>2026-06-13</td><td>2026-07-15</td><td>never</td><td>works</td></tr>');
+        AccountPageTest::has($page, '<td>revoked on 2026-05-06</td>');
+        AccountPageTest::has($page, '<td>2026-06-05</td><td>never</td><td>expired</td>');
+        AccountPageTest::has($page, '<h3>Acme</h3><ul><li><code>' . AccountPageTest::OWNER . '</code> (you)</li><li><code>' . AccountPageTest::OTHER . '</code></li></ul>');
+        AccountPageTest::has($page, '<tr><td>Push device</td><td>2026-05-16</td><td>2026-05-16</td><td>2026-06-12</td><td>yes</td></tr>');
+        AccountPageTest::has($page, '<tr><td>Webhook to hooks.example.com</td><td>2026-06-10</td><td>not yet</td><td>never</td><td>no, it is not verified</td></tr>');
+        AccountPageTest::has($page, '<td>no, it stopped working on 2026-06-07</td>');
+        AccountPageTest::has($page, '<li>2026-06-14: Acme\\Http 1.0.0 is published.</li>');
+    }
+
+    // An account with no sign-in for 60 days cannot publish, and the page says so.
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function anInactiveAccountCannotPublish(): void
+    {
+        int $now = Time::now()->toEpochSeconds();
+        var $db = AccountPageTest::database($now - 61 * AccountPageTest::DAY);
+        string $page = Html::toSource(new AccountPage($db, $now)->of(AccountPageTest::OWNER), 'the test reads the page');
+        AccountPageTest::has($page, '<p>This account cannot publish now. Sign in with a passkey to publish again.</p>');
+        AccountPageTest::has($page, '<p>This account has no tokens.</p>');
+        AccountPageTest::has($page, '<p>This account owns no vendor.</p>');
+        AccountPageTest::has($page, '<p>Your inbox is empty.</p>');
+    }
+
+    // Anybody can read the policy page. The account page needs a sign-in.
+    #[Test]
+    public function thePolicyPageIsPublicAndTheAccountPageIsNot(): void
+    {
+        var $policy = Test::request(Method::Get, '/policy');
+        Test::assertSame($policy->status(), 200);
+        AccountPageTest::has($policy->body() as string,'The operator can do one thing to a published version: withhold it.');
+        Test::assertSame(Test::request(Method::Get, '/account')->status(), 403);
+    }
+
+    // A new database in memory with every table and the account `OWNER`, active at `$activeAt`.
+    private static function database(int $activeAt): Connection
+    {
+        var $db = Db::open({ driver: Driver::Sqlite, path: ':memory:' }, { shared: false });
+        Schema::setUp($db);
+        $db->execute('insert into accounts (id, created_at, active_at) values (?, 0, ?), (?, 0, 0)', [AccountPageTest::OWNER, $activeAt, AccountPageTest::OTHER]);
+        return $db;
+    }
+
+    // Adds a token of `OWNER`. `$revokedAt` is the time it was revoked, or `null`.
+    private static function token(Connection $db, string $id, string $scope, int $createdAt, int $expiresAt, ?int $revokedAt): void
+    {
+        $db->execute(
+            'insert into tokens (id, hash, account, scope, created_at, expires_at, revoked_at, used_at) values (?, ?, ?, ?, ?, ?, ?, null)',
+            [$id, 'hash-' . $id, AccountPageTest::OWNER, $scope, $createdAt, $expiresAt, $revokedAt],
+        );
+    }
+
+    // Adds a channel of `OWNER`. A time is `null` until that happens.
+    private static function channel(Connection $db, string $id, string $kind, string $target, int $createdAt, ?int $verifiedAt, ?int $answeredAt, ?int $failedAt): void
+    {
+        $db->execute(
+            'insert into channels (id, account, kind, target, created_at, verified_at, answered_at, failed_at) values (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$id, AccountPageTest::OWNER, $kind, $target, $createdAt, $verifiedAt, $answeredAt, $failedAt],
+        );
+    }
+
+    // Checks that `$page` contains `$part`. A failure prints the part that is missing.
+    private static function has(string $page, string $part): void
+    {
+        Test::assertSame(Str::contains($page, $part) ? $part : 'missing: ' . $part, $part);
+    }
+}

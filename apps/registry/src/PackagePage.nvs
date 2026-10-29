@@ -455,7 +455,7 @@ final class PackagePage
     }
 
     // A time as a date, such as `2026-03-04`.
-    private static function date(int $seconds): string
+    public static function date(int $seconds): string
     {
         return Str::slice(Time::fromEpoch($seconds)->toIso(), 0, 10);
     }
@@ -490,8 +490,8 @@ final class PackagePage
         return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
     }
 
-    // The whole page, with its title.
-    private static function layout(string $title, Markup $content): Markup
+    // The whole page, with its title. Every page of the website uses it.
+    public static function layout(string $title, Markup $content): Markup
     {
         return html`<!doctype html>
 <html lang="en">

@@ -99,14 +99,25 @@ final class Feeds
     public static function inbox(Connection $db, string $account): array<mixed>
     {
         array<mixed> $events = [];
+        foreach (Feeds::inboxRows($db, $account) as Row $row) {
+            $events[] = Feeds::event($row);
+        }
+        return $events;
+    }
+
+    // The rows of the inbox, the newest first, with the columns `id`, `kind`, `package`, `version`,
+    // `text` and `at`. The account page shows them.
+    public static function inboxRows(Connection $db, string $account): array<Row>
+    {
+        array<Row> $rows = [];
         foreach ($db->query(
             'select id, kind, package, version, text, at from notices '
                 . 'where account = ? or vendor in (select vendor from owners where account = ?) order by id desc limit ?',
             [$account, $account, Feeds::EVENTS],
         ) as Row $row) {
-            $events[] = Feeds::event($row);
+            $rows[] = $row;
         }
-        return $events;
+        return $rows;
     }
 
     // The pending releases of the vendors the account owns, or of every vendor when `$account` is

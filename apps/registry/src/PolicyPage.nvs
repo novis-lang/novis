@@ -1,0 +1,28 @@
+<?nvs
+namespace Registry;
+
+use Core\Html\Markup;
+
+// The page that says what the operator of the registry may do with a published version
+// (`rule:packaging/the-operator-only-withholds`). The text is the same for every request.
+final class PolicyPage
+{
+    public static function page(): Markup
+    {
+        return PackagePage::layout('What the operator may do', html`<h1>What the operator of this registry may do</h1>
+<p>The operator is the person or group that runs this registry. The operator can do one thing to a published version: withhold it. The operator does this only for malware or for a legal order.</p>
+<p>A withheld version keeps its name, its version number and its hash in the index and in the log. Only its files are no longer served. <code>nvs</code> does not install a withheld version, and it prints the reason.</p>
+<p>Every withhold is an advisory. An advisory is a signed entry in the public log of the registry, and it states the reason. So every withhold is public, and anybody can check it.</p>
+<p>The website has no account for the operator. The operator can withhold a version only from the server itself.</p>
+<h2>What the operator never does</h2>
+<ul>
+<li>Delete a version.</li>
+<li>Change the files of a version.</li>
+<li>Give a package name to another account.</li>
+<li>Check packages before they are published.</li>
+</ul>
+<h2>Why</h2>
+<p>A deleted version breaks every project that uses it, and nobody can see why. A name that goes to another account changes the code behind every project that uses that name. A check before publishing makes every release wait, and no check can promise that a package is safe.</p>
+<p>Withholding is enough for malware and for a legal order. Because it is public and signed, you can check each time it is used.</p>`);
+    }
+}

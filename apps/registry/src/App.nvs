@@ -80,6 +80,22 @@ final class App
         App::page($page);
     }
 
+    // The page of the account: its passkeys, tokens, vendors, devices and webhooks, inbox, and the days it can still publish.
+    #[Route(path: '/account', method: Method::Get)]
+    #[Access(allow: Visitor::SignedIn)]
+    public static function accountPage(): void
+    {
+        Response::html(new AccountPage(Schema::open(), Core\Time::now()->toEpochSeconds())->of(Session::account() ?? ''));
+    }
+
+    // The page that says the operator of the registry only withholds a version, and why.
+    #[Route(path: '/policy', method: Method::Get)]
+    #[Access(allow: Visitor::Anyone)]
+    public static function policyPage(): void
+    {
+        Response::html(PolicyPage::page());
+    }
+
     // Step 1 of a sign-up: returns a challenge for the proof-of-work and the number of zero bits it needs.
     #[Route(path: '/api/signup/work', method: Method::Post)]
     #[Access(allow: Visitor::Anyone)]

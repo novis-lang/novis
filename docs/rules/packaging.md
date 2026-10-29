@@ -1270,8 +1270,9 @@ so. Shape is what a compiler can check without running code, and a promise about
 one that nothing holds.
 
 **A maintainer who keeps an old major alive publishes a new package**, `Acme\HttpNext` or `Acme\HttpV2`
-as they choose, and may set `supersedes = "acme/http"` so that `nvs pkg outdated` and
-`nvs pkg audit` point at it. Nothing requires this.
+as they choose, and may set `[package] supersedes = 'Acme\Http'` so that `nvs pkg outdated`,
+`nvs pkg audit` and the package page point at it. Nothing requires this. The key is read by
+`crates/nvs-cli/src/package/manifest.rs`, and `nvs registry build` prints it.
 
 The check is what keeps [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum) sound: a minimum is never
 a ceiling, so a higher version inside a major must always be acceptable, and the registry refuses one
@@ -2381,9 +2382,10 @@ entry together, and the index file, signed with the log's key, shows `{"withheld
 registry's own archive route answers `451` for a withheld digest. Once the log and the index have the
 reason, the job deletes the archive from every store and from the work folder (`Stores::remove`), and
 running it again finishes a delete a store failed. Resolution refuses a withheld version and prints its
-reason (`crates/nvs-cli/src/package/resolve.rs`).
+reason (`crates/nvs-cli/src/package/resolve.rs`). The policy page is `GET /policy`
+(`apps/registry/src/PolicyPage.nvs`).
 
-**Not on disk.** There is no `nvs pkg audit` and no policy page. A CDN in front of a store may serve
+**Not on disk.** There is no `nvs pkg audit`. A CDN in front of a store may serve
 a cached archive until its cache lifetime ends, because the service never purges a CDN.
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/an-owner-may-unlist`](packaging.md#packaging-an-owner-may-unlist), [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name).</sub>

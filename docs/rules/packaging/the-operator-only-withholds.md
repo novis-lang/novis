@@ -30,7 +30,8 @@ entry together, and the index file, signed with the log's key, shows `{"withheld
 registry's own archive route answers `451` for a withheld digest. Once the log and the index have the
 reason, the job deletes the archive from every store and from the work folder (`Stores::remove`), and
 running it again finishes a delete a store failed. Resolution refuses a withheld version and prints its
-reason (`crates/nvs-cli/src/package/resolve.rs`).
+reason (`crates/nvs-cli/src/package/resolve.rs`). The policy page is `GET /policy`
+(`apps/registry/src/PolicyPage.nvs`).
 
-**Not on disk.** There is no `nvs pkg audit` and no policy page. A CDN in front of a store may serve
+**Not on disk.** There is no `nvs pkg audit`. A CDN in front of a store may serve
 a cached archive until its cache lifetime ends, because the service never purges a CDN.

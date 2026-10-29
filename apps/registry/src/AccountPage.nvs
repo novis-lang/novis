@@ -1,0 +1,190 @@
+<?nvs
+namespace Registry;
+
+use Core\Arr;
+use Core\Db\Connection;
+use Core\Db\Row;
+use Core\Html\Markup;
+use Core\Math;
+use Core\Uri;
+
+// The page of the account that is signed in: the days before it can no longer publish, its
+// passkeys, its tokens, its vendors and their owners, its push devices and webhooks, and its inbox.
+// The only text here that the registry did not write is the address of a webhook, and it is escaped.
+// Cost: a few queries per page, each over the rows of one account.
+final class AccountPage
+{
+    // One day in seconds.
+    private const int DAY = 86400;
+
+    private Connection $db;
+    private int $now;
+
+    public function constructor(Connection $db, int $now)
+    {
+        $this->db = $db;
+        $this->now = $now;
+    }
+
+    // The page of the account `$account`.
+    public function of(string $account): Markup
+    {
+        var $content = html`<h1>Your account</h1>
+<p>The id of your account is <code>{$account}</code>. The registry shows this id as the name of the account.</p>`
+            + $this->activity($account)
+            + $this->passkeys($account)
+            + $this->tokens($account)
+            + $this->vendors($account)
+            + $this->channels($account)
+            + $this->inbox($account);
+        return PackagePage::layout('Your account', $content);
+    }
+
+    // How many days the account can still publish, its reminders, and its recovery codes.
+    private function activity(string $account): Markup
+    {
+        var $activity = new Activity($this->db);
+        int $until = $activity->activeUntil($account) ?? $this->now;
+        string $days = '' . Activity::DAYS;
+        string $reminder = '' . $activity->remindAfter($account);
+        string $codes = '' . new Accounts($this->db)->recoveryCodesLeft($account);
+        var $state = html`<p>This account cannot publish now. Sign in with a passkey to publish again.</p>`;
+        if ($until > $this->now) {
+            int $left = Math::intDiv($until - $this->now + AccountPage::DAY - 1, AccountPage::DAY);
+            string $leftText = $left == 1 ? '1 day' : $left . ' days';
+            string $date = PackagePage::date($until);
+            $state = html`<p>This account can publish for {$leftText} more, until {$date}.</p>`;
+        }
+        return html`<h2>Publishing</h2>{$state}
+<p>Each sign-in with a passkey gives the account {$days} days from that day. An answer to a reminder does the same while the account can still publish.</p>
+<p>You get the first reminder after {$reminder} days without a sign-in.</p>
+<p>You have {$codes} recovery codes left. Each code works once.</p>`;
+    }
+
+    // The passkeys of the account, with the date each one was added and last used.
+    private function passkeys(string $account): Markup
+    {
+        var $items = html``;
+        foreach ($this->db->query('select created_at, used_at from passkeys where account = ? order by created_at', [$account]) as Row $row) {
+            string $added = PackagePage::date($row->int('created_at') ?? 0);
+            string $used = PackagePage::date($row->int('used_at') ?? 0);
+            $items = $items + html`<tr><td>{$added}</td><td>{$used}</td></tr>`;
+        }
+        return html`<h2>Passkeys</h2>
+<p>A passkey signs you in. You can add a passkey for each of your devices.</p>
+<table><tr><th>Added</th><th>Last used</th></tr>{$items}</table>`;
+    }
+
+    // The tokens of the account, the newest first, with the scope, the dates and the state of each one.
+    private function tokens(string $account): Markup
+    {
+        array<Token> $tokens = new Tokens($this->db)->of($account);
+        var $intro = html`<h2>Tokens</h2>
+<p>A token lets <code>nvs pkg publish</code> publish the packages in its scope. The registry keeps only a hash of each token, so it cannot show a token again.</p>`;
+        if (Arr::count($tokens) == 0) {
+            return $intro + html`<p>This account has no tokens.</p>`;
+        }
+        var $items = html``;
+        foreach ($tokens as Token $token) {
+            string $scope = $token->scope;
+            string $created = PackagePage::date($token->createdAt);
+            string $expires = PackagePage::date($token->expiresAt);
+            string $used = $token->usedAt == null ? 'never' : PackagePage::date($token->usedAt);
+            string $state = 'works';
+            if ($token->revokedAt != null) {
+                $state = 'revoked on ' . PackagePage::date($token->revokedAt);
+            } elseif ($token->expiresAt <= $this->now) {
+                $state = 'expired';
+            }
+            $items = $items + html`<tr><td><code>{$scope}</code></td><td>{$created}</td><td>{$expires}</td><td>{$used}</td><td>{$state}</td></tr>`;
+        }
+        return $intro + html`<table><tr><th>Scope</th><th>Created</th><th>Expires</th><th>Last used</th><th>State</th></tr>{$items}</table>`;
+    }
+
+    // The vendors the account owns, each with all its owners.
+    private function vendors(string $account): Markup
+    {
+        var $vendors = new Vendors($this->db);
+        array<string> $names = $vendors->ownedBy($account);
+        var $intro = html`<h2>Vendors</h2>
+<p>A vendor is the first part of a package name, such as <code>Acme</code> in <code>Acme\Http</code>. Every owner of a vendor can publish all of its packages.</p>`;
+        if (Arr::count($names) == 0) {
+            return $intro + html`<p>This account owns no vendor.</p>`;
+        }
+        var $content = $intro;
+        foreach ($names as string $name) {
+            var $owners = html``;
+            foreach ($vendors->owners($name) as string $owner) {
+                $owners = $owner == $account ? $owners + html`<li><code>{$owner}</code> (you)</li>` : $owners + html`<li><code>{$owner}</code></li>`;
+            }
+            $content = $content + html`<h3>{$name}</h3><ul>{$owners}</ul>`;
+        }
+        return $content;
+    }
+
+    // The push devices and webhooks of the account, the oldest first, and whether each one counts.
+    private function channels(string $account): Markup
+    {
+        var $intro = html`<h2>Devices and webhooks</h2>
+<p>The registry sends the messages of your account to your push devices and webhooks. A new one gets a test message with a code. It counts only after you send that code back. It stops counting when it stops working. You need at least one that counts to publish or to become an owner.</p>`;
+        var $found = $this->db->query(
+            'select kind, target, created_at, verified_at, answered_at, failed_at from channels where account = ? order by created_at, id',
+            [$account],
+        );
+        if ($found->count() == 0) {
+            return $intro + html`<p>This account has no push devices and no webhooks.</p>`;
+        }
+        var $items = html``;
+        foreach ($found as Row $row) {
+            string $kind = 'Push device';
+            if (($row->string('kind') ?? '') == Channels::WEBHOOK) {
+                $kind = 'Webhook to ' . AccountPage::hostOf($row->string('target') ?? '');
+            }
+            string $added = PackagePage::date($row->int('created_at') ?? 0);
+            ?int $verifiedAt = $row->int('verified_at');
+            ?int $answeredAt = $row->int('answered_at');
+            ?int $failedAt = $row->int('failed_at');
+            string $verified = $verifiedAt == null ? 'not yet' : PackagePage::date($verifiedAt);
+            string $answered = $answeredAt == null ? 'never' : PackagePage::date($answeredAt);
+            string $counts = 'yes';
+            if ($failedAt != null) {
+                $counts = 'no, it stopped working on ' . PackagePage::date($failedAt);
+            } elseif ($verifiedAt == null) {
+                $counts = 'no, it is not verified';
+            }
+            $items = $items + html`<tr><td>{$kind}</td><td>{$added}</td><td>{$verified}</td><td>{$answered}</td><td>{$counts}</td></tr>`;
+        }
+        return $intro + html`<table><tr><th>Kind</th><th>Added</th><th>Verified</th><th>Last message taken</th><th>Counts</th></tr>{$items}</table>`;
+    }
+
+    // The newest events of the account and of every vendor it owns.
+    private function inbox(string $account): Markup
+    {
+        array<Row> $rows = Feeds::inboxRows($this->db, $account);
+        var $intro = html`<h2>Inbox</h2>`;
+        if (Arr::count($rows) == 0) {
+            return $intro + html`<p>Your inbox is empty.</p>`;
+        }
+        var $items = html``;
+        foreach ($rows as Row $row) {
+            string $at = PackagePage::date($row->int('at') ?? 0);
+            string $text = AccountPage::trusted($row->string('text') ?? '');
+            $items = $items + html`<li>{$at}: {$text}</li>`;
+        }
+        return $intro + html`<ul>{$items}</ul>`;
+    }
+
+    // The host of a webhook address, such as `hooks.example.com`. The registry checked the address
+    // when the owner added the webhook.
+    private static function hostOf(tainted string $url): string
+    {
+        string $checked = AccountPage::trusted($url);
+        ?Uri $parsed = Uri::tryParse($checked);
+        return $parsed?->host() ?? $checked;
+    }
+
+    private static function trusted(mixed $value): string
+    {
+        return Core\Taint::assertTrusted($value as tainted string, 'the registry wrote this text');
+    }
+}
