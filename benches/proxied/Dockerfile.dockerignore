@@ -54,10 +54,12 @@ benches/proxied/.bin/
 benches/compare/generated/
 
 # Documentation, except the pages the build compiles in: `crates/nvs-stdlib/build.rs` reads the
-# `docs/reference/core/` intros, and `crates/nvs-cli/src/agent.rs`
-# `include_str!`s the reference chapters. An edit to any other doc must not invalidate the context
-# layer and cost a rebuild of everything after it. Last match wins, so the negations stay below.
+# `docs/reference/core/` intros, `crates/nvs-cli/src/agent.rs` `include_str!`s the reference
+# chapters, `crates/nvs-cli/src/agent/changes.rs` the changelog, and `crates/nvs-cli/src/main.rs` the
+# README. An edit to any other doc must not invalidate the context layer and cost a rebuild of
+# everything after it. Last match wins, so the negations stay below.
 docs/
 *.md
 !README.md
+!CHANGELOG.md
 !docs/reference/**
