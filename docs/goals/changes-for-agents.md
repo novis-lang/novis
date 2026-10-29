@@ -24,7 +24,7 @@ stages:
         rules: [tooling/an-agent-asks-the-binary, tooling/nvs-agent-changes-prints-the-changelog]
   - id: 4
     title: the goal is verified once, and every failure is fixed
-    status: open
+    status: done
     gate: true
 checks:
   - id: agent-changes-help
@@ -183,43 +183,31 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done. `Core\Order` in a `use`, a type and an expression says it moved to
-`Core\Arr::Order` and carries a safe fix, and the rule `core-api/a-moved-name-says-where-it-went` is
-shipped. `bun nv release` lists every commit scoped `fmt`, of any type, under Formatter after
-Performance (`FORMATTER_SCOPE`, `tools/nv/cmd/release.ts:120`). The rows are taken before the headline
-types, so a `feat(fmt)` is not also under Features, and a breaking one is still lifted to the top.
-`docs/agent/conventions.md` § *A commit message* names the scope. The notes tests pass by name.
+Every stage is done. Both rules are shipped: `core-api/a-moved-name-says-where-it-went` and
+`tooling/nvs-agent-changes-prints-the-changelog`. Stage 4 is done, and the goal is reached. `bun nv verify` was green on the first run. `bun nv ci
+--check` was red on two counts. First, `tools:agents/nvs-agent-changes` owed its proofs. It now has
+`about.md`, a `.cmd` example whose `.out` elides everything but `schemaVersion`, and a code block
+in its reference section. A hostile skip in `data/proofs/skip/` matches `nvs agent init`'s, because the
+command reads no program. Second, the site questions for the notes and paperwork guides were stale
+after bf667cdeb's port change. They still fit, so they are restamped. The second verify,
+`bun nv verify --doc`, `bun nv owners --closes changes-for-agents` and `bun nv ci --check` are all
+green.
 
-`nvs agent changes [--since V] [--json]` is `crates/nvs-cli/src/agent/changes.rs`, which embeds
-`CHANGELOG.md` whole and holds the parser and its unit tests over a three-section changelog. The
-binary tests are in `crates/nvs-cli/tests/agent.rs` (`changes_*`, `the_primer_names_nvs_agent_changes`),
-and all of them pass by name. A malformed version is clap's value-parser error, exit `2`. A leading `v`
-is accepted. The primer names the command through the marked usage block in
-`docs/reference/tools/50-agents.md`, which also has `# nvs agent changes`. The release build job
-downloads `plan`'s `release-notes-preview` artifact and runs `--apply` with `--notes-file`, so the binary
-carries its own section. The rule `tooling/nvs-agent-changes-prints-the-changelog` is shipped,
-`llms-full.txt`, `reference.json` and the site questions are rendered and stamped, and
-`bun nv owners --closes changes-for-agents` passes.
+No tests are expected to go red.
 
-Tests expected to go red in the gate: any test outside the conformance tree that pins `E0405` for a
-`Core` class that does not exist. A test or golden that counts the `nvs agent` subcommands or the
-index's `command:` and `flag:` lines, which now include `nvs agent changes`, `--since` and `--json`.
-
-The sweep's `env-secret-proofs` red and run 40662443492's cancelled jobs were stale, with no failure.
+The sweep's `env-secret-proofs` passes (exit 0). Run 40662443492 was a manual dispatch on 97fcf96ce.
+Every job in it was cancelled, and none failed.
 
 ### Next
 
-**Stage 4, the gate.** Start `bun nv affected --run` (in the loop, `looper verify`) with
-`run_in_background` and end the turn to wait. Fix every failure in one pass, then run it once more.
-Before `DONE`, the goal-end gates of AGENTS.md § *In the loop*: `bun nv verify --doc`,
-`bun nv owners --closes changes-for-agents` and `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
+Nothing. The goal is reached, and the driver retires it. `docs/goals/README.md:1`
 
 ### Backlog
