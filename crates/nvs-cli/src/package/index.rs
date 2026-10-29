@@ -8,7 +8,9 @@
 //! publishes it, so the client proves that record is in the log ([`super::proof`]). A root file with no file host has the files
 //! under the registry's URL itself, as a `file:` registry has them. The schema of both files is
 //! the digest rule's fragment, and [`SCHEMA`] is the version this client reads. The files can move
-//! to a CDN, or gain a second host, by a change to the root file and no `nvs` release.
+//! to a CDN, or gain a second host, by a change to the root file and no `nvs` release. The root
+//! file may also name `checkpoint_copy`, the URL of a second copy of the log's checkpoint on
+//! another host, which only `nvs pkg audit` reads ([`Registry::get_copy`]).
 //!
 //! **A file host that does not answer is skipped**, and so is one whose archive's BLAKE3 digest is
 //! not the one the index names. A host that answers that a package does not exist has answered, so
@@ -215,6 +217,9 @@ struct RootFile {
     schema: u64,
     #[serde(default)]
     hosts: Vec<String>,
+    /// The URL of a second copy of the log's checkpoint, on another host.
+    #[serde(default)]
+    checkpoint_copy: Option<String>,
     signed_at: u64,
     checkpoint: CheckpointLine,
 }
@@ -448,6 +453,9 @@ pub(crate) struct Registry {
     pub(crate) from_kept: bool,
     /// The root file's stamp, which the caller checks against the log.
     pub(crate) stamp: Stamp,
+    /// The URL of the second copy of the log's checkpoint, as the root file names it, and the
+    /// place and file name it is read from.
+    copy: Option<(String, Place, String)>,
     /// The pinned key every file of this registry is signed with.
     verifier: Verifier,
     /// This computer's clock when the registry was opened, as a Unix time.
@@ -505,6 +513,17 @@ impl Registry {
                 .map(|host| Place::new(host, base))
                 .collect::<Result<_, _>>()?
         };
+        let copy = match root.checkpoint_copy {
+            Some(copy) => {
+                let (dir, file) = copy.trim_end_matches('/').rsplit_once('/').ok_or_else(|| {
+                    refused(format!("its `checkpoint_copy` `{copy}` names no file"))
+                })?;
+                let place = Place::new(dir, base)?;
+                let file = file.to_owned();
+                Some((copy, place, file))
+            }
+            None => None,
+        };
         if let (false, Some(kept)) = (from_kept, kept) {
             keep_root(&kept, &bytes)?;
         }
@@ -514,9 +533,39 @@ impl Registry {
             kept: name,
             from_kept,
             stamp,
+            copy,
             verifier: verifier.clone(),
             now,
         })
+    }
+
+    /// The URL of the second copy of the log's checkpoint, or `None` when the root file names
+    /// none.
+    pub(crate) fn checkpoint_copy(&self) -> Option<&str> {
+        self.copy.as_ref().map(|(url, ..)| url.as_str())
+    }
+
+    /// The second copy of the log's checkpoint, at most `limit` bytes, or `None` when its host
+    /// answered that it has no such file. Call this only when [`Self::checkpoint_copy`] names one.
+    ///
+    /// # Errors
+    ///
+    /// The host did not answer, the read failed, or the file is over `limit`.
+    pub(crate) fn get_copy(&self, limit: u64) -> Result<Option<Vec<u8>>, Fault> {
+        let Some((_, place, file)) = &self.copy else {
+            return Ok(None);
+        };
+        place.get(file, limit)
+    }
+
+    /// The pinned key every file of this registry is signed with.
+    pub(crate) fn verifier(&self) -> &Verifier {
+        &self.verifier
+    }
+
+    /// This computer's clock when the registry was opened, as a Unix time.
+    pub(crate) fn now(&self) -> u64 {
+        self.now
     }
 
     /// The file hosts, in the order they are tried.

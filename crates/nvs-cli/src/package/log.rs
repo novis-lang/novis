@@ -754,6 +754,84 @@ where
             reason: format!("the bundle holds {} of its {width} records", entries.len()),
         })
     }
+
+    /// Reads every record of the log in order and gives each to `each`, whose error names what is
+    /// wrong with one. The tree's root is computed from the records alone and must be `root`, and
+    /// at each `(size, root)` of `prefixes` the first `size` records must lead to that root.
+    ///
+    /// No hash tile is read, so the host cannot serve tiles that hide what its bundles hold: a
+    /// record that is not the signed tree's changes the root. This is as strong as [`verify`]'s
+    /// check of every tile, and needs one fetch per 256 records.
+    ///
+    /// **Memory:** one entry bundle and at most 64 hashes, whatever the log's size.
+    pub(crate) fn walk(
+        &mut self,
+        root: &Hash,
+        prefixes: &[(u64, Hash)],
+        mut each: impl FnMut(u64, &[u8]) -> Result<(), String>,
+    ) -> Result<(), Error> {
+        let size = self.size;
+        if let Some((past, _)) = prefixes.iter().find(|(at, _)| *at > size) {
+            return Err(Error::OutOfRange(format!(
+                "a log of {past} records is not a prefix of a tree of {size} records"
+            )));
+        }
+        let check = |count: u64, subtrees: &[Hash]| {
+            let found = subtrees
+                .iter()
+                .rev()
+                .copied()
+                .reduce(|right, left| node_hash(&left, &right))
+                .unwrap_or_else(empty_root);
+            let wanted = prefixes
+                .iter()
+                .filter(|(at, _)| *at == count)
+                .map(|(_, root)| root)
+                .chain((count == size).then_some(root));
+            for want in wanted {
+                if found != *want {
+                    return Err(Error::Malformed {
+                        path: PathBuf::from("log"),
+                        reason: format!(
+                            "the first {count} records do not lead to the root hash the \
+                             checkpoint names"
+                        ),
+                    });
+                }
+            }
+            Ok(())
+        };
+        // The complete subtrees of the records read so far, the largest first, as RFC 6962
+        // splits a tree.
+        let mut subtrees: Vec<Hash> = Vec::new();
+        check(0, &subtrees)?;
+        for index in 0..size.div_ceil(TILE_WIDTH) {
+            let entries = self.bundle(index)?;
+            for (n, entry) in (index * TILE_WIDTH..).zip(&entries) {
+                each(n, entry).map_err(|reason| Error::Malformed {
+                    path: PathBuf::from(
+                        Tile {
+                            level: Level::Entries,
+                            index,
+                            width: width_at_size(size, 0, index),
+                        }
+                        .path(),
+                    ),
+                    reason: format!("record {n}: {reason}"),
+                })?;
+                subtrees.push(record_hash(entry));
+                let mut closed = n;
+                while closed & 1 == 1 {
+                    let right = subtrees.pop().expect("a closed subtree has two halves");
+                    let left = subtrees.pop().expect("a closed subtree has two halves");
+                    subtrees.push(node_hash(&left, &right));
+                    closed >>= 1;
+                }
+                check(n + 1, &subtrees)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<F> HashReader for Fetched<F>

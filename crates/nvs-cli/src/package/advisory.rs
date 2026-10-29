@@ -66,6 +66,19 @@ pub(crate) struct Feed {
     pub(crate) advisories: Vec<Advisory>,
 }
 
+impl Advisory {
+    /// Record `log` of the log, whose bytes are `record`, as an advisory, or `None` when it is
+    /// not one. A record past a feed's size is read this way.
+    pub(crate) fn from_record(log: u64, record: &[u8]) -> Option<Self> {
+        let entry = Entry::parse(record).ok().filter(is_advisory)?;
+        Some(Self {
+            log,
+            entry,
+            record: record.to_vec(),
+        })
+    }
+}
+
 /// Whether the feed lists `entry`: a retraction or a withhold.
 pub(crate) fn is_advisory(entry: &Entry) -> bool {
     matches!(entry, Entry::Retract { .. } | Entry::Withhold { .. })

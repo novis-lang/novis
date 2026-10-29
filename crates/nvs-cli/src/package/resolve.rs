@@ -253,6 +253,21 @@ impl<'a> Registries<'a> {
         Ok(&self.open[&url])
     }
 
+    /// The registry `name`'s vendor resolves from, opened as [`Self::registry`] opens it, and
+    /// its checked log.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::registry`]'s.
+    pub(crate) fn with_log(&mut self, name: &Name) -> Result<(&Registry, &mut Seen), Fault> {
+        let url = self.registry(name)?.url.clone();
+        let seen = self
+            .logs
+            .get_mut(&url)
+            .expect("an open registry has its log");
+        Ok((&self.open[&url], seen))
+    }
+
     /// The index of `name`, read once, or `None` when its registry does not list it.
     ///
     /// # Errors

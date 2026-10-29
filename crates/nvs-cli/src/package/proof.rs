@@ -29,8 +29,15 @@
 //! digest, repository and commit, and its inclusion proof must lead to the checkpoint's root. The
 //! check runs before the archive is read, and the archive's digest is checked when it is.
 //!
+//! **`nvs pkg audit` reads the whole log** ([`Seen::advisories`]): the advisory feed is checked
+//! against every record, and the records past the feed's size are read for the advisories it does
+//! not list yet. The root is computed from the records themselves ([`log::Fetched::walk`]).
+//! [`Seen::compare_copy`] proves the second copy of the checkpoint a root file names is this log,
+//! a prefix of it or an extension of it, and two copies that are none of these are a split view.
+//!
 //! Cost: one checkpoint and one consistency proof per registry per command, and one entry bundle
-//! and one inclusion proof per archive. Each read is a tile of at most 8 KiB of hashes or one
+//! and one inclusion proof per archive. An audit also reads the feed, one entry bundle per 256
+//! records of the log, and one consistency proof for the copy. Each read is a tile of at most 8 KiB of hashes or one
 //! bundle of at most 256 entries, held until its proof is checked. A kept checkpoint is a few
 //! hundred bytes per registry. Nothing here runs on the request path.
 
@@ -39,6 +46,7 @@ use std::path::Path;
 
 use nvs_config::trust::{self, Untrusted};
 
+use super::advisory::{self, Advisory, Feed};
 use super::entry::Entry;
 use super::index::{Fault, Registry, Release, Stamp, fault};
 use super::log::{self, Fetched, Hash};
@@ -53,6 +61,9 @@ const MAX_CHECKPOINT_BYTES: u64 = 64 * 1024;
 
 /// The most bytes a tile or an entry bundle may have: 256 entries of the largest size.
 const MAX_TILE_BYTES: u64 = 256 * (2 + log::MAX_ENTRY_BYTES as u64);
+
+/// The most bytes an advisory feed may have: tens of thousands of advisories.
+const MAX_FEED_BYTES: u64 = 64 * 1024 * 1024;
 
 /// The verifier key of the registry at `url`, read from `key`, its `[registries]` line's.
 ///
@@ -186,6 +197,119 @@ impl Seen {
              the people who run the registry.",
             registry.url
         ))))
+    }
+
+    /// The checkpoint of the log this computer checked.
+    pub(crate) fn checkpoint(&self) -> &Checkpoint {
+        &self.checkpoint
+    }
+
+    /// Every advisory in the log of `registry`: its advisory feed, read from the file host this
+    /// log came from and checked against every record of the log, and each advisory past the
+    /// feed's size, read from the log itself. The log's records must lead to its checkpoint's
+    /// root, and its first records to the root the feed names.
+    ///
+    /// # Errors
+    ///
+    /// No feed, a feed that does not open, names a log this one does not continue, or disagrees
+    /// with the log, and a log that cannot be read or does not lead to its root.
+    pub(crate) fn advisories(&mut self, registry: &Registry) -> Result<Vec<Advisory>, Fault> {
+        let url = &registry.url;
+        let refused =
+            |why: String| fault(format!("the advisory feed of `{url}` is not used: {why}"));
+        let path = format!("{LOG}/{}", advisory::FILE);
+        let bytes = registry
+            .get(self.host, &path, MAX_FEED_BYTES)
+            .map_err(|failure| refused(failure.0))?
+            .ok_or_else(|| refused(format!("`{path}` is not on the file host")))?;
+        let feed = Feed::open(&bytes, registry.verifier(), registry.now()).map_err(refused)?;
+        self.covers(registry, &feed.stamp)
+            .map_err(|skip| match skip {
+                Skip::Host(why) => refused(why),
+                Skip::Stop(stop) => stop,
+            })?;
+        let (size, root) = (self.checkpoint.size(), *self.checkpoint.root());
+        let mut against = feed.against();
+        let mut past = Vec::new();
+        tiles(registry, self.host, size)
+            .walk(&root, &[(feed.stamp.size, feed.stamp.root)], |n, record| {
+                against.record(n, record)?;
+                if n >= feed.stamp.size {
+                    past.extend(Advisory::from_record(n, record));
+                }
+                Ok(())
+            })
+            .map_err(|err| fault(format!("the log of `{url}` does not check: {err}")))?;
+        against.finish().map_err(refused)?;
+        let mut all = feed.advisories;
+        all.extend(past);
+        Ok(all)
+    }
+
+    /// The size of the second copy of the checkpoint that the root file of `registry` names,
+    /// once it opens with the registry's key and is this log or a prefix or an extension of it,
+    /// proved by this log's tiles. `None` when the root file names no copy.
+    ///
+    /// # Errors
+    ///
+    /// The copy cannot be read, does not open, or cannot be proved against this log, and the
+    /// error for two logs that disagree.
+    pub(crate) fn compare_copy(&self, registry: &Registry) -> Result<Option<u64>, Fault> {
+        let Some(copy_url) = registry.checkpoint_copy() else {
+            return Ok(None);
+        };
+        let url = &registry.url;
+        let unusable = |why: String| {
+            fault(format!(
+                "the second copy of the checkpoint of `{url}` at `{copy_url}` cannot be \
+                 compared: {why}"
+            ))
+        };
+        let note = registry
+            .get_copy(MAX_CHECKPOINT_BYTES)
+            .map_err(|failure| unusable(failure.0))?
+            .ok_or_else(|| unusable("its host does not have it".to_owned()))?;
+        let verifier = registry.verifier();
+        let copy = Checkpoint::open(&note, verifier.name(), std::slice::from_ref(verifier))
+            .map_err(|err| unusable(format!("it does not open with the registry's key: {err}")))?;
+        let (ours, theirs) = (&self.checkpoint, &copy);
+        let (long, short) = if theirs.size() > ours.size() {
+            (theirs, ours)
+        } else {
+            (ours, theirs)
+        };
+        let consistent = if long.size() == short.size() {
+            long.root() == short.root()
+        } else if short.size() == 0 {
+            *short.root() == log::empty_root()
+        } else {
+            let mut tiles = tiles(registry, self.host, long.size());
+            let proof = log::prove_tree(long.size(), short.size(), &mut tiles)
+                .map_err(|err| unusable(format!("cannot read the log: {err}")))?;
+            let proved =
+                log::check_tree(&proof, long.size(), long.root(), short.size(), short.root())
+                    .is_ok();
+            // Tiles that do not lead to the longer root are the host's fault, not a second log.
+            if !proved
+                && log::tree_hash(long.size(), &mut tiles).ok().as_ref() != Some(long.root())
+            {
+                return Err(unusable(
+                    "the log's tiles do not match the longer checkpoint".to_owned(),
+                ));
+            }
+            proved
+        };
+        if consistent {
+            return Ok(Some(copy.size()));
+        }
+        Err(fault(format!(
+            "the registry `{url}` shows two different logs: its file host has a log of {} \
+             records, and the copy at `{copy_url}` has a log of {} records that does not \
+             match it. Somebody may show you a different log than other users see. Tell the \
+             people who run the registry.",
+            ours.size(),
+            theirs.size()
+        )))
     }
 
     /// Checks that the log publishes `release` of `name`: the record its index line names is a

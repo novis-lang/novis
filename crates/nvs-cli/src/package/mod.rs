@@ -30,13 +30,15 @@
 //! (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`) and [`unlist`] is
 //! `nvs pkg unlist` (`rule:packaging/an-owner-may-unlist`), each one request to the registry.
 //! [`advisory`] is the registry's signed advisory feed, every retraction and withhold in the log,
-//! and its check against the log.
+//! and its check against the log, and [`audit`] is `nvs pkg audit`, which reports each one a
+//! locked version is under.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 pub(crate) mod advisory;
 mod api;
+mod audit;
 pub(crate) mod build;
 mod diff;
 mod download;
@@ -183,6 +185,23 @@ enum Command {
     ///
     /// The command changes no file. Use `nvs pkg update` to raise a minimum.
     Outdated,
+    /// List each security advisory for the versions in `package.lock`.
+    ///
+    /// A registry publishes an advisory when it retracts or withholds a
+    /// version. For each locked version with an advisory, the command
+    /// prints the reason and the smallest version that fixes it. The command
+    /// checks that the registry's list of advisories matches its public log.
+    ///
+    /// A registry can name a second copy of its log's checkpoint on another
+    /// host. The command checks that both copies show the same log.
+    ///
+    /// The command exits with an error while a locked version has an
+    /// advisory, so you can run it in CI.
+    Audit {
+        /// Print the report as JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Download a file and add it to the `[[download]]` list of your package.
     ///
     /// Use this for a file that is too large for the package, such as a font
@@ -337,6 +356,7 @@ impl Args {
             Command::Add { package } => minimum::add(&package),
             Command::Update { packages } => minimum::update(&packages),
             Command::Outdated => minimum::outdated(),
+            Command::Audit { json } => audit::run(json),
             Command::Fetch { locked } => fetch::run(fetch::Mode::Fetch, locked),
             Command::Vendor { locked } => fetch::run(fetch::Mode::Vendor, locked),
             Command::Pack { dir, out } => pack::run(&dir, out.as_deref()),

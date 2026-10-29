@@ -997,7 +997,10 @@ root file and each index file are signed notes whose text is the JSON on one lin
 `signed_at`, a Unix time, and `checkpoint`, the `size` and base64 `root` of the log it was signed
 with ([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)). The registry's URL serves `registry.json`, whose `hosts` are the file hosts in the order a client tries
 them ([`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration)); with no `hosts`, the files are under the
-registry's URL. Under each file host:
+registry's URL. Its optional `checkpoint_copy` is the URL of a second copy of `log/checkpoint` that
+another host publishes, which `nvs pkg audit` compares with the file hosts' log
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)). It is optional under schema 1,
+because a root file without it means "no second copy". Under each file host:
 
 - **`index/<vendor>/<name>.json`**, named by the package's slug, holds `name` (the namespace),
   `owners`, and `versions`. Each version has `version`, `digest` (64 lowercase hex digits),

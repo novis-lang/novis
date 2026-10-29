@@ -40,15 +40,21 @@ pub(crate) fn newest(index: &Index, now: u64) -> Option<&Release> {
         .releases
         .iter()
         .rev()
-        .find(|release| match release.state {
-            State::Released => true,
-            State::Pending { selectable_at } => selectable_at.is_some_and(|at| at <= now),
-            State::Unlisted | State::Retracted { .. } | State::Withheld { .. } => false,
-        })
+        .find(|release| choosable(release, now))
+}
+
+/// Whether a command may choose `release` on its own at the Unix time `now`: it is released, or
+/// pending past the time it becomes selectable.
+pub(crate) fn choosable(release: &Release, now: u64) -> bool {
+    match release.state {
+        State::Released => true,
+        State::Pending { selectable_at } => selectable_at.is_some_and(|at| at <= now),
+        State::Unlisted | State::Retracted { .. } | State::Withheld { .. } => false,
+    }
 }
 
 /// The current Unix time, in seconds.
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |since| since.as_secs())
