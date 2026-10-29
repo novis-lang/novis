@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/package/mod.rs, docs/rules/packaging/a-known-bad-ve
 stages:
   - id: 1
     title: the advisory feed's schema is stated, and the client verifies the feed against the log
-    status: open
+    status: done
     context: [crates/nvs-cli/src/package/log.rs, crates/nvs-cli/src/package/note.rs, crates/nvs-cli/src/package/index.rs]
     extra:
       context:
@@ -110,6 +110,27 @@ with goal `registry-website`, so those merges are serial. The `nvs pkg audit` su
 `docs/goals/registry-service.md` is gone. A session whose stage is gated takes the earliest open stage
 whose gate holds, and ends `BLOCKED` naming the missing file when none does.
 
+**The feed is derived from the log by `nvs registry log advisories`, and lives at `log/advisories`.**
+It is JSON on one line signed as an index file is (`index::sign`), so `signed_at` and `checkpoint`
+come from the same code, and each advisory is the log record's number and its entry. The service in
+stage 5 runs the command after an append that logs an advisory and copies the file with the log's
+others. Why: one writer, in Rust, whose every byte comes from records the log already signed, so the
+service cannot write a feed the client's check rejects. Cost: the command reads every entry of the
+log, once per advisory logged, on the operator's side.
+
+**A retraction's `fixed_in` is in its log entry**, an optional field of `Entry::Retract` under schema
+`v: 1`, left out of the canonical form when absent, so every existing log still verifies. Why: the
+feed lists log entries only, so the fix audit names is one the log signed, never one the feed alone
+claims. Stage 5 makes `Events::reasoned` write it.
+
+**The feed lists `retract` and `withhold` entries only** (`advisory::is_advisory`). The log's
+`advisory` kind is not in it: no route writes one, and its `versions` has no syntax. A goal that adds
+that route adds the kind to the feed and a schema line to the rule.
+
+**A feed may name a log shorter than the newest checkpoint.** `nvs registry log verify` accepts it
+when its root is the log's at its size. Audit in stage 2 reads the records past the feed's size from
+the log itself, so an append between two feed writes never fails a run, and nothing is hidden.
+
 **Trade-offs.** Nothing runs on the request path, and no program changes. Audit costs one feed fetch
 and two checkpoint fetches per run. Users gain one command that CI runs, and one warning that tells
 them which code holds the application's authority without a grant line.
@@ -121,9 +142,14 @@ them which code holds the application's authority without a grant line.
 **Does:** the feed's schema is in its rule, and the client checks the feed's signature and its entries
 against the log.
 
-- [ ] The feed's schema and signature, written into the rule's fragment (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:1`
-- [ ] The client's reader and its check against the log: a bad signature, and an advisory the log holds but the feed lacks, are hard errors. `crates/nvs-cli/src/package/advisory.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
-- [ ] Tests over a feed built with `nvs registry log append`: a valid feed, a changed byte, and a hidden advisory. `crates/nvs-cli/tests/package_audit.rs:1`
+- [x] The feed's schema and signature, written into the rule's fragment (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`). `docs/rules/packaging/a-known-bad-version-is-retracted-not-deleted.md:1`
+  - [x] The schema, an example and the client's check in the fragment, and `docs/rules/packaging.md` rendered.
+  - [x] `fixed_in` on the log's retract entry (`crates/nvs-cli/src/package/entry.rs`).
+- [x] The client's reader and its check against the log: a bad signature, and an advisory the log holds but the feed lacks, are hard errors. `crates/nvs-cli/src/package/advisory.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+  - [x] `Feed::open` and `Feed::against`, with unit tests.
+  - [x] `nvs registry log advisories` writes the feed, and `log verify` checks it (`crates/nvs-cli/src/registry.rs`).
+  - [x] The walk over a log directory is `log::verify`'s. The walk over a file host's tiles moved to stage 2's second-copy item.
+- [x] Tests over a feed built with `nvs registry log append`: a valid feed, a changed byte, and a hidden advisory. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 5. the registry publishes the signed advisory feed and names the second checkpoint copy
 
@@ -147,6 +173,7 @@ log.
 - [ ] The report and its non-zero exit, with a `--json` form. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/lock.rs:1`
 - [ ] The optional `checkpoint_copy` field in the index reader, and the schema line in `rule:packaging/a-package-is-its-digest`. `crates/nvs-cli/src/package/index.rs:1`, `docs/rules/packaging/a-package-is-its-digest.md:1`
 - [ ] The second-copy comparison, and the one line when none is named. `crates/nvs-cli/src/package/audit.rs:1`, `crates/nvs-cli/src/package/log.rs:1`
+- [ ] The feed checked against a file host's log: a walk over `log::Fetched` that checks every bundle against its level-0 tile, each tile against the one above, and the root, as `log::verify` does for a directory, feeding `advisory::Feed::against`; the records past the feed's size read the same way. `crates/nvs-cli/src/package/log.rs:947`, `crates/nvs-cli/src/package/advisory.rs:1`
 - [ ] Tests: a locked retracted version names its fixed-in version and exits non-zero, a withheld one the same, an unlisted one is silent, and two disagreeing copies fail. `crates/nvs-cli/tests/package_audit.rs:1`
 
 ### 3. `nvs pkg audit` warns on an autoload root no grant line mentions
@@ -187,21 +214,25 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new. No stage is started. Stage 3's gate (goals `namespace-grants` and `package-client`)
-is the first to hold; stage 1 waits for goal `registry-log`, and stage 5 for goal `registry-service`.
+Stage 1 is done. The feed's schema is in its rule, `crates/nvs-cli/src/package/advisory.rs` opens a
+feed and checks it against the log, `nvs registry log advisories` writes it, and `nvs registry log
+verify` checks it when the log directory has one. Every gate holds: goals `registry-log`,
+`registry-service`, `namespace-grants` and `package-client` are gone. New tests, each run once and
+green: `crates/nvs-cli/tests/package_audit.rs` (4) and `package::advisory::tests` (4). No test is
+expected to go red.
 
 ### Next
 
-Stage 3, the unmatched-namespace warning, on `crates/nvs-cli/src/package/audit.rs`,
-`crates/nvs-cli/src/main.rs` and `crates/nvs-cli/tests/package_audit.rs`. Gate:
-`docs/goals/namespace-grants.md` and `docs/goals/package-client.md` are gone.
-- [ ] The `nvs pkg audit` subcommand. `crates/nvs-cli/src/main.rs:373`
-- [ ] The walk over the autoload roots against the grant table (`rule:security/an-unmatched-namespace-holds-the-application`). `crates/nvs-cli/src/package/audit.rs:1`
-- [ ] Its tests. `crates/nvs-cli/tests/package_audit.rs:1`
+Stage 5, the app lane, on `apps/registry/src/Events.nvs`, `apps/registry/src/Releases.nvs` and
+`apps/registry/src/Index.nvs`.
+- [ ] `Events::reasoned` writes a retraction's `fixed_in` into its log entry, left out when there is none. `apps/registry/src/Events.nvs:34`, `apps/registry/src/Releases.nvs:189`
+- [ ] The feed: after an append that logs a retract or a withhold, the service runs `nvs registry log advisories` over its log directory and copies `advisories` with the log's other files (find where it runs `log append` and copies the printed paths: `grep -n "log', 'append'\|'append'" apps/registry/src/*.nvs`). `apps/registry/src/NvsLog.nvs:1`
+- [ ] `checkpoint_copy` in the index root, then the package page's *Advisories* section, then `AdvisoriesTest.nvs`, as stage 5 lists them. `apps/registry/src/Index.nvs:1`, `apps/registry/src/PackagePage.nvs:301`
+
+Then stage 2, which needs the host walk named under it.
 
 ### Backlog
 
-- Stage 1, the advisory reader, follows goal `registry-log` (`crates/nvs-cli/src/package/advisory.rs`).
 - From goal `registry-website`: a search row restored from a backup is checked only indirectly, since
   `BackupTest::aRestoreBringsBackEveryRelease` restores releases, not `search`. Stage 5 touches the
   registry app; if it changes `apps/registry/src/Backup.nvs`, add a test that a restored registry
