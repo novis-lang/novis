@@ -14,7 +14,8 @@ class Docs {
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 
-// § 4 calls `url` the launderer for the URL-path sink and this member launders
+// `rule:routing/link-target-and-params-are-checked` calls `url` the launderer
+// for the URL-path sink and this member launders
 // the same way, which is not a claim about the token at all: the path in front
 // of it is `url`'s answer, byte for byte, so a value that could not leave its
 // segment there cannot leave it here.

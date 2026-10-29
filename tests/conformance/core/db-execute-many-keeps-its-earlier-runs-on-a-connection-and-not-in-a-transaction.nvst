@@ -1,5 +1,5 @@
 --TEST--
-One batch refused at its second run leaves its first run in place on a `Core\Db\Connection` and takes it back out on a `Core\Db\Transaction`, so § 4's "a batch is not a transaction" is a statement about the receiver — `rule:core-classes/db-statement-members`, `rule:core-classes/db-transactions` and `rule:classes/no-traits`
+One batch refused at its second run leaves its first run in place on a `Core\Db\Connection` and takes it back out on a `Core\Db\Transaction`, so "a batch is not a transaction" is a statement about the receiver — `rule:core-classes/db-statement-members`, `rule:core-classes/db-transactions` and `rule:classes/no-traits`
 --FILE--
 <?nvs
 // covers: Core\Db\Transaction::executeMany
@@ -10,7 +10,7 @@ use Core\Db\Transaction;
 // One statement run three times, refused at its second run by the unique
 // index. Both receivers are asked the identical question, because what differs
 // is the handle and not the batch: `rule:classes/no-traits`'s delegation gives them one body,
-// and § 7 is the only thing that acts between the runs.
+// and the transaction is the only thing that acts between the runs.
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null unique)", []);
 $db->execute("insert into t (name) values (?)", ["ada"]);
@@ -42,7 +42,7 @@ try {
 }
 echo "after the transaction ", $db->query("select id from t", [])->count(), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# A SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]

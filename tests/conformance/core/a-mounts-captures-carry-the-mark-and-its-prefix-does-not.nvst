@@ -10,10 +10,10 @@
 // the other.
 var $mount = Core\Request::mount();
 // The prefix is what `rule:http-server/a-request-resolves-in-five-steps` step 2 took off the path, and every mount
-// row was expanded against the disk at boot -- § 2's rule that a path is never
-// derived from a URL at request time -- so it is the operator's own text.
+// row was expanded against the disk at boot --
+// `rule:http-server/a-path-is-never-derived-from-a-url` -- so it is the operator's own text.
 Core\Regex\Pattern $ours = Core\Regex::compile($mount->prefix());
-// The captures are marked, which is § 7's own call: the peer chose which mount
+// The captures are marked, which is `rule:routing/a-request-reads-its-mount`'s own call: the peer chose which mount
 // answers it, and a capture is what a multi-tenant program keys its data by.
 Core\Regex\Pattern $theirs = Core\Regex::compile($mount->captures()[0]);
 echo "unreachable\n";

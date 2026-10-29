@@ -50,7 +50,8 @@ echo $six->port() as int, "\n";
 // is the *only* spelling of that question, `isValid` having been deleted so
 // a validator can never drift from the parser. "Is this an absolute URI",
 // the narrower question `isValid` used to ask, is that plus one reader call.
-// `$s as ?Core\Uri` does not compile: § 3's class row has no exceptions.
+// `$s as ?Core\Uri` does not compile:
+// `rule:expressions/nullable-conversion-availability`'s class row has no exceptions.
 ?Core\Uri $absolute = Core\Uri::tryParse("https://example.com/a");
 if ($absolute?->scheme() != null) { echo "absolute\n"; }
 ?Core\Uri $relative = Core\Uri::tryParse("/a/b");

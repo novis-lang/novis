@@ -43,7 +43,7 @@ final class Tree {
         }
     }
 
-    // § 8 makes `kind` written on every path rather than sometimes absent, so
+    // `rule:core-classes/db-error`'s `Other` case makes `kind` written on every path rather than sometimes absent, so
     // the condition no code table names has a case of its own to land in.
     public static function unclassified(): string {
         try {

@@ -2,8 +2,9 @@
 the memory tier forgets an arrival too large for `[cache.memory] max_size` as it lands rather than failing the write, and takes what was under its key with it — `rule:core-api/two-cache-tiers` and `rule:concurrency/the-memory-tier-is-one-store-per-process`
 --FILE--
 <?nvs
-// § 3 caps this tier and says exceeding the cap **evicts** rather than failing
-// an allocation, so nothing here is wrapped in a `try`: a `put` that cannot be
+// `rule:concurrency/the-memory-tier-is-one-store-per-process` caps this tier
+// and says exceeding the cap **evicts** rather than failing an allocation, so
+// nothing here is wrapped in a `try`: a `put` that cannot be
 // kept answers exactly what a `put` with room to spare answers, and this case
 // fails on an uncaught throw the moment that stops being true.
 var $cache = Core\Cache::memory();
@@ -14,8 +15,9 @@ $cache->put('small', $small);
 echo 'a small entry is kept: ', $cache->get('small') == null ? 'no' : 'yes', "\n";
 
 // Twice the whole cap in one entry. The tier could not hold it even empty, so
-// the write lands and is forgotten in the same step — § 1's "any entry may be
-// absent at any time", reached by the cap rather than by a failure.
+// the write lands and is forgotten in the same step — the "any entry may be
+// absent at any time" of `rule:core-api/two-cache-tiers`, reached by the cap
+// rather than by a failure.
 $cache->put('huge', $huge);
 echo 'an entry larger than the tier: ', $cache->get('huge') == null ? 'forgotten' : 'kept', "\n";
 

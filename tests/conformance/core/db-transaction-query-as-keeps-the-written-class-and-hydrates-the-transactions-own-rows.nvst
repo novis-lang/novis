@@ -45,7 +45,7 @@ $db->transaction(fn (Transaction $tx): void => {
 });
 echo "kept ", Report::of($db->queryAs<Note>("select id, text from t order by id", [])), "\n";
 
-// § 7: the rows those objects were built from belong to the transaction, so a
+// `rule:core-classes/db-transactions`: the rows those objects were built from belong to the transaction, so a
 // rollback takes the second one back out and the class the next read answers
 // at is unchanged.
 try {
@@ -59,7 +59,7 @@ try {
 }
 echo "after ", Report::of($db->queryAs<Note>("select id, text from t order by id desc", [])), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]

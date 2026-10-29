@@ -2,9 +2,10 @@
 A SQLite column reads back as the type its schema *declared* rather than as the storage class the cell arrived in — a `date`, a `time`, a `uuid`, a `decimal` and a `boolean` answer their own values, a `blob` answers the octets it is, and a cell the declaration does not describe throws — `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
-// § 9's last sentence is this backend's whole type map: "SQLite has no date or
-// time types; mapping keys off the *declared* column type and throws on a value
-// that does not parse". Every value written below is bound as one of SQLite's
+// This backend's whole type map is one sentence of
+// `rule:core-classes/db-column-types`: "SQLite has no date or time types: its
+// mapping keys off the *declared* column type and throws on a value that does
+// not parse". Every value written below is bound as one of SQLite's
 // five storage classes — `nvs_db::sqlite::encode` has no other shape to bind —
 // and what each reads back as is the schema's business, not the cell's.
 var $db = Core\Db::connect("main");
@@ -18,7 +19,7 @@ echo "created ", $made->affected(), "\n";
 // Four `TEXT` cells, one `INTEGER` and one `BLOB`, and the four text ones are
 // the same storage class as each other: nothing about them says which is a
 // date and which is a clock reading. The blob is the other half of the map —
-// `blob` is a type SQLite really has, so its cell is already § 9's answer and
+// `blob` is a type SQLite really has, so its cell is already the map's answer and
 // no declaration has to rescue it.
 var $wrote = $db->execute(
     "insert into t (born, opens, ref, owed, live, photo) values (?, ?, ?, ?, ?, ?)",
@@ -33,15 +34,15 @@ var $wrote = $db->execute(
 );
 echo "inserted ", $wrote->affected(), "\n";
 
-// § 6's typed readers ask nothing of SQLite: the column's declaration has
+// The typed readers ask nothing of SQLite: the column's declaration has
 // already decided, so `->date()` here is the same lookup and class check it is
 // against a PostgreSQL `DATE`, and `->bool()` reads a flag column the same way
 // it reads a MySQL `TINYINT(1)`.
 foreach ($db->query("select born, opens, ref, owed, live, photo from t", [])->all() as Core\Db\Row $row) {
-    // Each reader answers `?T` because a NULL column is an ordinary absence
-    // (§ 6), so the test is the one narrowing away it leaves every caller.
+    // Each reader answers `?T` because a NULL column is an ordinary absence,
+    // so the test is the one narrowing away it leaves every caller.
     var $born = $row->date("born");
-    // The `TIME` row of § 9's map, which this backend can only reach through a
+    // The `TIME` row of the map, which this backend can only reach through a
     // declaration: the cell is `TEXT` and every other text column beside it is
     // too.
     var $opens = $row->time("opens");
@@ -69,7 +70,7 @@ foreach ($db->query("select born, opens, ref, owed, live, photo from t", [])->al
     echo "photo ", $photo == $stored ? "yes" : "no", "\n";
 }
 
-// The other half of § 9's sentence, on the same column: `20260903` is a
+// The other half of that sentence, on the same column: `20260903` is a
 // perfectly good `INTEGER` and a plausible spelling of the date above, and the
 // declaration is the only thing that says it is not one. It throws at the read
 // rather than answering the class it happens to be stored in.
@@ -82,7 +83,7 @@ try {
     echo "refused\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

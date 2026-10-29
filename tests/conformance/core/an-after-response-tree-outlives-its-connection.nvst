@@ -4,7 +4,8 @@ a request tree that deferred work keeps running once its answer is complete, and
 <?nvs
 // `task-after-response-runs` asks *when* a deferred callable runs, on a host
 // that has no response for anything to be after. This case asks the other
-// half, which only a request can be asked: § 6's "the callable runs after the
+// half, which only a request can be asked:
+// `rule:concurrency/after-response-outlives-the-connection`'s "the callable runs after the
 // response is fully written", read from the side of the caller holding that
 // response.
 //
@@ -12,15 +13,15 @@ a request tree that deferred work keeps running once its answer is complete, and
 // bytes the answer carries and the first bytes it does not are named together.
 // A queue that ran its callables inline — before the frame returned — would put
 // `deferred` inside the body below, and a response that stayed writable after
-// the connection was answered would put it there too. Both are what § 6
+// the connection was answered would put it there too. Both are what that rule
 // forbids, and either one takes this case off its expectation.
 //
 // **The branch is the request**: `Core\Test::request` runs this same file
 // again to answer it, and `Core\Env::context()` is `Request` in that run
 // (`rule:core-classes/env-context`).
 if (Core\Env::context() == Core\Env::Context::Request) {
-    // The child. It registers deferred work and then finishes answering; § 6
-    // keeps `Core\Request` readable inside the callable because the tree is
+    // The child. It registers deferred work and then finishes answering; the
+    // same rule keeps `Core\Request` readable inside the callable because the tree is
     // still the same tree, and keeps `Core\Response` out of it because the
     // response is not.
     Core\Task::afterResponse(fn (): void => {
@@ -35,7 +36,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     echo "status=", $answered->status(), "\n";
     echo "body=", $answered->body(), "\n";
 
-    // The parent's own tree keeps its own queue — § 6's trigger on a host with
+    // The parent's own tree keeps its own queue — the rule's trigger on a host with
     // no response is the scheduling frame returning — so this runs last, after
     // the two lines above and after every statement of this file. Two trees,
     // two queues, and neither one's deferred work reached the other's output.

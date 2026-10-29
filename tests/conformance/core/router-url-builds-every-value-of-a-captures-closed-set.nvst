@@ -2,7 +2,7 @@
 `Core\Router::url` builds a link for every value of a capture's closed set, and for no other — `rule:routing/a-capture-narrows-to-a-closed-set` and `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
-// § 5's own example, compiled: a capture narrows to a closed set with a *type*,
+// `rule:routing/a-capture-narrows-to-a-closed-set`'s own example, compiled: a capture narrows to a closed set with a *type*,
 // so `/xx/docs/intro` does not match and falls through to a `404`. The refused
 // half of the bound is a compile error and lives in
 // `reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst`;
@@ -16,7 +16,7 @@ class Docs {
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 }
 
-// Written out one literal at a time on purpose: § 5's check reads what the call
+// Written out one literal at a time on purpose: the closed-set check reads what the call
 // site wrote, so a loop over a variable would be a link the compiler never
 // looked at and would assert nothing about the set.
 array<string> $built = [

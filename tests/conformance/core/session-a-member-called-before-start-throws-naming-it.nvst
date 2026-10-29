@@ -95,8 +95,8 @@ try {
 echo "refused ", $refused, " of 8\n";
 
 // Naming the member is the half that makes the refusal actionable. A program
-// told only "no session" has to go and find which member opens one, and § 1's
-// rule is specifically that the throw says so.
+// told only "no session" has to go and find which member opens one, and
+// `rule:core-api/session-roster` is specifically that the throw says so.
 echo "and each names the member that opens one ", $named, " of 8\n";
 --EXPECT--
 refused 8 of 8

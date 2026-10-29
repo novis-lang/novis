@@ -2,7 +2,7 @@
 The prefix and the captures are one member of `Core\Request` and it always answers, where the route the same request carries may be `null` -- `rule:routing/matched-once-before-the-handler` and `rule:routing/a-request-reads-its-mount`
 --FILE--
 <?nvs
-// § 7 replaced `mountPrefix`, which stated half of the fact. Two members for
+// `rule:routing/a-request-reads-its-mount` replaced `mountPrefix`, which stated half of the fact. Two members for
 // one answer is what this repository's one-home rule forbids, and nothing was
 // ever built on the old spelling, so nothing migrated -- the refusal at the
 // bottom is what pins that there is no second way to ask.

@@ -24,7 +24,7 @@ Two `Core\Process\Result`s held at once each keep their own run's status and out
 //
 // The child is the platform's own shell, named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:
-// § 1 makes a `PATH` lookup the caller's own, and the candidate that is not
+// `rule:security/process-exec-capability` makes a `PATH` lookup the caller's own, and the candidate that is not
 // this platform's starts nothing — `IOError` on Windows, `RuntimeError` for a
 // path with no root on Unix.
 

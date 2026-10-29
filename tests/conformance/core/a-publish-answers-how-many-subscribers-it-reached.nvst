@@ -2,7 +2,7 @@
 `Core\Topic::publish` answers how many subscribers it reached, and is the one member of the class that needs no connection of its own — `rule:core-classes/topic`
 --FILE--
 <?nvs
-// § 4's second row asks nothing about the program calling it. `subscribe` and
+// `publish` (`rule:core-classes/topic`) asks nothing about the program calling it. `subscribe` and
 // `unsubscribe` refuse anything that is not a connection, because a
 // subscription with no queue behind it is an entry nothing could ever drain --
 // but a publish is a value handed to whoever joined, and the commonest reason

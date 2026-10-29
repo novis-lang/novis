@@ -9,7 +9,7 @@ class Leaf {
     }
 }
 
-// § 2: the graph copy is one operation over every shape a value can be, so the
+// `rule:classes/graph-copy`: the graph copy is one operation over every shape a value can be, so the
 // property to assert is that the *whole* table survives — a member answering
 // plausibly for an `int` and losing a `bytes` still fails here.
 var $agree = 0;

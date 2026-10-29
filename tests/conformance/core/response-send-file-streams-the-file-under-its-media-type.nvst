@@ -2,7 +2,7 @@
 `Core\Response::sendFile` answers with the file at its path rather than with a copy of it the program holds, and the bytes reach the body verbatim — `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
-// § 4's file row is the one body member that hands over a *name*. Inside a
+// `rule:security/response-body-is-one-typed-member`'s file row is the one body member that hands over a *name*. Inside a
 // request it declares the file and the server streams it under the static-file
 // policy's media-type table, which is where the range and the conditional
 // already live, so nothing is ever read whole into memory. Off a request there

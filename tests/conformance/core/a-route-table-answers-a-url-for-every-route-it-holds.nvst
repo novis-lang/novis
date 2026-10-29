@@ -19,14 +19,15 @@ every `#[Route]` the program declares has a row in the compile-time table, and `
 // *permutation*, where every row answers and one method is answered by another
 // method's row. Distinct, rooted and substituted are all still true of it.
 //
-// Between them the eight paths spell every form of § 2's grammar: a literal
+// Between them the eight paths spell every form of `rule:routing/path-grammar`: a literal
 // path with no capture at all, one required capture, an optional one, two
 // required captures in one path, and a `{path...}` whose own `/`s are
 // structure. `Core\Http\Method::Delete` is here so that the table is not read
 // as a `Get`-only index.
 class Posts {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a
+    // route that is genuinely open.
     #[Core\Route(path: "/", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function home(): string { return "home"; }
@@ -90,7 +91,7 @@ foreach ($links as string $one) {
     // two things in front of it (`rule:http-server/a-mount-table-expands-at-boot`, `rule:routing/an-absolute-link-takes-a-configured-origin`) and neither is
     // configured here, so every answer begins at `/`.
     if (Core\Str::startsWith($one, "/")) { $rooted = $rooted + 1; }
-    // Nothing of § 2's grammar survives into the answer. A row that copied its
+    // Nothing of the path grammar survives into the answer. A row that copied its
     // declared path out instead of substituting it prints `{id}` and is caught
     // here rather than by whichever line happens to read it.
     if (Core\Str::contains($one, "{") == false) { $substituted = $substituted + 1; }

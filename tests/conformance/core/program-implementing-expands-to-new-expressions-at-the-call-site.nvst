@@ -4,9 +4,9 @@
 <?nvs
 // covers: Core\Program::implementing
 // Nothing here names a module class, and no `require` reaches one: the
-// `autoload` root is the only thing that can find them, which is § 3's
-// "answering the query requires parsing and collecting declarations from every
-// file under every autoload root".
+// `autoload` root is the only thing that can find them, which is
+// `rule:programs/implementing`'s "answering the query means parsing and
+// collecting declarations from every file under every autoload root".
 autoload 'App' from './modules';
 
 // `App\Sub\Aardvark` sorts *after* `App\Beta` because the comparison is over
@@ -41,7 +41,7 @@ namespace App;
 
 class Alpha implements Module
 {
-    // A declared zero-argument constructor is what § 3 asks of an
+    // A declared zero-argument constructor is what `rule:programs/implementing` asks of an
     // implementor, and it is called once per expansion — the `echo` is how
     // this case can see that.
     public function constructor()

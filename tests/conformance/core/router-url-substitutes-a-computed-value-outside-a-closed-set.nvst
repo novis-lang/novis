@@ -5,7 +5,7 @@
 // The other side of `E0772`: a *literal* out-of-set value is a compile error
 // (`reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst`),
 // and a computed one is not checked at all — the closed set is the handler's
-// declared type and a prepared template carries § 2's path pieces and no type.
+// declared type and a prepared template carries `rule:routing/path-grammar`'s path pieces and no type.
 // `crates/nvs-stdlib/src/router.rs`'s `substitute` owns why that is a
 // substitution rather than a throw: an out-of-set segment is a request that
 // does not match, so what a bad link produces is a `404` and not an error.
@@ -17,7 +17,8 @@ class Docs {
 }
 
 // Held in a variable, which is the whole difference between this and the
-// compile error: § 5's check reads what the call site wrote.
+// compile error: `rule:routing/a-capture-narrows-to-a-closed-set`'s check reads
+// what the call site wrote.
 var $lang = "xx";
 echo "built=", Core\Router::url(Docs::show, ["lang" => $lang, "page" => "intro"]), "\n";
 
@@ -31,7 +32,8 @@ try {
 }
 echo "outcome=", $outcome, "\n";
 
-// § 4's launder is unchanged by any of it: the value still cannot climb out of
+// The launder `rule:routing/link-target-and-params-are-checked` names is
+// unchanged by any of it: the value still cannot climb out of
 // its segment, so a bad link is a dead URL and never a path traversal.
 var $hostile = "../../etc";
 echo "encoded=", Core\Router::url(Docs::show, ["lang" => $hostile, "page" => "intro"]), "\n";

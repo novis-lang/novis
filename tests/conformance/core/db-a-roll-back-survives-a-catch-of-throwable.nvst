@@ -12,7 +12,7 @@ use Core\Db\Transaction;
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 
-// The hazard § 7 closes. An intervening `catch (Throwable)` swallows the signal
+// The hazard `rule:core-classes/db-transactions` closes. An intervening `catch (Throwable)` swallows the signal
 // `rollBack` threw, and the callable then returns as though nothing had gone
 // wrong — the shape a framework's own error boundary takes when it is a few
 // frames further out. Doctrine's `setRollbackOnly()` relies on every layer
@@ -39,7 +39,7 @@ try {
 // have hidden — the flag decided the level's fate, not the `catch`.
 echo "rows ", $db->query("select id from t", [])->count(), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

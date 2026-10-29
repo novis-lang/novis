@@ -8,11 +8,11 @@ a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because i
 // one for `{page?}`, because an optional capture's whole segment is dropped
 // when nothing fills it (`rule:routing/path-grammar`, `rule:routing/a-trailing-segment-may-be-absent`).
 class Posts {
-    // § 4 (`rule:routing/the-servers-match-dispatches-nothing`): an optional capture is last, and the parameter it binds
+    // `rule:routing/a-trailing-segment-may-be-absent`: an optional capture is last, and the parameter it binds
     // to has a default — which is what makes the absent case well-typed rather
     // than nullable by accident.
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a route that is genuinely open.
     #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function list(uint $page = 1): string { return "page " . $page; }

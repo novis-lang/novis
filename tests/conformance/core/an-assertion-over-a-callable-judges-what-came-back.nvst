@@ -2,7 +2,7 @@
 `Core\Test::assertThrows` matches the class its body threw, an ancestor included, and `assertDoesNotThrow` is the claim that a body completes -- `rule:testing/assertions-are-typed` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
-// The two members on § 4's roster whose subject is a `callable` rather than a
+// The two members on `rule:testing/assertions-are-typed`'s roster whose subject is a `callable` rather than a
 // value: each runs the body and judges what came back. What a case can observe
 // is which bodies each accepts, what a refusal says, and that both agree with
 // the `try`/`catch` a reader would otherwise have written by hand.
@@ -54,7 +54,7 @@ try {
     echo $silent->message, "\n";
 }
 
-// 5. § 20's member is the same three edges judged the other way round, and the
+// 5. `rule:testing/runner-is-strict`'s member is the same three edges judged the other way round, and the
 // assertion a test whose whole claim is "this completes" writes.
 Core\Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
 Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });

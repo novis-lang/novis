@@ -61,9 +61,9 @@ Core\Uri $absentPath = $absent->with({path: "/q"});
 echo "emptied+path ", $emptiedPath->toString(), " host=[", $emptiedPath->host() ?? "NULL", "]\n";
 echo "absent+path  ", $absentPath->toString(), " host=[", $absentPath->host() ?? "NULL", "]\n";
 
-// A host outside § 3.2.2 is refused where a host outside § 3.1 was: a space is
-// a byte the URI grammar does not admit, and brackets in a host only ever
-// enclose an IP address, never a name.
+// A host outside RFC 3986 § 3.2.2 is refused where a scheme outside
+// RFC 3986 § 3.1 was: a space is a byte the URI grammar does not admit, and
+// brackets in a host only ever enclose an IP address, never a name.
 array<string> $badHosts = ["h ost", "[nope]"];
 foreach ($badHosts as string $badHost) {
     try {

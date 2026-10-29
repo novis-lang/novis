@@ -1,5 +1,5 @@
 --TEST--
-`Core\Debug::render` renders `rule:errors/diagnostic-record`'s record model through § 3's plaintext view, and § 4's `dump` writes to the diagnostic channel rather than to standard output
+`Core\Debug::render` renders `rule:errors/diagnostic-record`'s record model through `rule:errors/renderings`'s plaintext view, and `rule:errors/debug-dump`'s `dump` writes to the diagnostic channel rather than to standard output
 --FILE--
 <?nvs
 // `rule:errors/diagnostic-record`: a node is tagged with the Novis type it *is*, so `int(1)` and
@@ -19,14 +19,14 @@ echo Core\Debug::render($money), "\n";
 bytes $raw = "ab" as bytes;
 echo Core\Debug::render($raw), "\n";
 
-// § 1: an `array`'s two shapes are two node kinds, decided by the keys.
+// An `array`'s two shapes are two node kinds, decided by the keys.
 array<int> $list = [10, 20];
 echo Core\Debug::render($list), "\n";
 array<int> $map = ["a" => 1, "b" => 2];
 echo Core\Debug::render($map), "\n";
 
-// § 1 and `rule:classes/no-debug-hook`: a class instance shows its class, its identity and its
-// *declared* properties -- never a `toString` result, and never a hook (§ 7).
+// `rule:errors/diagnostic-record` and `rule:classes/no-debug-hook`: a class instance shows its
+// class, its identity and its *declared* properties -- never a `toString` result, and never a hook.
 class Point {
     public function constructor(public int $x, public int $y) {}
 }
@@ -37,7 +37,7 @@ echo Core\Debug::render(new Point(1, 2)), "\n";
 echo Core\Debug::render(fn (int $n): int => $n), "\n";
 echo Core\Debug::render(fn (int $a, int $b): int => $a + $b), "\n";
 
-// § 5: a cycle is an identity, not a `*RECURSION*` string, so a rendering can
+// `rule:errors/record-transformations`: a cycle is an identity, not a `*RECURSION*` string, so a rendering can
 // link the repeat rather than only announce it.
 class Ring {
     public lateinit Ring $next;
@@ -47,7 +47,7 @@ Ring $ring = new Ring("a");
 $ring->next = $ring;
 echo Core\Debug::render($ring), "\n";
 
-// § 5: the control-byte substitution is applied on the way *into* the record,
+// The control-byte substitution is applied on the way *into* the record,
 // so every rendering inherits one answer -- `rule:tooling/terminal-output-is-a-sink`'s table, and the
 // CWE-117 property a plaintext view would otherwise lose. A bare `CR` becomes
 // its U+2400-block Control Picture; `TAB` is not substituted at all, and the
@@ -56,7 +56,7 @@ echo Core\Debug::render($ring), "\n";
 echo Core\Debug::render("a\rb"), "\n";
 echo Core\Debug::render("a\tb"), "\n";
 
-// § 4: a dump goes to the diagnostic channel, so `prog | jq` keeps working.
+// `rule:errors/debug-dump`: a dump goes to the diagnostic channel, so `prog | jq` keeps working.
 // Nothing below this line reaches standard output but the marker itself, which
 // is what the expectation asserts.
 Core\Debug::dump(1, "two", [3]);

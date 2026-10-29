@@ -2,7 +2,7 @@
 `Core\Test::assertThrows` consumes the throw it matched without discharging the failure that raised it, and `assertCount` names both sides of an empty subject -- `rule:testing/assertions-are-typed` and `rule:testing/failure-ledger`
 --FILE--
 <?nvs
-// § 5's ledger is what `expectFailure` reads, and `assertThrows` never writes
+// `rule:testing/failure-ledger`'s ledger is what `expectFailure` reads, and `assertThrows` never writes
 // to it: matching a throw is not the same act as recording that an assertion
 // failed, so an assertion provoked *inside* an `assertThrows` body is still
 // owed a discharge afterwards. That is the whole reason a test claiming an
@@ -75,7 +75,7 @@ try {
 // third.
 echo "discharged=", $discharged, "/2 refused=", $refused, "/1\n";
 
-// § 4's other edge, on the subject `assertCount` is written around: an empty
+// The other edge of `rule:testing/assertions-are-typed`, on the subject `assertCount` is written around: an empty
 // array is a length like any other, and the report names both sides of it with
 // `rule:core-api/shape-rules` R2's bag in front, exactly as the predicate members' reports do.
 array<string> $empty = [];

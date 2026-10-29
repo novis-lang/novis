@@ -23,7 +23,7 @@ class B64 {
 }
 
 // 0xfb 0xff 0xbe is the triple whose two spellings differ in every character:
-// RFC 4648 § 4's alphabet ends `+/`, § 5's ends `-_`.
+// RFC 4648 § 4's alphabet ends `+/`, and RFC 4648 § 5's ends `-_`.
 bytes $raw = Core\Encoding::fromHex("fbffbe");
 echo Core\Encoding::toBase64($raw), "\n";
 echo Core\Encoding::toBase64Url($raw), "\n";

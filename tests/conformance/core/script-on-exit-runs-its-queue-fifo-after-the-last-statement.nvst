@@ -11,7 +11,8 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
         Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
         Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
-    // § 2's first row, read off all three fields at once: the last statement
+    // The first row of `rule:observability/three-endings-fire-the-exit-queue`'s
+    // table, read off all three fields at once: the last statement
     // ran, so the reason is `Normal`, the status is the 0 the process will
     // carry, and there is no error because only one of the three endings has
     // one.

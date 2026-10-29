@@ -26,8 +26,8 @@ echo "math=", Core\Math::min(19.90 as decimal, 2.50 as decimal), "\n";
 
 // And a `decimal` orders against the other numeric rows rather than only
 // against its own. `rule:types/conversion`'s first row makes an `int` exact as a
-// `decimal`, and its § 3 permits the `decimal`/`float` comparison even where
-// `decimal ⊕ float` arithmetic is a compile error — so this array has one
+// `decimal`, and `rule:types/ordering` permits the `decimal`/`float` comparison
+// even where `rule:types/arithmetic` makes `decimal ⊕ float` a compile error — so this array has one
 // order and every pair in it is answered exactly.
 array<mixed> $numbers = [2 as decimal, 1, 3.5, 2.5 as decimal, 0.5];
 foreach (Core\Arr::sort($numbers) as mixed $number) {

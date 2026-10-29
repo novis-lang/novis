@@ -9,7 +9,7 @@ use Core\Db;
 var $db = Db::connect("main");
 
 // A `create table` has no rows of its own to count. On a driver whose command
-// tag says so this is § 4's absent case; SQLite has no tag to read that out of,
+// tag says so this is the absent case, a `null`; SQLite has no tag to read that out of,
 // so what it reports is a count of `0`.
 var $made = $db->execute("create table t (id integer primary key, name text not null, done boolean not null)", []);
 ?uint $first = $made->changed();
@@ -63,7 +63,7 @@ echo "agree ", $agree ? "yes" : "no", "\n";
 echo "inserted still ", $inserted->changed() ?? 0, "\n";
 echo "updated still ", $updated->changed() ?? 0, "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

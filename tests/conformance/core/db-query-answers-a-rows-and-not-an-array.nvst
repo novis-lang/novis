@@ -5,7 +5,8 @@
 // covers: Core\Db\Connection::query
 // `rule:core-classes/db-statement-members` makes `Core\Db\Connection::query` the buffered member — every
 // row is read before it answers, and the connection is free again — and what
-// it answers with is a `Db\Rows` rather than an array. The difference is § 6's:
+// it answers with is a `Db\Rows` rather than an array. The difference is
+// `rule:core-classes/db-column-types`'s:
 // a `Rows` knows the columns the server described, so its rows carry typed
 // readers that answer `?T`, where an array element is whatever the driver
 // happened to make of it and `$row["id"] == 1` silently fails.

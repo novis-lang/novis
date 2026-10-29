@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // The approval succeeds and the answer is a value, not laundered text. That is
-// the whole of § 2: a `string` answer would have removed `tainted` and left the
+// the whole of `rule:http-server/allow-url-pins-the-address`: a `string` answer would have removed `tainted` and left the
 // URL exactly as resolvable as it was, so a second lookup between the check and
 // the connection could answer differently. The type is written out here because
 // what it *is* is the guarantee — nothing is fetched, and no member of the
@@ -22,7 +22,7 @@ try {
 }
 --FILE nvs.toml--
 # A literal address is the one host a case can approve without a resolver: it
-# is public, so § 3's table lets it through, and nothing about the case depends
+# is public, so `rule:security/net-address-policy`'s table lets it through, and nothing about the case depends
 # on what a name server would have said. The second name is over DNS's 63-octet
 # label limit, so every resolver refuses it locally.
 [capabilities.net]

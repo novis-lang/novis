@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // The bound on both sides: the call that carries no key, and the smallest one
-// that does. § 6 omits a field with no content rather than writing it empty,
+// that does. `rule:errors/log-write` omits a field with no content rather than writing it empty,
 // which is the rule `trace_id` is already stated under.
 Core\Log::write(Core\Log::Level::Info, "bare");
 

@@ -3,7 +3,8 @@
 --FILE--
 <?nvs
 // `rule:tooling/echo-always-has-a-sink` binds a request's `echo` to the response body, so there is one
-// place a body can be. § 4's body members add the `Content-Type` to that, not
+// place a body can be. `rule:security/response-body-is-one-typed-member`'s body
+// members add the `Content-Type` to that, not
 // a second buffer -- which is observable as ordering: what a body member wrote
 // and what `echo` wrote come back in the order they were written.
 echo "one ";
@@ -11,7 +12,8 @@ Core\Response::text("two ");
 echo "three";
 echo "\n";
 
-// The same claim under `Core\Out::capture`, which is § 5's redirection of that
+// The same claim under `Core\Out::capture`, which is
+// `rule:security/capture-answers-the-carrier`'s redirection of that
 // one output: a capture in force takes both writers or neither, and taking
 // only `echo` would be the second buffer this design does not have.
 var $captured = Core\Out::capture(fn (): void => {

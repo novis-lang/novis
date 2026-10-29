@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::serverVersion
-// The busy rule is what makes this observable at all. § 4 holds the connection
+// The busy rule is what makes this observable at all. A stream holds the connection
 // for as long as rows remain, so anything that needs a round trip is refused
 // between two steps of the walk — and this member is not refused, which is the
 // one thing a program can see about a cost it does not pay.
@@ -22,7 +22,8 @@ foreach ($db->stream("select name from t order by id", []) as Core\Db\Row $row) 
     echo "  version: ", $db->serverVersion() == $kept ? "the same" : "something else", "\n";
 
     // The comparison the case exists for. A statement here is the `LogicError`
-    // § 4 promises, on the same connection, on the same step.
+    // `rule:core-classes/db-streaming` promises, on the same connection, on the
+    // same step.
     try {
         $db->query("select 1", []);
         echo "  a statement: not refused\n";
@@ -31,7 +32,7 @@ foreach ($db->stream("select name from t order by id", []) as Core\Db\Row $row) 
     }
 }
 --FILE nvs.toml--
-# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+# `rule:core-classes/db-capabilities`: `db.connect` covers a SQLite block, whose path is configuration.
 [capabilities.db]
 connect = ["main"]
 

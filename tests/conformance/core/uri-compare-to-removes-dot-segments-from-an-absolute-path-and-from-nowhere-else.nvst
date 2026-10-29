@@ -1,9 +1,9 @@
 --TEST--
-`$uri->compareTo` applies RFC 3986 § 5.2.4 to an *absolute* path and to nothing else: the same six rewrites all hold with a leading `/` and none of them holds without one, a query and a fragment keep their dot segments, and § 5.2.4's two trailing cases leave the path ending in `/` — RFC 3986 § 6.2.2.3
+`$uri->compareTo` applies RFC 3986 § 5.2.4 to an *absolute* path and to nothing else: the same six rewrites all hold with a leading `/` and none of them holds without one, a query and a fragment keep their dot segments, and RFC 3986 § 5.2.4's two trailing cases leave the path ending in `/` — RFC 3986 § 6.2.2.3
 --FILE--
 <?nvs
 // covers: Core\Uri::compareTo
-// § 6.2.2.3 is the one of § 6.2.2's three rewrites with a *precondition*, and
+// RFC 3986 § 6.2.2.3 is the one of RFC 3986 § 6.2.2's three rewrites with a *precondition*, and
 // the precondition is the whole content: a relative reference's leading `..`
 // is meaningful until something resolves it, so folding it away would answer
 // that `../a` and `a` are one URI when they are two references to two
@@ -17,7 +17,7 @@ final class Same {
 }
 
 // The six rewrites, written as the path an author would write and the path
-// § 5.2.4 leaves. Under an authority every path is absolute, so all six hold.
+// RFC 3986 § 5.2.4 leaves. Under an authority every path is absolute, so all six hold.
 array<string> $written = [
     "http://h/a/../b",
     "http://h/a/./b",
@@ -42,7 +42,7 @@ foreach ($written as string $long) {
 }
 echo "absolute paths folded ", $equal, " of 6\n";
 
-// The identical six with the leading `/` taken off, which is § 4.1's relative
+// The identical six with the leading `/` taken off, which is RFC 3986 § 4.1's relative
 // reference: none of them holds. A member that ran `remove_dot_segments` over
 // every path would print `6` here and stay plausible on every row above.
 array<string> $relative = [
@@ -69,20 +69,20 @@ foreach ($relative as string $long) {
 }
 echo "relative paths folded ", $stillEqual, " of 6\n";
 
-// A scheme does not make a path absolute — § 3.3's path-rootless is what
+// A scheme does not make a path absolute — RFC 3986 § 3.3's path-rootless is what
 // `http:a/../b` has — so the precondition is the leading `/` and not the
 // presence of a scheme or an authority. Named beside the path-absolute
 // spelling that differs from it by exactly that byte.
 echo "rootless ", Same::uris("http:a/../b", "http:b"),
      " path-absolute ", Same::uris("http:/a/../b", "http:/b"), "\n";
 
-// The other axis of the same precondition: § 6.2.2.3 is about the *path*, so
+// The other axis of the same precondition: RFC 3986 § 6.2.2.3 is about the *path*, so
 // a query and a fragment keep every dot segment they were written with, even
 // though the bytes are identical to the path row that folds.
 echo "query ", Same::uris("http://h/p?a/../b", "http://h/p?b"),
      " fragment ", Same::uris("http://h/p#a/../b", "http://h/p#b"), "\n";
 
-// Two things a segment list makes easy to get wrong, both of them § 5.2.4's
+// Two things a segment list makes easy to get wrong, both of them RFC 3986 § 5.2.4's
 // own steps rather than anything this member invents. A trailing `.` or `..`
 // appends an empty segment, which is why the two rows above pair with paths
 // ending in `/` — `/a/..` is `/` and not the empty path, and `/a/.` is `/a/`
@@ -91,7 +91,7 @@ echo "query ", Same::uris("http://h/p?a/../b", "http://h/p?b"),
 echo "trailing ", Same::uris("http://h/a/..", "http://h"),
      " interior ", Same::uris("http://h/a//b", "http://h/a/b"), "\n";
 
-// Climbing above the root is a no-op rather than an error: § 5.2.4 step 2C
+// Climbing above the root is a no-op rather than an error: RFC 3986 § 5.2.4 step 2C
 // pops an empty buffer and carries on, so a path of nothing but `..` is `/`.
 echo "above ", Same::uris("http://h/../../..", "http://h/"), "\n";
 --EXPECT--

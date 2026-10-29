@@ -2,7 +2,7 @@
 A failed assertion throws `Core\Test\Failure`, which is an ordinary `Throwable` a program catches, constructs and re-raises -- `rule:testing/failure-ledger`
 --FILE--
 <?nvs
-// § 5's whole first half: catching one is "not only allowed, it is necessary",
+// `rule:testing/failure-ledger`'s whole first half: catching one is "not only allowed, it is necessary",
 // so this case runs each of the three shapes that need to -- a composite
 // assertion that re-raises, a test *of* an assertion, and the plain root catch
 // a ported program writes -- and counts their agreements rather than reading
@@ -10,7 +10,7 @@ A failed assertion throws `Core\Test\Failure`, which is an ordinary `Throwable` 
 
 use Core\Test;
 
-// The failing subjects. Each member of § 4's roster funnels through one throw
+// The failing subjects. Each member of `rule:testing/assertions-are-typed`'s roster funnels through one throw
 // site, so the class is asked of all three rather than of the first.
 final class Subject {
     public static function same(): void { Test::assertSame(1, 2); }
@@ -64,7 +64,7 @@ try {
     }
 }
 
-// 4. § 5's worked example: a user-written composite assertion intercepts one
+// 4. The ledger rule's worked example:a user-written composite assertion intercepts one
 // and raises its own, with the inherited constructor of the root `Throwable`.
 final class UserCheck {
     public static function assertValid(int $n): void {

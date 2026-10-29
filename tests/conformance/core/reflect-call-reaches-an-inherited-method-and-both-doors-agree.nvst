@@ -6,7 +6,8 @@
 // must not depend on which door was used — `describe`'s own reasoning, asked
 // here of the acting half rather than of the reading half. The class table the
 // check reads is the flattened one, so an inherited method is the class's own
-// as far as § 2 is concerned, and its visibility travels with it.
+// as far as `rule:security/reflection-enforces-visibility` is concerned, and
+// its visibility travels with it.
 class Base {
     public function greet(string $who): string {
         return "hello " . $who;

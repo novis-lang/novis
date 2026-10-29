@@ -3,8 +3,8 @@
 --FILE--
 <?nvs
 // The refusal is the whole point of the member. The operator answers here --
-// rounded half to even at the widest scale the result admits, which § 3 fixes
-// in the language -- and this call site said it was not willing to lose
+// rounded half to even at the widest scale the result admits, which
+// `rule:types/decimal` fixes in the language -- and this call site said it was not willing to lose
 // anything.
 echo 1.00 as decimal / 3, "\n";
 try {

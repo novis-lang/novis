@@ -8,7 +8,7 @@ Every shape of prompt default is answered as itself when there is no terminal, i
 echo "[", Core\Cli::ask("Your name?", {default: ""}), "]\n";
 echo Core\Cli::confirm("Continue?", {default: false}) ? "yes" : "no", "\n";
 
-// § 4's `labels` renders the menu, so an unattended run never calls it: the
+// `select`'s `labels` renders the menu, so an unattended run never calls it: the
 // callback below would print, and the frozen output shows it did not.
 echo Core\Cli::select(
     "Pick one",

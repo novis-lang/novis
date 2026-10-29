@@ -8,7 +8,7 @@
 // both are registered and only one failure happens, so a shared slot prints
 // the wrong line or no line at all.
 Core\Fatal::onLimit(fn (array<string> $report): void => {
-    // § 1's tier fires for a resource limit and for nothing else. This program
+    // `rule:errors/on-limit`'s tier fires for a resource limit and for nothing else. This program
     // stays inside every ceiling it has, so this line is unreachable — an
     // uncaught throw reaching it would mean the ladder had confused the two
     // failures the ladder exists to keep apart.
@@ -19,7 +19,8 @@ Core\Fatal::onUncaughtThrow(fn (Throwable $seen): void => {
     echo "first handler\n";
 });
 
-// § 2 gives the tier one handler and not a chain, for § 1's reason. The
+// `rule:errors/on-uncaught-throw` gives the tier one handler and not a chain,
+// for the same reason `rule:errors/on-limit` gives. The
 // difference from its sibling's case is that this one can *watch* the
 // replacement happen: a queue and a replacement print differently below,
 // where tier 1's pair could only assert the silence of a ladder nobody fired.
@@ -28,7 +29,7 @@ Core\Fatal::onUncaughtThrow(fn (Throwable $seen): void => {
 });
 
 // A throw that is caught never reaches the root, so no tier is climbed at all:
-// § 2 is about the frames *running out*, not about a `Throwable` existing.
+// `rule:errors/on-uncaught-throw` is about the frames *running out*, not about a `Throwable` existing.
 try {
     throw new LogicError("handled here");
 } catch (LogicError $handled) {

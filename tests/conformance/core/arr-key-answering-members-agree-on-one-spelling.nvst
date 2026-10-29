@@ -107,7 +107,7 @@ echo $verdicts, "\n";
 // answered from its own rule, and the tally is what says every row was asked.
 echo $held, " of ", Core\Arr::count($tables), "\n";
 
-// Rows 2, 3 and 4 are one table written three ways, which is § 5's first
+// Rows 2, 3 and 4 are one table written three ways, which is `rule:types/arrays`'s first
 // sentence with nothing else in it: there is no integer key to tell apart.
 echo Core\Json::encode($tables["1"]), "|",
      Core\Json::encode($tables["2"]), "|",
@@ -122,7 +122,7 @@ echo Core\Arr::firstKey($mixed), "|", Core\Arr::lastKey($mixed), "|",
      Core\Arr::keyOf($mixed, "z"), "|",
      Core\Arr::findKey($mixed, fn(string $v): bool => $v == "e"), "\n";
 
-// § 5's other direction: a key *parameter* is `int|string` and is normalised at
+// The same rule's other direction: a key *parameter* is `int|string` and is normalised at
 // the boundary, so `$a[7]` and `$a["7"]` are one key — while `"08"` stays the
 // distinct key PHP also keeps, and `hasKey` reports it under that spelling and
 // no other.

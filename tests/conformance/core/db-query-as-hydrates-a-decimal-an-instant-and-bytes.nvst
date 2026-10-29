@@ -1,8 +1,8 @@
 --TEST--
-`queryAs<T>` fills a `decimal` field and a `bytes` field from the columns § 9 maps to them, and an `Instant` field over a column that read back as a `DateTime` is a `ParseError` naming both classes — `rule:core-classes/db-column-types`, `rule:core-classes/derive-generates-what-is-missing`
+`queryAs<T>` fills a `decimal` field and a `bytes` field from the columns the type map gives them, and an `Instant` field over a column that read back as a `DateTime` is a `ParseError` naming both classes — `rule:core-classes/db-column-types`, `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
-// `nvs_stdlib::db::row`'s `converted` answers a field the same way § 6's
+// `nvs_stdlib::db::row`'s `converted` answers a field the same way the typed
 // readers answer a `Core\Db\Row`, and these are the three wire types the
 // derive's erasure gives a codec type of its own: a `decimal`, a `bytes` and
 // an `Instant`. The first two are asked of a live SQLite database here; the
@@ -18,14 +18,14 @@ use Core\Db\Derive;
 class Payment {
     public uint $id;
 
-    // § 9 maps `DECIMAL`/`NUMERIC`/`MONEY` to `decimal` and nothing else, so
+    // The type map gives `DECIMAL`/`NUMERIC`/`MONEY` to `decimal` and nothing else, so
     // the field and the column agree and the value crosses unconverted. It is
     // not `tainted`, a scalar having nowhere to carry the qualifier.
     public decimal $owed;
 
-    // § 9's binary families are `tainted bytes`, and a field receiving one
+    // The binary families are `tainted bytes`, and a field receiving one
     // says so (`rule:security/derived-codec-qualifiers`). The hydration tells
-    // it from a `string` by the tag alone, which is the same distinction § 6
+    // it from a `string` by the tag alone, which is the same distinction a row
     // makes handing a `BLOB` back.
     public tainted bytes $photo;
 
@@ -39,7 +39,7 @@ class Payment {
 
 // The same row read as a class that declares an `Instant`. SQLite describes a
 // column declared `datetime` as a `DateTime` — it has no zone to read one
-// against, which is why § 9 gives this backend a declared zone at all — so the
+// against, which is why the type map gives this backend a declared zone at all — so the
 // column really does come back as the wrong class here, and the refusal is a
 // row's rather than the program's: `queryAs<T>` over an `Instant` field is
 // well typed, and `nvs_types::derive`'s `check_row_sites` admits it.
@@ -82,7 +82,7 @@ try {
     echo "  ", $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

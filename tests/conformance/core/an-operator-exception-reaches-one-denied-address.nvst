@@ -2,7 +2,7 @@
 `net.internal` excepts the one address it names from `rule:security/net-address-policy`'s denied table and nothing else — `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy`
 --FILE--
 <?nvs
-// § 3's operator half, which is the other side of
+// `rule:security/net-address-policy`'s operator half, which is the other side of
 // `a-granted-host-is-still-refused-at-a-denied-address`: a deployment that must
 // reach an internal API says so in `nvs.toml`, by **address** rather than by
 // name, because the policy is asked of the resolved address and a name can

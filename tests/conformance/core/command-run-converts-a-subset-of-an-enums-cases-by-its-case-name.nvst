@@ -2,7 +2,9 @@
 `Core\Command::run` converts an argument declared at a subset of an enum's cases by the case's own name, exactly as the whole enum is — `rule:tooling/commands-are-compiled`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
-// § 3 admits a union of an enum's cases wherever § 6 admits the enum, and the
+// `rule:routing/a-capture-narrows-to-a-closed-set` admits a union of an enum's
+// cases wherever `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+// admits the enum, and the
 // two are one conversion read twice: `nvs_types::commands::ArgConv::Enum`
 // carries the subset as the same word/value pairs the whole enum's row does,
 // with the cases the union did not name dropped. So `Warn` writes the same word

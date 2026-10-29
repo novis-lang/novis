@@ -48,7 +48,7 @@ try {
 }
 echo "and it refuses every time, ", $again, " of 1\n";
 --FILE nvs.toml--
-# A store § 3 admits, chosen and then not addressed — which is a real
+# A store `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot` admits, chosen and then not addressed — which is a real
 # deployment's first five minutes, and the one shape that tells the two
 # refusals apart.
 [session]

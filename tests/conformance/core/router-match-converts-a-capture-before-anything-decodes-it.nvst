@@ -2,8 +2,9 @@
 A typed capture is converted from the segment as it arrived, so `%34` is not a `uint` route's `4` — the conversion runs before the decode, and the two cannot be swapped — `rule:routing/matched-once-before-the-handler` and `rule:routing/a-capture-narrows-to-a-closed-set`
 --FILE--
 <?nvs
-// § 5's capture narrows to the type its route parameter declared, and § 1 has
-// the server compute those typed parameters at the door. That fixes an order:
+// `rule:routing/a-capture-narrows-to-a-closed-set`'s capture narrows to the
+// type its route parameter declared, and `rule:routing/matched-once-before-the-handler`
+// has the server compute those typed parameters at the door. That fixes an order:
 // the conversion reads the raw segment, and the decode happens one layer above
 // it, where the value crosses into the program. Were it the other way round,
 // `/count/%34` would reach a `{n: uint}` route as `4` -- an escape choosing a

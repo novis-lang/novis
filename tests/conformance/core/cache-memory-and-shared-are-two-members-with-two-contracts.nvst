@@ -2,7 +2,7 @@
 `Core\Cache::memory` and `Core\Cache::shared` are two members with two contracts rather than one API with a flag, and the tier a program chose is visible where it wrote it — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
-// § 1: the tier is the member's own name. Neither takes an argument, so there
+// The tier is the member's own name. Neither takes an argument, so there
 // is no value computed at run time that could turn one call into the other —
 // which is what makes the choice reviewable rather than merely documented.
 var $cache = Core\Cache::memory();
@@ -10,7 +10,7 @@ $cache->put("greeting", "hello");
 var $back = $cache->get("greeting") as string;
 echo "memory=", $back, "\n";
 
-// § 1: the coherent tier is a different member making a different promise, and
+// The coherent tier is a different member making a different promise, and
 // a deployment that has configured no store is told so by name. It is never
 // handed this process's store under the other tier's name, because a program
 // that asked for coherence across machines and got one process's memory would

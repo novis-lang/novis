@@ -38,7 +38,7 @@ $described->set($book, "balance", 7);
 // not a report instead of one.
 echo "stored ", $described->get($book, "balance"), "\n";
 
-// § 4: a class that implements nothing pays nothing, through either door.
+// `rule:classes/property-observer-costs-nothing-when-unused`: a class that implements nothing pays nothing, through either door.
 final class Plain {
     public int $n = 0;
 }
@@ -48,7 +48,8 @@ echo "a class that implements nothing:\n";
 $p->n = 99;
 $flat->set($p, "n", 99);
 
-// § 3: "a throwing `onPropertySet` still fails the overall write", and a
+// `rule:classes/property-observer-pipeline`: an observer that throws fails the
+// write, and a
 // reflective write is not the place that changes.
 final class Fussy implements PropertyObserver {
     public int $n = 0;

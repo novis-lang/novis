@@ -23,7 +23,8 @@ try {
     echo "query: refused\n";
 }
 
-// `stream` is on the same side, and it is the interesting one: § 4 makes it the
+// `stream` is on the same side, and it is the interesting one:
+// `rule:core-classes/db-streaming` makes it the
 // member that *holds* the connection, so a program could reasonably expect it to
 // be refused later — at the first row — rather than where the statement is
 // written. It is not. Naming the walk is what opens the portal, so a released
@@ -65,7 +66,7 @@ echo "isOpen: ", $db->isOpen() ? "yes" : "no", "\n";
 $db->close();
 echo "closed twice: ", $db->isOpen() ? "yes" : "no", "\n";
 --FILE nvs.toml--
-# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+# `db.connect` covers a SQLite block, whose path is configuration.
 [capabilities.db]
 connect = ["main"]
 

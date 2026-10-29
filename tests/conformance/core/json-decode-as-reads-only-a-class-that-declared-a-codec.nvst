@@ -86,7 +86,7 @@ if ($legacyEncodes) {
 }
 echo "wrote=", $wrote, " of 3\n";
 
-// § 10's two branches: the class was written by the program, so one it cannot
+// `LogicError` or `RuntimeError`: the class was written by the program, so one it cannot
 // encode is a bug in the program rather than something the world did, and the
 // refusal is a `LogicError`.
 try {

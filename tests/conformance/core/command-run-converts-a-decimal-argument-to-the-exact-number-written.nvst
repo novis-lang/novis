@@ -2,7 +2,8 @@
 `Core\Command::run` converts a `decimal` argument into the exact number the command line wrote, keeping the scale a `float` would lose — `rule:tooling/commands-are-compiled`, `rule:types/decimal`
 --FILE--
 <?nvs
-// § 6's "a matched value's type comes from the parameter", for the type the
+// "A matched value's type comes from the parameter"
+// (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`), for the type the
 // argument matcher had admitted and could not yet convert. The conversion is
 // `nvs_runtime::decimal`'s own parse rather than a second one written beside
 // the matcher, which is what keeps a word a command line supplies and a

@@ -2,7 +2,7 @@
 Every fact in the terminal profile answers identically however many times it is asked, because it is resolved once for the process rather than per call — `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
-// § 3: "The profile is resolved once per process, not per call." A program
+// The profile is resolved once per process, not per call. A program
 // that measures at the top of a run and draws at the bottom of it gets one
 // answer, so a window the user resized mid-run cannot tear a frame that was
 // laid out against the earlier number.
@@ -35,7 +35,7 @@ if ($firstDepth == $secondDepth) {
     echo "depth changed between calls", "\n";
 }
 
-// Per stream, because § 3 makes tty-ness a question about one stream and never
+// Per stream, because the profile makes tty-ness a question about one stream and never
 // about the process — and each of the three has to be as stable as the others.
 bool $firstIn = Core\Cli::isTty(Core\Cli::Stream::In);
 bool $firstOut = Core\Cli::isTty(Core\Cli::Stream::Out);

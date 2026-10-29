@@ -2,14 +2,15 @@
 A `Core\Socket\Message` cannot be constructed, so the only way to one is a `receive()` inside the isolate an upgrade opened — `rule:concurrency/a-connection-is-a-root-isolate`, `rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/a-connection-is-a-loop`
 --FILE--
 <?nvs
-// § 1 makes the socket the isolate's, and § 3 makes `current()` the one way to
-// reach it. Both of those are worth nothing if a program can build a
+// `rule:concurrency/a-connection-is-a-root-isolate` makes the socket the
+// isolate's, and `rule:concurrency/a-connection-is-a-loop` makes `current()` the
+// one way to reach it. Both of those are worth nothing if a program can build a
 // connection -- or a message that claims to have come from one -- out of
 // nothing, so this case pins the other half: a `Core`-owned class has no
 // constructor a program can call, and these two are where that matters most.
 // A manufactured message is the interesting one, because every reader below
 // answers whatever it was built with, and a test double that could forge a
-// topic name would be forging the discrimination § 3's loop turns on.
+// topic name would be forging the discrimination the connection loop turns on.
 class Chat {
     public static function describe(Core\Socket\Message $msg): string {
         if ($msg->topic() != null) {

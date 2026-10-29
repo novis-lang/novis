@@ -13,11 +13,11 @@
 //
 // The corpus is deliberately free of percent-escapes and of dot segments, so
 // the only part of RFC 3986 § 6.2.2 the prediction has to reproduce by hand is
-// § 6.2.2.1's case fold on the scheme and the host. The other two rewrites
+// RFC 3986 § 6.2.2.1's case fold on the scheme and the host. The other two rewrites
 // have their own cases.
 
 final class Part {
-    // § 6.2.2.1, applied to the two components it reaches and to no other.
+    // RFC 3986 § 6.2.2.1, applied to the two components it reaches and to no other.
     public static function fold(?string $held): ?string {
         if ($held != null) {
             return Core\Str::lower($held);
@@ -96,8 +96,8 @@ final class Part {
     }
 }
 
-// Nine references: one base, one differing from it only in what § 6.2.2.1
-// folds, and one per reader position. The port row is `:9` against `:8080`,
+// Nine references: one base, one differing from it only in what
+// RFC 3986 § 6.2.2.1 folds, and one per reader position. The port row is `:9` against `:8080`,
 // where a text ordering answers the opposite of a numeric one.
 array<string> $corpus = [
     "http://u@a.example:8080/p?q#f",
@@ -128,7 +128,7 @@ echo "pairs ", $pairs, " agreeing with the readers ", $agreed, "\n";
 
 // The prediction is only worth as much as the corpus reaches, so the second
 // half says which reader decided the base against each of the other eight:
-// `7` for the base itself and for the pair § 6.2.2.1 makes equivalent, then
+// `7` for the base itself and for the pair RFC 3986 § 6.2.2.1 makes equivalent, then
 // `0` through `6` once each.
 // Every position in the tuple gets to decide, which is what stops the count
 // above from being satisfied by a member that only ever looks at the scheme.

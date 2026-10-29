@@ -2,7 +2,7 @@
 Each Core\Ast\Node member answers the same thing twice and hands back the same node objects, and two parses of one source agree everywhere but identity — `rule:core-classes/ast-is-inert`
 --FILE--
 <?nvs
-// The *agreement* shape, over the rule § 3's three members share: the tree is
+// The *agreement* shape, over the rule the three `Core\Ast\Node` members share: the tree is
 // **inert**, so a node holds its answer rather than recomputing one. `kind` and
 // `children` read a slot built once by `Core\Ast::parse`, and `nodes` walks
 // those slots — none of them re-enters the parser, and none of them may consume

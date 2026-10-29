@@ -2,8 +2,8 @@
 With no controlling terminal the width and height are exactly the documented `80` by `24`, and the colour depth beside them is `None` — `rule:tooling/the-terminal-profile-resolves-once`'s fallback, both dimensions named together
 --FILE--
 <?nvs
-// § 3's table: "the controlling terminal's columns/rows, `80`/`24` when there
-// is none". A conformance case's streams are all captured, so this run is the
+// `rule:tooling/the-terminal-profile-resolves-once`: "`80`/`24` is the answer
+// when there is no controlling terminal". A conformance case's streams are all captured, so this run is the
 // "when there is none" half, and the pair is frozen here because a member that
 // answered `0`, or that answered a width and forgot the height, prints
 // plausibly against either line alone.

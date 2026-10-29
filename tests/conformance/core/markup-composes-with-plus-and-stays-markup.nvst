@@ -2,7 +2,7 @@
 `Markup + Markup` is `Markup`, so trusted fragments compose without a second decision — `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
-// § 5: composing trusted fragments is what templating already does, so it
+// `rule:core-classes/html-auto-escape`: composing trusted fragments is what templating already does, so it
 // stays cheap and stays trusted. Neither operand is escaped on the way in —
 // re-escaping a fragment that was already lifted is what would corrupt it, and
 // the `&` here is the character that would show it.

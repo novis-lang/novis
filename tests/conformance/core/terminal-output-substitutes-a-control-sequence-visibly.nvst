@@ -20,7 +20,8 @@ string $attack = $esc . "]0;owned" . $bel;
 // them is untouched: this is not an escaper of visible text.
 echo $attack, "\n";
 
-// § 1's named launderer is the same table reached as a value. `rule:security/launderers-are-sink-named`
+// `rule:tooling/terminal-output-is-a-sink`'s named launderer is the same table
+// reached as a value. `rule:security/launderers-are-sink-named`
 // requires a launderer to name one sink; this one names the terminal, and the
 // property that would otherwise drift silently is that it answers exactly what
 // that sink writes.

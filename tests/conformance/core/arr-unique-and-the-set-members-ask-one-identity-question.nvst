@@ -42,7 +42,7 @@ class Ask {
 
 var $p = new Point(1);
 
-// One row per line of `rule:expressions/equality-semantics`'s table, plus § 5's cross-type pairs, which
+// One row per line of `rule:expressions/equality-semantics`'s table, plus `rule:expressions/mixed-equality`'s cross-type pairs, which
 // only a `mixed` element can even present to these members.
 array<array<mixed>> $rows = [
     [null, null],                                   // null: always

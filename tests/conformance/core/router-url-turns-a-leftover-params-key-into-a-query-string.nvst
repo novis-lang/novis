@@ -2,18 +2,19 @@
 a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — `rule:routing/a-leftover-link-key-is-a-query-string`
 --FILE--
 <?nvs
-// § 6's other half. The prepared path names every capture, so a key still in
+// The other half of building a link. The prepared path names every capture, so a key still in
 // `$params` once they have been substituted is by construction not one, and
-// § 6 makes it a query parameter rather than an error. Every such key is
+// `rule:routing/a-leftover-link-key-is-a-query-string` makes it a query parameter rather than an error. Every such key is
 // declared with `#[Query]` below, because the refusal half of the same sentence
 // is now applied: a key that is neither a capture nor a declared `#[Query]`
 // parameter is `E0759`, and that is what keeps a typo from silently shipping as
-// a query string. The declared *type* is what a query value arrives at (§ 3),
+// a query string. The declared *type* is what a query value arrives at
+// (`rule:routing/a-query-parameter-is-declared-like-a-capture`),
 // and it says nothing about what a link may be handed — `tag` below is written
 // with an array and still encodes.
 class Posts {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a route that is genuinely open.
     #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(

@@ -37,7 +37,7 @@ final class Abandoned {
         }
     }
 
-    // § 18's own property, and the one string it is: the reason the caller gave
+    // `RolledBack`'s own property (`rule:core-classes/db-transactions`), and the one string it is: the reason the caller gave
     // is readable under both names, so a log line and a branch never disagree
     // about why the work was abandoned.
     public static function reason(): string {

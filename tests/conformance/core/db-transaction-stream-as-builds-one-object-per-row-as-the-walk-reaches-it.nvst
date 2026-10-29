@@ -65,7 +65,7 @@ $db->transaction(fn (Transaction $tx): void => {
     uint $held = 0;
     foreach ($tx->streamAs<Note>("select id, text from t order by id", []) as Note $note) {
         $derived = $derived + 1;
-        // § 4's connection-busy rule, which the written class does not change: a
+        // `rule:core-classes/db-streaming`'s connection-busy rule, which the written class does not change: a
         // second statement through the same transaction is refused rather than
         // queued behind the rows.
         try {
@@ -88,7 +88,7 @@ $db->transaction(fn (Transaction $tx): void => {
 });
 echo "kept ", $db->query("select id from t", [])->count(), "\n";
 
-// § 7: the hydration runs inside the walk, so a class that throws ends the walk
+// `rule:core-classes/db-transactions`: the hydration runs inside the walk, so a class that throws ends the walk
 // with its own error and the transaction gives up. The walk is never finished,
 // so it still holds the connection — which is why this is the last statement in
 // the file.
@@ -104,7 +104,7 @@ try {
     echo "the walk was stopped\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]

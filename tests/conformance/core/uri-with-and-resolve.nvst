@@ -17,9 +17,9 @@ echo $u->with({query: "y=2", fragment: "bottom"})->toString(), "\n";
 echo $u->with({})->toString(), "\n";
 echo $u->toString(), "\n";
 
-// § 12: RFC 3986 § 5.2, one row per shape of reference. The `../baz` row is
-// the only place in `Core\Uri` a path is rewritten, and § 5.2.4 is where the
-// RFC asks for it.
+// RFC 3986 § 5.2, one row per shape of reference. The `../baz` row is the
+// only place in `Core\Uri` a path is rewritten, and RFC 3986 § 5.2.4 is where
+// the RFC asks for it.
 var $base = Core\Uri::parse("http://example.com/foo/bar");
 echo $base->resolve("baz")->toString(), "\n";
 echo $base->resolve("../baz")->toString(), "\n";
@@ -29,7 +29,7 @@ echo $base->resolve("#frag")->toString(), "\n";
 echo $base->resolve("//other.test/x")->toString(), "\n";
 echo $base->resolve("https://elsewhere.test/y")->toString(), "\n";
 
-// § 12: RFC 3986 § 5.1 defines a base URI as one without a fragment, so the
+// RFC 3986 § 5.1 defines a base URI as one without a fragment, so the
 // receiver's is dropped rather than the call being refused.
 var $fragmented = Core\Uri::parse("http://example.com/a/b#f");
 echo $fragmented->resolve("c")->toString(), "\n";

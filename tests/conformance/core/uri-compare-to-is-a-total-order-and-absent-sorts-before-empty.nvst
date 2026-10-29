@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Uri::compareTo
-// The neighbouring case asserts *what* § 6.2.2 normalizes before the
+// The neighbouring case asserts *what* RFC 3986 § 6.2.2 normalizes before the
 // comparison happens, row by row. This one asserts the thing no row can show:
 // that the answer is an order at all. `rule:classes/comparable` makes `compareTo` the member
 // `Comparable` declares, so a member that merely answered `0` for equal and
@@ -11,7 +11,7 @@
 // for a sort.
 //
 // The corpus is ten references differing in one component each, plus one that
-// differs from the first only in the two things § 6.2.2 folds — so a zero
+// differs from the first only in the two things RFC 3986 § 6.2.2 folds — so a zero
 // appears off the diagonal as well as on it.
 array<string> $corpus = [
     "http://a.example/p",

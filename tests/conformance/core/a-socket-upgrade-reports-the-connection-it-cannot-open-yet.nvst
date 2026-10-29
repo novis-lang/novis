@@ -4,7 +4,7 @@
 <?nvs
 // `rule:concurrency/an-upgrade-is-spawn-shaped` makes the operand `spawn script`'s, so a path is one of the two
 // forms the entry may take and the compiler accepts this line. What is behind
-// it is § 1's root isolate, prepared by this member and started by the
+// it is the connection's root isolate, prepared by this member and started by the
 // connection -- and a script run from the command line is not a connection, so
 // there is no slot to leave one in. The alternative is the one this case
 // exists to refuse: answering `void` and leaving a program to believe it had

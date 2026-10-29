@@ -63,8 +63,8 @@ echo "bytes 128, passed through ", $passedThrough, ", became `+` ", $becamePlus,
      ", escaped as `%` and two upper-case hex digits ", $escapedExactly, "\n";
 echo "[", $survivors, "]\n";
 
-// The other encoder's set is the same one plus `~`, which is the whole of RFC
-// 3986 § 2.3 — so the count difference is 1 and the byte behind it is named,
+// The other encoder's set is the same one plus `~`, which is the whole of
+// RFC 3986 § 2.3 — so the count difference is 1 and the byte behind it is named,
 // rather than the two counts being left to be compared by eye.
 echo "encodeComponent passes through ", $componentPassedThrough, ", the difference being [",
      $onlyComponentKeeps, "] which encodeFormValue writes as ",

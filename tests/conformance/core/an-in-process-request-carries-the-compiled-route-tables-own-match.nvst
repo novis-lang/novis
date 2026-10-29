@@ -2,7 +2,7 @@
 `Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — `rule:testing/in-process-request`, `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
-// § 18's first mechanism: no socket and no port, and the table it matches
+// `rule:testing/in-process-request`'s first mechanism: no socket and no port, and the table it matches
 // against is the one this file's own `#[Route]` declarations compiled to. What
 // is asserted is that the *match* crossed -- the child reads
 // `Core\Request::route()` and finds the row of the method below, which is the whole of

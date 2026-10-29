@@ -2,8 +2,8 @@
 Core\Jwt::verify accepts a token at every moment of its one-second lifetime and refuses it in the very next second, and the expiry refusal is the one failure with its own sentence — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
-// A bound asserted on both sides. `exp` counts whole seconds (RFC 7519
-// § 4.1.4), which is why `Core\Jwt::sign` refuses a lifetime shorter than one
+// A bound asserted on both sides. `exp` counts whole seconds
+// (RFC 7519 § 4.1.4), which is why `Core\Jwt::sign` refuses a lifetime shorter than one
 // — and it is also what makes the bound reachable from a test at all: the last
 // second a token is accepted in is `iat`, the first it is refused in is `exp`,
 // and they are adjacent. A member comparing `>=` where it means `>` prints

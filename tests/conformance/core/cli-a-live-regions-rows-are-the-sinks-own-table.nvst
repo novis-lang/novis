@@ -2,20 +2,23 @@
 A live region's rows carry no command byte — every C0, `DEL` and C1 handed to `Core\Cli\Live::set` is substituted exactly as the sink substitutes it, counted over the whole control range — `rule:tooling/terminal-output-is-a-sink`, `rule:tooling/styling-is-a-value-not-a-grammar` and `rule:tooling/in-place-output-is-a-scoped-live-region`
 --FILE--
 <?nvs
-// § 5's region is the one place a caller most expects a cursor movement to
-// pass through: it paints rows over each other, so a `\e[2K` in a row reads
-// like part of the drawing rather than like the injection § 1 exists to stop.
+// The region of `rule:tooling/in-place-output-is-a-scoped-live-region` is the
+// one place a caller most expects a cursor movement to pass through: it paints
+// rows over each other, so a `\e[2K` in a row reads like part of the drawing
+// rather than like the injection `rule:tooling/terminal-output-is-a-sink`
+// exists to stop.
 // It is not an exception, and this case is what says so — `set` takes
 // `array<Cli\Text>` and nothing else, so every row it can be handed came out
-// of § 2's constructors with § 1's table already applied to it.
+// of the two `Cli\Text` constructors with the sink's substitution table
+// already applied to it (`rule:tooling/text-is-the-one-raw-path`).
 //
 // Counted over the whole range rather than read off a line: a table that
 // substituted the bytes a test would think to try and passed the rest prints
-// plausibly against any single row. § 1 names three classes with different
+// plausibly against any single row. The sink's table names three classes with different
 // answers, so the three counts below are the assertion and the individual
 // glyphs are not.
 class Sweep {
-    // The glyph § 1's table gives `$point`: the U+2400 block is one code point
+    // The glyph the sink's table gives `$point`: the U+2400 block is one code point
     // per C0 byte and laid out to match, `DEL` has its own at U+2421, and a C1
     // has no glyph at all, so it becomes U+FFFD.
     public static function glyph(uint $point): string {
@@ -73,7 +76,7 @@ class Sweep {
                     $commands = $commands + 1;
                     // Both halves: the byte is gone *and* its own glyph is
                     // there. A table that deleted the byte would pass the
-                    // first half alone, and § 1 is a substitution.
+                    // first half alone, and the sink's table is a substitution.
                     if (!Core\Str::contains($back, $byte)
                         && Core\Str::contains($back, Sweep::glyph($point))) {
                         $shown = $shown + 1;

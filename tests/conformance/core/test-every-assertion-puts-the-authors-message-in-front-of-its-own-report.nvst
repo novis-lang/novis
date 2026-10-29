@@ -2,7 +2,7 @@
 `Core\Test`'s four single-subject assertions all put `rule:core-api/shape-rules` R2's `{message: …}` in front of their own report rather than in place of it — `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
-// The *agreement* shape over the one option every assertion in § 4 shares.
+// The *agreement* shape over the one option every assertion in `rule:testing/assertions-are-typed` shares.
 // R2 makes the trailing bag the only optional-argument form and `message` is
 // the field an author reaches for first, so the rule worth asserting is not
 // what any one member prints but that all four treat it the same way: the

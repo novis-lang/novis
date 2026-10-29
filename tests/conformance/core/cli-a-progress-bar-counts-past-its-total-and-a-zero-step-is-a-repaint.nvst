@@ -2,12 +2,13 @@
 `Core\Cli\Progress::advance` is bounded at neither end of its own total — the step that completes the bar, the step past it and a step of zero are all ordinary, and only the row that is drawn clamps — `rule:tooling/in-place-output-is-a-scoped-live-region`
 --FILE--
 <?nvs
-// § 5 gives the runtime the cursor and the program the counter, so the two
+// `rule:tooling/in-place-output-is-a-scoped-live-region` gives the runtime the
+// cursor and the program the counter, so the two
 // bounds a bar has are not the same bound. The *row* is clamped — `bar()` in
 // `crates/nvs-stdlib/src/cli.rs` draws a finished bar for a loop that
 // miscounted, rather than one past its end — while the counter is the
 // program's own arithmetic and has no ceiling to hit. Nothing here reads the
-// row: § 5 renders nothing at all when the stream is not a terminal, so what a
+// row: a live region renders nothing at all when the stream is not a terminal, so what a
 // case can ask about is the handle, which `Core\Debug` walks.
 class Step {
     // The one fact this case reads off a dump: how far the bar says it is.

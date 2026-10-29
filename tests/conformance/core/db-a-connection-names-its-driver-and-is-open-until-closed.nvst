@@ -31,7 +31,7 @@ $db->close();
 
 echo "open after close: ", $db->isOpen() ? "yes" : "no", "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it and there is no address to grant.
 [capabilities.db]
 connect = ["main"]

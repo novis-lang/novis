@@ -2,7 +2,8 @@
 `Core\Server::isDraining` is one process-wide fact rather than a per-call one: swept over a hundred calls, every answer agrees with the first and the count says so — `rule:http-server/the-server-block-is-boot-class`
 --FILE--
 <?nvs
-// § 5 puts the drain process-wide on purpose: a shutdown drains the process,
+// `rule:http-server/health-path-is-off-and-checks-nothing` makes the drain a
+// fact about the process on purpose: a shutdown drains the process,
 // so a bit answered from whichever core or whichever call took the question
 // would report different things about one server. That is a property of the
 // whole sweep and not of any line in it — a member that constructed its answer

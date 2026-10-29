@@ -8,7 +8,7 @@ A `spawn script` isolate reads no listener of its parent's, `rule:testing/in-pro
 spawn = true
 --FILE child.nvs--
 <?nvs
-// `rule:security/isolate-shares-nothing`'s isolate shares compiled code and nothing else, and § 18's address
+// `rule:security/isolate-shares-nothing`'s isolate shares compiled code and nothing else, and `rule:testing/in-process-request`'s address
 // is context rather than code — so a child never inherits one however its
 // parent came by it.
 echo "child=", Core\Debug::render(Core\Test::serverUrl()), "\n";

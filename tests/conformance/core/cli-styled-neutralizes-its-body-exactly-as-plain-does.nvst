@@ -2,7 +2,8 @@
 `Core\Cli\Text::styled` neutralizes its body exactly as `Core\Cli\Text::plain` does, over the whole control range and counted — the constructor that emits control bytes on purpose is the one a program's own bytes could hide in — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
-// § 2: both constructors *"apply § 1's substitution to their input"*. `plain`
+// Both constructors *"apply the sink's substitution to their input"*
+// (`rule:tooling/text-is-the-one-raw-path`). `plain`
 // is the one a case reaches for, and `styled` is the one that matters: it is
 // the only thing in the language that puts an `ESC` in front of a program's
 // text, so an escape it failed to substitute in the body would arrive in the
@@ -10,7 +11,7 @@
 // in a `Cli\Text` all came from the `Cli\Style` — and this asks it of every
 // C0, of `DEL` and of every C1 rather than of one hand-picked `\e[31m`.
 class Styled {
-    // § 1's table: the U+2400 block for a C0, U+2421 for `DEL`, and U+FFFD for
+    // The sink's table: the U+2400 block for a C0, U+2421 for `DEL`, and U+FFFD for
     // a C1, which has no glyph of its own.
     public static function glyph(uint $point): string {
         if ($point < 32) {
@@ -50,7 +51,7 @@ class Styled {
                 }
 
                 if ($bare) {
-                    // § 3 left this stream at `ColorDepth::None`, so the style
+                    // A captured stream is at `ColorDepth::None`, so the style
                     // contributes nothing and the two constructors must answer
                     // the same bytes for the same input — the whole difference
                     // between them is the styling that was dropped.
@@ -60,7 +61,7 @@ class Styled {
                     }
                     if ($point != 9 && $point != 10) {
                         $commands = $commands + 1;
-                        // Both halves, because § 1 is a substitution: the byte
+                        // Both halves, because the sink's table is a substitution: the byte
                         // is gone and its own glyph is there.
                         if (!Core\Str::contains($once, $byte)
                             && Core\Str::contains($once, Styled::glyph($point))) {

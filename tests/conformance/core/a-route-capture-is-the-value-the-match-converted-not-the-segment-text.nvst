@@ -2,13 +2,13 @@
 A capture reaches the program as the value the match already converted, so `Core\Router\Match::params` answers a union and not one text type — `rule:routing/matched-once-before-the-handler` and `rule:routing/a-capture-narrows-to-a-closed-set`
 --FILE--
 <?nvs
-// A bound stated as a type. § 1 has the server compute "typed parameters", so a
+// A bound stated as a type. `rule:routing/matched-once-before-the-handler` has the server compute "typed parameters", so a
 // `{id: uint}` capture arrives as the number the match converted rather than as
 // digits the handler would parse a second time -- and two parsers of one
 // segment is the shape that can disagree. `Core\Router\Match` therefore answers
 // one member per conversion the matcher performs, and a `tainted string`
 // binding -- exactly right for the text arm and for that arm alone -- refuses
-// every other. § 5's `decimal` and `Core\Uuid` are in that union because their
+// every other. `rule:routing/a-capture-narrows-to-a-closed-set`'s `decimal` and `Core\Uuid` are in that union because their
 // readers are reachable from the walk; a `bool` is not and arrives on the text
 // arm. An enum needs no member -- a case is its backing integer, converted.
 //

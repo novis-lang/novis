@@ -2,7 +2,8 @@
 `Core\Command::run` converts an argument whose type is a set of allowed values to the word itself, because the word *is* the value that type admits — `rule:tooling/commands-are-compiled`, `rule:types/single-value-types`
 --FILE--
 <?nvs
-// § 6's "a matched value's type comes from the parameter", for the type that
+// "A matched value's type comes from the parameter"
+// (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`), for the type that
 // needs no conversion table to say what it accepts: a set of allowed string
 // values is already the closed set, and `nvs_types::routes::closed_set` reads
 // it out for a command argument and for a route capture alike.

@@ -2,7 +2,7 @@
 `Core\Cli::write` and `echo` are one sink reached twice, on every shape that reaches it differently — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
-// § 1's substitution table has one home, and `write` performs that one rather
+// The sink's substitution table has one home, and `write` performs that one rather
 // than carrying a second copy. Asserted as *agreement* rather than as what
 // either statement printed: the three shapes below reach the sink by three
 // different routes — ordinary text, text carrying a control byte, and the one
@@ -22,8 +22,8 @@ Core\Cli::write($raw);
 echo "\n";
 echo $raw, "\n";
 
-// The carrier: both write it through unchanged, which is § 1's "exactly one raw
-// path" read as a *type* — the class is what the sink recognises, so a second
+// The carrier: both write it through unchanged, which is the "one raw path" of
+// `rule:tooling/text-is-the-one-raw-path` read as a *type* — the class is what the sink recognises, so a second
 // way of reaching the sink recognises it too.
 Core\Cli::write($carrier);
 echo "\n";

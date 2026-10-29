@@ -141,7 +141,7 @@ echo "replaced ", $replaced, "/48\n";
 
 // The one URI in RFC 3986's grammar for which the sweep's invariant does not
 // hold, asserted on both sides. A port component written empty is not a port
-// (§ 3.2.3), so `port()` is `null` and the readers recompose to text without
+// (RFC 3986 § 3.2.3), so `port()` is `null` and the readers recompose to text without
 // the `:` — while `toString()` still reports what was written, because `parse`
 // reports. `with` is where the difference becomes visible: it recomposes, so
 // the `:` a caller never mentioned disappears. `nvs_core_uri_with`'s own doc

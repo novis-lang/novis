@@ -38,7 +38,7 @@ try {
     echo "body: ", Core\Str::contains($refused->message, "body") ? "names it" : "does not", "\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

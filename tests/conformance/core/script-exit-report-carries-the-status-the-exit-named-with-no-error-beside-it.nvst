@@ -5,13 +5,14 @@ An `exit($n)` puts the very `$n` on the report rather than a normalized 0 or 1, 
 // covers: Core\Script\ExitReport::status
 // covers: Core\Script\ExitReport::reason
 // covers: Core\Script\ExitReport::error
-// § 2's middle row, in the column no landed case reads: `exit($n)` is `status`
+// The `ExitCall` row of `rule:observability/three-endings-fire-the-exit-queue`'s
+// table, in the column no landed case reads: `exit($n)` is `status`
 // `$n`. The two `exit` cases already on disk both end at 0, which is also the
 // `Normal` row's status — so nothing yet tells "the report carries the number
 // the program chose" from "the report carries 0 unless something threw".
 //
 // The number is chosen for what it is not. 42 is not 0, not 1, and not either
-// of the two the other rows of § 2 impose, so a report that had normalized the
+// of the two the table's other rows impose, so a report that had normalized the
 // status to a success/failure bit would print plausibly on any other ending and
 // fails here.
 int $chosen = 42;
@@ -40,7 +41,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // status of 1 is what `script-on-exit-carries-the-live-throwable-of-an-
     // uncaught-throw.nvst` pins for a throw, so "not 0" reads like "something
     // threw" until a case names an ending that is both. `reason` and `error`
-    // are the columns that tell § 2's rows apart; `status` never was one.
+    // are the columns that tell the table's rows apart; `status` never was one.
     if ($report->status() != 0 && $error == null) {
         echo "a failing status is not evidence of a throw\n";
     }

@@ -2,7 +2,7 @@
 `Core\Response::setStatus` puts no byte in the body, accepted or refused, which is what makes it not one of `rule:security/response-body-is-one-typed-member`'s five body members
 --FILE--
 <?nvs
-// § 4's five members each write a body and declare a media type. This one
+// The five body members each write a body and declare a media type. This one
 // declares a status and writes nothing, and that difference is the whole
 // reason `E0801` does not reach it: a status set beside an `echo` is not two
 // writers disagreeing about what the body is.

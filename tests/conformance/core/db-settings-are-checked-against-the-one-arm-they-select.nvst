@@ -5,19 +5,19 @@ A settings object is held to the one arm it selects, so `host` beside `Driver::S
 // `rule:core-classes/db-capabilities`: a SQLite connection is a file. Its arm declares no `host` at
 // all, because there is no server to send credentials to — and `rule:core-api/shape-flattens-at-the-abi`'s
 // merged list *does* declare one, since the server arm does. So this is the
-// exact literal a check against the merged key set accepts and § 2's arm
-// selection refuses: one key from the arm this literal did not select.
+// exact literal a check against the merged key set accepts and
+// `rule:core-api/shape-arms-are-disjoint`'s arm selection refuses: one key from the arm this literal did not select.
 var $file = Core\Db::open({
     driver: Core\Db\Driver::Sqlite,
     path: "/srv/shop/shop.db",
     host: "db.example.test",
 });
 
-// The other direction, and the one a key-only reading of § 2 would miss: every
+// The other direction, and the one a key-only reading of that rule would miss: every
 // key here belongs to the server arm, and the `driver` value names the arm that
 // declares none of them. An arm accepts on its values as well as its keys, so
 // what is reported is the field the two arms declare differently — nothing
-// declares `driver` to be a discriminant, and § 2 needs nothing to.
+// declares `driver` to be a discriminant, and the rule needs nothing to.
 var $crossed = Core\Db::open({
     driver: Core\Db\Driver::Sqlite,
     host: "db.example.test",

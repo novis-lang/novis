@@ -27,7 +27,7 @@ final class Ask {
     }
 
     // `rule:expressions/truthy-table`'s table, resolved at run time because the subject is
-    // `mixed` -- § 3 makes that the one shape that pays for the helper.
+    // `mixed` -- the same rule makes that the one shape that pays for the helper.
     public static function truthy(mixed $subject): string {
         if ($subject) {
             return "truthy";

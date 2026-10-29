@@ -1,5 +1,5 @@
 --TEST--
-`Core\Db::open` over § 2's SQLite arm asks `fs.read` about the path and never `db.open`, which is about hosts — `rule:core-classes/db-capabilities`, `rule:core-api/shape-parameter`, `rule:core-api/shape-arms-are-disjoint` and `rule:core-api/shape-flattens-at-the-abi`
+`Core\Db::open` over the SQLite arm of `Db\Settings` asks `fs.read` about the path and never `db.open`, which is about hosts — `rule:core-classes/db-capabilities`, `rule:core-api/shape-parameter`, `rule:core-api/shape-arms-are-disjoint` and `rule:core-api/shape-flattens-at-the-abi`
 --FILE--
 <?nvs
 // `rule:core-classes/db-capabilities` gives a SQLite file the file rule alone:

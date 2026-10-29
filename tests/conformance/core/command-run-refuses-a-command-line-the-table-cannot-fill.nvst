@@ -2,7 +2,8 @@
 `Core\Command::run` answers a command line its table cannot fill with a usage status, and runs no handler — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// A command line is *input*, so nothing about one is a throw: § 6's answer to a
+// A command line is *input*, so nothing about one is a throw: the answer
+// `rule:tooling/command-run-dispatches-and-help-is-generated` gives to a
 // word the table has no row for is a usage error — the generated page to
 // standard error, and a status the caller decides what to do with. The two
 // halves worth pinning are that the status comes back at all, and that the

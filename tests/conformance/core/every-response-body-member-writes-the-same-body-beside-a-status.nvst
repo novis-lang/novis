@@ -36,8 +36,8 @@ if ($textedText == $octetsText) {
 }
 echo "agreed ", $agreed, " of 2 on [", $echoedText, "]\n";
 
-// `json` is the one that may not agree, and that is § 4 rather than the
-// status: it frames the value, so a string comes back as a JSON string. The
+// `json` is the one that may not agree, and that is
+// `rule:security/response-body-is-one-typed-member` rather than the status: it frames the value, so a string comes back as a JSON string. The
 // status in front of it is invisible here too.
 var $encoded = Core\Out::capture(fn (): void => {
     Core\Response::setStatus(200);

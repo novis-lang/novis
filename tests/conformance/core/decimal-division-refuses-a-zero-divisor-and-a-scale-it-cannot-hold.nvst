@@ -5,7 +5,7 @@
 decimal $one = 1;
 decimal $none = 0;
 
-// § 3's "`/ 0` throws `ArithmeticError`", at both members that divide -- each
+// `rule:types/arithmetic`'s "`/ 0` throws `ArithmeticError`", at both members that divide -- each
 // saying its own name, because the two are separate call sites to fix.
 try {
     echo Core\Decimal::divExact($one, $none);
@@ -18,9 +18,9 @@ try {
     echo $roundByZero->message, "\n";
 }
 
-// § 1 bounds a `decimal` at 28 fractional digits, so a wider scale is refused
-// rather than quietly clamped to one that fits -- the same direction § 3 takes
-// for a product whose scale would overflow.
+// `rule:types/decimal` bounds a `decimal` at 28 fractional digits, so a wider
+// scale is refused rather than quietly clamped to one that fits -- the same
+// direction `rule:types/arithmetic` takes for a product whose scale would overflow.
 try {
     echo Core\Decimal::divRound($one, 3, 40, Core\RoundMode::HalfUp);
 } catch (ArithmeticError $tooWide) {

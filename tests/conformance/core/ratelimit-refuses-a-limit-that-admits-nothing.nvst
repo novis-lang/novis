@@ -2,11 +2,12 @@
 Core\RateLimit::consume refuses a limit no arrival could ever pass, on both sides of the bound — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
-// § 2's GCRA is a drain rate and a tolerance derived from `$limit`, `$per` and
+// `rule:core-classes/ratelimit-gcra`'s GCRA is a drain rate and a tolerance derived from `$limit`, `$per` and
 // `$burst`. Three ways of writing those admit nothing at all, and one asks for a
 // rate finer than the store counts. Each is a refusal at the call, rather than a
 // limiter that quietly refuses every arrival for the life of the deployment — a
-// limit that cannot be enforced is § 5's failure mode arriving a step earlier.
+// limit that cannot be enforced is `rule:core-classes/ratelimit-unreachable-store-throws`'s
+// failure mode arriving a step earlier.
 try {
     var $none = Core\RateLimit::consume("account:1", 0, 1m);
     echo "a limit of 0 was accepted against ", $none->limit(), "\n";

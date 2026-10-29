@@ -3,7 +3,8 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::close
-// § 2: two `connect("main")` calls in one request are one connection, so the
+// Two `connect("main")` calls in one request are one connection
+// (`rule:core-classes/db-connection-is-named`), so the
 // second call below is only reached because the first connection has been
 // released — a name whose connection has gone is a name the memo no longer
 // answers for.
@@ -18,7 +19,8 @@ echo "second driver ", $second->driver() == Core\Db\Driver::Sqlite ? "is sqlite"
 
 // The new handle is usable, which is the half `isOpen()` alone does not say:
 // a statement runs on it.
-// § 13 never hands a `:memory:` database back from the pool: its tables are the
+// `rule:security/db-pool-reset-is-a-boundary` never hands a `:memory:`
+// database back from the pool: its tables are the
 // data of whoever opened it, so the second `connect` opens a new one, and the
 // first one's table is not in it.
 echo "second sees ", $second->query("select count(*) from sqlite_master where name = 't'", [])->value(), " tables named t\n";
@@ -37,7 +39,7 @@ try {
 echo "first still: ", $first->isOpen() ? "open" : "closed", "\n";
 $second->close();
 --FILE nvs.toml--
-# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+# `db.connect` covers a SQLite block, whose path is configuration.
 [capabilities.db]
 connect = ["main"]
 

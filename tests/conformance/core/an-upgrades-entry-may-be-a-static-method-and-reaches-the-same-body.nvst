@@ -28,7 +28,7 @@ try {
 }
 
 // The entry is *named*, not called: `ran lobby` is nowhere above, because the
-// isolate § 1 opens is the only place that body ever runs.
+// isolate the connection opens is the only place that body ever runs.
 echo "not run here\n";
 --EXPECT--
 `Core\Socket::upgrade` needs a connection to upgrade and this request arrived on none: only a request a server framed an upgrade for is offered one

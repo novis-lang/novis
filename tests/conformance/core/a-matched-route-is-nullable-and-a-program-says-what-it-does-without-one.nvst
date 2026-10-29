@@ -2,7 +2,7 @@
 `Core\Request::route()` answers `?Core\Router\Match`, so a program cannot read the match without saying what it does when nothing matched — `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
-// A boundary, on the absence § 1 states: nothing in the table claimed this
+// A boundary, on the absence `rule:routing/matched-once-before-the-handler` states: nothing in the table claimed this
 // method and path, which is a served request like any other because matching
 // dispatches nothing. So the answer is `?Core\Router\Match` and never a match
 // of no route, and the case a handler most wants to forget is the one

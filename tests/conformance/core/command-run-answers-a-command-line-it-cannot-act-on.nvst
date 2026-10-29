@@ -2,8 +2,9 @@
 `Core\Command::run` and `::help` read one table, so an empty command line and the program's own page agree — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// With no `--ARGS--` there is no first word to select a row with, and § 6's
-// answer is the program's own page: the same one `help(null)` renders, because
+// With no `--ARGS--` there is no first word to select a row with, and the
+// answer `rule:tooling/command-run-dispatches-and-help-is-generated` gives is
+// the program's own page: the same one `help(null)` renders, because
 // both members read the one table `#[Command]` built while compiling. That is
 // the property worth asserting — not what either printed, but that a program
 // declaring two commands cannot have a `run` that knows one of them and a

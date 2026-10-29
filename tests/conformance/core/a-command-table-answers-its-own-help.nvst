@@ -14,7 +14,7 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 //
 // Two things are asserted, and the first is not a line below:
 //
-//   * **The table is the compilation.** § 6's three compile errors — a
+//   * **The table is the compilation.** `rule:tooling/commands-are-compiled`'s three compile errors — a
 //     duplicate command name, two options sharing a spelling, an `#[Option]`
 //     on a parameter whose declared type has no conversion from `string` —
 //     are all reachable from this file, so a table that never grew a row, or
@@ -25,11 +25,11 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 //     still fails the sweep.
 //
 // The `about` is asked of a command and of an option through *one* shape,
-// which is the agreement this case is built around: § 6 gives both kinds of
+// which is the agreement this case is built around: that rule gives both kinds of
 // row the same field, so a declaration that grew its own spelling for one of
 // them fails here while still reading correctly on its own line.
 
-// § 6's own example, written as that section writes it: a parameter is a
+// The command rule's own example, written as the rule writes it: a parameter is a
 // positional argument unless it carries `#[Option]`, with no inference from
 // defaults or types, and `uint $retries` is converted during matching.
 class Deploy {
@@ -96,7 +96,7 @@ class Help {
     }
 }
 
-// § 4's method spelling: a method reference names the method the
+// `rule:attributes/structural-retrieval`'s method spelling: a method reference names the method the
 // `#[Command]` is attached to.
 ?{name: string} $deployName = Core\Attributes::get<{name: string}>(Deploy::deploy);
 ?{about: string} $deployAbout = Core\Attributes::get<{about: string}>(Deploy::deploy);
@@ -140,7 +140,7 @@ echo "commands=", Core\Arr::count($names), "\n";
 echo "described=", $described, "\n";
 echo "unique=", $unique, "\n";
 
-// § 4's parameter spelling: the same reference plus the parameter's own name,
+// The same rule's parameter spelling: the same reference plus the parameter's own name,
 // written as a literal. The three options are asked the one `about` shape the
 // two commands above were asked, and the two that carry a sentence answer it.
 ?{about: string} $dryRunAbout = Core\Attributes::get<{about: string}>(Deploy::deploy, "dryRun");
@@ -173,7 +173,7 @@ echo "shorts=", $shorts, "\n";
 // surprising count: it is *structural*, so a payload-less `#[Option]` and a
 // parameter carrying no attribute at all answer the same nothing. `$target`
 // is positional and `$retries` is an option with no fields, and both are
-// `none` here. § 6's table tells them apart because it matches the attribute
+// `none` here. The command table tells them apart because it matches the attribute
 // *nominally* off `nvs_types::derive::ATTRIBUTES` — which is the whole reason
 // that roster exists, and is why the table is not built out of this pass.
 ?{about: string} $targetAbout = Core\Attributes::get<{about: string}>(Deploy::deploy, "target");
@@ -181,7 +181,8 @@ echo "positional=", $targetAbout != null ? "some" : "none", "\n";
 echo "bare option=", $retriesAbout != null ? "some" : "none", "\n";
 
 // The help itself. Every word below came out of a declaration; the layout is
-// all this file contributes, and § 6's generated version replaces even that.
+// all this file contributes, and the generated help of
+// `rule:tooling/command-run-dispatches-and-help-is-generated` replaces even that.
 echo "\n";
 echo Help::name($deployName), " - ", Help::about($deployAbout), "\n";
 echo "  ", Help::short($dryRunShort), Help::long($dryRunLong), "  ", Help::about($dryRunAbout), "\n";

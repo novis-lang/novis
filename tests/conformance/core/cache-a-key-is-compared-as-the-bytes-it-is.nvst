@@ -2,8 +2,8 @@
 A cache key is the bytes the program handed over — keys differing by one byte, by case, by a space, by a combining mark or by their last character are separate entries, and two spellings of the same bytes are one — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`
 --FILE--
 <?nvs
-// § 2 fixes what happens to the *value* — the graph copy, in both directions —
-// and says nothing about the key, because there is nothing to say: the key is
+// `rule:concurrency/a-cached-value-is-copied-across-the-boundary` fixes what
+// happens to the *value* — the graph copy, in both directions — and says nothing about the key, because there is nothing to say: the key is
 // the bytes it is. `crates/nvs-stdlib/src/cache.rs`'s store is a map keyed on
 // those bytes and on nothing derived from them. The failure this pins is the
 // plausible one, since a store that lower-cased, trimmed, normalised or
@@ -50,8 +50,9 @@ echo "each key answered its own value: ", $own, " of ", Core\Arr::count($keys), 
 
 // The negative half of the same claim: a key one byte away from a stored one
 // was never written, and absence is the only answer a store keyed on bytes has
-// for it — § 1's `null`, reached because nothing matched rather than because
-// something was forgotten.
+// for it — the miss's `null` of
+// `rule:concurrency/the-memory-tier-is-one-store-per-process`, reached because
+// nothing matched rather than because something was forgotten.
 string $near = $cache->get("user:3") == null ? "absent" : "present";
 echo "user:3 is ", $near, "\n";
 

@@ -3,12 +3,12 @@
 --FILE--
 <?nvs
 // The other side of `command-run-converts-a-set-of-allowed-values-argument-by-its-word`,
-// and the half § 6 argues the conversion's *shape* from: a command line is a
+// and the half the conversion's *shape* is argued from: a command line is a
 // person typing, so a refusal is worth raising only if it says what to type
 // instead. That is why `nvs_types::commands::ArgConv::OneOf` carries the words
 // themselves rather than the type they came from.
 //
-// Read off standard error, where a usage page goes, because § 6's status alone
+// Read off standard error, where a usage page goes, because the usage status alone
 // would pass for a refusal that named nothing — and the refusal naming the set
 // is the whole decision. `%A` swallows the usage page under it: what this case
 // owns is the sentence, and the page's layout is `nvs_stdlib::command`'s.

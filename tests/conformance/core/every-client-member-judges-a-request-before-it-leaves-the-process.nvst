@@ -22,7 +22,7 @@ try {
     echo $one->message, "\n";
 }
 
-// § 2's order: what is wrong with the *text* is decided before the deployment
+// `rule:http-server/allow-url-pins-the-address`'s order: what is wrong with the *text* is decided before the deployment
 // is asked anything at all, so this refusal does not depend on a grant.
 try {
     var $b = Core\Http\Client::post("ftp://example.com/archive");
@@ -38,7 +38,7 @@ try {
     echo $three->message, "\n";
 }
 
-// § 6: `retryAttempts` is the total including the first attempt, so zero is a
+// `rule:http-server/retry-is-opt-in-jittered-and-closed`: `retryAttempts` is the total including the first attempt, so zero is a
 // count of nothing rather than a request made once.
 try {
     var $d = Core\Http\Client::put("http://93.184.216.34/ok", {retryAttempts: 0});
@@ -61,8 +61,8 @@ try {
 --FILE nvs.toml--
 # A literal address is the one host a case can approve without a resolver, for
 # the reason `an-approved-url-is-pinned-to-one-address.nvst` gives. The second
-# grant is the point of the first refusal: the *name* is granted and § 3's
-# table refuses the address behind it anyway, so a grant cannot widen the
+# grant is the point of the first refusal: the *name* is granted and
+# `rule:security/net-address-policy`'s table refuses the address behind it anyway, so a grant cannot widen the
 # table.
 [capabilities.net]
 connect = [

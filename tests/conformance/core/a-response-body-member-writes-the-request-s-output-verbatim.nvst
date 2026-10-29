@@ -9,7 +9,7 @@
 Core\Response::text("<b>a & b</b>");
 echo "\n";
 
-// § 3's table: the bytes go to whatever sink is in force, which is what makes
+// `rule:tooling/echo-always-has-a-sink`'s table: the bytes go to whatever sink is in force, which is what makes
 // the member spellable at all outside a request. The member names the shape;
 // the context names the destination.
 Core\Response::text("");

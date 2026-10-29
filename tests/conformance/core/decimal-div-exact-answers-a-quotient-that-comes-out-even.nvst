@@ -2,7 +2,8 @@
 `rule:types/arithmetic`: `Core\Decimal::divExact` answers where the quotient is exact, at the scale that quotient needs
 --FILE--
 <?nvs
-// § 3's "throws unless the quotient is exact" -- the half that answers. The
+// `rule:types/decimal`'s "throws unless the quotient is exact" -- the half
+// that answers. The
 // scale is the quotient's own rather than either operand's, so an answer that
 // needs no fractional digits carries none.
 decimal $bill = 1.00;
@@ -15,7 +16,7 @@ echo Core\Decimal::divExact(100.00, 4), "\n";
 echo Core\Decimal::divExact(19.90, 1), "|", 19.90 as decimal / 1, "\n";
 
 // Signs multiply, and a zero dividend divides by anything. The negative is
-// built by subtraction because § 2's placing rule reaches a literal and not a
+// built by subtraction because `rule:types/numeric-literal-placement` reaches a literal and not a
 // unary minus in front of one.
 decimal $four = 4;
 decimal $minusFour = 0 - $four;

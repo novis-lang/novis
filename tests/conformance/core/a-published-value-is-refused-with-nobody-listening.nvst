@@ -2,7 +2,7 @@
 A value that cannot cross a copy boundary is refused by `Core\Topic::publish` whether or not anybody joined the topic — `rule:core-classes/topic`, `rule:security/secret-qualifier`, `rule:classes/graph-copy`
 --FILE--
 <?nvs
-// § 4 copies a published value by `rule:classes/graph-copy`'s graph copy, and that walk does
+// `rule:core-classes/topic` copies a published value by `rule:classes/graph-copy`'s graph copy, and that walk does
 // two jobs: it gives every subscriber a value shared with nobody, and it
 // refuses what has no meaning on the other side. Only the first of those
 // scales with the audience, so the refusal is made once and *before* the walk.

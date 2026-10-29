@@ -14,8 +14,8 @@ echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), "|",
      Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::Up), "|",
      Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::Down), "\n";
 
-// The scale is the answer's, so it pads rather than reduces: § 4 makes a
-// trailing zero observable, which is what a rendered price needs.
+// The scale is the answer's, so it pads rather than reduces:
+// `rule:types/conversion` makes a trailing zero observable, which is what a rendered price needs.
 echo Core\Decimal::divRound($one, 4, 5, Core\RoundMode::HalfEven), "|",
      Core\Decimal::divRound($one, 4, 0, Core\RoundMode::HalfEven), "\n";
 

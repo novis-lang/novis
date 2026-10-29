@@ -23,7 +23,7 @@
 // file, passes the existing origin cases and fails here.
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a route that is genuinely open.
     #[Core\Route(path: "/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $page, #[Core\Query] string $q = ""): string { return $page; }
@@ -70,7 +70,8 @@ echo "leaked=", $leaked, "\n";
 
 // And the origin is carried across verbatim — scheme and explicit port
 // included. `http` rather than `https`, and a port rather than the scheme's
-// default, because § 6 makes the origin a configured *string* and not a host
+// default, because `rule:routing/an-absolute-link-takes-a-configured-origin`
+// makes the origin a configured *string* and not a host
 // the runtime completes: a member that rebuilt the authority out of its parts
 // would have a default to choose here and would choose wrong.
 echo "link=", $built["0"], "\n";
@@ -81,11 +82,13 @@ echo "root=", $built["2"], "\n";
 # least-specific first, so the last one to state an `origin` wins. This file is
 # two near misses around the one that answers.
 
-# A block keyed on one exact file, § 1's narrowest key — and that file is this
+# A block keyed on one exact file, the narrowest key
+# `rule:config/an-application-is-its-entry-file-path` has — and that file is this
 # configuration itself rather than the program, so the block matches nothing
 # here. It is the near miss a reader that took an `origin` out of any `[[app]]`
-# block without asking which entry file the block covers would return, and § 2
-# would layer it *last* if it did match.
+# block without asking which entry file the block covers would return, and
+# `rule:config/every-matching-app-block-applies-least-specific-first` would
+# layer it *last* if it did match.
 [[app]]
 entry = "nvs.toml"
 origin = "https://other-entry.test"

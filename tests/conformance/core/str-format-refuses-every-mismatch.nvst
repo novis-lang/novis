@@ -6,7 +6,7 @@ Core\Str::format throws for every argument-mismatch PHP's printf family hides, o
 // call. `rule:expressions/intrinsic-list-is-closed` makes `Core\Str::format` an intrinsic, so a *literal*
 // template is checked while compiling and each of these four would be a
 // compile error instead — pinned as one in crates/nvs-types/tests/intrinsics.rs.
-// § 2 leaves a computed argument to run time with ordinary runtime validation,
+// `rule:expressions/intrinsic-constant-arguments` leaves a computed argument to run time with ordinary runtime validation,
 // and this case is what asserts that half is unchanged: the same four
 // mismatches, the same four messages, from the one implementation both paths
 // share — and one class, `LogicError`, since a template and its

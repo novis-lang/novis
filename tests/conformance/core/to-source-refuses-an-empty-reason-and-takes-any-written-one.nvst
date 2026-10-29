@@ -18,7 +18,7 @@ try {
 // Both bounds named together, so a member that refused every reason — or that
 // only looked at the first byte — fails on one of these two lines while still
 // printing plausibly on the other. One character is a written reason as far as
-// this rule is concerned: § 3 asks that something be written, and judging
+// this rule is concerned: `rule:core-classes/html-to-source` asks that something be written, and judging
 // whether it is a *good* reason is the reader's job and not the runtime's.
 echo Core\Html::toSource($m, "."), "\n";
 

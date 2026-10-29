@@ -2,7 +2,7 @@
 `Core\Taint::assertTrusted` answers its operand byte for byte, takes a reason that is not required to be a literal, and is legal on a value that was never tainted — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
-// § 3 asks for a written reason and for nothing to be done to the value: the
+// `rule:security/assert-trusted` asks for a written reason and for nothing to be done to the value: the
 // whole member is a compile-time judgement, so the run-time answer has to be
 // the argument itself. The values below are the ones a member that trimmed,
 // escaped or re-encoded anything would answer plausibly on and fail here — an
@@ -18,7 +18,7 @@ echo "[", Core\Taint::assertTrusted($markup, "the case wrote this value itself")
 echo "[", Core\Taint::assertTrusted($padded, "the case wrote this value itself"), "]\n";
 echo "[", Core\Taint::assertTrusted($wide, "the case wrote this value itself"), "]\n";
 
-// The reason is checked as an ordinary `string` and read by nobody. § 3 asks
+// The reason is checked as an ordinary `string` and read by nobody. The rule asks
 // for it to be written, not for it to be a literal — a binding holding one is
 // as greppable at the call site as the text would have been, which is
 // `nvs_stdlib::secret`'s reason for the same omission one axis over.

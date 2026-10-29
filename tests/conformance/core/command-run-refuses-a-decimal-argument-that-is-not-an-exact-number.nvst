@@ -4,8 +4,9 @@
 <?nvs
 // The other side of the conversion, and the side that decides whether it is
 // worth having: a command line is *input*, so a word the parameter's type does
-// not read is a usage error and never a throw — § 6's own answer for a command
-// line the table cannot fill. The two wrong answers are a zero the handler
+// not read is a usage error and never a throw — the answer
+// `rule:tooling/command-run-dispatches-and-help-is-generated` gives for a
+// command line the table cannot fill. The two wrong answers are a zero the handler
 // cannot tell from a written one and a `1.2` taken off the front of the word,
 // which is the repair `rule:errors/ambiguous-input-refused` refuses generally.
 //

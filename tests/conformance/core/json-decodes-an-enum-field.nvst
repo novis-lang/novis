@@ -38,7 +38,8 @@ Account $ok = Core\Json::decodeAs<Account>(
     "{\"name\":\"n\",\"role\":7,\"weight\":900,\"seen\":[-2,0,7]}"
 );
 // A decoded case is the same *value* a written one is, not merely one that
-// prints the same, which is what § 6's erasure has to mean for both backings.
+// prints the same, which is what `rule:enums/representation`'s erasure has to
+// mean for both backings.
 echo "role=", $ok->role == Role::Admin ? "Admin" : "other", "\n";
 echo "weight=", $ok->weight == Weight::Heavy ? "Heavy" : "other", "\n";
 echo "seen=", Core\Arr::count($ok->seen), " first=", $ok->seen[0] as int, "\n";

@@ -39,7 +39,7 @@ if ($byName == null) {
     echo Core\Arr::count($byName->readableProperties()) == Core\Arr::count($byValue->readableProperties())
         ? "same properties\n"
         : "different properties\n";
-    // § 2's visibility check is the description's, not the door's: the
+    // `rule:security/reflection-enforces-visibility`'s check is the description's, not the door's: the
     // `private` slot is missing from a description reached by name too, and
     // reading it through one is refused on the same terms.
     echo $byName->get(new Point(), "y"), "\n";

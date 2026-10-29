@@ -1,9 +1,9 @@
 --TEST--
-`stats` is the one member of § 1's four asked about a whole queue, so a receipt is not something it takes — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+`stats` is the one member of the queue's four asked about a whole queue, so a receipt is not something it takes — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
 // `cancel` and `status` are about one row and take the receipt that names it.
-// `stats` is about a population — § 6 asks for the dead-letter table to be
+// `stats` is about a population — the dead-letter rule asks for that table to be
 // watched, and a table is not watched one job at a time — so what it takes is
 // the queue's own name, the same string `push`'s `queue` option carries.
 var $counts = Core\Queue::stats("default");

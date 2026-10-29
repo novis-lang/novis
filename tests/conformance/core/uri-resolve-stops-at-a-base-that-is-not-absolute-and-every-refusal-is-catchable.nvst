@@ -1,11 +1,11 @@
 --TEST--
-`$uri->resolve` answers exactly the bases RFC 3986 § 5.2.1 calls absolute and § 5.2.3 gives a path to merge into, and every refusal on either side is one catchable message rather than a plausible answer
+`$uri->resolve` answers exactly the bases RFC 3986 § 5.2.1 calls absolute and RFC 3986 § 5.2.3 gives a path to merge into, and every refusal on either side is one catchable message rather than a plausible answer
 --FILE--
 <?nvs
 // RFC 3986 § 5.4's abnormal table is already run row by row, and every row of it
 // is a base that resolves. This case is the other half: where resolution
-// *stops*. § 5.2.1 makes the receiver the base and requires it to be absolute,
-// and § 5.2.3 merges a relative reference into the base's path — so a base with
+// *stops*. RFC 3986 § 5.2.1 makes the receiver the base and requires it to be
+// absolute, and RFC 3986 § 5.2.3 merges a relative reference into the base's path — so a base with
 // no scheme, and a base with no path to merge into, are two different refusals
 // and neither has an answer the member is allowed to guess at.
 //
@@ -34,17 +34,17 @@ string $opaque = Verdict::of("mailto:a@b", "g");
 echo $relative, "\n", $opaque, "\n";
 
 array<string> $bases = [
-    // Absolute, with an authority — § 5.4's own base is the first of them.
+    // Absolute, with an authority — RFC 3986 § 5.4's own base is the first of them.
     "http://a/b/c/d",
     "http://a",
     "file:///x",
-    // Absolute with no authority, but a path-absolute one § 5.2.3 can merge into.
+    // Absolute with no authority, but a path-absolute one RFC 3986 § 5.2.3 can merge into.
     "http:/rooted",
-    // A scheme and a rootless path: opaque, so § 5.2.3 has nowhere to merge.
+    // A scheme and a rootless path: opaque, so RFC 3986 § 5.2.3 has nowhere to merge.
     "mailto:a@b",
     "http:g",
     "urn:isbn:1",
-    // No scheme at all: § 4.1's relative references, in all five of their shapes.
+    // No scheme at all: RFC 3986 § 4.1's relative references, in all five of their shapes.
     "/relative/base",
     "//host/path",
     "g",
@@ -72,8 +72,8 @@ foreach ($bases as string $base) {
 echo "answered ", $answered, ", relative ", $asRelative, ", opaque ", $asOpaque,
      ", unaccounted ", $other, " of ", Core\Arr::count($bases) as int, "\n";
 
-// The bound, named on both sides: each pair differs by the one thing § 5.2.1
-// and § 5.2.3 actually ask about, and lands on opposite sides of the refusal.
+// The bound, named on both sides: each pair differs by the one thing
+// RFC 3986 § 5.2.1 and RFC 3986 § 5.2.3 actually ask about, and lands on opposite sides of the refusal.
 // A member stopping one entry early prints plausibly against either half alone.
 echo Verdict::of("http:/rooted", "g"), " / ", Verdict::of("http:g", "g"), "\n";
 echo Verdict::of("http://a", "g"), " / ", Verdict::of("//a", "g"), "\n";
@@ -82,8 +82,8 @@ echo Verdict::of("file:///x", "g"), " / ", Verdict::of("file:x", "g"), "\n";
 // The reference is bounded too, by the same reader `parse` uses, and its
 // refusal is a third message naming `resolve` — never `parse`, and never a
 // `Uri` built out of text the grammar did not admit. The empty reference is the
-// last one accepted: § 5.3 recomposes the base with its fragment already
-// dropped by § 5.1.
+// last one accepted: RFC 3986 § 5.3 recomposes the base with its fragment
+// already dropped by RFC 3986 § 5.1.
 echo Verdict::of("http://a/b?q#f", ""), "\n";
 echo Verdict::of("http://a/b", "http://[bad"), "\n";
 --EXPECT--

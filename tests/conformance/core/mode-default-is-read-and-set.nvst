@@ -8,7 +8,7 @@ echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
 
 // The bare name is not a second spelling of it. A name with no block is a
 // limit's name and nothing else (`nvs_config::request`'s module doc), so `mode`
-// here names the table itself — and § 5 has no text rendering for a table.
+// here names the table itself — and a table has no text rendering.
 echo "bare=", Core\Config::get("mode") ?? "unset", "\n";
 
 // Nor does the bare name write it: no directive row governs it, which is one of

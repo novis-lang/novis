@@ -20,11 +20,11 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
     echo $part->name();
 }
 
-// § 2: form fields and file parts are separated by the same parse, and `post()`
-// answers only the former. Its `?tainted string` is a form value, never a part.
+// Form fields and file parts are separated by the same parse, and `post()`
+// answers only the former (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`). Its `?tainted string` is a form value, never a part.
 Core\Request\Part $viaPost = Core\Request::post("upload");
 
-// § 3: the raw body is the bytes, undivided. A program that wants the parts
+// The raw body is the bytes, undivided. A program that wants the parts
 // asks the member that yields them rather than re-deriving them from here,
 // which is the whole reason `bodyStream` and `files` are two members.
 Core\Request\Part $viaBody = Core\Request::body();

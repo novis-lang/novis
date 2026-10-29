@@ -3,7 +3,8 @@
 --FILE--
 <?nvs
 // `rule:concurrency/two-doors-one-isolate` gives this member "the identical clause" its sibling takes, so
-// the operand is § 2's under `rule:security/isolate-shares-nothing`: a file path, or a static
+// the operand is `rule:concurrency/an-upgrade-is-spawn-shaped`'s under
+// `rule:security/isolate-shares-nothing`: a file path, or a static
 // method whose parameters `args:` binds by name. This case is the accepted
 // half of that rule at the second door;
 // `an-upgrade-refuses-an-entry-it-cannot-see-the-function-behind.nvst` is the
@@ -30,7 +31,7 @@ try {
 }
 
 // The entry is *named*, not called: `ran lobby` is nowhere above, because the
-// isolate § 5 opens is the only place that body ever runs.
+// isolate the event stream opens is the only place that body ever runs.
 echo "not run here\n";
 --EXPECT--
 `Core\Sse::upgrade` needs a request a server is answering and this is not one: every request the server runs is offered an event stream, and a program run from the command line, a `spawn script` child and a `#[Test]` method are not requests

@@ -9,7 +9,7 @@ class Tools {
     }
 }
 
-// § 6 fixes the table while compiling, so a page for a command that does not
+// `#[Command]` fixes the table while compiling, so a page for a command that does not
 // exist is a mistake in the program rather than in its input — a `LogicError`,
 // and not an empty page a caller would print to somebody.
 try {

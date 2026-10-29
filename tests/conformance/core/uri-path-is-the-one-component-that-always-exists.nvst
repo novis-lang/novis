@@ -6,7 +6,7 @@
 // `path` alone is `string`, because RFC 3986 § 3.3 makes the path the one
 // component every reference has. That is a claim about a whole grammar, not
 // about a line, so it is asserted by *counting* absences over a corpus that
-// reaches every shape § 4.1 admits: a member that answered `null` for the
+// reaches every shape RFC 3986 § 4.1 admits: a member that answered `null` for the
 // pathless-looking `http://a` would still print plausibly on every other row.
 //
 // The static half of the same claim needs no assertion and cannot have one:
@@ -32,11 +32,11 @@ array<string> $corpus = [
     "http://a?q=1",
     "http://a#f",
     "file:///tmp",
-    // A scheme and no authority: § 3.3's path-absolute and path-rootless.
+    // A scheme and no authority: RFC 3986 § 3.3's path-absolute and path-rootless.
     "http:/rooted",
     "http:g",
     "urn:isbn:1",
-    // § 4.1's relative references, which have no scheme at all.
+    // RFC 3986 § 4.1's relative references, which have no scheme at all.
     "/relative",
     "//h",
     "?q=1",

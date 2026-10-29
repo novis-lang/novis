@@ -43,8 +43,8 @@ final class Say {
     }
 }
 
-// Base64 has five ways to be wrong and says which: a byte outside § 4's
-// alphabet, padding that is absent where the standard form requires it, a final
+// Base64 has five ways to be wrong and says which: a byte outside
+// RFC 4648 § 4's alphabet, padding that is absent where the standard form requires it, a final
 // symbol carrying bits no octet reads, the *other* variant's alphabet — the one
 // a caller most often means, refused here rather than accepted as a courtesy,
 // since a decoder taking both cannot say which was meant — and a symbol left

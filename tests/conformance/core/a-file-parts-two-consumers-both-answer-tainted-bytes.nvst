@@ -2,7 +2,8 @@
 `Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
 --FILE--
 <?nvs
-// Agreement, asked of the two ways § 3 gives for reaching one upload's bytes.
+// Agreement, asked of the two ways `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+// gives for reaching one upload's bytes.
 // What decides the qualifier is that the bytes came off a connection, and
 // nothing about whether the program held them a chunk at a time or all at
 // once -- so a consumer that dropped the mark would be a launderer reachable

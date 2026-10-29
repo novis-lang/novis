@@ -2,7 +2,7 @@
 `Core\Serialize` names what it refused: a callable has no meaning across a copy boundary, and a payload that is not Novis's own format is refused whole — `rule:classes/graph-copy` and `rule:classes/serialize-is-a-closed-format`
 --FILE--
 <?nvs
-// § 2: "refuses what has no meaning on the other side" — a callable captures a
+// `rule:classes/graph-copy`: "refuses what has no meaning on the other side" — a callable captures a
 // heap and a scope, so it is refused *naming the offending value* rather than
 // degraded into a stub or silently dropped. It is a `LogicError` and not a
 // `ParseError`: the value was built by this program, so it is a bug in it.
@@ -14,7 +14,7 @@ try {
     echo $e->message, "\n";
 }
 
-// § 3: a payload that does not carry Novis's format marker and version is
+// `rule:classes/serialize-is-a-closed-format`: a payload that does not carry Novis's format marker and version is
 // refused outright — not best-effort parsed, not partially accepted. The
 // refusal is the assertion, not what any field of a result holds.
 try {
@@ -24,7 +24,7 @@ try {
     echo $foreign->message, "\n";
 }
 
-// § 3 again, one byte in: our marker, a version this build does not read. The
+// The same rule again, one byte in: our marker, a version this build does not read. The
 // bound is asserted from both sides — the line above shares no bytes with the
 // format at all, and this one shares all but the version.
 try {

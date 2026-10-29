@@ -10,7 +10,7 @@
 // subject the sweep can build.
 array<string> $subjects = [
     // Read: the seven components together, then each shape RFC 3986 § 4.1
-    // admits on its own. An empty port is § 3.2.3's own "absent", not a
+    // admits on its own. An empty port is RFC 3986 § 3.2.3's own "absent", not a
     // refusal, and both ends of the TCP range are inside the bound.
     "https://user:pw@example.com:8080/a/b?q=1#f",
     "http://h/",
@@ -27,7 +27,7 @@ array<string> $subjects = [
     "#f",
     "",
     // Refused, and by **both** of `parse`'s throwing steps rather than one:
-    // the first two are a port the grammar admits and § 3.2.3's prose does not
+    // the first two are a port the grammar admits and RFC 3986 § 3.2.3's prose does not
     // (`65536` is one past the bound `65535` above), the rest are the three
     // kinds of text the grammar itself refuses — a `%` that begins no escape,
     // a bracketed host that is no IPv6 address, and a byte outside the

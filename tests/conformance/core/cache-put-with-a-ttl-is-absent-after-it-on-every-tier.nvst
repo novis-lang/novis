@@ -1,5 +1,5 @@
 --TEST--
-`put`'s trailing `{ttl?: Duration}` is a lifetime the entry does not outlive: an omitted `ttl` keeps § 1's contract, a lifetime still ahead reads back, one already over leaves nothing under the key, and the shared tier takes the same option — `rule:core-api/shape-rules`, `rule:concurrency/cross-request-state-is-explicit`
+`put`'s trailing `{ttl?: Duration}` is a lifetime the entry does not outlive: an omitted `ttl` keeps `rule:core-api/two-cache-tiers`'s contract, a lifetime still ahead reads back, one already over leaves nothing under the key, and the shared tier takes the same option — `rule:core-api/shape-rules`, `rule:concurrency/cross-request-state-is-explicit`
 --FILE--
 <?nvs
 // `rule:core-api/shape-rules` R2's trailing options shape, and R12's unit as a
@@ -31,8 +31,9 @@ foreach ($inside as string $key) {
 echo "inside its lifetime: ", $present, " of ", Core\Arr::count($inside), "\n";
 
 // The other side of the same bound. A lifetime that has already run out is not
-// a write at all: `put` still cannot fail — § 1 gives this store no failure
-// mode to reach for — and the key is left with nothing under it.
+// a write at all: `put` still cannot fail — `rule:core-api/two-cache-tiers`
+// gives this store no failure mode to reach for — and the key is left with
+// nothing under it.
 $cache->put("over", "gone", {ttl: 0s});
 echo "past it: ", $cache->get("over") == null ? "null" : "something", "\n";
 

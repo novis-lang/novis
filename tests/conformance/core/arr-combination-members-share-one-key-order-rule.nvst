@@ -30,7 +30,7 @@ class Ask {
             != Ask::joined(Core\Arr::keys(Core\Arr::underlay($x, $y)))) {
             return "o";
         }
-        // And that order is § 1's rule spelled out without either member:
+        // And that order is `rule:types/array-combination` spelled out without either member:
         // every key of the base in place, then each key the base did not have,
         // in the order the layer first met it.
         if (Ask::joined(Core\Arr::keys(Core\Arr::overlay($x, $y)))
@@ -39,7 +39,7 @@ class Ask {
             return "k";
         }
         // Two operations rather than one with its arguments flipped: the
-        // entries agree once the order is taken away, and § 1 says the order
+        // entries agree once the order is taken away, and the rule says the order
         // itself does not — the tally below counts where it differs.
         if (Core\Json::encode(Core\Arr::sortByKey(Core\Arr::overlay($x, $y)))
             != Core\Json::encode(Core\Arr::sortByKey(Core\Arr::underlay($y, $x)))) {
@@ -75,7 +75,7 @@ class Ask {
 
 // Each row is a base, a layer and a second layer. The key shapes are the point:
 // string keys, integer keys, an integer key written as its string spelling
-// (§ 5 — a key is a string either way), a pair sharing nothing, an empty side,
+// (`rule:types/arrays` — a key is a string either way), a pair sharing nothing, an empty side,
 // a layer whose key set is the base's in the other order, and numeric strings
 // that are not in numeric order.
 array<array<array<string>>> $tables = [
@@ -98,7 +98,7 @@ foreach ($tables as array<array<string>> $row) {
     if ($v == "y") {
         $held = $held + 1;
     }
-    // The same entries in a different order, which is § 1's own sentence and
+    // The same entries in a different order, which is the combination rule's own sentence and
     // the reason these are two members. It is only *one* order where a side is
     // empty, which is the two rows this does not count.
     if (Core\Json::encode(Core\Arr::overlay($row["0"], $row["1"]))
@@ -119,7 +119,7 @@ array<string> $layer = ["b" => "9", "c" => "3"];
 echo Core\Json::encode(Core\Arr::overlay($base, $layer)), "|",
      Core\Json::encode(Core\Arr::underlay($layer, $base)), "\n";
 
-// § 5: a key comes back as a `string`, and a key parameter is normalised the
+// `rule:types/arrays`: a key comes back as a `string`, and a key parameter is normalised the
 // same way — so an integer key and its string spelling are one table, and
 // nothing here can tell them apart.
 array<string> $ints = [0 => "z", 1 => "o"];

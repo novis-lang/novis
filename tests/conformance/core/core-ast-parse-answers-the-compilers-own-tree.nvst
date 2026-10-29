@@ -2,7 +2,7 @@
 Core\Ast::parse answers the compiler's own parse tree, as data with nothing on it that runs — `rule:core-classes/ast-is-inert`
 --FILE--
 <?nvs
-// § 3: one grammar. This is the parser `nvs` itself runs, so the tree is the
+// One grammar: this is the parser `nvs` itself runs, so the tree is the
 // same shape the compiler saw.
 var $tree = Core\Ast::parse("<?nvs echo 1 + 2;");
 echo $tree->kind(), "\n";

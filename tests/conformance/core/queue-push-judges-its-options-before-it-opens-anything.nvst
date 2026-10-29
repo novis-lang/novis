@@ -2,7 +2,8 @@
 `push` refuses a job that can never be attempted, and it does so before it reaches the database — so the refusal does not depend on the server being up — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
-// § 6 makes attempts finite, not optional: a job with no attempts is one the
+// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` makes
+// attempts finite, not optional: a job with no attempts is one the
 // enqueue that created it has already dead-lettered, which is a call site
 // error and not a job. `[queue] max_attempts` cannot say it either — boot
 // refuses a `0` there as `E0617` — so this is the same bound one layer up,

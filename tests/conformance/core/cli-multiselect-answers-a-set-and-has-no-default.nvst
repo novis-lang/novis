@@ -2,9 +2,10 @@
 Core\Cli::multiSelect answers an array<T> rather than a T, and is the one prompt with no default — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
-// This case runs with every standard stream redirected, which is § 4's "no
-// controlling terminal". The four prompts beside this one answer a `default`
-// there; § 4's table gives `multiSelect` none, because an empty line already
+// This case runs with every standard stream redirected, which is the "no
+// controlling terminal" of `rule:tooling/a-prompt-never-blocks`. The four
+// prompts beside this one answer a `default` there;
+// `rule:tooling/a-prompt-is-a-core-member` gives `multiSelect` none, because an empty line already
 // names the empty set and that is the only thing a default would have been for.
 array<string> $choices = ["alpha", "beta"];
 try {

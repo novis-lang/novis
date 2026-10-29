@@ -2,7 +2,7 @@
 `Core\Cli\Text::text` reads back the text the constructor already neutralized, so a rewritten carrier cannot re-inject what was substituted — `rule:tooling/terminal-output-is-a-sink`
 --FILE--
 <?nvs
-// § 1's substitution happens in the constructor, so what `text` answers is the
+// The sink's substitution happens in the constructor, so what `text` answers is the
 // visible glyph and not the control byte it replaced. Reading a carrier
 // therefore cannot hand a program back an escape sequence to re-emit.
 var $raw = "title" . Core\Str::fromCodePoint(27) . "]0;owned";

@@ -14,13 +14,13 @@ var $db = Core\Db::connect("main");
 $db->execute("create table t (id integer primary key, name text)", []);
 $db->executeMany("insert into t (name) values (?)", [["ada"], ["grace"], ["alan"]]);
 
-// § 4's one member that does not buffer. Naming the walk opens the statement,
+// The one statement member that does not buffer (`rule:core-classes/db-statement-members`). Naming the walk opens the statement,
 // and each step of the `foreach` reads one row — the rows themselves stay in
 // SQLite, which is the whole difference from `query` beside it.
 foreach ($db->stream("select name from t order by id", []) as Core\Db\Row $row) {
     echo "row ", $row->string("name") ?? "null", "\n";
 
-    // § 4's uniform busy rule, asked *between* two rows rather than once: the
+    // `rule:core-classes/db-streaming`'s uniform busy rule, asked *between* two rows rather than once: the
     // connection is held for as long as rows remain, so this is refused on
     // every step and not only on the first. It is a `LogicError` because the
     // fault is the program's — the fix is `->all()` or a second connection —
@@ -40,7 +40,7 @@ foreach ($db->query("select count(*) as n from t", []) as Core\Db\Row $counted) 
     echo "after the walk: ", $counted->int("n") ?? 0, " rows\n";
 }
 --FILE nvs.toml--
-# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+# `rule:core-classes/db-capabilities`: `db.connect` covers a SQLite block, whose path is configuration.
 [capabilities.db]
 connect = ["main"]
 

@@ -18,7 +18,7 @@ tainted string $t = "<a href='x' title=\"y\">Tom & Jerry</a>";
 Core\Html\Markup $safe = Core\Html::escape($t);
 echo $safe, "\n";
 
-// § 3's one way back to the bytes, which is what a question *about* the
+// `rule:core-classes/html-to-source`'s one way back to the bytes, which is what a question *about* the
 // escaped text has to go through. The reason is written at the site and read
 // by nobody, exactly as `Core\Secret::reveal`'s is.
 string $source = Core\Html::toSource($safe, "asking which references the escape produced");

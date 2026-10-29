@@ -2,9 +2,9 @@
 Every one of `Core\Cli\Color`'s sixteen named colours is a class constant that builds an instance, beside the two constructors that reach the rest — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
-// § 2: "the sixteen named colours are class constants — `Color::RED` is exactly
-// as short at the use site as an enum case would be — and `Color::rgb` and
-// `Color::index` construct the rest". A `Color` is not an enum, because the set
+// The sixteen named colours are class constants: `Color::RED` is exactly as
+// short at the use site as an enum case would be, and `Color::rgb` and
+// `Color::index` construct the rest. A `Color` is not an enum, because the set
 // has sixteen million members; what makes the sixteen affordable is that a
 // constant may be an instance, built at the use site like any other object.
 //
@@ -34,7 +34,7 @@ var $brightWhite = Core\Cli\Style::of({background: Core\Cli\Color::BRIGHT_WHITE}
 var $viaIndex = Core\Cli\Style::of({color: Core\Cli\Color::index(1)});
 var $viaRgb = Core\Cli\Style::of({color: Core\Cli\Color::rgb(255, 0, 0)});
 
-// § 3: the output of a conformance case is captured, so the styling is dropped
+// The output of a conformance case is captured, so the styling is dropped
 // and what each of these writes is its own text. That is the assertion here —
 // eighteen styles built out of eighteen colours, each carrying its own letter —
 // while what an actual terminal is *sent* is pinned by `nvs-stdlib`'s own

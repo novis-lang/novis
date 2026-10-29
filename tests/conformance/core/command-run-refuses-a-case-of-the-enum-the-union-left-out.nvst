@@ -10,7 +10,7 @@
 // conversion exists to make unwritable.
 //
 // `run` prints its usage page to standard error, which a case does not read, so
-// the refusal is asserted as § 6's usage status and by the handler never
+// the refusal is asserted as the usage status and by the handler never
 // running: a converted `Quiet` would have printed a line before `run` returned.
 enum Level: uint {
     Quiet = 1,

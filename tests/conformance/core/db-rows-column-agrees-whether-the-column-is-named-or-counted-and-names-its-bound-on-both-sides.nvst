@@ -96,7 +96,7 @@ var $none = $db->query("select seats, label, missed from seatings where seats > 
 echo "empty: ", Core\Arr::count($none->column("label")), " ",
     Core\Arr::count($none->column("missing")), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

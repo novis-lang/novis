@@ -25,8 +25,8 @@ mixed $value = $rows->value();
 array<mixed> $byName = $rows->column("id");
 array<mixed> $byPosition = $rows->column(0);
 
-// `count` is a `uint` and it is exact: a `Rows` exists only after § 4's
-// buffered read has already finished, so there is nothing left to estimate.
+// `count` is a `uint` and it is exact: a `Rows` exists only after
+// `rule:core-classes/db-statement-members`' buffered read has already finished, so there is nothing left to estimate.
 uint $count = $rows->count();
 
 // And the bound on the other side, which is what makes `all` and `first` two

@@ -21,7 +21,8 @@ foreach ($each as Core\Time\Duration $d) {
         continue;
     }
 
-    // The other end of § 5: the grammar has no sign (§ 4 -- `-7d` is not a
+    // The other end of the round trip `rule:types/duration` names: the
+    // grammar has no sign (the same rule -- `-7d` is not a
     // backwards duration, it is an operator over an object and there is no
     // such operator), while `toString` is total and has to render a value
     // `minus` and `negated` can both produce. So a negative duration's

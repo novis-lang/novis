@@ -26,7 +26,7 @@ try {
 
 echo "refusals: ", $refusals as string, "\n";
 
-// § 5's other half: a denial is known before any work is done, so the program
+// `rule:security/denial-is-a-runtime-error`'s other half: a denial is known before any work is done, so the program
 // is still running and still has its own state. A fatal would have printed
 // nothing after this point.
 echo "still running\n";

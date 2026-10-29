@@ -68,7 +68,7 @@ if ($head != null) {
 
 $db->close();
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

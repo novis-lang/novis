@@ -3,7 +3,7 @@ A `PropertyObserver` is not reached by an access inside the observed property's 
 --FILE--
 <?nvs
 // covers: PropertyObserver
-// `rule:classes/property-observer-pipeline` § 3's three boundaries, which all follow from the
+// `rule:classes/property-observer-pipeline`'s three boundaries, which all follow from the
 // pipeline being written about a *receiver*: the backing slot reached from
 // inside a hook, class storage that has no receiver, and an observer body that
 // is itself an access. The sibling case pins what the observer is told; this

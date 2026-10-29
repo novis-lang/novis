@@ -8,7 +8,7 @@ under=a-request
 // question only through the one `start` asks first
 // (`rule:security/request-state-throws-in-an-isolate`).
 //
-// § 1's signature is `start(?tainted string $presented = null)`, and the two
+// `rule:core-api/session-roster`'s signature is `start(?tainted string $presented = null)`, and the two
 // halves of that are separate claims. The parameter is real — a string call
 // site compiles — and the default is real — an omitting one compiles too. A row
 // that had declared no parameter would fail the second call below at compile
@@ -24,7 +24,7 @@ array<string> $shapes = [
     // characters, which is what `mint` renders 128 drawn bits to.
     "PmA5tKz1QvR3sYbNqLwXe2",
     // And one it plainly did not — absence and a forgery are the same answer
-    // under § 2, so neither can be told from the other by which error arrives.
+    // under `rule:http-server/a-session-store-answers-four-operations`, so neither can be told from the other by which error arrives.
     "not-an-identifier",
 ];
 uint $presented = 0;

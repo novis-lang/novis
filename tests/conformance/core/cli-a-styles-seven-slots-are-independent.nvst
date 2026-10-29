@@ -2,9 +2,11 @@
 `Core\Cli\Style::of`'s seven options land in seven independent slots — each one asked alone, and each one asked as the difference between two styles, counted, so a bag that dropped or aliased an option fails here while every single option still reads correctly — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
-// § 2's style is a value built out of typed parts, and the parts are seven: two
-// colours and five attributes. What a case can ask about them without a
-// terminal is whether they are *seven*, because § 3 leaves a captured stream at
+// A style is a value built out of typed parts
+// (`rule:tooling/styling-is-a-value-not-a-grammar`), and the parts are seven:
+// two colours and five attributes. What a case can ask about them without a
+// terminal is whether they are *seven*, because
+// `rule:tooling/the-terminal-profile-resolves-once` leaves a captured stream at
 // `ColorDepth::None` and every style renders as nothing there. `Core\Debug`
 // answers that question instead — it walks the value itself, so the comparisons
 // below hold whatever the terminal is, and they compare whole renderings rather

@@ -10,8 +10,8 @@
 // not text.
 
 // The empty input, every algorithm. Each of these is its own spec's published
-// vector for a zero-length message (FIPS 180-4 for the SHA family, RFC 1321
-// § A.5 for MD5), and it is the row that pins the *padding*: an empty message
+// vector for a zero-length message (FIPS 180-4 for the SHA family,
+// RFC 1321 § A.5 for MD5), and it is the row that pins the *padding*: an empty message
 // still compresses one padded block, so a member that special-cased "no data
 // to feed" would answer the wrong thing here and nowhere else. CRC-32 has no
 // padding and starts and ends at zero.

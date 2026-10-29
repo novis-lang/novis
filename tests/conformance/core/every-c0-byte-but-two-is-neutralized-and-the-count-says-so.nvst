@@ -16,8 +16,9 @@ for (int $c = 0; $c < 32; $c = $c + 1) {
     if ($escaped == $one) {
         $through = $through + 1;
     }
-    // § 1's column is "one code point per input byte, and the block is laid
-    // out to match" — so the replacement is not merely *some* glyph, it is
+    // `rule:tooling/terminal-output-is-a-sink` gives each C0 byte its own
+    // Control Picture, one code point per input byte, and the U+2400 block is
+    // laid out to match — so the replacement is not merely *some* glyph, it is
     // U+2400 + the byte. A table with two rows transposed passes the count
     // above and fails here.
     if ($escaped == Core\Str::fromCodePoint(($c + 0x2400) as uint)) {

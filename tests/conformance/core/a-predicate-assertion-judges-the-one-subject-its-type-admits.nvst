@@ -2,7 +2,7 @@
 `assertTrue`, `assertNull` and `assertCount` each hold, fail with both sides named, and agree with the equality spelling of the same question -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
-// § 4's example writes these three beside the equality table without giving
+// `rule:testing/assertions-are-typed`'s example writes these three beside the equality table without giving
 // them a signature, so what each subject admits is `nvs_stdlib::test`'s own
 // decision: a declared `bool` (`rule:expressions/truthy-positions` makes a *condition* the one place a
 // value is tested without `as`, and an argument is not one), `rule:types/conversion`'s
@@ -23,14 +23,14 @@ Core\Test::assertCount($rows, 3);
 echo "three held\n";
 
 // The `use` above places the same three members, which is what makes the
-// marker and the assertion surface one name -- § 4.
+// marker and the assertion surface one name -- `rule:testing/assertions-are-typed`.
 Test::assertTrue($active);
 Test::assertNull($deletedAt);
 Test::assertCount($rows, 3);
 echo "three held again\n";
 
 // 2. Each failure names both sides by name, so a reversed call still reads
-// correctly -- § 4's whole reason for the subject-first order.
+// correctly -- that rule's whole reason for the subject-first order.
 try {
     Test::assertTrue(1 == 2);
 } catch (Core\Test\Failure $untrue) {
@@ -51,7 +51,7 @@ try {
 }
 
 // 3. `rule:core-api/shape-rules` R2's trailing bag is in front of the report, exactly as it is for
-// the equality members -- § 4's own `{message: "a fresh user is active"}`.
+// the equality members -- the assertions rule's own `{message: "a fresh user is active"}`.
 try {
     Test::assertTrue(false, {message: "a fresh user is active"});
 } catch (Core\Test\Failure $withMessage) {

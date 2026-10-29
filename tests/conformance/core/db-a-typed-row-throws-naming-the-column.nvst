@@ -6,7 +6,7 @@ Every refusal a typed `Core\Db\Row` reader makes names the column it was asked a
 // over-it.nvst argues why that matters), so these are the refusals the reader
 // really makes and not a signature check.
 //
-// What is asserted is `contains` and never the whole sentence: § 6 promises
+// What is asserted is `contains` and never the whole sentence: `rule:core-classes/db-column-types` promises
 // that the column is *named*, and freezing three wordings here would pin
 // something it does not promise and break on every rewording of a message.
 use Core\Db\Row;
@@ -26,8 +26,8 @@ foreach ($db->query("select nickname, owed from t", []) as Row $row) {
     }
 
     // The right family, the wrong value: `-3` is an `INTEGER` and is not a
-    // `uint`, so it is the crossing that is refused rather than the type. § 6
-    // keeps the two refusals in different words, and this case is what says
+    // `uint`, so it is the crossing that is refused rather than the type. The
+    // two refusals are in different words, and this case is what says
     // both of them still answer the same question about the column.
     try {
         $row->uint("owed");
@@ -46,7 +46,7 @@ foreach ($db->query("select nickname, owed from t", []) as Row $row) {
     }
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

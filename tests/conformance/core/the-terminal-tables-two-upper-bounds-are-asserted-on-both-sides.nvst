@@ -13,8 +13,8 @@ echo Core\Cli::escape(Core\Str::fromCodePoint(0x7E)), "\n";
 echo Core\Cli::escape(Core\Str::fromCodePoint(0x7F)) == Core\Str::fromCodePoint(0x2421) ? "del pictured" : "del passed", "\n";
 
 // The C1 block, U+0080 to U+009F, loses its identity rather than taking a
-// Control Picture: the U+2400 block has no glyph for one, and § 1's column
-// says the loss is deliberate and bounded because a C1 code point is never
+// Control Picture: the U+2400 block has no glyph for one, and
+// `rule:tooling/terminal-output-is-a-sink` says the loss is deliberate and bounded because a C1 code point is never
 // legitimate text. Several terminals still parse one as a CSI introducer,
 // which is why it is in the table at all.
 string $replacement = Core\Str::fromCodePoint(0xFFFD);

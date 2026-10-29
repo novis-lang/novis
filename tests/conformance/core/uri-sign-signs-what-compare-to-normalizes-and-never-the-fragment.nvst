@@ -24,7 +24,7 @@ echo $signedPlain->queryParameter("_sig") == $signedDressed->queryParameter("_si
 echo $signedDressed->scheme(), "\n";
 
 // So a token minted under one spelling verifies under the other. An escape's
-// hex digits fold too (§ 6.2.2.1), which is the difference a proxy is most
+// hex digits fold too (RFC 3986 § 6.2.2.1), which is the difference a proxy is most
 // likely to introduce on its own.
 $dressed->withQueryParameter("_sig", $signedPlain->queryParameter("_sig"))
     ->verifySignature($ring);

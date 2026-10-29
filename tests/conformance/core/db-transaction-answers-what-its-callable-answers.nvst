@@ -21,8 +21,8 @@ var $written = $db->transaction(fn (Core\Db\Transaction $tx): uint =>
     $tx->executeMany("insert into accounts (id) values (?)", [[1], [2]]));
 
 // And the one that gives up answers nothing at all, because `rollBack` throws
-// rather than returning — so there is no value here for `T` to be, and § 7
-// gives the member no way to ask for one.
+// rather than returning — so there is no value here for `T` to be, and
+// `rule:core-classes/db-transactions` gives the member no way to ask for one.
 $db->transaction(fn (Core\Db\Transaction $tx): void => {
     $tx->rollBack("nothing worth keeping");
 });

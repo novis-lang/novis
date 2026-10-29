@@ -10,7 +10,7 @@ var $db = Core\Db::connect("main");
 uint $one = $db->executeMany("insert into accounts (id, owner) values (?, ?)", [[1, "ada"]]);
 
 // The other end of the same shape: no sets at all is a batch with nothing to
-// do, which is § 4's no-op and not a missing argument.
+// do, which is a no-op answering `0` and not a missing argument.
 uint $none = $db->executeMany("insert into accounts (id, owner) values (?, ?)", []);
 
 // And the refusal. This is `execute`'s second argument passed unchanged, and a

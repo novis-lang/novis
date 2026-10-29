@@ -6,7 +6,7 @@ A statement binds by position from a list-keyed array and by name from a string-
 // SQLite needs no server, so this case really prepares, binds and steps rather
 // than checking a signature — db-a-sqlite-block-opens-a-file-and-runs-
 // statements-over-it.nvst is where that is argued. This one asks only about
-// § 5's two spellings of a parameter.
+// the two spellings of a parameter `rule:core-classes/db-parameters` allows.
 use Core\Db\Row;
 
 var $db = Core\Db::connect("main");
@@ -27,8 +27,8 @@ var $two = $db->execute(
 );
 echo "named ", $two->affected(), "\n";
 
-// § 5: "a `:name` used twice binds one value once — which positional form
-// cannot express." One key is written and the statement reads it on both sides
+// A `:name` used twice binds one value once, which positional form cannot
+// express (`rule:core-classes/db-parameters`). One key is written and the statement reads it on both sides
 // of the `or`, so the same two-marker statement asks about the `name` column
 // for one call and about the `label` column for the next.
 var $either = "select name from t where name = :who or label = :who order by id";
@@ -39,7 +39,7 @@ foreach ($db->query($either, ["who" => "founder"]) as Row $row) {
     echo "by label ", $row->string("name") ?? "null", "\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

@@ -3,7 +3,8 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::transaction
-// The only case in this tree that runs § 7 against a *live* database. SQLite
+// The only case in this tree that runs `rule:core-classes/db-transactions`
+// against a *live* database. SQLite
 // needs no server, so `BEGIN`, `SAVEPOINT`, `ROLLBACK TO` and `COMMIT` are
 // really sent here — which is what makes this the case that would catch a
 // driver wired into `Transacting` and not behind it.
@@ -11,7 +12,7 @@ use Core\Db;
 use Core\Db\Transaction;
 
 class Names {
-    // § 6's typed readers answer `?T`, a `null` being a NULL column, so the
+    // The typed readers answer `?T`, a `null` being a NULL column, so the
     // unwrapping happens once here rather than at each place that prints one.
     public static function total(Core\Db\Connection $db): int {
         var $row = $db->query("select count(*) as n from t", [])->first();
@@ -48,11 +49,11 @@ $db->transaction(fn (Transaction $tx): void => {
 });
 echo "committed ", Names::total($db), "\n";
 
-// § 7's nesting, on the connection a library and its caller would share: the
+// Transactions nest, on the connection a library and its caller would share: the
 // inner `transaction` opens a `SAVEPOINT` rather than a second `BEGIN`, so the
 // throw inside it rolls back to that savepoint and the outer level survives to
 // commit its own row. `{retries: 1}` rides along to say the option is accepted
-// on this driver too — § 8 maps `SQLITE_BUSY` and `SQLITE_LOCKED` to
+// on this driver too — `rule:core-classes/db-error` maps `SQLITE_BUSY` and `SQLITE_LOCKED` to
 // `Deadlock`, which is one of the two kinds a retry is for, and inducing a real
 // one needs a second connection to the same file rather than a program.
 $db->transaction(fn (Transaction $tx): void => {
@@ -72,7 +73,7 @@ $db->transaction(fn (Transaction $tx): void => {
 echo "kept ", Names::total($db), "\n";
 echo "alan ", Names::held($db, "alan"), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it and there is no address for `rule:http-server/allow-url-pins-the-address`'s table to have an
 # opinion about.
 [capabilities.db]

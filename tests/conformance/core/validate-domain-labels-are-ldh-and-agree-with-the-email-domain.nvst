@@ -2,8 +2,8 @@
 `Core\Validate::isDomain`'s labels are RFC 1123 § 2.1's letters, digits and interior hyphens, and every ASCII code point answers the same in a domain of its own as in the domain half of an address, counted
 --FILE--
 <?nvs
-// `crates/nvs-stdlib/src/validate.rs`'s module doc draws `isDomain` as RFC 1123
-// § 2.1's hostname: labels of 1 to 63 bytes joined by single dots, each of
+// `crates/nvs-stdlib/src/validate.rs`'s module doc draws `isDomain` as
+// RFC 1123 § 2.1's hostname: labels of 1 to 63 bytes joined by single dots, each of
 // ASCII letters, digits and `-`, and neither starting nor ending with `-`.
 // `validate-length-limits-are-pinned-on-both-sides.nvst` owns the 63 and the
 // 253 from both sides; this case owns the *character* boundary, and the one

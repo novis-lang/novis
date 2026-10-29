@@ -2,7 +2,7 @@
 `$uri->path` takes one of RFC 3986 § 3.3's five forms and which one it may take is decided by what precedes it: with an authority the path is empty or rooted, counted over a corpus; with a scheme and none it may not begin with `//`; and a relative reference's first segment may not hold a `:`, which is why `a:b` is a scheme with a rootless path and `./a:b` and `a%3Ab` are paths
 --FILE--
 <?nvs
-// § 3.3 does not give the path one grammar, it gives it five, and picks
+// RFC 3986 § 3.3 does not give the path one grammar, it gives it five, and picks
 // between them by what came before: path-abempty after an authority,
 // path-absolute and path-rootless after a scheme without one, path-noscheme
 // for a relative reference, path-empty everywhere. Each of the four
@@ -67,7 +67,7 @@ echo "without one ", $withoutAuthority, ", beginning // ", $doubleRooted, "\n";
 // differs from it by exactly that byte. A `:` in the first segment of what
 // would otherwise be a relative reference is a scheme, so `a:b` is
 // path-rootless under scheme `a`; `./a:b` puts a segment in front of it and is
-// path-noscheme entire; and `a%3Ab` escapes the byte, which is § 3.3's own
+// path-noscheme entire; and `a%3Ab` escapes the byte, which is RFC 3986 § 3.3's own
 // remedy and the one that keeps the segment a single one.
 final class Show {
     public static function some(?string $held): string {

@@ -2,7 +2,7 @@
 `Core\Test::assertSame` and `assertEqualsDeep` answer the same question on every row but a copied object, and identity never passes where the deep walk fails -- `rule:testing/assertions-are-typed`, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
-// § 4 gives the two members one substitution: identity at the object row,
+// `rule:testing/assertions-are-typed` gives the two members one substitution: identity at the object row,
 // where the deep walk descends instead. Everywhere else -- the scalars, the
 // `string`s, the containers `rule:expressions/equality-semantics` already reads element-wise -- they are
 // the same comparison, so the useful assertion is that they **agree**, counted
@@ -18,7 +18,7 @@ final class Cell {
 }
 
 final class Ask {
-    // One row, asked of both members. A failure is § 5's catchable
+    // One row, asked of both members. A failure is `rule:testing/failure-ledger`'s catchable
     // `Core\Test\Failure`, so a refusal is a verdict here rather than the end
     // of the case.
     public static function of(mixed $actual, mixed $expected): string {

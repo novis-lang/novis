@@ -24,7 +24,7 @@ $db->transaction(fn (Transaction $tx): void => {
     echo "inside ", $tx->query("select id from t", [])->count(), "\n";
 });
 
-// § 7: what the write did belongs to the transaction rather than to the
+// `rule:core-classes/db-transactions`: what the write did belongs to the transaction rather than to the
 // statement, so a rollback takes the second row back out and leaves the first
 // where the earlier commit kept it. Both counts are asserted, because a member
 // that committed each write on its own would print the same first line and
@@ -40,7 +40,7 @@ try {
 }
 echo "kept ", $db->query("select id from t", [])->count(), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]

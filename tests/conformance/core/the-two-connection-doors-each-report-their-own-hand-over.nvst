@@ -25,8 +25,8 @@ try {
     echo $refused->message, "\n";
 }
 
-// And the two are one model behind those doors -- § 5's "the same model
-// without `receive`" -- so what a program writes at either is the same clause:
+// And the two are one model behind those doors -- SSE is the same model
+// without `receive` (`rule:concurrency/two-doors-one-isolate`) -- so what a program writes at either is the same clause:
 // the same operand, the same optional `args:`, and the same `void`. Counting
 // the refusals is how that is said without asserting a third copy of either
 // message: the clause's other shape, written once at each door, and both of

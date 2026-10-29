@@ -3,8 +3,8 @@
 --FILE--
 <?nvs
 // covers: Core\Db\Row::bool
-// The member as a program reaches it, over a SQLite that runs for real: § 6's
-// crossing is asserted from Rust over `requested_bool`, and what this case adds
+// The member as a program reaches it, over a SQLite that runs for real: the
+// crossing of `rule:core-classes/db-column-types` is asserted from Rust over `requested_bool`, and what this case adds
 // is that the reader a caller writes lands on that rule and on no other — a
 // `boolean` column and a whole-number column answer the same two values, and
 // the numbers between and beyond them throw.
@@ -55,7 +55,7 @@ try {
     echo "unknown: ", Core\Str::contains($refused->message, "nomatter") ? "names it" : "does not", "\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

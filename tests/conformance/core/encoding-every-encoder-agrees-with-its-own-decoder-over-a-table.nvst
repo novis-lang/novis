@@ -29,7 +29,7 @@ final class Trip {
     }
 
     // The two base64 spellings differ in exactly two symbols and in whether
-    // the last group is padded: § 5's alphabet is § 4's with `+` → `-` and
+    // the last group is padded: RFC 4648 § 5's alphabet is RFC 4648 § 4's with `+` → `-` and
     // `/` → `_`, and `toBase64Url` is unpadded, which is the `rtrim` in the
     // PHP idiom `encoding.rs` names. Comparing against a `trimEnd`ed left
     // side also pins that the URL-safe output is never padded *differently*:

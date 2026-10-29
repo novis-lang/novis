@@ -27,7 +27,7 @@ echo "twice: ", $version == $db->serverVersion() ? "the same" : "something else"
 $db->execute("create table t (id integer primary key)", []);
 echo "after a statement: ", $version == $db->serverVersion() ? "the same" : "something else", "\n";
 --FILE nvs.toml--
-# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+# `rule:core-classes/db-capabilities`: `db.connect` covers a SQLite block, whose path is configuration.
 [capabilities.db]
 connect = ["main"]
 

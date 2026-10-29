@@ -2,10 +2,11 @@
 `Core\Command::run` converts an enum argument by the case's own *name*, and the value it becomes is that case's backing integer — `rule:tooling/commands-are-compiled`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
-// § 6's "a matched value's type comes from the parameter", for the last type
+// "A matched value's type comes from the parameter"
+// (`rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`), for the last type
 // the argument matcher admitted and could not convert. Two decisions are
 // pinned here and `nvs_types::commands::ArgConv::Enum` is the home of both: a
-// command line writes the **case name**, because § 6's own refusal names every
+// command line writes the **case name**, because the usage error names every
 // value it would have accepted and a list of backing integers is not a
 // sentence a person can act on; and the value that word becomes is the case's
 // backing integer, because an enum case *is* that integer by the time it is a

@@ -1,5 +1,5 @@
 --TEST--
-Core\Cli::live runs its body and answers what that body answered, at the body's own type -- `rule:tooling/terminal-output-is-a-sink` sections 5 and 8
+Core\Cli::live runs its body and answers what that body answered, at the body's own type -- `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-tty-belongs-to-the-main-task`
 --FILE--
 <?nvs
 // `rule:tooling/in-place-output-is-a-scoped-live-region`: `live<T>(callable $body): T`. The region is scenery around a
@@ -21,7 +21,7 @@ var $counted = Core\Cli::live(fn(Core\Cli\Live $live): int => {
 });
 echo "counted: ", $counted as string, "\n";
 
-// § 5's "renders nothing at all when the stream is not a terminal": every
+// The live-region rule's "renders nothing at all when the stream is not a terminal": every
 // frame above went to the controlling terminal or nowhere, and none of it
 // reached this program's own output.
 echo "clean\n";

@@ -44,8 +44,8 @@ echo "agreed ", $agreed, " of ", Core\Arr::count($modes) * 12, ", and ", $short,
 
 // Agreement is bounded by exactness and nothing else: where the quotient
 // repeats, the members' domains part outright -- `divExact` refuses the
-// division that `divRound` answers under all six modes, which is why § 3 has
-// both spellings rather than a mode meaning "do not round".
+// division that `divRound` answers under all six modes, which is why
+// `rule:types/decimal` has both spellings rather than a mode meaning "do not round".
 decimal $three = 3;
 decimal $rounded = 1;
 int $refused = 0;

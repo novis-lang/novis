@@ -4,7 +4,7 @@
 <?nvs
 // The value itself can never be frozen in `--EXPECT--`: it is a digest of
 // this very file's bytes, so writing it down here would change it. That is
-// § 6's circularity seen from the outside, and it is why every line below
+// `rule:programs/program-id`'s circularity seen from the outside, and it is why every line below
 // asserts a *property* of the answer instead of the answer.
 var $id = Core\Program::id();
 

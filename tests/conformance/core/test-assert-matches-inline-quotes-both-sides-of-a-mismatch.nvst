@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — `rule:testing/failure-ledger` and `rule:testing/inline-snapshots`, `rule:core-api/shape-rules` R2
+`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot the snapshot workflow starts from — `rule:testing/failure-ledger` and `rule:testing/inline-snapshots`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // A snapshot's failure has to say both halves: what the value rendered as is
@@ -16,7 +16,7 @@ try {
     echo $offByOne->message, "\n";
 }
 
-// 2. The empty snapshot is the state § 14's own workflow begins in -- the
+// 2. The empty snapshot is the state `rule:testing/inline-snapshots`'s workflow begins in -- the
 // author writes it and asks the runner to fill it in -- so it is a mismatch
 // like any other rather than a value that matches anything.
 try {

@@ -11,7 +11,7 @@ Core\RateLimit::consume throws when the shared store is not there, and never ans
 try {
     var $d = Core\RateLimit::consume("account:1", 5, 1m);
 
-    // § 3's four fields, read as members rather than as properties: a
+    // The `Decision`'s four fields, read as members rather than as properties: a
     // `Core`-owned instance has no property a program can reach, which is why
     // this is `->allowed()` and not `->allowed`.
     if ($d->allowed()) {

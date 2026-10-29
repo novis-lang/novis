@@ -5,19 +5,21 @@ A `get` answers `null` for a key nothing wrote, for one whose lifetime is over a
 // covers: Core\Cache\Store::get
 var $cache = Core\Cache::memory();
 
-// § 1: a key nothing wrote is `null`, which is an answer and not a failure.
+// A key nothing wrote is `null`, which is an answer and not a failure
+// (`rule:concurrency/the-memory-tier-is-one-store-per-process`).
 var $missing = $cache->get("nothing-wrote-this") ?? "null";
 echo "miss=", $missing as string, "\n";
 
-// § 2: a read copies in and leaves the entry where it was, so the second read
-// answers what the first one did.
+// A read copies in and leaves the entry where it was
+// (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`), so the
+// second read answers what the first one did.
 $cache->put("kept", "payload");
 var $first = $cache->get("kept") as string;
 var $second = $cache->get("kept") as string;
 echo "first=", $first, "\n";
 echo "second=", $second, "\n";
 
-// § 1: an entry whose lifetime is already over reads as the same `null`. A
+// An entry whose lifetime is already over reads as the same `null`. A
 // caller cannot tell it from a key nothing wrote, which is the contract it has
 // to be written against.
 $cache->put("brief", "payload", {ttl: 0s});

@@ -29,7 +29,7 @@ class Names {
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 
-// § 7's flag, at a nested level: `rollBack` records its reason on the
+// The roll-back flag of `rule:core-classes/db-transactions`, at a nested level: `rollBack` records its reason on the
 // transaction it was called on, which is the *step* and not the work around it.
 // So the savepoint is rolled back, `Core\Db\RolledBack` arrives here, and the
 // level above is still free to commit — the rollback-only flag the owning frame
@@ -57,7 +57,7 @@ uint $deep = $db->transaction(fn (Transaction $one): uint =>
             $three->query("select id from t", [])->count())));
 echo "read three levels down ", $deep, "\n";
 
-// § 7's refusal: `isolation` and `readOnly` are settled for the whole
+// The refusal of `rule:core-classes/db-transactions`: `isolation` and `readOnly` are settled for the whole
 // transaction, so a nested call carrying either is a `LogicError` rather than a
 // level quietly weaker than the one its author wrote. The work around it is
 // untouched and commits.
@@ -73,7 +73,7 @@ $db->transaction(fn (Transaction $work): void => {
 });
 echo "kept ", Names::total($db), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# A SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

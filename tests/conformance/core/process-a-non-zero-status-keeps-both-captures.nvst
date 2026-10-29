@@ -22,7 +22,7 @@
 // ends a line its own way and one of them pads before a redirect.
 //
 // The two candidates are the platform shells named absolutely, for the reason
-// the status case states: § 1 makes a `PATH` lookup the caller's own, and the
+// the status case states: `rule:security/process-exec-capability` makes a `PATH` lookup the caller's own, and the
 // one that is not this platform's starts nothing — `IOError` on Windows,
 // `RuntimeError` for a path with no root on Unix.
 

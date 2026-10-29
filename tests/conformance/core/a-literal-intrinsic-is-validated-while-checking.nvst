@@ -4,15 +4,17 @@ A folded intrinsic and its runtime twin answer the same value, for each of `rule
 <?nvs
 // `rule:expressions/intrinsic-constant-arguments`'s intrinsic literal folding, asserted rather than described.
 //
-// Four of § 1's closed list, each reached twice: once with a literal argument,
+// Four of `rule:expressions/intrinsic-list-is-closed`'s closed list, each reached twice: once with a literal argument,
 // which the compiler validates and prepares while checking, and once through a
 // variable, which compiles to an ordinary runtime call with ordinary runtime
-// validation. Nothing is refused for being dynamic (§ 2) — the difference is
+// validation. Nothing is refused for being dynamic
+// (`rule:expressions/intrinsic-constant-arguments`) — the difference is
 // only *when* a malformed argument is found, which is the other half of this
 // pair (`reject/a-malformed-literal-intrinsic-is-a-compile-error.nvst`).
 //
 // Each line prints the two answers' shared value and prints "diverged" if they
-// are not shared, which is § 4 asserted rather than asserted about: a fold may
+// are not shared, which is `rule:expressions/preparation-preserves-behaviour`
+// asserted rather than asserted about: a fold may
 // produce an earlier answer and never a different one, because the prepared
 // path and the runtime path are one implementation and not two.
 
@@ -28,7 +30,7 @@ echo $foldedDate == $runtimeDate ? $foldedDate : "diverged", "\n";
 // `Core\Regex::compile` — the pattern's syntax and its engine tier
 // (`rule:core-classes/regex-compile-time-tiering`) are decided while checking, and the compiled program is what
 // the prepared form carries.
-// `compile` is the row, not `matches`: § 1's list is closed and names the
+// `compile` is the row, not `matches`: the intrinsic list is closed and names the
 // member that *reads* the pattern, so the handle is what each path builds and
 // the match below is the shared question asked of both.
 var $regexSource = "^order-\\d+$";

@@ -67,7 +67,7 @@ array<mixed> $again = $row->toArray();
 echo "written: ", $whole["seats"] as ?int ?? 0, "\n";
 echo "row: ", $row->int("seats") ?? 0, " ", $again["seats"] as ?int ?? 0, "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

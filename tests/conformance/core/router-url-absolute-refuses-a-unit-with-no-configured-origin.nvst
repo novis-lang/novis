@@ -3,20 +3,22 @@
 --FILE--
 <?nvs
 // The pair asserted on both sides: the *same* route, resolved by the same
-// § 4 lookup, answered by one member and refused by the other. What separates
-// them is only `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, and a CLI run has none — § 6 puts the
+// lookup (`rule:routing/link-target-and-params-are-checked`), answered by one
+// member and refused by the other. What separates them is only
+// `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, and a CLI
+// run has none — `rule:routing/an-origin-is-per-mount-and-checked-at-boot` puts the
 // origin on the mount and there is no mount off the command line to expand,
 // which is the one place this refusal can be provoked without a server.
 //
 // The refusal matters because the alternative is not an error: `urlAbsolute`
 // could answer `//posts/1` with an empty authority, or read `Host` off the
-// request. § 6 forbids the second outright — an absolute link's origin is
+// request. `rule:routing/an-absolute-link-takes-a-configured-origin` forbids the second outright — an absolute link's origin is
 // configured per mount and never derived from a header — so the member has to
 // throw rather than answer something a caller would paste into an email.
 class Posts {
     // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required sibling, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely
-    // open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a
+    // route that is genuinely open.
     #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string { return "post " . $id; }

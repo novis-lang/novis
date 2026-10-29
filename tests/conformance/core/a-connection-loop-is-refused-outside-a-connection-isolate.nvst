@@ -2,14 +2,15 @@
 `rule:concurrency/a-connection-is-a-loop`'s connection loop compiles as written, and `Core\Socket::current()` is the one place a program that is not a connection isolate is refused — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/a-connection-is-a-loop`
 --FILE--
 <?nvs
-// § 1 gives a connection its own root isolate and moves the socket into it, so
-// the peer belongs to the isolate and not to any value a program holds. § 3's
-// script reads it back through `current()`, which is therefore the one member
+// `rule:concurrency/a-connection-is-a-root-isolate` gives a connection its own
+// root isolate and moves the socket into it, so the peer belongs to the isolate
+// and not to any value a program holds. The connection loop's script
+// (`rule:concurrency/a-connection-is-a-loop`) reads it back through `current()`, which is therefore the one member
 // that can tell a connection from everything else: an ordinary request, a
 // `spawn script` child and this command-line run all reach the same refusal,
 // because none of them was handed a socket.
 //
-// The loop below is § 3's, written out so that its *shape* is pinned by a case
+// The loop below is that rule's, written out so that its *shape* is pinned by a case
 // that can run anywhere -- `receive()` answers one message from either source,
 // `topic()` is what tells a bus delivery from a peer frame, and `text()`,
 // `bytes()` and `value()` are what each of the two kinds carries.

@@ -18,7 +18,7 @@
 // same seven subjects go through `render` on one stream and through `dump` on
 // the other.
 class Sweep {
-    // § 3's plaintext view ends a *record* with a newline and a rendered
+    // `rule:errors/renderings`'s plaintext view ends a *record* with a newline and a rendered
     // *value* without one, which is the one byte the two members differ by.
     public static function endingInNewline(array<string> $rendered): uint {
         uint $n = 0;
@@ -52,9 +52,10 @@ class Sweep {
 }
 
 // The seven subjects, chosen where the two members could part company rather
-// than to re-show § 1's node kinds. A control byte (§ 5's substitution, applied
-// on the way *into* the record), two container shapes and a nesting level, a
-// `secret` property (§ 5's redaction, read off the class), and the same ring
+// than to re-show `rule:errors/diagnostic-record`'s node kinds. A control byte
+// (`rule:errors/record-transformations`'s substitution, applied on the way
+// *into* the record), two container shapes and a nesting level, a `secret`
+// property (the same rule's redaction, read off the class), and the same ring
 // twice — the last pair being the one that a record-wide cycle table would get
 // wrong, since `dump`'s ids are per argument exactly as `render`'s are per
 // call.
@@ -96,7 +97,7 @@ echo "holding one at all ", Sweep::multiline($rendered), "\n";
 // record-local and restarts per node, so neither member numbers the repeat.
 echo "the ring twice ", Sweep::yn($rendered["5"] == $rendered["6"]), "\n";
 
-// § 4, and `nvs_stdlib::debug`'s § *Where a dump lands*: a dump is deliberately
+// `rule:errors/debug-dump`, and `nvs_stdlib::debug`'s § *Where a dump lands*: a dump is deliberately
 // not captured, because capturing one would swallow the very output it was
 // written to make visible. The capture answers what was *echoed* and the dump
 // goes past it to the diagnostic channel — the first record on standard error

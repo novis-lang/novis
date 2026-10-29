@@ -2,7 +2,7 @@
 `Core\Command::help` renders a usage page from the table `#[Command]` built while compiling, for one command and for the program — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// § 6 builds the table from the declaration itself, so every line below is
+// `#[Command]` builds the table from the declaration itself, so every line below is
 // derived from the same parameter list the call is checked against — the usage
 // text and the parser cannot drift, because there is only one of them.
 class Deployer {
@@ -27,7 +27,8 @@ class Deployer {
 // The middle column is each parameter's declared type, which the table does
 // not carry: the page reaches the handler's own signature through the
 // `Class::method` label the row holds. `$dryRun` names `bool` and not
-// `bool = false`, because § 6 gives an option declared `bool` by its being
+// `bool = false`, because `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`
+// gives an option declared `bool` by its being
 // written and the declaration's own default is not what an unwritten flag
 // takes.
 echo "" . Core\Command::help("deploy");

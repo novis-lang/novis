@@ -5,7 +5,7 @@ Core\Arr::average answers every exact quotient a decimal holds and refuses exact
 // `Core\Arr::average` keeps an exact subject exact: a `decimal` total is
 // divided by the entry count as a `decimal`, which `rule:types/arithmetic` rounds half to
 // even at the widest scale the quotient admits. The one subject it has no
-// answer for is the one whose rounding carries past § 1's 96-bit mantissa.
+// answer for is the one whose rounding carries past `rule:types/decimal`'s 96-bit mantissa.
 // That is the member's only refusal a handler can reach -- the guard beside it,
 // a subject holding more entries than a `uint` counts, is a `Fault::fatal` no
 // `catch` sees and no array can reach.

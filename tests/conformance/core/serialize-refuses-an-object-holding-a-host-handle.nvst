@@ -2,7 +2,7 @@
 `Core\Serialize` refuses an object holding a host handle, naming the class it refused — `rule:classes/graph-copy`, `rule:security/isolate-values-cross-by-copy`
 --FILE--
 <?nvs
-// § 2's third refusal, and the one with teeth: an open descriptor belongs to
+// The third refusal `rule:classes/graph-copy` names, and the one with teeth: an open descriptor belongs to
 // the context that opened it, and the handle carries a *key* into that
 // context's own table. A copy would hand the other side a key into **its**
 // table at the same index, so what crossed would read whatever that side has

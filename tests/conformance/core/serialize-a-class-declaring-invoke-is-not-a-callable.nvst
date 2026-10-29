@@ -2,7 +2,7 @@
 What the copy boundary refuses is a callable, not a method name: a class declaring its own `invoke` crosses and comes back whole, while an anonymous function is still refused — `rule:classes/graph-copy` and `rule:types/callable-values`
 --FILE--
 <?nvs
-// § 2's refusal is about what a value *is*. A callable captures a heap and a
+// `rule:classes/graph-copy`'s refusal is about what a value *is*. A callable captures a heap and a
 // scope; a class that happens to declare a method called `invoke` captures
 // nothing, and `invoke` is a name a program is free to use. The two are told
 // apart by the bit `nvs_runtime::ClassDesc::is_callable` carries, so this case

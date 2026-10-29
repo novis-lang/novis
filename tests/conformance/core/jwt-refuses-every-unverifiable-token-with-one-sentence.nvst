@@ -17,7 +17,8 @@ array<string> $parts = Core\Str::split($token, ".");
 // honest token's signature — the two shapes of the classic attack. A class
 // that read the header to pick a verifier accepts the first; one that picked
 // a verifier and *then* checked the tag accepts neither but reaches the
-// decision through attacker-supplied text, which is what § 4 refuses.
+// decision through attacker-supplied text, which is what
+// `rule:security/algorithm-comes-from-the-key` refuses.
 string $none = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0";
 string $stripped = $none . "." . $parts[1] . ".";
 string $borrowed = $none . "." . $parts[1] . "." . $parts[2];

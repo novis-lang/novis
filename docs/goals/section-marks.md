@@ -50,7 +50,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-cli/src/cache.rs]
   - id: 7
     title: "the core conformance cases' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst]
   - id: 14
     title: "the other conformance cases' marks name their documents"
@@ -265,8 +265,8 @@ which keeps its number and gains its name.
 **Split:** as stage 2, with one `Explore` subagent per batch of about twenty cases, since each case is
 short.
 
-- [ ] The cases whose names start `a` to `d`. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
-- [ ] The cases from `e` on, and the directory's counts at zero. `tools/data/bare-section-marks.json:1`
+- [x] The cases whose names start `a` to `d`. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
+- [x] The cases from `e` on, and the directory's counts at zero. `tools/data/bare-section-marks.json:1`
 
 ### 14. the other conformance cases' marks name their documents
 

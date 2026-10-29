@@ -2,9 +2,10 @@
 A prompt with no controlling terminal answers its default or throws Core\Cli\NotInteractive, and never blocks — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
-// This case runs with every standard stream redirected, which is § 4's "no
-// controlling terminal": the prompts below decide without reading anything.
-// § 4's other silence — a terminal that is there and nobody answers within the
+// This case runs with every standard stream redirected, which is the "no
+// controlling terminal" of `rule:tooling/a-prompt-never-blocks`: the prompts
+// below decide without reading anything. That rule's other silence — a
+// terminal that is there and nobody answers within the
 // deadline — is the same class and the same first clause, and it is the one no
 // piped case can reach: `nvs_stdlib::cli`'s `no_prompt_blocks_without_a_deadline`
 // is where it is asserted instead.
@@ -17,7 +18,7 @@ try {
 // A default is what an unattended run answers, for each prompt that takes one.
 echo Core\Cli::ask("Your name?", {default: "ada"}), "\n";
 echo Core\Cli::confirm("Continue?", {default: true}) ? "yes" : "no", "\n";
-// § 4: `select<T>` answers the chosen value, never its index.
+// `select<T>` answers the chosen value, never its index.
 echo Core\Cli::select("Pick one", ["alpha", "beta"], {default: "beta"}), "\n";
 
 // `secret` takes no default: a password nobody typed is not a password.

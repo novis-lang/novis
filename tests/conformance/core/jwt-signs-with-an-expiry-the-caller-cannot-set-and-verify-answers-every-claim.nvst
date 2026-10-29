@@ -42,7 +42,8 @@ if (($back["exp"] as int) - ($back["iat"] as int) == 900) {
 // And neither registered name may be supplied. This is the whole difference
 // between "the member checks for an expiry" and "the member owns the expiry":
 // a caller who could write `exp` could write one in the past, or in the year
-// 3000, and the check § 4 asks for would still pass.
+// 3000, and the check `rule:security/jwt-expiry-is-mandatory` asks for would
+// still pass.
 try {
     string $own = Core\Jwt::sign(["sub" => "ada", "exp" => "253402300799"], 15m, $key);
     echo "a caller-supplied exp was accepted", "\n";

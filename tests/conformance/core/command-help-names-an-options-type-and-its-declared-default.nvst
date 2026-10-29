@@ -22,11 +22,12 @@ class Fetcher {
 //
 //   * `$url` is a positional carrying a default, so it is bracketed in the
 //     usage line and names both halves of its declaration below.
-//   * `$retries` is the § 6 example, and `uint` is the half a matcher's own
+//   * `$retries` is the example `rule:tooling/commands-are-compiled` declares, and `uint` is the half a matcher's own
 //     conversion could not have said: `int` and `uint` are one arm apart in
 //     the table and one word apart in the declaration.
 //   * `$verbose` is a flag. It names `bool` and *not* `bool = false`, because
-//     § 6 gives an option declared `bool` by its being written — a page
+//     `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` gives
+//     an option declared `bool` by its being written — a page
 //     printing the declaration's default there would name a value the matcher
 //     does not hand the handler.
 echo "" . Core\Command::help("fetch");

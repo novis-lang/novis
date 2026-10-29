@@ -2,7 +2,8 @@
 `put` over a key that already holds a value replaces it — the read after every write in a sweep answers that write, the shape may change with it, and thirteen rewrites totalling more than a shard's share of the cap forget nothing that was written before them — `rule:core-api/two-cache-tiers`, `rule:concurrency/a-cached-value-is-copied-across-the-boundary` and `rule:concurrency/the-memory-tier-is-one-store-per-process`
 --FILE--
 <?nvs
-// § 2 gives the store two operations and no third one, so there is no spelling
+// `rule:concurrency/put-and-get-are-the-whole-boundary` gives the store two
+// operations and no third one, so there is no spelling
 // of an append, a merge or an add-if-absent: a `put` over a live key is the
 // whole of what happens to that key. The sweep below is what a store keeping
 // the *first* write, or holding a longer value and overwriting it in place,
@@ -50,7 +51,7 @@ foreach ($values as string $value) {
 echo "the read after each write answered that write: ", $answered, " of ", Core\Arr::count($values), "\n";
 
 // The replacement is of the entry and not of its bytes, so the shape a key
-// holds is the shape of the last value put there — § 2's copy runs over
+// holds is the shape of the last value put there — the graph copy runs over
 // whatever arrived, with nothing of the key's previous payload in it.
 $cache->put("shape", "text first");
 $cache->put("shape", 7);
@@ -73,7 +74,8 @@ for (int $j = 0; $j < $steadyCount; $j = $j + 1) {
 }
 echo "the keys written before every one of those rewrites: ", $kept, " of ", $steadyCount, " kept\n";
 --FILE nvs.toml--
-# § 3's cap. The tier is cut into 64 shards that each evict against an equal
+# The tier's cap (`rule:concurrency/the-memory-tier-is-one-store-per-process`).
+# The tier is cut into 64 shards that each evict against an equal
 # share of it, so this is a share of 16K: low enough that the sweep's own bytes
 # would not fit under it, and high enough that the two largest entries fit side
 # by side with the steady keys — which is what an overwrite needs, since the cap

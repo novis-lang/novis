@@ -18,7 +18,7 @@ final class Show {
 
 // Accepted, bottom end to top. `00080` is the grammar being `*DIGIT` rather
 // than a canonical number — the digits are read, not the spelling. An empty
-// port and an absent one are both `null`, which is § 3.2.3's own instruction
+// port and an absent one are both `null`, which is RFC 3986 § 3.2.3's own instruction
 // to a producer and `port_of`'s one departure from giving back what was
 // written; a reference with no authority at all has nowhere to write one.
 array<string> $texts = [

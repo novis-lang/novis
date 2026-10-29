@@ -2,7 +2,8 @@
 A file part's two consumers are the two shapes and neither is the other: `content()` is a walk that no `array` binding accepts, and `readAll()` is one value that no `foreach` drives — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
-// The pair of edges that says § 3's split is real. `content()` answers a walk
+// The pair of edges that says `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s
+// split is real. `content()` answers a walk
 // whose next chunk does not exist yet -- there is no snapshot behind it, so
 // binding it as an `array<bytes>` would be asking for the whole upload under
 // the name of the member that exists precisely to avoid holding one.

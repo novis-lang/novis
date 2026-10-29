@@ -2,8 +2,8 @@
 Core\RateLimit::shed's window is bounded on both sides — the eighth arrival under a limit of eight is admitted and the ninth is shed, counted over one sweep — `rule:core-classes/ratelimit-two-members` and `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
-// A bound asserted on both sides, over a *sweep* rather than off a line. § 2's
-// GCRA admits a burst's worth at an instant and drains at `$limit` per `$per`,
+// A bound asserted on both sides, over a *sweep* rather than off a line.
+// `rule:core-classes/ratelimit-gcra`'s GCRA admits a burst's worth at an instant and drains at `$limit` per `$per`,
 // and with the burst defaulting to the limit exactly eight of these twelve
 // arrivals fit. A limiter that spent its budget one arrival early — seven
 // admitted, the eighth shed — prints the same word on the seventh line and on
@@ -22,7 +22,7 @@ int $firstShed = 0;
 // Two agreements ride along on the same sweep, because they are one decision
 // read twice rather than a second question: `remaining` counts the budget down
 // and then stays at zero, and `retryAfter` is absent exactly when the arrival
-// was allowed (§ 3) rather than a zero the caller has to read as absence.
+// was allowed, rather than a zero the caller has to read as absence.
 int $remainingAgreed = 0;
 int $waitAgreed = 0;
 

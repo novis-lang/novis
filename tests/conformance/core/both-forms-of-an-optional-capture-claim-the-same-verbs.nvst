@@ -2,7 +2,7 @@
 `Core\Router::methodsFor` answers the same verbs for both forms of a terminal `{name?}`, so the shorter form cannot 404 while the longer one 405s — `rule:routing/a-refused-verb-is-not-a-missing-path`
 --FILE--
 <?nvs
-// § 2's `{name?}` rule, asserted as the *agreement* it exists to force rather
+// `rule:routing/a-refused-verb-is-not-a-missing-path`'s `{name?}` rule, asserted as the *agreement* it exists to force rather
 // than as two counts read off two lines: a member that walked only the written
 // path would answer for `/posts/3` and not for `/posts`, and the two forms
 // would then be a `405` and a `404` for one route.

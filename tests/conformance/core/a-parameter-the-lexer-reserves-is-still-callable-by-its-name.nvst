@@ -18,7 +18,7 @@ echo Core\Arr::reduce(initial: 100, fn: fn (int $acc, int $n): int => $acc + $n,
 array<string> $letters = ["a", "b", "c"];
 echo Core\Str::join(Core\Arr::filter(predicate: fn (string $w): bool => $w != "b", a: $letters), ""), "\n";
 
-// § 5's `replaceWith` names its third parameter `$fn` too, and its callback is
+// `Core\Regex::replaceWith` names its third parameter `$fn` too, and its callback is
 // an anonymous function written into the argument the name fills.
 echo Core\Regex::replaceWith(fn: fn (Core\Regex\Match $m): string => "<" . $m->text() . ">",
     pattern: "\\d+", subject: "a1b22c"), "\n";

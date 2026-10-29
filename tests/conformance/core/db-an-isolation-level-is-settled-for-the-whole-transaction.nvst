@@ -8,7 +8,7 @@ use Core\Db\Isolation;
 use Core\Db\Transaction;
 
 class Counter {
-    // § 6's typed readers answer `?T`, so the unwrapping happens once here.
+    // The typed readers answer `?T`, so the unwrapping happens once here.
     public static function rows(Core\Db\Connection $db): int {
         var $row = $db->query("select count(*) as n from t", [])->first();
         if ($row == null) {
@@ -49,7 +49,7 @@ echo "accepted: ", Counter::rows($db), "\n";
 // its own to ask for. Asking anyway is refused, rather than answered with the
 // level already running. The refusal is a `LogicError` and not a
 // `Core\Db\DbError`: no server rejected anything, the call itself is the
-// mistake, which is § 8's split and `crates/nvs-stdlib/src/db/bind.rs`'s rule.
+// mistake, which is `crates/nvs-stdlib/src/db/bind.rs`'s rule.
 try {
     $db->transaction(fn (Transaction $tx): void => {
         $tx->transaction(fn (Transaction $inner): void => {

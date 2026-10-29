@@ -2,7 +2,7 @@
 `Core\Test::expectFailure` requires its callable to fail and discharges that failure, and refuses a callable that does not -- `rule:testing/failure-ledger`
 --FILE--
 <?nvs
-// § 5's second half. The ledger itself is state a program cannot reach, so
+// `rule:testing/failure-ledger`'s second half. The ledger itself is state a program cannot reach, so
 // what a case can observe is the member that discharges from it: which bodies
 // it accepts, which it refuses, and that the refusal is the same
 // `Core\Test\Failure` an assertion raises.
@@ -28,7 +28,7 @@ try {
 
 // 3. The question asked is what the ledger says, not what class came back: a
 // body that caught its own failure still failed. That is exactly the
-// silently-passing test § 5 abolishes, seen from the other side.
+// silently-passing test the ledger abolishes, seen from the other side.
 Test::expectFailure(fn (): void => {
     try {
         Test::assertEquals("a", "b");
@@ -37,7 +37,7 @@ Test::expectFailure(fn (): void => {
 });
 echo "a swallowed failure is still a failure\n";
 
-// 4. Each of § 4's three members reaches it, one throw site being what they
+// 4. Each of the three equality members reaches it, one throw site being what they
 // share.
 Test::expectFailure(fn (): void => { Test::assertSame(1, 2); });
 $agreed = $agreed + 1;

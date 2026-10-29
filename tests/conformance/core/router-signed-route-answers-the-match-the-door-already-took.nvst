@@ -5,7 +5,8 @@
 // The read half of `urlSigned`, over a request this same file makes. It takes
 // no URL and no route: what it verifies is the request this program is
 // answering, so the only thing a caller can get wrong is the ring. The match it
-// hands back is `Core\Request::route()`'s own — § 1 has the door take it once,
+// hands back is `Core\Request::route()`'s own — `rule:routing/matched-once-before-the-handler`
+// has the door take it once,
 // before any application code runs, and a second match here would be a second
 // answer about which route this is.
 class Shop {

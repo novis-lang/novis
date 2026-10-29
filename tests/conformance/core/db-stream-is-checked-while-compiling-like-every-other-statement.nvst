@@ -3,7 +3,7 @@ A literal statement handed to `stream` is validated while checking, exactly as `
 --FILE--
 <?nvs
 // `rule:core-classes/db-compile-time-query-checking` validates a *literal* SQL argument during checking — the
-// placeholder count against a literal params array — and § 4 gives `stream` the
+// placeholder count against a literal params array — and `rule:core-classes/db-statement-members` gives `stream` the
 // same statement and the same binding rule `query` has. So the check follows the
 // rule rather than the member: a mistake that `query` finds at compile time is
 // not one `stream` finds at the first row.
@@ -18,7 +18,8 @@ var $walk = $db->stream("select id from accounts where owner = ? and status = ?"
 
 // And the same question asked of the other class that declares the row.
 // `rule:classes/delegation-by-property` gives `Core\Db\Transaction` the member under the
-// connection's symbol, and § 10's list is nominal against the *declaring*
+// connection's symbol, and `rule:core-classes/db-compile-time-query-checking`'s
+// list is nominal against the *declaring*
 // class — so a row present on one and absent on the other would be a statement
 // checked or not depending on which receiver the call site happened to hold.
 $db->transaction(fn (Core\Db\Transaction $tx): void => {

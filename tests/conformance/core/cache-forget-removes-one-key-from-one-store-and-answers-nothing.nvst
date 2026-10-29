@@ -7,7 +7,7 @@ var $cache = Core\Cache::memory();
 $cache->put("greeting", "hello");
 $cache->put("kept", "still here");
 
-// § 2: the entry named is out of the store, so the read after it is the same
+// The entry named is out of the store, so the read after it is the same
 // miss a key nothing wrote answers.
 $cache->forget("greeting");
 var $gone = $cache->get("greeting") ?? "null";
@@ -17,7 +17,7 @@ echo "forgotten=", $gone as string, "\n";
 var $kept = $cache->get("kept") as string;
 echo "kept=", $kept, "\n";
 
-// § 1: a key nothing wrote is already forgotten, so this call reaches the
+// A key nothing wrote is already forgotten, so this call reaches the
 // state the one above did rather than a second one. There is no answer here
 // for whether there had been an entry.
 $cache->forget("greeting");

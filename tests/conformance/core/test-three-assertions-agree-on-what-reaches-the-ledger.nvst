@@ -2,7 +2,7 @@
 `assertSame`, `assertCount` and `assertDoesNotThrow` agree on what reaches `rule:testing/failure-ledger`'s ledger: a failure is recorded whether or not its throw is caught, and a pass leaves nothing to discharge -- `rule:testing/assertions-are-typed`, `rule:testing/failure-ledger` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
-// § 5 makes the ledger the record and the throw the control flow, so the
+// `rule:testing/failure-ledger` makes the ledger the record and the throw the control flow, so the
 // question every assertion answers the same way is "what did you record?" --
 // not "what did you raise?". `Core\Test::expectFailure` is the one member that
 // reads the ledger back, and it reads it by *class of entry* rather than by the
@@ -16,12 +16,12 @@
 //
 // The middle row of each triple is the one the throw cannot answer: the body
 // swallows the `Core\Test\Failure` itself and returns normally, so the only
-// evidence the assertion ever failed is the entry. § 5's silently-passing test
+// evidence the assertion ever failed is the entry. That rule's silently-passing test
 // is exactly that program.
 //
 // What no program can observe is the *passing* entry itself: nothing in
 // `Core\Test` reports a tally, and `expectFailure` discharges only failures
-// (`nvs_runtime::Ctx::discharge_failures_from`). § 20's "a test that asserts
+// (`nvs_runtime::Ctx::discharge_failures_from`). `rule:testing/runner-is-strict`'s "a test that asserts
 // nothing fails" is what reads those, in `nvs_cli::runner`, so the third row of
 // each triple pins the half a program can see -- a held assertion leaves no
 // failure behind.

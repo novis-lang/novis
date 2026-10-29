@@ -45,9 +45,9 @@ echo "below ", $below, " same ", $same, " above ", $above, "\n";
 // the only place that is observable — `rule:expressions/object-identity-equality` keeps `==` on two objects
 // meaning the same object, so the two spellings are never `==`.
 //
-// § 6.2.2 is the *syntax-based* normalization and stops there, which is why
+// RFC 3986 § 6.2.2 is the *syntax-based* normalization and stops there, which is why
 // the corpus does not write `http://a:80/` as a third spelling of the same
-// reference: dropping a scheme's default port is § 6.2.3, this member does
+// reference: dropping a scheme's default port is RFC 3986 § 6.2.3, this member does
 // not do it, and an absent port sorts before a written one exactly as the
 // neighbouring total-order case has an absent component sort before an empty
 // one.

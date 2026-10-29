@@ -2,17 +2,18 @@
 `Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
-// The path half of § 6. `router-url-turns-a-leftover-params-key-into-a-query-
+// The path half of `rule:routing/link-target-and-params-are-checked`. `router-url-turns-a-leftover-params-key-into-a-query-
 // string.nvst` pins what a *leftover* key is spelled as, by agreeing with
 // `Core\Uri::buildQuery`; a substituted *capture* is a different rule with a
 // different escaping form, and this is the case that states it.
 //
-// § 4 calls `url` the launderer for the URL-path sink, and the whole content of
+// `rule:routing/link-target-and-params-are-checked` calls `url` the launderer
+// for the URL-path sink, and the whole content of
 // that claim is below: a value handed to a link cannot leave the one segment
 // the declared path gave it, whatever bytes it holds.
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required sibling, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a route that is genuinely open.
     #[Core\Route(path: "/docs/{slug}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug, #[Core\Query] string $q = ""): string { return $slug; }
@@ -57,7 +58,7 @@ echo "empty=", Core\Router::url(Docs::show, ["slug" => ""]), "\n";
 // plausibly one row at a time still fails.
 array<string> $hostile = [
     "a/b",          // the one the sink exists for
-    "two words",    // a space is `%20` here, and § 6's query would write `+`
+    "two words",    // a space is `%20` here, and a leftover query key would write `+`
     "héllo",        // multi-byte
     "",             // empty
     "...",          // unreserved throughout, and no dot segment, so it survives

@@ -4,8 +4,8 @@
 <?nvs
 // covers: Core\Program::implementing
 // The companion case pins the *order* and the expansion; this one pins the
-// *membership*, which is the half § 3 states as "one per non-abstract class in
-// the program implementing `T`". `nvs_hir::hierarchy::implements_interface` is
+// *membership*, which is the half `rule:programs/implementing` states as "one
+// per non-abstract class `C` in the program for which `$c is T` holds". `nvs_hir::hierarchy::implements_interface` is
 // recursive over `extends` and `implements` alike, so there are four distinct
 // routes a class can take to the interface and a filter that stopped at the
 // declared `implements` list would still answer plausibly for one of them.

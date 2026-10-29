@@ -29,7 +29,7 @@ echo "updated ", $updated->affected(), "\n";
 var $missed = $db->execute("update t set name = ? where id = ?", ["nobody", 99]);
 echo "missed ", $missed->affected(), "\n";
 
-// § 4's fold: a statement whose kind carries no count answers `0` and not the
+// The fold every driver applies: a statement whose kind carries no count answers `0` and not the
 // three rows the last data-changing statement touched. SQLite's own
 // `sqlite3_changes` is that earlier count, so this is the one place the answer
 // is the member's rather than the driver's.
@@ -49,7 +49,7 @@ echo "updated still ", $updated->affected(), "\n";
 uint $total = $inserted->affected() + $updated->affected() + $missed->affected();
 echo "total ", $total, "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

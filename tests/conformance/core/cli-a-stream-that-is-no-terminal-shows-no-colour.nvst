@@ -4,7 +4,7 @@ A standard output that is not a terminal reports no colour at all, so a piped ru
 <?nvs
 // covers: Core\Cli::Stream
 //
-// § 3: "When the stream is not a terminal, styling is dropped entirely", so
+// When the stream is not a terminal, styling is dropped entirely, so
 // `myprog | grep` and a CI log are plain. That makes these two members answer
 // one question between them, and this case asserts they agree rather than
 // asserting what either one said — the whole point being that a build which

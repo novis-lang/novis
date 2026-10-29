@@ -2,7 +2,8 @@
 `Core\Command::run` calls the handler the command line's first word names, with the arguments it matched — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// § 6's one deliberate divergence from `rule:routing/routes-are-compiled-not-registered`: this table *dispatches*. The
+// The one deliberate divergence of `rule:tooling/command-run-dispatches-and-help-is-generated`
+// from `rule:routing/routes-are-compiled-not-registered`: this table *dispatches*. The
 // handler is a `public static` method, and the compiled table carries it as a
 // `Class::method` string, so nothing here names it a second time — the word
 // `greet` below selects it and the words past that fill its parameters.

@@ -13,7 +13,7 @@
 // The body also spells the whole of what `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` says a part carries: the
 // form field it arrived under, the name the client claimed for it, and the type
 // the client declared. There is no fourth reader and there is deliberately no
-// `size` -- § 2 refuses one, because there is no honest value to put there
+// `size` -- `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` refuses one, because there is no honest value to put there
 // before the part has been consumed.
 try {
     foreach (Core\Request::files() as Core\Request\Part $part) {

@@ -2,7 +2,7 @@
 `+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`, `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
-// § 2 reads `Text` **+** `Text`, and the emphasis is on both sides: `+` is not
+// `rule:tooling/text-is-the-one-raw-path` reads `Text` **+** `Text`, and the emphasis is on both sides: `+` is not
 // a sink, so it has nowhere to substitute a plain string's control bytes on
 // the way in. `Core\Cli\Text::plain` is where that happens, and the help says
 // so rather than pointing at a member that does not exist.

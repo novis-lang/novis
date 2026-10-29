@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // Cancelling is a race the caller can lose, and losing it is the ordinary
-// outcome rather than an unlucky one: § 4 lets a worker claim a pending job at
+// outcome rather than an unlucky one: `rule:concurrency/claiming-is-one-statement` lets a worker claim a pending job at
 // any moment, so a cancel written late finds the work already running. A
 // `void` member would make "cancelled it" and "too late" look identical at the
 // call site, and throwing for the second would make that ordinary race an

@@ -16,7 +16,8 @@ class Shape {
     // is what lets the rendering be *asked a question* rather than only shown.
     // Every subject below holds `int` values, so the only quotation mark a
     // rendering can contain came from a key — that is the whole plaintext
-    // difference between the two shapes, per the view in § 3.
+    // difference between the two shapes, per the plaintext view in
+    // `rule:errors/renderings`.
     public static function verdict(array<int> $subject): string {
         bool $isList = Core\Arr::isList($subject);
         bool $json = Core\Str::startsWith(Core\Json::encode($subject), "[");

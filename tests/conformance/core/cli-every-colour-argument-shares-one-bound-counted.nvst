@@ -2,8 +2,8 @@
 `Core\Cli\Color`'s palette index and its three channels are one bound reached four times — 255 accepted and 256 refused on every one of them, counted, and each refusal names its own subject — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
-// A bound asserted on both sides, over a *sweep* rather than over a line: § 2's
-// two constructors take four bounded arguments between them, all with the same
+// A bound asserted on both sides, over a *sweep* rather than over a line: the
+// two `Color` constructors take four bounded arguments between them, all with the same
 // 0-to-255 range, and a member that checked one of them — or that checked all
 // three channels against the first argument's value — prints plausibly on every
 // individual line. Only the counts below fail for it.

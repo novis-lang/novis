@@ -19,7 +19,7 @@ use Core\Db\Transaction;
 #[Derive]
 class Person {
     public uint $id;
-    // § 9: every column a row yields is `tainted` where its type can carry it,
+    // `rule:core-classes/db-column-types`: every column a row yields is `tainted` where its type can carry it,
     // so a field receiving one says so or the call site is a diagnostic.
     public tainted string $name;
 
@@ -49,7 +49,7 @@ $db->transaction(fn (Transaction $tx): void => {
     }
 });
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

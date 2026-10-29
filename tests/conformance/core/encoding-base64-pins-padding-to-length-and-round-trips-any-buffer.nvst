@@ -4,7 +4,7 @@
 <?nvs
 class B64 {
     // Both spellings of one buffer on one line, so the row itself shows what
-    // differs: § 4's alphabet padded, § 5's alphabet unpadded.
+    // differs: RFC 4648 § 4's alphabet padded, RFC 4648 § 5's alphabet unpadded.
     public static function both(string $hex): string {
         bytes $raw = Core\Encoding::fromHex($hex);
         return Core\Encoding::toBase64($raw) . " " . Core\Encoding::toBase64Url($raw);

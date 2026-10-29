@@ -11,7 +11,7 @@ var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 $db->execute("insert into t (name) values (?)", ["ada"]);
 
-// § 7: the reason is written once and arrives twice — as the property a
+// `rule:core-classes/db-transactions`: the reason is written once and arrives twice — as the property a
 // handler reads and as the message a log prints. Both are asserted, because a
 // member filling only one of them reads correctly wherever the other is not
 // used.
@@ -75,7 +75,7 @@ try {
 }
 echo "caught by ", Core\Str::join($caught, " "), "\n";
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]

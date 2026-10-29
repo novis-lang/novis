@@ -24,7 +24,8 @@ try {
     echo $refused->message, "\n";
 }
 
-// § 2's `{shared: false}` bypasses memoization inside one request. It is not a
+// `{shared: false}` bypasses memoization inside one request
+// (`rule:core-classes/db-connection-is-named`). It is not a
 // second door: what it changes is whether an earlier connection may be handed
 // back, and the grant answers the same question either way.
 try {

@@ -2,7 +2,7 @@
 `Core\Command::run` converts a `Core\Uuid` argument through the one parse `Core\Uuid::parse` reads, so an upper-case command line normalizes — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// The one *class* § 6 admits an argument at, matched nominally. Its grammar is
+// The one *class* a command argument may be declared at, matched nominally. Its grammar is
 // `nvs_runtime::uuid`, which is also what `Core\Uuid::parse` and a
 // `{id: Core\Uuid}` route capture read (`rule:routing/a-capture-narrows-to-a-closed-set`) — one home, so a
 // command line's word, a program's parse and a request's segment cannot come

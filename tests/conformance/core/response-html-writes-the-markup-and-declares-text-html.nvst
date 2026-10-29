@@ -2,7 +2,7 @@
 `Core\Response::html` writes a `Core\Html\Markup`'s bytes as they are, which is the whole of what taking the carrier buys — `rule:security/response-body-is-one-typed-member` and `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
-// § 4's HTML row takes the carrier and so has nothing to refuse: every door
+// `rule:security/response-body-is-one-typed-member`'s HTML row takes the carrier and so has nothing to refuse: every door
 // into a `Markup` already decided what may be raw, so this member escapes
 // nothing and the page comes out as the handler built it. The
 // `text/html; charset=utf-8` it declares beside the write is not observable

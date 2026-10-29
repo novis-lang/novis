@@ -4,7 +4,8 @@ Forgetting a name nothing was stored under is neither an error nor an answer, so
 <?nvs
 var $cache = Core\Cache::memory();
 
-// § 1: an entry may be absent at any time, for any reason. A name nothing wrote
+// An entry may be absent at any time, for any reason
+// (`rule:concurrency/the-memory-tier-is-one-store-per-process`). A name nothing wrote
 // is therefore already forgotten, and there is nothing here for a `try` to
 // catch — `forget` reports no more about what was there than `get` does.
 $cache->forget("nothing-wrote-this");

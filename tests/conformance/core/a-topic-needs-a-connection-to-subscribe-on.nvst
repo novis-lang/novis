@@ -2,7 +2,7 @@
 `Core\Topic::subscribe` and `unsubscribe` refuse a program that is not a connection, rather than recording a subscription nothing could ever drain — `rule:concurrency/a-connection-is-a-loop` and `rule:core-classes/topic`
 --FILE--
 <?nvs
-// § 4 makes a topic the only way two *connections* meet, and the waits that
+// `rule:core-classes/topic` makes a topic the only way two *connections* meet, and the waits that
 // drain a delivery are the two a connection isolate has -- `Core\Socket` 's and
 // an event stream's -- which only a script an upgrade opened can call. A
 // subscription made anywhere else would therefore

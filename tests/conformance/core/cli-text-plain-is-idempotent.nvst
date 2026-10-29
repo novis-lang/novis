@@ -2,7 +2,7 @@
 `Core\Cli\Text::plain` is idempotent, so text that has already passed a sink is not escaped twice — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
-// § 1's table is idempotent: a Control Picture is not a control byte, so a
+// The sink's table is idempotent: a Control Picture is not a control byte, so a
 // second pass changes nothing. That is what lets `Core\Out::capture`'s already
 // neutralized bytes and `plain`'s answer be the same kind of value without
 // either of them double-escaping the other — the second escape `rule:security/capture-answers-the-carrier`

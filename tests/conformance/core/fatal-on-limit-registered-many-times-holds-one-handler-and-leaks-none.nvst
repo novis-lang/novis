@@ -2,7 +2,7 @@
 `Core\Fatal::onLimit` registered a thousand times holds one handler, and the thousand it replaced are released — `rule:errors/on-limit`
 --FILE--
 <?nvs
-// § 1 gives the tier *one* handler, and the consequence that is measurable
+// `rule:errors/on-limit` gives the tier *one* handler, and the consequence that is measurable
 // before anything fires is a memory one: each registration replaces the last,
 // so the reference the context dropped has to go with it. A registration that
 // only ever retained — the easy half of `Ctx::set_limit_handler` to write —

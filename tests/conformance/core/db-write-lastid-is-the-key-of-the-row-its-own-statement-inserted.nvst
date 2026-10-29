@@ -46,7 +46,7 @@ foreach ($db->query("select name from t where id < 0", []) as Core\Db\Row $row) 
     echo "found ", $row->string("name") ?? "", "\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, so
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, so
 # `db.connect` covers it.
 [capabilities.db]
 connect = ["main"]

@@ -5,8 +5,8 @@
 // `rule:errors/on-uncaught-throw`'s load-bearing sentence is that tier 2 gets "the **real
 // `Throwable` object**, not copied data": this is the request's own root, not
 // an `rule:security/isolate-shares-nothing` isolate boundary that has to copy across. A ladder that rebuilt
-// the exception — or that handed over a keyed array the way § 1's `LimitReport`
-// is one — answers every other question here identically and fails on the one
+// the exception — or that handed over a keyed array the way
+// `rule:errors/on-limit`'s `LimitReport` is one — answers every other question here identically and fails on the one
 // line below that asks about identity.
 //
 // `rule:expressions/object-identity-equality` makes `==` on two objects identity, so this is the whole test:
@@ -35,7 +35,7 @@ class Boom {
 
 echo "start\n";
 Boom::outer($error);
-// § 2 fires at the *root*, which is reached only because every frame between
+// The handler fires at the *root*, which is reached only because every frame between
 // here and the throw declined to catch it. Control does not come back.
 echo "never\n";
 --EXPECT--

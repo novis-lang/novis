@@ -2,7 +2,8 @@
 A script that ended with `Core\Script::finish()` is an ordinary end, so its `Core\Task::afterResponse` work still runs — `rule:concurrency/after-response-outlives-the-connection` and `rule:observability/three-endings-fire-the-exit-queue`
 --FILE--
 <?nvs
-// The classification, asserted where it is observable. § 6 gives deferred work
+// The classification, asserted where it is observable.
+// `rule:concurrency/after-response-outlives-the-connection` gives deferred work
 // to a request that ended ordinarily and to no other: a throw, an `exit` and a
 // `FATAL` each run none of it, because the host is about to report that status
 // and script running over it would lose one of the two. A finish arrives on the

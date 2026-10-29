@@ -2,11 +2,12 @@
 Core\Db::inList takes a run of any element type, a nested array included, because what an element is is the type map's question and not the marker's — `rule:core-classes/db-parameters` and `rule:core-classes/db-column-types`
 --FILE--
 <?nvs
-// § 5's "one parameter is always one value" cuts both ways. A list bound
+// "One parameter is always one value" (`rule:core-classes/db-parameters`)
+// cuts both ways. A list bound
 // straight to a placeholder is a *single* value whatever is in it — a
 // PostgreSQL array column, a JSON document — and `inList` is the marker that
-// says the opposite about this one argument. So what the elements are is § 9's
-// question: the member takes `array<mixed>` and refuses nothing but the empty
+// says the opposite about this one argument. So what the elements are is a
+// question for `rule:core-classes/db-column-types`: the member takes `array<mixed>` and refuses nothing but the empty
 // list.
 
 array<mixed> $row = [1, "a", true, null, 1.5, [2, 3]];

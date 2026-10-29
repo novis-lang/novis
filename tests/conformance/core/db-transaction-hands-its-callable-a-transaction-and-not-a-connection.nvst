@@ -13,7 +13,7 @@ $db->transaction(fn (Core\Db\Transaction $tx): void => {
     var $rows = $tx->query("select id from accounts", []);
     var $write = $tx->execute("update accounts set owner = ? where id = ?", ["ada", 1]);
     var $written = $tx->executeMany("insert into accounts (id) values (?)", [[1], [2]]);
-    // § 4's streaming read is on `Queryable` too, so it is reached here for the
+    // `rule:core-classes/db-streaming`'s read is on `Queryable` too, so it is reached here for the
     // same reason the four above are — and it is the one whose delegation is
     // worth writing down: a stream holds the very connection the `COMMIT` has
     // to go out on, so the surface being shared is also the busy rule being

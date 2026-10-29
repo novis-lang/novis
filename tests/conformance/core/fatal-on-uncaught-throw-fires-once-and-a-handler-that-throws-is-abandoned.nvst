@@ -2,7 +2,7 @@
 A `Core\Fatal::onUncaughtThrow` handler that throws is abandoned where it stands, is not entered a second time, and does not become the failure the engine reports — `rule:errors/on-uncaught-throw` and `rule:errors/handler-script`
 --FILE--
 <?nvs
-// § 2's "same zero-retry rule", asked at the boundary that makes it observable:
+// `rule:errors/on-uncaught-throw`'s "same zero-retry rule", asked at the boundary that makes it observable:
 // the handler throws, and the throw it was called *about* is still the one the
 // floor reports on standard error below. A ladder that let the reporter's own
 // failure replace the request's would print `the reporter failed too` there,

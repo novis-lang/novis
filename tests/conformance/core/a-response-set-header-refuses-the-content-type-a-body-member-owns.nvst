@@ -4,7 +4,8 @@
 <?nvs
 // Agreement, not four separate answers: a field name is case-insensitive, so a
 // member that refused only the spelling it was written against would leave the
-// mislabelling § 4 exists to prevent one lower-case letter away — `json` for
+// mislabelling `rule:security/response-body-is-one-typed-member` exists to
+// prevent one lower-case letter away — `json` for
 // the body, `text/html` for the label, and the browser believing the label.
 array<string> $spellings = ["Content-Type", "content-type", "CONTENT-TYPE", "cOnTeNt-TyPe"];
 uint $refused = 0;

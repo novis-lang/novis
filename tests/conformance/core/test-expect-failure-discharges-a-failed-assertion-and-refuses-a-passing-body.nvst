@@ -6,7 +6,7 @@
 // passing row, and a body that ran clean is the refusal. What it asks is what
 // the ledger says, not what class came back out of the body -- which is why
 // the third row below, whose body caught its own failure and returned
-// normally, is still discharged. That row is § 5's silently-passing test, and
+// normally, is still discharged. That row is `rule:testing/failure-ledger`'s silently-passing test, and
 // it is the one a member written over the throw instead of over the ledger
 // would let through.
 //

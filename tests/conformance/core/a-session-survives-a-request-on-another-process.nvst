@@ -11,7 +11,8 @@ a session record may not live in the memory tier, so the store a request in one 
 // then lose sessions in production at a rate set by the load balancer.
 //
 // `session-start-reaches-the-configured-shared-store-and-never-one-of-its-own`
-// is the other side of the same rule, over a tree that chose a store § 3
+// is the other side of the same rule, over a tree that chose a store
+// `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`
 // admits: there the member reaches `[cache.shared]` and reports it by name.
 // Here the tree chooses the one store it may not, and nothing runs at all.
 //
@@ -21,7 +22,7 @@ a session record may not live in the memory tier, so the store a request in one 
 // refuse and would still leave the next reader to rediscover the rule.
 Core\Session::start();
 --FILE nvs.toml--
-# The one value § 3's roster does not hold. `shared` and `db` are the two that
+# The one value that rule's roster does not hold. `shared` and `db` are the two that
 # survive the process that accepted the request; this is the third thing an
 # operator reaches for and the reason the roster is closed.
 [session]

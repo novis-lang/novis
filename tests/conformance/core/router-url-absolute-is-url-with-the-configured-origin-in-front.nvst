@@ -7,21 +7,22 @@
 // eleven rows of both members and counts the ones where the absolute answer is
 // exactly the origin concatenated onto the relative one. A `urlAbsolute` that
 // grew its own substitution — a second encoder, a second query-string pass, a
-// second reading of § 2's prepared path — would still look right on any single
+// second reading of the prepared path — would still look right on any single
 // line and fails here on the row where the two passes part.
 //
 // `urlAbsolute` has one case already and it is the *refusal*
 // (`router-url-absolute-refuses-a-unit-with-no-configured-origin.nvst`): a
-// program run off the command line is mounted nowhere, so § 6's origin has
-// nowhere to come from and the member throws. The `nvs.toml` at the foot of
+// program run off the command line is mounted nowhere, so the origin
+// `rule:routing/an-absolute-link-takes-a-configured-origin` needs has nowhere
+// to come from and the member throws. The `nvs.toml` at the foot of
 // this file is what makes the other half reachable — the working directory's
 // `[[app]] origin`, which `nvs run` resolves into the request's configuration
-// snapshot and `Ctx::set_origin` holds. That is the one source § 6 allows;
+// snapshot and `Ctx::set_origin` holds. That is the one source that rule allows;
 // nothing here sends a header, and there would be nothing to read it if it
 // did.
 class Docs {
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
-    // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
+    // `Core\Audience::Public` is `rule:attributes/access-payload`'s case for a route that is genuinely open.
     #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
@@ -60,7 +61,7 @@ class Posts {
 // appears in the assertion and not in the answers being asserted.
 string $origin = "https://example.test";
 
-// Computed, so § 5's closed set is not consulted and the value reaches the
+// Computed, so `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set is not consulted and the value reaches the
 // substitution as `router-url-substitutes-a-computed-value-outside-a-closed-set.nvst`
 // pins. Both members have to take the same route through it.
 var $outside = "xx";
@@ -140,7 +141,7 @@ echo "root=", $absolute["6"], "\n";
 # `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin — the only source an absolute link may take
 # one from, and in a program run off the command line this file is the whole of
 # it. The block is `rule:config/an-application-is-its-entry-file-path`'s array of tables, which is the only spelling of
-# it there is, and § 1 keys it on an entry file path: `root = "."` is the
+# it there is, and that rule keys it on an entry file path: `root = "."` is the
 # working directory this case runs in, so the program below is inside it.
 [[app]]
 root = "."

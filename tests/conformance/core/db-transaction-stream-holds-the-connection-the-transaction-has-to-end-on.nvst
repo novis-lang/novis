@@ -7,8 +7,8 @@ use Core\Db;
 use Core\Db\Row;
 use Core\Db\Transaction;
 
-// `rule:classes/no-traits`'s delegation is one body under two receivers, so § 4's
-// constant-memory walk is the transaction's too. What only this receiver can be
+// `rule:classes/no-traits`'s delegation is one body under two receivers, so
+// `rule:core-classes/db-streaming`'s constant-memory walk is the transaction's too. What only this receiver can be
 // asked is what the walk holds: the very connection the `COMMIT` goes out on.
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
@@ -20,7 +20,7 @@ $db->transaction(fn (Transaction $tx): void => {
     uint $held = 0;
     foreach ($tx->stream("select id, name from t order by id", []) as Row $row) {
         $walked = $walked + 1;
-        // § 4's connection-busy rule, which is where this member parts from its
+        // The streaming connection-busy rule, which is where this member parts from its
         // buffered sibling: a second statement through the same transaction is
         // refused rather than queued behind the rows.
         try {
@@ -40,7 +40,7 @@ $db->transaction(fn (Transaction $tx): void => {
 });
 echo "kept ", $db->query("select id from t", [])->count(), "\n";
 
-// § 7's end is a statement like any other, so a walk that still holds the
+// A transaction's end (`rule:core-classes/db-transactions`) is a statement like any other, so a walk that still holds the
 // connection is refused *there* rather than anywhere inside the callable.
 try {
     $db->transaction(fn (Transaction $tx): void => {
@@ -54,7 +54,7 @@ try {
     echo "the end was refused\n";
 }
 --FILE nvs.toml--
-# § 3: a SQLite connection's file path comes from its config block, and
+# `rule:core-classes/db-capabilities`: a SQLite connection's file path comes from its config block, and
 # `:memory:` gives this case a database nothing else has written to.
 [capabilities.db]
 connect = ["main"]
