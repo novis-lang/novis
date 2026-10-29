@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/config.rs, crates/nvs-config/src/request.rs, crates/nvs-stdlib/src/env.rs, crates/nvs-types/src/secret_directive.rs]
   - id: 3
     title: "nvs config check warns about a key no program reads"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/config.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/config/check-and-dump-audit-the-tree-offline.md]
   - id: 4
     title: "both methods have their feature proofs, and the website shows the blocks"
@@ -218,11 +218,11 @@ show up in `nvs config dump`, and the rules say so.
 
 **Does:** the checker records each literal name, and `nvs config check` compares them with the keys.
 
-- [ ] A collector of the literal names passed to `setting` and `secret`, and a flag for a computed one, beside `types_secret`. `crates/nvs-types/src/setting_names.rs:1`, `crates/nvs-types/src/expr/calls.rs:754`
-- [ ] `W1028`, its message and its help, after `W1027`. `crates/nvs-diagnostics/src/code/warnings.rs:286`
-- [ ] `nvs config check` compiles each named entry and each `--program`, and prints `W1028` per unread key, or one line when a name is computed. `crates/nvs-cli/src/config.rs:66`, `crates/nvs-cli/src/config.rs:1121`
-- [ ] `rule:config/check-and-dump-audit-the-tree-offline` says what `check` now reads. `docs/rules/config/check-and-dump-audit-the-tree-offline.md:17`
-- [ ] The tests the `settings-check-tests` check names. `crates/nvs-cli/tests/config_settings.rs:1`
+- [x] A collector of the literal names passed to `setting` and `secret`, and a flag for a computed one, beside `types_secret`. `crates/nvs-types/src/setting_names.rs:1`, `crates/nvs-types/src/expr/calls.rs:754`
+- [x] `W1028`, its message and its help, after `W1027`. `crates/nvs-diagnostics/src/code/warnings.rs:286`
+- [x] `nvs config check` compiles each named entry and each `--program`, and prints `W1028` per unread key, or one line when a name is computed. `crates/nvs-cli/src/config.rs:66`, `crates/nvs-cli/src/config.rs:1121`
+- [x] `rule:config/check-and-dump-audit-the-tree-offline` says what `check` now reads. `docs/rules/config/check-and-dump-audit-the-tree-offline.md:17`
+- [x] The tests the `settings-check-tests` check names. `crates/nvs-cli/tests/config_settings.rs:1`
 
 ### 4. both methods have their feature proofs, and the website shows the blocks
 
@@ -260,32 +260,34 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `cargo test --test settings_block` passes 10 of 10, `cargo test --test
-config_settings` 3 of 3, and the four new `setting` conformance cases pass. `Request::setting` and
-`Request::secret` (`crates/nvs-config/src/request.rs:193`) read the request's snapshot, and `of_toml`
-(`crates/nvs-stdlib/src/config.rs:435`) builds the value. `nvs-stdlib` takes `toml` as a normal
-dependency now.
-
-`setting` returns `?(string|int|float|bool|array<mixed>)`, a new standing decision. The checker's
-`apply_qualifier_conversion_rule` (`crates/nvs-types/src/expr/quals.rs`) ignores a union's array
-arm when the target holds no array.
-
-`rule:config/check-and-dump-audit-the-tree-offline` is not rewritten yet: stage 3 writes it. The
-sweep's reds were already fixed: the proofs log exits 0, and nightly 40847802941 predates the fixes.
+Stages 1 to 3 are done. `settings-check-tests` is green: `cargo test --test config_settings`
+passes 6 of 6. `nvs_types::setting_names` (`crates/nvs-types/src/setting_names.rs`) records each
+literal name, and a computed one, a spread or a method reference sets `computed`. It rides in
+`ExprTypeTable::setting_names`. `nvs config check` (`crates/nvs-cli/src/config.rs`, `unread_keys`
+and `open_keys`) compiles the programs with `crate::front_end` only when the tree writes one of the
+four blocks, and expands the mount table with `nvs_config::mount::expand`, whose refusal fails the
+check. One name read by any program counts for every block. A program that does not compile, a
+computed name or no program at all prints one `note:` line and judges no key. Both rules say so.
+`W1028` is `W_SETTING_NOT_READ`. `docs/rules/security.md` was re-rendered with stage 2's fragment.
 
 Tests that may go red at the gate:
 - `nvs-config`'s `tests/request.rs` and `tests/secret.rs`, which read `get` and `all`.
 - The proofs gate and any `Core\Config` member listing: the two new methods owe proofs until stage 4.
 - A taint test that pins a union with an `array<mixed>` arm `as string` as tainted.
+- A test that snapshots `nvs config check --help`, which now lists `--program`.
+- A config check test whose tree writes `[[server.mount]]` with a missing root and one of the four
+  blocks: the mount expansion now runs there.
 
 ### Next
 
-**Stage 3, one group**, on `nvs-types`, `nvs-diagnostics` and `nvs-cli`. No gate.
+**Stage 4, one group**, split as the stage's `**Split:**` line says: two writing subagents for the
+`setting` and `secret` directories, side by side, then the session writes the website section,
+blesses the `.out` files and flips the rule to `shipped`. No gate.
 
-- [ ] Record each literal name passed to `setting` and `secret`, per program, and a flag for a computed one. Hook in beside `secret_directive::types_secret`. `crates/nvs-types/src/expr/calls.rs:754`, `crates/nvs-types/src/secret_directive.rs:1`
-- [ ] `W1028` after `W1027`, with its message and help. `crates/nvs-diagnostics/src/code/warnings.rs:286`
-- [ ] `nvs config check` compiles each `[[app]] entry`, each `[[server.mount]]` entry and each `--program`, and warns per unread key, or prints one line when a name is computed. `crates/nvs-cli/src/config.rs:1080`
-- [ ] Rewrite `rule:config/check-and-dump-audit-the-tree-offline`. `docs/rules/config/check-and-dump-audit-the-tree-offline.md:17`
-- [ ] The three `settings-check-tests` in `crates/nvs-cli/tests/config_settings.rs`. Its `Server` harness does not fit them: they run `nvs config check` once. `crates/nvs-cli/tests/config_settings.rs:1`
+- [ ] `setting`: `about.md`, three examples and their `nvs.toml`. `docs/examples/core/Config/setting/about.md:1`, `docs/examples/core/Env/secret/about.md:1`
+- [ ] `secret`: `about.md`, three examples, `nvs.toml` and a secret file. `docs/examples/core/Config/secret/about.md:1`
+- [ ] The three attacks and the two benches. `tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs:1`, `benches/members/core/Config/setting.nvs:1`
+- [ ] The configuration page's section on the four blocks. `website/src/content/docs/guides/how-to-use/configuration.mdx:35`
+- [ ] `bun nv proofs --id` owes nothing for both, and the rule is `shipped` with its `guardedBy`. `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`
 
 ### Backlog
