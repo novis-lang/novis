@@ -1,6 +1,6 @@
 {
   "title": "A known-bad version is retracted, never deleted, a token-sent retraction waits seven days, and `nvs pkg audit` names the minimum bump that clears it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/a-release-waits-seven-days-unless-an-owner-confirms",
@@ -8,6 +8,9 @@
     "packaging/an-owner-may-unlist",
     "packaging/the-registry-keeps-an-append-only-log"
   ],
-  "guardedBy": [],
-  "goal": "package-audit"
+  "guardedBy": [
+    "crates/nvs-cli/src/package/advisory.rs",
+    "crates/nvs-cli/src/package/audit.rs",
+    "crates/nvs-cli/tests/package_audit.rs"
+  ]
 }

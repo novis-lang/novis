@@ -274,7 +274,7 @@ Conventions the whole file uses:
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
 - C.5 [Coming from PHP: how Novis is different, and how to port a program](#tools-php-differences) — how Novis is different from PHP, what Novis can do that PHP cannot, and how to port a program by writing it again; there is no converter and no list of PHP names *(PHP, coming from PHP, switch from PHP, differences, port, porting, rewrite, migration, converter, AI agent, coding agent, nvs agent, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Composer)*
-- C.6 [Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry *(package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish)*
+- C.6 [Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions](#tools-packages) — the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock` *(nvs pkg audit, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish)*
 - C.7 [The editor: nvs lsp, nvs lsp-test, nvs dap and the VS Code extension](#tools-editor) — the language server — every request it answers, the diagnostics it publishes, the positions it speaks and the secrets it conceals — `nvs lsp-test`, the suite that freezes an editor answer as text, `nvs dap`, the debug adapter and its launch configuration, and the VS Code extension that is the reference client *(nvs lsp, language server, LSP, Language Server Protocol, editor, IDE, VS Code, stdio, initialize, hover, go to definition, completion, autocomplete, semantic tokens, syntax highlighting, document symbol, outline, selection range, folding, document link, code action, quick fix, refactor, convert to html template, publishDiagnostics, nvs/redactions, secret, position encoding, utf-8, utf-16, nvs lsp-test, .lspt, --coverage, extension, vsix, TextMate grammar, nvs.path, nvs.lsp.enable, nvs.secrets.redact, nvs.taint.mark, reveal secret, restart language server, activation, nvs dap, debugger, debug adapter, DAP, Debug Adapter Protocol, launch.json, breakpoint, conditional breakpoint, hit count, logpoint, step over, step into, step out, exception breakpoints, skipFiles, pathMappings, stopOnEntry, nvsCommand)*
 - C.8 [Coding agents: nvs agent, and what nvs agent init installs](#tools-agents) — the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact *(nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop)*
 
@@ -58926,7 +58926,7 @@ E0739
 <a id="tools-packages"></a>
 ## C.6 Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions
 
-Keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
+Keywords: nvs pkg audit, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
 
 ### Grants: what each namespace may do
 
@@ -59594,6 +59594,53 @@ The registry saved the change. It updates the package index on its next run.
 The people who run the registry cannot delete or change a version. They can only withhold a version
 that contains malware, or that a court orders them to remove. A withheld version cannot be
 downloaded, and the package index shows the reason.
+
+### nvs pkg audit
+
+    nvs pkg audit [--json]
+
+Run this command in the folder of your application. It reads `package.lock` and lists each locked
+version that has an advisory. An advisory is a retraction or a withhold of a version. For each one,
+the command prints the reason and the smallest version that fixes it:
+
+```text
+`Acme\Http` 1.4.0 is retracted: Client::send drops the last header.
+  Update to 1.4.1 or newer.
+1 locked version has an advisory.
+```
+
+When the fix is in a new major version, the second line also says `This is a new major version.`
+When no released version fixes it yet, the second line is `No released version fixes it yet.`
+The command exits with an error while a locked version has an advisory, so you can run it in CI.
+An unlisted version has no advisory. A package from a git repository is not checked.
+
+The registry publishes its advisories in the file `log/advisories`, signed with the key of its
+transparency log. Every advisory is also an entry in the log. The command reads the whole log and
+compares the two. When the file leaves out an advisory that the log has, the command stops with an
+error. A registry cannot hide an advisory from you without the change showing.
+
+A registry can name a second copy of its log's checkpoint, on another host. The command checks that
+both copies show the same log, and prints a line when they do:
+
+```text
+The log of `https://registry.novis-lang.org` matches its second copy at `https://copy.example.com/checkpoint`.
+```
+
+When the two copies show different logs, or the copy cannot be read, the command stops with an
+error. A registry that names no copy gets one note, and the command goes on.
+
+The command also checks your `[grants]` table. Code in a namespace that no grant line matches has
+every permission of your application. `nvs pkg fetch` writes a line for each package, so this
+warning names code that somebody copied in by hand. It also names the source folder of your
+application. After you add a grant line for a namespace, the command no longer names it:
+
+```text
+warning: no line in `[grants]` matches `Acme\Legacy`, loaded from `lib/Legacy`. Its code has every permission your application has.
+  If it is not your application's own code, add a line for `Acme\Legacy\*` to `[grants]` in `package.toml`, with the permissions it needs.
+```
+
+A warning does not change the exit code. `--json` prints the same report as one JSON object, with
+the lists `advisories`, `registries` and `unmatched`.
 
 ### The registry website
 

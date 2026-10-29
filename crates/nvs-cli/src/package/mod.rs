@@ -195,6 +195,9 @@ enum Command {
     /// A registry can name a second copy of its log's checkpoint on another
     /// host. The command checks that both copies show the same log.
     ///
+    /// The command also warns about code in a namespace that no line of
+    /// `[grants]` matches. That code has every permission of your application.
+    ///
     /// The command exits with an error while a locked version has an
     /// advisory, so you can run it in CI.
     Audit {

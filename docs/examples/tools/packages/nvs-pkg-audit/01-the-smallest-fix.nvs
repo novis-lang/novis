@@ -1,0 +1,71 @@
+<?nvs
+// Shows how `nvs pkg audit` finds the smallest version that fixes each advisory of a locked package.
+
+// The versions in `package.lock`.
+array<string> $locked = ['acme/http' => '1.4.0', 'acme/cache' => '2.0.1'];
+
+// The advisory feed of the registry. Each advisory is a retraction or a withhold of one version.
+string $feed = '{"schema":1,"advisories":['
+    . '{"log":7,"entry":{"kind":"retract","package":"acme/http","version":"1.4.0","reason":"Client::send drops the last header.","fixed_in":"1.4.2"}},'
+    . '{"log":9,"entry":{"kind":"withhold","package":"acme/http","version":"1.4.2","reason":"It contains malware."}}'
+    . ']}';
+
+// The released versions of `acme/http`, oldest first.
+array<string> $released = ['1.3.0', '1.4.0', '1.4.1', '1.4.2', '1.4.3', '1.5.0'];
+
+final class Audit
+{
+    // Returns `true` when version `$a` is smaller than version `$b`.
+    public static function older(tainted string $a, tainted string $b): bool
+    {
+        array<tainted string> $left = Core\Str::split($a, '.');
+        array<tainted string> $right = Core\Str::split($b, '.');
+        for (int $i = 0; $i < 3; $i++) {
+            int $x = $left[$i] as int;
+            int $y = $right[$i] as int;
+            if ($x != $y) {
+                return $x < $y;
+            }
+        }
+        return false;
+    }
+}
+
+array<mixed> $file = Core\Json::decode($feed) as array<mixed>;
+array<mixed> $advisories = $file['advisories'] as array<mixed>;
+
+// Lists every version that has an advisory, such as `acme/http 1.4.2`.
+array<tainted string> $bad = [];
+foreach ($advisories as mixed $item) {
+    array<mixed> $named = ($item as array<mixed>)['entry'] as array<mixed>;
+    $bad[] = ($named['package'] as tainted string) . ' ' . ($named['version'] as tainted string);
+}
+
+int $found = 0;
+foreach ($advisories as mixed $item) {
+    array<mixed> $entry = ($item as array<mixed>)['entry'] as array<mixed>;
+    tainted string $package = $entry['package'] as tainted string;
+    tainted string $version = $entry['version'] as tainted string;
+    if (($locked[$package] ?? '') != $version) {
+        continue;
+    }
+    $found++;
+    string $state = ($entry['kind'] as tainted string) == 'retract' ? 'retracted' : 'withheld';
+    echo $package, ' ', $version, ' is ', $state, ': ', $entry['reason'] as tainted string, "\n";
+
+    // The fix is newer than the locked version and at least `fixed_in`.
+    // It must not have an advisory itself. Version 1.4.2 is withheld, so this prints `1.4.3`.
+    tainted string $floor = ($entry['fixed_in'] ?? $version) as tainted string;
+    ?string $fix = null;
+    foreach ($released as string $candidate) {
+        if (Audit::older($version, $candidate) && !Audit::older($candidate, $floor)
+            && !Core\Arr::contains($bad, $package . ' ' . $candidate)) {
+            $fix = $candidate;
+            break;
+        }
+    }
+    echo '  Update to ', $fix ?? 'nothing yet', " or newer.\n";
+}
+
+// `acme/cache` 2.0.1 has no advisory. The command exits with an error while this number is not 0.
+echo $found, " locked version has an advisory.\n";

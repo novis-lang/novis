@@ -1,0 +1,158 @@
+<?nvs
+// Attack: a registry hides a retraction from its advisory feed, but its log still has it.
+// The client compares the feed with the log, so every step below should be found and stopped.
+
+// The key of the registry's log. The client knows the public key from its configuration.
+Core\Crypto\KeyPair $key = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+Core\Crypto\KeyPair $stranger = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// The entries of the log. Entry 1 retracts version 1.2.0, the version in `package.lock`.
+string $publish = '{"kind":"publish","package":"acme/http","v":1,"version":"1.2.0"}';
+string $retract = '{"kind":"retract","package":"acme/http","reason":"It deletes files.","v":1,"version":"1.2.0"}';
+string $fix = '{"kind":"publish","package":"acme/http","v":1,"version":"1.2.1"}';
+array<string> $log = [$publish, $retract, $fix];
+
+// The checks a client runs on an advisory feed.
+class FeedCheck
+{
+    // The hash of one entry is SHA-256 of the byte 0x00 and then the entry.
+    public static function leafHash(string $entry): bytes
+    {
+        return Core\Hash::of(Core\Bytes::join([Core\Encoding::fromHex('00'), $entry as bytes]), Core\Hash::Digest::Sha256);
+    }
+
+    // Computes the root hash of a list of entries.
+    // The left part is the largest power of two that is smaller than the count.
+    public static function root(array<string> $entries): bytes
+    {
+        int $count = Core\Arr::count($entries) as int;
+        if ($count == 1) {
+            return FeedCheck::leafHash($entries[0]);
+        }
+        int $split = 1;
+        while ($split * 2 < $count) {
+            $split = $split * 2;
+        }
+        bytes $left = FeedCheck::root(Core\Arr::values(Core\Arr::slice($entries, 0, $split)));
+        bytes $right = FeedCheck::root(Core\Arr::values(Core\Arr::slice($entries, $split, null)));
+        return Core\Hash::of(Core\Bytes::join([Core\Encoding::fromHex('01'), $left, $right]), Core\Hash::Digest::Sha256);
+    }
+
+    // Returns `true` when an entry is a retraction or a withhold.
+    public static function isAdvisory(string $entry): bool
+    {
+        return Core\Str::contains($entry, '"kind":"retract"') || Core\Str::contains($entry, '"kind":"withhold"');
+    }
+
+    // Writes a feed of the first `$size` entries of `$entries` that lists the entries at `$listed`.
+    public static function write(array<string> $entries, int $size, array<int> $listed): string
+    {
+        array<string> $lines = [];
+        foreach ($listed as int $n) {
+            $lines[] = '{"log":' . $n . ',"entry":' . $entries[$n] . '}';
+        }
+        array<string> $first = Core\Arr::values(Core\Arr::slice($entries, 0, $size));
+        return '{"schema":1,"advisories":[' . Core\Str::join($lines, ',') . '],"checkpoint":{"size":' . $size
+            . ',"root":"' . Core\Encoding::toBase64(FeedCheck::root($first)) . '"}}';
+    }
+
+    // Checks the feed against the log, and returns the record number of every advisory.
+    // `$signed` is the signed root hash. Any difference throws an error.
+    public static function check(string $feed, bytes $signature, Core\Crypto\PublicKey $public, array<string> $served, bytes $signed): array<int>
+    {
+        Core\Crypto::verify($feed as bytes, $signature, $public);
+        if (!Core\Hash::equals(FeedCheck::root($served), $signed)) {
+            throw new RuntimeError('the log does not give the signed root hash');
+        }
+        array<mixed> $file = Core\Json::decode($feed) as array<mixed>;
+        array<mixed> $checkpoint = $file['checkpoint'] as array<mixed>;
+        int $size = $checkpoint['size'] as int;
+        array<string> $first = Core\Arr::values(Core\Arr::slice($served, 0, $size));
+        if (!Core\Hash::equals(FeedCheck::root($first), Core\Encoding::fromBase64($checkpoint['root'] as tainted string))) {
+            throw new RuntimeError('the feed names another log');
+        }
+        array<int> $listed = [];
+        array<mixed> $advisories = $file['advisories'] as array<mixed>;
+        foreach ($advisories as mixed $item) {
+            array<mixed> $line = $item as array<mixed>;
+            int $n = $line['log'] as int;
+            if (Core\Json::encode($line['entry']) != $served[$n]) {
+                throw new RuntimeError('the feed lists record ' . $n . ' with other bytes than the log has');
+            }
+            $listed[] = $n;
+        }
+        // Every advisory in the log must be listed. An entry past the feed's size is read from the log itself.
+        array<int> $found = [];
+        for (int $i = 0; $i < Core\Arr::count($served); $i++) {
+            if (!FeedCheck::isAdvisory($served[$i])) {
+                continue;
+            }
+            if ($i < $size && !Core\Arr::contains($listed, $i)) {
+                throw new RuntimeError('the feed does not list record ' . $i . ', an advisory in the log');
+            }
+            $found[] = $i;
+        }
+        return $found;
+    }
+}
+
+Core\Crypto\PublicKey $public = $key->publicKey();
+bytes $signed = FeedCheck::root($log);
+
+// 1. The honest feed lists the retraction. The check passes and finds record 1.
+// Each step below catches its error, so the next step still runs.
+string $honest = FeedCheck::write($log, 3, [1]);
+try {
+    array<int> $found = FeedCheck::check($honest, Core\Crypto::sign($honest as bytes, $key), $public, $log, $signed);
+    echo '1. the honest feed has ', Core\Arr::count($found), " advisory\n";
+} catch (Throwable $e) {
+    echo '1. the honest feed was not accepted: ', $e->message, "\n";
+}
+
+// 2. The registry leaves the retraction out of the feed and signs it with its real key.
+string $hidden = FeedCheck::write($log, 3, []);
+try {
+    FeedCheck::check($hidden, Core\Crypto::sign($hidden as bytes, $key), $public, $log, $signed);
+    echo "2. the feed without the retraction was accepted\n";
+} catch (Throwable $e) {
+    echo '2. stopped: ', $e->message, "\n";
+}
+
+// 3. The feed lists the retraction with a harmless reason.
+string $softer = Core\Str::replace($honest, 'It deletes files.', 'A typo in the readme.');
+try {
+    FeedCheck::check($softer, Core\Crypto::sign($softer as bytes, $key), $public, $log, $signed);
+    echo "3. the changed reason was accepted\n";
+} catch (Throwable $e) {
+    echo '3. stopped: ', $e->message, "\n";
+}
+
+// 4. The feed names a log of 1 entry, so the retraction is past its end.
+string $short = FeedCheck::write($log, 1, []);
+try {
+    array<int> $reported = FeedCheck::check($short, Core\Crypto::sign($short as bytes, $key), $public, $log, $signed);
+    if (Core\Arr::contains($reported, 1)) {
+        echo "4. stopped: the client read record 1 from the log, and it is a retraction\n";
+    } else {
+        echo "4. the retraction past the end of the feed was not found\n";
+    }
+} catch (Throwable $e) {
+    echo '4. stopped: ', $e->message, "\n";
+}
+
+// 5. The registry also removes the retraction from the log it serves.
+array<string> $rewritten = [$publish, $fix];
+try {
+    FeedCheck::check($hidden, Core\Crypto::sign($hidden as bytes, $key), $public, $rewritten, $signed);
+    echo "5. the rewritten log was accepted\n";
+} catch (Throwable $e) {
+    echo '5. stopped: ', $e->message, "\n";
+}
+
+// 6. Somebody else signs the feed without the retraction with another key.
+try {
+    FeedCheck::check($hidden, Core\Crypto::sign($hidden as bytes, $stranger), $public, $log, $signed);
+    echo "6. the feed signed with another key was accepted\n";
+} catch (Throwable $e) {
+    echo "6. stopped: the signature is not from the registry's key\n";
+}

@@ -16,8 +16,7 @@ application's own.
 (`rule:config/no-configuration-file-is-a-complete-configuration`): on a CLI run it reads and writes
 any file, reaches public hosts and loopback, and runs any program, and in server work it reads its
 app folder and reaches public hosts, all with nothing written. Hand-vendored code with no grant line
-holds all of that, so the audit warning is the mitigation for the wider defaults too, and the package
-goal that builds the audit keeps it. Code a package manager fetched never holds a default: its line
+holds all of that, so the audit warning is the mitigation for the wider defaults too. Code a package manager fetched never holds a default: its line
 is checked alone (`rule:security/package-authority-is-granted-one-line-at-a-time`).
 
 A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
@@ -28,4 +27,8 @@ A discovery glob happens to skip a directory such as `vendor/` because its name 
   that exists. A grant line written for every fetched package, empty ones included, gives the same
   protection where it matters without charging the common case.
 
-**Not on disk.** There is no fetch step and no audit that writes or checks these lines.
+**Where it lives.** `nvs pkg fetch` writes the grant line of every package it places
+(`crates/nvs-cli/src/package/fetch.rs`). `nvs pkg audit` walks every program under the
+application's folder and warns on each autoload prefix no line matches, the application's own
+source tree included until a line names it (`crates/nvs-cli/src/package/audit.rs`). The warning
+never changes the exit status.

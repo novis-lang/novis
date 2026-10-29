@@ -1,8 +1,8 @@
 ---
 id: packages
 title: "Packages: grants, package.toml, adding, fetching, updating, packing and publishing packages, and API versions"
-summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry
-keywords: package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
+summary: the `[grants]` table in an application's `package.toml`, which says what each namespace may do, the rules every file of a package follows, every key of `package.toml`, `nvs pkg add`, `nvs pkg fetch` and `nvs pkg vendor`, which add a package and write it under `vendor/` with `package.lock`, `nvs pkg update` and `nvs pkg outdated`, `--locked`, `nvs pkg pack`, `nvs pkg download` and `nvs pkg provide`, the registry's transparency log and its signed index files, `nvs pkg api` and `nvs pkg diff`, which find every breaking change between two versions, and `nvs pkg login`, `nvs pkg whoami`, `nvs pkg publish`, `nvs pkg retract` and `nvs pkg unlist`, which publish a package and change its versions on the registry, and `nvs pkg audit`, which lists each advisory for the versions in `package.lock`
+keywords: nvs pkg audit, advisory, advisories, log/advisories, second copy, checkpoint copy, package.toml, grants, nvs pkg add, nvs pkg fetch, nvs pkg vendor, nvs pkg update, nvs pkg outdated, nvs pkg pack, nvs pkg download, nvs pkg provide, [[download]], SHA-256, download cache, archive, package.lock, --locked, vendor, vendor/packages.nvs, registry, registries, dependencies, git dependency, digest, BLAKE3, released, retracted, withheld, unlisted, install, E0317, transparency log, checkpoint, signed note, Ed25519, fork, nvs registry key, nvs registry log append, nvs registry log verify, nvs registry index sign, nvs pkg api, nvs pkg diff, public API, breaking change, version, semantic versioning, major, minor, patch, [grants], namespace, package, vendor, dependency, capability, capabilities, required, optional, Core\Cap::has, E0655, E0656, E0657, E0658, E0659, E0660, E0661, permission, supply chain, third-party code, nvs pkg login, nvs pkg whoami, nvs pkg publish, nvs pkg retract, nvs pkg unlist, publish token, nvsreg_, pending, passkey, publish
 ---
 
 <!-- src: `rule:security/grants-are-keyed-on-a-namespace`, `rule:security/authority-is-the-enclosing-namespace`, `rule:security/longest-prefix-wins`, `rule:security/package-authority-is-granted-one-line-at-a-time`, `rule:security/optional-capability-degrades`, `rule:packaging/a-package-file-stays-under-its-declared-prefix`, `rule:packaging/a-package-cannot-reach-its-host` -->
@@ -697,6 +697,55 @@ The registry saved the change. It updates the package index on its next run.
 The people who run the registry cannot delete or change a version. They can only withhold a version
 that contains malware, or that a court orders them to remove. A withheld version cannot be
 downloaded, and the package index shows the reason.
+
+<!-- src: `rule:packaging/a-known-bad-version-is-retracted-not-deleted`, `rule:security/an-unmatched-namespace-holds-the-application` -->
+
+# nvs pkg audit
+
+    nvs pkg audit [--json]
+
+Run this command in the folder of your application. It reads `package.lock` and lists each locked
+version that has an advisory. An advisory is a retraction or a withhold of a version. For each one,
+the command prints the reason and the smallest version that fixes it:
+
+```text
+`Acme\Http` 1.4.0 is retracted: Client::send drops the last header.
+  Update to 1.4.1 or newer.
+1 locked version has an advisory.
+```
+
+When the fix is in a new major version, the second line also says `This is a new major version.`
+When no released version fixes it yet, the second line is `No released version fixes it yet.`
+The command exits with an error while a locked version has an advisory, so you can run it in CI.
+An unlisted version has no advisory. A package from a git repository is not checked.
+
+The registry publishes its advisories in the file `log/advisories`, signed with the key of its
+transparency log. Every advisory is also an entry in the log. The command reads the whole log and
+compares the two. When the file leaves out an advisory that the log has, the command stops with an
+error. A registry cannot hide an advisory from you without the change showing.
+
+A registry can name a second copy of its log's checkpoint, on another host. The command checks that
+both copies show the same log, and prints a line when they do:
+
+```text
+The log of `https://registry.novis-lang.org` matches its second copy at `https://copy.example.com/checkpoint`.
+```
+
+When the two copies show different logs, or the copy cannot be read, the command stops with an
+error. A registry that names no copy gets one note, and the command goes on.
+
+The command also checks your `[grants]` table. Code in a namespace that no grant line matches has
+every permission of your application. `nvs pkg fetch` writes a line for each package, so this
+warning names code that somebody copied in by hand. It also names the source folder of your
+application. After you add a grant line for a namespace, the command no longer names it:
+
+```text
+warning: no line in `[grants]` matches `Acme\Legacy`, loaded from `lib/Legacy`. Its code has every permission your application has.
+  If it is not your application's own code, add a line for `Acme\Legacy\*` to `[grants]` in `package.toml`, with the permissions it needs.
+```
+
+A warning does not change the exit code. `--json` prints the same report as one JSON object, with
+the lists `advisories`, `registries` and `unmatched`.
 
 <!-- src: `rule:packaging/search-sorts-by-the-readers-choice`, `rule:packaging/the-registry-is-a-novis-program` -->
 

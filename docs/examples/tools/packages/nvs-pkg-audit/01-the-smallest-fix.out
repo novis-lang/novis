@@ -1,0 +1,3 @@
+acme/http 1.4.0 is retracted: Client::send drops the last header.
+  Update to 1.4.3 or newer.
+1 locked version has an advisory.

@@ -1,10 +1,14 @@
 {
   "title": "A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/grants-are-keyed-on-a-namespace",
     "security/package-authority-is-granted-one-line-at-a-time"
   ],
-  "guardedBy": [],
-  "goal": "package-audit"
+  "guardedBy": [
+    "crates/nvs-cli/src/package/audit.rs",
+    "crates/nvs-cli/src/package/fetch.rs",
+    "crates/nvs-cli/tests/package_audit.rs",
+    "crates/nvs-cli/tests/package_fetch.rs"
+  ]
 }
