@@ -129,6 +129,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `bun nv proofs --gate --limit 0`'s list and give each its own `--group`
   (`tools/nv/cmd/proofs.ts`).
   `until: gone tools/nv/cmd/proofs.ts:--group`
+- **A "comments only" change still makes a feature's perf figure stale when it touches a string.**
+  The figure's hash drops comments but keeps every string literal of the implementing file, and a
+  reference chapter is hashed whole. A sweep that rewrites a message or a panic text there turns
+  the proofs gate and the page stamp red at the goal end's push. In the same commit, run
+  `bun nv proofs --record-perf --group <class>` for each class the gate names, and
+  `bun nv site --stamp <page>` once the page still agrees (`tools/nv/proofs/collect.ts`).
+  `until: gone tools/nv/proofs/collect.ts:without comments, layout, test code`
 - **A bench's closing `Bench::run` passes the same literal as its `// bench: iterations` line.**
   An edit to one alone makes the ramp skip the bench, and `--record-perf` counts against the
   wrong N, so a bench with no allocation fails `allocations 0` (`tools/nv/cmd/scaling.ts`).

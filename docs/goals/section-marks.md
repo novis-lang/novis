@@ -54,7 +54,7 @@ stages:
     context: [tools/data/bare-section-marks.json, tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst]
   - id: 14
     title: "the other conformance cases' marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json]
   - id: 8
     title: "the check refuses every bare mark"
@@ -255,7 +255,7 @@ which keeps its number and gains its name.
 
 **Split:** as stage 2.
 
-- [ ] `nvs-cli`'s cache, worker and serve files. `crates/nvs-cli/src/cache.rs:27`, `crates/nvs-cli/src/worker.rs:1`, `crates/nvs-cli/src/serve.rs:1`
+- [x] `nvs-cli`'s cache, worker and serve files. `crates/nvs-cli/src/cache.rs:27`, `crates/nvs-cli/src/worker.rs:1`, `crates/nvs-cli/src/serve.rs:1`
 - [ ] The rest of `nvs-cli`'s entries in the record, and every count under `crates/` at zero. `crates/nvs-cli/src/main.rs:1`
 
 ### 7. the core conformance cases' marks name their documents
@@ -274,8 +274,8 @@ short.
 
 **Split:** as stage 7.
 
-- [ ] `tests/conformance/lang/`. `tools/data/bare-section-marks.json:1`
-- [ ] `reject/`, `class/`, `error/` and `config/`, and every count at zero. `tools/data/bare-section-marks.json:1`
+- [x] `tests/conformance/lang/`. `tools/data/bare-section-marks.json:1`
+- [x] `reject/`, `class/`, `error/` and `config/`, and every count at zero. `tools/data/bare-section-marks.json:1`
 
 ### 8. the check refuses every bare mark
 
@@ -284,6 +284,7 @@ or `tests/conformance/`.
 
 - [ ] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:120`
 - [ ] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:29`
+- [ ] A `§` that is a case's subject is not a citation: `a-character-that-begins-no-token-does-not-compile.nvst` writes `4 § 2` as the stray character it tests. The finder skips it by a stated rule, with a case. `tests/conformance/reject/a-character-that-begins-no-token-does-not-compile.nvst:6`
 
 ### 15. the goal is verified once, and every failure is fixed
 
@@ -302,23 +303,21 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9, 3, 10, 4, 11, 5, 12 and 6 are done. No file under `crates/` has a bare mark
-except under `nvs-cli`. The record holds 1149 marks in 440 files: `nvs-cli` 296, and
-`tests/conformance/` 853 (`core` 598, `lang` 143, `reject` 62, `class` 34, `error` 11,
-`config` 5). Two commits landed stage 12 (398 marks) and stage 6 (306 marks). Four writing
-subagents on disjoint files did the comments, and the session rewrote the 25 marks left in
-strings and read the diffs. Build, clippy and rustfmt are green.
+Stages 1, 2, 9, 3, 10, 4, 11, 5, 12, 6 and 14 are done, and stage 13's first item is. The
+record holds 623 marks in 307 files: `core` 598, the three held `nvs-cli` files 24
+(`main.rs` 18, `config.rs` 3, `script.rs` 3), and one in
+`reject/a-character-that-begins-no-token-does-not-compile.nvst`, where `§` is the stray
+character the case tests and stays (stage 8's third item). Two commits landed stage 13's 272
+marks (`c022ae6e0`) and stage 14's 254 (`933eafe66`). Five writing subagents on disjoint files
+did the comments, and the session rewrote the 20 marks left in strings and read the diffs.
+Build, clippy and rustfmt are green. `d53652640` re-recorded the 56 perf figures and the
+routes page stamp that stages 9 and 4's string edits had made stale (see the playbook).
 
-To commit two stages from one tree: `git stash push -- <stage B's crates>`, `git checkout HEAD
--- tools/data/bare-section-marks.json`, `bun nv rules --record-marks`, commit A, `git stash
-pop`, record again, commit B.
+To commit two stages from one tree: stash stage B's paths, `git checkout HEAD --
+tools/data/bare-section-marks.json`, `bun nv rules --record-marks`, commit A, `git stash pop`,
+record again, commit B.
 
-No diagnostic text changed. One message a user reads changed: the test runner's constructor
-failure in `nvs-runtime/src/dispatch.rs` drops "§ 8's" before "fixtures", and its pinning case
-`tests/conformance/lang/a-test-class-constructor-that-takes-an-argument-fails-that-test.nvst`
-changed with it. The other strings are test and panic messages. `peer.rs`'s
-`Closing::Faulted` now states the fact no rule holds: a connection past a limit is closed with a
-defined code. No test is expected to go red.
+No diagnostic text and no expected output changed. No test is expected to go red.
 
 `bun nv rules --marks` takes file paths only, so pass `git ls-files <dir>`.
 
@@ -328,17 +327,14 @@ That goal's first session fixes it.
 
 ### Next
 
-Stage 13, `nvs-cli`, without the three files live goals edit: `src/config.rs` (3,
-`app-settings`), `src/main.rs` (18) and `src/script.rs` (3, both `ci-green`). That is 272 marks.
-Take stage 14 (255 marks in `lang`, `reject`, `class`, `error` and `config`) in the same
-session; the files are disjoint. Leave stage 7 (`core`, 598) for the session after. Split
-across three or four writing subagents on disjoint files, with each brief naming its file list,
-the history method in Standing decisions, and "comments only, report each mark in a string".
-For stage 14, add to the brief that a mark in a case's expected output is not edited and is
-reported: it is a message the program prints, so it changes with the code that prints it, as
-`nvs-runtime/src/dispatch.rs`'s constructor message did. Commit each stage on its own, as § *State* says.
-- [ ] `nvs-cli`: `cache.rs` 124 (one subagent alone), then `worker.rs` 54, `serve.rs` 47, `bundle.rs` 15 and the rest of the crate's entries. `crates/nvs-cli/src/cache.rs:27`
-- [ ] Stage 14: `tests/conformance/lang/` 143, then `reject/` 62, `class/` 34, `error/` 11 and `config/` 5. `tests/conformance/lang/a-data-row-is-its-own-reported-case.nvst:1`
+Stage 7, `tests/conformance/core/`: 598 marks in 303 cases, 361 in the cases from `a` to `d`
+and 237 from `e` on. Split across four writing subagents on disjoint, alphabetical batches of
+about 150 marks each. Each brief names its file list, the history method in Standing
+decisions, and these lines: edit only the `--TEST--` line and comments; report each mark in an
+expected-output section or a string; keep LF line endings. Grep `git grep -n` for each reported
+string in the expected sections before changing it. Stage 13's last item stays held.
+- [ ] Stage 7: the cases from `a` to `d`, two subagents. `tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst:1`
+- [ ] Stage 7: the cases from `e` on, two subagents. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
 - [ ] The three held `nvs-cli` files wait until `app-settings` and `ci-green` are gone from `docs/goals/`, or go to stage 8's session. `crates/nvs-cli/src/main.rs:1`
 
 ### Backlog
@@ -354,5 +350,16 @@ reported: it is a message the program prints, so it changes with the code that p
 - `stmt.rs`'s head comment had a broken `rule:types/grammar`.2's left over from a chapter
   commit, now fixed. Others of that shape (a rule token followed by `.N`) are not marks, so the
   check does not see them. `git grep -nE "rule:[a-z/-]+\`\.[0-9]"` finds them.
+- Facts the records held that no rule states now, reported by stage 14's subagents: `nvs test`
+  does not run the entry file's top-level statements (only `rule:testing/coverage-report`
+  mentions it); `nvs test` reports classes in sorted order; a constant-time `secret`
+  comparison does not hide lengths; a fixture and a data row may supply different parameters of
+  one method. Each belongs in its `testing/` or `security/` rule.
+  `tests/conformance/lang/a-test-marker-is-found-in-any-class-and-the-entry-file-does-not-run.nvst:1`
+- `error/a-parse-error-carries-an-issue-list.nvst` cites "`rule:core-classes/derive-reports-every-field`'s
+  last sentence", which that rule no longer has. `tests/conformance/error/a-parse-error-carries-an-issue-list.nvst:15`
+- Some working copies of `.nvst` cases have CRLF endings, and the Edit tool can write a whole
+  file back with them. Git stores LF, so the commit is right, but `git diff --numstat` shows the
+  whole file until it is added. `tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst:1`
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
   marks. `docs/agent/conventions.md:367`
