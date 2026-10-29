@@ -10,6 +10,7 @@
 //     bun nv rules --citations         every `rule:` citation in the tree, with its resolution
 //     bun nv rules --stats             one line per topic: rules, bytes, status split
 //     bun nv rules --record-marks      write each file's count of bare section marks
+//     bun nv rules --marks PATH...     `path:line` and the line, for each bare section mark in PATHs
 //
 // A rule's structure is its record `data/rules/<topic>/<slug>.json`: its title, status, related rules
 // and guarding paths, and no prose. A rule's prose is the markdown fragment
@@ -229,6 +230,23 @@ async function recordMarks(): Promise<number> {
   const total = Object.values(counts).reduce((n, c) => n + c, 0);
   console.log(`wrote ${rel(MARK_RECORD)}: ${total} bare section mark(s) in ${Object.keys(counts).length} file(s)`);
   return 0;
+}
+
+/**
+ * `--marks PATH...`: each bare mark in the named files, as `path:line` and the line, and a count per
+ * file. It reads the files on disk, so a session rewriting marks sees what is left.
+ */
+function listMarks(paths: string[]): number {
+  let total = 0;
+  for (const path of paths) {
+    const text = readText(join(ROOT, path));
+    const lines = splitlines(text);
+    const marks = bareMarks(text);
+    for (const n of new Set(marks)) console.log(`${path}:${n}: ${lines[n - 1]!.trim()}`);
+    console.log(`${path}: ${marks.length} bare section mark(s)`);
+    total += marks.length;
+  }
+  return total > 0 ? 1 : 0;
 }
 
 /**
@@ -567,15 +585,16 @@ function* citations(): Generator<[string, number, string]> {
 
 const USAGE = [
   "usage: nv rules [-h] [--check] [--render] [--list] [--show ID] [--locate ID]",
-  "                [--citations] [--stats] [--record-marks]",
+  "                [--citations] [--stats] [--record-marks] [--marks PATH ...]",
 ].join("\n");
 
 export async function run(args: string[]): Promise<number> {
   let parsed;
   try {
     parsed = parseArgs(args, {
-      flags: ["--check", "--render", "--list", "--citations", "--stats", "--record-marks"],
+      flags: ["--check", "--render", "--list", "--citations", "--stats", "--record-marks", "--marks"],
       valued: ["--show", "--locate"],
+      positionals: true,
     });
   } catch (e) {
     if (!(e instanceof ArgError)) throw e;
@@ -592,6 +611,11 @@ export async function run(args: string[]): Promise<number> {
     if (out.length > 0) process.stdout.write(out.join("\n") + "\n");
   };
   if (flags.has("--record-marks")) return await recordMarks();
+  if (flags.has("--marks")) return listMarks(parsed.positionals);
+  if (parsed.positionals.length > 0) {
+    console.error(`${USAGE}\nnv rules: error: a PATH is read only with --marks`);
+    return 2;
+  }
   const book = new Rulebook();
 
   if (flags.has("--list")) {
