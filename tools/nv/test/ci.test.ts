@@ -165,6 +165,26 @@ describe("bun nv ci --watch", () => {
     expect(old.slept).toEqual([POLL_IDLE_MS, POLL_IDLE_MS]);
   });
 
+  test("`--past` covers each shard of a matrix job, and nothing that only starts with its name", async () => {
+    const shards = (id: number) => [
+      jobOf(11, "miri units (nvs-stdlib 1/12)", "completed", "failure", "miri nextest"),
+      jobOf(12, "miri units (nvs-runtime 1/2)", "completed", "failure", "miri nextest"),
+      jobOf(13, "miri", "completed", id === 17 ? "success" : "failure", "miri test"),
+    ];
+    const w = seams("past-shards", (p) => ({
+      runs: [runOf(17, "CI", p < 1 ? "in_progress" : "completed", p < 1 ? null : "failure")],
+      jobs: { 17: shards(17) },
+    }));
+    expect(await ci(["--watch", "--past", "miri units"], w.s)).toBe(4);
+    expect(w.said.filter((l) => l.startsWith("  passing over FAILED CI / miri units ("))).toHaveLength(2);
+    const other = seams("past-shards-other", () => ({
+      runs: [runOf(18, "CI", "completed", "failure")],
+      jobs: { 18: shards(18) },
+    }));
+    expect(await ci(["--watch", "--past", "miri units"], other.s)).toBe(1);
+    expect(other.said.some((l) => l.startsWith('FAILED CI / miri / step "miri test"'))).toBe(true);
+  });
+
   test("a run still going beside a newer one of its workflow is cancelled once, and the newer one watched", async () => {
     const w = seams("two", (p) => ({
       runs: [

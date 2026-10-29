@@ -37,10 +37,11 @@
 //
 // **`--past <job>`**, given once per job, passes over a failure that somebody else's open work owns, so
 // the watch goes on for every other job. It names a job, or the jobs under it: `--past proofs` covers
-// `proofs / linux-x86_64`. A passed-over job is printed once and its log is not read. A run whose every
-// failed job is passed over counts as ended, so an idle watch waits for the next run, and a watch that
-// saw such a run end exits 4 with no other red. `ci-green`'s session passes the red a main loop's stage
-// still owns this way, which `sleep` cannot.
+// `proofs / linux-x86_64`, and `--past "miri units"` covers each shard, such as `miri units (nvs-stdlib
+// 1/12)`. A passed-over job is printed once and its log is not read. A run whose every failed job is
+// passed over counts as ended, so an idle watch waits for the next run, and a watch that saw such a run
+// end exits 4 with no other red. `ci-green`'s session passes the red a main loop's stage still owns
+// this way, which `sleep` cannot.
 //
 // **`--next`** passes over every run that had already ended when the watch started, so the watch waits
 // for the next push's runs. A session whose fixes for a red run are committed and not yet pushed
@@ -334,8 +335,11 @@ function sayRefused(s: CiSeams): boolean {
   return true;
 }
 
-/** Whether job `name` is `p` or a job under it, such as `proofs / linux-x86_64` under `proofs`. */
-const under = (name: string, p: string) => name === p || name.startsWith(`${p} / `);
+/**
+ * Whether job `name` is `p` or a job under it: a reusable workflow's job, such as `proofs / linux-x86_64`
+ * under `proofs`, or a matrix shard, such as `miri units (nvs-stdlib 1/12)` under `miri units`.
+ */
+const under = (name: string, p: string) => name === p || name.startsWith(`${p} / `) || name.startsWith(`${p} (`);
 
 /**
  * Watches until a job fails (1), every run it saw in progress is green (0), or `maxMin` passes (3). A
