@@ -1,0 +1,4 @@
+{
+  "feature": "tools:agents/nvs-agent-changes",
+  "hostile": "`nvs agent changes` reads no program, so no program can attack it; its one input is the `--since` value, and a malformed one is pinned by `crates/nvs-cli/tests/agent.rs::changes_since_a_malformed_version_is_a_usage_error`."
+}

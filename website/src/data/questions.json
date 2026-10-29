@@ -155,7 +155,7 @@
   },
   "/guides/example-apps/notes/": {
     "feature": "guides/example-apps/notes.mdx",
-    "hash": "98c53586e135fb41",
+    "hash": "e536ea7c70e9c10f",
     "questions": [
       "Example web app with SQLite, HTML pages and a JSON API",
       "How do I download and run the Notes example app?",
@@ -167,7 +167,7 @@
   },
   "/guides/example-apps/paperwork/": {
     "feature": "guides/example-apps/paperwork.mdx",
-    "hash": "f115b94ee88e541c",
+    "hash": "3f417e77f937697d",
     "questions": [
       "Example app that makes PDF invoices, reports and tickets",
       "See a sample PDF made with Novis",
@@ -1021,7 +1021,7 @@
   },
   "/reference/cli/nvs-agent-changes/": {
     "feature": "tools:agents/nvs-agent-changes",
-    "hash": "73eddab70d523e87",
+    "hash": "1fe3bce7ed012e71",
     "questions": [
       "What changed in Novis since the version my project uses?",
       "Read the release notes from the installed nvs binary",

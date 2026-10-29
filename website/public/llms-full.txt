@@ -60470,6 +60470,24 @@ the result on its own.
 version or `null`, and a `sections` array. Each section has its `version`, its `date` and its
 `text`, which is the section as the changelog has it.
 
+```text
+nvs agent changes --since 0.2.0
+nvs agent changes --since v0.2.0 --json
+```
+
+The second command prints a document like this one:
+
+```json
+{
+  "schemaVersion": 1,
+  "sections": [
+    { "date": "2026-11-02", "text": "### Features\n\n- ...", "version": "0.3.0" }
+  ],
+  "since": "0.2.0",
+  "version": "0.3.0"
+}
+```
+
 ### nvs agent init
 
     nvs agent init [--agent <name>]... [--all] [--force | --check] [--no-hooks]
