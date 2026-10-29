@@ -290,8 +290,7 @@ impl Seen {
                 log::check_tree(&proof, long.size(), long.root(), short.size(), short.root())
                     .is_ok();
             // Tiles that do not lead to the longer root are the host's fault, not a second log.
-            if !proved
-                && log::tree_hash(long.size(), &mut tiles).ok().as_ref() != Some(long.root())
+            if !proved && log::tree_hash(long.size(), &mut tiles).ok().as_ref() != Some(long.root())
             {
                 return Err(unusable(
                     "the log's tiles do not match the longer checkpoint".to_owned(),

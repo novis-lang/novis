@@ -193,7 +193,9 @@ fn found(
         Entry::Withhold { reason, .. } => ("withhold", reason.clone(), None),
         _ => unreachable!("a feed lists retractions and withholds only"),
     };
-    let floor = fixed_in.as_deref().and_then(|fix| fix.parse::<Version>().ok());
+    let floor = fixed_in
+        .as_deref()
+        .and_then(|fix| fix.parse::<Version>().ok());
     let slug = locked.name.slug();
     let bump = index.and_then(|index| {
         index
