@@ -479,10 +479,14 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   }
 }
 
-/** How many programs marked `requires: samba-ad` run at once, whatever the pool's width. One Samba
- * directory answers all of them, and a full pool of them slows it past the `timeout` the proof blocks
- * in `nvs.toml` set, so a call or a TLS handshake fails and the same program ends differently each run. */
-const SAMBA_AD_JOBS = 2;
+/** How many programs marked `requires: samba-ad` run at once, whatever the pool's width: one. One Samba
+ * directory answers all of them, and each Samba LDAP worker serves every connection it holds in one loop,
+ * so a slow call of one program delays each call of another program on the same worker. A `changes` costs
+ * Samba about 1.5 s, and on a loaded CI runner the wait behind one passed the 5 s `timeout` of the proof
+ * blocks in `nvs.toml`, so a program that ran beside it ended in a `Timeout` on a call of its own.
+ * `runPrograms` passes over these programs while the slot is taken, so the pool stays full and the cost
+ * is only that they no longer overlap each other. */
+const SAMBA_AD_JOBS = 1;
 let sambaRunning = 0;
 const sambaWaiting: (() => void)[] = [];
 
@@ -961,7 +965,23 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
   const width = jobsFor(todo.length);
   const started = performance.now();
   const cached = results.size;
-  let next = 0;
+  // Which programs need a Samba slot (`SAMBA_AD_JOBS`), read once, so a worker takes another program
+  // while those slots are taken instead of waiting for one.
+  const shared = todo.map((p) => SAMBA_AD_RE.test(existsSync(abs(p.path)) ? readFileSync(abs(p.path), "utf8") : ""));
+  const taken = todo.map(() => false);
+  let first = 0;
+  let sharedRunning = 0;
+  /** The index of the next program not taken yet, passing over one that needs a Samba slot while every
+   * slot is taken; when only those are left, the first of them, which then waits for a slot. */
+  const pick = (): number | undefined => {
+    while (first < todo.length && taken[first]) first++;
+    if (first >= todo.length) return undefined;
+    let at = first;
+    while (at < todo.length && (taken[at] || (shared[at] && sharedRunning >= SAMBA_AD_JOBS))) at++;
+    if (at >= todo.length) at = first;
+    taken[at] = true;
+    return at;
+  };
   let ran = 0;
   let failed = 0;
   const say = () => progress(`proofs: ${ran}/${todo.length} programs run${cached ? ` (${cached} more unchanged)` : ""}${failed ? `, ${failed} failed` : ""}`);
@@ -975,9 +995,16 @@ export async function runPrograms(bin: Binary, programs: Program[], opts: RunOpt
     results.set(`${t.what}:${t.path}`, { verdict, why, cached: false, ...(out ? { ran: out } : {}) });
   };
   const worker = async () => {
-    while (next < todo.length && opts.stop?.() !== true) {
-      const t = todo[next++]!;
-      await runOne(t);
+    while (opts.stop?.() !== true) {
+      const at = pick();
+      if (at === undefined) break;
+      const t = todo[at]!;
+      if (shared[at]) sharedRunning++;
+      try {
+        await runOne(t);
+      } finally {
+        if (shared[at]) sharedRunning--;
+      }
       ran++;
       const got = results.get(`${t.what}:${t.path}`)!;
       if (got.verdict === "fail") failed++;
