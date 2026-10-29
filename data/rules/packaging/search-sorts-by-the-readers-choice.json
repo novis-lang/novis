@@ -1,11 +1,15 @@
 {
   "title": "Registry search sorts by the reader's choice, ranks only on facts the registry witnessed and on downloads, and counts downloads without storing an address",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/the-registry-is-a-novis-program",
     "packaging/registry-hosting-is-configuration",
     "packaging/only-a-major-may-break-the-api"
   ],
-  "guardedBy": [],
-  "goal": "registry-website"
+  "guardedBy": [
+    "apps/registry/src/SearchTest.nvs",
+    "apps/registry/src/PackagePageTest.nvs",
+    "apps/registry/src/DownloadsTest.nvs",
+    "crates/nvs-cli/tests/registry_build.rs"
+  ]
 }

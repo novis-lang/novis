@@ -1,6 +1,6 @@
 {
   "title": "The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/the-registry-builds-the-archive-from-git",
     "packaging/the-registry-keeps-an-append-only-log",
@@ -10,6 +10,8 @@
     "core-classes/passkey-verifies-a-webauthn-ceremony",
     "core-classes/web-push-sends-an-encrypted-message"
   ],
-  "guardedBy": [],
-  "goal": "registry-website"
+  "guardedBy": [
+    "crates/nvs-cli/tests/registry_build.rs",
+    "apps/registry/src/PublishTest.nvs"
+  ]
 }

@@ -4,8 +4,9 @@ witnessed work and downloads, and also by date, by activity, by downloads or by 
 **Witnessed work is only what the registry saw with its own clock or measured in the code it built:**
 age on the registry, months with at least one release, time since the last release, public API size
 (from `nvs pkg api`), doc-comment coverage, and retractions that name a fixed-in version. Git history,
-such as the first commit date or the commit count, is shown as "from the repository, not checked" and
-never ranks, because anybody can write it.
+such as the first commit date or the commit count, never ranks, because anybody can write it. The
+registry clones only the commit it builds, so it never reads that history, and a page shows only the
+repository and the commit each version was built from.
 
 **The formula is one file in the repository**, `apps/registry/src/Ranking.nvs`, whose doc comment states
 it in words. Every package page shows every fact the formula reads and links to that file. The aim is
@@ -26,6 +27,13 @@ from mirrors and from `vendor/` are not counted.
 A ranking a publisher can write into a repository is a ranking a publisher can fake. Facts the registry
 observed itself cannot be backdated, and showing every one of them lets a reader judge the default
 order instead of trusting it.
+
+Search is `GET /api/search?q=&sort=` (`apps/registry/src/Search.nvs`), over SQLite's full-text index
+of each package's name, readme summary and doc comments. A query keeps its first eight runs of letters
+and digits, so no full-text operator reaches the index. A pending, withheld or unlisted version counts
+for nothing, and a package with no other version is not returned. `Ranking::facts` reads every fact in
+one query per request, and the package page (`apps/registry/src/PackagePage.nvs`) shows each fact, the
+score and a link to the formula. `Downloads` counts both kinds of download through `Downloads::add`.
 
 **Memory:** a download count is one row per version per day. The day's salt and its set of hashes are
 the only per-address data, and both are deleted when the day ends.

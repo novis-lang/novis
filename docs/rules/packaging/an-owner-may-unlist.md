@@ -22,7 +22,7 @@ index file shows the version as `unlisted`. A token cannot unlist: the request i
 the page where an owner confirms it, and `nvs pkg unlist` prints that page
 (`crates/nvs-cli/src/package/unlist.rs`). The client resolves and fetches an unlisted version a
 minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
-(`crates/nvs-cli/src/package/minimum.rs`).
-
-**Not on disk.** There is no search, no package page and no owners' notification yet, so nothing
-hides an unlisted package from a listing, and no owner is told of an unlist.
+(`crates/nvs-cli/src/package/minimum.rs`). Each `unlist` and `relist` entry also writes the owners'
+notice in its transaction (`apps/registry/src/Events.nvs`). Search counts no unlisted version and
+returns no package whose every version is unlisted (`apps/registry/src/Ranking.nvs`), and the package
+page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`).

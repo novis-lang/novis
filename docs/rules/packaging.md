@@ -3,7 +3,7 @@
 
 # Packaging
 
-*3 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 93 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -1471,7 +1471,7 @@ written yet.
 
 <a id="packaging-the-registry-is-a-novis-program"></a>
 
-## The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands  *(designed — owned by goal registry-website)*
+## The registry service and website are the Novis application `apps/registry/`, and its byte work is the same Rust the client runs, in `nvs` subcommands
 
 `rule:packaging/the-registry-is-a-novis-program`
 
@@ -1515,7 +1515,11 @@ child process whose memory ends with it.
 - **Byte work written in Novis.** Cloning, packing, digesting and log signing are the client's code
   already, and a second copy could produce a different digest.
 
-**Not on disk.** There is no `apps/registry/` and no `nvs registry` command.
+The application's `README.md` is the deployment guide: the commands that run it and every setting of
+`hosting.json`. `NvsBuilder` runs `nvs registry build`, `NvsLog` runs `nvs registry log append` and
+`nvs registry index sign`, and runs `nvs registry log verify` when the registry restores itself
+(`LogCheck`). The application's tests replace each of them with a double, and
+`crates/nvs-cli/tests/registry_build.rs` runs the real service against the real `nvs`.
 
 <sub>See also [`packaging/the-registry-builds-the-archive-from-git`](packaging.md#packaging-the-registry-builds-the-archive-from-git), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/registry-hosting-is-configuration`](packaging.md#packaging-registry-hosting-is-configuration), [`packaging/only-a-major-may-break-the-api`](packaging.md#packaging-only-a-major-may-break-the-api), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`core-classes/passkey-verifies-a-webauthn-ceremony`](core-classes.md#core-classes-passkey-verifies-a-webauthn-ceremony), [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message).</sub>
 
@@ -1765,8 +1769,6 @@ owner confirmed, so a request's work stays bounded as the registry grows.
 - **An Atom or RSS feed.** A feed reader cannot check a signature, and a second key only for feeds is one
   more secret for the operator. The log's key already signs, and its public key is already published.
 - **Sending inside the change's transaction.** A slow push service would hold the database's write lock.
-
-**Not on disk.** There is no registry.
 
 <sub>See also [`core-classes/web-push-sends-an-encrypted-message`](core-classes.md#core-classes-web-push-sends-an-encrypted-message), [`packaging/a-release-waits-seven-days-unless-an-owner-confirms`](packaging.md#packaging-a-release-waits-seven-days-unless-an-owner-confirms), [`packaging/an-account-stays-active-by-proof-not-by-token`](packaging.md#packaging-an-account-stays-active-by-proof-not-by-token), [`packaging/a-registry-account-is-a-passkey`](packaging.md#packaging-a-registry-account-is-a-passkey).</sub>
 
@@ -2295,10 +2297,10 @@ index file shows the version as `unlisted`. A token cannot unlist: the request i
 the page where an owner confirms it, and `nvs pkg unlist` prints that page
 (`crates/nvs-cli/src/package/unlist.rs`). The client resolves and fetches an unlisted version a
 minimum names, and `nvs pkg add` and `nvs pkg update` never choose one on their own
-(`crates/nvs-cli/src/package/minimum.rs`).
-
-**Not on disk.** There is no search, no package page and no owners' notification yet, so nothing
-hides an unlisted package from a listing, and no owner is told of an unlist.
+(`crates/nvs-cli/src/package/minimum.rs`). Each `unlist` and `relist` entry also writes the owners'
+notice in its transaction (`apps/registry/src/Events.nvs`). Search counts no unlisted version and
+returns no package whose every version is unlisted (`apps/registry/src/Ranking.nvs`), and the package
+page shows the version as `unlisted` (`apps/registry/src/PackagePage.nvs`).
 
 <sub>See also [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-operator-only-withholds`](packaging.md#packaging-the-operator-only-withholds), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log).</sub>
 
@@ -2392,7 +2394,7 @@ a cached archive until its cache lifetime ends, because the service never purges
 
 <a id="packaging-search-sorts-by-the-readers-choice"></a>
 
-## Registry search sorts by the reader's choice, ranks only on facts the registry witnessed and on downloads, and counts downloads without storing an address  *(designed — owned by goal registry-website)*
+## Registry search sorts by the reader's choice, ranks only on facts the registry witnessed and on downloads, and counts downloads without storing an address
 
 `rule:packaging/search-sorts-by-the-readers-choice`
 
@@ -2402,8 +2404,9 @@ witnessed work and downloads, and also by date, by activity, by downloads or by 
 **Witnessed work is only what the registry saw with its own clock or measured in the code it built:**
 age on the registry, months with at least one release, time since the last release, public API size
 (from `nvs pkg api`), doc-comment coverage, and retractions that name a fixed-in version. Git history,
-such as the first commit date or the commit count, is shown as "from the repository, not checked" and
-never ranks, because anybody can write it.
+such as the first commit date or the commit count, never ranks, because anybody can write it. The
+registry clones only the commit it builds, so it never reads that history, and a page shows only the
+repository and the commit each version was built from.
 
 **The formula is one file in the repository**, `apps/registry/src/Ranking.nvs`, whose doc comment states
 it in words. Every package page shows every fact the formula reads and links to that file. The aim is
@@ -2424,6 +2427,13 @@ from mirrors and from `vendor/` are not counted.
 A ranking a publisher can write into a repository is a ranking a publisher can fake. Facts the registry
 observed itself cannot be backdated, and showing every one of them lets a reader judge the default
 order instead of trusting it.
+
+Search is `GET /api/search?q=&sort=` (`apps/registry/src/Search.nvs`), over SQLite's full-text index
+of each package's name, readme summary and doc comments. A query keeps its first eight runs of letters
+and digits, so no full-text operator reaches the index. A pending, withheld or unlisted version counts
+for nothing, and a package with no other version is not returned. `Ranking::facts` reads every fact in
+one query per request, and the package page (`apps/registry/src/PackagePage.nvs`) shows each fact, the
+score and a link to the formula. `Downloads` counts both kinds of download through `Downloads::add`.
 
 **Memory:** a download count is one row per version per day. The day's salt and its set of hashes are
 the only per-address data, and both are deleted when the day ends.

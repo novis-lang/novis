@@ -55,5 +55,3 @@ owner confirmed, so a request's work stays bounded as the registry grows.
 - **An Atom or RSS feed.** A feed reader cannot check a signature, and a second key only for feeds is one
   more secret for the operator. The log's key already signs, and its public key is already published.
 - **Sending inside the change's transaction.** A slow push service would hold the database's write lock.
-
-**Not on disk.** There is no registry.

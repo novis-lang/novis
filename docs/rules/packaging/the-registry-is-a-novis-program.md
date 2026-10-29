@@ -38,4 +38,8 @@ child process whose memory ends with it.
 - **Byte work written in Novis.** Cloning, packing, digesting and log signing are the client's code
   already, and a second copy could produce a different digest.
 
-**Not on disk.** There is no `apps/registry/` and no `nvs registry` command.
+The application's `README.md` is the deployment guide: the commands that run it and every setting of
+`hosting.json`. `NvsBuilder` runs `nvs registry build`, `NvsLog` runs `nvs registry log append` and
+`nvs registry index sign`, and runs `nvs registry log verify` when the registry restores itself
+(`LogCheck`). The application's tests replace each of them with a double, and
+`crates/nvs-cli/tests/registry_build.rs` runs the real service against the real `nvs`.
