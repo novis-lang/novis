@@ -13,7 +13,7 @@ stages:
         rules: [packaging/search-sorts-by-the-readers-choice]
   - id: 2
     title: a package page shows every fact the registry holds about it
-    status: open
+    status: done
     context: [apps/registry/src/Releases.nvs, apps/registry/src/Ranking.nvs, crates/nvs-cli/src/package/diff.rs, docs/rules/packaging/an-owner-may-unlist.md, docs/rules/packaging/the-operator-only-withholds.md]
     extra:
       context:
@@ -27,7 +27,7 @@ stages:
         rules: [packaging/a-registry-account-is-a-passkey, packaging/an-owner-is-notified-without-email, packaging/an-account-stays-active-by-proof-not-by-token, packaging/the-operator-only-withholds]
   - id: 4
     title: the website has its feature proofs, and its rule is shipped
-    status: open
+    status: done
     context: [docs/reference/tools/35-packages.md]
   - id: 5
     title: the goal is verified once, and every failure is fixed
@@ -37,7 +37,7 @@ checks:
   - id: registry-tests
     stage: 4
     name: the registry application's own tests pass
-    run: [cargo, run, -q, --bin, nvs, --, test, apps/registry]
+    run: [cargo, run, -q, --bin, nvs, --, test, apps/registry, --config, apps/registry/nvs.toml]
   - id: website-proofs
     stage: 4
     name: the registry website owes no feature proof
@@ -68,8 +68,10 @@ activity, by downloads and by name. The default mixes witnessed work and downloa
 **Witnessed work is only what the registry saw with its own clock or measured in the code it built:**
 age on the registry, months with at least one release, time since the last release, public API size
 (from `nvs pkg api`, goal `api-compat`), doc-comment coverage, and retractions that name a fixed-in
-version. Git history (first commit date, commit count) is shown as "from the repository, not checked"
-and never ranks.
+version. Git history (first commit date, commit count) never ranks. The registry clones only the
+commit it builds, so it never reads that history, and a page shows only the repository and the commit
+each version was built from. Why: a fact the registry cannot check is not worth a deeper clone on every
+publish.
 
 **Doc-comment coverage is produced by `nvs registry build`.** Its JSON gains `doc_coverage`: the
 public declarations that carry a doc comment, over all public declarations, counted in the same API
@@ -104,9 +106,16 @@ ranking facts read `Ranking.nvs`, so that one item waits for stage 1. Goal `pack
 writes `docs/reference/tools/35-packages.md`, where every package goal adds a heading.
 
 **Gates.** Every stage needs goal `registry-service` reached: `docs/goals/registry-service.md` is gone.
-Stage 2's advisories need `apps/registry/src/Advisories.nvs` (goal `package-audit`); until it exists,
-the page shows withholds and retractions from `Releases.nvs` and the advisory item stays open. A
-session whose gate does not hold ends `BLOCKED` naming the missing file.
+A session whose gate does not hold ends `BLOCKED` naming the missing file.
+
+**The page's advisories are the retractions and withholds in `release_states`**, the rows the signed
+feed of goal `package-audit` is written from. Reading the feed itself on the page is an item of
+`package-audit`'s stage 5, which writes `Advisories.nvs`. Why: `package-audit` comes after this goal
+on the chain, so a gate on its file would hold this goal forever, and the page already shows every fact
+the feed holds.
+
+**Search and its facts skip an unlisted version**, as they skip a pending or withheld one, and a
+package whose every version is unlisted is not returned (`rule:packaging/an-owner-may-unlist`).
 
 **Trade-offs.** No language feature changes. The pages are server-rendered by the registry's own
 Novis program, so a page costs one request's memory. Search over a few thousand packages runs in SQLite
@@ -188,11 +197,11 @@ capability and API diff sections, then a second writes the test.
 - [x] Requested capabilities and their change per version, and the API diff per version from `nvs pkg diff`. `apps/registry/src/PackagePage.nvs:1`, `crates/nvs-cli/src/package/diff.rs:1`
   - [x] The release row keeps the build's `api` report as `changes`.
   - [x] `PackagePage::capabilities` and `PackagePage::changes`.
-- [ ] Owners and their history, advisories, and the ranking facts with the link to `Ranking.nvs`. `apps/registry/src/PackagePage.nvs:1`
+- [x] Owners and their history, advisories, and the ranking facts with the link to `Ranking.nvs`. `apps/registry/src/PackagePage.nvs:1`
   - [x] Owners and the `ownership` notices of the vendor.
   - [x] The ranking facts, the score and the link to the formula (`Ranking::facts` with a `$key`).
   - [x] Retractions and withholds with their reasons.
-  - [ ] Advisories from `apps/registry/src/Advisories.nvs`, once goal `package-audit` writes it.
+  - [x] Advisories from the feed moved to goal `package-audit` (see the standing decision).
 - [x] The readme, rendered as untrusted markdown, the archive's file list with sizes, and the external downloads per version. `apps/registry/src/PackagePage.nvs:1`
   - [x] The build prints `readme` and `downloads`, and the release row keeps them with `files`.
   - [x] The readme as escaped text (see the standing decision), the files and the external downloads.
@@ -220,11 +229,16 @@ and its test, then a second writes `PolicyPage.nvs`.
 examples `bun nv proofs --id 'tools:packages/the-registry-website'` lists, then a second writes the
 attack.
 
-- [ ] The heading `# The registry website` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
-- [ ] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-registry-website/about.md:1`
-- [ ] The attack: a package tries to rank higher with a backdated git history, and its order does not change. `tests/hostile/tools/packages/the-registry-website/01-a-backdated-history.nvs:1`
-- [ ] The rule is `shipped` with `SearchTest.nvs` in its `guardedBy`, and `bun nv owners --closes registry-website` passes. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`
-- [ ] `rule:packaging/the-registry-is-a-novis-program` is `shipped` with `apps/registry/src/App.nvs` in its `guardedBy`: goal `registry-service` built the service, and its title also says the website is part of `apps/registry/`, which this goal makes true. `data/rules/packaging/the-registry-is-a-novis-program.json:1`
+- [x] The heading `# The registry website` in `docs/reference/tools/35-packages.md`. `docs/reference/tools/35-packages.md:1`
+  - [x] The chapter section, and `bun nv render --website`.
+  - [x] The Rust test `the_website_shows_a_published_package_and_search_finds_it_once_released`.
+- [x] `about.md` and the examples the proofs command lists. `docs/examples/tools/packages/the-registry-website/about.md:1`
+- [x] The attack: a package tries to rank higher with a backdated git history, and its order does not change. `tests/hostile/tools/packages/the-registry-website/01-a-backdated-git-history.nvs:1`
+- [x] The rule is `shipped` with `SearchTest.nvs` in its `guardedBy`, and `bun nv owners --closes registry-website` passes. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`
+  - [x] Search skips an unlisted version, which the rule on unlisting needs.
+  - [x] The rule's prose names the files that hold it, and git history is never read.
+- [x] `rule:packaging/the-registry-is-a-novis-program` is `shipped`, guarded by `crates/nvs-cli/tests/registry_build.rs` and `PublishTest.nvs` (a `guardedBy` names a test, not `App.nvs`). `data/rules/packaging/the-registry-is-a-novis-program.json:1`
+- [x] The stage's check `registry-tests` passes: it names `--config`, and the backup and two build doubles are fixed. `apps/registry/src/Backup.nvs:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -243,34 +257,41 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 3 are done. Stage 2 is done except advisories, which wait on goal `package-audit`'s
-`apps/registry/src/Advisories.nvs` (the gate in the standing decisions). `GET /account` serves
-`AccountPage.nvs` and `GET /policy` serves `PolicyPage.nvs`. Both use `PackagePage::layout` and
-`PackagePage::date`, which are now public. `Feeds::inboxRows` is the one inbox query, which
-`/api/inbox` and the account page share. `AccountPageTest.nvs` has three tests, and all three pass.
+Stages 1 to 4 are done. Stage 5, the gate stage, is next. The advisory item of stage 2 moved to goal
+`package-audit`'s stage 5 (the standing decision says why): `package-audit` is after this goal on the
+chain, so its gate could never hold here.
 
-The acceptance sweep's `env-secret-proofs` is not a check this tree defines. The floor in
-`docs/goals/README.md` holds `floor-debt`, `proofs-gate` and `website-render`, the check's log is dated
-Oct 22, and `bun nv proofs --gate --only 'Core\Env::secret'` exits 0. The command quoted without
-quotes loses its backslash in a shell (`CoreEnv::secret`, not on the roster, exit 1), which is the
-likely source of the red. The nightly run 40662443492 is the same stale run the last handoff named.
+This session wrote `# The registry website` in `docs/reference/tools/35-packages.md`, its `about.md`,
+one example, the attack `01-a-backdated-git-history.nvs`, and the Rust test
+`the_website_shows_a_published_package_and_search_finds_it_once_released` in
+`crates/nvs-cli/tests/registry_build.rs`, which publishes through the real service and reads both pages
+and the search. `bun nv proofs --gate --only tools:packages/the-registry-website` owes nothing. Both
+rules are `shipped`, and `bun nv owners --closes registry-website` is clean. Search now skips an
+unlisted version (`Ranking::facts`), with `SearchTest::anUnlistedReleaseIsNotFoundOrCounted`.
 
-Tests that may go red in stage 5: none expected. Only `AccountPageTest.nvs` ran this session.
-`FeedsTest.nvs` covers `/api/inbox`, whose query moved into `Feeds::inboxRows` unchanged, and
-did not run.
+The check `registry-tests` ran without `--config`, so the app had no grants and 48 tests failed. It
+now names `apps/registry/nvs.toml`. With it, nine tests failed for two real causes, both fixed: the
+build doubles of `BackupTest` and `IndexTest` printed schema 1 with no `doc_coverage`, and
+`Backup::dump` wrote the blobs of FTS5's shadow tables, so every backup failed once `search` existed.
+All 83 tests of the app pass now.
+
+The acceptance sweep's `env-secret-proofs` is stale: its log is dated Oct 22 and records `exit 0`.
+The nightly run 40662443492 is the same stale, cancelled run the last two handoffs named.
+
+Tests that may go red in stage 5: none expected. `registry_build.rs` lost its inline setup to
+`publisher`, and both its service tests pass. Nothing outside `apps/registry` and that file changed
+in code.
 
 ### Next
 
-Stage 4, the website's feature proofs and its rules shipped. `bun nv proofs --id
-'tools:packages/the-registry-website'` says "no feature" until the heading exists.
-- [ ] The heading `# The registry website` in `docs/reference/tools/35-packages.md:661` (after the last heading, `# nvs pkg retract and nvs pkg unlist`), then `bun nv proofs --id 'tools:packages/the-registry-website'` for the list it owes
-- [ ] `about.md` and the examples. `docs/examples/tools/packages/nvs-pkg-publish/about.md:1` for the shape of a sibling
-- [ ] The attack with a backdated git history. `apps/registry/src/Ranking.nvs:1`, `apps/registry/src/SearchTest.nvs:1`
-- [ ] Both rules `shipped`. `data/rules/packaging/search-sorts-by-the-readers-choice.json:1`, `data/rules/packaging/the-registry-is-a-novis-program.json:1`
+Stage 5, the gate stage: verify the goal once, and fix every failure in one pass.
+- [ ] `looper verify` with `run_in_background`, then end the turn to wait. `tools/nv/cmd/verify.ts:1`
+- [ ] Group the failures by cause and fix them in one pass. `apps/registry/src/App.nvs:1`, `crates/nvs-cli/tests/registry_build.rs:1`
+- [ ] The goal-end gates: `bun nv verify --doc`, `bun nv owners --closes registry-website`, `bun nv ci --check`. `docs/goals/registry-website.md:1`
+- [ ] Before `DONE`, move each decision only this file holds into `rule:packaging/search-sorts-by-the-readers-choice` or a module doc. `docs/rules/packaging/search-sorts-by-the-readers-choice.md:1`
 
 ### Backlog
 
-- Advisories on a package page come from the feed of goal `package-audit` (`docs/goals/package-audit.md`).
-  `PackagePage::advisories` is where they go.
-- `docs/rules/packaging/an-owner-is-notified-without-email.md`'s *Not on disk* says "There is no
-  registry", which is out of date. Stage 4 or the owner of that rule rewrites it.
+- A search row restored from a backup is checked only indirectly: `aRestoreBringsBackEveryRelease`
+  restores releases, not `search`. A test that a restored registry still finds a package belongs to
+  whoever next changes `Backup.nvs`.

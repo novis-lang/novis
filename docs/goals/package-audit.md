@@ -134,6 +134,7 @@ second checkpoint copy when the operator configures one.
 
 - [ ] The signed feed, written by the service from each retraction and withhold. `apps/registry/src/Advisories.nvs:1`, `apps/registry/src/Withhold.nvs:1`
 - [ ] The index root's `checkpoint_copy`, from the service's configuration. `apps/registry/src/Index.nvs:1`
+- [ ] The package page's *Advisories* section reads each entry of the feed, with a link to the signed feed. It shows each retraction and withhold from `release_states` until then. `apps/registry/src/PackagePage.nvs:301`
 - [ ] A test: a retraction and a withhold each appear in the feed, and the client's reader accepts it. `apps/registry/src/AdvisoriesTest.nvs:1`
 
 ### 2. `nvs pkg audit` names the minimum bump that clears each advisory, and compares a second copy of the checkpoint
