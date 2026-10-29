@@ -1739,13 +1739,14 @@
   },
   "/reference/core/arr/": {
     "feature": "Core\\Arr",
-    "hash": "0ab01194b1f88e7c",
+    "hash": "f81766e90c9e01fa",
     "questions": [
       "How do I work with arrays?",
       "Sort, filter and combine lists of values",
       "What functions are there for lists and maps?",
       "How do I change an array without changing the original?",
-      "Find, count and group items in an array"
+      "Find, count and group items in an array",
+      "Remove null values from a list"
     ]
   },
   "/reference/core/arr/all/": {
@@ -2264,12 +2265,14 @@
   },
   "/reference/core/arr/sortbykey/": {
     "feature": "Core\\Arr::sortByKey",
-    "hash": "b7444d3f4a066e44",
+    "hash": "461d7ae6bd668d31",
     "questions": [
       "How do I sort an array by its keys?",
       "Order a map alphabetically by key name",
       "Sort a map by key in descending order",
-      "Sort keys as numbers and keep every key"
+      "Sort keys as numbers and keep every key",
+      "Put some keys first in a fixed order",
+      "Move the id column to the front of every row"
     ]
   },
   "/reference/core/arr/sum/": {
@@ -2333,6 +2336,17 @@
       "Get a list without its last item",
       "Delete the final value without changing the original array",
       "Return every item except the last one"
+    ]
+  },
+  "/reference/core/arr/withoutnull/": {
+    "feature": "Core\\Arr::withoutNull",
+    "hash": "c6d6cb66595bce96",
+    "questions": [
+      "How do I remove null values from an array?",
+      "Filter out empty results and keep the keys",
+      "Turn a list of nullable values into a list without null",
+      "Keep only the ids a lookup found",
+      "Does removing null also remove zero or an empty string?"
     ]
   },
   "/reference/core/ast/": {

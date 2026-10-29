@@ -31507,7 +31507,7 @@ Fills the placeholders in `$template` with `$arguments` and returns the text. Th
 <a id="core-core-arr"></a>
 ### `Core\Arr`
 
-Keywords: array, list, dictionary, count, filter, map, reduce, keys, values, first, last, search, slice, chunk, push, pop, append, prepend, pad, reverse, flip, fill, range, combine, column, merge, overlay, underlay, diff, intersect, unique, sum, product, average, min, max, sort, natural sort, stable sort, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average, shapeAs
+Keywords: array, list, dictionary, count, filter, map, reduce, keys, values, first, last, search, slice, chunk, push, pop, append, prepend, pad, reverse, flip, fill, range, combine, column, merge, overlay, underlay, diff, intersect, unique, sum, product, average, min, max, sort, natural sort, stable sort, isset, array + array, group by, copy-on-write, immutable, count, filter, map, mapKeys, groupBy, reduce, find, findKey, any, all, isEmpty, hasKey, contains, keyOf, isList, keys, values, first, last, firstKey, lastKey, slice, replaceRange, chunk, append, prepend, withoutFirst, withoutLast, withoutNull, padStart, padEnd, reverse, flip, flatten, flattenDeep, column, sort, sortByKey, fill, fillKeys, range, fromKeysAndValues, from, overlay, overlayDeep, underlay, appendAll, diff, intersect, countBy, unique, min, max, sum, product, average, shapeAs
 
 `Core\Arr` has the array functions as static methods. Each one returns a **new** array and never
 changes its argument. `Core\Arr::sort` returns the sorted array, and `append` returns the longer one.
@@ -31594,6 +31594,7 @@ ada 92 no note
 | [`Core\Arr::prepend`](#core-core-arr-prepend) | `prepend(array<T> $a, T ...$values): array<T>` |
 | [`Core\Arr::withoutFirst`](#core-core-arr-withoutfirst) | `withoutFirst(array<T> $a): array<T>` |
 | [`Core\Arr::withoutLast`](#core-core-arr-withoutlast) | `withoutLast(array<T> $a): array<T>` |
+| [`Core\Arr::withoutNull`](#core-core-arr-withoutnull) | `withoutNull(array<?T> $a): array<T>` |
 | [`Core\Arr::padStart`](#core-core-arr-padstart) | `padStart(array<T> $a, uint $size, T $value): array<T>` |
 | [`Core\Arr::padEnd`](#core-core-arr-padend) | `padEnd(array<T> $a, uint $size, T $value): array<T>` |
 | [`Core\Arr::reverse`](#core-core-arr-reverse) | `reverse(array<T> $a, { preserveKeys?: bool }): array<T>` |
@@ -31602,7 +31603,7 @@ ada 92 no note
 | [`Core\Arr::flattenDeep`](#core-core-arr-flattendeep) | `flattenDeep(array<mixed> $a): array<mixed>` |
 | [`Core\Arr::column`](#core-core-arr-column) | `column(array<array<T>> $a, int\|string $column, { indexBy?: int\|string }): array<T>` |
 | [`Core\Arr::sort`](#core-core-arr-sort) | `sort(array<T> $a, { by?: callable, order?: Core\Arr::Order, comparator?: callable, preserveKeys?: bool }): array<T>` |
-| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable }): array<T>` |
+| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int\|string> }): array<T>` |
 | [`Core\Arr::fill`](#core-core-arr-fill) | `fill(uint $count, T $value): array<T>` |
 | [`Core\Arr::fillKeys`](#core-core-arr-fillkeys) | `fillKeys(array<int\|string> $keys, T $value): array<T>` |
 | [`Core\Arr::range`](#core-core-arr-range) | `range(int $start, int $end, { step?: int }): array<int>` |
@@ -32068,6 +32069,21 @@ Returns every entry except the last. `last` returns the value it removes.
 
 **Returns** `array<T>` — The remaining entries under their own keys, never renumbered; the empty array for an array of one entry or none.
 
+<a id="core-core-arr-withoutnull"></a>
+#### `Core\Arr::withoutNull`
+
+```nvs skip
+Core\Arr::withoutNull(array<?T> $a): array<T>
+```
+
+Returns every entry whose value is not `null`. The type of the values no longer includes `null`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `array<?T>` | The array to remove `null` values from. |
+
+**Returns** `array<T>` — The other entries under their own keys, never renumbered. `Core\Arr::values` renumbers them.
+
 <a id="core-core-arr-padstart"></a>
 #### `Core\Arr::padStart`
 
@@ -32209,7 +32225,7 @@ Returns the entries in order. The sort is stable, so equal entries keep their or
 #### `Core\Arr::sortByKey`
 
 ```nvs skip
-Core\Arr::sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable }): array<T>
+Core\Arr::sortByKey(array<T> $a, { order?: Core\Arr::Order, comparator?: callable, keys?: array<int|string> }): array<T>
 ```
 
 Returns the entries in key order. The sort is stable, and every key is kept.
@@ -32219,10 +32235,11 @@ Returns the entries in key order. The sort is stable, and every key is kept.
 | `$a` | `array<T>` | The array to sort. |
 | `{ order: … }` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal keys keep their insertion order. |
 | `{ comparator: … }` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s. It returns a negative number, zero or a positive number. It replaces the natural order. |
+| `{ keys: … }` | `array<int\|string>` (default `null`) | The keys to put first, in this order. The other keys follow in their current order. A listed key that `$a` does not have is skipped. With `Desc`, the other keys come first, then the listed keys from last to first. |
 
 **Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`.
 
-**Throws** `RuntimeError` — The comparator returned `NaN`.
+**Throws** `RuntimeError` — The comparator returned `NaN`.; `LogicError` — The call gives both `keys` and `comparator`.
 
 <a id="core-core-arr-fill"></a>
 #### `Core\Arr::fill`

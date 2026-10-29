@@ -1228,6 +1228,39 @@
           "examples": "core/Arr/withoutLast"
         },
         {
+          "id": "Arr.withoutNull",
+          "name": "withoutNull",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "withoutNull(array<?T> $a): array<T>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "a",
+              "type": "array<?T>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "array<T>",
+          "doc": {
+            "shortHtml": "Returns every entry whose value is not <code>null</code>. The type of the values no longer includes <code>null</code>.",
+            "params": [
+              {
+                "name": "a",
+                "descHtml": "The array to remove <code>null</code> values from."
+              }
+            ],
+            "returnHtml": "The other entries under their own keys, never renumbered. <code>Core\\Arr::values</code> renumbers them."
+          },
+          "slug": "withoutnull",
+          "url": "/reference/core/arr/withoutnull/",
+          "examples": "core/Arr/withoutNull"
+        },
+        {
           "id": "Arr.padStart",
           "name": "padStart",
           "static": true,
@@ -1626,7 +1659,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "sortByKey(array<T> $a, { order?: Core\\Arr::Order, comparator?: callable }): array<T>",
+          "signature": "sortByKey(array<T> $a, { order?: Core\\Arr::Order, comparator?: callable, keys?: array<int|string> }): array<T>",
           "params": [
             {
               "kind": "param",
@@ -1645,6 +1678,10 @@
             {
               "name": "comparator",
               "type": "callable"
+            },
+            {
+              "name": "keys",
+              "type": "array<int|string>"
             }
           ],
           "returnType": "array<T>",
@@ -1662,6 +1699,10 @@
               {
                 "name": "comparator",
                 "descHtml": "Called as <code>($a, $b)</code> on two keys, both <code>string</code>s. It returns a negative number, zero or a positive number. It replaces the natural order."
+              },
+              {
+                "name": "keys",
+                "descHtml": "The keys to put first, in this order. The other keys follow in their current order. A listed key that <code>$a</code> does not have is skipped. With <code>Desc</code>, the other keys come first, then the listed keys from last to first."
               }
             ],
             "returnHtml": "The same entries under the same keys, ordered by key; the natural order is bytewise, so <code>&quot;10&quot;</code> precedes <code>&quot;9&quot;</code>.",
@@ -1669,6 +1710,10 @@
               {
                 "error": "RuntimeError",
                 "descHtml": "The comparator returned <code>NaN</code>."
+              },
+              {
+                "error": "LogicError",
+                "descHtml": "The call gives both <code>keys</code> and <code>comparator</code>."
               }
             ]
           },
