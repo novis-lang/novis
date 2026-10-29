@@ -191,7 +191,7 @@
   },
   "/guides/extensions/rust/": {
     "feature": "guides/extensions/rust.mdx",
-    "hash": "adf1beba76c45047",
+    "hash": "00b555143661f5f9",
     "questions": [
       "Step by step guide to write an extension in Rust",
       "Convert Markdown to HTML with a Rust library",

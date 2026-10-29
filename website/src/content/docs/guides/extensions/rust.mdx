@@ -119,8 +119,9 @@ struct.
 tag from the text into the result unchanged. Step 6 makes the result safe a second time, in Novis.
 
 This extension uses only strings. A function with a `bytes` parameter or result uses two helpers.
-They are in the template's `src/lib.rs` from Step 1. `read_all` reads a `bytes` parameter into a
-`Vec<u8>`. `bytes_from` returns a `Vec<u8>` as a new `Bytes`. In Rust, `Bytes` is
+They are in the template's `src/lib.rs` from Step 1.
+
+`read_all` reads a `bytes` parameter into a `Vec<u8>`. `bytes_from` returns a `Vec<u8>` as a new `Bytes`. In Rust, `Bytes` is
 `nvs::ext::types::Bytes`. The template's `reverse` uses both:
 
 ```rust
