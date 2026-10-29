@@ -13,7 +13,7 @@ exactly one trigger, and it is a person choosing `Run workflow`.
 | | | Writes |
 |---|---|---|
 | 1 | `plan` — the next version, and the notes rendered from the commit log, or for the first release the written [release-notes/first.md](release-notes/first.md) | nothing |
-| 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
+| 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied; skipped when the commit already passed a full CI run, a `schedule` or a `workflow_dispatch` | nothing |
 | 3 | `build` — six targets and the VS Code extension as `nvs-<version>.vsix`, each at the version being released, from [build.yml](../.github/workflows/build.yml) | nothing |
 | 4 | `publish` — bump, changelog, commit, tag, push, draft release with the archives and the `.vsix` | **everything, at once** |
 | 5 | `docker` — two image variants, from the binaries step 3 built, each smoke-tested by `tests/docker/smoke.sh` before it is pushed, from [image.yml](../.github/workflows/image.yml) | the immutable image tags; in a dry run, nothing |

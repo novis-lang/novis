@@ -11,6 +11,7 @@ import {
   FIRST_NOTES,
   firstReleaseNotes,
   fixesIn,
+  greenFullRun,
   nextVersion,
   notesFor,
   parseLog,
@@ -22,6 +23,7 @@ import {
   tarGz,
   zip,
   type ArchiveFile,
+  type WorkflowRun,
 } from "../cmd/release.ts";
 
 const MANIFEST = [
@@ -293,5 +295,52 @@ describe("nv release archives", () => {
       at += 46 + nameLen;
     }
     expect(names).toEqual(["nvs-0.1.0-windows/README.md", "nvs-0.1.0-windows/nvs"]);
+  });
+});
+
+describe("greenFullRun", () => {
+  const SHA = "a".repeat(40);
+  let next = 1;
+  const ciRun = (over: Partial<WorkflowRun>): WorkflowRun => {
+    const id = next++;
+    return { id, head_sha: SHA, event: "schedule", status: "completed", conclusion: "success", html_url: `https://example.com/runs/${id}`, ...over };
+  };
+
+  test("a green schedule run and a green dispatch run count", () => {
+    for (const event of ["schedule", "workflow_dispatch"]) {
+      const run = ciRun({ event });
+      expect(greenFullRun([run], SHA)).toBe(run);
+    }
+  });
+
+  test("a green push or pull_request run does not count, because it ran only its diff's lanes", () => {
+    expect(greenFullRun([ciRun({ event: "push" }), ciRun({ event: "pull_request" })], SHA)).toBeNull();
+  });
+
+  test("a failed, cancelled or unfinished full run does not count", () => {
+    const runs = [
+      ciRun({ conclusion: "failure" }),
+      ciRun({ conclusion: "cancelled" }),
+      ciRun({ conclusion: "timed_out" }),
+      ciRun({ status: "in_progress", conclusion: null }),
+      ciRun({ status: "queued", conclusion: null }),
+    ];
+    expect(greenFullRun(runs, SHA)).toBeNull();
+  });
+
+  test("a green full run of another commit does not count, nor does a prefix of the sha", () => {
+    expect(greenFullRun([ciRun({ head_sha: "b".repeat(40) })], SHA)).toBeNull();
+    expect(greenFullRun([ciRun({})], SHA.slice(0, 9))).toBeNull();
+  });
+
+  test("among several runs it returns a green full one", () => {
+    const green = ciRun({ event: "workflow_dispatch" });
+    const runs = [ciRun({ event: "push" }), ciRun({ conclusion: "failure" }), ciRun({ head_sha: "c".repeat(40) }), green, ciRun({ status: "in_progress", conclusion: null })];
+    expect(greenFullRun(runs, SHA)).toBe(green);
+    expect(greenFullRun(runs, SHA.toUpperCase())).toBe(green);
+  });
+
+  test("no runs at all is untested", () => {
+    expect(greenFullRun([], SHA)).toBeNull();
   });
 });

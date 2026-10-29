@@ -12,6 +12,12 @@
 #
 #     plan → test → build → publish → docker
 #
+# `test` is skipped when the commit being released already has a green full run of `ci.yml`, a
+# nightly `schedule` or a `workflow_dispatch`. That run is the same commit and the same definition
+# `test` would call, so the release keeps its proof and loses its longest step. `plan` looks it up
+# with `bun nv release --tested`, and `build` and `publish` read a skipped `test` as passed and a
+# failed or cancelled one as the end of the release.
+#
 # `build` also packages the VS Code extension, and it runs both from `build.yml`, which the dev
 # build after each push to `main` calls too.
 #
@@ -111,10 +117,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
+      # To list ci.yml's runs for `github.sha`, and nothing else: `--tested` below.
+      actions: read
     outputs:
       version: ${{ steps.plan.outputs.version }}
       tag: ${{ steps.plan.outputs.tag }}
       previous_tag: ${{ steps.plan.outputs.previous_tag }}
+      tested: ${{ steps.tested.outputs.tested }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -154,13 +163,30 @@ jobs:
           VERSION: ${{ steps.plan.outputs.version }}
         run: bun nv release --notes "$VERSION" --out release-notes.md
 
+      # Whether this exact commit already passed the full suite, so `test` can be skipped. A `gh`
+      # failure answers `false`, and the suite runs.
+      - name: Look for a green full CI run of this commit
+        id: tested
+        env:
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: bun nv release --tested "$SHA" --github-output
+
       - name: Show them in the run summary
         env:
           VERSION: ${{ steps.plan.outputs.version }}
+          TESTED: ${{ steps.tested.outputs.tested }}
+          TESTED_RUN: ${{ steps.tested.outputs.tested_run }}
         run: |
           set -euo pipefail
           {
             echo "## Planned release \`$VERSION\`"
+            echo
+            if [ "$TESTED" = "true" ]; then
+              echo "This commit already passed the full suite in $TESTED_RUN, so \`test\` is skipped."
+            else
+              echo "This commit has no green full CI run, so \`test\` runs the full suite."
+            fi
             echo
             cat release-notes.md
           } >> "$GITHUB_STEP_SUMMARY"
@@ -173,10 +199,18 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # 2. The full suite, as the definition every push already runs a slice of. Not a copy of it.
+  #
+  # Skipped when `plan` found a green `schedule` or `workflow_dispatch` run of ci.yml on
+  # `github.sha`. Those two events run every job, as `full: true` does here, so that run proved the
+  # same commit against the same definition, and running it again proves nothing new. It saves the
+  # release's longest step whenever the nightly already covered the commit. A green push run does
+  # not count: it ran only the lanes its diff reaches. The release never tests a commit it creates,
+  # since `build` bumps the version in a throwaway copy, so `github.sha` is the commit to look up.
   # ---------------------------------------------------------------------------
   test:
     name: verify
     needs: plan
+    if: needs.plan.outputs.tested != 'true'
     uses: ./.github/workflows/ci.yml
     # Every gate in that file forced on. A push runs the lane its own diff needs (`rule:testing/ci-lanes`); a
     # release runs all of it, out of the same definition, so the two cannot drift apart.
@@ -197,6 +231,9 @@ jobs:
   build:
     name: build
     needs: [plan, test]
+    # A skipped need skips this job too unless the `if` says otherwise. `test` skipped means the
+    # commit was already proved, so it counts as passed. Failed or cancelled still stops the release.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.plan.outputs.version }}
@@ -216,7 +253,8 @@ jobs:
   publish:
     name: tag, changelog and draft release
     needs: [plan, test, build]
-    if: ${{ !inputs.dry_run }}
+    # The same reading of a skipped `test` as `build`'s.
+    if: ${{ !cancelled() && !inputs.dry_run && needs.plan.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     environment: release
     permissions:

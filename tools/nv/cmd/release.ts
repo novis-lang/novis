@@ -30,6 +30,14 @@
 // dispatches the release again. Only fixes are held to it, because a fix is what an advisory cites: a
 // feature that missed the build is a smaller claim, and would fail most releases while the loop runs.
 //
+// **`--tested SHA` decides whether the release runs the full suite.** It is the release's longest
+// step, and the nightly has often already run it on the very commit being released. So `--tested`
+// looks for a run of `ci.yml` on `SHA` that finished green and was a `schedule` or a
+// `workflow_dispatch`, the two events ci.yml's `FULL` runs every job for. A green `push` or
+// `pull_request` run does not count: it ran only the lanes its own diff reaches. Skipping is safe
+// because the run proved the same commit against the same definition the release would call. When
+// `gh` cannot answer, the commit counts as untested, because running the suite is the safe side.
+//
 // **The version scheme is not plain SemVer, and this is not the place that decides it.**
 // `rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it: one number for the whole workspace,
 // and before 1.0 the breaking slot moves left by one, so `--plan major` on 0.0.1 gives 0.1.0 and below
@@ -72,11 +80,11 @@ import { ROOT } from "../lib/paths.ts";
 import { run as runProc } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyInt } from "../lib/py.ts";
 
-export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags|--fixes-built";
+export const summary = "the release cycle: nv release --plan|--preview|--notes|--apply|--package|--check|--docker-tags|--fixes-built|--tested";
 
 const USAGE =
   "usage: nv release [-h] (--plan {patch,minor,major} | --preview {patch,minor,major} | --notes VERSION | " +
-  "--apply VERSION | --package | --check | --docker-tags VERSION | --fixes-built SHA) [options]";
+  "--apply VERSION | --package | --check | --docker-tags VERSION | --fixes-built SHA | --tested SHA) [options]";
 
 class Fatal extends Error {}
 
@@ -643,6 +651,73 @@ function repoUrl(): string {
   return typeof repo === "string" ? repo.replace(/\/+$/, "") : "";
 }
 
+/** `owner/name` for the GitHub API: the runner's, else the path of the manifest's `repository`. */
+function repoSlug(): string {
+  const slug = process.env.GITHUB_REPOSITORY;
+  if (slug) return slug;
+  const repo = table(table(table(parseToml(manifest())).workspace).package).repository;
+  if (typeof repo !== "string") return "";
+  return repo.replace(/^https?:\/\/[^/]+\//, "").replace(/\.git$/, "").replace(/\/+$/, "");
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Whether the commit already passed the full suite
+// ---------------------------------------------------------------------------------------------------
+
+/** One entry of `actions/workflows/{id}/runs`, with only the fields `--tested` reads. */
+export interface WorkflowRun {
+  id: number;
+  head_sha: string;
+  event: string;
+  status: string;
+  conclusion: string | null;
+  html_url: string;
+}
+
+/** The events ci.yml's `FULL` runs every job for. Every other event runs the lanes its diff reaches. */
+export const FULL_CI_EVENTS = ["schedule", "workflow_dispatch"];
+
+/**
+ * The first run of `ci.yml` in `runs` that ran every job on `sha` and finished green, or null. The sha is
+ * compared whole: a prefix could name another commit.
+ */
+export function greenFullRun(runs: WorkflowRun[], sha: string): WorkflowRun | null {
+  const want = sha.trim().toLowerCase();
+  return (
+    runs.find(
+      (r) =>
+        r.head_sha.toLowerCase() === want && FULL_CI_EVENTS.includes(r.event) && r.status === "completed" && r.conclusion === "success",
+    ) ?? null
+  );
+}
+
+/** `greenFullRun` over what GitHub lists for `sha`. A `gh` failure is a warning and null. */
+async function lookUpFullRun(sha: string): Promise<WorkflowRun | null> {
+  // The API matches `head_sha` whole, so a short sha typed locally is resolved first.
+  const full = /^[0-9a-f]{40}$/i.test(sha) ? sha : (await git(["rev-parse", "--verify", `${sha}^{commit}`])).trim();
+  const slug = repoSlug();
+  const warn = (why: string): null => {
+    console.error(`::warning::nv release: cannot tell whether ${full.slice(0, 8)} passed a full CI run (${why}). The full suite runs.`);
+    return null;
+  };
+  if (!slug) return warn("no repository: set GITHUB_REPOSITORY or `repository` in Cargo.toml");
+  let r: Awaited<ReturnType<typeof runProc>>;
+  try {
+    r = await runProc(["gh", "api", `repos/${slug}/actions/workflows/ci.yml/runs?head_sha=${full}&per_page=100`], { timeoutMs: 60_000 });
+  } catch (e) {
+    return warn(`gh did not start: ${(e as Error).message}`);
+  }
+  if (r.code !== 0) return warn(`gh api exited ${r.code}: ${r.stderr.trim()}`);
+  let runs: unknown;
+  try {
+    runs = (JSON.parse(r.stdout) as { workflow_runs?: unknown }).workflow_runs;
+  } catch {
+    return warn("gh api printed no JSON");
+  }
+  if (!Array.isArray(runs)) return warn("the reply has no workflow_runs list");
+  return greenFullRun(runs as WorkflowRun[], full);
+}
+
 /** The first release's notes, written by hand: the whole history is no release note. */
 export const FIRST_NOTES = "docs/release-notes/first.md";
 
@@ -815,6 +890,7 @@ function help(): string {
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
     "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
+    "  --tested SHA                   tested=true if SHA has a green schedule or workflow_dispatch run of ci.yml",
     "",
     "options:",
     "  -h, --help             show this help message and exit",
@@ -835,7 +911,7 @@ function help(): string {
   ].join("\n");
 }
 
-const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags", "--fixes-built"];
+const MODES = ["--plan", "--preview", "--notes", "--apply", "--package", "--check", "--docker-tags", "--fixes-built", "--tested"];
 
 function usageError(message: string): number {
   console.error(`${USAGE}\nnv release: error: ${message}`);
@@ -849,7 +925,7 @@ export async function run(args: string[]): Promise<number> {
     ({ flags, values } = parseArgs(args, {
       flags: ["--package", "--check", "--allow-contract", "--manifests-only", "--github-output", "--floating"],
       valued: [
-        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--fixes-built", "--version", "--out", "--notes-file", "--since",
+        "--plan", "--preview", "--notes", "--apply", "--docker-tags", "--fixes-built", "--tested", "--version", "--out", "--notes-file", "--since",
         "--target", "--name", "--archive", "--image", "--variant", "--max-per-section",
       ],
     }));
@@ -939,6 +1015,15 @@ export async function run(args: string[]): Promise<number> {
           return 1;
         }
         console.log(`nv release: every fix the notes cover is in ${built.slice(0, 8)}, the commit that was built.`);
+        return 0;
+      }
+
+      case "--tested": {
+        const sha = values.get("--tested")!.trim();
+        const proof = await lookUpFullRun(sha);
+        if (proof) console.error(`nv release: ${sha.slice(0, 8)} passed the full suite in ${proof.event} run ${proof.id}.`);
+        else console.error(`nv release: ${sha.slice(0, 8)} has no green full CI run; the release runs the full suite.`);
+        emitOutput(toGithub, [["tested", proof ? "true" : "false"], ["tested_run", proof?.html_url ?? ""]]);
         return 0;
       }
 
