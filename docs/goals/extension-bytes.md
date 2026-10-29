@@ -21,7 +21,7 @@ stages:
     context: [crates/nvs-ext/tests/fixtures.rs, tests/conformance/ext/fixtures/ledger/api.wit, tests/conformance/ext/fixtures/ledger/module.wat, tests/conformance/ext/fixtures/ledger/manifest.json, tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst]
   - id: 4
     title: "the templates, the guide and the figures use the resource"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/ext/new.rs, crates/nvs-cli/templates/ext/rust/src/lib.rs, crates/nvs-cli/templates/ext/c/greeting.c, website/src/content/docs/guides/extensions/rust.mdx, website/src/content/docs/guides/extensions/index.mdx]
     extra:
       context:
@@ -202,13 +202,13 @@ measured figures.
 writing subagents may write them side by side once stage 2's WIT is committed. None of them builds.
 The session writes the bench row and the rule's figures itself.
 
-- [ ] The Rust template: a helper that reads a `bytes` parameter into a `Vec<u8>`, and one that returns a `Vec<u8>` in 1 MiB parts. `crates/nvs-cli/templates/ext/rust/src/lib.rs:1`
-- [ ] The C template: the same two helpers. `crates/nvs-cli/templates/ext/c/greeting.c:1`
-- [ ] `nvs ext new` still writes a project that builds and passes its own test, in both languages. `crates/nvs-cli/src/ext/new.rs:1`
-- [ ] The Rust guide's type table and Step 4 use the resource, and *Files and the network* says a large file on disk is passed as a path with a `read` grant. `website/src/content/docs/guides/extensions/rust.mdx:86`, `website/src/content/docs/guides/extensions/rust.mdx:250`
-- [ ] *What a call costs* says a byte string crosses in one copy. `website/src/content/docs/guides/extensions/index.mdx:34`
-- [ ] The after row in the bench results, and the figures in the cost rule. `benches/results/ext-bytes.json:1`, `docs/rules/packaging/the-boundary-is-the-cost.md:9`
-- [ ] `bun nv proofs --id` for the extension feature owes nothing this goal changed, and `bun nv owners --closes extension-bytes` passes. `tools/nv/cmd/proofs.ts:1`
+- [x] The Rust template: a helper that reads a `bytes` parameter into a `Vec<u8>`, and one that returns a `Vec<u8>` in 1 MiB parts. `crates/nvs-cli/templates/ext/rust/src/lib.rs:1`
+- [x] The C template: the same two helpers. `crates/nvs-cli/templates/ext/c/greeting.c:1`
+- [x] `nvs ext new` still writes a project that builds and passes its own test, in both languages. `crates/nvs-cli/src/ext/new.rs:1`
+- [x] The Rust guide's type table and Step 4 use the resource, and *Files and the network* says a large file on disk is passed as a path with a `read` grant. `website/src/content/docs/guides/extensions/rust.mdx:86`, `website/src/content/docs/guides/extensions/rust.mdx:250`
+- [x] *What a call costs* says a byte string crosses in one copy. `website/src/content/docs/guides/extensions/index.mdx:34`
+- [x] The after row in the bench results, and the figures in the cost rule. `benches/results/ext-bytes.json:1`, `docs/rules/packaging/the-boundary-is-the-cost.md:9`
+- [x] `bun nv proofs --id` for the extension feature owes nothing this goal changed, and `bun nv owners --closes extension-bytes` passes. `tools/nv/cmd/proofs.ts:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -227,33 +227,32 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2 and 3 are done. The ledger fixture's `echo-bytes` takes a `borrow<bytes>` and
-returns a `bytes` it fills with `append`, and its new pin is in the three `nvs.toml` files that
-name it. `fixtures.rs` calls `echo-bytes` through the host, and `convert.rs`'s `echo` sends the
-`bytes` row through `call_values`. `call.rs` needed no change: it builds its `Extension`
-without the loader. `bytes.rs`'s `a_list_of_u8_in_a_third_party_signature_does_not_load` is the
-refused case. Those tests and the row-table case pass, and build, clippy and rustfmt are green.
+Stages 1 to 4 are done. Both templates export `reverse(bytes $data): bytes` beside `hello`
+(`crates/nvs-cli/templates/ext/common/wit/greeting.wit`, both `nvsx.toml`), and
+`GreetingTest.nvs` tests it. Each carries `read_all` and `bytes_from` (1 MiB `append` parts).
+The C `reverse` calls `nvs_ext_types_bytes_drop_borrow` on its parameter, because wit-bindgen
+0.63's C output does not drop a borrow unless `--autodrop-borrows yes` is passed.
+`bun nv ext-templates --lang rust` passed: built, verified, tested and called. The C leg was
+only compiled with `gcc -fsyntax-only` against the header `wit-bindgen c` 0.63.0 writes, because
+this machine has no wasi-sdk, so CI's `ext templates` job is its first full run.
 
-`nvs_ext::handle` holds the resource (`Handles::blobs`, `link_bytes`), and the bench calls
-`echoBytes` through `Request::call_values`, so the `after` row needs no bench change.
-`the-boundary-is-the-cost` has the before figures only, and stage 4 adds the after row's.
+The `after` row: a 16 MiB echo takes 5.5 ms against 876 ms, with 2 host bytes allocated per byte
+and at most 1 held at once. `the-boundary-is-the-cost` carries both rows. `bun nv owners
+--closes extension-bytes` passes, and every extension feature in the roster owes nothing.
 
-The sweep's reds were stale again: `bun nv proofs --gate --only 'CoreEnv::secret'` exits 0, and
-nightly 40847802941 ran on `8d39c49bb`, before `ef7e629e2`, `df208a541` and `dafe6c98d`.
+The sweep's reds were stale: the `env-secret-proofs` log now ends at exit 0, and nightly
+40847802941 ran on `8d39c49bb`, before `ef7e629e2`, `df208a541` and `dafe6c98d`.
 
 ### Next
 
-**Stage 4, one group**, as its `**Split:**` line says: three writing subagents for the two templates
-and the guide pages, and the session writes the bench row and the rule's figures. No gate.
+**Stage 5, the gate**, as its `**Split:**` line says: start `bun nv affected --run` in the
+background and end the turn. Then the goal-end gates of AGENTS.md § *In the loop*: `bun nv verify
+--doc`, `bun nv owners --closes extension-bytes` and `bun nv ci --check`.
 
-- [ ] The Rust template's two helpers: a `bytes` parameter read into a `Vec<u8>`, and a `Vec<u8>` returned in 1 MiB parts. `crates/nvs-cli/templates/ext/rust/src/lib.rs:1`
-- [ ] The C template's same two helpers. `crates/nvs-cli/templates/ext/c/greeting.c:1`
-- [ ] `nvs ext new` still writes a project that builds and passes its own test, in both languages. `crates/nvs-cli/src/ext/new.rs:1`
-- [ ] The Rust guide's type table, Step 4 and *Files and the network*. `website/src/content/docs/guides/extensions/rust.mdx:86`, `website/src/content/docs/guides/extensions/rust.mdx:250`
-- [ ] *What a call costs* says a byte string crosses in one copy. `website/src/content/docs/guides/extensions/index.mdx:34`
-- [ ] The `after` row: `cargo bench -p nvs-ext --bench ext_bytes -- --record after`, then the figures in the cost rule. `benches/results/ext-bytes.json:3`, `docs/rules/packaging/the-boundary-is-the-cost.md:9`
-- [ ] `bun nv proofs --id` for the extension feature, and `bun nv owners --closes extension-bytes`. `tools/nv/cmd/proofs.ts:1`
+- [ ] `bun nv affected --run` over the whole goal. `tools/nv/cmd/verify.ts:1`
+- [ ] The C template's first full build, in CI's `ext templates` job or with wasi-sdk. `crates/nvs-cli/templates/ext/c/greeting.c:53`
+- [ ] The goal-end gates, each red fixed. `tools/nv/cmd/ci.ts:1`
 
-No test is expected red.
+No test is expected red. If the C leg fails, look first at the borrow drop in `reverse`.
 
 ### Backlog
