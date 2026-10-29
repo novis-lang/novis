@@ -556,7 +556,15 @@ thread_local! {
 /// `rule:errors/diagnostic-record`'s one sink-written key, and this module is
 /// the sink for both of its writers.
 pub fn admit_log_record(record: &mut Record) -> bool {
-    let Some(count) = admit_to_table(key(record), Instant::now()) else {
+    admit_log_record_at(record, Instant::now())
+}
+
+/// [`admit_log_record`] at a clock the caller names, the way [`admit`] and
+/// [`admit_to_table`] take theirs: a test that asks which records share a
+/// window fixes `now`, so its answer does not depend on how long the machine
+/// took between two writes.
+fn admit_log_record_at(record: &mut Record, now: Instant) -> bool {
+    let Some(count) = admit_to_table(key(record), now) else {
         return false;
     };
     if count > 1 {
@@ -653,8 +661,8 @@ mod tests {
 
     use super::{
         LOG_WINDOW_SLOTS, LOG_WINDOWS, Level, Node, Rendered, Value, Window, admit,
-        admit_log_record, expire_log_windows, install_panic_hook, key, note, report_panic, text,
-        uncaught,
+        admit_log_record, admit_log_record_at, expire_log_windows, install_panic_hook, key, note,
+        report_panic, text, uncaught,
     };
     use crate::ctx::CurrentCtx;
     use crate::object::{ClassTable, NvsObj};
@@ -829,6 +837,14 @@ mod tests {
         admit_log_record(&mut carried).then(|| carried.envelope.count.unwrap_or(1))
     }
 
+    /// [`write`] at the instant `now`. A test that asks which writes share one
+    /// window passes the same `now` to each of them, so a slow runner (Miri
+    /// takes seconds between two writes) cannot close the window between them.
+    fn write_at(record: &nvs_render::Record, now: Instant) -> Option<u64> {
+        let mut carried = record.clone();
+        admit_log_record_at(&mut carried, now).then(|| carried.envelope.count.unwrap_or(1))
+    }
+
     /// `rule:errors/helper-abi`'s request-log half: a panic raised under a
     /// served request becomes one of this module's records, carrying the id
     /// [`Ctx::stamp_envelope`] would have put on any other record of that same
@@ -944,26 +960,31 @@ mod tests {
     /// `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`'s "a single
     /// slot coalesces none of that": application code interleaves its records,
     /// and each run of repeats has to be bounded on its own.
-    #[cfg_attr(
-        miri,
-        ignore = "the window is one real second, and Miri takes longer than that between writes"
-    )]
     #[test]
     fn two_interleaved_repeats_each_coalesce_rather_than_evicting_one_another() {
         let store = written("the store said no", 12);
         let queue = written("the queue is full", 30);
+        let now = Instant::now();
 
-        assert_eq!(write(&store), Some(1), "each is written the first time");
-        assert_eq!(write(&queue), Some(1), "each is written the first time");
+        assert_eq!(
+            write_at(&store, now),
+            Some(1),
+            "each is written the first time"
+        );
+        assert_eq!(
+            write_at(&queue, now),
+            Some(1),
+            "each is written the first time"
+        );
 
         for round in 0..4 {
             assert_eq!(
-                write(&store),
+                write_at(&store, now),
                 None,
                 "round {round}: the repeat is inside its own window"
             );
             assert_eq!(
-                write(&queue),
+                write_at(&queue, now),
                 None,
                 "round {round}: and the other record did not close it"
             );
@@ -1001,36 +1022,33 @@ mod tests {
 
     /// The two sinks are two windows: the floor keeps the single slot its own
     /// traffic needs, and neither table can suppress a write the other made.
-    #[cfg_attr(
-        miri,
-        ignore = "the window is one real second, and Miri takes longer than that between writes"
-    )]
     #[test]
     fn the_floor_keeps_its_single_slot_and_its_own_window() {
         let store = written("the store said no", 12);
         let queue = written("the queue is full", 30);
+        let now = Instant::now();
 
         // The floor's slot, asked the traffic the table exists for: every write
         // goes out, because each record displaces the other's window before a
         // repeat of it can be swallowed.
         for round in 0..3 {
             assert_eq!(
-                admit(key(&store), Instant::now()),
+                admit(key(&store), now),
                 Some(1),
                 "round {round}: one slot cannot hold two records"
             );
-            assert_eq!(admit(key(&queue), Instant::now()), Some(1));
+            assert_eq!(admit(key(&queue), now), Some(1));
         }
 
         // The same records through the log target's table, which the floor's
         // reports have not touched.
-        assert_eq!(write(&store), Some(1));
-        assert_eq!(write(&queue), Some(1));
-        assert_eq!(write(&store), None);
-        assert_eq!(write(&queue), None);
+        assert_eq!(write_at(&store, now), Some(1));
+        assert_eq!(write_at(&queue, now), Some(1));
+        assert_eq!(write_at(&store, now), None);
+        assert_eq!(write_at(&queue, now), None);
 
         assert_eq!(
-            admit(key(&queue), Instant::now()),
+            admit(key(&queue), now),
             None,
             "and the floor's window is still where the floor left it"
         );
@@ -1051,10 +1069,11 @@ mod tests {
         second.envelope.trace_id = Some("trace-2".to_owned());
         second.envelope.span_id = Some("span-2".to_owned());
         second.envelope.count = Some(9);
+        let now = Instant::now();
 
-        assert_eq!(write(&first), Some(1));
+        assert_eq!(write_at(&first, now), Some(1));
         assert_eq!(
-            write(&second),
+            write_at(&second, now),
             None,
             "one failure reported by two requests is one failure"
         );
@@ -1066,15 +1085,16 @@ mod tests {
     fn a_record_differing_in_its_source_line_is_written_immediately() {
         let twelve = written("the store said no", 12);
         let thirty = written("the store said no", 30);
+        let now = Instant::now();
 
-        assert_eq!(write(&twelve), Some(1));
+        assert_eq!(write_at(&twelve, now), Some(1));
         assert_eq!(
-            write(&thirty),
+            write_at(&thirty, now),
             Some(1),
             "the same message from another line is another record"
         );
         assert_eq!(
-            write(&twelve),
+            write_at(&twelve, now),
             None,
             "and each still bounds its own repeats"
         );
@@ -1085,7 +1105,7 @@ mod tests {
             .fields
             .push(("user".to_owned(), text("7")));
         assert_eq!(
-            write(&with_field),
+            write_at(&with_field, now),
             Some(1),
             "a field the others do not carry is a record they are not"
         );
