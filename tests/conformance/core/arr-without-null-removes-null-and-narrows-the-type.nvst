@@ -1,0 +1,35 @@
+--TEST--
+Core\Arr::withoutNull removes every null entry, keeps every other key, and returns array<T>
+--FILE--
+<?nvs
+array<?string> $a = ["x" => "one", "10" => null, "y" => "three", "z" => null];
+
+// The declared `?T` binds `T` to `string`, so the result fits an
+// `array<string>` with no `as`.
+array<string> $kept = Core\Arr::withoutNull($a);
+echo Core\Str::join($kept, ","), "\n";
+echo Core\Str::join(Core\Arr::keys($kept), ","), "\n";
+
+// The subject is unchanged.
+echo Core\Arr::count($a), "\n";
+
+// A union of several types keeps every member but `null`.
+array<?int|string> $mixed = [1, null, "two", null, 3];
+array<int|string> $rest = Core\Arr::withoutNull($mixed);
+echo Core\Str::join(Core\Arr::keys($rest), ","), "\n";
+
+// Only `null` is removed. `0`, `""` and `false` stay.
+array<?int|string|bool> $falsy = [0, "", false, null];
+echo Core\Arr::count(Core\Arr::withoutNull($falsy)), "\n";
+
+// An array with no `null`, and an empty array, come back with every entry.
+array<?string> $none = ["a", "b"];
+array<?string> $empty = [];
+echo Core\Arr::count(Core\Arr::withoutNull($none)), Core\Arr::count(Core\Arr::withoutNull($empty)), "\n";
+--EXPECT--
+one,three
+x,y
+4
+0,2,4
+3
+20

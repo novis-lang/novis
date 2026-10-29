@@ -41,6 +41,27 @@
 //! before it checks a single argument or records a `ResolvedCall`, so
 //! `nvs-ir`, `nvs-codegen` and every diagnostic only ever see concrete types.
 //!
+//! # A declared `?T` binds `T` without `null`
+//!
+//! A declared union of one bare variable and concrete members — `?T`, which is
+//! `null|T` — against an actual **union** removes those concrete members from
+//! the actual union, and the variable binds to what remains: `null|T` against
+//! `null|int|string` binds `T` to `int|string`. Against a type that is not a
+//! union, every declared member pairs with the whole argument, so `null|T`
+//! against `string` binds `string` and against `mixed` binds `mixed`.
+//!
+//! The reason is that the row has already said where `null` goes. Binding `T`
+//! to `null|int|string` makes `null|T` and `T` the same type, so
+//! `Core\Arr::withoutNull(array<?T>): array<T>` would answer `array<?string>`
+//! for an `array<?string>` and a call site would need an `as` after a member
+//! whose whole point is removing `null`. Removing is exact `TypeId` equality
+//! over canonical members, so it is one filter and one intern per call, and
+//! first-binding-wins is unchanged: the narrowed pair goes through [`bind`]
+//! like any other. A declared union whose members mention a variable inside
+//! them (`array<T>|Iterable<T>`), or that names two bare variables, keeps the
+//! pairing above, because which member a remainder belongs to is no longer one
+//! answer.
+//!
 //! # The one variable that is not at a position
 //!
 //! `map(array<T> $a, callable(T, string): U $fn): array<U>` finds `U` where
@@ -203,6 +224,13 @@ pub(crate) fn bind(
         out.entry(name).or_insert(shape);
         return;
     }
+    // A declared `?T` against an actual union: the variable binds to what the
+    // declared side does not already name. This module's docs own the rule.
+    // Ahead of the pair table because the remainder is a new union to intern.
+    if let Some((variable, remainder)) = narrowed_pair(declared, actual, interner) {
+        bind(variable, remainder, interner, graph, signatures, out);
+        return;
+    }
 
     let mut through_interface: Option<(QName, Vec<TypeId>, QName, Vec<TypeId>)> = None;
     let pairs: Vec<(TypeId, TypeId)> = match (interner.get(declared), interner.get(actual)) {
@@ -296,11 +324,11 @@ pub(crate) fn bind(
             Vec::new()
         }
         // A declared **union**, which is where a registry row's
-        // `array<T>|Iterable<T>|Iterator<T>` and its `?T` both arrive: bind
-        // against every member and let first-binding-wins settle it. At most
-        // one member can match a given argument structurally — an array is not
-        // a class, and `null` binds nothing — so the interner's canonical
-        // member order does not decide the answer.
+        // `array<T>|Iterable<T>|Iterator<T>` and its `?T` against a non-union
+        // both arrive: bind against every member and let first-binding-wins
+        // settle it. At most one member can match a given argument
+        // structurally — an array is not a class, and `null` binds nothing —
+        // so the interner's canonical member order does not decide the answer.
         (Ty::Union(members), _) => members.iter().map(|member| (*member, actual)).collect(),
         // Neither a bag nor `rule:core-api/shape-parameter`'s shape parameter ever appears on the
         // `actual` side — a call site writes an anonymous object, which infers to
@@ -341,6 +369,43 @@ pub(crate) fn bind(
     for (declared, actual) in pairs {
         bind(declared, actual, interner, graph, signatures, out);
     }
+}
+
+/// The pair [`bind`] walks when a declared union of one bare variable and
+/// concrete members meets an actual union: the variable, and the actual union
+/// without those concrete members. `None` wherever that rule does not apply,
+/// so the union arm in [`bind`] pairs every member with the whole argument
+/// as before: a declared union with no bare variable, with two, with a member
+/// that mentions a variable inside it (`array<T>|Iterable<T>`), an actual
+/// side that is not a union, or nothing left once the members are removed.
+fn narrowed_pair(
+    declared: TypeId,
+    actual: TypeId,
+    interner: &mut TypeInterner,
+) -> Option<(TypeId, TypeId)> {
+    let (Ty::Union(declared_members), Ty::Union(actual_members)) =
+        (interner.get(declared), interner.get(actual))
+    else {
+        return None;
+    };
+    let mut variable = None;
+    for member in declared_members {
+        match interner.get(*member) {
+            Ty::TypeVar(_) if variable.is_none() => variable = Some(*member),
+            _ if mentions_type_var(*member, interner) => return None,
+            _ => {}
+        }
+    }
+    let variable = variable?;
+    let remainder: Vec<TypeId> = actual_members
+        .iter()
+        .copied()
+        .filter(|member| !declared_members.contains(member))
+        .collect();
+    if remainder.is_empty() {
+        return None;
+    }
+    Some((variable, interner.make_union(remainder)))
 }
 
 /// Rewrites `id` with `bindings` applied, interning whatever that produces.
@@ -506,6 +571,67 @@ mod tests {
         bind(declared, actual, &mut interner, &mut bindings);
         assert_eq!(bindings.get("T"), Some(&int));
         assert_eq!(substitute(declared, &bindings, &mut interner), actual);
+    }
+
+    /// `?T` against a union binds `T` to the union without `null`, which is
+    /// what lets `Core\Arr::withoutNull` answer `array<int|string>` here.
+    #[test]
+    fn a_nullable_variable_binds_to_the_union_without_null() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let null = interner.null();
+        let int = interner.int();
+        let string = interner.string();
+        let declared = interner.make_union([null, t]);
+        let actual = interner.make_union([null, int, string]);
+        let mut bindings = Bindings::default();
+        bind(declared, actual, &mut interner, &mut bindings);
+        let int_or_string = interner.make_union([int, string]);
+        assert_eq!(bindings.get("T"), Some(&int_or_string));
+    }
+
+    /// The same narrowing one level down, as `array<?T>` meets `array<?string>`.
+    #[test]
+    fn a_nullable_element_binds_to_the_element_without_null() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let null = interner.null();
+        let string = interner.string();
+        let nullable_t = interner.make_union([null, t]);
+        let declared = interner.array(nullable_t);
+        let nullable_string = interner.make_union([null, string]);
+        let actual = interner.array(nullable_string);
+        let mut bindings = Bindings::default();
+        bind(declared, actual, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&string));
+        let narrowed = interner.array(t);
+        let expected = interner.array(string);
+        assert_eq!(substitute(narrowed, &bindings, &mut interner), expected);
+    }
+
+    #[test]
+    fn a_nullable_variable_binds_to_a_plain_type_as_it_is() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let null = interner.null();
+        let string = interner.string();
+        let declared = interner.make_union([null, t]);
+        let mut bindings = Bindings::default();
+        bind(declared, string, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&string));
+    }
+
+    /// `mixed` is not a union, so nothing can be removed from it.
+    #[test]
+    fn a_nullable_variable_binds_to_mixed_as_it_is() {
+        let mut interner = TypeInterner::new();
+        let t = interner.type_var("T");
+        let null = interner.null();
+        let mixed = interner.mixed();
+        let declared = interner.make_union([null, t]);
+        let mut bindings = Bindings::default();
+        bind(declared, mixed, &mut interner, &mut bindings);
+        assert_eq!(bindings.get("T"), Some(&mixed));
     }
 
     /// The shape a `Core` row spelling its callback's signature needs: both of

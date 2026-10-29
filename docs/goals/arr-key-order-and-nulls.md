@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/arr.rs]
 stages:
   - id: 1
     title: "a `Core` signature's `?T` binds `T` without `null`, and `withoutNull` returns `array<T>`"
-    status: open
+    status: done
     context: [crates/nvs-types/src/generics.rs, crates/nvs-stdlib/src/registry.rs, docs/rules/types/arrays.md]
   - id: 2
     title: "`sortByKey` takes a `keys` option"
@@ -98,6 +98,10 @@ union, and the variable binds to what remains. `null|T` against `null|int|string
 module doc of `generics.rs` is where this rule is written, beside first-binding-wins. No `Core` row
 takes a `?T` parameter today, so no existing signature changes its answer. A user class that
 implements a generic interface at a `?T` position can; the gate stage's `nvs-types` tests show it.
+The rule applies only where the declared union has exactly one bare variable and every other member
+mentions no variable (`narrowed_pair` in `generics.rs`). `array<T>|Iterable<T>|Iterator<T>`, or a
+union of two bare variables, keeps the old pairing, because which member the remainder belongs to
+has no one answer there. When nothing is left after the removal, the old pairing applies too.
 
 **`withoutNull` over an `array<mixed>` returns `array<mixed>`.** `mixed` is not a union, so `T` binds
 to `mixed`. That is correct: the static type cannot say more.
@@ -119,13 +123,13 @@ the registry goals ahead of it on the chain and can run as a side goal.
 **Does:** `null|T` against a union binds `T` to the rest of the union, and `Core\Arr::withoutNull`
 removes every `null` entry and returns `array<T>`.
 
-- [ ] The union-against-union arm in `bind`: the declared union's non-variable members are removed from the actual union, and the variable binds to what remains, with first-binding-wins kept. `crates/nvs-types/src/generics.rs:298`
-- [ ] The module doc of `generics.rs` states the rule and why. `crates/nvs-types/src/generics.rs:1`
-- [ ] Rust tests in `generics.rs`: `null|T` against `null|int|string` binds `T` to `int|string`, against `string` binds `string`, and against `mixed` binds `mixed`. `crates/nvs-types/src/generics.rs:488`
-- [ ] The `withoutNull` row, `params: &[CoreTy::Array(&CoreTy::Nullable(&CoreTy::Var("T")))]` and `return_ty: CoreTy::Array(&CoreTy::Var("T"))`, after `withoutLast`. `crates/nvs-stdlib/src/arr.rs:431`
-- [ ] `nvs_core_arr_without_null`: one walk, skipping each `Tag::Null` value, keeping every other key with `store_at`, and its arm in `address`. `crates/nvs-stdlib/src/arr.rs:3512`, `crates/nvs-stdlib/src/arr.rs:2208`
-- [ ] Its reference card, `WITHOUT_NULL_DOC`, in the shape of `WITHOUT_LAST_DOC` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/arr.rs:1259`
-- [ ] A conformance case: `array<?string>` in, the result assigned to an `array<string>` variable with no `as`, keys kept, and `null` gone. `tests/conformance/core/arr-without-null-removes-null-and-narrows-the-type.nvst:1`
+- [x] The union-against-union arm in `bind`: the declared union's non-variable members are removed from the actual union, and the variable binds to what remains, with first-binding-wins kept. `crates/nvs-types/src/generics.rs:298`
+- [x] The module doc of `generics.rs` states the rule and why. `crates/nvs-types/src/generics.rs:1`
+- [x] Rust tests in `generics.rs`: `null|T` against `null|int|string` binds `T` to `int|string`, against `string` binds `string`, and against `mixed` binds `mixed`. `crates/nvs-types/src/generics.rs:488`
+- [x] The `withoutNull` row, `params: &[CoreTy::Array(&CoreTy::Nullable(&CoreTy::Var("T")))]` and `return_ty: CoreTy::Array(&CoreTy::Var("T"))`, after `withoutLast`. `crates/nvs-stdlib/src/arr.rs:431`
+- [x] `nvs_core_arr_without_null`: one walk, skipping each `Tag::Null` value, keeping every other key with `store_at`, and its arm in `address`. `crates/nvs-stdlib/src/arr.rs:3512`, `crates/nvs-stdlib/src/arr.rs:2208`
+- [x] Its reference card, `WITHOUT_NULL_DOC`, in the shape of `WITHOUT_LAST_DOC` (`rule:core-api/reference-card`). `crates/nvs-stdlib/src/arr.rs:1259`
+- [x] A conformance case: `array<?string>` in, the result assigned to an `array<string>` variable with no `as`, keys kept, and `null` gone. `tests/conformance/core/arr-without-null-removes-null-and-narrows-the-type.nvst:1`
 
 ### 2. `sortByKey` takes a `keys` option
 

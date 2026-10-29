@@ -438,6 +438,15 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&WITHOUT_LAST_DOC),
         },
         CoreMethod {
+            name: "withoutNull",
+            names: &["a"],
+            params: &[CoreTy::Array(&CoreTy::Nullable(&CoreTy::Var("T")))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "nvs_core_arr_without_null",
+            doc: Some(&WITHOUT_NULL_DOC),
+        },
+        CoreMethod {
             name: "padStart",
             names: &["a", "size", "value"],
             params: &[
@@ -1265,6 +1274,20 @@ const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The remaining entries under their own keys, never renumbered; the empty array for an \
           array of one entry or none.",
+    errors: &[],
+};
+
+/// `Core\Arr::withoutNull`'s reference card — `rule:core-api/reference-card`.
+const WITHOUT_NULL_DOC: MethodDoc = MethodDoc {
+    short: "Returns every entry whose value is not `null`. The type of the values no longer \
+            includes `null`.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to remove `null` values from.",
+        shape: &[],
+    }],
+    ret: "The other entries under their own keys, never renumbered. `Core\\Arr::values` \
+          renumbers them.",
     errors: &[],
 };
 
@@ -2233,6 +2256,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_arr_prepend" => (nvs_core_arr_prepend as *const ()).cast(),
         "nvs_core_arr_without_first" => (nvs_core_arr_without_first as *const ()).cast(),
         "nvs_core_arr_without_last" => (nvs_core_arr_without_last as *const ()).cast(),
+        "nvs_core_arr_without_null" => (nvs_core_arr_without_null as *const ()).cast(),
         "nvs_core_arr_from_keys_and_values" => {
             (nvs_core_arr_from_keys_and_values as *const ()).cast()
         }
@@ -3566,6 +3590,42 @@ nvs_runtime::nvs_helper! {
             if pending.is_some() {
                 copy_entry(&subject, slot, &mut out);
             }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Arr::withoutNull(array<?T> $a): array<T>` — every entry whose
+    /// value is not `null`, under its own key, replacing a `filter` whose
+    /// callback tests `!== null` and the `as` its caller needs after it.
+    ///
+    /// The narrowed return type is `nvs_types::generics`' binding rule for a
+    /// declared `?T`, not anything here. Keys are kept exactly as `filter`
+    /// keeps them, and `values` is the member that renumbers. **Memory:** one
+    /// result array per call, as `filter` makes, and no callback.
+    fn nvs_core_arr_without_null(_ctx, args: [1]) {
+        // Unreachable from source: an `array<?T>` parameter, refused at the
+        // checker — [`nvs_core_arr_count`]'s guard states the judgement.
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::withoutNull expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut out = NvsArray::with_capacity(subject.count());
+        let mut from = 0;
+        while let Some(slot) = subject.next_slot(from) {
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            if value.tag() != Some(Tag::Null) {
+                copy_entry(&subject, slot, &mut out);
+            }
+            from = slot + 1;
         }
         Ok(Value::array(out))
     }
