@@ -10,18 +10,19 @@ class Dog extends Animal {
     public int $legs = 4;
 }
 
-// § 2 row 3, and the direction that cannot go wrong: a checked name is still a
-// name, so this is total and free.
+// The `property<T> → string` row, and the direction that cannot go wrong: a
+// checked name is still a name, so this is total and free.
 property<Animal> $written = "name" as property<Animal>;
 echo $written as string, "\n";
 
-// § 2 row 1's door. The operand is computed, so the set it must be one of is
+// The `string` row's door. The operand is computed, so the set it must be one of is
 // tested when the statement runs rather than where it is written.
 string $computed = "na" . "me";
 property<Animal> $checked = $computed as property<Animal>;
 echo $checked as string, "\n";
 
-// § 2 row 2, a narrowing — and § 3's contravariance in the argument: every
+// The `property<U>` row, a narrowing — and the contravariance in the argument
+// that `rule:types/property-key-variance` states: every
 // name an `Animal` key can hold is a name a `Dog` has, so this direction runs
 // and the other one does not.
 property<Dog> $narrowed = $written as property<Dog>;
@@ -36,7 +37,7 @@ class Pick {
 }
 echo Pick::through($narrowed) as string, "\n";
 
-// `rule:expressions/nullable-conversion-availability` over § 2's rows: the sugar answers `null` exactly where the
+// `rule:expressions/nullable-conversion-availability` over the conversion's rows: the sugar answers `null` exactly where the
 // checked form throws.
 string $absent = "leg" . "s";
 ?property<Animal> $missed = $absent as ?property<Animal>;
@@ -44,7 +45,7 @@ echo $missed == null ? "null" : "some", "\n";
 ?property<Dog> $found = $absent as ?property<Dog>;
 echo $found == null ? "null" : "some", "\n";
 
-// § 2's row is a row of `rule:types/conversion`'s grid, so a miss throws rather than
+// The `string` row is a row of `rule:types/conversion`'s grid, so a miss throws rather than
 // substituting, and the message names the class and the name it was given.
 try {
     property<Animal> $bad = $absent as property<Animal>;

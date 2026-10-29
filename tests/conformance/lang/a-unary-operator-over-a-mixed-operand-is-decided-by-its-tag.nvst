@@ -28,7 +28,7 @@ echo -$md, "\n";
 // absorbs it by the rows that already absorb integer `/`'s union.
 int $back = -$i as int;
 echo $back, "\n";
-// § 4's overflow throw reaches the unary row too: `-i64::MIN` has no `int`,
+// `rule:types/arithmetic`'s overflow throw reaches the unary row too: `-i64::MIN` has no `int`,
 // and every non-zero `uint` has no negation at all.
 int $min = -9223372036854775807 - 1;
 mixed $mn = $min;

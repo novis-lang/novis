@@ -4,7 +4,7 @@ A checked `as` into a set of allowed values tests membership at run time and thr
 <?nvs
 // covers: lang:types/nullable-union-single-value-and-enum-case-types
 class Mode {
-    // § 4's checked row: `mixed` into a closed set throws unless the value
+    // `rule:types/single-value-types`'s checked row: `mixed` into a closed set throws unless the value
     // equals one of the named values. It never *converts* to reach one —
     // an `int` operand is a miss even where the set names its digits.
     public static function pick(mixed $raw): string {
@@ -16,8 +16,8 @@ class Mode {
         }
     }
 
-    // The same row over allowed `int` values, off a statically typed operand: § 5
-    // says the set is the only thing that costs anything, and it costs one
+    // The same row over allowed `int` values, off a statically typed operand: the
+    // same rule says the set is the only thing that costs anything, and it costs one
     // comparison per member either way.
     public static function level(int $n): string {
         try {
@@ -28,7 +28,7 @@ class Mode {
         }
     }
 
-    // § 4's free rows, which is what "zero additional runtime representation"
+    // The rule's free rows, which is what "zero additional runtime representation"
     // buys: the checker settled this conversion by itself (an operand outside
     // the set would be `E0469` and never run), and widening the result back to
     // its base is the same value again.

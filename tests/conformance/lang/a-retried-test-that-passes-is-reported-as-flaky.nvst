@@ -5,12 +5,12 @@ test
 --FILE--
 <?nvs
 // covers: lang:testing/test-options
-// § 20: retries exist and are reported as flaky, never as green. How many
-// times a body was entered is observable in class storage, because § 2 gives
-// the isolate to a *test* and its attempts run inside it — so each test below
+// `rule:testing/runner-is-strict`: retries exist and are reported as flaky,
+// never as green. How many times a body was entered is observable in class
+// storage, because `rule:testing/isolate-per-test` gives the isolate to a *test* and its attempts run inside it — so each test below
 // counts its own entries and no other test can read that count. A test's own
 // last attempt, or the `$actual` its failure message quotes, is therefore the
-// whole of the evidence: there is no tallying class, and under § 2 there
+// whole of the evidence: there is no tallying class, and under that rule there
 // cannot be one.
 use Core\Test;
 
@@ -21,10 +21,10 @@ final class RetryTest {
     public static int $unretriedRuns = 0;
     public static int $skippedRuns = 0;
 
-    // § 20: the flaky one. It fails on its first attempt and passes on its
+    // The flaky one. It fails on its first attempt and passes on its
     // second, so it is neither of the two verdicts either attempt alone would
     // have given — and what is reported is the failed attempt's own message.
-    #[Test(retries: 2, because: "a static counter stands in for the real DNS § 20 names")]
+    #[Test(retries: 2, because: "a static counter stands in for a real DNS lookup")]
     public function itPassesOnItsSecondAttempt(): void {
         RetryTest::$flakyRuns = RetryTest::$flakyRuns + 1;
         Test::assertSame(RetryTest::$flakyRuns, 2);
@@ -54,9 +54,9 @@ final class RetryTest {
         Test::assertSame(RetryTest::$unretriedRuns, 99);
     }
 
-    // § 20: a skip never ran, so there is nothing for a second attempt to
+    // A skip never ran, so there is nothing for a second attempt to
     // improve on. The body asserts nothing, so a skip that had been ignored
-    // would report § 20's empty-ledger failure here rather than the `-` mark.
+    // would report the empty-ledger failure here rather than the `-` mark.
     #[Test(skip: "skipped rather than retried", retries: 2, because: "the skip is what decides")]
     public function itIsSkippedRatherThanRetried(): void {
         RetryTest::$skippedRuns = RetryTest::$skippedRuns + 1;

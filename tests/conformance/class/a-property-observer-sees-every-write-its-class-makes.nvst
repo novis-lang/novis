@@ -10,8 +10,8 @@ class Account implements PropertyObserver {
     public string $owner;
     public int $balance;
     // `rule:classes/property-hooks`: a property's own hook is kept exactly as PHP 8.4 defines
-    // it — and § 3 says a hooked property is *not* exempted from the
-    // observer, so this one reaches both.
+    // it — and `rule:classes/property-observer-pipeline` says a hooked property
+    // is *not* exempt from the observer, so this one reaches both.
     public int $doubled {
         get => $this->doubled;
         set(int $n) {
@@ -65,8 +65,8 @@ class Savings extends Account {
     }
 }
 
-// § 3: "a throwing `onPropertySet` still fails the overall write" — the
-// exception propagates to the caller like any other call (`rule:errors/propagation`).
+// `rule:classes/property-observer-pipeline`: an observer that throws fails the
+// access, after the store — the exception propagates to the caller like any other call (`rule:errors/propagation`).
 final class Fussy implements PropertyObserver {
     public int $n;
 
@@ -86,7 +86,7 @@ final class Fussy implements PropertyObserver {
 echo "constructor:\n";
 Account $a = new Account("ada");
 
-// § 3, the read: the value is produced by storage, then handed to the
+// The pipeline's read: the value is produced by storage, then handed to the
 // observer, and the caller receives what storage produced — never anything
 // `onPropertyGet` answers, its return type being `void`.
 echo "plain write and read:\n";
@@ -94,7 +94,7 @@ $a->balance = 7;
 int $seen = $a->balance;
 echo "  caller sees ", $seen, "\n";
 
-// § 3, the write, on the hooked property: the `set` hook alone decides what
+// The pipeline's write, on the hooked property: the `set` hook alone decides what
 // is stored, and the observer is told the value it *committed* — 42, not the
 // 21 the caller wrote.
 echo "hooked write and read:\n";
@@ -102,7 +102,8 @@ $a->doubled = 21;
 $seen = $a->doubled;
 echo "  caller sees ", $seen, "\n";
 
-// § 4: not one line from a class that implements nothing.
+// `rule:classes/property-observer-costs-nothing-when-unused`: not one line
+// from a class that implements nothing.
 echo "a class that implements nothing:\n";
 Plain $p = new Plain();
 $p->n = 99;

@@ -125,7 +125,7 @@ string $far = "4";
 echo Twin::nullableMode($far), "\n";
 
 // `rule:types/grammar`'s two `bool` singletons as a nullable target: one value each,
-// so a closed set of exactly the kind § 5 tests. `true` is a hit; `1` is not,
+// so a closed set of exactly the kind `rule:types/single-value-types` tests. `true` is a hit; `1` is not,
 // because the test compares tags before payloads.
 mixed $yes = true;
 ?bool $flag = $yes as ?true;

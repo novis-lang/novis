@@ -5,7 +5,7 @@ test --list --format=json
 --FILE--
 <?nvs
 // covers: lang:testing/running-tests-nvs-test
-// § 22's discovery, which is what an editor's test tree is populated from: the
+// `rule:testing/report-formats`'s discovery, which is what an editor's test tree is populated from: the
 // table the compile already built, read out and located. Both tests below
 // would say so if they ran -- the first echoes and fails, the second is a skip
 // the report would carry a reason for -- and the document has neither a
@@ -19,7 +19,7 @@ final class ListedTest {
         Test::assertSame(1, 2);
     }
 
-    // § 20's skip is a verdict, and a verdict is a property of a run: a
+    // A skip is a verdict (`rule:testing/runner-is-strict`), and a verdict is a property of a run: a
     // skipped test is declared like any other, so it is listed like any other.
     #[Test(skip: "still declared, so still listed")]
     public function aSkippedTestIsDeclaredToo(): void {

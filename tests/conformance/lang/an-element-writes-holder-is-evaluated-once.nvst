@@ -1,5 +1,5 @@
 --TEST--
-An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — `rule:types/arrays` and § 7 row 15
+An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — `rule:types/arrays` and `rule:types/an-element-write-needs-storage-to-write-back-into`
 --FILE--
 <?nvs
 // `rule:types/arrays` separates the array before an element is written, so the write
@@ -13,8 +13,9 @@ An array-element write evaluates the receiver under its root holder exactly once
 // PHP 8.5.9 evaluates it once, in every row below that it accepts, so this is
 // agreement rather than a choice. The last line is the one it does not
 // accept — *"Cannot use temporary expression in write context"* for a `new`
-// receiver specifically, where a call-returning one is fine — and § 7 row 15
-// owns why Novis takes it anyway: the field is a slot in a heap object, so the
+// receiver specifically, where a call-returning one is fine — and
+// `rule:types/an-element-write-needs-storage-to-write-back-into` owns why
+// Novis takes it anyway: the field is a slot in a heap object, so the
 // write lands in real storage whatever happens to the handle.
 class Box {
     public array<string> $rows;

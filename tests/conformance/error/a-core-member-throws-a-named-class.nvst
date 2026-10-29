@@ -14,7 +14,8 @@ try {
 
 // The pattern is read out of a variable because its literal form no longer
 // reaches this `catch` at all: `rule:expressions/intrinsic-list-is-closed` makes `Core\Time::parse` an
-// intrinsic, so a malformed literal is § 2's compile error and the *runtime*
+// intrinsic, so a malformed literal is a compile error
+// (`rule:expressions/intrinsic-constant-arguments`) and the *runtime*
 // class this case is about is the computed spelling's.
 string $reservedLetter = "yyyy-jj-dd";
 try {

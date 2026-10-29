@@ -12,8 +12,8 @@ class Plain {
 
 // `rule:types/erased-member-access`: an erased receiver "cannot be checked at compile time at all",
 // so the conversion is decided by the concrete instance behind the handle —
-// exactly as a property read through the same view is. `mixed` is § 4's third
-// trigger and answers the same way.
+// exactly as a property read through the same view is. `mixed` is that rule's third
+// erased receiver and answers the same way.
 object $o = new Tag();
 Tag $t = new Tag();
 mixed $m = new Tag();

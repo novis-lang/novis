@@ -3,7 +3,7 @@ a class no `require` names is found by its prefix and runs — `rule:programs/au
 --FILE--
 <?nvs
 // The entry point hand-writes exactly one path, the bootstrap that declares
-// the map. Nothing anywhere names `src/Greeter.nvs`, so § 1's prefix lookup
+// the map. Nothing anywhere names `src/Greeter.nvs`, so the prefix lookup
 // is the only thing that can reach it: longest matching prefix, remaining
 // segments as directories, the last one plus `.nvs`.
 require './src/Bootstrap.nvs';

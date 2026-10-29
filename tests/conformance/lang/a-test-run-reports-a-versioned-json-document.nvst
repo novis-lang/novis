@@ -4,7 +4,7 @@
 test --format=json
 --FILE--
 <?nvs
-// § 22: the same run the plaintext report renders a line at a time, written
+// `rule:testing/report-formats`: the same run the plaintext report renders a line at a time, written
 // as one document at the end. `--RUN--` above is what selects the format;
 // `a-test-attribute-builds-a-table-the-runner-reports.nvst` is the plaintext
 // twin of this program, and the verdicts are the same because both formats
@@ -20,14 +20,14 @@ final class ReportTest {
         Test::assertSame(1, 1);
     }
 
-    // § 20: a skip states a reason, and the reason is a string the document
+    // `rule:testing/runner-is-strict`: a skip states a reason, and the reason is a string the document
     // has to escape — a quote is `\"` in JSON and `&quot;` in the XML twin.
     #[Test(skip: "a reason with \"quotes\" and a < sign")]
     public function aSkipCarriesItsReason(): void {
         Test::assertSame(2, 3);
     }
 
-    // § 5: every failed assertion the ledger recorded is reported, not the
+    // `rule:testing/failure-ledger`: every failed assertion the ledger recorded is reported, not the
     // first — which is why the array is plural and why this test has to catch
     // its own first failure to reach a second assertion at all.
     #[Test]
@@ -39,7 +39,7 @@ final class ReportTest {
         Test::assertSame("second", "also wrong");
     }
 
-    // § 22 redirects the document, so standard output is the document and
+    // `rule:testing/report-formats` redirects the document, so standard output is the document and
     // nothing else: a passing test's output is dropped, and what the class
     // hook below printed is on standard error.
     #[Test]
@@ -48,10 +48,10 @@ final class ReportTest {
         Test::assertTrue(true);
     }
 
-    // § 20: a test that passed within its retry allowance is its own verdict
+    // `rule:testing/runner-is-strict`: a test that passed within its retry allowance is its own verdict
     // in every format — never the passing one — and it carries the attempt
     // count beside the failures the attempt that flaked produced.
-    #[Test(retries: 1, because: "a static counter stands in for the real DNS § 20 names")]
+    #[Test(retries: 1, because: "a static counter stands in for a real DNS lookup")]
     public function aRetriedTestIsReportedAsFlaky(): void {
         ReportTest::$attempts = ReportTest::$attempts + 1;
         Test::assertSame(ReportTest::$attempts, 2);

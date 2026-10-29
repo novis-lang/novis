@@ -7,11 +7,12 @@ a `#[Test(retries: n)]` with no `because:` beside it is refused where it is writ
 // a retried test is reported as flaky rather than green, and the `because:`
 // is what a reader of the attribute has in place of the run that produced it.
 // The rule is a dependency between two options rather than a type, which is
-// why the all-optional roster § 1 writes cannot say it.
+// why the all-optional roster `rule:testing/test-attribute` writes cannot say
+// it.
 use Core\Test;
 
 final class AcceptedTest {
-    // The spelling § 20's own bullet writes.
+    // A retry with its reason written beside it.
     #[Test(retries: 2, because: "real DNS")]
     public function aRetryWithItsReason(): void {
         Test::assertSame(1, 1);

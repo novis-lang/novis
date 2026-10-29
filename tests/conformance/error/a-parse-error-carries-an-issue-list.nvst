@@ -3,7 +3,7 @@ ParseError carries an `issues` list: empty unless a thrower populated it, one en
 --FILE--
 <?nvs
 // covers: ParseError
-// § 5: `issues` is declared `array<Issue>`, not `?array<Issue>`, so it is
+// `issues` is declared `array<Issue>`, not `?array<Issue>`, so it is
 // always readable — a hand-written `new ParseError(...)` simply has none.
 try {
     throw new ParseError("hand written");
@@ -20,7 +20,7 @@ try {
 } catch (ParseError $malformed) {
     echo "malformed=", Core\Arr::count($malformed->issues), "\n";
     // An issue is an `rule:types/object-top` shape, so its fields are read by name off the
-    // value the list holds (§ 4). `path` is empty for a failure about the
+    // value the list holds (`rule:types/erased-member-access`). `path` is empty for a failure about the
     // document rather than about a field in it, and that issue's message is
     // the throw's own — one bad document is one issue, not a second story.
     var $first = $malformed->issues["0"];

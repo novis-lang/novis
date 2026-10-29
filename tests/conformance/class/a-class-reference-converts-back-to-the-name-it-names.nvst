@@ -17,8 +17,8 @@ class<Animal> $c = $name as class<Animal>;
 echo $c as string, "\n";
 echo (($c as string) == $name) as string, "\n";
 
-// A written-out name is decided where it stands (§ 2 folds it to a
-// `ClassDescConst`), and converts back the same way.
+// A written-out name is decided where it stands (`rule:types/class-reference`
+// folds it to a `ClassDescConst`), and converts back the same way.
 class<Animal> $d = Dog::class as class<Animal>;
 echo $d as string, "\n";
 

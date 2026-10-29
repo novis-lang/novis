@@ -32,7 +32,7 @@ foreach ($rows as tainted string $t) {
     // answer, and this row is what says the answer did not move.
     if ($t == $p) { $sameValue = $sameValue + 1; }
 
-    // Concatenation is the operation § 2 names first, so it is the one most
+    // Concatenation is the operation `rule:security/taint-propagation` names first, so it is the one most
     // likely to have grown a second path.
     tainted string $tc = $t . "|end";
     string $pc = $p . "|end";
@@ -73,8 +73,8 @@ if ($widenedBoth == "p") { echo "widened=p\n"; } else { echo "BAD\n"; }
 
 tainted string $onlyTainted = "t";
 secret string $onlySecret = "s";
-// One operand carries each bit; § 2 says the result carries both, in either
-// operand order.
+// One operand carries each bit; `rule:security/secret-propagation` says the
+// result carries both, in either operand order.
 secret tainted string $mixLeft = $onlyTainted . $onlySecret;
 secret tainted string $mixRight = $onlySecret . $onlyTainted;
 if ($mixLeft == "ts") { echo "poisoned both ways\n"; } else { echo "BAD\n"; }

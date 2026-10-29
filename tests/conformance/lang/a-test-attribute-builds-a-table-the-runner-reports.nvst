@@ -5,12 +5,12 @@ test
 --FILE--
 <?nvs
 // covers: lang:errors/assertion-failures, lang:testing/a-test-is-a-method-marked-test
-// § 23: `nvs test` on a program runs its `#[Test]` methods, so this case is
+// `rule:testing/nvst-is-separate`: `nvs test` on a program runs its `#[Test]` methods, so this case is
 // the runner's own report rather than the program's output. `--RUN--` above
 // is what says so; every other case in this tree is `nvs run`.
 use Core\Test;
 
-// § 20: class order is the roster's sorted order, so `AlphaTest` is reported
+// Class order is the roster's sorted order, so `AlphaTest` is reported
 // before `ZebraTest` however the two are written here.
 final class ZebraTest {
     #[Test]
@@ -20,7 +20,7 @@ final class ZebraTest {
 }
 
 final class AlphaTest {
-    // § 1: within a class the order is declaration order, which is what a
+    // `rule:testing/runner-is-strict`: within a class the order is declaration order, which is what a
     // reader of one file sees — these three names sort the other way round.
     #[Test]
     public function zeroIsWrittenFirst(): void {
@@ -32,21 +32,21 @@ final class AlphaTest {
         Test::assertSame(1, 1);
     }
 
-    // § 20: a skip states a reason, and its test is never constructed — the
+    // `rule:testing/runner-is-strict`: a skip states a reason, and its test is never constructed — the
     // assertion below would fail if it were.
     #[Test(skip: "the behaviour it pins is not written yet")]
     public function twoIsSkippedWithItsReason(): void {
         Test::assertSame(2, 3);
     }
 
-    // § 4: a failure names both sides by name, so a reversed call still reads
+    // `rule:testing/assertions-are-typed`: a failure names both sides by name, so a reversed call still reads
     // correctly.
     #[Test]
     public function aFailedAssertionNamesBothSides(): void {
         Test::assertSame(2 + 2, 5);
     }
 
-    // § 5: the verdict is read off the ledger and not off the exception state,
+    // `rule:testing/failure-ledger`: the verdict is read off the ledger and not off the exception state,
     // so a body that caught its own failure has still failed.
     #[Test]
     public function aCaughtFailureStillFails(): void {
@@ -57,7 +57,7 @@ final class AlphaTest {
         }
     }
 
-    // § 20: a test that asserts nothing fails, which is what an empty ledger
+    // `rule:testing/runner-is-strict`: a test that asserts nothing fails, which is what an empty ledger
     // means.
     #[Test]
     public function aTestThatAssertsNothingFails(): void {

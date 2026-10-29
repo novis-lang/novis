@@ -5,8 +5,8 @@ test
 --FILE--
 <?nvs
 // covers: lang:testing/core-test-testwith-data-rows
-// § 9: "each row is its own reported case", so this is the runner's own
-// report and not the program's output — `--RUN--` above is what says so.
+// Each row is its own reported case (`rule:testing/data-rows`), so this is the
+// runner's own report and not the program's output — `--RUN--` above is what says so.
 use Core\Test;
 use Core\Test\Fixture;
 use Core\Test\TestWith;
@@ -18,13 +18,13 @@ final class Norm {
 }
 
 final class AlphaTest {
-    // § 8: one fixture for the whole class, resolved by type.
+    // `rule:testing/fixtures`: one fixture for the whole class, resolved by type.
     #[Fixture]
     public static function prefix(): string {
         return "p:";
     }
 
-    // § 9's own worked example: three rows, three cases, labelled `#0`..`#2`
+    // The plain shape of `rule:testing/data-rows`: three rows, three cases, labelled `#0`..`#2`
     // in the order they are written.
     #[TestWith(input: "  ada ", want: "ada")]
     #[TestWith(input: "ADA", want: "ada")]
@@ -34,7 +34,7 @@ final class AlphaTest {
         Test::assertEquals(Norm::normalize($input), $want);
     }
 
-    // § 9: every constant a parameter can be declared at, so a row's four
+    // `rule:testing/data-rows`: every constant a parameter can be declared at, so a row's four
     // scalars and its `string` all reach the call as themselves.
     #[TestWith(n: -2, u: 9, f: 1.5, ok: true, text: "one")]
     #[TestWith(n: 3, u: 8, f: -0.5, ok: false, text: "two")]
@@ -46,7 +46,7 @@ final class AlphaTest {
         Test::assertTrue(Core\Str::length($text) == 3);
     }
 
-    // § 9: a mix of the two sources in one method — `$prefix` is the
+    // `rule:testing/data-rows`: a mix of the two sources in one method — `$prefix` is the
     // fixture's by type, `$suffix` and `$n` are the row's by name.
     #[TestWith(suffix: "x", n: 1)]
     #[TestWith(suffix: "y", n: 2)]
@@ -56,7 +56,7 @@ final class AlphaTest {
         Test::assertTrue($n > 0);
     }
 
-    // § 9: where both could answer, the row wins — `$prefix` is the fixture's
+    // `rule:testing/data-rows`: where both could answer, the row wins — `$prefix` is the fixture's
     // type, and this row names it, so `r:` and not `p:` arrives.
     #[TestWith(prefix: "r:")]
     #[Test]
@@ -73,7 +73,7 @@ final class AlphaTest {
         Test::assertSame($want, 1);
     }
 
-    // § 20's skip is per test, and a row is one — so it is stated once per
+    // `rule:testing/runner-is-strict`'s skip is per test, and a row is one — so it is stated once per
     // row, and neither body is constructed.
     #[TestWith(want: 1)]
     #[TestWith(want: 2)]
@@ -82,7 +82,7 @@ final class AlphaTest {
         Test::assertSame($want, 99);
     }
 
-    // § 1's own shape is untouched: a method with no row is one case under
+    // `rule:testing/test-attribute`'s own shape is untouched: a method with no row is one case under
     // its own name, with no `#0` on it.
     #[Test]
     public function aMethodWithNoRowKeepsItsName(): void {

@@ -69,8 +69,9 @@ final class Point {
 
 // The numeric rows, across the three representations the table spans. Each is
 // exact over the whole range of both operands, which is why an integer beside
-// a `float` is a comparison rather than a widening: § 4's own closing
-// paragraph says so, and the widening would throw above 2^53.
+// a `float` is a comparison rather than a widening: `rule:types/ordering`
+// makes it exact over the full range of both, and the widening would throw
+// above 2^53.
 echo Ask::lt(5, 7), " ", Ask::lt(7, 5), " ", Ask::lt(5, 5), "\n";
 echo Ask::lt(2.5, 5), " ", Ask::gt(2.5, 5), "\n";
 uint $big = 18446744073709551615;
@@ -93,7 +94,7 @@ echo Ask::lt($nan, 1), Ask::gt($nan, 1), Ask::ltEq($nan, $nan), Ask::gtEq($nan, 
 echo Ask::cmp($nan, 1), " ", Ask::cmp(1, $nan), "\n";
 
 // The union a division produces is the shape that reaches this without any
-// `mixed` written at all: `int / int` is `int|float` (§ 4), which erases to the
+// `mixed` written at all: `int / int` is `int|float` (`rule:types/arithmetic`), which erases to the
 // same tagged representation and takes the same helper.
 int $n = 7;
 int $d = 2;

@@ -30,9 +30,8 @@ if ($f / $u == 0.5 / 3.0) { $rows += 1; }
 echo "arithmetic rows promoting: ", $rows, " of 16\n";
 
 // The ordering rows are the same table's, but they are *not* the same
-// mechanism: § 4 closes with "a comparison has an exact answer in the
-// mathematical integers and can be lowered as one", so no operand is
-// converted at all. Both directions of all four operators, counted.
+// mechanism: `rule:types/ordering` makes a numeric comparison exact over the
+// full range of both operands, so no operand is converted at all. Both directions of all four operators, counted.
 int $orders = 0;
 if ($n < $f) { } else { $orders += 1; }
 if ($n <= $f) { } else { $orders += 1; }

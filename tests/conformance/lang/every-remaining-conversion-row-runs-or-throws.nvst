@@ -2,7 +2,7 @@
 Every `rule:types/conversion` row between `int`, `uint` and `float` is asserted at both ends — the last value it accepts and the first it refuses — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
-// § 2's grid says each of these rows is "exact, or throws", and a row named
+// `rule:types/conversion`'s grid says each of these rows is "exact, or throws", and a row named
 // that way is only pinned by naming *where* it stops: `conversions-that-
 // succeed.nvst` runs the middle of each row and `the-conversion-table-is-
 // closed.nvst` refuses the pairs with no row at all, so what is left is the

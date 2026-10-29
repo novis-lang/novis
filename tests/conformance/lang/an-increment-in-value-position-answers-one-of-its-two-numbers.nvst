@@ -53,7 +53,7 @@ int $enew = ++$ab["k"];
 if (($enew == $eold + 1) && ($aa["k"] == $ab["k"])) { $agree = $agree + 1; }
 echo "elem:  ", $eold, " ", $enew, "\n";
 
-// A decrement is the same operator with § 4's other row, so it answers the
+// A decrement is the same operator with `rule:types/arithmetic`'s other row, so it answers the
 // mirror pair.
 int $da = 5;
 int $db = 5;
@@ -63,7 +63,7 @@ if (($dnew == $dold - 1) && ($da == $db)) { $agree = $agree + 1; }
 echo "dec:   ", $dold, " ", $dnew, "\n";
 echo "agree: ", $agree, " of 6\n";
 
-// § 4's overflow row reaches the value position too — the answer is never
+// The overflow row reaches the value position too — the answer is never
 // produced at all, so the binding it was headed for is never written.
 uint $bottom = 0;
 try {

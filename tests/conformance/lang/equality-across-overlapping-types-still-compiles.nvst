@@ -7,7 +7,7 @@ Disjointness, not identity of types, is what `==` refuses — every pair that ca
 int $n = 1;
 echo ($n == 1) as string, "|", ($n == 2) as string, "|\n";
 
-// § 2's numeric row: `int`, `uint`, `float` and `decimal` are one domain, so
+// `rule:expressions/disjoint-comparison-refused`'s numeric row: `int`, `uint`, `float` and `decimal` are one domain, so
 // a pairing among them compares mathematically and never by representation.
 float $f = 1.0;
 uint $u = 1;
@@ -18,7 +18,7 @@ echo ($u == $f) as string, "|", ($n == $u) as string, "|\n";
 echo ($d == $n) as string, "|", ($d == $f) as string, "|\n";
 echo ($n != $half) as string, "|", ($u != $n) as string, "|\n";
 
-// § 3's "mathematically equal across the whole domain", read at the operands'
+// `rule:expressions/equality-semantics`'s "mathematically equal across the whole domain", read at the operands'
 // own values: 2^60 is an `f64` exactly, so it equals the `int` holding the
 // same number even though the two representations agree on almost nothing
 // past 2^53.
@@ -34,7 +34,7 @@ echo ($maybe == null) as string, "|\n";
 $maybe = new Node();
 echo ($maybe != null) as string, "|\n";
 
-// § 6: a `match` arm is compared against the subject by this same rule, so an
+// `rule:expressions/switch-match-equality`: a `match` arm is compared against the subject by this same rule, so an
 // arm whose type overlaps the subject's is an ordinary comparison.
 string $letter = "B";
 string $rank = match ($letter) {

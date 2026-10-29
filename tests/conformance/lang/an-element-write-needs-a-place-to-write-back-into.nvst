@@ -1,5 +1,5 @@
 --TEST--
-An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — `rule:types/arrays` and § 7 row 15
+An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — `rule:types/arrays` and `rule:types/an-element-write-needs-storage-to-write-back-into`
 --FILE--
 <?nvs
 // `rule:types/arrays` separates the array before an element is written, and

@@ -2,7 +2,8 @@
 `Core\Router::url`'s two compile errors: a written reference to a method that no `#[Route]` claims, and a `$params` that does not cover the path's captures — `rule:routing/link-target-and-params-are-checked`
 --FILE--
 <?nvs
-// One route with one required capture. § 5's scan reaches this class
+// One route with one required capture. The scan that builds the route table
+// (`rule:routing/routes-are-compiled-not-registered`) reaches this class
 // in the same file, which is all the table needs: `url` asks the whole
 // program's table, and where the row was declared is not part of the question.
 class Users {
@@ -16,14 +17,15 @@ class Users {
     public function format(uint $id): string { return "#" . $id; }
 }
 
-// § 4's first refusal: a *written* method reference that no `#[Route]` claims.
+// `rule:routing/link-target-and-params-are-checked`'s first refusal: a
+// *written* method reference that no `#[Route]` claims.
 // The reference is written at the call rather than held in a value, which is the
 // whole difference between this error and the throw
 // `router-url-and-url-absolute-refuse-the-same-unknown-names.nvst` pins — a
 // value reference is not checked here at all, because there is nothing to read.
 echo Core\Router::url(Users::format, ["id" => 1]), "\n";
 
-// § 4's second: a `$params` that does not cover the path's captures. `{id}` is
+// Its second: a `$params` that does not cover the path's captures. `{id}` is
 // required, so its whole segment has nothing to put in it — unlike a `{name?}`,
 // whose segment is simply dropped.
 echo Core\Router::url(Users::show, []), "\n";

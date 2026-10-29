@@ -11,7 +11,7 @@ config dump --origin
 echo Core\Config::get('log.level'), "\n";
 --FILE nvs.toml--
 # The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. It sets `log.level` and
-# then pulls in the file that overrides it, which is § 3's base-plus-local
+# then pulls in the file that overrides it, which is the base-plus-local
 # shape: the include line sits at the point the operator wants overridden.
 [log]
 level = "info"
@@ -19,7 +19,7 @@ level = "info"
 [[include]]
 path = "conf.d/local.toml"
 --FILE conf.d/local.toml--
-# Read after the file that included it, so § 3's "a later assignment wins"
+# Read after the file that included it, so "a later assignment wins"
 # makes this the value in force.
 [log]
 level = "debug"

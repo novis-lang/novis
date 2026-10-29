@@ -2,10 +2,10 @@
 A checked `as` whose operand already names a value outside the target set does not compile, and the diagnostic generates the accepted set from the type — `rule:types/single-value-types`
 --FILE--
 <?nvs
-// § 4's two checked rows run at run time only where the operand's own type
+// `rule:types/single-value-types`'s two checked rows run at run time only where the operand's own type
 // leaves the answer open — a plain `string`, an `enum`, a `mixed`. Where the
 // operand names one value and the target names a closed set without it, the
-// conversion could only ever throw, so § 6 says so here instead.
+// conversion could only ever throw, so the same rule makes it a compile error here instead.
 enum Mode { Read, Write, Admin }
 "a"|"b" $mode = "z" as "a"|"b";
 Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;

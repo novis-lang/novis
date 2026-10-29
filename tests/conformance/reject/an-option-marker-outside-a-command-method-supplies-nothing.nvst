@@ -2,7 +2,8 @@
 An `#[Option]` on a method that declares no command is refused rather than ignored — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// § 6 gives the marker its meaning on a `#[Command]` method's parameter, where
+// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` gives the
+// marker its meaning on a `#[Command]` method's parameter, where
 // it is the spelling an argument arrives by. Away from a command there is no
 // command line to arrive from, and the refusal is the same one `rule:routing/a-query-parameter-is-declared-like-a-capture`'s
 // `#[Query]` gets one file over: both names are on the compiler's closed

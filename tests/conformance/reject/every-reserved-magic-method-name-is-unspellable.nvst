@@ -10,18 +10,18 @@ each of the six magic method names `rule:classes/no-magic-methods` closes is ref
 class Legacy {
     public string $name = "boxy";
 
-    // § 1: `Stringable::toString` is the replacement, and the diagnostic
+    // `rule:classes/stringable`: `Stringable::toString` is the replacement, and the diagnostic
     // suggests the rename.
     public function __toString(): string {
         return $this->name;
     }
 
-    // § 2: Novis has no destructors, which is why "no `__destruct` runs when a
+    // `rule:classes/no-destructors`: Novis has no destructors, which is why "no `__destruct` runs when a
     // refcount reaches zero" needs no running program to verify.
     public function __destruct(): void {
     }
 
-    // § 3: neither name has anything left to intercept, so neither needs a
+    // `rule:classes/unset-is-refused-on-a-property`: neither name has anything left to intercept, so neither needs a
     // replacement; what the two constructs now mean is pinned by
     // `isset-answers-a-null-test-over-every-storage-shape.nvst` and by
     // `unset-is-refused-on-a-declared-property.nvst`.
@@ -32,13 +32,13 @@ class Legacy {
     public function __unset(string $n): void {
     }
 
-    // § 4: a dump shows the declared properties and their live values, never
+    // `rule:classes/no-debug-hook`: a dump shows the declared properties and their live values, never
     // what a class chose to substitute for them.
     public function __debugInfo(): array<mixed> {
         return [];
     }
 
-    // § 5: reconstructing an object from data is `rule:classes/two-copy-depths`'s closed round trip.
+    // `rule:classes/no-magic-methods`: reconstructing an object from data is `rule:classes/two-copy-depths`'s closed round trip.
     public static function __set_state(array<mixed> $s): Legacy {
         return new Legacy();
     }

@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 class Flag {
-    // § 4's checked row over the smallest closed set there is. A `mixed`
+    // `rule:types/single-value-types`'s checked row over the smallest closed set there is. A `mixed`
     // operand is tested against its own runtime tag, so a value that would
     // *convert* to `true` is still a miss: `1 as bool` is `true`, and `1` is
     // not `true`.
@@ -40,9 +40,9 @@ class Flag {
         }
     }
 
-    // § 4's widening row: `true` is a subtype of `bool`, so the assignment
-    // needs no conversion of its own — and § 5's "zero additional runtime
-    // representation" is what makes that free.
+    // The same rule's widening row: `true` is a subtype of `bool`, so the
+    // assignment needs no conversion of its own — and its "zero additional
+    // runtime representation" is what makes that free.
     public static function widened(): string {
         true $on = true as true;
         bool $b = $on;

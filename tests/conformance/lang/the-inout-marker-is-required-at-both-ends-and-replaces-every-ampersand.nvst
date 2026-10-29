@@ -43,7 +43,7 @@ foreach ($rest as int &$v) {
 }
 [int &$a] = $rest;
 
-// § 2's call-site half, in both directions. An argument that binds an `inout`
+// `rule:statements/inout-is-written-at-the-call`'s call-site half, in both directions. An argument that binds an `inout`
 // parameter and does not say so hides the write its callee makes; one that
 // says so where the parameter is by value claims a write that never happens.
 // The marker is deliberately not inference-assisted — a marker the compiler

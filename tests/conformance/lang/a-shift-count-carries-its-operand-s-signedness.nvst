@@ -12,7 +12,7 @@ A shift's count is an operand of the operator rather than a bare width, so a mix
 // sound, a `uint` count having no negative value to guard against.
 //
 // The count that is not already the operand's signedness says so, with the
-// same `as uint`/`as int` every other row of § 4 asks for; a bare digit run
+// same `as uint`/`as int` every other row of that table asks for; a bare digit run
 // needs nothing, being placed at the operand's type by the case beside this
 // one.
 uint $u = 6;

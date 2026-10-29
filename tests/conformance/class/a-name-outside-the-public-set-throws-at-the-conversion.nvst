@@ -10,7 +10,7 @@ class Account {
 
 Account $a = new Account();
 
-// § 2's conversion is the only door into a `property<T>`, which is what lets
+// The conversion is the only door into a `property<T>`, which is what lets
 // the access below make no check of its own: a computed name is tested against
 // the set when this statement runs, and nothing is accessed on this line.
 string $name = "bal" . "ance";
@@ -27,7 +27,7 @@ try {
     echo $e->message, "\n";
 }
 
-// § 1 ranges over the *public* declared roster, so a `protected` name and an
+// The set is the *public* declared roster, so a `protected` name and an
 // undeclared one are one failure and not two: the message lists what the set
 // holds rather than why this name is not in it.
 try {
@@ -39,7 +39,8 @@ try {
 }
 
 // `rule:expressions/nullable-conversion-availability`'s sugar answers `null` in the same place and for the same
-// reason: it is § 2's row with the throw replaced, not a second check.
+// reason: it is the `string` row of `rule:types/property-key` with the throw
+// replaced, not a second check.
 string $again = "bal" . "ances";
 ?property<Account> $maybe = $again as ?property<Account>;
 echo $maybe == null ? "null" : "some", "\n";

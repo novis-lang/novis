@@ -45,7 +45,7 @@ Foo $foo = new Foo();
 ?string $m = Helper::nothing() as ?string;
 ?int $n = null as ?int;
 
-// § 3's third refusal, absolute and with a help of its own: `as?` spells a
+// `rule:expressions/nullable-conversion-availability`'s class row, absolute and with a help of its own: `as?` spells a
 // downcast in every language a reader arrives from, and no class is a row.
 ?Foo $o = $foo as ?Foo;
 --EXPECT--

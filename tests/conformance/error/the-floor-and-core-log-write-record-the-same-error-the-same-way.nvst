@@ -17,7 +17,7 @@ application code and the engine floor produce schema-identical records for the s
 // has none of — one `nodes` entry per frame, which is
 // `rule:errors/record-producers`'s shape for the throw producer. What *does*
 // differ is the
-// channel: § 6's application caller writes the program's own output, and
+// channel: `rule:errors/log-write`'s application caller writes the program's own output, and
 // `nvs_runtime::floor` writes the diagnostic one, which is why this case has
 // both an `--EXPECT--` and an `--EXPECTF-ERROR--` section for one error.
 Core\Log::write(Core\Log::Level::Error, "boom", ["class" => "RuntimeError"]);

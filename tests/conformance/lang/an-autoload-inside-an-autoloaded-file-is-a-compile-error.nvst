@@ -16,7 +16,8 @@ autoload 'App' from './';
 namespace App;
 
 // Reached only through the prefix above, so this line is refused rather than
-// honored. It is not `E0317` as well: § 2 counts declarations, and an
+// honored. It is not `E0317` as well:
+// `rule:programs/one-declaration-per-autoloaded-file` counts declarations, and an
 // `autoload` is not one.
 autoload 'Other' from '../other';
 

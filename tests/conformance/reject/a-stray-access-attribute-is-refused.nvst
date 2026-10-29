@@ -12,7 +12,7 @@ class Users {
     public function index(): string { return "u"; }
 }
 
-// The same attribute on a method that does carry a `#[Route]` is § 1's ordinary
+// The same attribute on a method that does carry a `#[Route]` is `rule:attributes/access-is-a-required-sibling`'s ordinary
 // case, and the payload is written identically — which is what makes the
 // refusal above a fact about the missing sibling rather than about the decision.
 class Search {

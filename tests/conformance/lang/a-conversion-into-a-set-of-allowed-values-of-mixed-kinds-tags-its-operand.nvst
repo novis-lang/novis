@@ -3,7 +3,7 @@ A closed set whose members share no one representation erases to a tagged value,
 --FILE--
 <?nvs
 class Pick {
-    // The set's members are a `string` and an `int`, so § 5's "shares its
+    // The set's members are a `string` and an `int`, so `rule:types/single-value-types`'s "shares its
     // base type's tag and payload" has two bases to share and the target is
     // a tagged value. A statically typed operand is widened into one first
     // and compared afterwards, which is the same order every other set uses.

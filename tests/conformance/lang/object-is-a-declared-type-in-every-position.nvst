@@ -26,7 +26,7 @@ final class Probe {
 object $p = new Point();
 echo Probe::nameOf($p), "\n";
 
-// A returned one, written through the same erased view: § 4 checks the
+// A returned one, written through the same erased view: that rule's write checks the
 // incoming value against the field's real, concrete declared type.
 object $q = Probe::fresh();
 $q->x = 7;

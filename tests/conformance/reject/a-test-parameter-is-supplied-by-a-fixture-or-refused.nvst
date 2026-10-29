@@ -19,7 +19,7 @@ final class AcceptedTest {
         return new Schema();
     }
 
-    // § 8's last sentence: a fixture's own fixture parameters resolve the same
+    // A fixture's own fixture parameters resolve the same
     // way, so this one is built from the one above it.
     #[Fixture]
     public static function cache(Schema $schema): Cache {
@@ -39,8 +39,7 @@ final class MissingTest {
         return new Schema();
     }
 
-    // § 8's own worked example's second test: no `#[Fixture]` in scope returns
-    // `Widget`.
+    // Refused: no `#[Fixture]` in scope returns `Widget`.
     #[Test]
     public function itMisses(Widget $w): void {
         Test::assertSame(1, 1);
@@ -68,7 +67,7 @@ final class ElsewhereTest {
     }
 }
 
-// § 8's cycle: every parameter here *is* supplied, by a roster that cannot be
+// A cycle, which `rule:testing/fixtures` makes a compile error: every parameter here *is* supplied, by a roster that cannot be
 // built in any order.
 final class CycleTest {
     #[Fixture]

@@ -17,7 +17,7 @@ foreach ($shapes as {n: int} $s) {
 
 // Discarded as a statement: the object is built and the frame that built it
 // releases it — a no-op with an allocation in it. It lowers rather than
-// panicking because § 2 names the spelling, and the field it captured is
+// panicking because `rule:types/anonymous-object` names the spelling, and the field it captured is
 // still the caller's afterwards.
 ({c: 3});
 string $held = "kept";

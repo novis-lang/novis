@@ -20,7 +20,8 @@ class Limits {
 
 // `rule:attributes/attach-sites-and-forms`: a named attribute's name is a shape-typed `type` alias and
 // nothing else, so every name written below is declared here. What each
-// payload may *hold* is § 2's rule and is the same either way.
+// payload may *hold* is `rule:attributes/payload-is-a-compile-time-constant`
+// and is the same either way.
 type Route = {path: string};
 type Audit = {};
 type Column = {};
@@ -53,7 +54,7 @@ string $host = "example.com";
 
 #[Route(path: $host)]
 class Refused {
-    // A call and a `new` are the other two § 2 names, and each is reported at
+    // A call and a `new` are the other two that rule names, and each is reported at
     // the field it is written in rather than at the attribute, so a payload
     // with two bad fields reads as two mistakes.
     #[Column(length: Core\Str::length("ab"), other: new Refused())]

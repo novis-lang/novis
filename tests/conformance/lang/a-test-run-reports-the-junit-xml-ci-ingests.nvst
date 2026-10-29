@@ -5,7 +5,7 @@ test --format=junit
 --FILE--
 <?nvs
 // covers: lang:testing/running-tests-nvs-test
-// § 22: the same program as
+// `rule:testing/report-formats`: the same program as
 // `a-test-run-reports-a-versioned-json-document.nvst`, in the shape every CI
 // system already ingests. Both documents render one `Outcome` list, so the
 // two cases pin one run through two renderings — a verdict that moved in one
@@ -28,7 +28,7 @@ final class ReportTest {
         Test::assertSame(2, 3);
     }
 
-    // § 5: the `message` attribute carries the first failed assertion, the
+    // `rule:testing/failure-ledger`: the `message` attribute carries the first failed assertion, the
     // element body every one of them — JUnit has one attribute and the ledger
     // has a list.
     #[Test]
@@ -48,10 +48,10 @@ final class ReportTest {
         Test::assertTrue(true);
     }
 
-    // § 20: the flaky verdict in the shape CI already reads — a
+    // `rule:testing/runner-is-strict`: the flaky verdict in the shape CI already reads — a
     // `<flakyFailure>` inside a `<testcase>` that is otherwise passing, so
     // the suite's `failures` attribute below does not count it.
-    #[Test(retries: 1, because: "a static counter stands in for the real DNS § 20 names")]
+    #[Test(retries: 1, because: "a static counter stands in for a real DNS lookup")]
     public function aRetriedTestIsReportedAsFlaky(): void {
         ReportTest::$attempts = ReportTest::$attempts + 1;
         Test::assertSame(ReportTest::$attempts, 2);

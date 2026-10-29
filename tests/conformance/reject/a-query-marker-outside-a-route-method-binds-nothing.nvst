@@ -2,7 +2,8 @@
 A `#[Query]` on a method that declares no route is refused rather than ignored — `rule:routing/a-query-parameter-is-declared-like-a-capture`
 --FILE--
 <?nvs
-// § 3 gives the marker its whole meaning on a `#[Route]` method's parameter:
+// `rule:routing/a-query-parameter-is-declared-like-a-capture` gives the marker
+// its whole meaning on a `#[Route]` method's parameter:
 // the key it binds by is the parameter's own name, so away from a route there
 // is nothing for it to arrive from. It is refused rather than passed over for
 // the reason the compiler's roster of recognized attributes is closed at all —
@@ -12,7 +13,7 @@ class Users {
     public function index(#[Core\Query] string $sort): string { return $sort; }
 }
 
-// The same parameter under the route it serves is § 3's ordinary case, which
+// The same parameter under the route it serves is that rule's ordinary case, which
 // is what makes the refusal above a fact about the missing sibling and not
 // about the marker. `rule:attributes/access-is-a-required-sibling` supplies the other required sibling.
 class Search {

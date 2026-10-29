@@ -24,7 +24,7 @@ echo "hit ", $a == null ? "null" : "set", "\n";
 echo "unresolved ", $b == null ? "null" : "set", "\n";
 echo "outside ", $c == null ? "null" : "set", "\n";
 
-// § 2's second row, the `class<U>` narrowing, under the same sugar.
+// `rule:types/class-reference`'s second row, the `class<U>` narrowing, under the same sugar.
 class<Dog> $dog = "Dog" as class<Dog>;
 ?class<Animal> $widened = $dog as ?class<Animal>;
 echo "widened ", $widened == null ? "null" : "set", "\n";

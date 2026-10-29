@@ -34,7 +34,7 @@ mixed $g = $xs / $xs;
 // An enum value has a diagnostic of its own, the one every operator over it reports.
 mixed $h = $mode * $mode;
 // `%` is the one refusal both operands are numbers for: PHP converts to an
-// integer and answers one, § 4's float row would answer a `float`, and the
+// integer and answers one, `rule:types/arithmetic`'s float row would answer a `float`, and the
 // `Core\Math::mod` is the floating-point remainder.
 mixed $j = $f % $f;
 mixed $k = $f % $i;

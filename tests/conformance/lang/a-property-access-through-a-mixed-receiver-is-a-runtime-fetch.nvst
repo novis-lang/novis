@@ -1,5 +1,5 @@
 --TEST--
-A property access through a `mixed` receiver is `rule:types/erased-member-access`'s name-keyed fetch, with the receiver's own tag checked at the same place — `rule:types/conversion`, § 7 row 13
+A property access through a `mixed` receiver is `rule:types/erased-member-access`'s name-keyed fetch, with the receiver's own tag checked at the same place — `rule:types/conversion`, `rule:types/a-declared-type-answers-before-the-program-runs`
 --FILE--
 <?nvs
 // `mixed` is `rule:types/conversion`'s one unchecked position, so `$m->name` defers
@@ -23,7 +23,7 @@ $m->name = "wrote";
 var $same = $m;
 echo $same->name, "\n";
 
-// A name the concrete class does not carry is § 4's catchable throw, the
+// A name the concrete class does not carry is `rule:types/erased-member-access`'s catchable throw, the
 // same one a plain `object` receiver takes.
 try {
     echo $m->nope, "\n";

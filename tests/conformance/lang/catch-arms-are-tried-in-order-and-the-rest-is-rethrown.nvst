@@ -19,7 +19,7 @@ echo Fail::io() catch (LogicError $wrong) => 1 catch (IOError $right) => 2, "\n"
 // the arm after it is dead.
 echo Fail::io() catch (RuntimeError $super) => 3 catch (IOError $shadowed) => 4, "\n";
 
-// § 6: what no arm matched is handed straight back, so the exception leaves
+// `rule:expressions/catch-lowers-to-block-form`: what no arm matched is handed straight back, so the exception leaves
 // the expression as the very same object it arrived with — including the
 // `location` its own `throw` wrote.
 try {

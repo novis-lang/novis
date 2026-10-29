@@ -10,7 +10,8 @@ tainted string $chosen = "page.html";
 
 Core\Response::sendFile($chosen);
 
-// And the other side of § 4's table on the same class, so this file asserts a
+// And the other side of `rule:security/response-body-is-one-typed-member` on
+// the same class, so this file asserts a
 // line rather than a member: the text body takes a tainted argument freely,
 // because `nosniff` is on by default and its octets are framed by
 // `Content-Length` rather than becoming an instruction to anything.

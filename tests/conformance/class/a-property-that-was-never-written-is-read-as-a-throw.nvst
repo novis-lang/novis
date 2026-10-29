@@ -25,7 +25,8 @@ class Panel extends Widget {
 int $throws = 0;
 
 // The throw is an ordinary `Throwable`, propagated by checked return like any
-// other failure — not `rule:errors/escalation-ladder`'s fatal ladder, which § 3 is explicit about.
+// other failure — not `rule:errors/escalation-ladder`'s fatal ladder, which
+// `rule:classes/an-unwritten-property-read-throws` is explicit about.
 Widget $w = new Widget();
 try {
   echo $w->logger->name(), "\n";
@@ -34,7 +35,7 @@ try {
   echo "unwritten: ", $e->message, "\n";
 }
 
-// § 3's second bullet: nothing is handed back for the caller to inspect, so
+// The read never succeeds: nothing is handed back for the caller to inspect, so
 // there is no `null` to test against either. `??` sees a throw, not an absent
 // value, which is what makes the guard different from a nullable read.
 try {
@@ -47,7 +48,7 @@ try {
 // to the slot, not to the instance.
 echo "label=", $w->label, "\n";
 
-// § 3's third bullet: writing first works exactly like any other write, and
+// Writing first works exactly like any other write, and
 // every later read sees it.
 $w->attach(new Logger());
 echo "written=", $w->logger->name(), "\n";

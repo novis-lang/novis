@@ -10,7 +10,7 @@ enum Mode {
 }
 
 class Gate {
-    // § 3's subset over an operand only known at run time. The test is the
+    // `rule:types/enum-case-type`'s subset over an operand only known at run time. The test is the
     // same one a set of allowed `int` values gets, run one representation down: a
     // case *is* its integer (`rule:enums/no-class-machinery`), so the comparison is over the
     // enum's backing type and the throw names the cases rather than them.
@@ -23,7 +23,7 @@ class Gate {
         }
     }
 
-    // § 4's free row: a case written as an expression settles the conversion
+    // `rule:types/single-value-types`'s free row: a case written as an expression settles the conversion
     // at compile time — one outside the set is `E0470` and never runs — so
     // this pays no comparison at all, and widening back to the enum is the
     // same value again.

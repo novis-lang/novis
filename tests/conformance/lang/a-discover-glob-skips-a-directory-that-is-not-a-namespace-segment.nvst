@@ -4,8 +4,8 @@ a `discover` glob passes over a matched directory whose name is not a legal name
 <?nvs
 // The glob in `bootstrap.nvs` sweeps a tree holding four directories no
 // namespace can be spelled from — `vendor`, `node_modules`, `_Private` and
-// `.git` — beside the one that can. § 1 skips each of the four *without a
-// diagnostic*: a glob over a real filesystem always sweeps names like these,
+// `.git` — beside the one that can. `rule:programs/autoload` skips each of the
+// four *without a diagnostic*: a glob over a real filesystem always sweeps names like these,
 // and diagnosing them would make the form unusable. That this case compiles
 // and runs at all is the first half of what it pins.
 require './bootstrap.nvs';
@@ -16,7 +16,7 @@ require './bootstrap.nvs';
 echo Plugin\Tool::from(), "\n";
 --FILE bootstrap.nvs--
 <?nvs
-// One `*`, occupying a whole path segment, as § 1 requires — any other shape
+// One `*`, occupying a whole path segment, as `rule:programs/autoload` requires — any other shape
 // would be `E0318` here. Every matched directory names its own prefix, and
 // `Plugin\ → ./Plugin/src` is the only one this tree produces.
 autoload discover './*/src';
@@ -35,8 +35,9 @@ class Tool
 <?nvs
 // Never parsed. `vendor` is not a `PascalCase` segment (`rule:core-api/identifier-casing`), so it
 // never becomes a prefix and no name can resolve into this file. That is also
-// why this file is free to be one that no autoloaded file may be: § 2 allows
-// exactly one top-level declaration, so `E0317` would fire here the moment
+// why this file is free to be one that no autoloaded file may be: an autoloaded
+// file has exactly one top-level declaration
+// (`rule:programs/one-declaration-per-autoloaded-file`), so `E0317` would fire here the moment
 // anything did load it.
 namespace Vendor;
 
@@ -78,7 +79,7 @@ class Tool
 }
 --FILE .git/src/Tool.nvs--
 <?nvs
-// The directory § 1 names by hand as the reason the skip is silent.
+// The directory `rule:programs/autoload` names by hand as the reason the skip is silent.
 namespace Git;
 
 class Tool

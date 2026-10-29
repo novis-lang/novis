@@ -28,24 +28,24 @@ class Relay {}
 array<Route> $ok = Core\Attributes::all<Route>(Twice::constructor);
 echo Core\Arr::count($ok) as string, "\n";
 
-// § 5: `get` answers at most one, and two is decided here rather than by a
+// `rule:attributes/retrieval-folds-while-checking`: `get` answers at most one, and two is decided here rather than by a
 // test run.
 ?Route $ambiguous = Core\Attributes::get<Route>(Twice::constructor);
 
-// § 4: retrieval is structural, so `T` has to be a shape.
+// `rule:attributes/structural-retrieval`: retrieval is structural, so `T` has to be a shape.
 ?int $scalar = Core\Attributes::get<int>(Twice::constructor);
 
-// § 4: the target is a method reference, inspected where it is written —
+// The same rule: the target is a method reference, inspected where it is written —
 // an anonymous function names no declaration.
 callable $fn = fn (): int => 1;
 ?Route $computed = Core\Attributes::get<Route>($fn);
 
-// § 5: the payload satisfies the shape, and the class constant it holds has no
+// `rule:attributes/retrieval-folds-while-checking`: the payload satisfies the shape, and the class constant it holds has no
 // value of its own to compile in — the constant folder's gap surfacing at the
 // one site that needs the value rather than the name.
 ?{code: mixed} $unfoldable = Core\Attributes::get<{code: mixed}>(Relay::constructor);
 
-// § 4: a *written* member name is checked against the target's real
+// `rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real
 // declarations. It has to be — the `null` a misspelling folds to is the answer
 // a correct retrieval of an absent attribute gives, so nothing downstream
 // could tell them apart. Only a computed name falls back to that empty result.

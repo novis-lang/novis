@@ -10,24 +10,26 @@ class Base {}
 
 namespace App;
 
-// § 3: the leading separator is refused in each of the three positions PHP
+// `rule:statements/a-leading-separator-does-not-parse`: the leading separator
+// is refused in each of the three positions PHP
 // gave it three different meanings in — redundant in a `use` path, absolute at
 // a reference, and a parse error in a `namespace` declaration. One report
 // each, and the name still parses, so the errors below are reached.
 use \App\Models\Module;
 
-// § 1: a qualified name is read from the root. PHP resolved this one relative
-// to `namespace App;` and reached `App\Models\Module`, so § 5 names that
+// `rule:statements/a-qualified-name-is-absolute`: a qualified name is read from
+// the root. PHP resolved this one relative to `namespace App;` and reached
+// `App\Models\Module`, so `E0322` names that
 // spelling rather than leaving a bare "not declared" to work backwards from.
 class Relative implements Models\Module {}
 
-// § 1: an import binds one whole short name and is never a namespace prefix,
+// The same rule: an import binds one whole short name and is never a namespace prefix,
 // so reaching through the `use` above names nothing. The same construct as
 // above arrived at the other way — and nothing is declared under either
-// reading here, so this one is the ordinary `E0303` rather than § 5's report.
+// reading here, so this one is the ordinary `E0303` rather than `E0322`.
 class ThroughAnImport implements Module\Missing {}
 
-// § 3 again, at a reference rather than in a `use`.
+// The leading separator again, at a reference rather than in a `use`.
 class LeadingSeparator extends \App\Models\Base {}
 
 echo "unreachable\n";

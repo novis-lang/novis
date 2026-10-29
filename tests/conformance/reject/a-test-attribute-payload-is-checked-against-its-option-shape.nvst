@@ -30,8 +30,9 @@ class Accepted {
 }
 
 class Refused {
-    // § 1's own bullet: `#[Test(skip: true)]` — a skip states a reason
-    // (§ 20), which the option's `string` type is what says.
+    // `rule:testing/test-attribute`'s own example: `#[Test(skip: true)]` — a
+    // skip states a reason (`rule:testing/runner-is-strict`), which the
+    // option's `string` type is what says.
     #[Test(skip: true)]
     public function aSkipStatesAReason(): void {}
 

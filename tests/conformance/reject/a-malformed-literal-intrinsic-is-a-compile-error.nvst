@@ -6,10 +6,12 @@ a malformed literal argument to an intrinsic is refused while checking, and the 
 // There the two paths agree on an answer; here the literal path reports, at its
 // own span, the error the first call would have thrown.
 //
-// Every row of § 1's table whose grammar has a reader is written twice — once
+// Every row of `rule:expressions/intrinsic-list-is-closed`'s roster whose
+// grammar has a reader is written twice — once
 // with the malformed text as a literal, once with the identical text behind a
 // `string` binding. Only the literal spellings are reported, and the count in
-// the final line is what asserts it: § 2 refuses nothing for being dynamic, so
+// the final line is what asserts it: nothing is refused for being dynamic
+// (`rule:expressions/intrinsic-constant-arguments`), so
 // the variable-borne twins add no diagnostic and are left to run time.
 
 var $utc = Core\Time\Zone::UTC;

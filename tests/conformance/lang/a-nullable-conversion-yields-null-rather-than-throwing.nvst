@@ -3,13 +3,13 @@
 --FILE--
 <?nvs
 // covers: lang:types/nullable-union-single-value-and-enum-case-types
-// § 1 — the value the throwing form would produce, wherever it succeeds.
+// The value the throwing form would produce, wherever it succeeds.
 echo ("42" as ?int) ?? -1, "\n";
 echo ("-7" as ?int) ?? -1, "\n";
 echo ("0" as ?int) ?? -1, "\n";
 echo ("3.5" as ?float) ?? -1.0, "\n";
 
-// § 1 — `null` exactly where `as T` throws. `rule:types/conversion`'s whole-string rule
+// `null` exactly where `as T` throws. `rule:types/conversion`'s whole-string rule
 // reaches this form unchanged, so "12abc" is null rather than PHP's 12, and
 // 19.99 is null rather than 19.
 echo ("abc" as ?int) ?? -1, "\n";
@@ -17,13 +17,13 @@ echo ("12abc" as ?int) ?? -1, "\n";
 echo ("" as ?int) ?? -1, "\n";
 echo (19.99 as ?int) ?? -1, "\n";
 
-// § 2 — a `null` operand converts to `null` rather than being a diagnostic.
+// A `null` operand converts to `null` rather than being a diagnostic.
 ?string $absent = null;
 echo ($absent as ?int) ?? -1, "\n";
 ?string $present = "17";
 echo ($present as ?int) ?? -1, "\n";
 
-// § 3 — from `mixed` every target has a checked path, so a payload with no
+// `rule:expressions/nullable-conversion-availability`: from `mixed` every target has a checked path, so a payload with no
 // row into that target is `null` rather than a compile error.
 mixed $numeric = "6";
 echo ($numeric as ?int) ?? -1, "\n";

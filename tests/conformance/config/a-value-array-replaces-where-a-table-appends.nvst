@@ -19,7 +19,7 @@ sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 [[include]]
 path = "conf.d/local.toml"
 --FILE conf.d/local.toml--
-# § 4: `read` is one value, so this states the whole grant and `./data` is
+# `rule:config/a-value-array-replaces-and-a-table-appends`: `read` is one value, so this states the whole grant and `./data` is
 # gone — the last file that mentions a grant states all of it, and no reader
 # has to assemble the effective root list from two files. The `[[extension]]`
 # entry appends instead, because two of them in one file are two extensions.

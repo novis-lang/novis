@@ -10,7 +10,7 @@ test
 // is by type, settled while compiling. So this case is the runner's own report
 // (`--RUN--` above), a fixture's value being observable nowhere else.
 //
-// § 2 is why every count below is *stamped into the value* rather than read
+// `rule:testing/isolate-per-test` is why every count below is *stamped into the value* rather than read
 // out of a `static` inside a test: the fixture bodies run in the parent and
 // each test runs in an isolate of its own, so a counter a body incremented is
 // not something a test can see. What crosses is the fixture's own graph, so
@@ -73,7 +73,7 @@ final class OtherTest {
         return new Cache();
     }
 
-    // § 20's `skip:` never constructs the test, so the fixture it alone asks
+    // A `skip:` never constructs the test (`rule:testing/runner-is-strict`), so the fixture it alone asks
     // for is never built — setup for a test the author asked to skip is work
     // nobody wanted. It is declared **first** so that the stamp two tests down
     // is evidence: a skip that had been ignored would build this class's
@@ -97,14 +97,15 @@ final class OtherTest {
 }
 
 final class RepoTest {
-    // § 8's own worked example, spelled as that section writes it.
+    // The plain shape of `rule:testing/fixtures`: one fixture, supplying its
+    // declared return type.
     #[Fixture]
     public static function schema(): Schema {
         Ledger::$schemas = Ledger::$schemas + 1;
         return new Schema("users", Ledger::$schemas, Ledger::$caches);
     }
 
-    // § 8's last sentence: a fixture may itself declare fixture parameters,
+    // `rule:testing/fixtures`: a fixture may itself declare fixture parameters,
     // which resolve the same way — so this one is built *after* `schema`,
     // whatever order the two are written in.
     #[Fixture]

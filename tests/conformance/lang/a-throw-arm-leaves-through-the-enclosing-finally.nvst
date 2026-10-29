@@ -4,10 +4,11 @@ a `throw` arm produces no value, so the failure leaves through the enclosing reg
 <?nvs
 // `rule:expressions/catch-arm-is-an-expression`: the arm body is an expression, and `throw expr` is already
 // one, so an arm may wrap and rethrow with no rule of its own. It is typed
-// `never` (§ 4), which is why it joins neither the union nor the phi § 6
+// `never` (`rule:expressions/catch-result-type`), which is why it joins
+// neither the union nor the phi `rule:expressions/catch-lowers-to-block-form`
 // builds — the arm has no edge into the join at all.
 //
-// § 2: `finally` stays the block form's alone, so the region that runs one
+// `rule:expressions/catch-expression`: `finally` stays the block form's alone, so the region that runs one
 // here is the `try` around the whole expression.
 class Fail {
     public static function io(int $n): int {

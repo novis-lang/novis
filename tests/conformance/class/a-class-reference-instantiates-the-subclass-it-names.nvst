@@ -26,7 +26,7 @@ class Angled extends Formatter {
 class Quoted extends Formatter {
 }
 
-// The compile-time door: `Dog::class as class<Animal>` in § 2's own words.
+// The compile-time door: `Dog::class as class<Animal>` in `rule:types/class-reference`'s own words.
 class<Formatter> $folded = Angled::class as class<Formatter>;
 Formatter $one = new $folded("1: ");
 echo $one->render("body"), "\n";
@@ -44,9 +44,10 @@ class<Formatter> $base = Formatter::class as class<Formatter>;
 Formatter $three = new $base("3: ");
 echo $three->render("body"), "\n";
 
-// The arguments are checked against `T`'s constructor (§ 4), and they reach
-// the allocated class's own — here inherited, which is the common case § 5's
-// refusal leaves standing.
+// The arguments are checked against `T`'s constructor
+// (`rule:types/class-reference-sites`), and they reach the allocated class's
+// own — here inherited, which is the common case that rule's `E0794` refusal
+// leaves standing.
 class<Formatter> $again = Angled::class as class<Formatter>;
 echo (new $again("4: "))->render("body"), "\n";
 // covers: lang:classes/inheritance

@@ -10,7 +10,7 @@
 mixed $v = require 'gives.nvs';
 echo "value=", $v as string, "\n";
 
-// § 3's other half: a file that never `return`s hands back `1`, PHP's own
+// The rule's other half: a file that never `return`s hands back `1`, PHP's own
 // answer for a `require` of such a file. Its statements still run, in place,
 // which is what the line above the value proves.
 mixed $p = require 'plain.nvs';

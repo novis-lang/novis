@@ -31,8 +31,8 @@ final class Aide implements Greets, Counts {
     }
 }
 
-// The field is a promoted constructor parameter, which § 4 bullet 1 admits in
-// so many words — the forward reads the slot it declares like any other.
+// The field is a promoted constructor parameter, which
+// `rule:classes/delegation-by-property` admits in so many words — the forward reads the slot it declares like any other.
 final class Desk implements Greets by $aide, Counts by $aide {
     public function constructor(private Aide $aide) {}
 }
@@ -49,7 +49,7 @@ Counts $counts = $desk;
 echo $greets->greet("Bo"), "\n";
 echo "count=", $counts->count(), "\n";
 
-// § 4 bullet 4: an own method is an ordinary override and wins over the
+// The same rule: an own method is an ordinary override and wins over the
 // synthesized forward, whichever of the two clauses would have supplied it.
 final class Quiet implements Greets by $aide, Counts by $aide {
     public function constructor(private Aide $aide) {}

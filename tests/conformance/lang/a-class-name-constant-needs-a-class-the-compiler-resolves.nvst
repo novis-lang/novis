@@ -22,7 +22,7 @@ int $i = 1;
 echo $i::class;
 
 // `rule:types/class-reference`'s `class<T>` is a class reference already, so its name is a
-// conversion rather than a member read — § 2's third row, `as string`.
+// conversion rather than a member read — its total `class<T> → string` row, `as string`.
 class<User> $c = User::class as class<User>;
 echo $c::class;
 

@@ -27,7 +27,7 @@ final class Holder implements Wide by $inner {
 }
 
 // The way out the help names: an own method stands in for a delegated one,
-// which § 4 already allows — so `Written` owes only the two it did not write.
+// which `rule:classes/delegation-by-property` already allows — so `Written` owes only the two it did not write.
 final class Written implements Wide by $inner {
     private Wide $inner;
     public function constructor(Wide $inner) { $this->inner = $inner; }

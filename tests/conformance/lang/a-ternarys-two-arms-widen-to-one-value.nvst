@@ -7,8 +7,8 @@ bool $f = false;
 
 // `rule:types/arithmetic`: the join is the erasure of the checker's union of the two
 // arms, not a promotion of one arm into the other. A truthy arm past 2^53
-// still prints exactly — an implicit `int` -> `float` widening is § 2's
-// conversion, which throws above 2^53 rather than rounding, so a promoted
+// still prints exactly — an implicit `int` -> `float` widening is the
+// checked conversion (`rule:types/implicit-widening`), which throws above 2^53 rather than rounding, so a promoted
 // arm could not have printed at all.
 echo ($t ? 9007199254740993 : 2.5), "\n";
 echo ($f ? 9007199254740993 : 2.5), "\n";

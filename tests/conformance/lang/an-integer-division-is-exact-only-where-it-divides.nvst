@@ -9,7 +9,7 @@ Integer `/` answers an integer exactly where the divisor divides and a float oth
 // implementation that answers a float for every row prints plausibly on any
 // single one of them.
 //
-// `as` binds tighter than any binary operator (§ 2), so the quotient needs its
+// `as` binds tighter than any binary operator (`rule:types/conversion`), so the quotient needs its
 // own parentheses before it can be rendered.
 int $six = 6;
 int $three = 3;
@@ -40,8 +40,8 @@ if ((($ua / $ub) as string) == "2") { $uagree += 1; }
 if ((($uc / $ub) as string) == "1.75") { $uagree += 1; }
 echo "uint quotients: ", $uagree, " of 2\n";
 
-// § 4's own worked example: "in practice the union is absorbed by the target's
-// declared type through the `int → float` widening in *2*". `int $n = 7 / 2;`
+// `rule:types/arithmetic`: in practice the target's declared type absorbs the
+// union through the `int → float` widening. `int $n = 7 / 2;`
 // is a diagnostic for the same reason and is pinned where the diagnostics are.
 float $avg = $seven / $two;
 echo "widened at the binding: ", $avg, "\n";

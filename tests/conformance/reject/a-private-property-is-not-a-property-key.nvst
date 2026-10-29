@@ -7,8 +7,8 @@ class Vault {
     private string $secret = "shut";
 }
 
-// § 1's set is the *public* declared roster, and § 2 decides a written-out
-// operand where it is written — so this never reaches a run, and the help
+// The set is the *public* declared roster (`rule:types/property-key`), and a
+// written-out operand is decided where it is written — so this never reaches a run, and the help
 // names the whole set rather than only refusing this name.
 property<Vault> $peek = "secret" as property<Vault>;
 echo $peek as string, "\n";

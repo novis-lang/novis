@@ -31,7 +31,7 @@ final class Basket {
     }
 }
 
-// § 1: the entry file's top-level statements do not run under `nvs test`, so
+// The entry file's top-level statements do not run under `nvs test`, so
 // this line is absent from the report below. A case that ran them would print
 // it above `Basket`.
 echo "the entry file's statements do not run\n";

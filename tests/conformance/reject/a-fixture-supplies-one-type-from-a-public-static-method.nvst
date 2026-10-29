@@ -16,7 +16,7 @@ final class Cache {}
 final class Clock {}
 
 final class AcceptedTest {
-    // § 8's own worked example's shape: built once for the whole class, and
+    // The ordinary shape: built once for the whole class, and
     // named by the type it returns rather than by its own name.
     #[Fixture]
     public static function schema(): Schema {
@@ -43,8 +43,9 @@ final class AcceptedTest {
 }
 
 final class RefusedTest {
-    // Refused: a fixture is built once for the whole class, and § 20 gives
-    // each test its own instance, which is the opposite of once.
+    // Refused: a fixture is built once for the whole class, and each test
+    // gets its own instance (`rule:testing/isolate-per-test`), which is the
+    // opposite of once.
     #[Fixture]
     public function notStatic(): Schema {
         return new Schema();
@@ -83,7 +84,7 @@ final class TwiceTest {
         return new Schema();
     }
 
-    // Refused: § 8 resolves by type, so a second fixture of one type leaves
+    // Refused: a fixture resolves by type, so a second fixture of one type leaves
     // a parameter asking for it with no answer rather than with two.
     #[Fixture]
     public static function schemaAgain(): Schema {

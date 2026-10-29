@@ -5,7 +5,7 @@
 // covers: lang:types/text-string-and-bytes
 
 class Convert {
-    // § 3's second row: checked. A well-formed buffer becomes the string
+    // The `bytes as string` row: checked. A well-formed buffer becomes the string
     // over the same allocation; anything else throws, and is never
     // replaced, dropped or truncated.
     public static function text(bytes $b): string {
@@ -17,7 +17,7 @@ class Convert {
     }
 }
 
-// § 3's first row: total and free — the same buffer, reinterpreted — so the
+// The `string as bytes` row: total and free — the same buffer, reinterpreted — so the
 // octets the `string` already held are exactly what `Core\Bytes` reads.
 string $greek = "λx";
 bytes $wide = $greek as bytes;

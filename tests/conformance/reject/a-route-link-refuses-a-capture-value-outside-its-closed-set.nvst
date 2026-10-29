@@ -8,8 +8,8 @@
 // `core/router-url-builds-every-value-of-a-captures-closed-set.nvst`, which is
 // the half a program that does not compile cannot show.
 class Docs {
-    // § 5's example, plus § 3's `#[Query]`, which declares the same type list a
-    // capture does — so it has a closed set for exactly the same reason.
+    // `rule:routing/a-capture-narrows-to-a-closed-set`'s example, plus a
+    // `#[Query]`, which declares the same type list a capture does — so it has a closed set for exactly the same reason.
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
     #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]
@@ -22,12 +22,12 @@ class Docs {
 // no set at all, so nothing about it is checked.
 echo Core\Router::url(Docs::show, ["lang" => "fr", "page" => "intro"]), "\n";
 
-// The first refused: a segment § 5 says the router answers `404` to, which
+// The first refused: a segment the router answers `404` to, which
 // makes this a link to a route that will not match.
 echo Core\Router::url(Docs::show, ["lang" => "xx", "page" => "intro"]), "\n";
 
 // The same refusal on the query half, where the dead link is the handler's own
-// `400` (§ 3) rather than a `404`. One diagnostic per call, not per entry:
+// `400` (`rule:routing/a-bad-query-value-is-a-400`) rather than a `404`. One diagnostic per call, not per entry:
 // `$params` written against the wrong route is usually wrong in every entry.
 echo Core\Router::url(Docs::show, ["lang" => "en", "page" => "intro", "order" => "up"]), "\n";
 

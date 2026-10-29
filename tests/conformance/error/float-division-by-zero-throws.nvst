@@ -27,7 +27,8 @@ final class Ask {
 
     // The integer row, which has thrown since it was written. It is here to be
     // compared against, not to be re-pinned: `int / int` is `int|float` and the
-    // union is absorbed by the declared `float`, as § 4 says it is.
+    // union is absorbed by the declared `float`, as `rule:types/arithmetic` says
+    // it is.
     public static function integrally(int $a, int $b): string {
         try {
             float $quotient = $a / $b;
@@ -88,11 +89,11 @@ echo "fdiv: ", Core\Math::fdiv(1.0, 0.0), "|", Core\Math::fdiv(1.0, -0.0), "|",
 
 // 6. What this guard does *not* cover, pinned so a later reader does not widen
 //    it to the two operators sharing its dispatch. `%` over a `float` never
-//    reaches the guard: § 4 refuses it where it is written (`E0717`), making
+//    reaches the guard: `rule:types/arithmetic` refuses it where it is written (`E0717`), making
 //    `Core\Math::mod` the member that says a floating-point remainder out loud,
 //    so there is no float `%` row for a zero divisor to be part of. And `**`
 //    has no divisor at all — a negative exponent of zero is IEEE's infinity
-//    here, exactly as it was, because § 4's float row names `/ 0` and nothing
+//    here, exactly as it was, because the float row names `/ 0` and nothing
 //    else.
 float $zeroBase = 0.0;
 float $minusOne = -1.0;

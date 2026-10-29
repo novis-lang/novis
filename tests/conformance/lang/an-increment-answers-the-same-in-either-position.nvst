@@ -15,7 +15,7 @@ final class Cell {
 
 int $agree = 0;
 
-// A local, at each numeric representation § 4 tabulates.
+// A local, at each numeric representation `rule:types/arithmetic` tabulates.
 int $ia = 5;
 int $ib = 5;
 $ia++;
@@ -64,7 +64,7 @@ if ($post == $pre) { $agree = $agree + 1; }
 echo "for:   ", $post, " ", $pre, "\n";
 echo "agree: ", $agree, " of 6\n";
 
-// § 4 again: `+ 1` past a type's top throws rather than wrapping, and an
+// `rule:types/arithmetic` again: `+ 1` past a type's top throws rather than wrapping, and an
 // increment carries that edge because it *is* that addition.
 int $top = 9223372036854775807;
 try { $top++; echo "no throw\n"; } catch (Throwable $over) { echo "over:  ", $over->message, "\n"; }

@@ -4,7 +4,7 @@ An anonymous object `{name: value}` builds a methodless object whose fields read
 <?nvs
 // `rule:types/anonymous-object`: each anonymous object's precise type is a compiler-synthesized class
 // with exactly the fields written, each field's type inferred from its own
-// initializer. § 4: a field the shape names is proven present, so reading it
+// initializer. `rule:types/erased-member-access`: a field the shape names is proven present, so reading it
 // is a plain slot load that never throws.
 var $p = {x: 1, y: 2};
 echo $p->x, " ", $p->y, "\n";
@@ -15,7 +15,7 @@ echo $p->x, " ", $p->y, "\n";
 var $t = {zed: "z", alpha: "a"};
 echo $t->alpha, $t->zed, "\n";
 
-// § 2: an ordinary object in every other respect, so a refcounted field owns
+// `rule:types/anonymous-object`: an ordinary object in every other respect, so a refcounted field owns
 // what it holds and the value read out of it outlives the read.
 var $who = "grace";
 var $s = {greeting: Core\Str::upper("hi"), who: $who};

@@ -7,7 +7,7 @@ A comparison against an enum case narrows its subject to that case's own type, o
 // literal that cooks to a value with no context — which enum `Read` belongs
 // to is a question about the writing site's namespace and imports — so the
 // residue is read back off the `ExprInfo::EnumCase` the operand recorded when
-// it was checked, and it is § 3's `Ty::EnumCase` rather than the whole enum,
+// it was checked, and it is `rule:types/enum-case-type`'s `Ty::EnumCase` rather than the whole enum,
 // which is the entire point of the guard.
 enum Mode: int {
     Read = 1,

@@ -5,7 +5,7 @@ A shape field read through a widened view answers the field it names, not whatev
 // `rule:types/shape-type`'s width subtyping: `{x: int, y: int}` satisfies `{y: int}`,
 // and the two lay their slots out differently. A shape's slots are its field
 // names sorted, so `y` is slot 1 in the value and slot 0 in the view — which
-// is why § 4 keys the fetch on the *name* rather than on a fixed offset.
+// is why `rule:types/erased-member-access` keys the fetch on the *name* rather than on a fixed offset.
 class View {
     public static function y({y: int} $point): int {
         return $point->y;

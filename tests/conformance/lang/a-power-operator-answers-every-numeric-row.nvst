@@ -23,7 +23,7 @@ uint $ten = 10;
 uint $nineteen = 19;
 echo $ten ** $nineteen, "\n";
 
-// `rule:types/arithmetic`'s "either operand a `float`" row, and § 2's implicit widening
+// `rule:types/arithmetic`'s "either operand a `float`" row, and the implicit widening (`rule:types/implicit-widening`)
 // of an `int` into a `float` position — `9 ** 0.5` is the second, since the
 // literal `9` is an `int` and the exponent forces the pair to `float`.
 float $x = 2.0;

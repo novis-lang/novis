@@ -2,10 +2,10 @@
 `$a["k"] ?? $d` yields the default for an absent key instead of throwing — `rule:types/conversion` and `rule:types/absent-storage-is-never-a-zero-value`
 --FILE--
 <?nvs
-// § 7 row 11 makes a bare `$a["nope"]` throw where PHP warns. `??` is the
-// exception carved out of it: PHP defines the operator as "absent or `null`,
-// without the warning", so the guarded read has to have an answer. The present
-// side first, so a case that defaulted everywhere would fail here.
+// `rule:types/absent-storage-is-never-a-zero-value` makes a bare `$a["nope"]`
+// throw where PHP warns. `??` is the exception carved out of it: PHP defines
+// the operator as "absent or `null`, without the warning", so the guarded read
+// has to have an answer. The present side first, so a case that defaulted everywhere would fail here.
 array<string> $a = ["k" => "v", "0" => "zero"];
 echo $a["k"] ?? "d", "|", $a["nope"] ?? "d", "\n";
 
@@ -28,7 +28,7 @@ echo $bound, "\n";
 array<?string> $maybe = ["n" => null, "j" => "here"];
 echo $maybe["n"] ?? "d", "|", $maybe["j"] ?? "d", "|", $maybe["gone"] ?? "d", "\n";
 
-// § 5: an `int` subscript names the same entry as its decimal, guarded or not,
+// `rule:types/arrays`: an `int` subscript names the same entry as its decimal, guarded or not,
 // and so does a `uint` one.
 int $zero = 0;
 int $nine = 9;

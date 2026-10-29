@@ -6,7 +6,7 @@ An integer literal beside a `uint` operand is placed at `uint` rather than defau
 // `int`, `uint`, `float` or `decimal` from its target rather than
 // converting." A binary operator's other operand is one of those placements,
 // and `uint` is the only type it changes anything for — an unplaced digit run
-// defaults to `int`, so without it every row below is § 4's mixed-signedness
+// defaults to `int`, so without it every row below is `rule:types/arithmetic`'s mixed-signedness
 // refusal and a `uint` can meet only a `uint`-declared local.
 
 // 1. Agreement rather than a value: every row is asked twice, once of a bare
@@ -36,7 +36,7 @@ echo "rows agreeing: ", $agrees, "/10\n";
 echo "literal on the left: ", 10 - $u, " ", 1 + $u, " ", 64 >> $u, "\n";
 
 // 3. The bound this placement is the only way to reach, named on both sides.
-//    § 4 makes a digit run past `int` "legal only where a `uint` is
+//    `rule:types/uint` makes a digit run past `int` "legal only where a `uint` is
 //    expected", and an operand was not such a position until now: `i64::MAX`
 //    is the last value that also fits an `int`, and one past it is the first
 //    that needs the placement to be written at all.

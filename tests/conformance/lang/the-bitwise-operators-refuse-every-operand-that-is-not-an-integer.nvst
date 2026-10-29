@@ -25,7 +25,7 @@ mixed $a4 = $f << $f;
 mixed $a5 = $f >> $f;
 mixed $a6 = ~$f;
 
-// A `decimal` parts from its own § 3 table here: `rule:types/arithmetic` grants
+// A `decimal` parts from its own rows here: `rule:types/arithmetic` grants
 // arithmetic, equality and ordering, because a coefficient and a scale
 // answer those exactly, and grants no bit operation because there is no bit
 // pattern to read.

@@ -85,7 +85,7 @@ class Typed {
 
 // The sweep is in source order and each row is numbered, so a family that
 // stops answering shifts a row rather than printing plausibly. `"3" + 1`
-// throws because `rule:types/arithmetic`'s operands are the numeric types and § 2 has no
+// throws because `rule:types/arithmetic`'s operands are the numeric types and `rule:types/conversion` has no
 // implicit conversion for a `string` to become one — the same refusal `E0716`
 // makes where the static type shows it, arriving as a catchable throw here.
 array<mixed> $vals = [7, 0, 2.5, 0.0, "3", "0", "abc", "", true, false, null, ["k" => "v"], ["j" => "w"]];

@@ -17,7 +17,8 @@ final class Tally {
 // `rule:classes/clone-is-shallow`: "`readonly` properties are written by the copy the same
 // privileged path an ordinary constructor and `Core\Reflect` already use" —
 // so the copy is not a second write and does not throw.
-// And § 1 again: "`PropertyObserver` does not fire during a clone."
+// And the same rule again: a declared `PropertyObserver` is told nothing
+// about a clone.
 class Badge implements PropertyObserver {
     public string $label;
     public readonly int $serial;

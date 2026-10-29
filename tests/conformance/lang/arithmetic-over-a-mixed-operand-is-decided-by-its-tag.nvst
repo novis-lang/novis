@@ -12,7 +12,7 @@ echo $m + 1, " ", $m - 1, " ", $m * 2, " ", $m ** 2, "\n";
 // an inexact one is a float, and which of the two is a runtime question here
 // twice over.
 echo $m / 7, " ", $m / 2, " ", $m % 4, "\n";
-// § 4's `& | ^ << >>` row is `int` and `uint` alone, and `>>` reads the
+// `rule:types/arithmetic`'s `& | ^ << >>` row is `int` and `uint` alone, and `>>` reads the
 // signedness off the tag rather than off a declaration.
 echo $m & 3, " ", $m | 8, " ", $m ^ 1, " ", $m << 2, " ", $m >> 1, "\n";
 // "Either operand a `float`", including the operand that is only a `float`
@@ -30,8 +30,8 @@ decimal $dec = 1.25;
 mixed $md = $dec;
 echo $md + $dec, " ", $md * 2, "\n";
 // `rule:types/arithmetic`'s table is a *closed* list, so a pair it names no row for has
-// no arithmetic at all rather than PHP's converted answer — § 2 having no
-// implicit conversion for that to be.
+// no arithmetic at all rather than PHP's converted answer — `rule:types/conversion`
+// having no implicit conversion for that to be.
 mixed $s = "5";
 try { echo $s + 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
 mixed $n = null;
@@ -41,7 +41,7 @@ try { echo $f & 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
 // `E0407` refuses it where the static types show it.
 try { echo $m + $u, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
 // Overflow throws rather than wrapping or promoting to `float`, which is the
-// divergence from PHP § 4 is least willing to trade.
+// divergence from PHP `rule:types/arithmetic` is least willing to trade.
 mixed $big = 9223372036854775807;
 try { echo $big + 1, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }
 try { echo $big * 2, "\n"; } catch (Throwable $e) { echo $e->message, "\n"; }

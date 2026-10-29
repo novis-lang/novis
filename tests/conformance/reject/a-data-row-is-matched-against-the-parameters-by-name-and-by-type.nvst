@@ -15,7 +15,7 @@ use Core\Test\TestWith;
 final class Schema {}
 
 final class AcceptedTest {
-    // § 9's own worked example, accepted: three rows over one method, each
+    // Accepted: three rows over one method, each
     // one its own case.
     #[Test]
     #[TestWith(input: "  ada ", want: "ada")]
@@ -26,8 +26,8 @@ final class AcceptedTest {
         Test::assertSame($want, $want);
     }
 
-    // § 9's "a mix of the two in one method is allowed": `$s` is answered by
-    // type and `$n` by name, and neither is ambiguous.
+    // A fixture and a row may answer different parameters of one method: `$s`
+    // is answered by type and `$n` by name, and neither is ambiguous.
     #[Test]
     #[TestWith(n: 1)]
     #[TestWith(n: 2)]
@@ -56,7 +56,7 @@ final class NamesTest {
     public function itNormalizes(string $input, string $want): void {
     }
 
-    // Refused: § 9's own worked example's second error — the field is an
+    // Refused: the field is an
     // `int` where the parameter is declared `string`.
     #[Test]
     #[TestWith(input: 7)]

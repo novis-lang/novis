@@ -4,7 +4,8 @@
 <?nvs
 class Counting {
     // `rule:iteration/generators` lowers this to a state machine whose `current` reads the
-    // parked element; § 1 is what says the read is guarded.
+    // parked element; `rule:iteration/cursor-out-of-range` is what says the
+    // read is guarded.
     public static function upTo(int $n): Iterator<int> {
         int $i = 1;
         while ($i <= $n) {
@@ -45,7 +46,7 @@ foreach (Counting::upTo(3) as int $v) {
 }
 
 // A generator whose body yields nothing is exhausted by its first `advance()`,
-// so both of § 1's points are the same point for it.
+// so both of the guarded points are the same point for it.
 try {
     var $empty = Counting::upTo(0);
     echo "advance: ", $empty->advance() ? "true" : "false", "\n";

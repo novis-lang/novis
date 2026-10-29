@@ -19,12 +19,12 @@ class Repo {
 echo Repo::get(21) catch (IOError $missing) => 0, "\n";
 // The guard throws: the matching arm's value.
 echo Repo::get(-1) catch (IOError $missing) => 0, "\n";
-// § 1: the binding is the same kind of name a clause's `$e` is, and carries
+// `rule:expressions/catch-expression`: the binding is the same kind of name a clause's `$e` is, and carries
 // the exception the guard threw.
 echo Repo::get(-1) catch (IOError $e) => $e->message, "\n";
-// § 1: the variable is optional, as it is in the block form.
+// The variable is optional, as it is in the block form.
 echo Repo::get(-1) catch (IOError) => -7, "\n";
-// § 4: the result is the union of the two sides, so a guarded `int` beside a
+// `rule:expressions/catch-result-type`: the result is the union of the two sides, so a guarded `int` beside a
 // `string` arm is what a `mixed` binding takes.
 mixed $either = Repo::get(-1) catch (IOError $why) => "fell back";
 echo $either, "\n";

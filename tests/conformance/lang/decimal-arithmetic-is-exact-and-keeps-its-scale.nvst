@@ -14,12 +14,12 @@ decimal $price = 19.99;
 decimal $shipping = 4.95;
 echo $price + $shipping, "|", $price - $shipping, "|", $price * 2, "\n";
 
-// Scale is carried for rendering (§ 4), so a trailing zero survives -- and is
+// Scale is carried for rendering (`rule:types/decimal`), so a trailing zero survives -- and is
 // invisible to equality, which compares values.
 decimal $padded = 19.90;
 echo $padded, "|", ($padded == 19.9) as string, "|", ($padded == 19.900) as string, "\n";
 
-// `as` is itself a placing position (§ 2), so the full 29 significant digits
+// `as` is itself a placing position (`rule:types/numeric-literal-placement`), so the full 29 significant digits
 // survive rather than round-tripping through an `f64`'s ~17.
 echo 1234567890123456789012345.6789 as decimal, "\n";
 

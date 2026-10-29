@@ -4,8 +4,8 @@
 <?nvs
 // `rule:statements/inout-is-the-by-reference-spelling` puts the word in the modifier slot, before the type, so it
 // reads the same on a static method, an instance method and a `foreach`
-// value binding. § 2 writes it again at the argument, which is the half a
-// rename alone would not have bought: without it `Adder::bump($n)` is
+// value binding. `rule:statements/inout-is-written-at-the-call` writes it
+// again at the argument, which is the half a rename alone would not have bought: without it `Adder::bump($n)` is
 // indistinguishable at the point of call from `Adder::sum($a, $b)`, and only
 // one of them writes to its caller's storage.
 final class Cell {

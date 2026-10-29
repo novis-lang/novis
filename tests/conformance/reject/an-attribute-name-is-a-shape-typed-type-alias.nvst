@@ -35,7 +35,8 @@ class Accepted {
 #[Undeclared(path: "/x")]
 class RefusedName {
     // A class is the spelling this refusal exists for — it is what PHP would
-    // have instantiated, and § 1 gives an attribute nothing to instantiate.
+    // have instantiated, and `rule:attributes/attach-sites-and-forms` gives an
+    // attribute nothing to instantiate.
     #[NotAnAttribute(path: "/x")]
     public string $field = "f";
 

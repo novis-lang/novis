@@ -9,13 +9,13 @@ class Profile {
 
 Profile $p = new Profile();
 
-// § 4: the one operand a computed member name admits. Every public property of
-// `Profile` is a `string`, so § 5's union of the set is `string` and the read
+// The one operand a computed member name admits. Every public property of
+// `Profile` is a `string`, so the union of the set is `string` and the read
 // needs no narrowing to be echoed.
 property<Profile> $key = "email" as property<Profile>;
 echo $p->$key, "\n";
 
-// § 5's write: the checked erased store. It writes an existing property and
+// The write is the checked erased store. It writes an existing property and
 // never creates one, so the field the key names is the field that changed —
 // read back both through the key and written out.
 $p->$key = "grace@example.com";
@@ -34,11 +34,11 @@ echo $p->city, "\n";
 // The two keys name two fields and neither write reached the other's.
 echo $p->email, " ", $p->city, "\n";
 
-// `->{expr}` is § 4's second spelling and the same access — the operand's type
+// `->{expr}` is the second spelling and the same access — the operand's type
 // is what admits it, not the brackets.
 echo $p->{"email" as property<Profile>}, "\n";
 
-// § 5's union where the set has more than one type: `Stock`'s roster is a
+// The read's union where the set has more than one type: `Stock`'s roster is a
 // `string` and an `int`, so a read through the key is `string|int` and narrows
 // the way every union narrows.
 class Stock {

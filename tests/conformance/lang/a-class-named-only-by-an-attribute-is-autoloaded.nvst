@@ -7,8 +7,8 @@ an attribute's name is placed by its prefix like any other name reference — `r
 // `implements` and no expression, so the prefix lookup can only find
 // `src/Audit.nvs` if the name harvest reads an attribute.
 //
-// That the file is *loaded* is what § 2's one-declaration rule then reports
-// on: `src/Audit.nvs` carries a second top-level class, and the E0317 below
+// That the file is *loaded* is what the one-declaration rule
+// (`rule:programs/one-declaration-per-autoloaded-file`) then reports on: `src/Audit.nvs` carries a second top-level class, and the E0317 below
 // can be reached from nowhere else. A class nothing loads is not checked.
 require './src/Bootstrap.nvs';
 echo App\Handler::run(), "\n";

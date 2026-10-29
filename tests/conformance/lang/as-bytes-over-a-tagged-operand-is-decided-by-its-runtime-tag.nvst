@@ -4,7 +4,7 @@ An operand whose static type names no conversion row takes `as bytes` from its r
 <?nvs
 class Render {
     // `rule:types/conversion`'s checked spelling: it "either produces a value of the
-    // target type or throws", and § 2's table produces a `bytes` from a
+    // target type or throws", and its table produces a `bytes` from a
     // `string` and from nothing else.
     public static function checked(mixed $m): tainted string {
         try {

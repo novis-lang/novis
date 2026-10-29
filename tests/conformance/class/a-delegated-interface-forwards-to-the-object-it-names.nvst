@@ -39,8 +39,8 @@ final class Three implements Counts {
     public function count(): int { return 3; }
 }
 
-// § 4: "two different fields may each satisfy a different interface in the
-// same `implements` list."
+// `rule:classes/delegation-by-property`: "two fields may each answer a
+// different interface."
 final class Post implements Greets by $voice, Counts by $tally {
     private Greets $voice;
     private Counts $tally;
@@ -51,9 +51,8 @@ final class Post implements Greets by $voice, Counts by $tally {
     }
 }
 
-// § 4: "a class may still write its own method with the same name as a
-// delegated one — that is an ordinary override, and wins over the synthesized
-// forward." Only `shout` is written here, so `greet` is still forwarded.
+// `rule:classes/delegation-by-property`: "a class may still write the member
+// by hand, which is an ordinary override and beats the forward." Only `shout` is written here, so `greet` is still forwarded.
 final class Loud implements Greets by $voice {
     private Greets $voice;
 

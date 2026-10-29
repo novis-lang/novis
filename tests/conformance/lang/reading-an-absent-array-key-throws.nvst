@@ -8,12 +8,12 @@ Reading an array element whose key is absent throws, where PHP warns and yields 
 array<string> $a = ["x" => "y", "0" => "zero"];
 echo $a["x"], "|", $a["0"], "\n";
 
-// An `int` subscript names the same entry as its decimal (§ 5), and travels
+// An `int` subscript names the same entry as its decimal (`rule:types/arrays`), and travels
 // unrendered — the absent half of that pair is asserted below.
 int $zero = 0;
 echo $a[$zero], "\n";
 
-// § 7 row 11: the throw is an ordinary `Throwable`, so it is catchable where
+// `rule:types/absent-storage-is-never-a-zero-value`: the throw is an ordinary `Throwable`, so it is catchable where
 // it is written rather than a warning nothing observes.
 try {
     echo $a["nope"], "\n";

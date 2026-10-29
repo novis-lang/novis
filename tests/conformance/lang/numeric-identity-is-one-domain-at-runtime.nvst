@@ -2,8 +2,8 @@
 `int`, `uint`, `float` and `decimal` are one numeric domain wherever equality is resolved at runtime — a `mixed` `==` and `Core\Arr`'s strict identity alike — `rule:expressions/equality-semantics` and `rule:expressions/mixed-equality`
 --FILE--
 <?nvs
-// § 5: a `mixed` operand resolves on the runtime tags and applies § 3's
-// table, whose numeric row is *one* row — so this is `true` where PHP's
+// `rule:expressions/mixed-equality`: a `mixed` operand resolves on the
+// runtime tags and applies `rule:expressions/equality-semantics`'s table, whose numeric row is *one* row — so this is `true` where PHP's
 // `1 === 1.0` was `false`.
 mixed $n = 1;
 mixed $f = 1.0;
