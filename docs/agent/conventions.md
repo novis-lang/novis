@@ -25,7 +25,8 @@ unless the content is genuinely a list.
 
 `type` is `feat`, `fix`, `docs`, `refactor`, `perf` or `test`. `scope` is the subsystem, not the crate
 path — `lang`, `types`, `ir`, `runtime`, `stdlib`, `codegen`, `syntax`, `test`, `loop`, `agent`,
-`abi-probe`. The subject is one line, lower case after the colon, no trailing period, and it reads as a
+`abi-probe`. A commit that changes what `nvs fmt` writes takes the scope `fmt`, whatever its type, so
+the release notes list it under *Formatter*. The subject is one line, lower case after the colon, no trailing period, and it reads as a
 statement of what is now true rather than an instruction. Two clauses joined by `, and ` is the house
 style when a commit does two things; one clause is fine when it does one.
 

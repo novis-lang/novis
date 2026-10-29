@@ -54,8 +54,9 @@
 //
 // **The notes are compacted.** `git log` here is written by an unattended loop and is largely
 // bookkeeping. So `feat`, `fix` and `perf` are listed in full and grouped by scope, anything breaking
-// is lifted to the top, a subject that is not a conventional commit is listed under *Other*, and every
-// other type collapses into one *Internal* line with per-type counts. The counts add up to the commit
+// is lifted to the top, a commit of any type scoped `fmt` is listed under *Formatter* after them, a
+// subject that is not a conventional commit is listed under *Other*, and every other type collapses
+// into one *Internal* line with per-type counts. The counts add up to the commit
 // total, and the compare link at the foot reaches the rest.
 //
 // **This never publishes.** `--apply` writes the tree and stops. Tagging, pushing and the GitHub draft
@@ -113,6 +114,10 @@ const HEADLINE_SECTIONS: [string, string][] = [
   ["fix", "Fixes"],
   ["perf", "Performance"],
 ];
+
+// A commit scoped `fmt` changes what `nvs fmt` writes, whatever its type, so it is listed in full under
+// its own section after Performance. A project reads that list and reformats in one commit.
+const FORMATTER_SCOPE = "fmt";
 
 // The most entries one section lists before the rest turn into a count. A GitHub release body is
 // capped at 125,000 characters, and this repository's whole history rendered unbounded is past it,
@@ -420,7 +425,10 @@ export function renderNotes(
       "",
     );
   }
+  // Taken before the headline types, so a `feat(fmt)` is not listed under Features, and listed after them.
+  const formatter = take((e) => e.scope === FORMATTER_SCOPE);
   for (const [kind, title] of HEADLINE_SECTIONS) section(title, take((e) => e.type === kind));
+  section("Formatter", formatter);
   section("Other", take((e) => e.type === null));
 
   // Everything left is bookkeeping: counted, never listed.

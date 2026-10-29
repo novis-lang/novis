@@ -159,6 +159,29 @@ describe("nv release notes", () => {
     expect(notes).toContain("[Full changes](https://example.com/r/compare/v0.0.1...v0.1.0) — 6 commits.");
   });
 
+  test("every commit scoped fmt is listed under Formatter after Performance, and a breaking one is lifted", () => {
+    const fmt = parseLog(
+      [
+        ["p1", "perf: faster", ""],
+        ["q2", "fix(fmt): a blank line after a use block", ""],
+        ["r3", "refactor(fmt): a match arm is one line", ""],
+        ["s4", "feat(fmt)!: braces on their own line", ""],
+        ["t5", "refactor(types): a helper", ""],
+      ]
+        .map((c) => c.join("\x1f") + "\x1e\n")
+        .join(""),
+    ).map(classify);
+    const notes = renderNotes("0.1.0", null, fmt, "", "2026-01-02");
+    expect(notes).toContain("### Breaking changes");
+    expect(notes).toContain("- **fmt**: braces on their own line (`s4`)\n");
+    expect(notes).toContain(
+      "### Performance\n\n- faster (`p1`)\n\n### Formatter\n\n- **fmt**: a blank line after a use block (`q2`)\n- **fmt**: a match arm is one line (`r3`)\n",
+    );
+    expect(notes.split("braces on their own line")).toHaveLength(2);
+    expect(notes).not.toContain("### Fixes");
+    expect(notes).toContain("1 further commits: refactor (1).");
+  });
+
   test("a section past the cap lists the first entries and counts the rest", () => {
     const feats = parseLog("b\x1ffeat: second\x1f\x1ea\x1ffeat: first\x1f\x1e").map(classify);
     const notes = renderNotes("0.1.0", null, feats, "", "2026-01-02", 1);

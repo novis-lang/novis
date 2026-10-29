@@ -13,7 +13,7 @@ stages:
         rules: [core-api/a-moved-name-says-where-it-went, packaging/the-versioned-surface-is-enumerated]
   - id: 2
     title: "the release changelog has a Formatter section"
-    status: open
+    status: done
     context: [tools/nv/cmd/release.ts, tools/nv/test/release.test.ts, docs/agent/conventions.md]
   - id: 3
     title: "`nvs agent changes --since` prints the changelog the binary carries"
@@ -154,10 +154,10 @@ what changed before it edits a project.
 
 **Does:** `bun nv release` lists every commit scoped `fmt` under Formatter.
 
-- [ ] Formatter after Performance, listed in full, for any type scoped `fmt`. `tools/nv/cmd/release.ts:105`, `tools/nv/cmd/release.ts:392`
-- [ ] The module doc's section list names Formatter. `tools/nv/cmd/release.ts:51`
-- [ ] Tests: a `fix(fmt)` and a `refactor(fmt)` land under Formatter, a breaking `feat(fmt)!` is lifted to the top, and the Internal count leaves them out. `tools/nv/test/release.test.ts:1`
-- [ ] `docs/agent/conventions.md` says a commit that changes what `nvs fmt` writes takes the scope `fmt`. `docs/agent/conventions.md:26`
+- [x] Formatter after Performance, listed in full, for any type scoped `fmt`. `tools/nv/cmd/release.ts:105`, `tools/nv/cmd/release.ts:392`
+- [x] The module doc's section list names Formatter. `tools/nv/cmd/release.ts:51`
+- [x] Tests: a `fix(fmt)` and a `refactor(fmt)` land under Formatter, a breaking `feat(fmt)!` is lifted to the top, and the Internal count leaves them out. `tools/nv/test/release.test.ts:1`
+- [x] `docs/agent/conventions.md` says a commit that changes what `nvs fmt` writes takes the scope `fmt`. `docs/agent/conventions.md:26`
 
 ### 3. `nvs agent changes --since` prints the changelog the binary carries
 
@@ -169,7 +169,7 @@ newer than a version.
 - [ ] The section parser, `--since`, the default and `--json`, as § *Standing decisions* says. `crates/nvs-cli/src/agent.rs:1`
 - [ ] The help text in the binary. `crates/nvs-cli/src/agent.rs:196`
 - [ ] `nvs agent primer` names the command. `crates/nvs-cli/src/agent.rs:817`
-- [ ] The build job prepends the version's section before it compiles. `.github/workflows/release.yml:292`, `tools/nv/cmd/release.ts:255`
+- [ ] The build job prepends the version's section before it compiles. `.github/workflows/release.yml:294`, `tools/nv/cmd/release.ts:733`
 - [ ] `# nvs agent changes` in the reference. `docs/reference/tools/50-agents.md:106`
 - [ ] Tests over a changelog with three sections: `--since` each, no `--since`, an older version, a newer version, a malformed one, and `--json`. `crates/nvs-cli/tests/agent.rs:1`
 - [ ] The rule `shipped`, and `bun nv owners --closes changes-for-agents` passes. `data/rules/tooling/nvs-agent-changes-prints-the-changelog.json:1`
@@ -191,23 +191,27 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stage 1 is done. `Core\Order` in a `use`, a type and an expression says it moved to
-`Core\Arr::Order` and carries a safe fix, `nvs check --fix` rewrites a program until it compiles, and
-the rule `core-api/a-moved-name-says-where-it-went` is shipped. Two standing decisions changed on
-contact: the pass lives in `nvs-types`, and an unknown `Core` class in an expression is `E0303`.
-`tests/conformance/reject/a-core-enum-is-not-reached-by-its-old-name.nvst` was updated for that code.
+Stages 1 and 2 are done. `Core\Order` in a `use`, a type and an expression says it moved to
+`Core\Arr::Order` and carries a safe fix, and the rule `core-api/a-moved-name-says-where-it-went` is
+shipped. `bun nv release` lists every commit scoped `fmt`, of any type, under Formatter after
+Performance (`FORMATTER_SCOPE`, `tools/nv/cmd/release.ts:120`). The rows are taken before the headline
+types, so a `feat(fmt)` is not also under Features, and a breaking one is still lifted to the top.
+`docs/agent/conventions.md` § *A commit message* names the scope. The notes tests pass by name.
 
 Tests expected to go red in the gate: any test outside the conformance tree that pins `E0405` for a
-`Core` class that does not exist. Every `.nvst` that pins `E0405` on a `Core` class names a class that
-exists, so none is expected there.
+`Core` class that does not exist. None is expected from stage 2.
+
+The sweep's `env-secret-proofs` red was stale: its log and a rerun both exit 0. The nightly run
+40662443492 was a dispatched run cancelled after 14 minutes, with no failing job.
 
 ### Next
 
-**Stage 2, one group**, on `tools/nv/cmd/release.ts` and its test. No gate.
+**Stage 3, one group**, on `crates/nvs-cli/src/agent.rs`, its test and the release workflow. No gate.
 
-- [ ] Formatter after Performance, listed in full, for any type scoped `fmt`. `tools/nv/cmd/release.ts:105`, `tools/nv/cmd/release.ts:392`
-- [ ] The module doc's section list names Formatter. `tools/nv/cmd/release.ts:51`
-- [ ] Tests: `fix(fmt)`, `refactor(fmt)`, a breaking `feat(fmt)!` and the Internal count. `tools/nv/test/release.test.ts:1`
-- [ ] `docs/agent/conventions.md` § *A commit message* names the scope `fmt`. `docs/agent/conventions.md:26`
+- [ ] The rule fragment and its `designed` record first. `docs/rules/tooling/an-agent-asks-the-binary.md:1` is the sibling to follow.
+- [ ] `Command::Changes { since, json }` beside `Primer`, and its dispatch. `crates/nvs-cli/src/agent.rs:196`, `crates/nvs-cli/src/agent.rs:310`
+- [ ] `include_str!` of `CHANGELOG.md`, a section parser, and the `--since` rules of § *Standing decisions*. `crates/nvs-cli/src/agent.rs:1`
+- [ ] The build job prepends its notes before it compiles, not `--manifests-only`. `.github/workflows/release.yml:294`, `tools/nv/cmd/release.ts:733`
+- [ ] The primer line, the reference heading and the tests. `crates/nvs-cli/src/agent.rs:817`, `docs/reference/tools/50-agents.md:106`, `crates/nvs-cli/tests/agent.rs:1`
 
 ### Backlog
