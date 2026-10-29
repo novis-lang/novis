@@ -26,6 +26,11 @@ echo Core\Arr::count(Core\Arr::withoutNull($falsy)), "\n";
 array<?string> $none = ["a", "b"];
 array<?string> $empty = [];
 echo Core\Arr::count(Core\Arr::withoutNull($none)), Core\Arr::count(Core\Arr::withoutNull($empty)), "\n";
+
+// An `array<mixed>` binds `T` to `mixed`, and the result is `array<mixed>`.
+array<mixed> $anything = [1, null, "two", [], null];
+array<mixed> $some = Core\Arr::withoutNull($anything);
+echo Core\Str::join(Core\Arr::keys($some), ","), "\n";
 --EXPECT--
 one,three
 x,y
@@ -33,3 +38,4 @@ x,y
 0,2,4
 3
 20
+0,2,3

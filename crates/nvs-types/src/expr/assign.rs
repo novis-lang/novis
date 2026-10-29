@@ -209,7 +209,16 @@ fn assignable(
     if interner.is_error(from) || interner.is_error(to) {
         return true;
     }
-    if matches!(interner.get(to), Ty::Mixed) {
+    // A union with a `mixed` member accepts what `mixed` does. `?T` substituted
+    // with `T = mixed` is the union `null|mixed`, and that is where it is met.
+    let mixed_target = match interner.get(to) {
+        Ty::Mixed => true,
+        Ty::Union(members) => members
+            .iter()
+            .any(|member| matches!(interner.get(*member), Ty::Mixed)),
+        _ => false,
+    };
+    if mixed_target {
         return true;
     }
     if matches!(interner.get(from), Ty::Mixed) {
