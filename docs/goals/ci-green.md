@@ -104,20 +104,11 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `aba3e3642`, the end of `core-web-push`. Website 40732744718 is green on it.
-CI 40732744737 is red on six jobs, and one commit fixes five of them:
+`origin/main` is at `4e2d9d714`, the end of `registry-service`. CI 40787104125 and Website
+40787104169 are green on it, all 37 CI jobs included. The `ext_world` fix `73960ebbf` went out with
+it, and `cost guards / macos-aarch64` got a runner and passed. No fix is waiting for a push.
 
-- `asan` and `test` on all four platforms failed one test,
-  `crates/nvs-stdlib/tests/ext_world.rs:every_core_value_class_crosses_as_a_types_record_or_is_named_as_refused`.
-  `Core\WebPush\Subscription` and `Core\WebPush\Sent` had no entry in `REFUSED`. `73960ebbf` adds
-  both, and the test passes locally. It waits for the next goal end's push. `cargo test` stops at the
-  first failing binary, so every binary after `ext_world` did not run on those jobs. Expect a new red
-  there on the next run.
-- `cost guards / macos-aarch64` never got a runner. Its annotation says "not acquired by Runner of
-  type hosted", during GitHub's macOS arm64 capacity limits. It was not rerun, because `--rerun`
-  reruns the five known reds as well. The next push's run covers it.
-
-The next watch runs with `--next`, because the newest CI run is red and its fix is not pushed yet.
+The next watch runs with no `--next`: the newest runs are green.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
