@@ -43,8 +43,8 @@
 //!
 //! **A service never gets write on its own configuration.** `rule:packaging/a-service-runs-as-a-virtual-account`'s grants on
 //! the data folder are read on the folder and its `nvs.toml`, and read/write
-//! on `cache/`, `tmp/`, `lsp/` and `logs/` alone, each inherited only inside
-//! its own subfolder.
+//! on `cache/`, `tmp/`, `lsp/`, `logs/` and `debug/` alone, each inherited
+//! only inside its own subfolder.
 //!
 //! **On Linux the same list is owners and modes.** `nvs_config::data` creates
 //! the folder as root's `0700`, which a `User=` account could not even enter,
@@ -2409,7 +2409,7 @@ pub(crate) mod registration {
     #[derive(Clone, Copy)]
     struct Writable<'a> {
         /// The service's data folder: read on itself, read/write on its
-        /// `cache/`, `tmp/`, `lsp/` and `logs/`.
+        /// `cache/`, `tmp/`, `lsp/`, `logs/` and `debug/`.
         data_folder: Option<&'a Path>,
         /// The file of a `[log] target`, whose directory is the grant.
         log_file: Option<&'a Path>,
@@ -2436,14 +2436,15 @@ pub(crate) mod registration {
 
     /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list, closed: read on the service's data folder and on
     /// every configuration file the argv names, read/write on the data
-    /// folder's `cache/`, `tmp/`, `lsp/` and `logs/`, read/write on the log
-    /// directory, the artifact cache and the temporary-folder root, and
-    /// nothing further.
+    /// folder's `cache/`, `tmp/`, `lsp/`, `logs/` and `debug/`, read/write on
+    /// the log directory, the artifact cache and the temporary-folder root, and
+    /// nothing further. `debug/` holds the spool a server with `[debug] store`
+    /// writes and the index the `nvs debug` it starts writes.
     ///
     /// **The service never gets write on its own configuration.** The data
     /// folder's grant is read, and that is all its `nvs.toml` inherits; the
-    /// write grants sit on the four subfolders and are inherited only inside
-    /// them. A path inside one of those four gets no grant of its own, since
+    /// write grants sit on the five subfolders and are inherited only inside
+    /// them. A path inside one of those five gets no grant of its own, since
     /// it already inherits read/write.
     ///
     /// Read off the stored argv rather than off the installer's own options, so
@@ -2455,7 +2456,15 @@ pub(crate) mod registration {
             .map(|root| nvs_config::data::Folder::new(root.to_path_buf()));
         let subfolders: Vec<PathBuf> = data
             .iter()
-            .flat_map(|data| [data.cache(), data.tmp(), data.lsp_root(), data.logs()])
+            .flat_map(|data| {
+                [
+                    data.cache(),
+                    data.tmp(),
+                    data.lsp_root(),
+                    data.logs(),
+                    data.debug(),
+                ]
+            })
             .collect();
         let mut out: Vec<(PathBuf, bool)> = writable
             .data_folder
@@ -5883,9 +5892,15 @@ mod tests {
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
         let rendered = |host: &Host| unit(&plan(&request(&bare), host).expect("a plan"));
         let data = nvs_config::data::Folder::new(PathBuf::from(absolute(".nvsdata")));
-        let subfolders = [data.cache(), data.tmp(), data.lsp_root(), data.logs()];
+        let subfolders = [
+            data.cache(),
+            data.tmp(),
+            data.lsp_root(),
+            data.logs(),
+            data.debug(),
+        ];
 
-        // The default data folder and nothing configured: its four subfolders.
+        // The default data folder and nothing configured: its five subfolders.
         let alone = Host {
             log_file: None,
             cache_directory: None,
@@ -5926,7 +5941,8 @@ mod tests {
                 spaced.cache(),
                 spaced.tmp(),
                 spaced.lsp_root(),
-                spaced.logs()
+                spaced.logs(),
+                spaced.debug()
             ]
             .map(|sub| skipped_if_missing(&sub))
         );
@@ -6628,8 +6644,9 @@ mod tests {
     }
 
     /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants for a named account: read on the data folder and its
-    /// `nvs.toml`, read/write on `cache/`, `tmp/`, `lsp/` and `logs/` only, and
-    /// a grant of its own for a path the configuration names outside those four.
+    /// `nvs.toml`, read/write on `cache/`, `tmp/`, `lsp/`, `logs/` and `debug/`
+    /// only, and a grant of its own for a path the configuration names outside
+    /// those five.
     #[test]
     fn the_data_folder_is_granted_and_its_nvs_toml_stays_read_only() {
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
@@ -6665,6 +6682,7 @@ mod tests {
                 (data("tmp"), true),
                 (data("lsp"), true),
                 (data("logs"), true),
+                (data("debug"), true),
                 (PathBuf::from(absolute("log")), true),
                 (PathBuf::from(absolute("tmp")), true),
             ]
@@ -6747,6 +6765,7 @@ mod tests {
                 writable(data("tmp")),
                 writable(data("lsp")),
                 writable(data("logs")),
+                writable(data("debug")),
                 writable(PathBuf::from(absolute("log"))),
                 writable(PathBuf::from(absolute("tmp"))),
             ]
