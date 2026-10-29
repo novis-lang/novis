@@ -104,10 +104,20 @@ Every session runs this cycle until CI is green or the context reaches 120k:
 
 ### State
 
-`origin/main` is at `15a64f161`, the end of `arr-key-order-and-nulls`. CI 40827587132 and
-Website 40827587118 are green on it. Nothing is fixed and unpushed. The next watch waits for the
-next goal end's push. Before this push, `proofs --gate --limit 0` and `site --check stale
-questions` were both green at `HEAD`.
+`origin/main` is at `8d39c49bb`, the end of `changes-for-agents`. Website 40840362055 is green on
+it. The push lane's CI run went green too. The nightly deep lane, CI 40847802941 on `8d39c49bb`,
+ended red in nine jobs, and each one's fix is committed and not yet pushed:
+
+- `overload past capacity`: the proxied image's build context left out `CHANGELOG.md`, which
+  `nvs agent changes` compiles in. `ef7e629e2` keeps it in `benches/proxied/Dockerfile.dockerignore`.
+  A file another `include_str!` pulls from outside `docs/reference/` needs the same line there.
+- `miri units (nvs-runtime 1/2)`: the spool wake test read its open file through `seal_due`, which
+  seals any file older than 250 ms on the real clock. `dafe6c98d` reads the writer's deadline.
+- `miri units (nvs-stdlib 1, 3, 6, 8, 10, 11, 12 of 12)`: nine passkey tests make keys with `ring`,
+  which Miri cannot run. `df208a541` gives each the `cfg_attr(miri, ignore)` crypto.rs uses.
+
+`6228212e4` makes `--past "miri units"` cover every shard of that matrix job. Before the next
+watch, `proofs --gate --limit 0` and `site --check stale questions` were green at `HEAD`.
 
 Before you record a stale figure, run `git diff --stat -- data/perf/members.ndjson` in the root:
 the main loop may be recording the same figures. `--record-perf` needs the binary under the
@@ -121,8 +131,11 @@ target dir with a release `nvs.exe` at `224adaa5c`. Delete them all once looper 
 
 **Stage 1, the cycle.** Never push: `main` goes out at the next goal end.
 
-- [ ] Watch with `bun nv ci --watch`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
-  Run 40484733037 on `1467fa8f6` is green. If `tsan`'s allocation test fails
+- [ ] Watch with `bun nv ci --watch --next`, for the next goal end's push. `tools/nv/cmd/ci.ts:265`
+  The red nightly run 40847802941 would otherwise end the watch at once. Its fixes go out with
+  that push, so the next nightly run is their check: if a `miri units` shard fails again, read
+  which test it names before you think the passkey fix missed one. A new test that signs or
+  verifies through `ring` carries the same ignore. Run 40484733037 on `1467fa8f6` is green. If `tsan`'s allocation test fails
   again with a different batch off by one, the first-use allocation is elsewhere on the core:
   compare `crates/nvs-host/src/scheduler.rs:Scheduler::new`'s empty collections with the parked path.
   If the cache dir test fails again, the edit is now one rename, so print `artifacts(&dir("two"))`
