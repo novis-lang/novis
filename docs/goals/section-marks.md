@@ -46,7 +46,7 @@ stages:
     context: [tools/data/bare-section-marks.json, crates/nvs-config/src/lib.rs]
   - id: 13
     title: "the CLI crate's marks name their documents"
-    status: open
+    status: done
     context: [tools/data/bare-section-marks.json, crates/nvs-cli/src/cache.rs]
   - id: 7
     title: "the core conformance cases' marks name their documents"
@@ -58,7 +58,7 @@ stages:
     context: [tools/data/bare-section-marks.json]
   - id: 8
     title: "the check refuses every bare mark"
-    status: open
+    status: done
     context: [tools/nv/cmd/rules.ts]
   - id: 15
     title: the goal is verified once, and every failure is fixed
@@ -67,7 +67,7 @@ stages:
 checks:
   - id: rules
     stage: 1
-    name: "the rulebook is clean, and no file has more bare section marks than its recorded count"
+    name: "the rulebook is clean, and no file under crates/ or tests/conformance/ has a bare section mark"
     run: [bun, nv, rules, --check]
 ---
 
@@ -126,6 +126,13 @@ for a document that does not exist.
   thing instead (`"§ 6 moved it"` becomes `"the dead-letter move took it"`). A message a program's
   user reads follows AGENTS.md § *Text an end user reads*, and is changed only once a search shows
   no expectation file pins its wording.
+
+- **In a conformance case, the check reads the description and the comments only** (stage 8). A
+  case's program is code under test and its expected sections are output, so a `§` there is a
+  character the case is about, not a citation. A rule by line kind needs no per-line opt-out
+  marker, which would itself be a thing to remember, and leaves the stray-character case's
+  expected `case.nvs:3:16` unchanged. A string in a case's program goes unread; an expected
+  section pins what the program prints, and a source file under `crates/` is still read whole.
 
 **Lanes.** Stages 2 to 7 and 9 to 14 cover disjoint crates and directories, so any two can run at
 once as lanes after stage 1. Every lane edits `tools/data/bare-section-marks.json`; at merge it is
@@ -256,7 +263,7 @@ which keeps its number and gains its name.
 **Split:** as stage 2.
 
 - [x] `nvs-cli`'s cache, worker and serve files. `crates/nvs-cli/src/cache.rs:27`, `crates/nvs-cli/src/worker.rs:1`, `crates/nvs-cli/src/serve.rs:1`
-- [ ] The rest of `nvs-cli`'s entries in the record, and every count under `crates/` at zero. `crates/nvs-cli/src/main.rs:1`
+- [x] The rest of `nvs-cli`'s entries in the record, and every count under `crates/` at zero. `crates/nvs-cli/src/main.rs:1`
 
 ### 7. the core conformance cases' marks name their documents
 
@@ -282,9 +289,9 @@ short.
 **Does:** the record of counts is gone, and `rules --check` fails on any bare mark under `crates/`
 or `tests/conformance/`.
 
-- [ ] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:120`
-- [ ] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:29`
-- [ ] A `§` that is a case's subject is not a citation: `a-character-that-begins-no-token-does-not-compile.nvst` writes `4 § 2` as the stray character it tests. The finder skips it by a stated rule, with a case. `tests/conformance/reject/a-character-that-begins-no-token-does-not-compile.nvst:6`
+- [x] `tools/data/bare-section-marks.json` and `--record-marks` are deleted, and the check refuses every bare mark. `tools/nv/cmd/rules.ts:120`
+- [x] The cases in `rules.test.ts` pin the refusal. `tools/nv/test/rules.test.ts:29`
+- [x] A `§` that is a case's subject is not a citation: `a-character-that-begins-no-token-does-not-compile.nvst` writes `4 § 2` as the stray character it tests. The finder skips it by a stated rule, with a case. `tests/conformance/reject/a-character-that-begins-no-token-does-not-compile.nvst:6`
 
 ### 15. the goal is verified once, and every failure is fixed
 
@@ -303,39 +310,38 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1, 2, 9, 3, 10, 4, 11, 5, 12, 6 and 14 are done, and stage 13's first item is. The
-record holds 623 marks in 307 files: `core` 598, the three held `nvs-cli` files 24
-(`main.rs` 18, `config.rs` 3, `script.rs` 3), and one in
-`reject/a-character-that-begins-no-token-does-not-compile.nvst`, where `§` is the stray
-character the case tests and stays (stage 8's third item). Two commits landed stage 13's 272
-marks (`c022ae6e0`) and stage 14's 254 (`933eafe66`). Five writing subagents on disjoint files
-did the comments, and the session rewrote the 20 marks left in strings and read the diffs.
-Build, clippy and rustfmt are green. `d53652640` re-recorded the 56 perf figures and the
-routes page stamp that stages 9 and 4's string edits had made stale (see the playbook).
+Every stage but 15 is done. No file under `crates/` or `tests/conformance/` has a bare mark,
+and `bun nv rules --check` is green on the whole tree. This session landed three commits:
+- Stage 7's 598 marks in 303 core cases, done by four writing subagents on disjoint batches.
+  The session read the diffs.
+- The three held `nvs-cli` files' 24 marks, which went to stage 8's session as the last
+  handoff allowed. `app-settings` and `ci-green` sit behind this goal on the chain, so neither
+  was editing them. All 24 marks were in comments.
+- Stage 8: `tools/data/bare-section-marks.json` and `--record-marks` are gone, and
+  `rules --check` fails on each line that carries a bare mark. In a `.nvst` case it reads the
+  description and the comments only (`markProse`, see Standing decisions). `rules.test.ts`
+  pins this, and its 46 cases pass with `verify.test.ts`.
 
-To commit two stages from one tree: stash stage B's paths, `git checkout HEAD --
-tools/data/bare-section-marks.json`, `bun nv rules --record-marks`, commit A, `git stash pop`,
-record again, commit B.
+`docs/goals/app-settings.md:151` wrote its future rule as a `rule:` citation, which kept
+`rules --check` red. It now names the id without the token.
 
-No diagnostic text and no expected output changed. No test is expected to go red.
+Build, clippy, rustfmt on the edited `.rs` files, `tsc` on the tool and `looper lint` are
+green. No diagnostic text and no expected output changed. No test is expected to go red.
 
-`bun nv rules --marks` takes file paths only, so pass `git ls-files <dir>`.
-
-`bun nv rules --check` is red on one line this goal did not write:
-`docs/goals/app-settings.md:151` cites a rule that goal will write, outside its front matter.
-That goal's first session fixes it.
+The sweep's findings were already fixed on `main`: `env-secret-proofs` is defined by no goal
+and its command passes. The nightly's three causes (the proxied image's missing
+`CHANGELOG.md`, the Miri `ring` passkey cases and the spool wake test) have fixes in
+`ef7e629e2`, `df208a541` and `dafe6c98d`, all after the nightly's commit `8d39c49bb`.
 
 ### Next
 
-Stage 7, `tests/conformance/core/`: 598 marks in 303 cases, 361 in the cases from `a` to `d`
-and 237 from `e` on. Split across four writing subagents on disjoint, alphabetical batches of
-about 150 marks each. Each brief names its file list, the history method in Standing
-decisions, and these lines: edit only the `--TEST--` line and comments; report each mark in an
-expected-output section or a string; keep LF line endings. Grep `git grep -n` for each reported
-string in the expected sections before changing it. Stage 13's last item stays held.
-- [ ] Stage 7: the cases from `a` to `d`, two subagents. `tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst:1`
-- [ ] Stage 7: the cases from `e` on, two subagents. `tests/conformance/core/uri-resolve-runs-rfc-3986-s-5-4-abnormal-table.nvst:1`
-- [ ] The three held `nvs-cli` files wait until `app-settings` and `ci-green` are gone from `docs/goals/`, or go to stage 8's session. `crates/nvs-cli/src/main.rs:1`
+Stage 15 alone. Start `looper verify` (`bun nv affected --run`) with `run_in_background`,
+and end the turn to wait. Then group the failures by cause and fix them in one pass. The
+change is comments in about 900 files, the `rules` tool and its tests. A failure is most
+likely a stamp or figure that hashes a file's text: `d53652640` was one (see the playbook).
+- [ ] `bun nv affected --run` over the goal, its failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, then the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates in AGENTS.md § *In the loop*: `bun nv verify --doc`, `bun nv owners --closes section-marks`, `bun nv ci --check`. `docs/goals/section-marks.md:1`
 
 ### Backlog
 
@@ -361,5 +367,21 @@ string in the expected sections before changing it. Stage 13's last item stays h
 - Some working copies of `.nvst` cases have CRLF endings, and the Edit tool can write a whole
   file back with them. Git stores LF, so the commit is right, but `git diff --numstat` shows the
   whole file until it is added. `tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst:1`
+- Facts the records held that no rule states now, reported by stage 7's subagents:
+  `multiSelect` takes no `default` (`rule:tooling/a-prompt-is-a-core-member`); a misused
+  `transaction` option throws `LogicError`, not `DbError` (`rule:core-classes/db-transactions`);
+  `Write::affected` is `0` and `changed` `null` where a driver has no count
+  (`rule:core-classes/db-statement-members`); a program's failure is a `LogicError` and the
+  world's a `RuntimeError` (`rule:errors/throwable-hierarchy`); `Core\Log::write` leaves out an
+  empty `fields` key (`rule:errors/log-write`); `Core\Session::start`'s signature
+  (`rule:core-api/session-roster`). `crates/nvs-stdlib/src/db/bind.rs:1`
+- `Core\Secret::reveal`'s reason is not required to be a literal, while
+  `rule:core-classes/html-to-source` requires that of its own `$reason`. One of the two may be
+  wrong. `tests/conformance/core/secret-the-reason-reaches-no-byte-of-the-answer.nvst:16`
+- `script-on-exit-runs-its-queue-fifo`'s comment says "the three endings", and the rule's table
+  now has four. `tests/conformance/core/script-on-exit-runs-its-queue-fifo-after-the-last-statement.nvst:17`
+- `nvs`'s route survey shows paths relative to the entry point's directory, but
+  `rule:programs/autoload` resolves an `autoload` path against the file that declares it. The
+  output may be wrong for an `autoload` written in another file. `crates/nvs-cli/src/main.rs:1375`
 - A `§ N` in a doc under `docs/` is outside this goal. `bun nv verify --doc` checks links, not
   marks. `docs/agent/conventions.md:367`

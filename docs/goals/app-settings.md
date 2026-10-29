@@ -148,7 +148,7 @@ does not name. `nvs check` stays a source check that never reads `nvs.toml`
 What it spends: `nvs config check` now compiles each named program, which is seconds offline and
 nothing on a server.
 
-**The rules this goal writes.** A new rule, `rule:config/settings-and-secrets-are-a-programs-own-values`,
+**The rules this goal writes.** A new rule, with the id `config/settings-and-secrets-are-a-programs-own-values`,
 holds every decision above with its Declined list:
 
 - a free-form block with no declared keys and no typo check

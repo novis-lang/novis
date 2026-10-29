@@ -1,7 +1,7 @@
 // The decision record and deleted doc guards in `bun nv rules --check`. The cases name every form they
 // refuse, so this file carries `nv-rules:record-examples`.
 import { describe, expect, test } from "bun:test";
-import { RECORD_DIRS, bareMarkFindings, bareMarks, deletedDocFindings, markCounts, recordFindings } from "../cmd/rules.ts";
+import { RECORD_DIRS, bareMarkFindings, bareMarks, deletedDocFindings, markProse, recordFindings } from "../cmd/rules.ts";
 
 const one = (text: string) => recordFindings([], [["docs/x.md", text]]);
 
@@ -125,24 +125,31 @@ describe("nv rules --check, bare section marks", () => {
     expect(bareMarks("// § Safepoints")).toEqual([1]);
   });
 
-  const two = "// § 1\n// § 2";
+  const what = "carries a bare section mark, which names no document";
 
-  test("a count that rose is a finding, and so is a mark in a file the record does not name", () => {
-    expect(bareMarkFindings({ "crates/x.rs": 1 }, [["crates/x.rs", two]])).toEqual([
-      { where: "crates/x.rs", what: "has 2 bare section mark(s), and its record allows 1 (lines 1, 2)" },
+  test("each line of a source file that carries a bare mark is a finding, a string's too", () => {
+    expect(bareMarkFindings([["crates/x.rs", "// § 1 and § 2\nok\nassert!(x, \"§ 6 moved it\");"]])).toEqual([
+      { where: "crates/x.rs:1", what },
+      { where: "crates/x.rs:3", what },
     ]);
-    expect(bareMarkFindings({}, [["crates/new.rs", "// § 1"]])).toHaveLength(1);
+    expect(bareMarkFindings([["crates/y.rs", "// RFC 3986 § 1"]])).toEqual([]);
   });
 
-  test("a count that fell or held passes", () => {
-    expect(bareMarkFindings({ "crates/x.rs": 3 }, [["crates/x.rs", two]])).toEqual([]);
-    expect(bareMarkFindings({ "crates/x.rs": 2 }, [["crates/x.rs", two]])).toEqual([]);
+  const nvst = (program: string, output = "") => `--TEST--\nwhat § 4 says\n--FILE--\n<?nvs\n${program}\n--EXPECT--\n${output}\n`;
+
+  test("a conformance case's description and comments are read, wherever the comment starts", () => {
+    expect(bareMarkFindings([["c.nvst", nvst("// as § 2 says\necho 1; // § 3")]]).map((f) => f.where)).toEqual([
+      "c.nvst:2",
+      "c.nvst:5",
+      "c.nvst:6",
+    ]);
+    expect(bareMarks(markProse("c.nvst", "--FILE--\n# § 3 of the block\n/* § 1\n * § 2 */"))).toEqual([2, 3, 4]);
   });
 
-  test("the record names each file with a bare mark, in path order", () => {
-    expect(markCounts([["crates/b.rs", two], ["crates/a.rs", "// RFC 3986 § 1"], ["crates/A/c.rs", "// § 9"]])).toEqual({
-      "crates/A/c.rs": 1,
-      "crates/b.rs": 2,
-    });
+  test("a `§` a case's program tests, its output and an attribute are not citations", () => {
+    expect(bareMarkFindings([["c.nvst", nvst("var $price = 4 § 2;\n#[A(\"§ 1\")]\necho \"§ 5\";", "§ 5")]])).toEqual([
+      { where: "c.nvst:2", what },
+    ]);
+    expect(markProse("crates/x.rs", "4 § 2")).toBe("4 § 2");
   });
 });

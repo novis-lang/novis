@@ -391,9 +391,9 @@ A second mark of the same standard joined by `and`, `or` or a comma keeps the na
 and § 13.1`. Any other `§ N` is bare, because a reader cannot tell what it cites, even where the file's
 head comment names a standard: write `RFC 8446 § 3`, not `§ 3`. A section of this repository's
 documents is cited by its heading, never its number, so a new section above it does not change the
-citation. `bun nv rules --check` counts the bare marks of each file under `crates/` and
-`tests/conformance/` against `tools/data/bare-section-marks.json`, fails on a file above its count, and
-`bun nv rules --record-marks` writes the lower counts once a change removes marks. The standards it
+citation. `bun nv rules --check` fails on each bare mark in a file under `crates/` and
+`tests/conformance/`, and `bun nv rules --marks <paths>` lists them. In a conformance case it reads the
+description and the comments only, so a `§` the case's program tests is not a citation. The standards it
 recognises are `NAMED_STANDARD` in `tools/nv/cmd/rules.ts`; a new one is added there with a case.
 
 **A link to another document depends on whether a renderer resolves it, and there are exactly two
