@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-cli/src/config.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/config/check-and-dump-audit-the-tree-offline.md]
   - id: 4
     title: "both methods have their feature proofs, and the website shows the blocks"
-    status: open
+    status: done
     context: [docs/examples/README.md, docs/examples/core/Config/get/about.md, docs/examples/core/Env/secret/about.md, website/src/content/docs/guides/how-to-use/configuration.mdx, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -185,6 +185,13 @@ disk. Memory: the values are part of the config snapshot, stored once per snapsh
 request. Simplicity: four blocks and two methods. An author learns one way to write a per-machine
 value.
 
+**The examples write every secret inline, and the configuration page shows `_file`** (decided in
+stage 4). A secret file in the repository is readable by other accounts on every checkout, so each
+example run printed `W1005` on standard error. An example a reader copies should run clean. The
+`about.md` names the file form and the warning. The two Config benches read values from their own
+`[[app]] entry` blocks in the root `nvs.toml`: a class directory's `nvs.toml` would replace the root
+file for every `Core\Config` bench and change what `all` measures.
+
 **Lanes.** Stages 1 to 3 run in order: stage 2 reads the blocks stage 1 types, and stage 3 records
 the calls stage 2 adds. Stage 4's examples, attacks and benches need stage 2's methods in a built
 binary. The goal depends on no other chain goal.
@@ -235,13 +242,13 @@ two attacks under `tests/hostile/` and the bench. None of them builds. Each brie
 § *Text an end user reads* in `AGENTS.md`. The session writes the website section and blesses the
 `.out` files itself.
 
-- [ ] `setting`: `about.md`, three examples and the `nvs.toml` they run under. `docs/examples/core/Config/setting/about.md:1`, `docs/examples/core/Config/setting/nvs.toml:1`
-- [ ] `secret`: `about.md`, three examples, the `nvs.toml` and a secret file beside it. `docs/examples/core/Config/secret/about.md:1`, `docs/examples/core/Config/secret/nvs.toml:1`
-- [ ] Attacks: a program tries to print a secret, a program tries to read another app's settings, and a request tries to choose which secret is read. `tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs:1`, `tests/hostile/core/Config/secret/01-print-a-secret.nvs:1`
-- [ ] A bench for each, with its growth. `benches/members/core/Config/setting.nvs:1`, `benches/members/core/Config/secret.nvs:1`
-- [ ] The configuration page has a section on the four blocks, with one per-machine override through `[[include]]`. `website/src/content/docs/guides/how-to-use/configuration.mdx:35`
-- [ ] `bun nv proofs --id 'Core\Config::setting'` and `--id 'Core\Config::secret'` owe nothing, and `bun nv proofs --comments` passes on every new `.nvs`. `tools/nv/cmd/proofs.ts:1`
-- [ ] The new rule is `shipped`, with the conformance cases and tests as its `guardedBy`, and `bun nv owners --closes app-settings` passes. `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`
+- [x] `setting`: `about.md`, three examples and the `nvs.toml` they run under. `docs/examples/core/Config/setting/about.md:1`, `docs/examples/core/Config/setting/nvs.toml:1`
+- [x] `secret`: `about.md`, three examples and the `nvs.toml`, with every secret inline (see § *Standing decisions*). `docs/examples/core/Config/secret/about.md:1`, `docs/examples/core/Config/secret/nvs.toml:1`
+- [x] Attacks: a program tries to print a secret, a program tries to read another app's settings, and a request tries to choose which secret is read. `tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs:1`, `tests/hostile/core/Config/secret/01-print-a-secret.nvs:1`
+- [x] A bench for each, with its growth. `benches/members/core/Config/setting.nvs:1`, `benches/members/core/Config/secret.nvs:1`
+- [x] The configuration page has a section on the four blocks, with one per-machine override through `[[include]]`. `website/src/content/docs/guides/how-to-use/configuration.mdx:35`
+- [x] `bun nv proofs --id 'Core\Config::setting'` and `--id 'Core\Config::secret'` owe nothing, and `bun nv proofs --comments` passes on every new `.nvs`. `tools/nv/cmd/proofs.ts:1`
+- [x] The new rule is `shipped`, with the conformance cases and tests as its `guardedBy`, and `bun nv owners --closes app-settings` passes. `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -260,19 +267,24 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 to 3 are done. `settings-check-tests` is green: `cargo test --test config_settings`
-passes 6 of 6. `nvs_types::setting_names` (`crates/nvs-types/src/setting_names.rs`) records each
-literal name, and a computed one, a spread or a method reference sets `computed`. It rides in
-`ExprTypeTable::setting_names`. `nvs config check` (`crates/nvs-cli/src/config.rs`, `unread_keys`
-and `open_keys`) compiles the programs with `crate::front_end` only when the tree writes one of the
-four blocks, and expands the mount table with `nvs_config::mount::expand`, whose refusal fails the
-check. One name read by any program counts for every block. A program that does not compile, a
-computed name or no program at all prints one `note:` line and judges no key. Both rules say so.
-`W1028` is `W_SETTING_NOT_READ`. `docs/rules/security.md` was re-rendered with stage 2's fragment.
+Stages 1 to 4 are done. `bun nv proofs --gate --only 'Core\Config::setting' 'Core\Config::secret'`
+owes nothing, and `bun nv owners --closes app-settings` passes. Both members have `about.md`, three
+examples with blessed `.out`, a bench with perf recorded, and a Rust `covers:` marker on
+`an_app_reads_its_own_settings_and_not_another_apps`. The attacks are
+`tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs`, which runs to its end and has
+a `shop/.keep` folder its `[[app]] root` names, and `tests/hostile/core/Config/secret/01` to `03`.
+`01` and `02` expect a refusal, and `03` reads through `get` and `all`. The benches read
+their values from two `[[app]] entry` blocks in the root `nvs.toml`. The rule is `shipped` with six
+`guardedBy` files. The configuration page has § *Your program's own settings and secrets*.
+
+The run's sweep findings were stale. `env-secret-proofs` is no check in this tree, and its last log
+exits 0. Nightly run 40847802941 ran on `8d39c49bb`. Its Docker build failed on `CHANGELOG.md`,
+fixed by `ef7e629e2`. Its spool Miri test made a clock assumption, fixed by `dafe6c98d`. Its
+passkey Miri tests called `ring`, fixed by `df208a541`. All three fixes are ancestors of HEAD.
 
 Tests that may go red at the gate:
 - `nvs-config`'s `tests/request.rs` and `tests/secret.rs`, which read `get` and `all`.
-- The proofs gate and any `Core\Config` member listing: the two new methods owe proofs until stage 4.
+- Any `Core\Config` member listing or the website render, which now has two more members.
 - A taint test that pins a union with an `array<mixed>` arm `as string` as tainted.
 - A test that snapshots `nvs config check --help`, which now lists `--program`.
 - A config check test whose tree writes `[[server.mount]]` with a missing root and one of the four
@@ -280,14 +292,17 @@ Tests that may go red at the gate:
 
 ### Next
 
-**Stage 4, one group**, split as the stage's `**Split:**` line says: two writing subagents for the
-`setting` and `secret` directories, side by side, then the session writes the website section,
-blesses the `.out` files and flips the rule to `shipped`. No gate.
+**Stage 5, the gate.** Start `looper verify` (or `bun nv affected --run`) with `run_in_background`
+and end the turn to wait. Group the failures by cause, fix them in one pass, and run it once more.
+Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes app-settings` and
+`bun nv ci --check`.
 
-- [ ] `setting`: `about.md`, three examples and their `nvs.toml`. `docs/examples/core/Config/setting/about.md:1`, `docs/examples/core/Env/secret/about.md:1`
-- [ ] `secret`: `about.md`, three examples, `nvs.toml` and a secret file. `docs/examples/core/Config/secret/about.md:1`
-- [ ] The three attacks and the two benches. `tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs:1`, `benches/members/core/Config/setting.nvs:1`
-- [ ] The configuration page's section on the four blocks. `website/src/content/docs/guides/how-to-use/configuration.mdx:35`
-- [ ] `bun nv proofs --id` owes nothing for both, and the rule is `shipped` with its `guardedBy`. `data/rules/config/settings-and-secrets-are-a-programs-own-values.json:1`
+- [ ] The first `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [ ] The goal-end gates, then move each decision only this file holds into the rule, and delete the goal file. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`
 
 ### Backlog
+
+- `benches/members/core/Env/secret.nvs:19` has steps `2 : 1`. After round two the total stays odd,
+  so every later round reads the unset name. The Config benches use `3 : 1`. Fixing it makes
+  `Core\Env::secret`'s perf stale, so record it again in the same slice.
