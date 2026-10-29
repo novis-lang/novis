@@ -19,7 +19,7 @@
     "Core\\Router\\Refusal": "54a1cc05b2b1e7da",
     "Core\\Router\\Responder": "c0dec1200f6ca4ab",
     "lang:attributes/core-api-and-the-openapi-document": "a7eea746e456ce35",
-    "lang:attributes/core-route-and-core-access-the-route-table": "d25b5e9578379966"
+    "lang:attributes/core-route-and-core-access-the-route-table": "4fdb485be49c023d"
   },
   "syntax/attributes/writing-and-reading.mdx": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "69f3afc5ebf38911",
