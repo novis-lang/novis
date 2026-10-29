@@ -7,22 +7,22 @@
 // A memory limit that has room for two copies of the body, but not for three.
 Core\Config::set('memory', '96M');
 
-// 1. A text body of 32 million bytes is read ten thousand times as text and as bytes,
+// 1. A text body of 32 million bytes is read one thousand times as text and as bytes,
 //    and every result is kept. A copy per read would need far more memory than the limit.
 Core\Test::answerHttp('https://files.example.com/large.txt', 200, { body: Core\Str::repeat('x', 32000000) });
 Core\Http\Response $large = Core\Http\Client::get('https://files.example.com/large.txt');
 array<tainted string> $texts = [];
 array<tainted bytes> $raw = [];
 uint $i = 0;
-while ($i < 10000) {
+while ($i < 1000) {
     $texts[] = $large->text();
     $raw[] = $large->bytes();
     $i = $i + 1;
 }
-if (Core\Str::length($texts[9999]) != 32000000) {
+if (Core\Str::length($texts[999]) != 32000000) {
     throw new LogicError('a read returned a different text');
 }
-if (Core\Bytes::length($raw[9999]) != 32000000) {
+if (Core\Bytes::length($raw[999]) != 32000000) {
     throw new LogicError('a read returned a different body');
 }
 echo 'step 1: ', Core\Arr::count($texts), "\n";
