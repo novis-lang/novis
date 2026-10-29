@@ -28,9 +28,9 @@ on:
 
 # Read-only, for every job, and stated here rather than left to the repository default — which is
 # a setting in the web UI that nothing in this tree can see and that a fork's pull request also
-# runs under. One job here writes: `dev-image` grants itself `packages: write`, to push the `dev`
-# image to ghcr.io, and runs on a push to `main` alone. `unsafe-audit` appends to the run summary,
-# which is a file on the runner and not a permission. `release.yml` grants writes to its own jobs.
+# runs under. Nothing in this file needs to write: `unsafe-audit` appends to the run summary,
+# which is a file on the runner and not a permission. The one workflow that does need to write is
+# `release.yml`, which grants it to a single job.
 permissions:
   contents: read
 
@@ -72,9 +72,6 @@ concurrency:
 # - `proofs-<os>`, saved by the Windows and macOS `proofs` legs, in the profile only they use.
 # - `miri-suites`, `miri-samples`, `miri-units-<crate>` and `fuzz`, whose nightly builds no other
 #   job makes.
-#
-# `binaries` reads and saves no cache at all: `build.yml`'s header says why a push's release
-# builds run cold.
 #
 # Every other job builds cold, because it finishes cold inside the slowest `test` leg's time:
 # the Linux `cost-guards` and `proofs` legs, `extension-sandbox` and `unsafe-audit` in 19 to 35
@@ -1596,69 +1593,3 @@ jobs:
           save-if: false
       - name: TSAN test (host and runtime)
         run: bash tools/tsan.sh
-
-  # ---------------------------------------------------------------------------
-  # Every push builds the release binaries and the VS Code extension, so a tester can take them
-  # from the run's artifacts (`dist-<platform>` and `dist-vsix`). `build.yml` is the release's own
-  # build, called with no version, so these are release builds of the commit as it is, printing
-  # `+dev`. A pull request builds none: its code has not landed, and a fork's run is untrusted.
-  #
-  # It waits for nothing, because a cold release build with `lto` is likely the longest job in the
-  # run. Its seven jobs take seven of the run's 20 slots from the start; if the first runs show
-  # them delaying the `test` legs, make it wait for `lint` as the deep jobs do.
-  # ---------------------------------------------------------------------------
-  binaries:
-    name: release binaries
-    if: github.event_name == 'push'
-    uses: ./.github/workflows/build.yml
-
-  # ---------------------------------------------------------------------------
-  # Once a push to `main` is fully verified, its binaries go out as the `dev` image:
-  # `ghcr.io/novis-lang/novis:dev`, and `:dev-debian` for the other variant. `image.yml` is the
-  # release's own image build, so each variant is smoke-tested before it is pushed.
-  #
-  # `needs` names every other job in this file, and `tools/nv/test/ci-push-builds.test.ts` fails
-  # when one is missing. A job the push's lanes skipped is not a failure; one that failed or was
-  # cancelled stops the image, and so does a cancelled run. A run `bun nv ci --push` cancels for
-  # a newer push publishes nothing, and the newer run publishes its own.
-  #
-  # `packages: write` is the one write in this file. `release.yml`'s `test` job grants it to this
-  # file for that reason, and this job's `if` keeps it from running there.
-  # ---------------------------------------------------------------------------
-  dev-image:
-    name: dev image
-    needs:
-      - changes
-      - test
-      - cost-guards
-      - proofs
-      - database
-      - browser
-      - extension-sandbox
-      - ext-templates
-      - webp-lib
-      - extension
-      - extension-host
-      - docker
-      - lint
-      - supply-chain
-      - attribution
-      - reference
-      - docs
-      - unsafe-audit
-      - flood
-      - fuzz-smoke
-      - miri
-      - miri-units
-      - valgrind
-      - asan
-      - tsan
-      - binaries
-    if: >-
-      ${{ !cancelled()
-      && github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
-    uses: ./.github/workflows/image.yml
-    permissions:
-      contents: read
-      packages: write

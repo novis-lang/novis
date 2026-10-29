@@ -1,7 +1,7 @@
-// What a push builds beside its tests: the release binaries through `build.yml`, and the `dev` image
-// through `image.yml` once every other job in `ci.yml` is green. The release calls the same two files,
-// and its call of `ci.yml` grants every permission a job there asks for, which GitHub checks when the
-// run starts.
+// The release binaries and the container images are built by `build.yml` and `image.yml`, which the
+// release calls with its version and the dev build on `landing` calls with none, at the commit CI
+// tested. The release's call of `ci.yml` grants every permission a job there asks for, which GitHub
+// checks when the run starts.
 
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -9,54 +9,52 @@ import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
 
 interface Job {
-  needs?: string | string[];
-  if?: string;
   uses?: string;
   with?: Record<string, unknown>;
   permissions?: Record<string, string>;
 }
 
-function jobs(file: string): Record<string, Job> {
-  const yml = Bun.YAML.parse(readFileSync(join(ROOT, ".github/workflows", file), "utf8")) as { jobs: Record<string, Job> };
-  return yml.jobs;
+interface Workflow {
+  on: { workflow_call?: { inputs?: Record<string, unknown> } };
+  jobs: Record<string, Job & { steps?: { uses?: string; with?: Record<string, unknown> }[] }>;
 }
 
-const needs = (job: Job): string[] => (job.needs === undefined ? [] : [job.needs].flat());
+function workflow(file: string): Workflow {
+  return Bun.YAML.parse(readFileSync(join(ROOT, ".github/workflows", file), "utf8")) as Workflow;
+}
 
-test("the dev image waits for every other job in ci.yml", () => {
-  const ci = jobs("ci.yml");
-  const image = ci["dev-image"];
-  expect(image).toBeDefined();
-  const others = Object.keys(ci).filter((name) => name !== "dev-image").sort();
-  expect(needs(image!).sort()).toEqual(others);
-});
-
-test("the dev image runs on a green push to main alone, and every push builds the binaries", () => {
-  const ci = jobs("ci.yml");
-  const image = ci["dev-image"]!;
-  for (const part of ["!cancelled()", "github.event_name == 'push'", "github.ref == 'refs/heads/main'", "'failure'", "'cancelled'"]) {
-    expect(image.if).toContain(part);
-  }
-  expect(image.uses).toBe("./.github/workflows/image.yml");
-  expect(image.with?.version ?? "").toBe("");
-  expect(ci.binaries!.if).toBe("github.event_name == 'push'");
-  expect(ci.binaries!.uses).toBe("./.github/workflows/build.yml");
-  expect(ci.binaries!.with?.version ?? "").toBe("");
-});
-
-test("the release builds through the same two files, with its version", () => {
-  const release = jobs("release.yml");
+test("the release builds through build.yml and image.yml, with its version", () => {
+  const release = workflow("release.yml").jobs;
   expect(release.build!.uses).toBe("./.github/workflows/build.yml");
   expect(release.build!.with?.version).toBe("${{ needs.plan.outputs.version }}");
   expect(release.docker!.uses).toBe("./.github/workflows/image.yml");
   expect(release.docker!.with?.version).toBe("${{ needs.plan.outputs.version }}");
 });
 
+test("ci.yml builds no release binaries and pushes no image", () => {
+  const ci = workflow("ci.yml").jobs;
+  const called = Object.values(ci).map((job) => job.uses).filter(Boolean);
+  expect(called).toEqual([]);
+  const writes = Object.entries(ci).filter(([, job]) => Object.values(job.permissions ?? {}).includes("write"));
+  expect(writes.map(([name]) => name)).toEqual([]);
+});
+
+test("build.yml and image.yml check out the commit the dev build names, in every job", () => {
+  for (const file of ["build.yml", "image.yml"]) {
+    const wf = workflow(file);
+    expect(Object.keys(wf.on.workflow_call?.inputs ?? {})).toContain("ref");
+    for (const [name, job] of Object.entries(wf.jobs)) {
+      const checkout = (job.steps ?? []).find((step) => step.uses?.startsWith("actions/checkout@"));
+      expect(`${file} ${name}: ${checkout?.with?.ref}`).toBe(`${file} ${name}: \${{ inputs.ref }}`);
+    }
+  }
+});
+
 test("the release's call of ci.yml grants every permission a job there asks for", () => {
-  const granted = jobs("release.yml").test!.permissions ?? {};
+  const granted = workflow("release.yml").jobs.test!.permissions ?? {};
   const level = { none: 0, read: 1, write: 2 } as Record<string, number>;
   const short: string[] = [];
-  for (const [name, job] of Object.entries(jobs("ci.yml"))) {
+  for (const [name, job] of Object.entries(workflow("ci.yml").jobs)) {
     for (const [scope, wanted] of Object.entries(job.permissions ?? {})) {
       if ((level[granted[scope] ?? "none"] ?? 0) < (level[wanted] ?? 0)) short.push(`${name}: ${scope}: ${wanted}`);
     }

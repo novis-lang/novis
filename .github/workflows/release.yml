@@ -12,8 +12,8 @@
 #
 #     plan → test → build → publish → docker
 #
-# `build` also packages the VS Code extension, and it runs both from `build.yml`, which every push
-# builds its binaries through too.
+# `build` also packages the VS Code extension, and it runs both from `build.yml`, which the dev
+# build after each push to `main` calls too.
 #
 # `docker` is last for the same reason read from the other end: it needs a tag that already
 # exists, so an image can never be pushed for a release the repository has no record of. A
@@ -183,18 +183,16 @@ jobs:
     with:
       full: true
     # A called workflow's job may ask for no more than this grant, and GitHub checks that when the
-    # run starts, also for a job its `if` skips. `ci.yml`'s `dev-image` asks for `packages: write`
-    # and runs on a push alone, so it never runs here. Every other job in that file gets the
-    # `contents: read` its top level declares, and nothing more.
+    # run starts, also for a job its `if` skips.
     permissions:
       contents: read
-      packages: write
 
   # ---------------------------------------------------------------------------
   # 3. The binaries and the VS Code extension, at the version about to be released.
   #
-  # `build.yml` holds both jobs, because every push builds the same binaries through it with no
-  # version. Its header says what a release build does that a push's does not.
+  # `build.yml` holds both jobs, because the dev build after each push to `main` builds the same
+  # binaries through it with no version. Its header says what a release build does that a dev
+  # build does not.
   # ---------------------------------------------------------------------------
   build:
     name: build
@@ -360,8 +358,8 @@ jobs:
   # gate here would ask for approval in the middle of a run that is already committed — the tag
   # is pushed by then, so there would be nothing left to approve.
   #
-  # `image.yml` builds them, because every green push to `main` publishes the `dev` image through
-  # it. A dry run has no `publish`, so it runs that file up to and including the smoke test and
+  # `image.yml` builds them, because the dev build after each green push to `main` publishes the
+  # `dev` image through it. A dry run has no `publish`, so it runs that file up to and including the smoke test and
   # stops there: it logs in nowhere, pushes nothing and signs nothing.
   #
   # At the tag, not at `main`: `main` takes commits from an unattended loop and may be several past

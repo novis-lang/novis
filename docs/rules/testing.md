@@ -3426,12 +3426,13 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-A push also builds what a release ships, through the release's own files rather than a copy of
-them. `build.yml` holds the release binaries and the VS Code extension, and `image.yml` the container
-images; `ci.yml` and `release.yml` both call them. Every push uploads its binaries as the run's
-artifacts, and a push to `main` publishes the `dev` image once every other job in `ci.yml` is green.
-What that spends: six cold release builds per push, run beside the tests, and a `dev` image the next
-green push replaces, whose earlier versions stay in the package untagged.
+CI builds no release binaries. The dev build does, after CI: `dev-build.yml` on `landing` starts when
+a push's CI run on `main` finishes, and builds that run's commit through the release's own files.
+`build.yml` holds the release binaries and the VS Code extension, and `image.yml` the container
+images; the dev build and `release.yml` both call them. Every finished run gets its binaries as the
+dev build's artifacts, and a green run also gets the `dev` image. What that spends: six cold release
+builds per push, after CI and outside its job slots and cache, and a `dev` image the next green push
+replaces, whose earlier versions stay in the package untagged.
 
 The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
 still gates every change that can alter the dependency set, and the sanitizer still gates every

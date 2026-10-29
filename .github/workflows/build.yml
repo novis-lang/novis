@@ -1,24 +1,27 @@
 # The release binaries and the VS Code extension, built one way for two callers.
 #
-# `release.yml` calls this with the version it is about to release. `ci.yml` calls it on every push
-# with no version, so a tester can take a push's binaries from the run's artifacts. One file builds
-# both, so a push's archives come from the same targets, profile and packaging as a release's, and
-# the two cannot drift apart (`rule:testing/ci-lanes` says why a job is never defined twice).
+# `release.yml` calls this with the version it is about to release. The dev build calls it with no
+# version once a push's CI run on `main` has finished, so a tester can take that commit's binaries
+# from the dev build's artifacts. The dev build is `dev-build.yml` on `landing`, the default branch,
+# because GitHub starts a `workflow_run` only from there. One file builds both, so a push's archives
+# come from the same targets, profile and packaging as a release's, and the two cannot drift apart
+# (`rule:testing/ci-lanes` says why a job is never defined twice).
 #
 # Without a version, the build is the commit as it is:
 #
 #   * No version bump and no notes. The binary prints `X.Y.Z+dev (commit …)`, the archives are
 #     `nvs-dev-<name>.*` and the extension is `nvs-dev.vsix`.
-#   * No Rust cache. Six release targets would save six entries per push into a cache that
-#     `ci.yml`'s header already spends to 9.4 of its 10 GB, and every one would push out an entry
-#     a test leg needs. A push pays for cold release builds instead, in parallel with its tests.
-#   * No provenance attestation. `ci.yml` grants this file `contents: read` alone, and a push's
-#     binaries are for testing, not for distribution.
+#   * No Rust cache. The repository's cache is 10 GB, shared by every workflow, and `ci.yml`'s
+#     entries already fill it. Six release targets would save about 1 GB each per push, and every
+#     one would push out an entry a test leg needs. A dev build pays for cold release builds
+#     instead, after its CI run, so they cost CI nothing.
+#   * No provenance attestation. The dev build grants this file `contents: read` alone, and a
+#     push's binaries are for testing, not for distribution.
 #   * The artifacts stay 30 days rather than 7, so the last push's binaries are still there when
 #     the next push is a week or more away. Each push's are a few hundred MB, deleted on expiry.
 #
 # No job here declares `permissions:`, so each takes what its caller's job grants. `release.yml`
-# grants the attestation's two; `ci.yml` grants nothing beyond reading the repository.
+# grants the attestation's two; the dev build grants nothing beyond reading the repository.
 #
 # `release.yml`'s header owns the release side: why the version bump happens here and again in
 # `publish`, and why no `${{ }}` appears inside a `run:` block.
@@ -30,6 +33,11 @@ on:
     inputs:
       version:
         description: 'The version being released. Empty builds the commit as it is, as a dev build.'
+        type: string
+        required: false
+        default: ''
+      ref:
+        description: 'What to check out. Empty is the commit the run is for.'
         type: string
         required: false
         default: ''
@@ -96,6 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -239,6 +248,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0

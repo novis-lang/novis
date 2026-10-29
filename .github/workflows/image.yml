@@ -1,8 +1,9 @@
 # The container images, from Linux archives `build.yml` already made in the same run.
 #
-# `release.yml` calls this with the version it released, and `ci.yml` calls it with none once a push
-# to `main` is green, to publish the `dev` image. One file builds both, so the `dev` image is made the
-# way a release's is: the same Dockerfile, the same staging, the same smoke test before any push.
+# `release.yml` calls this with the version it released. The dev build (`dev-build.yml` on
+# `landing`) calls it with none once a push's CI run on `main` is green, to publish the `dev` image.
+# One file builds both, so the `dev` image is made the way a release's is: the same Dockerfile, the
+# same staging, the same smoke test before any push.
 #
 # It compiles nothing: it packages the binaries `build.yml` produced, so the bytes in the image are
 # the bytes in the archive. Each variant is built for amd64 first and run through
@@ -12,7 +13,8 @@
 #
 #   * The one tag is `dev` (`dev-debian` for the other variant), which each green push moves.
 #     `bun nv release --docker-tags dev` says why there is no `sha-` tag.
-#   * No provenance attestation. `ci.yml` grants `packages: write` and nothing else to write with.
+#   * No provenance attestation. The dev build grants `packages: write` and nothing else to write
+#     with.
 #
 # No job here declares `permissions:`, so each takes what its caller's job grants.
 

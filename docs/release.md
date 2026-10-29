@@ -41,8 +41,11 @@ repository, and § 6 is the one step left, after the first release. **None of th
 `origin` is `github.com/novis-lang/novis`. Its default branch is `landing`, an unrelated branch with
 a short README and the files GitHub reads only from the default branch: the issue forms, the
 security policy, the Dependabot configuration and one file per workflow. `landing`'s `ci.yml` has
-the nightly `schedule` and dispatches CI on `main`. Its other workflow files exist so the **Run
-workflow** button appears, and a run started on `landing` stops with an error.
+the nightly `schedule` and dispatches CI on `main`. `landing`'s `dev-build.yml` starts when a push's
+CI run on `main` finishes, because GitHub reads `workflow_run` only from the default branch. It builds
+that run's commit with `main`'s `build.yml` and `image.yml`, and publishes the `dev` image when the
+run is green. Its other workflow files exist so the **Run workflow** button appears, and a run
+started on `landing` stops with an error.
 
 Set `landing` in **Settings → General → Default branch**. Cut a release from the Actions tab with
 **Use workflow from → `main`**. The `plan` job refuses to run on any other ref, so a release cut from
