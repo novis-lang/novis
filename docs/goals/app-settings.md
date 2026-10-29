@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/README.md, docs/examples/core/Config/get/about.md, docs/examples/core/Env/secret/about.md, website/src/content/docs/guides/how-to-use/configuration.mdx, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: settings-block-tests
@@ -259,47 +259,42 @@ whole goal once and fixes every failure in one pass.
 the failures by cause. A group whose fix touches files no other group touches may go to a writing
 subagent. Such subagents run side by side, and none of them builds.
 
-- [ ] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
-- [ ] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
+- [x] `bun nv affected --run` has run once over the whole goal, and its failures are grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure is fixed in one pass, and no test is deleted, renamed or loosened to pass. `tools/nv/cmd/verify.ts:1`
+- [x] The second `bun nv affected --run` is green. `tools/nv/cmd/verify.ts:1`
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. `bun nv proofs --gate --only 'Core\Config::setting' 'Core\Config::secret'`
-owes nothing, and `bun nv owners --closes app-settings` passes. Both members have `about.md`, three
-examples with blessed `.out`, a bench with perf recorded, and a Rust `covers:` marker on
-`an_app_reads_its_own_settings_and_not_another_apps`. The attacks are
-`tests/hostile/core/Config/setting/01-read-another-apps-settings.nvs`, which runs to its end and has
-a `shop/.keep` folder its `[[app]] root` names, and `tests/hostile/core/Config/secret/01` to `03`.
-`01` and `02` expect a refusal, and `03` reads through `get` and `all`. The benches read
-their values from two `[[app]] entry` blocks in the root `nvs.toml`. The rule is `shipped` with six
-`guardedBy` files. The configuration page has § *Your program's own settings and secrets*.
+Every stage is done, and the goal is reached. `bun nv affected --run` is green: 8196 tests and
+3170 conformance cases. `bun nv verify --doc` and `bun nv owners --closes app-settings` pass.
 
-The run's sweep findings were stale. `env-secret-proofs` is no check in this tree, and its last log
-exits 0. Nightly run 40847802941 ran on `8d39c49bb`. Its Docker build failed on `CHANGELOG.md`,
-fixed by `ef7e629e2`. Its spool Miri test made a clock assumption, fixed by `dafe6c98d`. Its
-passkey Miri tests called `ring`, fixed by `df208a541`. All three fixes are ancestors of HEAD.
+The gate found these, each fixed at its cause:
+- `bun nv directives --check` stopped on `App::settings`, a bare `toml::Table`. The walk now treats
+  a block of that type as opaque, as it already did for `[ext.<name>]`'s map values.
+- The `[[app]]` key census in `crates/nvs-config/tests/directives.rs` gained `settings` and `secrets`.
+- `Core\Config::secret` was asked by two conformance cases. The third is
+  `tests/conformance/config/a-secret-no-block-sets-is-null.nvst`.
+- `bun nv ci --check`: the `Core\Config` perf was stale and is recorded again. The configuration
+  page's inline Novis fence is now `website/snippets/guides/how-to-use/settings/`. The website data
+  is rendered, and four question entries are written and stamped.
 
-Tests that may go red at the gate:
-- `nvs-config`'s `tests/request.rs` and `tests/secret.rs`, which read `get` and `all`.
-- Any `Core\Config` member listing or the website render, which now has two more members.
-- A taint test that pins a union with an `array<mixed>` arm `as string` as tainted.
-- A test that snapshots `nvs config check --help`, which now lists `--program`.
-- A config check test whose tree writes `[[server.mount]]` with a missing root and one of the four
-  blocks: the mount expansion now runs there.
+The two decisions only this file held are now in the rule: the union's `array<mixed>` arm, and the
+examples' inline secrets. The checker special case is on its Declined list. The driver deletes this
+file when it retires the goal.
+
+`a_served_while_true_does_not_stall_a_second_connection_on_its_core` failed once beside the other
+binaries and passed alone. This goal does not reach `serve.rs`. It is the flake that
+`docs/agent/playbook.md` already names, and it is still open.
 
 ### Next
 
-**Stage 5, the gate.** Start `looper verify` (or `bun nv affected --run`) with `run_in_background`
-and end the turn to wait. Group the failures by cause, fix them in one pass, and run it once more.
-Then the goal-end gates: `bun nv verify --doc`, `bun nv owners --closes app-settings` and
-`bun nv ci --check`.
+Nothing in this goal. The driver retires it.
 
-- [ ] The first `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
-- [ ] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
-- [ ] The goal-end gates, then move each decision only this file holds into the rule, and delete the goal file. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`
+- [x] The first `bun nv affected --run` over the whole goal, failures grouped by cause. `tools/nv/cmd/verify.ts:1`
+- [x] Every failure fixed in one pass, and the second run green. `tools/nv/cmd/verify.ts:1`
+- [x] The goal-end gates, and each decision only this file held moved into the rule. `docs/rules/config/settings-and-secrets-are-a-programs-own-values.md:1`
 
 ### Backlog
 
