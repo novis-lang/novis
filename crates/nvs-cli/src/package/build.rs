@@ -296,7 +296,10 @@ fn readme(archive: &[u8]) -> Result<String, Fault> {
         let mut bytes = Vec::new();
         io::Read::read_to_end(&mut io::Read::take(entry, MAX_README as u64), &mut bytes)
             .map_err(bad)?;
-        return Ok(cut(String::from_utf8_lossy(&bytes).into_owned(), MAX_README));
+        return Ok(cut(
+            String::from_utf8_lossy(&bytes).into_owned(),
+            MAX_README,
+        ));
     }
     Ok(String::new())
 }

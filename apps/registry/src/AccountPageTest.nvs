@@ -75,7 +75,7 @@ final class AccountPageTest
     {
         var $policy = Test::request(Method::Get, '/policy');
         Test::assertSame($policy->status(), 200);
-        AccountPageTest::has($policy->body() as string,'The operator can do one thing to a published version: withhold it.');
+        AccountPageTest::has($policy->body() as string, 'The operator can do one thing to a published version: withhold it.');
         Test::assertSame(Test::request(Method::Get, '/account')->status(), 403);
     }
 

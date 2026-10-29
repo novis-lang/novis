@@ -1522,8 +1522,17 @@ fn the_website_shows_a_published_package_and_search_finds_it_once_released() {
     // The first version at 1.0.0 waits for an owner, so the page shows it and search does not.
     let (status, page) = browser.page("/packages/acme/http");
     assert_eq!(status, 200, "{page}\nthe server: {}", registry.said());
-    for fact in ["Acme\\Http", "waits for an owner", &commit, "Order in a search", "Owners"] {
-        assert!(page.contains(fact), "the package page lacks `{fact}`: {page}");
+    for fact in [
+        "Acme\\Http",
+        "waits for an owner",
+        &commit,
+        "Order in a search",
+        "Owners",
+    ] {
+        assert!(
+            page.contains(fact),
+            "the package page lacks `{fact}`: {page}"
+        );
     }
     let (status, found) = browser.send("GET", "/api/search?q=http", "");
     assert_eq!(status, 200, "{found}");
@@ -1533,7 +1542,10 @@ fn the_website_shows_a_published_package_and_search_finds_it_once_released() {
     let (status, page) = browser.page("/packages/acme/http/1.0.0");
     assert_eq!(status, 200, "{page}");
     for fact in ["src/Client.nvs", "package.toml", "LICENSE", "net.connect"] {
-        assert!(page.contains(fact), "the version page lacks `{fact}`: {page}");
+        assert!(
+            page.contains(fact),
+            "the version page lacks `{fact}`: {page}"
+        );
     }
 
     // An owner who signed in with a passkey confirms the API, and search finds the package.

@@ -20,7 +20,8 @@ final class Facts
         public readonly int $fixes,
         // The downloads of the last 90 days.
         public readonly int $downloads,
-    ) {}
+    )
+    {}
 }
 
 final class Score

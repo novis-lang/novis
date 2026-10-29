@@ -139,8 +139,10 @@ final class PackagePage
             $content = $content + html`<p>This version requests no capabilities.</p>`;
         } else {
             $content = $content
-                + html`<h3>Required</h3>` + PackagePage::nameList($required)
-                + html`<h3>Optional</h3>` + PackagePage::nameList($optional);
+                + html`<h3>Required</h3>`
+                + PackagePage::nameList($required)
+                + html`<h3>Optional</h3>`
+                + PackagePage::nameList($optional);
         }
         int $major = $row->int('major') ?? 0;
         int $minor = $row->int('minor') ?? 0;

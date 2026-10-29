@@ -810,7 +810,11 @@ mod tests {
         );
         assert_eq!(manifest.files, ["a.html"]);
         assert_eq!(
-            manifest.supersedes.as_ref().map(ToString::to_string).as_deref(),
+            manifest
+                .supersedes
+                .as_ref()
+                .map(ToString::to_string)
+                .as_deref(),
             Some("Acme\\Http")
         );
         assert_eq!(manifest.dependencies.len(), 2);
