@@ -628,7 +628,7 @@ bun nv sweep [--keep-runs <n>]                        # sweeps the disk, reads n
 bun nv side --prepare --hook                          # looper's before_run: readies a side loop's lane, else nothing
 bun nv ci --push                                      # looper's after_retire: pre-push checks, pushes main, cancels the runs it replaces
 bun nv ci --check                                     # the pre-push checks alone, before a goal is claimed done
-bun nv ci --watch | --status | --rerun                # the `ci-green` goal's: waits for a failed job, lists them, reruns them
+bun nv ci --watch | --status | --rerun                # waits for a failed job, lists them, reruns them
 bun nv debt                                           # pays the floor debt: the floor check `floor-debt`
 
 bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
@@ -659,13 +659,11 @@ merges `main` in, runs verify, pauses the other loops and fast-forwards `main`. 
 every goal end, and then `bun nv relink --build --hook`, which rebuilds `target/release/nvs` in the root
 and builds nothing in a side loop's lane (`tools/nv/cmd/relink.ts`). Last comes `bun nv vsix --hook`,
 which rebuilds `editors/vscode/nvs.vsix` when the extension changed since its last build, under the same
-side-lane rule (`tools/nv/cmd/vsix.ts`). The goal `ci-green` is the one side goal that runs in the root, added with `looper loop
-add --side ci-green --in-root`. It is never reached: its loop watches every CI run on `main`, fixes
-each failure, and commits. It pushes only a goal end's push that its pre-push checks refused, once
-they are green. No other session pushes or cancels a run. The push starts the runs,
-and the command cancels each run a newer one replaces, so each workflow has one run going on `main`
-(`rule:testing/one-run-on-main`). The goal file is its procedure, and `tools/nv/cmd/ci.ts` the
-command's.
+side-lane rule (`tools/nv/cmd/vsix.ts`). A person or an interactive session watches the runs a push
+starts with `bun nv ci --watch`, fixes each failure, commits, and pushes again with `bun nv ci --push`.
+Only one session drives CI at a time. The push starts the runs, and the command cancels each run a
+newer one replaces, so each workflow has one run going on `main` (`rule:testing/one-run-on-main`).
+`tools/nv/cmd/ci.ts` is the command's procedure.
 
 ## Disk
 

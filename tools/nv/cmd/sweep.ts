@@ -210,7 +210,7 @@ export interface SweepCmdSeams extends SweepSeams {
 export async function sweep(args: string[], over: Partial<SweepCmdSeams> = {}): Promise<number> {
   const s: SweepSeams = { ...REAL, ...over };
   const voice = over.voice ?? PRINTED;
-  // A side loop in the root, such as `ci-green`'s, shares the tree with the main loop, whose own hook
+  // A side loop in the root shares the tree with the main loop, whose own hook
   // sweeps the disk and owns `.loop/last-sweep.md`.
   if ((over.loopKind ?? process.env.LOOPER_LOOP_KIND) === "root-side") {
     voice.step("nv sweep: a side loop in the root leaves the sweep to the main loop");

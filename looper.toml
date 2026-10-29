@@ -92,9 +92,9 @@ before_run = [{ run = ["bun", "nv", "side", "--prepare", "--hook"], timeout = 90
 # commits that, because the retirement commits only the goals directory. A failure pauses the loop,
 # because the roadmap check stays red until it is fixed.
 # `tools/nv/cmd/ci.ts`: then it runs the pre-push checks and pushes `main`, and the push starts the CI
-# runs the `ci-green` goal's loop watches. A failed or refused push only warns, so the next goal still
-# starts: a refused push leaves its red checks where `ci-green`'s watch reports them, and that loop
-# fixes them and pushes. The timeout covers a cold `cargo build`, the checks, a fetch and a push.
+# runs `bun nv ci --watch` reports on. A failed or refused push only warns, so the next goal still
+# starts: a refused push leaves its red checks where `--watch` and `--status` report them, for the
+# session that drives CI to fix and push. The timeout covers a cold `cargo build`, the checks, a fetch and a push.
 # `tools/nv/cmd/relink.ts`: then it rebuilds `target/release/nvs`, the binary the user's editor and
 # terminal run, so every goal end leaves it current. It is attached, so the next session's timing checks
 # never share the machine with a release build. A failed build only warns. The timeout covers a cold

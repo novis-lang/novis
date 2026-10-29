@@ -1,5 +1,5 @@
-// `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the `ci-green` goal and looper's
-// `after_retire` hook.
+// `bun nv ci`: pushes `main` and watches GitHub's CI on it, for the session that drives CI and
+// looper's `after_retire` hook.
 //
 //     bun nv ci --push                  # run the pre-push checks, then push main, which starts its CI
 //                                       # and Website runs
@@ -40,8 +40,8 @@
 // `proofs / linux-x86_64`, and `--past "miri units"` covers each shard, such as `miri units (nvs-stdlib
 // 1/12)`. A passed-over job is printed once and its log is not read. A run whose every failed job is
 // passed over counts as ended, so an idle watch waits for the next run, and a watch that saw such a run
-// end exits 4 with no other red. `ci-green`'s session passes the red a main loop's stage still owns
-// this way, which `sleep` cannot.
+// end exits 4 with no other red. A session that drives CI passes the red a main loop's stage still
+// owns this way, which `sleep` cannot.
 //
 // **`--next`** passes over every run that had already ended when the watch started, so the watch waits
 // for the next push's runs. A session whose fixes for a red run are committed and not yet pushed

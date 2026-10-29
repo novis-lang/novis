@@ -29,7 +29,5 @@ The chain holds 1 goal(s). `app-settings` is live.
 |---|---|---|---|
 | 1 | [`app-settings`](app-settings.md) **live** | A [settings] or [app.settings] value reaches a program with its TOML type through Core\Config::setting, a [secrets] or [app.secrets] value reaches it as a secret string through Core\Config::secret, nvs config check warns about a key no program reads, the feature owes no proof, and the checks below pass. | 1 ✓ the two blocks are typed, merged and dumped, and the rule is written · 2 ✓ Core\Config::setting and Core\Config::secret read them · 3 ✓ nvs config check warns about a key no program reads · 4 ✓ both methods have their feature proofs, and the website shows the blocks · 5 ✓ the goal is verified once, and every failure is fixed |
 
-Off the chain (side goals): [`ci-green`](ci-green.md).
-
 The floor holds 3 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
