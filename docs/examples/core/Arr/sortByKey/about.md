@@ -4,14 +4,13 @@ Each value stays with its key, and nothing is renumbered. The order is the order
 in the key, so the key `10` comes before the key `9`.
 
 Write `{ order: Core\Arr::Order::Desc }` for the last key first. Write `{ comparator: ... }` with a function
-of two keys when you need another order, for example a numeric one. That function returns a
-negative number when the first key comes first, zero when the two count as equal, and a positive
-number when the second comes first. Keys that count as equal keep the order they were added in.
+of two keys for another order, for example a numeric one. It returns a negative number when the
+first key comes first, zero for equal keys, and a positive number otherwise. Equal keys keep the
+order they were added in.
 
-Write `{ keys: [...] }` to put some keys first, in the order you list them. Every other key follows
-in its current order. A listed key that the array does not have is skipped. With
-`Core\Arr::Order::Desc`, the other keys come first, then the listed keys from last to first. A call
-that gives both `keys` and `comparator` throws a `LogicError`.
+Write `{ keys: [...] }` to put some keys first, in the order you list them. The other keys follow
+in their current order. A listed key that the array does not have is skipped. A call with both
+`keys` and `comparator` throws a `LogicError`.
 
-**The examples below** show the entries in key order, the last key first, a comparator that reads
-the keys as numbers, and one key moved to the front of every row in a table.
+**The examples below** show key order, the last key first, numeric keys, and one key moved to the
+front of every row.
