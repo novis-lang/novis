@@ -332,7 +332,7 @@ final class PackagePage
         array<Facts> $all = Ranking::facts($this->db, $this->now, null, $key);
         if (Arr::count($all) == 0) {
             return html`<h2>Order in a search</h2>
-<p>No version of this package is released yet, so a search does not show it. <a href="{$formula}">The formula</a> explains the order of a search.</p>`;
+<p>A search does not show this package, because no version of it is released and listed. <a href="{$formula}">The formula</a> explains the order of a search.</p>`;
         }
         Facts $facts = $all[0];
         string $score = PackagePage::share(Ranking::score($facts));

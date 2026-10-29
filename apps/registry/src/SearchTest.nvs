@@ -186,6 +186,36 @@ final class SearchTest
         Test::assertSame($http->documented, 15);
     }
 
+    #[Test(at: '2026-06-15T12:00:00Z')]
+    public function anUnlistedReleaseIsNotFoundOrCounted(): void
+    {
+        var $db = SearchTest::database();
+        int $now = SearchTest::now();
+        string $vendor = SearchTest::vendor();
+        string $word = SearchTest::word();
+        string $name = $vendor . '\\Http';
+        string $key = SearchTest::package($db, $name, 'Sends ' . $word . ' requests.', '', $now - 100 * SearchTest::DAY);
+        SearchTest::release($db, $key, '1.0.0', $now - 100 * SearchTest::DAY, null, 10, 5);
+        // 1.1.0 is unlisted, so only 1.0.0 counts.
+        SearchTest::release($db, $key, '1.1.0', $now - SearchTest::DAY, null, 20, 10);
+        $db->execute('insert into release_states (package, version, unlisted_at) values (?, ?, ?)', [$key, '1.1.0', $now]);
+        // Every release of this package is unlisted, so a search does not return it.
+        string $hidden = SearchTest::package($db, $vendor . '\\Mail', 'Sends ' . $word . ' mail.', '', $now);
+        SearchTest::release($db, $hidden, '1.0.0', $now - SearchTest::DAY);
+        $db->execute('insert into release_states (package, version, unlisted_at) values (?, ?, ?)', [$hidden, '1.0.0', $now]);
+
+        array<Facts> $found = new Search($db)->find($word, Sort::Name, $now);
+        Test::assertSame(Arr::map($found, fn(Facts $f): string => $f->name), [$name]);
+        Test::assertSame($found[0]->releasedAt, $now - 100 * SearchTest::DAY);
+        Test::assertSame($found[0]->declarations, 10);
+
+        // An owner shows 1.1.0 again, and it counts.
+        $db->execute('update release_states set unlisted_at = null where package = ? and version = ?', [$key, '1.1.0']);
+        array<Facts> $then = new Search($db)->find($word, Sort::Name, $now);
+        Test::assertSame($then[0]->releasedAt, $now - SearchTest::DAY);
+        Test::assertSame($then[0]->declarations, 20);
+    }
+
     // A new database in memory with every table and the account `OWNER`.
     private static function database(): Connection
     {

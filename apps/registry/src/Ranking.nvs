@@ -42,7 +42,7 @@ final class Ranking
     // The share of the score that is work. The rest is use.
     public const float WORK = 0.5;
 
-    // The facts of every package that has a release that is out, with the text search `$match`, or
+    // The facts of every package that has a release that is out and not unlisted, with the text search `$match`, or
     // of every package when it is `null`. `$match` is a query of the full-text index `search`.
     // With no `$match`, `$key` limits the result to the package `$key`, such as `acme\http`.
     // Cost: one query. It reads every release and the downloads of the last 90 days of each package it returns.
@@ -50,7 +50,7 @@ final class Ranking
     {
         string $sql = 'with shown as ('
             . '  select r.* from releases r left join release_states s on s.package = r.package and s.version = r.version'
-            . '  where s.withheld is null and (r.pending_until is null or r.pending_until <= ?)'
+            . '  where s.withheld is null and s.unlisted_at is null and (r.pending_until is null or r.pending_until <= ?)'
             . '), newest as ('
             . '  select package, declarations, documented,'
             . '    row_number() over (partition by package order by major desc, minor desc, patch desc) as n from shown'
