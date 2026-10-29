@@ -1,0 +1,72 @@
+<?nvs
+namespace Novis\Rest;
+
+use RuntimeError;
+
+// Signs DPoP proofs (RFC 9449). A proof shows that a request comes from the holder of one key pair.
+// A server can then bind a token to that key, so a stolen token is useless without the key.
+final class DPoP
+{
+    private ?string $nonce = null;
+
+    public function constructor(private readonly Core\Crypto\KeyPair $key)
+    {}
+
+    // Creates a new P-256 key pair. Its proofs are signed with `ES256`.
+    // Keep the pair as long as the tokens that are bound to it.
+    public static function generate(): DPoP
+    {
+        return new DPoP(Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256));
+    }
+
+    // Returns the JWK thumbprint of the public key (RFC 7638), as base64url.
+    // An authorization request sends it as `dpop_jkt`.
+    public function thumbprint(): string
+    {
+        bytes $jwk = $this->key->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk);
+        return Core\Encoding::toBase64Url(Core\Hash::of($jwk, Core\Hash::Digest::Sha256));
+    }
+
+    // Returns a proof for one request. `$accessToken` is the token the request sends,
+    // or `null` for a request to the token endpoint.
+    public function proof(Core\Http\Method $method, string $url, ?secret string $accessToken): string
+    {
+        array<string> $claims = [
+            'jti' => Core\Encoding::toBase64Url(Core\Random::bytes(16)),
+            'htm' => Core\Http::methodName($method),
+            'htu' => DPoP::targetOf($url),
+        ];
+        if ($accessToken != null) {
+            string $revealed = Core\Secret::reveal($accessToken, 'RFC 9449 puts the hash of the token into the proof');
+            $claims['ath'] = Core\Encoding::toBase64Url(Core\Hash::of($revealed, Core\Hash::Digest::Sha256));
+        }
+        ?string $nonce = $this->nonce;
+        if ($nonce != null) {
+            $claims['nonce'] = $nonce;
+        }
+        return Core\Jwt::sign($claims, 1m, $this->key, { typ: 'dpop+jwt', embedKey: true });
+    }
+
+    // Keeps the `DPoP-Nonce` a server sent. Returns `true` when it is new, so the
+    // request that got it can be sent once more with a fresh proof.
+    public function rememberNonce(Core\Http\Response $response): bool
+    {
+        ?tainted string $sent = $response->header('DPoP-Nonce');
+        if ($sent == null) {
+            return false;
+        }
+        if (!Core\Regex::matches($sent, '^[\x21\x23-\x5B\x5D-\x7E]{1,256}$')) {
+            throw new RuntimeError('the server sent a `DPoP-Nonce` with characters a nonce may not have');
+        }
+        string $nonce = Core\Taint::assertTrusted($sent, 'the nonce has only the characters of RFC 9449');
+        bool $isNew = $nonce != ($this->nonce ?? '');
+        $this->nonce = $nonce;
+        return $isNew;
+    }
+
+    // `htu` is the URL without its query and fragment.
+    private static function targetOf(string $url): string
+    {
+        return Core\Uri::parse($url)->with({ query: null, fragment: null })->toString();
+    }
+}

@@ -1,0 +1,104 @@
+<?nvs
+namespace Novis\Rest;
+
+use RuntimeError;
+
+// An OAuth 2 client: its id, its secret when it has one, and the server's token endpoint.
+// It requests tokens and sends requests with a token. With `withDPoP`, every request
+// also carries a DPoP proof.
+final class Client
+{
+    public function constructor(
+        public readonly string $tokenEndpoint,
+        public readonly string $clientId,
+        private readonly ?secret string $clientSecret,
+        private readonly ?DPoP $dpop,
+    )
+    {}
+
+    // A client that has a secret, such as a server application. The secret is sent
+    // in the form body (`client_secret_post`).
+    public static function confidential(string $tokenEndpoint, string $clientId, secret string $clientSecret): Client
+    {
+        return new Client($tokenEndpoint, $clientId, $clientSecret, null);
+    }
+
+    // A client that cannot keep a secret, such as a command line program.
+    // Use it with `AuthorizationCode`, which protects the code with PKCE.
+    public static function withoutSecret(string $tokenEndpoint, string $clientId): Client
+    {
+        return new Client($tokenEndpoint, $clientId, null, null);
+    }
+
+    // Returns a copy that signs a DPoP proof for every request.
+    public function withDPoP(DPoP $dpop): Client
+    {
+        return new Client($this->tokenEndpoint, $this->clientId, $this->clientSecret, $dpop);
+    }
+
+    // Returns the DPoP signer of this client, or `null`.
+    public function dpop(): ?DPoP
+    {
+        return $this->dpop;
+    }
+
+    // Sends `$form` to the token endpoint and returns the token from the reply.
+    // The client's id and secret are added to the form. An error reply throws a `RuntimeError`.
+    public function requestToken(array<secret string> $form): Token
+    {
+        $form['client_id'] = $this->clientId;
+        ?secret string $clientSecret = $this->clientSecret;
+        if ($clientSecret != null) {
+            $form['client_secret'] = $clientSecret;
+        }
+        Core\Http\Response $response = $this->postForm($form);
+        ?DPoP $dpop = $this->dpop;
+        if ($dpop != null && $response->status() == 400 && $dpop->rememberNonce($response)) {
+            $response = $this->postForm($form);
+        }
+        return Token::fromResponse($response);
+    }
+
+    // Sends a request with `$token` and returns the reply. `$json` is the body, or `null` for none.
+    // A `DPoP` token needs a client with `withDPoP`.
+    public function send(Core\Http\Method $method, string $url, Token $token, mixed $json): Core\Http\Response
+    {
+        Core\Http\Response $response = $this->sendOnce($method, $url, $token, $json);
+        ?DPoP $dpop = $this->dpop;
+        if ($dpop != null && $response->status() == 401 && $dpop->rememberNonce($response)) {
+            $response = $this->sendOnce($method, $url, $token, $json);
+        }
+        return $response;
+    }
+
+    // Sends a `GET` request with `$token`.
+    public function get(string $url, Token $token): Core\Http\Response
+    {
+        return $this->send(Core\Http\Method::Get, $url, $token, null);
+    }
+
+    private function postForm(array<secret string> $form): Core\Http\Response
+    {
+        array<secret string> $headers = ['Accept' => 'application/json'];
+        ?DPoP $dpop = $this->dpop;
+        if ($dpop != null) {
+            $headers['DPoP'] = $dpop->proof(Core\Http\Method::Post, $this->tokenEndpoint, null);
+        }
+        return Core\Http\Client::post($this->tokenEndpoint, { form: $form, headers: $headers });
+    }
+
+    private function sendOnce(Core\Http\Method $method, string $url, Token $token, mixed $json): Core\Http\Response
+    {
+        array<secret string> $headers = ['Authorization' => $token->authorization()];
+        ?DPoP $dpop = $this->dpop;
+        if ($dpop != null) {
+            $headers['DPoP'] = $dpop->proof($method, $url, $token->accessToken);
+        } else if ($token->type == 'DPoP') {
+            throw new RuntimeError('this token is bound to a DPoP key, so the client needs `withDPoP`');
+        }
+        if ($json == null) {
+            return Core\Http\Client::request($method, $url, { headers: $headers });
+        }
+        return Core\Http\Client::request($method, $url, { headers: $headers, json: $json });
+    }
+}

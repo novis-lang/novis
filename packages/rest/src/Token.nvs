@@ -1,0 +1,131 @@
+<?nvs
+namespace Novis\Rest;
+
+use RuntimeError;
+
+// An access token from an OAuth 2 server, and the refresh token when the server sent one.
+// `type` is `Bearer`, or `DPoP` for a token that is bound to a key.
+final class Token
+{
+    public function constructor(
+        public readonly secret string $accessToken,
+        public readonly string $type,
+        public readonly Core\Time\Instant $expiresAt,
+        public readonly ?secret string $refreshToken,
+        public readonly string $scope,
+    )
+    {}
+
+    // Reads the reply of a token endpoint. A reply that is not a token throws a `RuntimeError`.
+    // A server that sends no `expires_in` gets `$lifetimeSeconds`, which is one hour by default.
+    public static function fromResponse(Core\Http\Response $response, int $lifetimeSeconds = 3600): Token
+    {
+        if ($response->status() != 200) {
+            throw new RuntimeError(Token::errorOf($response));
+        }
+        var $reply = $response->jsonAs<tainted {
+            access_token: string,
+            token_type: string,
+            expires_in?: int,
+            refresh_token?: string,
+            scope?: string,
+        }>();
+
+        string $type = Token::typeOf($reply->token_type);
+        int $seconds = $reply->expires_in ?? $lifetimeSeconds;
+
+        ?secret string $refresh = null;
+        tainted string $refreshText = $reply->refresh_token ?? '';
+        if ($refreshText != '') {
+            $refresh = Token::credentialOf($refreshText, 'refresh_token');
+        }
+
+        return new Token(
+            Token::credentialOf($reply->access_token, 'access_token'),
+            $type,
+            Core\Time::now()->plus(Core\Time\Duration::seconds($seconds)),
+            $refresh,
+            Token::scopeOf($reply->scope ?? ''),
+        );
+    }
+
+    // Returns `true` when the token expires within `$marginSeconds`. A request that
+    // starts now should then get a new token first.
+    public function isExpired(int $marginSeconds = 30): bool
+    {
+        Core\Time\Instant $soon = Core\Time::now()->plus(Core\Time\Duration::seconds($marginSeconds));
+        return $soon->compareTo($this->expiresAt) >= 0;
+    }
+
+    // Returns the value of the `Authorization` header, such as `Bearer at-7f3c`.
+    public function authorization(): secret string
+    {
+        return $this->type . ' ' . $this->accessToken;
+    }
+
+    // Returns a copy that has `$refreshToken` when this token has none.
+    // A server may send a refresh token once, and accept it again later.
+    public function keepingRefresh(?secret string $refreshToken): Token
+    {
+        if ($this->refreshToken != null || $refreshToken == null) {
+            return $this;
+        }
+        return new Token($this->accessToken, $this->type, $this->expiresAt, $refreshToken, $this->scope);
+    }
+
+    // Returns the `error` and `error_description` of an OAuth 2 error reply, or only the status code.
+    public static function errorOf(Core\Http\Response $response): string
+    {
+        string $status = 'the server replied with status ' . $response->status();
+        try {
+            var $error = $response->jsonAs<tainted { error: string, error_description?: string }>();
+            string $code = Token::wordOf($error->error, 'error');
+            tainted string $description = $error->error_description ?? '';
+            if ($description == '') {
+                return $status . ': ' . $code;
+            }
+            tainted string $printable = Core\Regex::replace($description, '[^\x20-\x7E]', '');
+            string $text = Core\Taint::assertTrusted($printable, 'the description has only printable characters and goes into a message');
+            return $status . ': ' . $code . ': ' . $text;
+        } catch (RuntimeError $notJson) {
+            return $status;
+        }
+    }
+
+    // A token is sent back in a header, so it may have only the characters RFC 6750 allows.
+    private static function credentialOf(tainted string $value, string $field): secret string
+    {
+        if (!Core\Regex::matches($value, '^[A-Za-z0-9\-._~+/]+=*$')) {
+            throw new RuntimeError('the server sent a `' . $field . '` with characters a token may not have');
+        }
+        return Core\Taint::assertTrusted($value, 'the token has only the characters of RFC 6750');
+    }
+
+    private static function typeOf(tainted string $type): string
+    {
+        string $lower = Core\Str::lower(Token::wordOf($type, 'token_type'));
+        if ($lower == 'bearer') {
+            return 'Bearer';
+        }
+        if ($lower == 'dpop') {
+            return 'DPoP';
+        }
+        throw new RuntimeError('the server sent the token type `' . $lower . '`, which this client cannot use');
+    }
+
+    private static function scopeOf(tainted string $scope): string
+    {
+        if (!Core\Regex::matches($scope, '^[\x21\x23-\x5B\x5D-\x7E ]*$')) {
+            throw new RuntimeError('the server sent a `scope` with characters a scope may not have');
+        }
+        return Core\Taint::assertTrusted($scope, 'the scope has only the characters of RFC 6749');
+    }
+
+    private static function wordOf(tainted string $value, string $field): string
+    {
+        if (!Core\Regex::matches($value, '^[A-Za-z0-9_.\-]{1,64}$')) {
+            throw new RuntimeError('the server sent a `' . $field . '` that is not one short word');
+        }
+        return Core\Taint::assertTrusted($value, 'the value is one short word');
+    }
+}

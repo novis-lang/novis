@@ -134,6 +134,15 @@ fail naming both, and write nothing. The front end does not refuse the pair, sin
 it. Both are stated in `crates/nvs-cli/src/openapi.rs`'s *Bounds*. `Novis\Rest` is a client and
 reads no server's scopes.
 
+**`Novis\Rest`'s client authenticates with `client_secret_post`, and every server value is checked
+before it is trusted.** `Core\Http\Client`'s `form` takes a `secret string`, so the secret reaches
+the wire without `Core\Secret::reveal`, which `client_secret_basic`'s base64 would need. A token,
+scope, error word and DPoP nonce from a reply is matched against its RFC character set, then
+`Core\Taint::assertTrusted`; a token goes back in a header, so this is the header-injection check.
+`DPoP` signs with a P-256 pair (`ES256`), and `Client` resends a request once when a 400 from the
+token endpoint or a 401 from a resource carries a new `DPoP-Nonce`. `Token::isExpired` and the
+fallback lifetime take whole seconds, since a parameter default cannot be a `Duration` (`E0451`).
+
 ## Stages
 
 ### 1. `package.toml`'s version is the API document's `info.version`
@@ -167,8 +176,8 @@ types one after another: `Token`, `ClientCredentials`, `AuthorizationCode`, `Dis
 `Session`. An `Explore` subagent first returns the `Core\Jwt`, HTTP client and `Core\Session` calls the
 package uses, one line each with its anchor.
 
-- [ ] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
-- [ ] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache (`rule:core-api/tier-placement`). `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
+- [x] The manifest, with its root namespace `Novis\Rest` and its required capabilities. `packages/rest/package.toml:1`
+- [x] `Client` and `Token`, over `Core\Jwt`, the HTTP client and the cache (`rule:core-api/tier-placement`). `packages/rest/src/Client.nvs:1`, `crates/nvs-stdlib/src/jwt.rs:263`
 - [ ] The grants: `ClientCredentials`, `AuthorizationCode` with PKCE, and refresh. `packages/rest/src/AuthorizationCode.nvs:1`
 - [ ] `Discovery` and `DPoP` (`rule:security/jws-issued-subset`). `packages/rest/src/DPoP.nvs:1`
 - [ ] The refresh token stored with `Core\Session::setSecret`. `packages/rest/src/Session.nvs:1`, `crates/nvs-stdlib/src/session.rs:251`

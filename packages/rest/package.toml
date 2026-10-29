@@ -1,0 +1,8 @@
+# `Novis\Rest` is a client for OAuth 2 servers: it requests tokens, finds a
+# server's endpoints, and signs DPoP proofs. It sends requests to that server.
+[package]
+name = 'Novis\Rest'
+version = "0.1.0"
+
+[capabilities]
+required = ["net.connect"]
