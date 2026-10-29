@@ -6633,12 +6633,13 @@
   },
   "/reference/core/ldap/open/": {
     "feature": "Core\\Ldap::open",
-    "hash": "ff13d4ecfa14826e",
+    "hash": "a07046c4a8d75b46",
     "questions": [
       "How do I connect to an LDAP server at a given URL?",
       "Connect to a directory that each customer sets up",
       "Open an encrypted LDAPS connection with a user and password",
-      "Why can my program not connect to a private address?"
+      "Why can my program not connect to a private address?",
+      "Why does an empty password or a zero byte in it throw an error?"
     ]
   },
   "/reference/core/ldap-ad/": {
@@ -7144,12 +7145,13 @@
   },
   "/reference/core/ldap-connection/authenticate/": {
     "feature": "Core\\Ldap\\Connection::authenticate",
-    "hash": "01c6d4eb631d77d8",
+    "hash": "99906726e92493a5",
     "questions": [
       "How do I check a user's login and password against Active Directory?",
       "LDAP login form with user name and password",
       "Why do a wrong password and an unknown user give the same error?",
-      "Check credentials without changing the account of the connection"
+      "Check credentials without changing the account of the connection",
+      "Why is a password with a NUL character always InvalidCredentials?"
     ]
   },
   "/reference/core/ldap-connection/changepassword/": {
