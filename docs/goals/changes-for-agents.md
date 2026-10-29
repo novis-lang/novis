@@ -17,7 +17,7 @@ stages:
     context: [tools/nv/cmd/release.ts, tools/nv/test/release.test.ts, docs/agent/conventions.md]
   - id: 3
     title: "`nvs agent changes --since` prints the changelog the binary carries"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/agent.rs, crates/nvs-cli/tests/agent.rs, CHANGELOG.md, .github/workflows/release.yml, tools/nv/cmd/release.ts, docs/reference/tools/50-agents.md]
     extra:
       context:
@@ -164,15 +164,15 @@ what changed before it edits a project.
 **Does:** the binary embeds `CHANGELOG.md`, and a new `nvs agent` subcommand prints the sections
 newer than a version.
 
-- [ ] The rule fragment and its `designed` record (`tooling/nvs-agent-changes-prints-the-changelog`). `docs/rules/tooling/nvs-agent-changes-prints-the-changelog.md:1`, `data/rules/tooling/nvs-agent-changes-prints-the-changelog.json:1`
-- [ ] The `Changes` variant, its dispatch, and the embedded file. `crates/nvs-cli/src/agent.rs:196`, `crates/nvs-cli/src/agent.rs:310`
-- [ ] The section parser, `--since`, the default and `--json`, as § *Standing decisions* says. `crates/nvs-cli/src/agent.rs:1`
-- [ ] The help text in the binary. `crates/nvs-cli/src/agent.rs:196`
-- [ ] `nvs agent primer` names the command. `crates/nvs-cli/src/agent.rs:817`
-- [ ] The build job prepends the version's section before it compiles. `.github/workflows/release.yml:294`, `tools/nv/cmd/release.ts:733`
-- [ ] `# nvs agent changes` in the reference. `docs/reference/tools/50-agents.md:106`
-- [ ] Tests over a changelog with three sections: `--since` each, no `--since`, an older version, a newer version, a malformed one, and `--json`. `crates/nvs-cli/tests/agent.rs:1`
-- [ ] The rule `shipped`, and `bun nv owners --closes changes-for-agents` passes. `data/rules/tooling/nvs-agent-changes-prints-the-changelog.json:1`
+- [x] The rule fragment and its `designed` record (`tooling/nvs-agent-changes-prints-the-changelog`). `docs/rules/tooling/nvs-agent-changes-prints-the-changelog.md:1`, `data/rules/tooling/nvs-agent-changes-prints-the-changelog.json:1`
+- [x] The `Changes` variant, its dispatch, and the embedded file. `crates/nvs-cli/src/agent.rs:196`, `crates/nvs-cli/src/agent.rs:310`
+- [x] The section parser, `--since`, the default and `--json`, as § *Standing decisions* says. `crates/nvs-cli/src/agent.rs:1`
+- [x] The help text in the binary. `crates/nvs-cli/src/agent.rs:196`
+- [x] `nvs agent primer` names the command. `crates/nvs-cli/src/agent.rs:817`
+- [x] The build job prepends the version's section before it compiles. `.github/workflows/release.yml:294`, `tools/nv/cmd/release.ts:733`
+- [x] `# nvs agent changes` in the reference. `docs/reference/tools/50-agents.md:106`
+- [x] Tests over a changelog with three sections: `--since` each, no `--since`, an older version, a newer version, a malformed one, and `--json`. `crates/nvs-cli/tests/agent.rs:1`
+- [x] The rule `shipped`, and `bun nv owners --closes changes-for-agents` passes. `data/rules/tooling/nvs-agent-changes-prints-the-changelog.json:1`
 
 ### 4. the goal is verified once, and every failure is fixed
 
@@ -191,27 +191,35 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-Stages 1 and 2 are done. `Core\Order` in a `use`, a type and an expression says it moved to
+Stages 1, 2 and 3 are done. `Core\Order` in a `use`, a type and an expression says it moved to
 `Core\Arr::Order` and carries a safe fix, and the rule `core-api/a-moved-name-says-where-it-went` is
 shipped. `bun nv release` lists every commit scoped `fmt`, of any type, under Formatter after
 Performance (`FORMATTER_SCOPE`, `tools/nv/cmd/release.ts:120`). The rows are taken before the headline
 types, so a `feat(fmt)` is not also under Features, and a breaking one is still lifted to the top.
 `docs/agent/conventions.md` § *A commit message* names the scope. The notes tests pass by name.
 
-Tests expected to go red in the gate: any test outside the conformance tree that pins `E0405` for a
-`Core` class that does not exist. None is expected from stage 2.
+`nvs agent changes [--since V] [--json]` is `crates/nvs-cli/src/agent/changes.rs`, which embeds
+`CHANGELOG.md` whole and holds the parser and its unit tests over a three-section changelog. The
+binary tests are in `crates/nvs-cli/tests/agent.rs` (`changes_*`, `the_primer_names_nvs_agent_changes`),
+and all of them pass by name. A malformed version is clap's value-parser error, exit `2`. A leading `v`
+is accepted. The primer names the command through the marked usage block in
+`docs/reference/tools/50-agents.md`, which also has `# nvs agent changes`. The release build job
+downloads `plan`'s `release-notes-preview` artifact and runs `--apply` with `--notes-file`, so the binary
+carries its own section. The rule `tooling/nvs-agent-changes-prints-the-changelog` is shipped,
+`llms-full.txt`, `reference.json` and the site questions are rendered and stamped, and
+`bun nv owners --closes changes-for-agents` passes.
 
-The sweep's `env-secret-proofs` red was stale: its log and a rerun both exit 0. The nightly run
-40662443492 was a dispatched run cancelled after 14 minutes, with no failing job.
+Tests expected to go red in the gate: any test outside the conformance tree that pins `E0405` for a
+`Core` class that does not exist. A test or golden that counts the `nvs agent` subcommands or the
+index's `command:` and `flag:` lines, which now include `nvs agent changes`, `--since` and `--json`.
+
+The sweep's `env-secret-proofs` red and run 40662443492's cancelled jobs were stale, with no failure.
 
 ### Next
 
-**Stage 3, one group**, on `crates/nvs-cli/src/agent.rs`, its test and the release workflow. No gate.
-
-- [ ] The rule fragment and its `designed` record first. `docs/rules/tooling/an-agent-asks-the-binary.md:1` is the sibling to follow.
-- [ ] `Command::Changes { since, json }` beside `Primer`, and its dispatch. `crates/nvs-cli/src/agent.rs:196`, `crates/nvs-cli/src/agent.rs:310`
-- [ ] `include_str!` of `CHANGELOG.md`, a section parser, and the `--since` rules of § *Standing decisions*. `crates/nvs-cli/src/agent.rs:1`
-- [ ] The build job prepends its notes before it compiles, not `--manifests-only`. `.github/workflows/release.yml:294`, `tools/nv/cmd/release.ts:733`
-- [ ] The primer line, the reference heading and the tests. `crates/nvs-cli/src/agent.rs:817`, `docs/reference/tools/50-agents.md:106`, `crates/nvs-cli/tests/agent.rs:1`
+**Stage 4, the gate.** Start `bun nv affected --run` (in the loop, `looper verify`) with
+`run_in_background` and end the turn to wait. Fix every failure in one pass, then run it once more.
+Before `DONE`, the goal-end gates of AGENTS.md § *In the loop*: `bun nv verify --doc`,
+`bun nv owners --closes changes-for-agents` and `bun nv ci --check`. `tools/nv/cmd/verify.ts:1`
 
 ### Backlog

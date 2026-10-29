@@ -2,7 +2,7 @@
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
 summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact
-keywords: nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+keywords: nvs agent, nvs code, nvs agent primer, nvs agent changes, --since, CHANGELOG.md, changelog, what changed, upgrade, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
@@ -14,7 +14,9 @@ keywords: nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find
     nvs agent find <query>         the index lines whose symbol matches the query
     nvs agent show <symbol>        a member's card: signature, description, parameters, errors;
                                    a heading's section; a chapter's list of sections
-    --json                         with index, find or show: print the answer as one JSON document
+    nvs agent changes --since <v>  what changed in each release after version <v>
+    --json                         with index, find, show or changes: print the answer as one
+                                   JSON document
 
 The surface a coding agent reads the language through. Every verb renders the document
 `nvs meta --json` prints and the chapters this binary carries, writes nothing to disk and caches
@@ -129,6 +131,31 @@ No sentence of it is written for it. Each part is a section of a chapter of this
 whole from the copy of that chapter this binary carries, and the counts printed beside the chapter
 map are the registry's own, read at the call. So the primer describes the language this binary
 compiles, and a section that stops being true stops being printed rather than becoming a lie.
+
+# nvs agent changes
+
+    nvs agent changes [--since <version>] [--json]
+
+Prints what changed in Novis, from the changelog this binary contains. Each release has one
+section, and the newest section is first. Read it before you edit a project that was written for
+an older version of Novis.
+
+- `--since 0.2.0` prints every release after `0.2.0`. A version older than the first release
+  prints every section. A tag such as `v0.2.0` works too.
+- Without `--since`, the command prints the section of the version this binary is. A build from
+  source that is not a release has no section, so it prints nothing.
+- A version newer than this binary prints nothing. A message on standard error names the version
+  of this binary.
+- A value that is not a version, such as `0.2`, is an error, and the exit status is `2`.
+
+A section lists its changes under headings. *Breaking changes* is first, then *Features*,
+*Fixes*, *Performance* and *Formatter*. A heading with no changes is not printed. *Formatter*
+lists every change to what `nvs fmt` writes. After you read it, run `nvs fmt` once, and commit
+the result on its own.
+
+`--json` prints one document. It has `schemaVersion`, the `version` of this binary, the `since`
+version or `null`, and a `sections` array. Each section has its `version`, its `date` and its
+`text`, which is the section as the changelog has it.
 
 # nvs agent init
 

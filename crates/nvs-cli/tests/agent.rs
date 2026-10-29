@@ -391,6 +391,70 @@ fn show_on_an_unknown_symbol_exits_non_zero_naming_the_nearest_matches() {
     );
 }
 
+/// `nvs agent changes` reads the changelog the binary was built with, which is
+/// the tree's `CHANGELOG.md`. A version newer than the binary prints nothing and
+/// names the binary's version, and `--json` gives the binary's version and the
+/// sections newer than `--since`. The parsing of three sections is a unit test
+/// in `src/agent/changes.rs`, because the tree's file has no section yet.
+// covers: tools:agents/nvs-agent-changes
+#[test]
+fn changes_answers_from_the_embedded_changelog_and_names_the_binary_s_version() {
+    let running = env!("CARGO_PKG_VERSION");
+    let (out, err, ok) = agent(&["changes", "--since", "999.0.0"]);
+    assert!(
+        ok,
+        "a version newer than the binary is not a failure: {err}"
+    );
+    assert_eq!(out, "", "nothing is newer than a version past the binary");
+    assert!(
+        err.contains(running),
+        "the note names the binary's version: {err}"
+    );
+
+    let (out, err, ok) = agent(&["changes", "--since", "v0.0.0", "--json"]);
+    assert!(ok, "`--json` succeeds: {err}");
+    let document: serde_json::Value = serde_json::from_str(&out).expect("the document is JSON");
+    assert_eq!(document["schemaVersion"], 1);
+    assert_eq!(document["version"], running);
+    assert_eq!(document["since"], "0.0.0");
+    let sections = document["sections"].as_array().expect("a sections array");
+    let changelog = std::fs::read_to_string(nvs_repo::path("CHANGELOG.md")).expect("CHANGELOG.md");
+    let headings = changelog
+        .lines()
+        .filter(|line| line.starts_with("## ["))
+        .count();
+    assert_eq!(
+        sections.len(),
+        headings,
+        "every section of the file is newer than 0.0.0"
+    );
+}
+
+/// A value that is not `MAJOR.MINOR.PATCH` is a usage error, as clap reports
+/// one: exit status 2, and the value named.
+// covers: tools:agents/nvs-agent-changes
+#[test]
+fn changes_since_a_malformed_version_is_a_usage_error() {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["agent", "changes", "--since", "0.2"])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert_eq!(out.status.code(), Some(2), "a malformed version exits 2");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("`0.2` is not a version"),
+        "the error names the value: {err}"
+    );
+}
+
+/// The primer is the one document every session reads, so it is where an agent
+/// learns that `changes` exists.
+// covers: tools:agents/nvs-agent-changes
+#[test]
+fn the_primer_names_nvs_agent_changes() {
+    assert!(primer().contains("nvs agent changes --since"));
+}
+
 /// A keyword is in the grammar and not in the registry, so no member is named for
 /// it. The heading that documents it is on the index instead, and the symbol its
 /// line opens with is what `show` prints the section from — the same two calls

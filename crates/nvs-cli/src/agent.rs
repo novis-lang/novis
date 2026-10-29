@@ -152,7 +152,11 @@
 //!                chapter    sections [{symbol, title, level, line}]
 //!                section, config, command, flag, code   text
 //! unknown      {schemaVersion, error, nearest: [record]}, exit non-zero
+//! changes      {schemaVersion, version, since, sections: [{version, date, text}]}
 //! ```
+//!
+//! `changes` reads the embedded changelog rather than the registry, and
+//! [`changes`] says how.
 //!
 //! A record's keys are the parts its line is written from, so a record says
 //! nothing its line does not, apart from a chapter's summary.
@@ -165,6 +169,7 @@ use std::process::ExitCode;
 use nvs_diagnostics::{Diagnostics, Renderer, Severity, SourceMap};
 use serde_json::{Map, Value, json};
 
+mod changes;
 mod names;
 
 /// Answer a coding agent from the registry this binary carries.
@@ -194,6 +199,23 @@ enum Command {
     /// describes the language this binary compiles and nothing else.
     // `rule:tooling/a-primer-claim-is-executed`.
     Primer,
+    /// Print what changed in Novis, from the changelog this binary contains.
+    ///
+    /// With `--since`, it prints each release newer than that version, newest
+    /// first. Without it, it prints the release this binary is. Read it before
+    /// you edit a project that was written for an older version.
+    // `rule:tooling/nvs-agent-changes-prints-the-changelog`.
+    Changes {
+        /// Print every release newer than this version, as `0.2.0`. When the
+        /// version is newer than this binary, nothing is printed.
+        #[arg(long, value_name = "VERSION", value_parser = changes::parse_version)]
+        since: Option<changes::Version>,
+        /// Print the releases as one JSON document: the binary's `version`,
+        /// the `since` version and a `sections` array. Each section has a
+        /// `version`, a `date` and its `text`.
+        #[arg(long)]
+        json: bool,
+    },
     /// Print one line per registered member, one per enum, exception and
     /// attribute beside them, one per chapter of the reference and per heading
     /// in it, and one per configuration key, command, flag and error code.
@@ -308,6 +330,7 @@ impl Args {
     pub(crate) fn run(self) -> ExitCode {
         match self.command {
             Command::Primer => primer(),
+            Command::Changes { since, json } => changes::changes(since, json),
             Command::Index { json } => index(json),
             Command::Find { query, json } => find(&query, json),
             Command::Show { symbol, json } => show(&symbol, json),

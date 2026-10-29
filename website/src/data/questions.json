@@ -1009,7 +1009,7 @@
   },
   "/reference/cli/nvs-agent/": {
     "feature": "tools:agents/nvs-agent",
-    "hash": "b3d2b8e7cd384ed3",
+    "hash": "cfc9743f78003b54",
     "questions": [
       "How can an AI assistant look up the language from the command line?",
       "Search the standard library by keyword in the terminal",
@@ -1017,6 +1017,17 @@
       "Get a list of every built-in function, class and error code",
       "Look up what an error code means from the terminal",
       "Get library documentation as JSON for a tool"
+    ]
+  },
+  "/reference/cli/nvs-agent-changes/": {
+    "feature": "tools:agents/nvs-agent-changes",
+    "hash": "73eddab70d523e87",
+    "questions": [
+      "What changed in Novis since the version my project uses?",
+      "Read the release notes from the installed nvs binary",
+      "Which formatter changes should I expect after upgrading?",
+      "Get the changelog as JSON for a coding agent",
+      "Show the release notes of the installed version"
     ]
   },
   "/reference/cli/nvs-agent-init/": {

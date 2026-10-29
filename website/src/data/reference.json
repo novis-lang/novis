@@ -1320,6 +1320,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-agent-changes",
+      "url": "/reference/cli/nvs-agent-changes/",
+      "title": "nvs agent changes",
+      "group": "Coding agents",
+      "intro": {
+        "id": "tools:agents/nvs-agent-changes",
+        "title": "nvs agent changes",
+        "examples": "tools/agents/nvs-agent-changes"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-agent-init",
       "url": "/reference/cli/nvs-agent-init/",
       "title": "nvs agent init",

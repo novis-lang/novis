@@ -286,12 +286,20 @@ jobs:
       - name: Install cargo-auditable
         run: cargo install cargo-auditable --version 0.7.7 --locked
 
+      # `plan` rendered these notes from this same commit. `nvs agent changes` reads `CHANGELOG.md`
+      # from the binary, so the section is prepended before the build, and the binary carries the
+      # section of the version it is (`rule:tooling/nvs-agent-changes-prints-the-changelog`).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-notes-preview
+          path: ${{ runner.temp }}/notes
+
       # In this working copy only. Nothing is committed here — see the header.
-      - name: Set the version being released
+      - name: Set the version being released, and prepend its notes
         shell: bash
         env:
           VERSION: ${{ needs.plan.outputs.version }}
-        run: bun nv release --apply "$VERSION" --manifests-only
+        run: bun nv release --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes/release-notes.md"
 
       # `NVS_RELEASE` tells crates/nvs-cli/build.rs that this build is the release. The tag
       # `v<version>` does not exist yet, and without it `nvs --version` would print `+dev`.

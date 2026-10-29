@@ -1,0 +1,14 @@
+{
+  "title": "`nvs agent changes --since <version>` prints the changelog sections the binary carries, and a released binary carries its own",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/an-agent-asks-the-binary",
+    "tooling/a-primer-claim-is-executed",
+    "packaging/the-versioned-surface-is-enumerated",
+    "core-api/a-moved-name-says-where-it-went"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/agent/changes.rs",
+    "crates/nvs-cli/tests/agent.rs"
+  ]
+}
