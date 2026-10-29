@@ -482,20 +482,38 @@ export interface Options {
  */
 export function rebased(text: string, fromDir: string, copyDir: string, copied: string, root: string): string {
   return text.replace(/"([^"\\\r\n]+)"/g, (whole, path: string) => {
-    if (isAbsolute(path) || /^[a-z][a-z0-9+.-]*:/i.test(path)) return whole;
-    const target = resolve(fromDir, path);
-    const inside = relative(copied, target);
-    const moved = !inside.startsWith("..") && !isAbsolute(inside);
-    if (!moved && !existsSync(target)) return whole;
-    const there = moved ? join(root, relative(ROOT, target)) : target;
-    return `"${relative(copyDir, there).replace(/\\/g, "/") || "."}"`;
+    const moved = movedPath(path, fromDir, copyDir, copied, root);
+    return moved === null ? whole : `"${moved}"`;
   });
 }
 
 /**
+ * A program as it reads from `copyDir`: the folder of each `autoload ... from '<path>'` is moved as
+ * `rebased` moves a configuration's path. A bench of a package under `packages/` loads it this way, and
+ * the copy is too deep in `.agent-tmp/` for the original relative path to reach it.
+ */
+function rebasedAutoloads(text: string, fromDir: string, copyDir: string, copied: string, root: string): string {
+  return text.replace(/(\bautoload\s+'[^'\r\n]*'\s+from\s+)'([^'\\\r\n]+)'/g, (whole, head: string, path: string) => {
+    const moved = movedPath(path, fromDir, copyDir, copied, root);
+    return moved === null ? whole : `${head}'${moved}'`;
+  });
+}
+
+/** `path`, relative to `fromDir`, as a path relative to `copyDir`; `null` when it stays as written. */
+function movedPath(path: string, fromDir: string, copyDir: string, copied: string, root: string): string | null {
+  if (isAbsolute(path) || /^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+  const target = resolve(fromDir, path);
+  const inside = relative(copied, target);
+  const moved = !inside.startsWith("..") && !isAbsolute(inside);
+  if (!moved && !existsSync(target)) return null;
+  const there = moved ? join(root, relative(ROOT, target)) : target;
+  return relative(copyDir, there).replace(/\\/g, "/") || ".";
+}
+
+/**
  * A copy of the bench's whole folder under `root`, so its `.in`, `.nvsr` and the files it loads come
- * with it, and an `nvs.toml` beside the copy: the folder's own, or the repository's, rebased. Returns the
- * copy's repo-relative path.
+ * with it, and an `nvs.toml` beside the copy: the folder's own, or the repository's, rebased. The
+ * bench's own `autoload` folders are rebased too. Returns the copy's repo-relative path.
  */
 export function copyBench(bench: string, root: string): string {
   const dir = abs(dirname(bench));
@@ -504,7 +522,15 @@ export function copyBench(bench: string, root: string): string {
   const own = existsSync(join(dir, "nvs.toml"));
   const from = own ? dir : ROOT;
   writeFileSync(join(copyDir, "nvs.toml"), rebased(readFileSync(join(from, "nvs.toml"), "utf8"), from, copyDir, dir, root));
+  writeCopy(bench, root, readFileSync(abs(bench), "utf8"));
   return rel(join(root, bench));
+}
+
+/** Writes `text`, a version of the program `bench`, as its copy under `root`, its `autoload` folders
+ * rebased. Every write of a bench's copy goes through here, since a write of the raw source breaks them. */
+export function writeCopy(bench: string, root: string, text: string): void {
+  const dir = abs(dirname(bench));
+  writeFileSync(join(root, bench), rebasedAutoloads(text, dir, join(root, dirname(bench)), dir, root));
 }
 
 /** The fastest of `reps` plain runs of `copy`, in nanoseconds. */
@@ -1114,11 +1140,12 @@ async function rampAt(judged: Judged, source: string, literal: number, sizes: nu
   // up here, for every kind, before the first size runs.
   const missing = await servicesFor(source);
   if (missing) throw new PerfError(`${bench} ${missing}`);
-  const copy = copyBench(bench, join(opts.scratch, bench.replace(/[\\/]/g, "~")));
+  const root = join(opts.scratch, bench.replace(/[\\/]/g, "~"));
+  const copy = copyBench(bench, root);
   const target = prints ? copy.replace(/\.scale\.nvs$/, ".nvs") : copy;
   const batches: Batch[] = [];
   const write = async (size: number) => {
-    writeFileSync(abs(copy), measure.rewrites || prints ? withBatch(source, literal, size)! : source);
+    writeCopy(bench, root, measure.rewrites || prints ? withBatch(source, literal, size)! : source);
     if (prints) await printBeside(copy, target, bench, opts);
   };
   for (const size of sizes) {

@@ -142,14 +142,15 @@ export async function recordProgram(rec: Recorder, nvs: string, dir: string, wha
  */
 export async function recordBench(rec: Recorder, nvs: string, dir: string, path: string, verdict: Verdict): Promise<string | null> {
   const { benchDef, benchId, recordedIn } = await engine();
-  const { copyBench, START, withBatch } = await import("../cmd/scaling.ts");
+  const { copyBench, START, withBatch, writeCopy } = await import("../cmd/scaling.ts");
   const id = benchId(path);
   const source = read(path);
   const n = ITERATIONS_RE.exec(source);
   const iterations = n ? Number(n[1]!.replace(/_/g, "")) : 0;
-  const copy = copyBench(path, join(dir, "copies", recordName(path)));
+  const root = join(dir, "copies", recordName(path));
+  const copy = copyBench(path, root);
   const small = iterations > 0 ? withBatch(source, iterations, Math.min(START, iterations)) : null;
-  if (small !== null) writeFileSync(abs(copy), small);
+  if (small !== null) writeCopy(path, root, small);
   const records = join(dir, "benches");
   const ran = await spawnProof([nvs, "run", copy], copy, BENCH_RECORD_MS, { dir: records });
   const got = ran.code === 0 && !ran.timedOut ? recordedIn(records).get(recordName(copy)) : undefined;
