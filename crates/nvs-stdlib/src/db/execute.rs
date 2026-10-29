@@ -7,9 +7,9 @@
 //!
 //! **SQLite is the one that cannot be written like the others.** Its cells
 //! carry a storage class and not a type, so its columns are decoded against
-//! what the column *declared* — § 9's rule for that driver, and the reason its
-//! decode sits here in full rather than beside the others in
-//! [`mod@super::column`].
+//! what the column *declared* — `rule:core-classes/db-column-types` for that
+//! driver, and the reason its decode sits here in full rather than beside the
+//! others in [`mod@super::column`].
 
 use super::*;
 
@@ -56,15 +56,16 @@ pub(super) fn statement_deadline(
     ))
 }
 
-/// [`filed_connection`], with § 4's deadline filed on it before the statement
-/// goes out.
+/// [`filed_connection`], with the statement's `timeout` deadline filed on it
+/// before the statement goes out.
 ///
 /// **Every statement path goes through this and not through
 /// [`filed_connection`]**, including the ones whose caller named no timeout: the
 /// bound belongs to the connection rather than to a call, so a statement that
 /// named none has to *lift* the one the statement before it named. The other end
-/// of that rule is [`warm_connection`], which lifts it again before § 13's reset
-/// — the one exchange no program's clock may bound.
+/// of that rule is [`warm_connection`], which lifts it again before the pool's
+/// reset (`rule:security/db-pool-reset-is-a-boundary`) — the one exchange no
+/// program's clock may bound.
 ///
 /// `nvs_db::Connection::set_deadline` owns what the instant reaches on each
 /// driver: the socket on the four with a wire, and the lock wait on SQLite.
@@ -179,32 +180,34 @@ pub(super) fn settled<T>(
 /// an empty `binds` purely to reach this, which would be a shape nothing else
 /// in this module means.
 pub(super) enum Transacting<'a> {
-    /// § 7 over the extended-query protocol's simple `Query`.
+    /// The transaction commands over the extended-query protocol's simple
+    /// `Query`.
     Postgres(&'a mut nvs_db::PgConn),
-    /// § 7 over `COM_QUERY`, with an isolation level as a command of its own.
+    /// The transaction commands over `COM_QUERY`, with an isolation level as a
+    /// command of its own.
     MySql(&'a mut nvs_db::MySqlConn),
     /// The same commands over the same framing — `nvs_db::mysql`'s `begin`,
     /// `commit` and `roll_back` are what `nvs_db::MariaConn` delegates to, as
     /// [`Framed`] says of the send path.
     MariaDb(&'a mut nvs_db::MariaConn),
-    /// § 7 over `SQL_BATCH`, in T-SQL's own vocabulary and with the two
-    /// differences `nvs_db::tds`'s `begin` owns: there is no read-only
-    /// transaction to ask for, and an isolation level is a *session* setting
-    /// this driver has to put back when the outermost transaction ends.
+    /// The transaction commands over `SQL_BATCH`, in T-SQL's own vocabulary and
+    /// with the two differences `nvs_db::tds`'s `begin` owns: there is no
+    /// read-only transaction to ask for, and an isolation level is a *session*
+    /// setting this driver has to put back when the outermost transaction ends.
     SqlServer(&'a mut nvs_db::TdsConn),
-    /// § 7 as ordinary SQL — `BEGIN`, `SAVEPOINT`, `RELEASE` — sent by a call
-    /// on `nvs_host`'s blocking pool rather than over a wire, which is the one
-    /// thing this arm does not share with the other four and is entirely
-    /// `nvs_db::sqlite`'s to hold. What it does differently in *this* module's
-    /// terms is only its refusals: `nvs_db::SqliteConn::begin` accepts all five
-    /// isolation levels, SQLite being always serializable, and refuses
-    /// `readOnly` at any depth because the property belongs to how the database
-    /// was opened rather than to a transaction.
+    /// The transaction commands as ordinary SQL — `BEGIN`, `SAVEPOINT`,
+    /// `RELEASE` — sent by a call on `nvs_host`'s blocking pool rather than over
+    /// a wire, which is the one thing this arm does not share with the other four
+    /// and is entirely `nvs_db::sqlite`'s to hold. What it does differently in
+    /// *this* module's terms is only its refusals: `nvs_db::SqliteConn::begin`
+    /// accepts all five isolation levels, SQLite being always serializable, and
+    /// refuses `readOnly` at any depth because the property belongs to how the
+    /// database was opened rather than to a transaction.
     Sqlite(&'a mut nvs_db::SqliteConn),
 }
 
 impl Transacting<'_> {
-    /// How many of § 7's levels are open — 0 outside a transaction.
+    /// How many nested transaction levels are open — 0 outside a transaction.
     pub(super) fn depth(&self) -> u32 {
         match self {
             Transacting::Postgres(postgres) => postgres.depth(),
@@ -215,7 +218,8 @@ impl Transacting<'_> {
         }
     }
 
-    /// § 7's outermost `BEGIN`, or the `SAVEPOINT` a nested call opens.
+    /// The outermost transaction's `BEGIN`, or the `SAVEPOINT` a nested call
+    /// opens.
     ///
     /// # Errors
     ///
@@ -235,7 +239,8 @@ impl Transacting<'_> {
         }
     }
 
-    /// § 7's `COMMIT`, or the release that closes a nested level.
+    /// The outermost transaction's `COMMIT`, or the release that closes a nested
+    /// level.
     ///
     /// # Errors
     ///
@@ -250,7 +255,7 @@ impl Transacting<'_> {
         }
     }
 
-    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    /// The outermost transaction's `ROLLBACK`, or the undo of a nested level.
     ///
     /// # Errors
     ///
@@ -266,7 +271,8 @@ impl Transacting<'_> {
     }
 }
 
-/// The connection filed under `key`, as the driver § 7's commands run on.
+/// The connection filed under `key`, as the driver
+/// `rule:core-classes/db-transactions`'s commands run on.
 ///
 /// **Total, and no longer a place a driver can be turned away.** It refused a
 /// `sqlite` block while `nvs_db::sqlite` had the commands and this enum had no
@@ -290,7 +296,8 @@ pub(super) fn transacting<'a>(
     Ok(transacting_of(filed_connection(ctx, key, named)?))
 }
 
-/// `connection` as the driver § 7's commands run on, which every variant is.
+/// `connection` as the driver the transaction commands run on, which every
+/// variant is.
 fn transacting_of(connection: &mut nvs_db::Connection) -> Transacting<'_> {
     match connection {
         nvs_db::Connection::Postgres(postgres) => Transacting::Postgres(postgres),
@@ -301,12 +308,12 @@ fn transacting_of(connection: &mut nvs_db::Connection) -> Transacting<'_> {
     }
 }
 
-/// How many of § 7's levels are open on the connection filed under `key` — 0
-/// outside a transaction.
+/// How many nested transaction levels are open on the connection filed under
+/// `key` — 0 outside a transaction.
 ///
-/// For a member that is not one of § 7's own and has to know whether the
-/// statement it just ran is committed yet: `Core\Queue::push`, which announces
-/// a job only once it is durable.
+/// For a member that is not one of `rule:core-classes/db-transactions`' own and
+/// has to know whether the statement it just ran is committed yet:
+/// `Core\Queue::push`, which announces a job only once it is durable.
 ///
 /// # Errors
 ///
@@ -315,7 +322,7 @@ pub(crate) fn open_levels(ctx: &mut nvs_runtime::Ctx, key: u64, named: &str) -> 
     Ok(transacting(ctx, key, named)?.depth())
 }
 
-/// Whether one of § 7's levels is open on a connection this request holds
+/// Whether a transaction level is open on a connection this request holds
 /// other than the one filed under `own`.
 ///
 /// For `Core\Queue::push`, which writes on its own connection and has to know
@@ -348,20 +355,20 @@ nvs_runtime::nvs_helper! {
     /// — `rule:core-classes/db-statement-members`'s buffered statement, and the first member of
     /// `Core\Db\Queryable` to land.
     ///
-    /// **Every row is read before this returns**, which is § 4's default and
-    /// the whole difference between this and `stream`: the connection is at a
-    /// message boundary again by the time the caller has its answer, so the
+    /// **Every row is read before this returns**, which is that rule's default
+    /// and the whole difference between this and `stream`: the connection is at
+    /// a message boundary again by the time the caller has its answer, so the
     /// loop that reads rows and writes per row — the commonest one in web
-    /// programming — needs no second connection and cannot meet § 4's
-    /// connection-busy rule at runtime. [`ROWS`] is where what that spends is
-    /// written down.
+    /// programming — needs no second connection and cannot meet
+    /// `rule:core-classes/db-connection-busy-state` at runtime. [`ROWS`] is
+    /// where what that spends is written down.
     ///
-    /// **The bind order is the rewriter's and not the array's.** § 5's
-    /// `rewrite` answers one `Source` per marker, and a repeated `:name` on a
-    /// numbered dialect is one marker read twice — so the values go out in the
-    /// order the *statement* asks for them, which is why nothing here counts
-    /// placeholders itself and why an `inList`'s expansion needs no second
-    /// pass.
+    /// **The bind order is the rewriter's and not the array's.**
+    /// `rule:core-classes/db-parameters`' `rewrite` answers one `Source` per
+    /// marker, and a repeated `:name` on a numbered dialect is one marker read
+    /// twice — so the values go out in the order the *statement* asks for them,
+    /// which is why nothing here counts placeholders itself and why an
+    /// `inList`'s expansion needs no second pass.
     fn nvs_core_db_connection_query(ctx, args: [5]) {
         // `crate::registry::QUERY_SITE_MEMBERS`' call site id is the last argument.
         let answered = queried_rows(ctx, args, "query", QUERY, args[4])?;
@@ -404,7 +411,8 @@ pub(super) struct Answered {
 /// **`args` starts at the receiver**, so `queryAs` hands over the slice past
 /// [`crate::registry::WRITTEN_CLASS_MEMBERS`]' three leading constants and both
 /// members read one shape here. Nothing about the statement differs between
-/// them: § 4 gives them one signature and one binding rule, and hydration is a
+/// them: `rule:core-classes/db-statement-members` gives them one signature and
+/// one binding rule, and hydration is a
 /// property of the result rather than of the wire.
 ///
 /// # Errors
@@ -429,9 +437,9 @@ pub(super) fn queried_rows(
     let deadline = statement_deadline(args, named)?;
     // The `$sql` argument read a second time rather than [`Statement::sql`]:
     // what a refusal names is the text the program wrote, where that field is
-    // § 5's rewrite of it. The tag is already known good — `statement_of`
-    // refused anything else above — so the `None` arm here is unreachable and
-    // costs no message of its own.
+    // the placeholder rewrite of it. The tag is already known good —
+    // `statement_of` refused anything else above — so the `None` arm here is
+    // unreachable and costs no message of its own.
     let source = args[1].as_text();
     let sending: Vec<Option<&[u8]>> = statement.binds.wire();
     // Read before the statement takes the context, because it holds it for as
@@ -506,19 +514,19 @@ fn rows_fit(named: &str) -> Result<(), Fault> {
 /// `rule:core-classes/db-statement-members`'s `Write`, as the driver answered it and before it becomes the
 /// instance.
 ///
-/// Two `Option`s and not two numbers: § 4 gives both fields `?uint`, and the
-/// absence is a different fact from a zero on both drivers — a command that
-/// carries no affected count at all, and a statement that generated no id.
+/// Two `Option`s and not two numbers: `Db\Write` declares both fields `?uint`,
+/// and the absence is a different fact from a zero on both drivers — a command
+/// that carries no affected count at all, and a statement that generated no id.
 pub(super) struct Written {
     /// The server's own affected count, `None` for a command that carries none.
     changed: Option<u64>,
-    /// § 4's `lastId`, `None` where the statement generated no id.
+    /// `Db\Write`'s `lastId`, `None` where the statement generated no id.
     last_id: Option<u64>,
 }
 
 impl Written {
     /// What a driver whose protocol carries no generated key at all reports:
-    /// the affected count it did carry, and § 4's `lastId` absent.
+    /// the affected count it did carry, and `lastId` absent.
     ///
     /// The absence belongs to the driver rather than to the statement, and
     /// [`tds_write`] is its one caller and argues why SQL Server has nothing to
@@ -534,7 +542,7 @@ impl Written {
 
 /// The [`WRITE`] a caller is handed, out of what the driver arm reported.
 ///
-/// The first slot folds § 4's absent count to `0` and the second keeps the
+/// The first slot folds an absent count to `0` and the second keeps the
 /// absence, so `affected` and `changed` are both answered off one build; the
 /// third is `lastId`, `null` wherever the arm reported no id. One function
 /// rather than a literal inside the member, because all five arms end here and
@@ -550,9 +558,10 @@ pub(super) fn write_object(written: &Written) -> Value {
     )
 }
 
-/// [`queried_rows`] over the PostgreSQL driver: the extended-query stream, § 9's
-/// decode of every row, and `rule:observability/a-query-is-a-trace-event`'s span taken off the rows before they
-/// are dropped.
+/// [`queried_rows`] over the PostgreSQL driver: the extended-query stream,
+/// `rule:core-classes/db-column-types`' decode of every row, and
+/// `rule:observability/a-query-is-a-trace-event`'s span taken off the rows
+/// before they are dropped.
 ///
 /// # Errors
 ///
@@ -567,7 +576,7 @@ pub(super) fn postgres_rows(
     named: &str,
 ) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
     // Read before the statement borrows the connection, and once for the whole
-    // result: § 9's zone-less `TIMESTAMP` is decoded in the zone this
+    // result: a zone-less `TIMESTAMP` is decoded in the zone this
     // connection declared, and that is a property of the connection rather
     // than of the row.
     let zone = postgres.time_zone();
@@ -623,7 +632,8 @@ pub(super) fn postgres_rows(
 /// **MariaDB is its own driver above the framing, not inside it.** `rule:core-classes/db-connection-is-named`
 /// is emphatic that treating it as a MySQL flag is a design error, and
 /// `nvs_db::maria` obeys that where it counts — its own targets, its own
-/// authentication roster, its own § 8 code table. What it does not duplicate is
+/// authentication roster, its own `rule:core-classes/db-error` code table. What
+/// it does not duplicate is
 /// the wire: `nvs_db::MariaConn::query` is a two-line delegation into the same
 /// `nvs_db::mysql::start_statement` that `nvs_db::MySqlConn::query` is, and it
 /// hands back the same `nvs_db::MySqlRows`. So the only difference this module
@@ -639,21 +649,22 @@ pub(super) fn postgres_rows(
 /// **`pub(crate)` because [`crate::queue`] sends over the same two drivers**, and
 /// for [`QueryWatch`]'s reason: `rule:concurrency/enqueue-commits-with-your-write`'s members drive a result set themselves
 /// rather than through this class's, so a second borrow-flattening enum over
-/// there would be this one with the same two arms. It carries § 7's three
-/// commands as well as the send, which [`Transacting`] also spells — the two are
-/// not one type because that one covers PostgreSQL, whose arm the queue's splits
-/// must not reach: a `Split` is what a driver *without* the single-statement
-/// construct runs, and PostgreSQL runs the single statement instead.
+/// there would be this one with the same two arms. It carries the three
+/// transaction commands as well as the send, which [`Transacting`] also spells —
+/// the two are not one type because that one covers PostgreSQL, whose arm the
+/// queue's splits must not reach: a `Split` is what a driver *without* the
+/// single-statement construct runs, and PostgreSQL runs the single statement
+/// instead.
 pub(crate) enum Framed<'a> {
-    /// § 1's two round trips as MySQL frames them.
+    /// `rule:core-classes/db-one-api`'s two round trips as MySQL frames them.
     MySql(&'a mut nvs_db::MySqlConn),
     /// The same two, framed as MariaDB and authenticated by its own roster.
     MariaDb(&'a mut nvs_db::MariaConn),
 }
 
 impl Framed<'_> {
-    /// § 9's zone a zone-less `DATETIME` off this connection is read in, as
-    /// seconds east of UTC.
+    /// The zone a zone-less `DATETIME` off this connection is read in, as
+    /// seconds east of UTC (`rule:core-classes/db-column-types`).
     pub(crate) fn time_zone(&self) -> i32 {
         match self {
             Framed::MySql(mysql) => mysql.time_zone(),
@@ -739,7 +750,8 @@ impl Framed<'_> {
         }
     }
 
-    /// § 7's `START TRANSACTION`, or the `SAVEPOINT` a nested one is.
+    /// The outermost transaction's `START TRANSACTION`, or the `SAVEPOINT` a
+    /// nested one is.
     ///
     /// # Errors
     ///
@@ -755,7 +767,8 @@ impl Framed<'_> {
         }
     }
 
-    /// § 7's `COMMIT`, or the release that closes a nested level.
+    /// The outermost transaction's `COMMIT`, or the release that closes a nested
+    /// level.
     ///
     /// # Errors
     ///
@@ -767,7 +780,7 @@ impl Framed<'_> {
         }
     }
 
-    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    /// The outermost transaction's `ROLLBACK`, or the undo of a nested level.
     ///
     /// # Errors
     ///
@@ -780,8 +793,10 @@ impl Framed<'_> {
     }
 }
 
-/// [`queried_rows`] over the two drivers [`Framed`] covers: `rule:core-classes/db-one-api`'s
-/// `COM_STMT_EXECUTE`, and § 9's decode of the binary rows it answers with.
+/// [`queried_rows`] over the two drivers [`Framed`] covers:
+/// `rule:core-classes/db-one-api`'s `COM_STMT_EXECUTE`, and
+/// `rule:core-classes/db-column-types`' decode of the binary rows it answers
+/// with.
 ///
 /// **The same shape as [`postgres_rows`] and deliberately not shared with it.**
 /// The two drivers agree on what a row *is* — a keyed array under the labels the
@@ -792,7 +807,8 @@ impl Framed<'_> {
 /// `UUID` and no array type. A trait over that would be four abstract methods
 /// standing for eight concrete lines.
 ///
-/// **§ 11's event is the one thing the two do share**, down to the line: a
+/// **The query's trace event is the one thing the two do share**
+/// (`rule:observability/a-query-is-a-trace-event`), down to the line: a
 /// `MySqlRows` opens its own span exactly as a `PgRows` does, so the pair this
 /// hands back is [`postgres_rows`]' pair and a trace reads across the two
 /// drivers without a field being spelled twice.
@@ -811,8 +827,8 @@ pub(super) fn mysql_rows(
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
-    // As [`postgres_rows`], and § 9's zone rule is the connection's on both
-    // drivers.
+    // As [`postgres_rows`], and the zone a zone-less value is read in is the
+    // connection's on both drivers.
     let zone = framed.time_zone();
     let mut answered = framed
         .query(&statement.sql, sending)
@@ -846,9 +862,9 @@ pub(super) fn mysql_rows(
             })?;
             let scalar = nvs_db::mysql::scalar(column, body)
                 .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-            // A label is bytes on this driver and text on the other, and § 9
-            // reads both as UTF-8, so a label that is not is refused here as
-            // it is in the description above.
+            // A label is bytes on this driver and text on the other, and a
+            // row's key is UTF-8 on both, so a label that is not is refused
+            // here as it is in the description above.
             let label = nvs_db::mysql::label(column)
                 .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
             let value = mysql_column_value(scalar, zone, named, label)?;
@@ -869,8 +885,9 @@ pub(super) fn mysql_rows(
     ))
 }
 
-/// [`queried_rows`] over the SQL Server driver: `rule:core-classes/db-one-api`'s `sp_prepexec`,
-/// and § 9's decode of the token stream it answers with.
+/// [`queried_rows`] over the SQL Server driver: `rule:core-classes/db-one-api`'s
+/// `sp_prepexec`, and `rule:core-classes/db-column-types`' decode of the token
+/// stream it answers with.
 ///
 /// **[`mysql_rows`]' shape a third time**, and that function's doc argues at
 /// length why the three are not one walk. What differs here is smaller than
@@ -894,9 +911,10 @@ pub(super) fn tds_rows(
     watch: QueryWatch,
     named: &str,
 ) -> Result<(Answered, Option<crate::db::span::Taken>), Fault> {
-    // As the other two drivers, and § 9's zone is a property of the connection
-    // on all three. What is this driver's own is that no server was told:
-    // `nvs_db::tds::TdsTarget::time_zone` owns why SQL Server has nowhere to be.
+    // As the other two drivers, and the declared zone is a property of the
+    // connection on all three. What is this driver's own is that no server was
+    // told: `nvs_db::tds::TdsTarget::time_zone` owns why SQL Server has nowhere
+    // to be.
     let zone = tds.time_zone();
     let mut answered = tds
         .query(&statement.sql, sending)
@@ -947,11 +965,12 @@ pub(super) fn tds_rows(
 /// `execute` over the PostgreSQL driver: the same stream [`postgres_rows`]
 /// drains, read for its counts rather than its rows.
 ///
-/// **The rows are drained and discarded, not skipped.** § 4 gives `execute` no
-/// way to hand a `RETURNING` clause's rows back, and the completion tag that
-/// carries the affected count is on the far side of them — so a member that
-/// walked away would leave the connection mid-stream and would have no count to
-/// answer with either.
+/// **The rows are drained and discarded, not skipped.** `execute` answers a
+/// `Db\Write` (`rule:core-classes/db-statement-members`) and has no way to hand
+/// a `RETURNING` clause's rows back, and the completion tag that carries the
+/// affected count is on the far side of them — so a member that walked away
+/// would leave the connection mid-stream and would have no count to answer
+/// with either.
 ///
 /// # Errors
 ///
@@ -978,22 +997,24 @@ pub(super) fn postgres_write(
         changed: answered.affected(),
         last_id: answered.last_id(),
     };
-    // § 11's event is a *statement's*, not a reader's: a write files one on the
+    // The query trace event is a *statement's*, not a reader's
+    // (`rule:observability/a-query-is-a-trace-event`): a write files one on the
     // same terms as `query`, carrying the affected count `finished` froze on
     // the span above.
     let taken = watch.taken(answered.span());
     Ok((written, taken))
 }
 
-/// `execute` over the MySQL driver: [`postgres_write`]'s shape, and § 4's two
-/// counts read out of the status packet rather than out of a completion tag.
+/// `execute` over the MySQL driver: [`postgres_write`]'s shape, and the
+/// `Db\Write`'s two counts read out of the status packet rather than out of a
+/// completion tag.
 ///
-/// **`lastId` is where the two drivers differ and § 4 does not.** MySQL carries
-/// the key in the status packet, and [`nvs_db::MySqlRows::last_id`] answers the
-/// `AUTO_INCREMENT` value the statement generated and `None` where it generated
-/// none — the driver holds the absence the protocol reported, so nothing is
-/// mapped a second time here. PostgreSQL reaches the same answer by having no
-/// `RETURNING` id to read at all.
+/// **`lastId` is where the two drivers differ and `Db\Write` does not.** MySQL
+/// carries the key in the status packet, and [`nvs_db::MySqlRows::last_id`]
+/// answers the `AUTO_INCREMENT` value the statement generated and `None` where
+/// it generated none — the driver holds the absence the protocol reported, so
+/// nothing is mapped a second time here. PostgreSQL reaches the same answer by
+/// having no `RETURNING` id to read at all.
 ///
 /// # Errors
 ///
@@ -1032,8 +1053,8 @@ pub(super) fn mysql_write(
 /// **`lastId` is `null` on this driver and it is an answer, not a gap.** SQL
 /// Server puts no generated key in the token stream at all — `SCOPE_IDENTITY()`
 /// is a statement a caller writes — which is why `nvs_db::tds::TdsRows` has no
-/// `last_id` for this function to have missed, and § 4's field is `?uint` for
-/// the same absence PostgreSQL has.
+/// `last_id` for this function to have missed, and `Db\Write`'s field is
+/// `?uint` for the same absence PostgreSQL has.
 ///
 /// **The rows are drained and discarded** for [`postgres_write`]'s reason, and
 /// this backend adds one of its own: `nvs_db::tds::TdsRows::affected` answers
@@ -1044,19 +1065,19 @@ pub(super) fn mysql_write(
 ///
 /// [`statement_failure`] for anything the server refused.
 /// [`queried_rows`] over the SQLite driver: the statement off the blocking pool,
-/// the rows already in hand, and § 11's span opened here rather than by the
-/// driver.
+/// the rows already in hand, and `rule:observability/a-query-is-a-trace-event`'s
+/// span opened here rather than by the driver.
 ///
 /// **The span is this module's on this backend alone**, for `executeMany`'s
 /// reason: `nvs_db::SqliteRows` lends none out, there being no round trip for a
 /// driver-side one to time. What it does time is the handoff to
 /// `nvs_host::blocking` and back, which is this driver's whole cost and the only
-/// thing § 11 could usefully report about it.
+/// thing that event could usefully report about it.
 ///
-/// **A cell arrives as the class it was stored in** and not as § 9's declared
-/// type — [`sqlite_column_value`] owns that split, and the column's own
-/// [`COLUMN`] carries the declared answer beside the value so a typed reader can
-/// make it.
+/// **A cell arrives as the class it was stored in** and not as the declared
+/// type `rule:core-classes/db-column-types` reads it as —
+/// [`sqlite_column_value`] owns that split, and the column's own [`COLUMN`]
+/// carries the declared answer beside the value so a typed reader can make it.
 ///
 /// # Errors
 ///
@@ -1074,7 +1095,7 @@ pub(super) fn sqlite_rows(
         span.name(name);
     }
     // Read before the statement borrows the connection, and once for the whole
-    // result — [`postgres_rows`]' reason: § 9's zone-less `DATETIME` is decoded
+    // result — [`postgres_rows`]' reason: a zone-less `DATETIME` is decoded
     // in the zone this connection declared, which is a property of the
     // connection rather than of the row.
     let zone = sqlite.time_zone();
@@ -1133,7 +1154,7 @@ pub(super) fn sqlite_rows(
 /// `execute` over the SQLite driver: the same statement [`sqlite_rows`] runs,
 /// read for its counts rather than its cells.
 ///
-/// **`changed` is present for every statement this driver runs.** § 4's absent
+/// **`changed` is present for every statement this driver runs.** Its absent
 /// case is a command tag that carries no count, and SQLite sends no tag at all:
 /// a statement whose kind counts nothing cannot be told apart here from one
 /// that changed no rows, so both report `0` and neither reports an absence.
@@ -1166,8 +1187,8 @@ pub(super) fn sqlite_write(
     let mut answered = sqlite
         .query(&statement.sql, statement.binds.sqlite())
         .map_err(|refused| statement_failure(named, &statement.block, source, &refused))?;
-    // Drained rather than skipped, for [`postgres_write`]'s reason: § 4 gives
-    // `execute` no way to hand a `RETURNING` clause's rows back, and the result
+    // Drained rather than skipped, for [`postgres_write`]'s reason: `execute`
+    // has no way to hand a `RETURNING` clause's rows back, and the result
     // set is what holds the connection until it is done with.
     while answered.next_row().is_some() {}
 
@@ -1176,7 +1197,7 @@ pub(super) fn sqlite_write(
         // A key below zero is no `?uint`, so a row written with one carries no
         // key rather than a number that wrapped around. An absent key is the
         // driver's own `None` and is not spelled `0` here: `0` is a rowid a row
-        // can be written with, and § 4's field holds it.
+        // can be written with, and `lastId` holds it.
         last_id: answered
             .last_insert_id()
             .and_then(|id| u64::try_from(id).ok()),
@@ -1189,9 +1210,10 @@ pub(super) fn sqlite_write(
 /// One [`COLUMN`] per column a SQLite statement described.
 ///
 /// [`described_columns`]' third sibling, and the one whose type is not a code a
-/// server sent: `nvs_db::SqliteColumn::column_type` keys § 9 off the schema's
-/// *declared* name, and that method's own doc is where the map and its three
-/// refusals are argued.
+/// server sent: `nvs_db::SqliteColumn::column_type` keys
+/// `rule:core-classes/db-column-types`' map off the schema's *declared* name,
+/// and that method's own doc is where the map and its three refusals are
+/// argued.
 pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsArray {
     let mut described = NvsArray::new();
     for column in columns {
@@ -1200,7 +1222,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
             [
                 Value::text(&column.name),
                 column_type_value(column.column_type()),
-                // As [`described_columns`]: § 9's own answer, and
+                // As [`described_columns`]: the type map's own answer, and
                 // [`COLUMN_NULLABLE_DOC`] is where it is written down. SQLite
                 // describes no nullability at all on a stepped statement, so
                 // there is not even a narrower server flag to sit beside it.
@@ -1216,25 +1238,25 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
 /// arrived in wherever that declaration names something SQLite can hold, and a
 /// `Core\Time`, a `Core\Uuid`, a `decimal` or a `bool` where it does not.
 ///
-/// **The declaration and not the cell, and that is § 9's sentence for this
+/// **The declaration and not the cell, and that is the rule's sentence for this
 /// backend rather than a preference.** The other four drivers read a type code
 /// the server sent and the encoding follows from it, so a `date` column can only
 /// arrive as a date. SQLite stores five classes whatever the column was declared
 /// as, so `'2026-09-03'` in a column declared `date` is text and `20260903` in
-/// the same column is an integer — and § 9 answers that with "mapping keys off
-/// the *declared* column type and throws on a value that does not parse", which
-/// is the schema's word deciding and the cell either agreeing or being a
+/// the same column is an integer — and the rule answers that with "mapping keys
+/// off the *declared* column type and throws on a value that does not parse",
+/// which is the schema's word deciding and the cell either agreeing or being a
 /// mistake. The five arms below are the whole of "agreeing"; everything else in
 /// a converting column is [`unparsed_column`].
 ///
-/// **So the *natural* type of a SQLite column is § 9's, exactly as it is on the
-/// other four**, and that is what makes this the only edit the map needed:
+/// **So the *natural* type of a SQLite column is the map's, exactly as it is on
+/// the other four**, and that is what makes this the only edit the map needed:
 /// `get`, `toArray`, all eleven of [`ROW`]'s typed readers, `queryAs<T>` and
 /// [`converted`] read the value this built and none of them learns that SQLite
-/// exists. A reader that parsed text on request instead would be § 6's
-/// *conversion* rule doing § 9's *map*'s job — it would loosen `->date()` on
-/// the four drivers that have a real `DATE`, and it could not reach a
-/// `DATETIME` at all, § 6's eleven readers having no member for one.
+/// exists. A reader that parsed text on request instead would be the rule's
+/// *conversion* on request doing its *map*'s job — it would loosen `->date()`
+/// on the four drivers that have a real `DATE`, and it could not reach a
+/// `DATETIME` at all, the eleven typed readers having no member for one.
 ///
 /// **A `DECIMAL` accepts a `REAL`, which is the one place this loses precision
 /// and it is lost before the read.** A column declared `decimal(10,2)` has
@@ -1246,7 +1268,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
 /// by it — the value crossed binary floating point in the *engine*, and reading
 /// it back as a `float` would only hide that.
 ///
-/// `zone` is the connection's declared zone, for § 9's zone-less `DATETIME`; it
+/// `zone` is the connection's declared zone, for a zone-less `DATETIME`; it
 /// is [`postgres_rows`]' `zone` and read once for the same reason.
 ///
 /// It still allocates nothing a value does not already own on the arms that do
@@ -1264,7 +1286,7 @@ pub(super) fn sqlite_column_value(
 ) -> Result<Value, Fault> {
     use nvs_db::{ColumnType, SqliteValue};
 
-    // § 9 reads a SQL NULL back as `null` whatever the column was declared, so
+    // A SQL NULL reads back as `null` whatever the column was declared, so
     // the map below never has one to refuse.
     if matches!(cell, SqliteValue::Null) {
         return Ok(Value::null());
@@ -1278,8 +1300,8 @@ pub(super) fn sqlite_column_value(
         ColumnType::Decimal => "a number",
         ColumnType::Bool => "`0` or `1`",
         // `Int`, `Float`, `Text`, `Bytes` and `Other` are storage classes
-        // SQLite has, so the cell is already § 9's answer — and this map never
-        // answers `Uint`, `Instant` or `Json`, which
+        // SQLite has, so the cell is already the type map's answer — and this
+        // map never answers `Uint`, `Instant` or `Json`, which
         // `nvs_db::SqliteColumn::column_type` argues in full.
         _ => return Ok(sqlite_stored_value(cell)),
     };
@@ -1299,7 +1321,8 @@ pub(super) fn sqlite_column_value(
         (ColumnType::Decimal, SqliteValue::Real(real)) => {
             nvs_runtime::Decimal::parse(&real.to_string()).map(Value::decimal)
         }
-        // § 6's `bool` rule, said where § 9 has to say it: `0` and `1` are the
+        // `rule:core-classes/db-column-types`' `bool` conversion, said where the
+        // declared-type map has to say it: `0` and `1` are the
         // whole of what a flag column holds, and a stored `7` throws rather
         // than reading as PHP's `true`. [`requested_bool`] is the same rule on
         // the *request* side and the two agree by construction.
@@ -1310,9 +1333,10 @@ pub(super) fn sqlite_column_value(
     built.ok_or_else(|| unparsed_column(named, column, &cell, want))
 }
 
-/// One cell as the Novis value of the storage class it arrived in — § 9's
-/// answer for every column whose declared type names something SQLite holds
-/// natively, and [`sqlite_column_value`]'s non-converting half.
+/// One cell as the Novis value of the storage class it arrived in —
+/// `rule:core-classes/db-column-types`' answer for every column whose declared
+/// type names something SQLite holds natively, and [`sqlite_column_value`]'s
+/// non-converting half.
 pub(super) fn sqlite_stored_value(cell: nvs_db::SqliteValue) -> Value {
     match cell {
         nvs_db::SqliteValue::Null => Value::null(),
@@ -1323,8 +1347,8 @@ pub(super) fn sqlite_stored_value(cell: nvs_db::SqliteValue) -> Value {
     }
 }
 
-/// § 9's SQLite throw: the column's declaration says what its values are, and
-/// this cell is not one.
+/// `rule:core-classes/db-column-types`' SQLite throw: the column's declaration
+/// says what its values are, and this cell is not one.
 ///
 /// [`unrepresentable_column`]'s twin, and the division is which side wrote the
 /// value — that one is a reading the server rendered correctly and no
@@ -1342,9 +1366,8 @@ pub(super) fn unparsed_column(
     want: &str,
 ) -> Fault {
     Fault::thrown(format!(
-        "{named}: the column `{}` is declared `{}` and holds {}, which is not {want} — `rule:core-classes/db-one-api` \
-         § 9 keys SQLite off the declared type, a storage class saying nothing about what a value \
-         was meant as, and throws on one that does not parse",
+        "{named}: the column `{}` is declared `{}` and contains {}, which is not {want}. A SQLite \
+         value is read as the type its column declares, and a value that does not parse throws an error",
         column.name,
         // Always present: a column with no declared type describes as
         // `ColumnType::Other`, which never reaches this throw.
@@ -1410,8 +1433,9 @@ nvs_runtime::nvs_helper! {
     /// first *instance* member. So the arity here is three more than `query`'s,
     /// which is otherwise the same call.
     ///
-    /// **The statement is [`queried_rows`], unchanged**: § 4 gives `query` and
-    /// this member one signature and one binding rule, so what differs is the
+    /// **The statement is [`queried_rows`], unchanged**:
+    /// `rule:core-classes/db-statement-members` gives `query` and this member
+    /// one signature and one binding rule, so what differs is the
     /// class the result carries and nothing on the wire. That class goes into
     /// [`ROWS_CLASS_SLOT`] and is read only when a row is handed out, so a
     /// caller that just counts pays for no construction.
@@ -1473,9 +1497,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The difference from [`nvs_core_db_connection_query`] is what becomes
     /// of the rows, and nothing else.** The statement goes out the same way,
-    /// through the same [`statement_of`], because § 4 gives the two members one
-    /// signature and one binding rule — so `execute` is not a second, weaker
-    /// path a caller could reach a difference through.
+    /// through the same [`statement_of`], because that rule gives the two
+    /// members one signature and one binding rule — so `execute` is not a
+    /// second, weaker path a caller could reach a difference through.
     ///
     /// **The rows are read to the end and dropped**, which is not a waste: a
     /// PostgreSQL statement is a stream either way, ending it is what returns
@@ -1486,9 +1510,9 @@ nvs_runtime::nvs_helper! {
     /// same stream `query` reads.
     ///
     /// **Both counts come off `CommandComplete`**, so neither exists until that
-    /// stream has ended, and the pair is § 4's own: `affected` folds a command
-    /// whose tag carries no count at all — a `create table` — to `0`, and
-    /// `changed` keeps the absence, which is the only thing the two say
+    /// stream has ended, and the pair is `Db\Write`'s own: `affected` folds a
+    /// command whose tag carries no count at all — a `create table` — to `0`,
+    /// and `changed` keeps the absence, which is the only thing the two say
     /// differently on this driver.
     fn nvs_core_db_connection_execute(ctx, args: [5]) {
         let statement = statement_of(ctx, args, "execute", EXECUTE)?;
@@ -1536,13 +1560,13 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Db\Connection::executeMany(string $sql, array<array<mixed>> $sets):
-    /// uint` — `rule:core-classes/db-statement-members`'s batch, and § 1's reason for having no `Statement`
-    /// object at all.
+    /// uint` — `rule:core-classes/db-statement-members`'s batch, and the reason
+    /// `rule:core-classes/db-one-api` needs no `Statement` object at all.
     ///
-    /// **This is the member a `prepare` handle would have existed for.** § 1
-    /// removes the handle because the per-connection cache already buys what it
-    /// bought, and names the batch as the one case that would otherwise still
-    /// want one — so a loop of `execute` calls and this member differ in round
+    /// **This is the member a `prepare` handle would have existed for.** The
+    /// handle is gone because the per-connection cache already buys what it
+    /// bought, and the batch is the one case that would otherwise still want
+    /// one — so a loop of `execute` calls and this member differ in round
     /// trips and in nothing else a caller can see.
     ///
     /// **Every set is bound by [`statement_of`], and they must agree**; that
@@ -1559,7 +1583,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs_db::QuerySpan` owns the field set and why a bound value is not in
     /// it, and `Ctx::record_query` owns why what crosses is a rendering.
     ///
-    /// **What it answers is a `uint` and not a [`WRITE`].** § 4 gives the batch
+    /// **What it answers is a `uint` and not a [`WRITE`].** The batch answers
     /// a sum, because `changed` and `lastId` would each have to pick one
     /// execution to be about — and the sum is what a caller writing the loop by
     /// hand would have accumulated anyway. The batch is also **not** a
@@ -1572,9 +1596,10 @@ nvs_runtime::nvs_helper! {
     /// doc argues its half.
     fn nvs_core_db_connection_execute_many(ctx, args: [5]) {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
-        // § 4's `timeout` bounds the *batch*, which is what a caller asked to
-        // bound: the sets are one statement run N times over one connection, and
-        // there is no per-set answer for a per-set clock to belong to.
+        // The member's `timeout` bounds the *batch*, which is what a caller
+        // asked to bound: the sets are one statement run N times over one
+        // connection, and there is no per-set answer for a per-set clock to
+        // belong to.
         let deadline = statement_deadline(args, EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
         // the per-set `Vec` has to outlive the slice taken of it.
@@ -1586,7 +1611,7 @@ nvs_runtime::nvs_helper! {
         let watch = QueryWatch::of(ctx, &batch.block).at(args[4]);
         let connection = bound_connection(ctx, batch.key, EXECUTE_MANY, deadline)?;
         let driver = connection.driver();
-        // § 11's span, opened where the driver opens `execute`'s: after the
+        // The query span, opened where the driver opens `execute`'s: after the
         // connection is in hand, so the duration is the statement's wait and
         // not the pool's. It carries the rewritten text, which is what reaches
         // the wire and what a driver-opened span would have been handed, and the
@@ -1601,20 +1626,21 @@ nvs_runtime::nvs_helper! {
             nvs_db::Connection::Postgres(postgres) => postgres.execute_many(&batch.sql, &sets),
             nvs_db::Connection::MySql(mysql) => mysql.execute_many(&batch.sql, &sets),
             // Not through [`Framed`]: that seam exists to stop a *body* being
-            // written twice, and this arm is the whole body. § 4 runs N
-            // executions on both drivers and `nvs_db::mysql::execute_many` is
-            // the one that runs them.
+            // written twice, and this arm is the whole body.
+            // `rule:core-classes/db-statement-members` runs N executions on
+            // both drivers, and `nvs_db::mysql::execute_many` is the one that
+            // runs them.
             nvs_db::Connection::MariaDb(maria) => maria.execute_many(&batch.sql, &sets),
             // The one driver whose batch costs no request shape of its own:
-            // § 1's cache makes the first set an `sp_prepexec` and every set
-            // after it an `sp_execute`, so `nvs_db::tds::execute_many` is the
-            // loop and nothing below it changed for this member.
+            // the statement cache makes the first set an `sp_prepexec` and
+            // every set after it an `sp_execute`, so `nvs_db::tds::execute_many`
+            // is the loop and nothing below it changed for this member.
             nvs_db::Connection::SqlServer(tds) => tds.execute_many(&batch.sql, &sets),
             // The one driver whose whole loop is a single handoff off the core
             // rather than N round trips, so its sets are handed over owned and
             // all at once — `nvs_db::SqliteConn::execute_many` is where that is
-            // argued, and § 4's "a batch is not a transaction" holds there as
-            // it does on the other four.
+            // argued, and a batch is no more a transaction there than it is
+            // on the other four.
             nvs_db::Connection::Sqlite(sqlite) => sqlite.execute_many(
                 &batch.sql,
                 batch.binds.iter().map(Binds::sqlite).collect(),
@@ -1624,9 +1650,10 @@ nvs_runtime::nvs_helper! {
             statement_failure(EXECUTE_MANY, &batch.block, args[1].as_text(), &refused)
         });
         let written = settled(ctx, batch.key, written)?;
-        // § 4's sum is the batch's affected count, and the span's rows stay at
-        // zero: nothing was handed back, and a batch that inserted a thousand
-        // rows reporting a thousand rows *returned* would read as a select.
+        // The member's sum is the batch's affected count, and the span's rows
+        // stay at zero: nothing was handed back, and a batch that inserted a
+        // thousand rows reporting a thousand rows *returned* would read as a
+        // select.
         span.finished(Some(written));
         file_span(ctx, watch, &batch.block, span);
         Ok(Value::uint(written))
@@ -1784,7 +1811,8 @@ mod tests {
         )
         .expect("the rows are written");
 
-        // The statement a bound `query` reaches this arm with: § 5's rewrite has
+        // The statement a bound `query` reaches this arm with: the placeholder
+        // rewrite (`rule:core-classes/db-parameters`) has
         // already run, so the text is in the driver's own placeholder spelling
         // and the binds are in the *statement's* order.
         let ctx = nvs_runtime::Ctx::buffered();
@@ -1896,7 +1924,7 @@ mod tests {
     }
 
     /// **`Core\Db\Write::changed` is the count the server itself reported, and
-    /// on SQLite every statement reports one.** § 4's absent case is a command
+    /// on SQLite every statement reports one.** Its absent case is a command
     /// tag that carries no count, and this driver sends no tag at all: what
     /// [`sqlite_write`] can read is a number for every statement kind, so the
     /// `?uint` is present throughout and holds whatever `affected` folds.
@@ -1974,8 +2002,9 @@ mod tests {
     /// **`Core\Db\Write::lastId` is the key of the row this statement inserted,
     /// and `null` where there is no key a `uint` holds.** One statement writing
     /// several rows answers the last row's key, which is all SQLite reports and
-    /// all § 4 promises; a row written with a negative key has none to report,
-    /// since [`sqlite_write`]'s `u64::try_from` is where a `?uint` stops.
+    /// all `Db\Write` promises; a row written with a negative key has none to
+    /// report, since [`sqlite_write`]'s `u64::try_from` is where a `?uint`
+    /// stops.
     ///
     /// **A statement that inserted nothing answers `null`**, which is the half
     /// `sqlite3_last_insert_rowid` cannot give on its own: that value belongs
@@ -2063,10 +2092,11 @@ mod tests {
             .expect("a `Core\\Db\\Write` slot holds a `uint` or a `null`")
     }
 
-    /// **§ 4's `lastId` is `null` on SQL Server, and that is an answer rather
-    /// than a gap.** The token stream carries no generated key at all, which
-    /// [`tds_write`] argues in full, so that arm reports [`Written::keyless`]
-    /// and this is what a caller reads off the instance it is handed.
+    /// **`Core\Db\Write::lastId` is `null` on SQL Server, and that is an answer
+    /// rather than a gap.** The token stream carries no generated key at all,
+    /// which [`tds_write`] argues in full, so that arm reports
+    /// [`Written::keyless`] and this is what a caller reads off the instance it
+    /// is handed.
     ///
     /// The affected count is asserted beside it because the two travel
     /// together: an arm that dropped the count while dropping the key would
@@ -2099,7 +2129,7 @@ mod tests {
     }
 
     /// **A key the driver reported is the key the caller reads**, and an absent
-    /// one reads `null`: the half of § 4's `lastId` that happens after a driver
+    /// one reads `null`: the half of `lastId` that happens after a driver
     /// has answered, on the four backends that carry a key.
     ///
     /// `8` is PostgreSQL's own id from `nvs_db::pg`'s
@@ -2253,7 +2283,8 @@ mod tests {
         }
     }
 
-    /// § 9's other half — "throws on a value that does not parse" — asserted on
+    /// The other half of `rule:core-classes/db-column-types`' SQLite sentence —
+    /// "throws on a value that does not parse" — asserted on
     /// **both sides of the bound**: the same declaration, one cell it describes
     /// and one it does not.
     ///
@@ -2281,7 +2312,7 @@ mod tests {
             let refused = sqlite_column_value(&column, cell, 0, "query")
                 .expect_err("neither is a date, whatever it would be in another column");
             let Fault::Thrown(_, why) = refused else {
-                panic!("§ 9's refusal is a throw a program can catch");
+                panic!("an unparsable SQLite value is a throw a program can catch");
             };
             assert!(
                 why.contains("is declared `date`"),
@@ -2294,7 +2325,8 @@ mod tests {
     /// NUMERIC affinity can leave in one, which is what makes the column usable
     /// at all — [`sqlite_column_value`]'s own doc argues the `REAL` arm.
     ///
-    /// A `BOOLEAN` is the same shape with § 6's bound on it: `0` and `1` cross
+    /// A `BOOLEAN` is the same shape with the `bool` conversion's bound on it
+    /// (`rule:core-classes/db-column-types`): `0` and `1` cross
     /// and a stored `7` does not, which is [`requested_bool`]'s rule reached
     /// from the map rather than from a request.
     #[test]

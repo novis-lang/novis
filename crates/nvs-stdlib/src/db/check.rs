@@ -1,8 +1,8 @@
 //! What a `Core\Db` call's SQL has to satisfy at *compile* time.
 //!
 //! `rule:core-classes/db-statement-members`'s one-statement rule, the
-//! closing delimiter every region of a statement owes, and § 10's placeholder
-//! count are properties of a string literal alone, so a call that breaks any of
+//! closing delimiter every region of a statement owes, and
+//! `rule:core-classes/db-compile-time-query-checking`'s placeholder count are properties of a string literal alone, so a call that breaks any of
 //! them is refused where it is written and never reaches a connection. What is
 //! below is the whole of that surface and the only part of this module
 //! `nvs-types` calls — which is the edge that puts the front end above this
@@ -83,9 +83,9 @@ pub fn check_single_statement(sql: &str) -> Result<(), String> {
 /// A params array written as an array literal, as far as the *compiler* can read one — `rule:core-classes/db-compile-time-query-checking`'s "a literal params array", which is
 /// the only shape it promises anything about.
 ///
-/// § 5's two spellings are exclusive, so this is two cases and not a pair: a
-/// list-keyed array is positional and a string-keyed one is named. An array the
-/// checker cannot read whole — a spread, a variable, a mixture of keyed and
+/// `rule:core-classes/db-parameters`'s two spellings are exclusive, so this is
+/// two cases and not a pair: a list-keyed array is positional and a
+/// string-keyed one is named. An array the checker cannot read whole — a spread, a variable, a mixture of keyed and
 /// unkeyed elements — is not one of these at all, and the call is left to run
 /// time.
 #[derive(Debug, Clone, Copy)]

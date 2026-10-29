@@ -18,12 +18,13 @@ use super::*;
 /// not at all, unlike a call site's pair, which `rule:testing/debug-probes` deliberately lets
 /// straddle a change.
 ///
-/// **The two readers are one type because they read one span.** § 11 gives the
-/// threshold the same facts the trace event carries, so a statement renders its
+/// **The two readers are one type because they read one span.** The threshold
+/// writes the same facts the trace event carries, so a statement renders its
 /// span at most once however many readers there are — and a second rendering is
 /// the only way the two could ever describe one statement differently.
 ///
-/// **`pub(crate)` because § 11 is about statements and not about `Core\Db`.**
+/// **`pub(crate)` because `rule:observability/a-query-is-a-trace-event` is
+/// about statements and not about `Core\Db`.**
 /// [`crate::queue`]'s four members drive a `PgRows` themselves rather than
 /// through this class's own, and a trace that showed every statement but
 /// theirs would be describing a request that never happened.
@@ -31,7 +32,7 @@ use super::*;
 pub(crate) struct QueryWatch {
     /// `rule:observability/trace-events-carry-a-kind`'s trace is recording this request.
     traced: bool,
-    /// § 11's threshold, for the block that wrote one.
+    /// The `slow_query` threshold, for the block that wrote one.
     slow: Option<std::time::Duration>,
     /// `DebugFlags::TRACE` is on and the span is not traced, because the `debug.trace` grant is
     /// missing: [`QueryWatch::file`] says so once per process.
@@ -67,10 +68,11 @@ impl QueryWatch {
     }
 
     /// The same, for a caller that holds the block's *name* rather than the
-    /// `Value` § 2's `Connection` carries it as.
+    /// `Value` a `Connection` carries it as.
     ///
     /// [`crate::queue`] is that caller: its connection is named by `rule:core-classes/queue-storage-is-a-table`'s `[queue] connection` and reached by key, so there is no `Value` to
-    /// read a name out of. `None` is § 2's unnamed `open` and means the same
+    /// read a name out of. `None` is the unnamed connection `Core\Db::open` builds
+    /// (`rule:core-classes/db-connection-is-named`) and means the same
     /// thing here as there — nothing to look a threshold up under.
     ///
     /// A span is traced when the request is sampled, which needs no grant, or
@@ -155,12 +157,13 @@ impl QueryWatch {
 /// on, or `None` for a statement nothing is timing.
 ///
 /// Three cases answer `None` and they are one answer: the block wrote no
-/// threshold, the connection has no block at all (§ 2's `open`, whose settings
+/// threshold, the connection has no block at all (`Core\Db::open`'s, whose settings
 /// the program wrote and no operator named — [`QueryWatch::named`] answers that
 /// one before this is reached), and a value that would not parse —
 /// which `nvs_config::db::validate` refused at boot, so it is unreachable here.
 /// Off is the right answer to all three: a threshold nobody can read is not a
-/// reason to fail a statement, and § 11's output is inert until asked for.
+/// reason to fail a statement, and the slow-query line is inert until asked
+/// for.
 pub(super) fn slow_query_of(ctx: &nvs_runtime::Ctx, name: &str) -> Option<std::time::Duration> {
     let snapshot = ctx.config()?.snapshot();
     let written = snapshot.config.db.get(name)?;
@@ -186,12 +189,13 @@ fn trace_ungranted_record(ctx: &mut nvs_runtime::Ctx) {
     let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Diagnostic);
 }
 
-/// § 11's slow-query line: the span `rule:observability/trace-events-carry-a-kind`'s trace event carries, written to
-/// `Core\Log` as one record.
+/// `rule:observability/a-slow-query-is-logged-past-a-threshold`'s line: the
+/// span `rule:observability/trace-events-carry-a-kind`'s trace event carries,
+/// written to `Core\Log` as one record.
 ///
 /// **The message is the span's own rendering and not a bag of fields**, which is
 /// what "the same facts" costs here: `nvs_db::QuerySpan`'s `Display` is the one
-/// home of § 11's field set, and a field-shaped second spelling of it in this
+/// home of the span's field set, and a field-shaped second spelling of it in this
 /// module would be the copy that goes stale the day a driver adds one. `Warn`
 /// because a threshold is written by an operator asking to be told, and it is
 /// the quietest level a log pipeline is not configured to drop.
@@ -206,7 +210,8 @@ pub(super) fn slow_query_record(ctx: &mut nvs_runtime::Ctx, line: &str) {
 }
 
 /// Files `rule:observability/a-query-is-a-trace-event`'s event for a statement that never lent a `PgRows` out —
-/// § 7's three commands, and the batch `executeMany` is.
+/// `rule:core-classes/db-transactions`'s three commands, and the batch
+/// `executeMany` is.
 ///
 /// The block goes on here rather than through [`name_span`], which takes the
 /// rows those statements never have; the rule it applies is the same one and

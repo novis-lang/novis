@@ -2,7 +2,7 @@
 //! column declares itself to be, and what one cell becomes as a value.
 //!
 //! Three drivers arrive with three column types and three date/time shapes and
-//! § 9 is one table, so each gets an arm and they meet at [`Value`]. The
+//! the type map is one table, so each gets an arm and they meet at [`Value`]. The
 //! `civil_of` trio is where that lands for `Core\Time`: a driver crate cannot
 //! allocate an instance of a class it does not declare, so it hands over
 //! components and this crate builds the instance.
@@ -43,14 +43,15 @@ pub(super) fn described_columns(columns: &[nvs_db::PgColumn]) -> NvsArray {
 ///
 /// **A twin and not one function over both**, because the two descriptions have
 /// no type in common. A [`nvs_db::PgColumn`] is `nvs-db`'s own row description,
-/// carrying its label as a `String` and its § 9 row as a field; a MySQL column
-/// definition is `mysql_common`'s `Column`, whose label is octets in the packet
-/// and whose § 9 row is read off its type and its `UNSIGNED` flag together. So
+/// carrying its label as a `String` and its type-map row as a field; a MySQL
+/// column definition is `mysql_common`'s `Column`, whose label is octets in the
+/// packet and whose type-map row is read off its type and its `UNSIGNED` flag
+/// together. So
 /// the two loops share their shape and not one line of their bodies, and a
 /// trait over the pair would be a third name for two fields.
 ///
 /// **The type is asked of the result set rather than read off the definition**,
-/// because which § 9 row a definition names is `nvs-db`'s reading and not this
+/// because which type-map row a definition names is `nvs-db`'s reading and not this
 /// module's — the same division [`nvs_db::mysql::scalar`] draws for a value.
 /// The label is checked by [`nvs_db::mysql::label`]: a column name is a key in
 /// the row array, and a lossy decode would rename a column rather than refuse
@@ -79,8 +80,9 @@ pub(super) fn mysql_described_columns(
                         .map_err(|refused| statement_failure(named, block, source, &refused))?,
                 ),
                 column_type_value(column_type),
-                // As [`described_columns`]: § 9's own answer, and
-                // [`COLUMN_NULLABLE_DOC`] is where it is written down.
+                // As [`described_columns`]: every column is described as
+                // nullable, and [`COLUMN_NULLABLE_DOC`] is where that is
+                // written down.
                 Value::bool(true),
             ],
         ));
@@ -106,8 +108,9 @@ pub(super) fn tds_described_columns(rows: &nvs_db::tds::TdsRows<'_>) -> NvsArray
             [
                 Value::text(&column.name),
                 column_type_value(column_type),
-                // As [`described_columns`]: § 9's own answer, and
-                // [`COLUMN_NULLABLE_DOC`] is where it is written down. The
+                // As [`described_columns`]: every column is described as
+                // nullable, and [`COLUMN_NULLABLE_DOC`] is where that is
+                // written down. The
                 // server's own `Flags` bit is beside it on this driver —
                 // `nvs_db::tds::TdsColumn::nullable` — and says something
                 // narrower, which that method's doc owns.
@@ -173,8 +176,9 @@ pub(super) fn column_type_case(of: nvs_db::ColumnType) -> &'static str {
 /// [`nvs_db::PgDate`]. So nothing here parses a body, and the only thing left
 /// that can go wrong is a rendered value no `Core\Time` type has.
 ///
-/// `zone` is the connection's declared zone, § 9's answer for the one row that
-/// carries no offset of its own.
+/// `zone` is the connection's declared zone, the one
+/// `rule:core-classes/db-column-types` reads the zone-less row in, since that
+/// row carries no offset of its own.
 ///
 /// An array is this function again per element, so an `array<Core\Uuid>` and
 /// an `array<array<Core\Time\Date>>` need nothing of their own. Each is built
@@ -245,19 +249,19 @@ pub(super) fn civil_of(date: nvs_db::PgDate, time: nvs_db::PgTime) -> crate::tim
 ///
 /// The division is the same one, for the same reason: `nvs-db` reads a column
 /// to a [`nvs_db::MySqlScalar`] and mints a [`Value`] for the rows that are
-/// values, and § 9's structured rows arrive as the components the server sent,
+/// values, and the type map's structured rows arrive as the components the server sent,
 /// because the classes they become are declared in *this* crate and that one
 /// cannot allocate an instance — [`nvs_db::MySqlDate`] owns that half.
 ///
 /// **Three rows and not five**, which is why this is a shorter `match` rather
-/// than a copy of [`column_value`]'s. MySQL has no `UUID` column type — § 9
-/// sends its `BINARY(16)` to the `bytes` row and MariaDB, which does have the
+/// than a copy of [`column_value`]'s. MySQL has no `UUID` column type — the
+/// type map sends its `BINARY(16)` to the `bytes` row and MariaDB, which does have the
 /// type, is its own driver — and no array type either, so the recursion a
 /// PostgreSQL `array<T>` needs has nothing here to recur over. What is left is
 /// `DATE`, `TIME` and the zone-less `DATETIME`/`TIMESTAMP` pair.
 ///
-/// `zone` is the connection's declared zone: § 9's answer for the row that
-/// carries no offset of its own, and the offset the connection told the server
+/// `zone` is the connection's declared zone: the one
+/// `rule:core-classes/db-column-types` reads the zone-less row in, and the offset the connection told the server
 /// at connect so that `CURRENT_TIMESTAMP` agrees with what is read back here.
 ///
 /// # Errors
@@ -319,8 +323,8 @@ pub(super) fn mysql_civil_of(
 /// One SQL Server column's Novis value: [`column_value`]'s twin over the third
 /// driver's scalar.
 ///
-/// The division is the same one for the same reason, and **all five of § 9's
-/// structured rows are here** where MySQL reaches three: this driver has
+/// The division is the same one for the same reason, and **all five of the
+/// type map's structured rows are here** where MySQL reaches three: this driver has
 /// `date`, `time`, the zone-less `datetime`/`datetime2` pair, `datetimeoffset`
 /// and a `uniqueidentifier` type of its own. What it has no row for is the
 /// array, which is PostgreSQL's alone, so nothing here recurs.
@@ -334,8 +338,8 @@ pub(super) fn mysql_civil_of(
 /// PostgreSQL's does, which is what lets [`crate::time`]'s two seams serve both
 /// without a driver argument.
 ///
-/// `zone` is the connection's declared zone, § 9's answer for the row that
-/// carries no offset of its own — declared and never negotiated on this driver,
+/// `zone` is the connection's declared zone, the one the zone-less row is read
+/// in, since that row carries no offset of its own — declared and never negotiated on this driver,
 /// unlike the other two, because there is no server-side session variable to
 /// send it to.
 ///
@@ -482,7 +486,7 @@ mod tests {
                 "1234567890.1234567890",
                 "a value inside the bound keeps every digit the server wrote, scale included"
             ),
-            other => panic!("§ 9 reads a `NUMERIC` as a `decimal`, and read {other:?}"),
+            other => panic!("the type map reads a `NUMERIC` as a `decimal`, and read {other:?}"),
         }
 
         let past = read("12345678901234567890.1234567890")

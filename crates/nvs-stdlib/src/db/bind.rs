@@ -5,7 +5,7 @@
 //! parameter is a [`Bound`] whatever the wire will make of it, and a failure is
 //! a [`nvs_db::DbErrorKind`] before it is a class name. That second ordering is
 //! what lets five drivers disagree about error codes and still agree about
-//! `rule:core-classes/db-compile-time-query-checking`'s kinds.
+//! `rule:core-classes/db-error`'s kinds.
 
 use super::*;
 
@@ -38,7 +38,7 @@ pub(super) fn connection_of(value: Value, member: &str) -> Result<(u64, Value), 
 /// interface's rule and not any one member's: a `$tx` that escaped its
 /// `transaction()` call still names a live connection, and running its
 /// statement outside the transaction — silently, on whatever the connection is
-/// doing now — is the failure § 7 closes by name.
+/// doing now — is the failure that rule closes by name.
 ///
 /// # Errors
 ///
@@ -90,10 +90,10 @@ pub(super) fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Faul
 ///
 /// The two are one walk's answers and are carried together because the rewriter
 /// is told the arity **before** anything is encoded — `rule:core-classes/db-parameters`'s expansion
-/// changes the text, and § 1's statement cache keys on the text it changed it
+/// changes the text, and the statement cache keys on the text it changed it
 /// to, so an `inList`'s width has to be known a round trip early.
 pub(super) struct Bound {
-    /// The rewriter's view of this element: one marker, or § 5's run of them.
+    /// The rewriter's view of this element: one marker, or an `inList`'s run of them.
     binding: nvs_db::Binding,
     /// What binds at those markers — one value, or the whole run in the array's
     /// own order. **Keys are not read**, which is `inList`'s own rule: a marker
@@ -144,8 +144,8 @@ pub(super) fn bound_of(value: Value) -> Bound {
 
 /// A statement path failure, worded by which half of it went wrong.
 ///
-/// The three-way split is this crate's to make, because `nvs-db` builds no
-/// fault at all (its `Cargo.toml` § 1 is the rule) and answers in
+/// The three-way split is this crate's to make, because `nvs-db` sits below it
+/// (`rule:core-classes/db-crate-boundary`), builds no fault at all and answers in
 /// [`std::io::ErrorKind`]s instead. `InvalidInput` is every mistake **in the
 /// call** — the rewriter's refusals, a value with no bound form, a second
 /// statement on a streaming connection — so it is a `LogicError` the caller
@@ -155,25 +155,26 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// The middle one is `Core\Db\DbError` — `rule:core-classes/db-error`'s single class for every refusal the server made, sitting beside
 /// `Core\Db\RolledBack` in the `Core\Error` tree so that a `catch` can tell a
 /// refusal the program did not choose from one it did. Nothing about the
-/// message changes with the class, and § 8 requires it to carry no bound value.
+/// message changes with the class, and that rule requires it to carry no bound value.
 ///
-/// The `Core\Db\DbError` it builds carries § 8's `kind`:
+/// The `Core\Db\DbError` it builds carries the normalised `kind`:
 /// `nvs_db::ServerError::of(refused)` reads the driver's own classification
 /// back out of the error this function is handed, and
 /// [`Fault::thrown_with_slot`] writes it into
 /// [`nvs_runtime::KIND_SLOT`] as the throw is recorded. A refusal the driver
 /// answered with no [`nvs_db::ServerError`] behind it reads as `Other`, which
-/// is what § 8 defines that case to be — the condition a code table does not
+/// is what `Other` is for — the condition a code table does not
 /// name — so the property is written on every path and never `null`.
 ///
 /// **`sql` is the statement the caller wrote and not [`Statement::sql`]'s
 /// rewrite of it**, and `None` for a member with no caller-written statement to
-/// name. § 8 lets the text ride the throw because it is developer-authored,
+/// name. `rule:core-classes/db-error` lets the text ride the throw because it is developer-authored,
 /// which the rewritten form is only at one remove: that form spells its markers
 /// the way one driver wants them — `$1` here, `?` on MySQL — so carrying it
 /// would make a property of a deliberately *normalised* error read differently
-/// per driver, which is the thing § 8's `kind` exists to stop. § 7's `BEGIN`,
-/// `COMMIT` and `SAVEPOINT` pass `None` for the other half of the same reason:
+/// per driver, which is the thing the `kind` exists to stop. The `BEGIN`,
+/// `COMMIT` and `SAVEPOINT` of `rule:core-classes/db-transactions` pass `None`
+/// for the other half of the same reason:
 /// that text is this runtime's, no program asked for it by name, and `?string`
 /// already has an absent case that costs no slot.
 pub(super) fn statement_failure(
@@ -196,7 +197,7 @@ pub(super) fn statement_failure(
             let wrote = sql.map(|text| (nvs_runtime::SQL_SLOT, Value::text(text)));
             match nvs_db::ServerError::of(refused) {
                 // The raw codes ride beside the kind normalised from them, so an
-                // application that § 8's eleven conditions do not cover reads
+                // application that `DbError::Kind`'s eleven conditions do not cover reads
                 // what the server actually said without the driver having to
                 // widen that enum. `driverCode` joins the `SQLSTATE` only on a
                 // backend that sends a vendor integer as well — MySQL does and
@@ -204,7 +205,7 @@ pub(super) fn statement_failure(
                 // never the `SQLSTATE` again under a second name.
                 //
                 // And the `SQLSTATE` itself joins only where there is one:
-                // § 8 spells it `?string` because TDS has no such field at all,
+                // `DbError` types it `?string` because TDS has no such field at all,
                 // and an empty `sql_state` is how that driver says so — the
                 // field's own doc owns the reading. Writing it anyway would put
                 // `""` where a program tests for `null`.
@@ -268,7 +269,7 @@ pub(super) fn error_kind_value(of: nvs_db::DbErrorKind) -> Value {
 
 /// The [`nvs_db::DbErrorKind`] a `Core\Db\DbError::Kind` value is, or `None` for
 /// anything that is not one of its ordinals — [`error_kind_value`] read
-/// backwards, which is how § 7's retry rule asks what a *thrown* `Db\DbError`
+/// backwards, which is how `rule:core-classes/db-transactions`'s retry asks what a *thrown* `Db\DbError`
 /// carries when there is no [`nvs_db::ServerError`] left to ask.
 ///
 /// Inverted through the forward function rather than written as a second
@@ -325,8 +326,8 @@ pub(super) fn error_kind_case(of: nvs_db::DbErrorKind) -> &'static str {
 /// The refusal for a column of one of `rule:core-classes/db-column-types`'s five class-typed rows
 /// holding a value the `Core\Time` type it maps to has no representation for.
 ///
-/// § 9's last paragraph is the rule: a structured column that does not parse
-/// throws rather than reading back as something else. Three values reach it in
+/// That rule's own: a structured column that does not parse throws rather than
+/// reading back as something else. Three values reach it in
 /// practice — PostgreSQL's `TIME` of `24:00:00`, which is a reading
 /// `Core\Time\TimeOfDay` deliberately does not have, MySQL's zero date
 /// `0000-00-00`, which its own driver hands over unchecked because the calendar
@@ -343,8 +344,8 @@ pub(super) fn unrepresentable_column(named: &str, column: &str, row: &str) -> Fa
     ))
 }
 
-/// A statement the wire is ready for: which connection it goes to, § 5's
-/// rewritten text, and its values encoded in the order that text asks for them.
+/// A statement the wire is ready for: which connection it goes to, the
+/// rewritten text of `rule:core-classes/db-parameters`, and its values encoded in the order that text asks for them.
 ///
 /// The two members that send one differ **only in what they do with the
 /// answer**. `rule:core-classes/db-statement-members` gives `query` and `execute` one signature and one
@@ -358,7 +359,7 @@ pub(super) struct Statement {
     /// The `[db.<name>]` block it was opened by, so a refusal can name the
     /// connection without holding it.
     pub(super) block: Value,
-    /// § 5's rewritten text, in the driver's own placeholder spelling. A
+    /// The rewritten text, in the driver's own placeholder spelling. A
     /// refusal names the caller's own spelling instead — [`statement_failure`]'s
     /// `sql` parameter — because this one is a property of the driver.
     pub(super) sql: String,
@@ -419,7 +420,7 @@ impl Binds {
 ///
 /// **Both halves are the receiver's own driver's**, which is the one thing a
 /// caller cannot state: [`rendering_of`] reads it off the connection filed
-/// under the receiver's key, and § 5's rewrite and § 9's encoding follow it
+/// under the receiver's key, and the placeholder rewrite and the value encoding follow it
 /// together. The context is borrowed for that lookup alone and released before
 /// the caller reaches [`transacting`], so a member still binds and sends inside
 /// one borrow each.
@@ -587,7 +588,7 @@ pub(super) struct Batch {
     /// The `[db.<name>]` block it was opened by, so a refusal can name the
     /// connection without holding it.
     pub(super) block: Value,
-    /// § 5's rewritten text, which every set agreed on — or, for an empty
+    /// The rewritten text, which every set agreed on — or, for an empty
     /// `$sets`, the caller's own text unrewritten, which never reaches the wire
     /// because [`nvs_db::PgConn::execute_many`] answers `0` before it prepares
     /// anything.
@@ -601,14 +602,15 @@ pub(super) struct Batch {
 /// `executeMany`'s `$sets`, read as one [`statement_of`] per set with the
 /// expansions checked to agree.
 ///
-/// **Each set is a whole `$params`**, so it gains the keying rule, § 5's
-/// rewrite and § 9's encoding from the member that already owns them — a set
+/// **Each set is a whole `$params`**, so it gains the keying rule, the
+/// rewrite and the encoding from the member that already owns them — a set
 /// cannot be bound by a weaker rule than the one `execute` would have applied
 /// to it on its own.
 ///
 /// **The sets must rewrite to one text, and that is a stronger check than the
-/// arity one it looks like.** § 1's cache is keyed on the SQL *plus its
-/// expansion arity* and § 5 expands an `inList` into as many markers as it has
+/// arity one it looks like.** `rule:core-classes/db-one-api`'s statement cache is
+/// keyed on the SQL *plus its expansion arity* and `rule:core-classes/db-parameters`
+/// expands an `inList` into as many markers as it has
 /// elements, so two sets whose `inList`s differ in width are two prepared
 /// statements — the driver's own `execute_many` refuses them on the count, and
 /// this refuses them on the text, which is the thing the count stands for and
@@ -718,12 +720,13 @@ mod tests {
             ERROR_KIND.cases.iter().map(|(name, _)| *name).collect();
         assert_eq!(
             described, registered,
-            "`nvs_db::DbErrorKind` and `{ERROR_KIND_NAME}` are one enum, in § 8's own order — a \
+            "`nvs_db::DbErrorKind` and `{ERROR_KIND_NAME}` are one enum, in `rule:core-classes/db-error`'s order — a \
              case added to either belongs in both, and in the same place"
         );
     }
 
-    /// § 7's retry reads a kind back out of a thrown `Db\DbError`, so the two
+    /// `rule:core-classes/db-transactions`'s retry reads a kind back out of a
+    /// thrown `Db\DbError`, so the two
     /// halves of that round trip have to agree for every case — including the
     /// two [`nvs_db::DbErrorKind::is_retryable`] names, which is the only
     /// answer the loop acts on. Each kind is written under the enum tag
@@ -752,7 +755,7 @@ mod tests {
         );
     }
 
-    /// § 8's `driverCode` reaches the throw where the server sent one, and is
+    /// `rule:core-classes/db-error`'s `driverCode` reaches the throw where the server sent one, and is
     /// left unwritten where it did not.
     ///
     /// **Both sides, because the drivers disagree and the slot cannot be
@@ -781,13 +784,13 @@ mod tests {
                 .iter()
                 .find(|(slot, _)| *slot == nvs_runtime::DRIVER_CODE_SLOT)
                 .map(|(_, value)| value.as_int()),
-            other => panic!("§ 8 makes a server's refusal a `Db\\DbError`: {other:?}"),
+            other => panic!("a server's refusal is a `Db\\DbError`: {other:?}"),
         };
 
         assert_eq!(
             code_in(statement_failure(QUERY, &block, None, &refusal(Some(1062)))),
             Some(Some(1062)),
-            "MySQL's own integer is what an application reads when § 8's kind is \
+            "MySQL's own integer is what an application reads when the `DbError` kind is \
              not specific enough for it"
         );
         assert_eq!(
@@ -817,8 +820,9 @@ mod tests {
     #[test]
     fn a_write_through_an_escaped_transaction_is_refused_before_it_reaches_a_connection() {
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
-        // The last two slots are this class's own: the scope flag § 7 clears
-        // when the call returns, and the reason a `rollBack` would have left.
+        // The last two slots are this class's own: the scope flag
+        // `rule:core-classes/db-transactions` clears when the call returns, and
+        // the reason a `rollBack` would have left.
         let escaped = |open: bool| {
             crate::instance::build(
                 &TRANSACTION,
@@ -847,7 +851,7 @@ mod tests {
         match refused {
             Fault::Thrown(ThrownClass::Logic, message) => assert!(
                 message.contains(TRANSACTION_NAME) && message.contains("execute"),
-                "§ 7's refusal names the handle the write was attempted through: {message}"
+                "the ended transaction's refusal names the handle the write was attempted through: {message}"
             ),
             other => panic!("an escaped transaction is a `LogicError`, not {other:?}"),
         }
@@ -864,7 +868,8 @@ mod tests {
         );
     }
 
-    /// § 4's empty batch is where `rule:core-classes/db-transactions`'s scope guard is easiest to
+    /// `rule:core-classes/db-statement-members`'s empty batch is where
+    /// `rule:core-classes/db-transactions`'s scope guard is easiest to
     /// lose: a member that answered `0` for a `$sets` holding nothing, before
     /// it had read its receiver at all, would pass every other assertion in
     /// this tree and still let a program reach a transaction its owning call
@@ -905,7 +910,7 @@ mod tests {
 
         let refusal = |fault| match fault {
             Fault::Thrown(ThrownClass::Logic, message) => message,
-            other => panic!("§ 7 makes an escaped transaction a `LogicError`, not {other:?}"),
+            other => panic!("an escaped transaction is a `LogicError`, not {other:?}"),
         };
         let batched = refusal(
             batch_of(&mut ctx, &args(escaped()), "executeMany", EXECUTE_MANY)
@@ -961,8 +966,9 @@ mod tests {
     #[test]
     fn a_read_through_an_escaped_transaction_is_refused_before_its_options_are_read() {
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
-        // The last two slots are this class's own: the scope flag § 7 clears
-        // when the call returns, and the reason a `rollBack` would have left.
+        // The last two slots are this class's own: the scope flag
+        // `rule:core-classes/db-transactions` clears when the call returns, and
+        // the reason a `rollBack` would have left.
         let handle = |open: bool| {
             crate::instance::build(
                 &TRANSACTION,
@@ -1007,7 +1013,7 @@ mod tests {
             Fault::Thrown(ThrownClass::Logic, message) => assert_eq!(
                 message,
                 format!("{TRANSACTION_NAME}::query: transaction scope has ended"),
-                "§ 7's refusal names the handle the read was attempted through, and says nothing \
+                "the ended transaction's refusal names the handle the read was attempted through, and says nothing \
                  about the `timeout` it never got to"
             ),
             other => panic!("an escaped transaction is a `LogicError`, not {other:?}"),
@@ -1089,7 +1095,7 @@ mod tests {
 
     /// `rule:classes/no-traits`'s delegation is *one symbol* per shared member, and `stream` is
     /// where a second body would be felt first: the walk parks a portal on the
-    /// connection, so § 4's connection-busy `LogicError` is thrown by the
+    /// connection, so `rule:core-classes/db-connection-busy-state`'s `LogicError` is thrown by the
     /// connection's own member and names it — `Core\Db\Connection::execute`,
     /// even where the program wrote `$tx->execute(…)`. A forwarding body of the
     /// transaction's own would give that one rule two messages and two places to
@@ -1126,7 +1132,7 @@ mod tests {
             .collect();
         assert!(
             apart.is_empty(),
-            "a shared member resolving to a body of its own states § 4's rules twice: {apart:?}"
+            "a shared member resolving to a body of its own states the statement members' rules twice: {apart:?}"
         );
     }
 
@@ -1215,7 +1221,8 @@ mod tests {
     }
 
     /// A nested `transaction` is the same row as the outermost one, so what
-    /// makes § 7's nesting compose is that neither what the callable is handed
+    /// makes `rule:core-classes/db-transactions`'s savepoint nesting compose is
+    /// that neither what the callable is handed
     /// nor what the member answers depends on the receiver: the callable is given
     /// a [`TRANSACTION`], and the member answers the very variable that callable
     /// declared. A library opening a transaction for its own writes then reads
@@ -1226,7 +1233,7 @@ mod tests {
     /// by the wrong shape: a row answering a variable of its own typechecks
     /// against itself and still loses the callable's type at the call site, and
     /// one handing over a [`CONNECTION`] would give a step the four members
-    /// § 7 keeps off a transaction. The row is declared once and carried twice,
+    /// that rule keeps off a transaction. The row is declared once and carried twice,
     /// so this is one decision, and the sweep over both receivers is what says
     /// so.
     // covers: Core\Db\Transaction::transaction
@@ -1238,7 +1245,7 @@ mod tests {
                 .instance
                 .iter()
                 .find(|member| member.name == "transaction")
-                .unwrap_or_else(|| panic!("`{}` declares § 7's `transaction`", table.name));
+                .unwrap_or_else(|| panic!("`{}` declares `transaction`", table.name));
             let (given, callable) = handed_over(&row.params[0]).unwrap_or_else(|| {
                 panic!(
                     "`{}::transaction` takes the callable it runs first, at one written instance",
@@ -1253,7 +1260,7 @@ mod tests {
             });
             assert_eq!(
                 given, TRANSACTION_NAME,
-                "`{}::transaction` hands its callable `{given}`, which is a receiver § 7 keeps four \
+                "`{}::transaction` hands its callable `{given}`, which is a receiver `rule:core-classes/db-transactions` keeps four \
                  members off",
                 table.name
             );

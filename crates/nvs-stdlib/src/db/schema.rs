@@ -79,7 +79,7 @@ fn node_of(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node,
             .ok_or_else(|| refused("a string that is not UTF-8")),
         Some(Tag::Array) => array_node(value, at, depth),
         Some(Tag::Decimal) => Err(refused(
-            "a `decimal`, where § 2's exact default is written as its digits in a string",
+            "a `decimal`. Write an exact default as its digits in a string",
         )),
         Some(Tag::Bytes) => Err(refused("`bytes`")),
         Some(Tag::Object) => Err(refused("an object")),

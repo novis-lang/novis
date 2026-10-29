@@ -14,12 +14,12 @@ use super::*;
 /// the call that left it out.
 ///
 /// **The two rosters are matched by ordinal and written out**, not cast:
-/// [`ISOLATION`] states § 7's order for the program and [`nvs_db::Isolation`]
+/// [`ISOLATION`] states the five levels' order for the program and [`nvs_db::Isolation`]
 /// states it again for the driver, in different crates for different readers,
 /// and a cast between them would answer the wrong level the first time either
 /// gained a case. `Core\Cli`'s `stream_of` is the same judgement.
 ///
-/// `None` is the option's declared default and not a failure: § 7's absent
+/// `None` is the option's declared default and not a failure: an absent
 /// `isolation` runs at the level the connection already has, which
 /// [`nvs_db::PgConn::begin`] renders by leaving the clause off the `BEGIN`.
 pub(super) fn isolation_of(
@@ -52,7 +52,7 @@ nvs_runtime::nvs_helper! {
     /// retries?}): T` — `rule:core-classes/db-transactions`'s whole shape, and the only way to open a
     /// transaction on this surface.
     ///
-    /// **The callable form is what removes the failure mode**, which § 7 argues
+    /// **The callable form is what removes the failure mode**, which that rule argues
     /// and this body implements: there is no point between the `BEGIN` and the
     /// `COMMIT` at which a program can walk away, because the scope is a call
     /// and an early `return` inside it is still a return *through* here. With
@@ -69,7 +69,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Db\RolledBack` is raised here.
     ///
     /// **The third case is read off the transaction and not off the throw**,
-    /// which is the point of § 7's flag: an intervening `catch (Throwable)`
+    /// which is the point of the rollback-only flag: an intervening `catch (Throwable)`
     /// swallows the signal, the callable returns normally, and this frame still
     /// refuses to commit. That is the guarantee Doctrine's `setRollbackOnly`
     /// asks every layer to cooperate on.
@@ -97,16 +97,16 @@ nvs_runtime::nvs_helper! {
     /// statement inside the callable raised, which arrives as a pending
     /// `Core\Db\DbError` instead and is read through
     /// [`nvs_runtime::Ctx::pending_slot`]. [`wait_between_attempts`] is the
-    /// wait § 7 puts between two of them. The loop itself is
+    /// backoff the rule puts between two of them. The loop itself is
     /// [`transacted`], which is handed its connection rather than reading one
     /// back out of the context — see [`Attempts`] for why that seam is where
     /// it is.
     ///
     /// **Rolling back after a throw discards its own failure.** The exception
     /// the callable raised is what the request is about, and a connection whose
-    /// `ROLLBACK` was refused is one § 13's reset destroys rather than pools —
-    /// so replacing the program's exception with the driver's would lose the
-    /// only half a caller can act on.
+    /// `ROLLBACK` was refused is one `rule:security/db-pool-reset-is-a-boundary`
+    /// closes rather than pools — so replacing the program's exception with the
+    /// driver's would lose the only half a caller can act on.
     fn nvs_core_db_connection_transaction(ctx, args: [5]) {
         let (key, block) = handle_of(args[0], "transaction")?;
         let isolation = isolation_of(&args[ISOLATION_ARG], TRANSACTION_MEMBER)?;
@@ -142,13 +142,14 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// § 7's four questions to the connection an attempt runs on, as something
-/// [`transacted`] is *handed* rather than reads back out of the context.
+/// The four questions a transaction puts to the connection an attempt runs on,
+/// as something [`transacted`] is *handed* rather than reads back out of the
+/// context.
 ///
-/// **The retry loop is the half of § 7 no driver implements.** A `BEGIN`, a
-/// `SAVEPOINT` and a `ROLLBACK` are `nvs-db`'s and are asserted there; nothing
-/// in a driver is ever asked to *re-run* anything, so the loop is the one § 7
-/// behaviour no `-p nvs-db` case can reach. This trait is what makes it
+/// **The retry loop is the half of `rule:core-classes/db-transactions` no driver
+/// implements.** A `BEGIN`, a `SAVEPOINT` and a `ROLLBACK` are `nvs-db`'s and are
+/// asserted there; nothing in a driver is ever asked to *re-run* anything, so the
+/// loop is the one transaction behaviour no `-p nvs-db` case can reach. This trait is what makes it
 /// reachable from a `-p nvs-stdlib` one instead: [`Filed`] is the only
 /// implementation the runtime ever builds, and a test scripts the
 /// conflict-then-commit pair a real deadlock produces without a server in front
@@ -165,19 +166,19 @@ nvs_runtime::nvs_helper! {
 /// **Two error channels, which is what the nested `Result` is.** The outer
 /// failure is *this request has no such connection* — already a [`Fault`],
 /// from [`transacting`] — and the inner one is the server's own refusal, which
-/// § 7's retry rule reads a [`nvs_db::DbErrorKind`] off through
+/// the `{ retries: n }` rule reads a [`nvs_db::DbErrorKind`] off through
 /// [`nvs_db::ServerError`] and which only [`std::io::Error`] still carries.
 /// Collapsing the two would leave the loop deciding a retry off a rendered
 /// message.
 pub(super) trait Attempts {
-    /// How many of § 7's levels are open, before this attempt's `BEGIN`.
+    /// How many transaction levels are open, before this attempt's `BEGIN`.
     ///
     /// # Errors
     ///
     /// As [`transacting`].
     fn depth(&mut self, ctx: &mut nvs_runtime::Ctx) -> Result<u32, Fault>;
 
-    /// § 7's outermost `BEGIN`, or the `SAVEPOINT` a nested call opens.
+    /// The outermost `BEGIN`, or the `SAVEPOINT` a nested call opens.
     ///
     /// # Errors
     ///
@@ -189,7 +190,7 @@ pub(super) trait Attempts {
         read_only: bool,
     ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault>;
 
-    /// § 7's `COMMIT`, or the release that closes a nested level.
+    /// The outermost `COMMIT`, or the release that closes a nested level.
     ///
     /// # Errors
     ///
@@ -199,7 +200,7 @@ pub(super) trait Attempts {
         ctx: &mut nvs_runtime::Ctx,
     ) -> Result<std::io::Result<nvs_db::QuerySpan>, Fault>;
 
-    /// § 7's `ROLLBACK`, or the undo of a nested level.
+    /// The outermost `ROLLBACK`, or the undo of a nested level.
     ///
     /// # Errors
     ///
@@ -215,10 +216,12 @@ pub(super) trait Attempts {
 ///
 /// **One field, since [`transacting`] became total.** It carried the
 /// `[db.<name>]` block as well for as long as there was a driver to turn away
-/// by name; [`Attempted`] still holds one, because § 8's refusals are thrown
-/// about a *statement* and name the connection they ran on.
+/// by name; [`Attempted`] still holds one, because the errors of
+/// `rule:core-classes/db-error` are thrown about a *statement* and name the
+/// connection they ran on.
 pub(super) struct Filed {
-    /// § 2's key, as [`handle_of`] read it off the receiver.
+    /// The memo key `rule:core-classes/db-connection-is-named` files the
+    /// connection under, as [`handle_of`] read it off the receiver.
     key: u64,
 }
 
@@ -251,7 +254,7 @@ impl Attempts for Filed {
     }
 }
 
-/// § 7's call, as [`nvs_core_db_connection_transaction`] read it off its
+/// The `transaction` call, as [`nvs_core_db_connection_transaction`] read it off its
 /// arguments.
 ///
 /// One struct rather than five more parameters on [`transacted`], which takes
@@ -260,24 +263,25 @@ impl Attempts for Filed {
 /// avoid. Neither [`Value`] carries a reference of its own — both are the
 /// helper's own arguments, live for the whole call.
 pub(super) struct Attempted {
-    /// § 2's key, as the scope object carries it on to a delegated member.
+    /// The connection's memo key, as the scope object carries it on to a
+    /// delegated member.
     key: u64,
     /// The `[db.<name>]` block this transaction refuses under.
     block: Value,
-    /// § 7's `$fn`, run once per attempt.
+    /// The callable `$fn`, run once per attempt.
     callable: Value,
-    /// § 7's `{isolation}`, decided by the driver and refused when nested.
+    /// The `{isolation}` option, decided by the driver and refused when nested.
     isolation: Option<nvs_db::Isolation>,
-    /// § 7's `{readOnly}`, on the same terms.
+    /// The `{readOnly}` option, on the same terms.
     read_only: bool,
-    /// § 7's `{ retries: n }` — how many re-runs a conflict may still have.
+    /// The `{ retries: n }` option — how many re-runs a conflict may still have.
     retries: u64,
 }
 
-/// The first rung of § 7's backoff, and the base every rung after it doubles
-/// from.
+/// The first rung of the retry backoff `rule:core-classes/db-transactions`
+/// requires, and the base every rung after it doubles from.
 ///
-/// § 7 names no number and `{ retries: n }` has no key for one, which is the
+/// That rule names no number and `{ retries: n }` has no key for one, which is the
 /// right shape rather than an omission: the wait is not spent letting a lock
 /// clear. A server reports a deadlock or a serialization failure only once it
 /// has already *resolved* the conflict — PostgreSQL detects a deadlock by
@@ -295,7 +299,7 @@ pub(super) const RETRY_BACKOFF: std::time::Duration = std::time::Duration::from_
 /// budget of the request the retry exists to save.
 pub(super) const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// § 7's wait before the retry with `taken` of them already spent: full jitter
+/// The wait before the retry with `taken` of them already spent: full jitter
 /// over an exponential rung, capped at [`RETRY_BACKOFF_CAP`].
 ///
 /// **Full jitter — uniform in `[0, base × 2^taken]` — and not the rung
@@ -323,7 +327,7 @@ pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
     std::time::Duration::from_nanos(rand::rng().random_range(0..=nanos))
 }
 
-/// § 7's suspension between two attempts — the coroutine waits and the core
+/// The suspension between two attempts — the coroutine waits and the core
 /// does not.
 ///
 /// [`nvs_runtime::host::Host::sleep`] and deliberately not the bounded park
@@ -355,12 +359,13 @@ pub(super) fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> R
     }
 }
 
-/// § 7's whole transaction, from the `BEGIN` to the answer, over a connection
+/// The whole transaction, from the `BEGIN` to the answer, over a connection
 /// it is handed.
 ///
 /// Hoisted out of [`nvs_core_db_connection_transaction`] so that the retry rule
-/// — four conditions over two conflict channels, and the one part of § 7 that
-/// belongs to no driver — has a caller other than a member that can only reach
+/// — four conditions over two conflict channels, and the one part of
+/// `rule:core-classes/db-transactions` that belongs to no driver — has a caller
+/// other than a member that can only reach
 /// a real server. [`Attempts`] is where what that buys is written down.
 ///
 /// **The two channels differ only in the shape a conflict arrives in.** The
@@ -386,14 +391,15 @@ pub(super) fn transacted(
     let block = call.block;
     let mut left = call.retries;
 
-    // § 11's readers, once for the whole call: every command below runs on
+    // The readers of `rule:observability/a-query-is-a-trace-event`'s span,
+    // once for the whole call: every command below runs on
     // the one connection, and a retry does not change what is watching.
     // Read here for [`QueryWatch`]'s reason — the connection holds the
     // context for as long as each command does.
     let watch = QueryWatch::of(ctx, &block);
 
     loop {
-        // § 7 retries **outermost transactions only**, and the depth before
+        // A conflict re-runs **outermost transactions only**, and the depth before
         // the `BEGIN` is the only thing that says which this call is —
         // re-running a nested callable would re-run it inside an outer
         // transaction the conflict has already aborted.
@@ -403,7 +409,7 @@ pub(super) fn transacted(
         // outermost, which is how `crate::queue::level_closed` is told which
         // level ended.
         let level = open + 1;
-        // § 11's event covers § 7's own commands as well as the statements
+        // The query event covers the transaction's own commands as well as the statements
         // inside them: a trace that showed the callable's writes but not the
         // `BEGIN` and the `COMMIT` around them would put the transaction's
         // whole cost on its last statement. The driver answers with the
@@ -483,7 +489,8 @@ pub(super) fn transacted(
         };
 
         // The driver's own error rather than the `Fault` it renders to: the
-        // retry rule branches on § 8's kind, which only [`nvs_db`] can put
+        // retry rule branches on the `DbError::Kind` of
+        // `rule:core-classes/db-error`, which only [`nvs_db`] can put
         // there and only this shape still carries.
         let closed = if abandoned.is_some() {
             attempts.roll_back(ctx)
@@ -523,7 +530,7 @@ pub(super) fn transacted(
         };
         discard(answered);
 
-        // § 7's `{ retries: n }`, and the four conditions are all of it: an
+        // The `{ retries: n }` rule, and the four conditions are all of it: an
         // outermost transaction, an attempt left, nothing that asked to be
         // rolled back, and a conflict the driver says may be re-run.
         let conflicted =
@@ -558,8 +565,8 @@ nvs_runtime::nvs_helper! {
     /// remember to check and one of them will not. Recording the reason in the
     /// receiver's own slot is what makes the decision survive the catch.
     ///
-    /// **There is deliberately no way to roll back and carry on.** § 7 gives
-    /// the member a `void` return because it always throws: a program that
+    /// **There is deliberately no way to roll back and carry on.** The member
+    /// returns `void` because it always throws: a program that
     /// wants the writes it has made kept has not asked for a transaction, and
     /// one that wants to try again puts the retry outside the callable, where
     /// the second attempt gets its own `BEGIN`.
@@ -648,11 +655,12 @@ fn refusal(fault: &Fault) -> String {
 /// outer transaction: `[db.<name>]` opened on `ctx` and left inside a `BEGIN`,
 /// answering the key it is filed under.
 ///
-/// **It is `ctx` that makes this § 17 rather than a second `Core\Db`.** The
+/// **It is `ctx` that makes this the rule's transaction rather than a second
+/// `Core\Db`.** The
 /// connection is memoized on the context it is opened on
 /// ([`open_named`]), so a `Core\Db::connect` the test *itself* makes under the
 /// same name reaches this very connection — and therefore this open
-/// transaction. That is the whole of § 17's second sentence: the test's own
+/// transaction. That is the whole of the rule's savepoint sentence: the test's own
 /// `Core\Db::transaction` sees a non-zero [`nvs_db::PgConn::depth`] and opens a
 /// `SAVEPOINT` instead of a `BEGIN`, with no special case anywhere for it. The
 /// caller passes the *test's* context and not the suite's, which is why
@@ -661,7 +669,7 @@ fn refusal(fault: &Fault) -> String {
 /// **What it spends:** one pooled connection for the length of one test, held
 /// by that test's context and released to [`nvs_runtime::pool`] when it ends —
 /// the same connection a test that called `connect` itself would have held, so
-/// § 17 costs a `db:` test nothing beyond the two round trips of its `BEGIN`
+/// the rule costs a `db:` test nothing beyond the two round trips of its `BEGIN`
 /// and its `ROLLBACK`.
 ///
 /// # Errors
@@ -678,12 +686,13 @@ pub fn begin_test_transaction(ctx: &mut nvs_runtime::Ctx, name: &str) -> Result<
     Ok(key)
 }
 
-/// § 17's other half: every level open on the connection filed under `key`,
+/// The other half of `rule:testing/db-transaction`: every level open on the
+/// connection filed under `key`,
 /// rolled back, so the test's writes are gone and the connection is poolable.
 ///
 /// **A loop and not one `ROLLBACK`, because the depth is not this function's to
-/// assume.** § 7's callable closes its own level on every path out of it, so the
-/// depth is back to the one [`begin_test_transaction`] opened for every test
+/// assume.** A `transaction` callable closes its own level on every path out of
+/// it, so the depth is back to the one [`begin_test_transaction`] opened for every test
 /// that returned or threw — but a test that ended by cancellation or by a
 /// contained panic is a test whose callable did not return, and a connection
 /// left one level in is one [`nvs_runtime::pool`] closes rather than reuses.
@@ -717,7 +726,7 @@ mod tests {
     /// **A transaction runs a callable**: [`TRANSACTION_ROW`] takes one
     /// `callable` and answers at *its* `T`, which is what lets a transaction
     /// wrap an existing expression without retyping it. Its consequence is
-    /// asserted as an absence — § 7 removes `commit`, `rollBack` and
+    /// asserted as an absence — that rule removes `commit`, `rollBack` and
     /// `inTransaction` from the connection outright, and a pair a program can
     /// leave half-done is exactly what nesting made unnecessary.
     ///
@@ -733,7 +742,7 @@ mod tests {
     #[test]
     fn a_transaction_is_a_callable_and_transaction_is_a_queryable() {
         assert_eq!(TRANSACTION_ROW.name, "transaction");
-        // § 7's `$fn`, and R9's allowance that the callable may declare no
+        // The callable `$fn`, and R9's allowance that the callable may declare no
         // parameter at all is why the arity is not sayable in the row.
         assert_eq!(TRANSACTION_ROW.names, ["fn"]);
         assert_eq!(
@@ -745,14 +754,15 @@ mod tests {
                     CoreTy::Options(TRANSACTION_OPTIONS)
                 ]
             ),
-            "§ 7's `transaction` takes the callable and R2's one trailing bag"
+            "`rule:core-classes/db-transactions`'s `transaction` takes the callable and R2's one trailing bag"
         );
-        // § 7's three options, in its order, at its defaults — asserted as the
-        // whole bag rather than one lookup each, so an option added without
+        // The three transaction options, in their order, at their defaults —
+        // asserted as the whole bag rather than one lookup each, so an option added without
         // being specified fails here too. The defaults are the half a call site
         // never writes and so the half nothing else would catch: `isolation`
         // absent leaves the server's own level standing, and `retries` at 0 is
-        // § 7's argument that a side-effecting callable is not re-run unasked.
+        // `rule:core-classes/db-transactions`'s argument that a side-effecting
+        // callable is not re-run unasked.
         assert_eq!(
             TRANSACTION_OPTIONS
                 .iter()
@@ -767,7 +777,7 @@ mod tests {
         assert_eq!(
             format!("{:?}", TRANSACTION_ROW.return_ty),
             format!("{:?}", CoreTy::Var("T")),
-            "§ 7's `: T` — the member's answer is the callable's own"
+            "the member's `: T` is the callable's own return"
         );
 
         // "no `commit()`, no `rollBack()` on the connection and no
@@ -779,7 +789,7 @@ mod tests {
                     member.name,
                     "begin" | "commit" | "rollBack" | "savepoint" | "inTransaction"
                 ),
-                "`{}` declares `{}` — § 7 replaced that surface with a callable",
+                "`{}` declares `{}`, a surface `rule:core-classes/db-transactions` replaced with a callable",
                 CONNECTION.name,
                 member.name
             );
@@ -821,7 +831,7 @@ mod tests {
             TRANSACTION.name, CONNECTION.name
         );
 
-        // What the delegation is allowed to add, in full: § 7's own hazard,
+        // What the delegation is allowed to add, in full: the transaction's own hazard,
         // and it is on the transaction because that is what holds the flag.
         let own: Vec<&str> = TRANSACTION
             .instance
@@ -887,12 +897,12 @@ mod tests {
         )
         .is_ok()
         {
-            panic!("§ 7 gives `rollBack` a `void` return because it always throws");
+            panic!("`rollBack` returns `void` because it always throws");
         }
         assert_eq!(
             ctx.pending_class().as_deref(),
             Some(r"Core\Db\RolledBack"),
-            "§ 7's signal is the class it names, not a bare `RuntimeError`"
+            "the rollback signal is the class it names, not a bare `RuntimeError`"
         );
         assert_eq!(ctx.pending().as_deref(), Some("the cart is gone"));
 
@@ -924,8 +934,8 @@ mod tests {
     /// [`Attempts`] with no server behind it: every command succeeds, and the
     /// case reads back the order they were asked in.
     ///
-    /// Nothing here is scripted to *fail*, because the conflict § 7 retries on
-    /// arrives from the callable rather than from the connection — the half no
+    /// Nothing here is scripted to *fail*, because the conflict `{ retries: n }`
+    /// re-runs on arrives from the callable rather than from the connection — the half no
     /// driver could induce, and the whole reason [`transacted`] takes its
     /// connection as an argument. The depth is 0 so every attempt is
     /// outermost, which is one of the four conditions the retry rule reads.
@@ -982,8 +992,8 @@ mod tests {
         static ATTEMPTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
 
-    /// § 7's callable as a deadlock makes it behave: the first attempt throws a
-    /// retryable `Core\Db\DbError`, and every one after it returns.
+    /// A `transaction` callable as a deadlock makes it behave: the first attempt
+    /// throws a retryable `Core\Db\DbError`, and every one after it returns.
     ///
     /// **The throw is built by [`statement_failure`] off a real
     /// [`nvs_db::ServerError`]** rather than assembled here, so what the loop
@@ -1034,10 +1044,11 @@ mod tests {
         deadlocked
     }
 
-    /// The `Core\Error` tree's root shape and § 8's `Core\Db\DbError` under it,
-    /// arriving the one way a context takes a table — the playbook's `Ctx::class_desc` bullet.
+    /// The `Core\Error` tree's root shape and `rule:core-classes/db-error`'s
+    /// `Core\Db\DbError` under it, arriving the one way a context takes a table —
+    /// the playbook's `Ctx::class_desc` bullet.
     ///
-    /// § 8's class has to be *resolvable* for a throw of it to be read back:
+    /// That class has to be *resolvable* for a throw of it to be read back:
     /// `pending_slot` answers `None` for a context with no exception class
     /// installed.
     fn db_error_class() -> nvs_runtime::ErrorClass {
@@ -1063,7 +1074,7 @@ mod tests {
     }
 
     /// A `callable` whose `invoke` is `invoke` and which declares one
-    /// parameter — the `$tx` § 7 hands its callable.
+    /// parameter — the `$tx` a `transaction` call hands its callable.
     ///
     /// `nvs_runtime::call_callable` reads exactly three things off a callable
     /// value, so this is a whole one: its class's callable bit, the arity in
@@ -1116,13 +1127,14 @@ mod tests {
     /// [`Attempts`] exists for. [`transacting`] downcasts to a real
     /// `nvs_db::PgConn` and no `-p nvs-stdlib` test can build one, so until
     /// [`transacted`] took its connection as an argument the retry rule — the
-    /// one half of § 7 a driver is never asked to implement — had no caller a
+    /// one half of that rule a driver is never asked to implement — had no caller a
     /// test could reach.
     ///
     /// **The conflict is induced the way a server induces one**: the callable
     /// throws what [`statement_failure`] renders a `40P01` into, so the loop's
-    /// decision goes through [`nvs_runtime::Ctx::pending_slot`] and § 8's
-    /// normalised kind exactly as it does in a request.
+    /// decision goes through [`nvs_runtime::Ctx::pending_slot`] and the
+    /// normalised kind of `rule:core-classes/db-error` exactly as it does in a
+    /// request.
     ///
     /// **Counting the attempts is not enough, so the commands are read back in
     /// order.** A loop that re-ran the callable but left the aborted attempt
@@ -1132,7 +1144,7 @@ mod tests {
     /// trip over.
     ///
     /// **Both sides of the bound**, since a loop that always retried would
-    /// pass the first half — § 7's default is 0, and at 0 the same conflict
+    /// pass the first half — the default is 0, and at 0 the same conflict
     /// reaches the caller with the callable run once.
     // covers: Core\Db\Connection::transaction
     #[test]
@@ -1148,15 +1160,15 @@ mod tests {
             retries,
         };
 
-        // § 8's class has to be *resolvable* or the retry cannot happen at
-        // all: a loop reading the kind off the throw would see no conflict
-        // and re-raise.
+        // The `Core\Db\DbError` class has to be *resolvable* or the retry cannot
+        // happen at all: a loop reading the kind off the throw would see no
+        // conflict and re-raise.
         ATTEMPTS.with(|entered| entered.set(0));
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(db_error_class());
         let mut recovered = Scripted { asked: Vec::new() };
         let answered = transacted(&mut ctx, &mut recovered, &attempted(1))
-            .expect("§ 7 re-runs a deadlocked callable, and the second attempt commits");
+            .expect("a deadlocked callable runs again, and the second attempt commits");
         assert_eq!(
             answered.as_int(),
             Some(2),
@@ -1165,7 +1177,7 @@ mod tests {
         assert_eq!(
             ATTEMPTS.with(std::cell::Cell::get),
             2,
-            "one attempt per `BEGIN`, and § 7 spends the one retry it was given"
+            "one attempt per `BEGIN`, and the transaction spends the one retry it was given"
         );
         assert_eq!(
             recovered.asked,
@@ -1181,8 +1193,9 @@ mod tests {
 
         ATTEMPTS.with(|entered| entered.set(0));
         let mut refused = Scripted { asked: Vec::new() };
-        let raised = transacted(&mut ctx, &mut refused, &attempted(0))
-            .expect_err("§ 7's default is 0, and a conflict with no attempt left is the caller's");
+        let raised = transacted(&mut ctx, &mut refused, &attempted(0)).expect_err(
+            "`retries` defaults to 0, and a conflict with no attempt left is the caller's",
+        );
         assert!(
             matches!(raised, Fault::Pending(_)),
             "the callable's own failure travels on unchanged: {raised:?}"
@@ -1190,7 +1203,7 @@ mod tests {
         assert_eq!(
             ctx.pending_class().as_deref(),
             Some(r"Core\Db\DbError"),
-            "§ 8's class, still pending exactly as the callable left it"
+            "the `DbError` class, still pending exactly as the callable left it"
         );
         assert_eq!(ATTEMPTS.with(std::cell::Cell::get), 1);
         assert_eq!(
@@ -1205,7 +1218,7 @@ mod tests {
         discard(block);
     }
 
-    /// What [`enqueues`] does when § 7 calls it.
+    /// What [`enqueues`] does when [`transacted`] calls it.
     #[derive(Clone, Copy)]
     struct Enqueue {
         /// The connection the job is announced on.
@@ -1229,9 +1242,9 @@ mod tests {
         static RINGS_INSIDE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    /// § 7's callable as a request that enqueues a job writes it: what `Core\Queue::push` does
-    /// once its insert has run, which is [`crate::queue::announce`], inside as many nested
-    /// transactions as [`ENQUEUE`] names.
+    /// A `transaction` callable as a request that enqueues a job writes it: what
+    /// `Core\Queue::push` does once its insert has run, which is
+    /// [`crate::queue::announce`], inside as many nested transactions as [`ENQUEUE`] names.
     #[expect(
         unsafe_code,
         reason = "`call_callable` passes exactly these two live values, each \
@@ -1292,10 +1305,11 @@ mod tests {
     /// `rule:concurrency/a-push-wakes-an-idle-worker`'s order: the bell rings once the job is
     /// committed, and a job that was rolled back rings nothing.
     ///
-    /// **A real connection and § 7's own loop**, because what decides the ring is the depth the
-    /// connection reports and the level `transacted` closes. SQLite is the backend that needs no
-    /// server. The enqueue is [`crate::queue::announce`], the call `Core\Queue::push` makes once
-    /// its insert has run, so the statement itself is not what is under test here.
+    /// **A real connection and the `transaction` loop itself**, because what decides the ring is
+    /// the depth the connection reports and the level `transacted` closes. SQLite is the backend
+    /// that needs no server. The enqueue is [`crate::queue::announce`], the call
+    /// `Core\Queue::push` makes once its insert has run, so the statement itself is not what is
+    /// under test here.
     ///
     /// **Counted, and counted alone.** Each step reads how far [`crate::queue::Bell::process`]'s
     /// count moved, inside the transaction and after it, under the lock that keeps another case

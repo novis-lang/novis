@@ -289,7 +289,9 @@ fn hand_written(
 }
 
 /// One column as the value one [`nvs_runtime::CodecField`] takes, borrowed from
-/// the row — or § 5's message for why it is not that value.
+/// the row — or the message of the issue
+/// `rule:core-classes/derive-reports-every-field` records for why it is not
+/// that value.
 ///
 /// The reference is *not* taken here: [`hydrate`] does that with [`owned`] on
 /// the one value it keeps, so a list's element checks below cost nothing and
@@ -352,7 +354,7 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
 
 /// One value against one wire type: itself where it already is that type, the
 /// same number under the other integer tag where `rule:core-classes/db-column-types`'s "losslessly or
-/// throws" allows it, and § 5's message otherwise.
+/// throws" allows it, and an issue's message otherwise.
 ///
 /// `class` is the rendered name the *declaration* carried, where `ty` is a
 /// [`nvs_runtime::CodecTy::Class`]: the field's own class for a scalar field
@@ -806,7 +808,9 @@ nvs_runtime::nvs_helper! {
     /// does for the same reason: a [`ROW`]'s slot takes a reference to the row
     /// [`ROWS`] already holds, so a `foreach` over a thousand rows allocates a
     /// thousand small objects and not a second thousand arrays. The snapshot
-    /// every § 9 collection's `iterate()` has to take is free here as well:
+    /// a mutable collection's `iterate()` has to take ([`crate::cursor`]
+    /// § *Decision: the cursor walks a snapshot, not the live collection*) is
+    /// free here as well:
     /// [`ROWS`] has no mutating member, so the array was already frozen when
     /// [`nvs_core_db_connection_query`] built it.
     fn nvs_core_db_rows_iterate(ctx, args: [1]) {
@@ -1551,7 +1555,7 @@ mod tests {
             assert_eq!(
                 answered(&requested_int(held)),
                 format!("{stored}"),
-                "§ 9 gives `TINYINT(1)` the `int` row, whatever it stores"
+                "the type map gives `TINYINT(1)` the `int` row, whatever it stores"
             );
         }
 
@@ -1600,7 +1604,7 @@ mod tests {
             "a `bool` field over a `TINYINT(1)` holding 1 hydrates"
         );
         let refused = converted(nvs_runtime::CodecTy::Bool, None, None, Value::int(7))
-            .expect_err("a `bool` field over a stored 7 is § 6's refusal");
+            .expect_err("a `bool` field over a stored 7 is a conversion refusal");
         assert!(
             refused.contains("7, which is neither `0` nor `1`"),
             "the field quotes the reader's own wording: {refused}"
@@ -1742,7 +1746,7 @@ mod tests {
         ] {
             let asked = Value::text(column);
             nvs_runtime::call(reader, &mut ctx, &[row, asked])
-                .expect_err("§ 6 keeps `bytes` and `string` apart in both directions");
+                .expect_err("the conversion keeps `bytes` and `string` apart in both directions");
             let message = ctx
                 .take_pending()
                 .expect("a refusal is a throw, and it carries a sentence");
@@ -1828,7 +1832,7 @@ mod tests {
         ] {
             let asked = Value::text(column);
             nvs_runtime::call(reader, &mut ctx, &[row, asked])
-                .expect_err("§ 6 keeps `decimal` and `float` apart in both directions");
+                .expect_err("the conversion keeps `decimal` and `float` apart in both directions");
             let message = ctx
                 .take_pending()
                 .expect("a refusal is a throw, and it carries a sentence");
@@ -2697,7 +2701,7 @@ mod tests {
         // `Mismatched` rather than a range: there is no `DECIMAL` a `float`
         // field takes and no `FLOAT` a `decimal` field takes, at any value.
         let refused = converted(CodecTy::Float, None, None, Value::int(1))
-            .expect_err("§ 6 has no int-widens-to-float crossing either");
+            .expect_err("the conversion has no int-widens-to-float crossing either");
         assert!(refused.contains("`float`"), "{refused}");
     }
 
@@ -2777,14 +2781,13 @@ mod tests {
 
         #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
         let refused = unsafe {
-            hydrate(&mut Ctx::new(OutputSink::Sink), class, &row).expect_err(
-                "a row with three offending columns is § 6's throw and never reaches `new`",
-            )
+            hydrate(&mut Ctx::new(OutputSink::Sink), class, &row)
+                .expect_err("a row with three offending columns throws and never reaches `new`")
         };
 
         let Fault::ThrownWithSlots(ThrownClass::Parse, message, slots) = refused else {
             panic!(
-                "§ 6's mismatch is `rule:core-classes/derive-reports-every-field`'s `ParseError` carrying `issues`"
+                "a mismatch is `rule:core-classes/derive-reports-every-field`'s `ParseError` carrying `issues`"
             )
         };
         assert!(
@@ -2869,7 +2872,7 @@ mod tests {
         };
 
         let Fault::ThrownWithSlots(ThrownClass::Parse, message, slots) = refused else {
-            panic!("a missing required column is § 6's `ParseError` carrying `issues`")
+            panic!("a missing required column is a `ParseError` carrying `issues`")
         };
         assert!(
             message.contains("1 column(s) of `Account`"),

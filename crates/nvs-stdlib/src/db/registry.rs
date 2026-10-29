@@ -17,7 +17,8 @@ use super::*;
 /// `rule:core-api/shape-parameter`.
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
-/// declared.** § 2's arm selection is "exactly one arm accepts it", and enum-case
+/// declared.** `rule:core-api/shape-arms-are-disjoint` selects an arm by "exactly
+/// one arm accepts it", and enum-case
 /// types (`rule:types/enum-case-type`) are what make these two disjoint: a settings object naming
 /// `Driver::Sqlite` cannot satisfy the server arm's required `driver`, and one
 /// naming any other case cannot satisfy the SQLite arm's. Nothing here says
@@ -26,14 +27,16 @@ use super::*;
 /// `a_shapes_arms_are_pairwise_disjoint` proves it from the types rather than
 /// from a declaration.
 ///
-/// **Every qualifier classification lands on a field**, § 3's rule: `host` is
+/// **Every qualifier classification lands on a field**, as
+/// `rule:core-api/shape-flattens-at-the-abi` has it: `host` is
 /// a [`Qual::Sink`] because `rule:core-classes/db-capabilities` makes an address one and gives it no
 /// launderer, `path` is one because a program-supplied SQLite file is a path
 /// sink, `database` and `user` accept `tainted` freely as length-prefixed
 /// protocol fields, and `password` is `secret tainted string`. The parameter
 /// as a whole classifies nothing.
 ///
-/// **The merged list is twelve slots long**, § 3's ABI: these ten in order,
+/// **The merged list is twelve slots long**, which is that rule's ABI: these
+/// ten in order,
 /// then the SQLite arm's `path` — `driver`, `timeZone` and `timeout` are
 /// already spoken for — then the trailing bag's `shared`. [`DRIVER_ARG`] and
 /// the eleven consts under it are that list as slot indices, and they are the
@@ -299,7 +302,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `rule:core-classes/db-statement-members`'s `{ timeout?: Duration }`, the one option every statement member
 /// carries.
 ///
-/// One constant rather than ten copies of it: § 4 gives `query`, `queryAs`,
+/// One constant rather than ten copies of it: that rule gives `query`, `queryAs`,
 /// `execute`, `executeMany` and `stream` the same bag, and [`TRANSACTION`]
 /// declares all five a second time — ten spellings of one option are ten places
 /// for a default to drift apart. What the instant reaches is
@@ -333,7 +336,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             name: "query",
             names: &["sql", "params"],
             params: &[
-                // § 4's Q column, and `rule:security/sink-predicate`'s whole injection story: the
+                // `rule:core-classes/db-one-api`'s split, and
+                // `rule:security/sink-predicate`'s whole injection story: the
                 // statement text is the sink, so a `tainted` value cannot reach
                 // it at all and the bound parameters below accept one freely.
                 CoreTy::Text(Qual::Sink),
@@ -356,7 +360,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
         CoreMethod {
             name: "queryAs",
             names: &["sql", "params"],
-            // `query`'s parameters exactly, bag and all: § 4 makes this the same
+            // `query`'s parameters exactly, bag and all: this is the same
             // statement, read the same way and bounded the same way, and the
             // only difference is what each row becomes.
             params: &[
@@ -378,9 +382,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             name: "execute",
             names: &["sql", "params"],
             // The same [`CoreTy`]s `query` above declares, for the same
-            // reasons — § 4's Q column marks both members' statement text a sink,
-            // and a write is exactly where a `tainted` value most wants to reach
-            // one.
+            // reasons — the statement text is a sink on both members, and a
+            // write is exactly where a `tainted` value most wants to reach one.
             params: &[
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Array(&CoreTy::Mixed),
@@ -396,24 +399,24 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             names: &["sql", "sets"],
             params: &[
                 // The same sink, and it is the member's whole point that there
-                // is only one of them: § 4's batch is one statement run many
-                // times, so the text is written once and cannot pick up a
-                // `tainted` fragment per set.
+                // is only one of them: `rule:core-classes/db-statement-members`
+                // makes the batch one statement run many times, so the text is
+                // written once and cannot pick up a `tainted` fragment per set.
                 CoreTy::Text(Qual::Sink),
                 // `array<array<mixed>>`. The outer array is the sets and
                 // the inner one is `query`'s own `$params`, which is why each
                 // set is read by [`statement_of`] and gains no binding rule of
                 // its own.
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
-                // § 4's bag bounds the *batch*: the sets are one statement run N
+                // The bag bounds the *batch*: the sets are one statement run N
                 // times over one connection, and there is no per-set answer for
                 // a per-set clock to belong to.
                 CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
-            // A bare `uint` and not a [`WRITE`]: § 4 gives the batch a sum and
-            // no second return to hand rows or a `lastId` back through, because
-            // there is no one execution for either to belong to.
+            // A bare `uint` and not a [`WRITE`]: the batch answers a count and
+            // has no second return to hand rows or a `lastId` back through,
+            // because there is no one execution for either to belong to.
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_db_connection_execute_many",
             doc: Some(&EXECUTE_MANY_DOC),
@@ -421,8 +424,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
         CoreMethod {
             name: "stream",
             names: &["sql", "params"],
-            // `query`'s two exactly: § 4 gives this member the same statement
-            // and the same binding rule, and the only difference is where the
+            // `query`'s two exactly: this member runs the same statement under
+            // the same binding rule, and the only difference is where the
             // rows are when it answers. The options bag is `{timeout?}`
             // alone: on this member the deadline stays
             // filed while the portal is open, so it bounds every `advance()` up
@@ -452,7 +455,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             name: "streamAs",
             names: &["sql", "params"],
             // `stream`'s parameters exactly, for the reason `queryAs` takes
-            // `query`'s: § 4 makes this the same statement over the same
+            // `query`'s: this is the same statement over the same
             // portal, bound the same way and bounded by the same `timeout`,
             // and the only difference is what each row becomes.
             params: &[
@@ -501,8 +504,8 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // Unqualified, for [`COLUMN`]'s
             // reason: the server described itself during the handshake, before
             // this connection had carried a statement at all, so it is not one
-            // of § 9's `tainted` reads — those are the values a request can put
-            // bytes into.
+            // of the `tainted` reads `rule:core-classes/db-column-types` gives a
+            // row — those are the values a request can put bytes into.
             return_ty: CoreTy::Str,
             symbol: "nvs_core_db_connection_server_version",
             doc: Some(&SERVER_VERSION_DOC),
@@ -609,12 +612,12 @@ const IS_OPEN_DOC: MethodDoc = MethodDoc {
 /// `rule:core-classes/db-transactions`'s `{isolation?, readOnly?, retries?}` — the bag
 /// [`TRANSACTION_ROW`] declares last, per `rule:core-api/shape-rules` R2.
 ///
-/// **Every default is § 7's own and each is a decision rather than a
+/// **Every default is that rule's own and each is a decision rather than a
 /// placeholder.** `isolation` is [`Const::Null`] and so *absent*, which is the
 /// only default that does not silently overrule the level the operator set on
 /// the server: the transaction runs at the connection's own. `readOnly` is
 /// false because a transaction is asked for by code that writes. `retries` is 0
-/// because § 7 says so out loud — a callable may have side effects that are not
+/// because the rule says so out loud — a callable may have side effects that are not
 /// the database's, and re-running one that sends mail is worse than surfacing
 /// the conflict to the caller who can decide.
 ///
@@ -643,14 +646,14 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
 
 /// `rule:core-classes/db-transactions`'s `transaction`, written once because it is declared once: the
 /// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
-/// carry it, a nested call on the second being the savepoint § 7 asks for.
+/// carry it, a nested call on the second being the savepoint that rule asks for.
 ///
 /// **Two of [`TRANSACTION_OPTIONS`]' three reach the `BEGIN` and the third is
 /// the loop around it.** [`nvs_db::PgConn::begin`] takes the level and the
 /// read-only flag and renders the command from them, and refuses a *nested*
 /// call that carries either rather than running it at the outer transaction's
 /// level. `retries` is read by the helper instead, which re-runs the callable on
-/// a conflict the driver says may be re-run, after the wait § 7 asks for.
+/// a conflict the driver says may be re-run, after the backoff it asks for.
 /// [`retry_backoff`] draws that wait exponentially and with full jitter and
 /// [`wait_between_attempts`] gives the core back for it; the declared default
 /// of 0 is what every call that does not ask gets.
@@ -660,16 +663,17 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     // Written, as `rule:types/callable-signature` has every callback spell what
     // it receives: what this one is handed is a [`TRANSACTION`], and a callable
     // declaring no parameter at all still satisfies the row under
-    // `rule:types/callable-arity`'s prefix match — which is § 7's R9 allowance,
-    // now stated where it is checked rather than left to
+    // `rule:types/callable-arity`'s prefix match — which is the allowance
+    // `rule:core-api/callback-receives-value-and-key` gives every `Core`
+    // callback, now stated where it is checked rather than left to
     // `nvs_runtime::call_callable`'s trim.
     params: &[
         CoreTy::CallableSig(&[CoreTy::Instance(TRANSACTION_NAME)], &CoreTy::Var("T")),
         CoreTy::Options(TRANSACTION_OPTIONS),
     ],
     defaults: &[],
-    // § 7's `: T`. The member's answer *is* the callable's, so the transaction
-    // is scenery around a call that computes whatever it was going to compute
+    // The callable's own `: T`. The member's answer *is* the callable's, so
+    // the transaction is scenery around a call that computes whatever it was going to compute
     // — the same binding `Core\Cli::live` performs, and the reason a
     // transaction can wrap an existing expression without retyping it.
     return_ty: CoreTy::Var("T"),
@@ -677,8 +681,8 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     doc: Some(&TRANSACTION_DOC),
 };
 
-/// `Core\Db\Transaction` — what § 7's callable is handed, and the
-/// only place a transaction is nameable.
+/// `Core\Db\Transaction` — what `rule:core-classes/db-transactions`' callable
+/// is handed, and the only place a transaction is nameable.
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
 /// under the same symbols**, which is `rule:classes/no-traits`'s
@@ -692,7 +696,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// **The first two slots are [`CONNECTION`]'s, in the same positions and under
 /// the same names**, and that is load-bearing rather than tidy: it is what lets
 /// one statement path read either handle. The two after it are this class's own
-/// — § 7's two hazards, one slot each.
+/// — the two hazards that rule closes, one slot each.
 ///
 /// **What it does not hold is the connection object.** A transaction is a key
 /// into the request's own table exactly as a connection is, so an escaped
@@ -788,8 +792,8 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             ],
             defaults: &[],
             // [`CONNECTION`]'s row under [`CONNECTION`]'s symbol, for its
-            // `queryAs` sibling's reason — and § 4's connection-busy rule is
-            // what makes the delegation worth stating twice here: a stream
+            // `queryAs` sibling's reason — and
+            // `rule:core-classes/db-connection-busy-state` is what makes the delegation worth stating twice here: a stream
             // opened inside a transaction holds the very connection the
             // `COMMIT` has to go out on, so the `LogicError` a second statement
             // meets is the same one either receiver produces.
@@ -825,7 +829,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             // would push callers to launder text that is never a sink's.
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            // § 7: it always throws, so there is no value to answer with. The
+            // It always throws, so there is no value to answer with. The
             // `void` is the honest half of "sets a flag *and* throws".
             return_ty: CoreTy::Void,
             symbol: "nvs_core_db_transaction_roll_back",
@@ -909,10 +913,11 @@ pub(crate) const TLS_NAME: &str = r"Core\Db::Tls";
 /// checks.
 ///
 /// **`VerifyFull` is the default and it is the only mode this runtime
-/// implements**, which is `rule:core-classes/db-capabilities`'s third closed hole: PHP's `pdo_pgsql`
+/// implements**, which is one of the three holes
+/// `rule:core-classes/db-safe-connection-defaults` closes: PHP's `pdo_pgsql`
 /// defaults to `sslmode=prefer` and connects in plaintext whenever the server
-/// says so, and none of § 3's three defaults is configurable to the unsafe
-/// value. The other three cases are declared so that a
+/// says so, and none of that rule's three defaults is configurable to the
+/// unsafe value. The other three cases are declared so that a
 /// program that writes one is refused *at the call*, naming what it asked for
 /// — which is an honest answer, where accepting `Disabled` and quietly
 /// verifying anyway would be a second, silent one. [`settings_tls`] is where
@@ -978,8 +983,8 @@ pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
 /// level is decided here — there is no second place for it to be decided
 /// differently.
 ///
-/// **The values are declaration ordinals and mean nothing else.** They are § 7's
-/// own order, so `ReadUncommitted` is 0, but they are not a rank a program may
+/// **The values are declaration ordinals and mean nothing else.** They are
+/// `rule:core-classes/db-transactions`' own order, so `ReadUncommitted` is 0, but they are not a rank a program may
 /// compare: `Snapshot` and the two levels either side of it are not one chain on
 /// every backend, which is why `nvs_db::Isolation` derives no `Ord` either.
 /// Writing them out rather than leaning on `rule:enums/declaration`'s auto-increment is
@@ -1049,10 +1054,11 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\DbError::Kind";
 /// maps its own codes onto, and its doc comment owns why the set is normalised
 /// at all — PDO exposes a `SQLSTATE` and a vendor integer, so real PHP matches
 /// on `"Duplicate entry"` or hard-codes `1062`. `nvs_db::DbErrorKind::is_retryable`
-/// owns which two of these § 7's `{ retries: n }` re-runs a callable over, and
-/// nothing about that rule is decided here.
+/// owns which two of these `rule:core-classes/db-transactions`' `{ retries: n }`
+/// re-runs a callable over, and nothing about that rule is decided here.
 ///
-/// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
+/// **A class per condition was rejected** — `rule:core-classes/db-error`
+/// declines it: ten more
 /// types in the deliberately small closed exception set
 /// `rule:errors/throwable-hierarchy` fixes, for
 /// boundaries that are driver-dependent anyway. What normalising does not
@@ -1060,7 +1066,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\DbError::Kind";
 /// beside it.
 ///
 /// **The values are declaration ordinals and mean nothing else.** They are
-/// § 8's own order, so `UniqueViolation` is 0 and `Other` is 10, but they are
+/// that rule's own order, so `UniqueViolation` is 0 and `Other` is 10, but they are
 /// not a rank a program may compare: a kind is a set and not a scale, which is
 /// why `nvs_db::DbErrorKind` derives no `Ord` either. Writing them out rather
 /// than leaning on `rule:enums/declaration`'s auto-increment is [`CoreEnum::cases`]' rule
@@ -1158,7 +1164,7 @@ pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\Column::Type";
 /// *declared* as, never what a read of it produces.** That is why `Json` is a
 /// case of its own although `rule:core-classes/db-column-types`
 /// decodes a `JSON` column to the same `tainted string` a `TEXT` one decodes
-/// to, and why there is no array case at all — § 9 reads a PostgreSQL array as
+/// to, and why there is no array case at all — that rule reads a PostgreSQL array as
 /// `array<T>` and MySQL's `SET` as `array<string>`, and both *describe* as
 /// `Other`. [`ROWS`] records the same split from the reader's side.
 ///
@@ -1297,7 +1303,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 ///
 /// **Buffered is `rule:core-classes/db-statement-members`'s default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
-/// `query` returns. § 4 chose that over the alternative because
+/// `query` returns. That rule chose it over the alternative because
 /// `rule:programs/memory-priority` ranks memory
 /// last and because a cursor breaks the commonest loop in web programming on a
 /// connection-busy rule; `stream` is the member for a result set that does not
@@ -1412,19 +1418,18 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 ///
 /// **Four of the eleven answer with an instance**: `instant`, `date`, `time`
 /// and `uuid` read back the `Core\Time`/`Core\Uuid` value [`column_value`]
-/// built out of § 9's five structured columns. They were written as the lookups
-/// they always would be while that decoder still refused those columns, which
-/// is why landing it changed the decoder and not one line of this class.
+/// built out of the type map's five structured columns. They were written as
+/// the lookups they always would be while that decoder still refused those
+/// columns, which is why landing it changed the decoder and not one line of
+/// this class.
 ///
 /// **The fifth structured row has no reader of its own**: a zone-less
-/// `TIMESTAMP` is a `Core\Time\DateTime`, and § 6's roster of eleven — which
-/// this list is exactly — names no `dateTime`. It is reached through `get`,
-/// which is the universal path and what that roster means by leaving it
-/// out.
+/// `TIMESTAMP` is a `Core\Time\DateTime`, and the eleven typed readers name no
+/// `dateTime`. It is reached through `get`, which is the universal path and
+/// what the roster means by leaving it out.
 ///
 /// One row of that set: the associative reading plus the eleven typed
-/// readers `rule:core-classes/db-column-types` puts in place of PHP's three fetch modes. Four of
-/// the eleven answer only their refusal until § 9's structured columns land.
+/// readers that rule puts in place of PHP's three fetch modes.
 // rank: 1540
 pub(crate) const ROW: CoreClass = CoreClass {
     name: ROW_NAME,
@@ -1590,7 +1595,8 @@ pub(crate) const ROW: CoreClass = CoreClass {
 /// both counts are `CommandComplete`'s and neither exists until it has
 /// arrived.
 ///
-/// What `execute` answers with: § 4's two counts and the id a `RETURNING`
+/// What `execute` answers with: `rule:core-classes/db-statement-members`' two
+/// counts and the id a `RETURNING`
 /// clause handed back, as three readers — for the reason
 /// [`CoreTy::Instance`](crate::registry::CoreTy::Instance) states, that a `Core` instance has no property a
 /// program can reach.
@@ -1673,7 +1679,8 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             defaults: &[],
             // Unqualified: a label is
             // described by the server out of the statement *this* program
-            // wrote, so it is not one of § 9's `tainted` reads — those are the
+            // wrote, so it is not one of the `tainted` reads
+            // `rule:core-classes/db-column-types` gives a row — those are the
             // column's values, which is what a request can put bytes into.
             return_ty: CoreTy::Str,
             symbol: "nvs_core_db_column_name",
@@ -1737,8 +1744,9 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// `rule:core-classes/schema-is-a-value`'s schema value, beside the connection classes because that is
 /// what it is asked about: a schema is compared against a live database and
 /// applied to one. It needs no connection to exist, which is why its two
-/// members here are the array form alone — § 9's three are the ones that take
-/// a `Core\Db\Connection`.
+/// members here are the array form alone — `planAgainst`, `applySafe` and
+/// `applyIncludingRisky`, which `rule:core-classes/schema-apply-capability`
+/// covers, are the ones that take a `Core\Db\Connection`.
 // rank: 1580
 pub(crate) const SCHEMA: CoreClass = CoreClass {
     name: SCHEMA_NAME,

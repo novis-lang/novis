@@ -33,10 +33,11 @@
 //!
 //! # The connection is busy for the walk's whole length
 //!
-//! § 4 states it as the member's price: a statement attempted while a stream is
-//! open throws `LogicError`. Nothing here enforces that — `nvs_db`'s own
-//! `State::Streaming` does, and [`statement_failure`] is what turns the
-//! driver's `InvalidInput` into the class § 4 names. The rule is therefore the
+//! `rule:core-classes/db-streaming` states it as the member's price: a
+//! statement attempted while a stream is open throws `LogicError`. Nothing here
+//! enforces that — `nvs_db`'s own `State::Streaming` does, and
+//! [`statement_failure`] is what turns the driver's `InvalidInput` into that
+//! `LogicError`. The rule is therefore the
 //! same one whichever member the second statement is, and there is no second
 //! place for it to be stated.
 //!
@@ -45,8 +46,9 @@
 //! 's event is filed: a stream's span is the whole statement's, so it is
 //! worth reporting once the statement is over rather than per row. A walk the
 //! program abandons half way holds the connection until the request ends,
-//! which is § 4's documented price and not a leak — the reset § 13 runs before
-//! the connection is poolable drops the parked cursor.
+//! which is that same documented price and not a leak — the pool reset
+//! (`rule:security/db-pool-reset-is-a-boundary`), run before the connection is
+//! poolable, drops the parked cursor.
 
 use super::*;
 
@@ -120,8 +122,9 @@ fn stream_row(value: Value, member: &str) -> Result<Value, Fault> {
 /// of the class [`STREAM_CLASS_AT`] names — and answers what `advance()`
 /// answers: `true` for a row, `false` for the end of the result set.
 ///
-/// [`stream_step`]'s tail, split out because this is where § 4's promise is
-/// *kept* rather than merely stated — a member that held its result set would
+/// [`stream_step`]'s tail, split out because this is where the constant-memory
+/// promise of `rule:core-classes/db-streaming` is *kept* rather than merely
+/// stated — a member that held its result set would
 /// differ from this one in exactly this call — and because everything above it
 /// in that function needs a server.
 /// [`nvs_runtime::nvs_object_field_set`] releases the value it displaces, so
@@ -179,7 +182,8 @@ fn park_row(
 /// whether there was one.
 ///
 /// The span is filed on the step that ends the walk and on no other, because a
-/// stream's § 11 event describes the statement rather than a row — and by then
+/// stream's `rule:observability/a-query-is-a-trace-event` event describes the
+/// statement rather than a row — and by then
 /// the driver has let the context go, which is [`QueryWatch::file`]'s own
 /// requirement.
 ///
@@ -481,7 +485,8 @@ fn stream_over(
 /// for `streamAs<T>`, `null` for `stream`.
 ///
 /// A function over the two rather than two bodies, for [`queried_rows`]'
-/// reason: § 4 gives `stream` and `streamAs` one statement, one binding rule
+/// reason: `rule:core-classes/db-statement-members` gives `stream` and
+/// `streamAs` one statement, one binding rule
 /// and one deadline, so the only thing that can differ between them is what a
 /// row becomes, and that is one slot.
 ///
@@ -493,9 +498,10 @@ fn stream_over(
 ///
 /// [`statement_of`]'s refusals, [`filed_connection`]'s `LogicError` for a
 /// closed connection, and [`statement_failure`] for anything the server
-/// refused, which for a connection that is already streaming is § 4's
-/// `LogicError`. **No driver is refused**: every one of the five parks a read,
-/// which is what `rule:core-classes/db-streaming` requires of both members.
+/// refused, which for a connection that is already streaming is
+/// `rule:core-classes/db-streaming`'s `LogicError`. **No driver is refused**:
+/// every one of the five parks a read, which is what that rule requires of both
+/// members.
 fn open_stream(
     ctx: &mut nvs_runtime::Ctx,
     args: &[Value],
@@ -504,11 +510,11 @@ fn open_stream(
     class: Value,
 ) -> Result<Value, Fault> {
     let statement = statement_of(ctx, args, member, named)?;
-    // § 4's `timeout` bounds the *walk* on this member and not the call that
-    // opens it: the deadline stays filed on the connection while the portal
-    // is open, so it is every `advance()` up to the last row that is bounded
-    // — which is the wait a streaming caller actually has to survive. The
-    // release lifts it, as it does for a buffered statement.
+    // The statement's own `timeout` bounds the *walk* on this member and not
+    // the call that opens it: the deadline stays filed on the connection while
+    // the portal is open, so it is every `advance()` up to the last row that is
+    // bounded — which is the wait a streaming caller actually has to survive.
+    // The release lifts it, as it does for a buffered statement.
     let deadline = statement_deadline(args, named)?;
     // The caller's own text and not [`Statement::sql`], for
     // [`queried_rows`]' reason: a refusal names what the program wrote.
@@ -594,8 +600,9 @@ nvs_runtime::nvs_helper! {
     /// connection until the walk is drained.
     ///
     /// The statement is bound exactly as [`nvs_core_db_connection_query`] binds
-    /// one — [`statement_of`] is the whole of §§ 5 and 18's rules and neither
-    /// member states any of them itself — and the only difference is what is
+    /// one — [`statement_of`] is the whole of
+    /// `rule:core-classes/db-parameters`'s binding and neither member states
+    /// any of it itself — and the only difference is what is
     /// done with the portal afterwards: `query` drains it before it answers and
     /// this one leaves it open, parked on the connection where
     /// [`nvs_db::PgCursor`] can outlive the borrow that opened it.
@@ -603,7 +610,8 @@ nvs_runtime::nvs_helper! {
     /// **The answer is empty of rows on purpose.** Nothing has been read when
     /// this returns — the first row arrives at the first `advance()` — so a
     /// program that names a stream and never walks it has still made the
-    /// connection busy, which is § 4's price stated where the price is paid.
+    /// connection busy, which is `rule:core-classes/db-streaming`'s price
+    /// stated where the price is paid.
     ///
     /// # Errors
     ///
@@ -869,7 +877,8 @@ mod tests {
         released(stream);
     }
 
-    /// § 4's price, and the sharper half of the pair: a second statement
+    /// `rule:core-classes/db-streaming`'s price, and the sharper half of the
+    /// pair: a second statement
     /// written to a connection that is still streaming is a `LogicError`
     /// rather than an answer.
     ///
@@ -883,8 +892,8 @@ mod tests {
     /// asserted here because neither is worth much alone: `nvs-db`'s
     /// [`nvs_db::State::may_start_statement`] is what refuses, asserted over
     /// the whole roster by **counting** the states that admit a statement, and
-    /// [`statement_failure`] is what turns that refusal into the class § 4
-    /// names — asserted over every member that can be the second statement,
+    /// [`statement_failure`] is what turns that refusal into the `LogicError`
+    /// the rule names — asserted over every member that can be the second statement,
     /// since this module's docs say the rule is the same one whichever member
     /// that is and a member that grew its own answer would still look right on
     /// its own line.
@@ -922,7 +931,7 @@ mod tests {
         for member in [STREAM_MEMBER, QUERY, QUERY_AS, EXECUTE, EXECUTE_MANY] {
             let refused = statement_failure(member, &block, Some("select 1"), &busy);
             let Fault::Thrown(ThrownClass::Logic, why) = refused else {
-                panic!("{member} refuses a second statement as § 4's `LogicError`");
+                panic!("{member} refuses a second statement as the connection-busy `LogicError`");
             };
             assert!(
                 why.starts_with(member),
@@ -930,7 +939,7 @@ mod tests {
             );
             assert!(
                 why.contains("Streaming"),
-                "and carries the driver's own sentence, which names both of § 4's fixes: {why}"
+                "and carries the driver's own sentence, which names both of the busy connection's fixes: {why}"
             );
         }
     }

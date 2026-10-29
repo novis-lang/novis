@@ -20,15 +20,16 @@
 //! **It holds the array and computes nothing.** The rendering already exists
 //! once, as `nvs_db::sql`'s `expand`, which is where it has to be: the markers
 //! are `$1` on PostgreSQL and `@p1` on SQL Server, so only a driver knows what
-//! this expands to, and § 1's statement cache keys on the arity that expansion
-//! produces. A second rendering here would be a second answer to a question the
+//! this expands to, and `rule:core-classes/db-one-api`'s statement cache keys
+//! on the arity that expansion produces. A second rendering here would be a second answer to a question the
 //! rewriter already answers, and it would have to guess the dialect.
 //!
 //! So the only thing this side decides is the refusal. `inList([])` throws
-//! `LogicError` at the *call* rather than at the bind, which is § 5's rule and
-//! is also the earlier of the two places it can be caught — the caller who
-//! wrote the empty list is on the stack, and the branch § 5 asks them to write
-//! is the one they are standing in.
+//! `LogicError` at the *call* rather than at the bind. `inList([])` throwing is
+//! `rule:core-classes/db-parameters`'s, and the call is also the earlier of the
+//! two places it can be caught — the caller who wrote the empty list is on the
+//! stack, and the branch that rule asks them to write is the one they are
+//! standing in.
 //!
 //! # `quoteIdentifier` validates, and deliberately adds no delimiter
 //!
@@ -87,9 +88,11 @@
 //!   request has to survive is the one where it is not: a network partition, a
 //!   host that froze, a connection the middle of the network dropped. The socket
 //!   deadline bounds that case and the server-side one is silent through it.
-//! - **It is a second statement on a connection § 4 allows one on**, and a round
-//!   trip per statement to set and another to put back. § 1's cache exists to
-//!   make a statement one round trip; this would make every bounded one three.
+//! - **It is a second statement on a connection that allows one at a time**
+//!   (`rule:core-classes/db-connection-busy-state`), and a round trip per
+//!   statement to set and another to put back. `rule:core-classes/db-one-api`'s
+//!   statement cache exists to make a statement one round trip; this would make
+//!   every bounded one three.
 //! - **It is spelled four ways and missing once.** PostgreSQL and MySQL have a
 //!   session variable with different semantics, SQL Server's `LOCK_TIMEOUT`
 //!   bounds something else entirely, and SQLite has none — so the portable
@@ -108,7 +111,8 @@
 //!   files its own — [`bound_connection`] is the one door, and it files a `None`
 //!   for a call that named no timeout so that a statement cannot inherit the
 //!   bound of the one before it. [`warm_connection`] lifts it again before
-//!   § 13's reset, which is the one exchange no program's clock may bound.
+//!   `rule:security/db-pool-reset-is-a-boundary`'s reset, which is the one
+//!   exchange no program's clock may bound.
 //! - **A statement that runs out of time throws `IOError` and spends the
 //!   connection.** It was given up on part way through a message, so the wire is
 //!   poisoned by `rule:core-classes/db-connection-busy-state`'s own rule and the connection does not rejoin the
@@ -129,7 +133,8 @@
 //! then reads one `DataRow` off the wire per `advance()`, which is why that
 //! driver never has to answer a `PortalSuspended` at all. So a streamed result
 //! set already crosses on one round trip while the client holds a single row:
-//! § 4's constant memory at the best case the protocol has.
+//! `rule:core-classes/db-streaming`'s constant memory at the best case the
+//! protocol has.
 //!
 //! A chunk size could only turn that one `Execute` into one per chunk, each
 //! resuming a suspended portal — **latency spent to buy nothing**, since the
@@ -149,18 +154,21 @@
 //! target, their own default port and their own `nvs_db::Connection` variant,
 //! and `open` branches the same ways on the settings hash's own `driver`. A
 //! block naming `sqlite` reaches `nvs_db::sqlite::open` off its own arm of
-//! § 2's discriminated union, which has a file where the other four have an
-//! address: `connect` resolves no host for it and `open` asks `fs.read` and
-//! `fs.write` of the path instead of
+//! the discriminated union that rule makes `Db\Settings`, which has a file
+//! where the other four have an address: `connect` resolves no host for it
+//! and `open` asks `fs.read` and `fs.write` of the path instead of
 //! `rule:http-server/allow-url-pins-the-address`'s address table.
 //!
 //! Past the handshake the list is shorter than that. Binding is whole:
-//! [`rendering_of`] pairs § 5's dialect with § 9's encoder off the connection's
-//! own [`nvs_db::Driver`], so a MySQL statement is rewritten to `?` and bound
-//! as MySQL reads a parameter. Sending is not: [`queried_rows`] branches on the
-//! connection and [`mysql_rows`] drains a binary result set through § 9's
-//! decode, so `query`, `queryAs`, `execute` and `executeMany` answer on either
-//! driver, § 11's event included. § 7's `transaction` does too, over
+//! [`rendering_of`] pairs `rule:core-classes/db-parameters`' dialect with the
+//! encoder for `rule:core-classes/db-column-types`' type map off the
+//! connection's own [`nvs_db::Driver`], so a MySQL statement is rewritten to
+//! `?` and bound as MySQL reads a parameter. Sending is not: [`queried_rows`]
+//! branches on the connection and [`mysql_rows`] drains a binary result set
+//! through the type map's decode, so `query`, `queryAs`, `execute` and
+//! `executeMany` answer on either driver,
+//! `rule:observability/a-query-is-a-trace-event`'s event included.
+//! `rule:core-classes/db-transactions`' `transaction` does too, over
 //! [`Transacting`] — the drivers' commands differ and `nvs_db::mysql`'s `begin`
 //! owns how, but the five points this module asks them at do not. MySQL and
 //! MariaDB reach all of it through one body rather than two: [`Framed`] is that
@@ -173,11 +181,11 @@
 //! behind `nvs_db::TdsConn::query` answers every member built on it —
 //! [`tds_rows`] drains the token stream for `query` and `queryAs`,
 //! [`tds_write`] drains it for `execute`'s count, and
-//! `nvs_db::tds::execute_many` runs § 4's batch as that same send once per
-//! parameter set — one `sp_prepexec`, an `sp_execute` after it. § 7 is
-//! [`Transacting`]'s fourth arm over `nvs_db::tds`'s own commands, T-SQL
-//! spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE` for a nested
-//! commit to send and no read-only transaction to offer at all. What
+//! `nvs_db::tds::execute_many` runs `executeMany`'s batch as that same send
+//! once per parameter set — one `sp_prepexec`, an `sp_execute` after it.
+//! `transaction` is [`Transacting`]'s fourth arm over `nvs_db::tds`'s own
+//! commands, T-SQL spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE`
+//! for a nested commit to send and no read-only transaction to offer at all. What
 //! [`crate::queue`]'s four members run on is narrower than this section:
 //! `nvs_stdlib::queue::runs` is the roster, and a driver
 //! missing from it is missing a text rather than a send path.
@@ -186,16 +194,16 @@
 //! parameter through `nvs_db::sqlite::encode` as a storage class rather than as
 //! octets ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
 //! `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute` and
-//! `executeMany` over it. § 7 is [`Transacting`]'s fifth arm, over
+//! `executeMany` over it. `transaction` is [`Transacting`]'s fifth arm, over
 //! `nvs_db::sqlite`'s own `begin`, `commit` and `roll_back` — commands sent by
 //! a call on the blocking pool rather than over a wire, accepting every
 //! isolation level because this backend is always serializable and refusing
 //! `readOnly` because it has no read-only transaction to open. **So there is no
 //! driver gap left, and [`transacting`] is total**: every `nvs_db::Connection`
 //! variant has an arm, which is why the refusal that used to name a roster of
-//! drivers is gone rather than left with an empty list to render. **§ 9's
-//! declared-type map runs on this driver like it does on the other four**, in
-//! [`sqlite_column_value`] — a cell in a column the schema declared `date`,
+//! drivers is gone rather than left with an empty list to render. **The type
+//! map, keyed on the declared type, runs on this driver like it does on the
+//! other four**, in [`sqlite_column_value`] — a cell in a column the schema declared `date`,
 //! `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
 //! declaration does not describe throws — so nothing downstream of a row learns
 //! that SQLite has five storage classes and no date.
@@ -204,10 +212,10 @@
 //! `rule:security/db-pool-reset-is-a-boundary`'s pool is on disk as
 //! [`nvs_runtime::pool`], a connection is *released* to it at teardown under
 //! the ticket `Core\Db::connect` files, and [`warm_connection`] takes one back
-//! out behind that section's reset. The five resets are not one reset and § 13
-//! says so per backend; SQLite's is the shortest of them, a file handle having
-//! no session state to leak, and a rollback of whatever transaction is open is
-//! the whole of it.
+//! out behind that rule's reset. The five resets are not one reset, and the
+//! rule names each backend's; SQLite's has no session to clear on a server, so
+//! it rolls back, applies the pragmas its open set again and drops what the
+//! `temp` schema holds.
 //!
 //! **Pool bounds are a block's to state, and a key no block wrote takes the
 //! defaults.** [`settings_bounds`] reads the `[db.<name>.pool]` of the block
@@ -266,11 +274,12 @@
 //! `constraint` beside it where a server worded the refusal — the second only
 //! where the condition names one, since most do not. `sql` is the statement as
 //! the caller spelled it, absent only where the member had no caller-written
-//! statement to name — § 7's `BEGIN` and `COMMIT`. `driverCode` is the vendor
+//! statement to name — the `BEGIN` and `COMMIT` around a `transaction`. `driverCode` is the vendor
 //! integer a server sends beside its `SQLSTATE` — MySQL's `1062` — and stays
 //! `null` on PostgreSQL, whose `SQLSTATE` is its only code. A failure of the
-//! *wire* rather than of the statement stays an `IOError`: § 8's class is the
-//! server's answer, not the socket's.
+//! *wire* rather than of the statement stays an `IOError`:
+//! `rule:core-classes/db-error`'s class is the server's answer, not the
+//! socket's.
 //!
 //! **`Db\DbError` sits outside the `Core\Error` tree, and that is the bound**:
 //! it declares its five properties and no `issues`, because `issues` is a
@@ -308,9 +317,9 @@ mod transaction;
 
 // A glob re-export takes each item at its own visibility, so what these lines
 // decide is only the ceiling: `pub` for the modules holding a helper symbol or
-// § 4's compile-time check, `pub(crate)` for the rows and the two types this
-// crate reads elsewhere, and plain `use` where everything is `pub(super)` and
-// the name is wanted only inside `db`.
+// `rule:core-classes/db-compile-time-query-checking`'s check, `pub(crate)` for
+// the rows and the two types this crate reads elsewhere, and plain `use` where
+// everything is `pub(super)` and the name is wanted only inside `db`.
 use self::bind::*;
 pub use self::check::*;
 use self::column::*;
@@ -380,10 +389,11 @@ const SCOPE_SLOT: &str = "open";
 
 /// Its fourth: the reason `rollBack` was given, `null` until it is given one.
 ///
-/// **§ 7's rollback-only flag and its message are one slot**, because they are
-/// one fact: `rollBack` never sets the flag without a reason, and the reason is
-/// what the `Core\Db\RolledBack` it throws carries. Two slots would be a state
-/// this class can hold and § 7 cannot describe.
+/// **`rule:core-classes/db-transactions`' rollback-only flag and its message
+/// are one slot**, because they are one fact: `rollBack` never sets the flag
+/// without a reason, and the reason is what the `Core\Db\RolledBack` it throws
+/// carries. Two slots would be a state this class can hold and that rule cannot
+/// describe.
 const REASON_SLOT: &str = "reason";
 
 /// Where [`SCOPE_SLOT`] sits, for the guard every member of that class runs

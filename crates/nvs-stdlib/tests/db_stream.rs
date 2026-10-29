@@ -157,9 +157,10 @@ fn over_wire(driver: Driver, server: &Server) -> Connection {
 /// reaching for it here would put a second translator between a case and the
 /// server it is asserting about.
 ///
-/// The cast is what makes one assertion answer for five backends: § 9's `int`
-/// is what every one of these columns then describes as, so [`whole`] reads the
-/// same row of the type table whichever leg this is. SQL Server needs its
+/// The cast is what makes one assertion answer for five backends:
+/// `rule:core-classes/db-column-types`'s `int` is what every one of these
+/// columns then describes as, so [`whole`] reads the same row of the type map
+/// whichever leg this is. SQL Server needs its
 /// recursion bound lifted by hand — the default stops a recursive common table
 /// expression at a hundred rows, and that is a server setting rather than
 /// anything this walk could ask for.
@@ -258,8 +259,8 @@ fn next(conn: &mut Connection) -> io::Result<Option<i64>> {
             let Some(cells) = sqlite.stream_next_row()? else {
                 return Ok(None);
             };
-            // This driver answers in its own vocabulary rather than in § 9's
-            // values: there is no wire and nothing was encoded, so the cell is
+            // This driver answers in its own vocabulary rather than in the
+            // type map's values: there is no wire and nothing was encoded, so the cell is
             // the integer SQLite is holding.
             match cells.first().expect("the row has the column it selected") {
                 SqliteValue::Int(n) => Ok(Some(*n)),
@@ -269,7 +270,7 @@ fn next(conn: &mut Connection) -> io::Result<Option<i64>> {
     }
 }
 
-/// A decoded cell as § 9's `int`.
+/// A decoded cell as the type map's `int`.
 ///
 /// Both signed rows of the type table are accepted because two of these
 /// backends describe a counted series as unsigned, and which one a server
@@ -278,7 +279,7 @@ fn whole(cell: Option<Value>) -> i64 {
     let cell = cell.expect("the counting statement's column is never NULL");
     cell.as_int()
         .or_else(|| cell.as_uint().and_then(|n| i64::try_from(n).ok()))
-        .expect("the cast makes every backend's column § 9's `int`")
+        .expect("the cast makes every backend's column an `int`")
 }
 
 /// How many rows the parked walk has handed back so far, off the walk's own
@@ -311,7 +312,7 @@ fn end_stream(conn: &mut Connection) {
 }
 
 /// Runs [`PROBE`] and reads whatever it answered, which is the second statement
-/// § 4 refuses while a walk is open.
+/// `rule:core-classes/db-streaming` refuses while a walk is open.
 ///
 /// **Read to its end rather than dropped**, because the answer is only half the
 /// question: a case that goes on to assert the connection is idle needs the
@@ -344,7 +345,8 @@ fn probe(conn: &mut Connection) -> io::Result<()> {
     }
 }
 
-/// Whether a refusal names both of § 4's fixes.
+/// Whether a refusal names both fixes `rule:core-classes/db-streaming` requires
+/// of it: `->all()`, or a `{shared: false}` connection.
 ///
 /// Two wordings rather than one because there are two: the four drivers with a
 /// wire share `pg.rs`'s `second_statement`, and SQLite writes its own for a
@@ -406,7 +408,8 @@ fn asking_for_the_version(driver: Driver) -> &'static str {
 ///
 /// Read through a walk because [`next`]'s ladder is already written for one:
 /// the cell is decoded against the description the connection is holding, at
-/// the text row of § 9's type table rather than the integer one. The walk is
+/// the text row of `rule:core-classes/db-column-types`'s type map rather than
+/// the integer one. The walk is
 /// abandoned rather than drained, which is what leaves the connection idle for
 /// whatever a case does next.
 ///
@@ -472,12 +475,12 @@ fn reported_version(conn: &mut Connection) -> io::Result<String> {
     Ok(reported)
 }
 
-/// A decoded cell as § 9's `tainted string`.
+/// A decoded cell as the type map's `tainted string`.
 fn text(cell: Option<Value>) -> String {
     let cell = cell.expect("the version statement's column is never NULL");
     String::from(
         cell.as_text()
-            .expect("a version column is one of § 9's text families"),
+            .expect("a version column is one of the type map's text families"),
     )
 }
 
@@ -595,8 +598,9 @@ fn stream_holds_one_row_and_not_the_result_set_on_every_driver() {
     );
 }
 
-/// § 4's uniform busy rule: a statement attempted on a streaming connection is
-/// refused on every driver, including the one whose protocol could carry it.
+/// `rule:core-classes/db-statement-members`'s uniform busy rule: a statement
+/// attempted on a streaming connection is refused on every driver, including
+/// the one whose protocol could carry it.
 ///
 /// The refusal is `nvs-db`'s `io::Error` here rather than the `LogicError`
 /// `Core\Db` re-words it as — `rule:core-classes/db-connection-busy-state` owns that seam — and what is
@@ -621,7 +625,7 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
     let refused = probe(&mut conn).expect_err("a second statement is refused while a walk is open");
     assert!(
         names_both_fixes(driver, &refused.to_string()),
-        "the refusal names both of § 4's fixes: {refused}"
+        "the refusal names both of the busy connection's fixes: {refused}"
     );
     assert_eq!(
         conn.state(),
@@ -828,7 +832,8 @@ fn released_and_taken(key: &str, conn: Connection) -> Option<Connection> {
 /// number, the empty string — passes a recorded case written from the same
 /// misreading.
 ///
-/// **The connection is idle throughout**, which is the other half of § 2: a
+/// **The connection is idle throughout**, which is the rule's other half, that
+/// no driver issues a statement to learn the version: a
 /// member that answered by asking would leave a statement's worth of state
 /// behind it, and one that answers from memory cannot.
 // covers: Core\Db\Connection::serverVersion
@@ -868,8 +873,8 @@ fn server_version_answers_what_the_connection_kept() {
 /// has no say in it at all. The rows themselves are
 /// `tests/conformance/core/db-stream-as-answers-the-class-it-was-written-with.nvst`,
 /// which runs the whole member against SQLite, and the walk under them is the
-/// `stream` this file already asserts on all five drivers — § 4 gives the two
-/// members one statement, so there is no second walk for a leg to prove.
+/// `stream` this file already asserts on all five drivers —
+/// `rule:core-classes/db-statement-members` gives the two members one statement, so there is no second walk for a leg to prove.
 ///
 /// **Three rosters and not one**, because a member that loses any of them
 /// compiles: without the [`CoreTy::Written`] the call site's class is never
@@ -935,7 +940,8 @@ fn stream_as_answers_rows_at_the_class_it_was_written_with() {
 /// narrower number that looks right.
 ///
 /// **PostgreSQL alone, and that is not a missing leg.** `NUMERIC(30,10)` is
-/// the column type § 9's decimal row is specified against, and the other four
+/// the column type the `decimal` row of `rule:core-classes/db-column-types` is
+/// specified against, and the other four
 /// backends spell their own; what this case adds over
 /// `nvs_stdlib::db::column`'s own
 /// `a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating`

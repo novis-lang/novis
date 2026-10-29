@@ -181,11 +181,12 @@ nvs_runtime::nvs_helper! {
     /// those, and reading one through a table a program can write to would let
     /// a request choose the server its own query is answered by.
     ///
-    /// **What it spends:** one connection — a socket, a TLS session and § 1's
-    /// statement cache — per distinct name a request opens, held by the request
-    /// and closed with it. A second `connect("main")` spends nothing at all,
-    /// which is what § 2's memoization is for; `{ shared: false }` opts out of
-    /// that and is charged again.
+    /// **What it spends:** one connection — a socket, a TLS session and the
+    /// statement cache of `rule:core-classes/db-one-api` — per distinct name a
+    /// request opens, held by the request and closed with it. A second
+    /// `connect("main")` spends nothing at all, which is what the per-request
+    /// memoization of `rule:core-classes/db-connection-is-named` is for;
+    /// `{ shared: false }` opts out of that and is charged again.
     fn nvs_core_db_connect(ctx, args: [3]) {
         // Unreachable from source: parameter 0 is a `string` in `CLASS` above,
         // so a non-text argument is refused at `E0401` first — the same
@@ -233,8 +234,9 @@ nvs_runtime::nvs_helper! {
 /// property rather than a convenience.** [`crate::queue`]'s `push` has to run on the
 /// connection this request already holds under this name, because `rule:concurrency/enqueue-commits-with-your-write`'s
 /// transactional enqueue *is* "the same connection". A second implementation would be
-/// a second pool key, a second memo and a second reset — three places for § 13's
-/// bounds to drift apart, and one silent way to lose § 3.
+/// a second pool key, a second memo and a second reset — three places for the pool's
+/// bounds to drift apart, and one silent way to lose the pre-approval
+/// `rule:core-classes/db-capabilities` gives an operator-written endpoint.
 ///
 /// **The capability check is deliberately not in here.** `connect` asks `db.connect`
 /// about a name the *program* wrote, which is what stops a request choosing its own
@@ -251,8 +253,8 @@ nvs_runtime::nvs_helper! {
 /// cannot be read as a connection. An `IOError` for a host that does not resolve,
 /// for a connection, TLS handshake or login that failed, and for a pool whose
 /// `acquire` bound expired with no slot free — [`crate::db::pool::wait_for_slot`]
-/// owns that last one's class, and § 8's `Db\DbError` is for a refusal the *server*
-/// made, which a ceiling on this core is not.
+/// owns that last one's class, and `rule:core-classes/db-error`'s `Db\DbError` is for a
+/// refusal the *server* made, which a ceiling on this core is not.
 pub(crate) fn open_named(
     ctx: &mut nvs_runtime::Ctx,
     name: &str,
@@ -301,7 +303,7 @@ pub(crate) fn open_named(
     )
     .unwrap_or(nvs_config::db::PoolBounds::OFF);
     let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, name, bounds);
-    // § 13's ceiling, taken before the handshake so that `max` bounds every
+    // The pool's `max` ceiling, taken before the handshake so that `max` bounds every
     // connection this core has live under the key and not only the ones the
     // pool itself supplied. The slot goes back when the request ends and on
     // every failure path between here and there — `Lease`'s own `Drop` is
@@ -327,8 +329,9 @@ pub(crate) fn open_named(
         None => wait_for_slot(ctx, ticket, &full, deadline)?,
     };
 
-    // § 13's acquire: this core's pool first, and what comes out of it is
-    // reset before this request may use it. `warm_connection` is where a
+    // The acquire `rule:security/db-pool-reset-is-a-boundary` describes: this
+    // core's pool first, and what comes out of it is reset before this
+    // request may use it. `warm_connection` is where a
     // failed reset destroys the connection, and `None` from it is
     // indistinguishable here from an empty pool — either way the fall-back
     // is the handshake below, which is what a request did before there was
@@ -386,7 +389,8 @@ pub(crate) fn open_named(
         // answers to: `PgTarget::resolve` is where each of those refusals is
         // worded, and it names what was written rather than what it wanted.
         None => match driver {
-            // The one arm with nothing to resolve. § 3 puts a block's `path`
+            // The one arm with nothing to resolve.
+            // `rule:core-classes/db-capabilities` puts a block's `path`
             // under `db.connect` for the same reason it pre-approves a block's
             // host — the operator who granted the name wrote the path — so
             // this reaches the opener with the other four's two resolution
@@ -468,8 +472,8 @@ pub(crate) fn open_named(
     };
     // The lease is filed even for `{ shared: false }`, whose `None` memo is
     // the slot beside it: that option bypasses memoization *within* the
-    // request and never pooling across requests — § 13 says so in as many
-    // words.
+    // request and never pooling across requests —
+    // `rule:core-classes/db-connection-is-named` says so in as many words.
     let key = ctx.hold_open_connection(
         shared.then(|| name.to_owned()),
         Some(lease),
@@ -609,15 +613,16 @@ pub(super) fn settings_text<'a>(args: &'a [Value], at: usize, key: &str) -> Resu
 /// spelling has to have: both members file into the same per-request table, and
 /// a `[db.<name>]` block's name is a configuration key and so can never begin
 /// with a NUL byte. Two calls whose fields all agree share a connection, which
-/// is what § 2 promises, and two that differ anywhere — including in the
+/// is what that rule promises, and two that differ anywhere — including in the
 /// password — do not.
 ///
-/// **It is § 13's pool key as well as the memo**, which decides what it hashes:
+/// **It is the pool key of `rule:security/db-pool-reset-is-a-boundary` as well
+/// as the memo**, which decides what it hashes:
 /// every field that says what the connection *is* once it is open. The endpoint
 /// and the credentials are the obvious ones; the declared zone and the
 /// statement cache's size are the two that are only obvious from the pool's
 /// side, because a drawn connection carries both from the request that opened
-/// it — § 13's reset restores the zone rather than re-reading it, as a startup
+/// it — the pool's reset restores the zone rather than re-reading it, as a startup
 /// parameter on PostgreSQL and as `set_session_time_zone` on MySQL — and a
 /// second request that declared a different one would silently be answered in
 /// the first one's. `timeout` and `tls` are deliberately not among them: the
@@ -651,7 +656,7 @@ pub(super) fn settings_key(
 /// on the name an operator wrote and reads that block's `[db.<name>.pool]`
 /// directly; a settings object names nothing, so the only honest question is
 /// whether the settings it wrote *are* a block's — and the memo key already
-/// answers it, since § 2 hashes exactly the fields that say what the connection
+/// answers it, since `open`'s memo hashes exactly the fields that say what the connection
 /// is. Building the key from the block rather than comparing its fields one at a
 /// time is the point: a second spelling of "the same connection" is how the pool
 /// and the memo would come to disagree, and a program that opens a block's
@@ -664,7 +669,7 @@ pub(super) fn settings_key(
 /// defaulted into agreement: an object writing `5432` and a block leaving the
 /// server's default implicit are two keys and so two pools. That is the hash's
 /// own rule rather than this function's, and what an operator loses by it is
-/// § 13's bounds on that second pool, never a connection.
+/// the block's pool bounds on that second pool, never a connection.
 pub(super) fn block_settings_key(block: &nvs_config::tree::Database) -> Option<String> {
     let driver = nvs_db::Driver::from_config_name(block.driver.as_deref()?)?;
     let zone = nvs_db::sql::time_zone_for(block)?;
@@ -697,7 +702,8 @@ nvs_runtime::nvs_helper! {
     /// — `rule:core-classes/db-connection-is-named`'s connection the *program* describes.
     ///
     /// **The whole difference from `connect` is which authority wrote the
-    /// endpoint**, and § 3 turns that into two checks this body makes and that
+    /// endpoint**, and `rule:core-classes/db-capabilities` turns that into two
+    /// checks this body makes and that
     /// one does not. `db.open` is asked about the host rather than a block
     /// name, because a host is what a settings object chooses; and the
     /// address it resolves to is then put through
@@ -715,7 +721,7 @@ nvs_runtime::nvs_helper! {
     /// and the `tls` key, which no block has.
     ///
     /// **What it spends:** one connection per distinct set of settings a
-    /// request opens, and § 13's pool keeps up to `idle` of them per key on this
+    /// request opens, and the per-core pool keeps up to `idle` of them per key on this
     /// core between the requests that use them. A settings object names no
     /// block, so what sizes that is
     /// [`crate::db::pool::settings_bounds`]: the `[db.<name>.pool]` table of the
@@ -723,8 +729,9 @@ nvs_runtime::nvs_helper! {
     /// `PoolBounds::DEFAULT` otherwise — the same bounds a block that writes no
     /// `pool` key takes, which is what `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s *finite with nothing
     /// configured* already means one layer down, and the only other candidate
-    /// (`OFF`) is § 13 declining to pool `open` at all, which that section
-    /// spends a bullet requiring. The consequence an operator has to be told
+    /// (`OFF`) would decline to pool `open` at all, which
+    /// `rule:security/db-pool-reset-is-a-boundary` rules out by giving any
+    /// settings that match no block the defaults. The consequence an operator has to be told
     /// rather than discover: the ceiling on the database is `cores × max` *per
     /// distinct settings hash*, and an object that differs from the block in any
     /// hashed field — a written `port` where the block left the server's default
@@ -733,7 +740,7 @@ nvs_runtime::nvs_helper! {
         let driver = settings_driver(&args[DRIVER_ARG])?;
         // The SQLite arm, whole and taken here: its `path` is the field that
         // says the caller wrote it, and everything below this block is about an
-        // address § 2's other arm has and this one does not. § 13's pool is the
+        // address the union's other arms have and this one does not. The pool is the
         // same four calls on both paths and is written twice rather than
         // extracted, because what feeds them — the key's fields, the
         // capabilities asked, whether a name is resolved at all — is disjoint
@@ -757,24 +764,26 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        // § 3's grant, asked before anything is resolved or opened: a host
-        // outside it is refused whether or not it exists.
+        // The `db.open` grant of `rule:core-classes/db-capabilities`, asked
+        // before anything is resolved or opened: a host outside it is refused
+        // whether or not it exists.
         nvs_runtime::capability::require(
             ctx,
             nvs_config::Cap::DbOpen,
             nvs_config::capability::Scope::Host(host),
             OPEN,
         )?;
-        // And § 3's other half — `rule:http-server/allow-url-pins-the-address`'s table, which is what a
+        // And that rule's other half — `rule:http-server/allow-url-pins-the-address`'s table, which is what a
         // program-supplied address is subject to and an operator-written one is
         // not. The name is resolved once, here, and the socket below opens to
         // exactly the address that was checked.
         let pinned = nvs_runtime::capability::pinned_address(ctx, host, OPEN)?;
 
-        // § 9's declared zone, resolved here rather than beside the target that
-        // carries it because it is one of the fields the key below hashes: a
-        // pooled connection is in the zone the request that opened it declared,
-        // and § 13's reset restores that zone rather than re-reading it. It is
+        // The declared zone of `rule:core-classes/db-column-types`, resolved here
+        // rather than beside the target that carries it because it is one of the
+        // fields the key below hashes: a pooled connection is in the zone the
+        // request that opened it declared, and the pool's reset restores that
+        // zone rather than re-reading it. It is
         // set on the resolved target rather than written into the block, because
         // the block's field is an offset *spelling* and this arrives as a
         // `Core\Time\Zone`: rendering it to text for the resolver to parse back
@@ -799,7 +808,7 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        // § 13's ticket, under the key § 2 hashes rather than the block name
+        // The pool's ticket, under the key the memo hashes rather than the block name
         // `connect` keys on — `Ticket::for_settings` owns why only one of the
         // two is scoped to a configuration generation, and
         // `crate::db::pool::settings_bounds` owns which block's table these
@@ -822,9 +831,9 @@ nvs_runtime::nvs_helper! {
             Some(lease) => lease,
             None => wait_for_slot(ctx, ticket, &full, deadline)?,
         };
-        // § 13's acquire, and `{ shared: false }` reaches it too: that option
-        // bypasses the memo above and never the pool, which § 13 says in as
-        // many words. `warm_connection` is where a failed reset destroys the
+        // The pool's acquire, and `{ shared: false }` reaches it too: that
+        // option bypasses the memo above and never the pool, which
+        // `rule:core-classes/db-connection-is-named` says in as many words. `warm_connection` is where a failed reset destroys the
         // connection, so a `None` here is indistinguishable from an empty pool
         // and falls through to the handshake either way.
         let pooled = lease
@@ -948,8 +957,9 @@ fn sqlite_read_only(ctx: &nvs_runtime::Ctx, path: &str) -> Result<bool, Fault> {
     ))
 }
 
-/// § 2's `open` over the SQLite arm of `rule:core-api/shape-parameter`'s union: a file, § 13's
-/// pool around it, and none of the address machinery the server arm is.
+/// `Core\Db::open` over the SQLite arm of `rule:core-api/shape-parameter`'s union: a
+/// file, the per-core pool around it, and none of the address machinery the server
+/// arm is.
 ///
 /// **A file asks the file rule alone.** `rule:core-classes/db-capabilities` puts a
 /// *config-written* path under `db.connect`, and a program-supplied one under
@@ -966,7 +976,7 @@ fn sqlite_read_only(ctx: &nvs_runtime::Ctx, path: &str) -> Result<bool, Fault> {
 /// still write one, since its `path` is the operator's and asks no `fs` grant.
 ///
 /// **`rule:http-server/allow-url-pins-the-address`'s address table is not consulted**, and that is not an omission:
-/// there is no address. The reason § 3 subjects `open`'s host to it — a
+/// there is no address. The reason that rule subjects `open`'s host to it — a
 /// program-supplied address can be attacker-influenced into the ranges a
 /// database lives at — is answered here by `fs.read`/`fs.write`, which is the
 /// grant an operator writes about a path.
@@ -1002,9 +1012,9 @@ pub(super) fn sqlite_settings(
 
     let read_only = sqlite_read_only(ctx, path)?;
 
-    // § 9's declared zone, and § 13's key hashes it for [`nvs_core_db_open`]'s
-    // reason: a pooled connection is in the zone the request that opened it
-    // declared.
+    // The connection's declared zone, and the pool key hashes it for
+    // [`nvs_core_db_open`]'s reason: a pooled connection is in the zone the
+    // request that opened it declared.
     let zone = if matches!(args[TIME_ZONE_ARG].tag(), Some(Tag::Null)) {
         0
     } else {
@@ -1014,7 +1024,7 @@ pub(super) fn sqlite_settings(
     let deadline = open_deadline(args)?;
     // The path stands where a host stands, and the three credential fields are
     // empty because this arm declares none — two settings objects naming
-    // different files are two keys, which is all § 13 asks of it.
+    // different files are two keys, which is all the pool asks of it.
     let keyed = settings_key(
         &[path, "", "", "", driver.matrix_name()],
         None,
@@ -1061,7 +1071,7 @@ pub(super) fn sqlite_settings(
         // The block the resolver reads, carrying the two keys this arm shares
         // with the server one and nothing else: `SqliteTarget::resolve` refuses
         // a `host`, a `user` or a `password` beside a `path`, and a block built
-        // with those fields empty is the same target § 2's own arm selection
+        // with those fields empty is the same target the `Db\Settings` union's arm selection
         // has already guaranteed the object wrote.
         None => {
             let block = nvs_config::tree::Database {
@@ -1334,7 +1344,8 @@ mod tests {
     use super::*;
     use nvs_runtime::{Ctx, OutputSink};
 
-    /// `rule:security/db-pool-reset-is-a-boundary`'s key for `open` is § 2's memo key, so what that hash
+    /// `rule:security/db-pool-reset-is-a-boundary`'s key for `open` is the memo key of
+    /// `rule:core-classes/db-connection-is-named`, so what that hash
     /// separates is what two requests are refused a shared connection over.
     ///
     /// **Asserted as a sweep that every field moves the key**, rather than as
@@ -1392,7 +1403,7 @@ mod tests {
             base,
             settings_key(&["h", "u", "d", "p", "postgres"], Some(5432), 0, Some(64))
         );
-        // The one property § 2 needs of the spelling: a `connect` key is a
+        // The one property the memo needs of the spelling: a `connect` key is a
         // block's name and a name is a configuration key, so no settings hash
         // can be one.
         assert!(base.starts_with('\u{0}'));
@@ -1416,7 +1427,7 @@ mod tests {
     /// shared call answering a key is therefore proof it returned at
     /// [`nvs_runtime::Ctx::memoized_connection`] and nowhere later, and the
     /// `{ shared: false }` call reaching that refusal on the same context is the
-    /// other half of the same evidence — § 2's opt-out is charged again, as
+    /// other half of the same evidence — that rule's opt-out is charged again, as
     /// [`CONNECT_DOC`] tells a caller it is.
     ///
     /// **One connection, counted rather than read off the key.** A memoized
@@ -1441,7 +1452,7 @@ mod tests {
             }
         }
 
-        // The default the two bare calls in § 2's sentence are made under:
+        // The default the two bare calls in that rule's sentence are made under:
         // memoization is what a program gets for writing no option at all, and
         // `{ shared: false }` is the only way out of it.
         let connect = CLASS
@@ -1455,7 +1466,7 @@ mod tests {
         let shared = options
             .iter()
             .find(|option| option.name == "shared")
-            .expect("§ 2's opt-out is an option of that bag");
+            .expect("`shared: false` is an option of that bag");
         assert_eq!(
             format!("{:?}", shared.default),
             format!("{:?}", Const::Bool(true)),
@@ -1467,7 +1478,7 @@ mod tests {
         let first = ctx.hold_open_connection(Some("main".to_owned()), None, Box::new(Opened));
 
         let second = open_named(&mut ctx, "main", true, None, CONNECT)
-            .expect("§ 2's memo answers before anything reads a configuration");
+            .expect("the connection memo answers before anything reads a configuration");
         assert_eq!(
             first, second,
             "two `connect(\"main\")` calls in one request name one connection"
@@ -1600,7 +1611,7 @@ mod tests {
         assert_eq!(
             ctx.memoized_connection("main"),
             None,
-            "§ 2 memoizes a connection, so a name whose connection has gone is \
+            "a connection is memoized, so a name whose connection has gone is \
              free for the next `connect` to open"
         );
 
@@ -1652,7 +1663,7 @@ mod tests {
              [capabilities.net]\nconnect = []\ninternal = []\n",
         ));
 
-        // § 3's two capabilities answer different questions: the one this path
+        // The two capabilities answer different questions: the one this path
         // asks, and the neighbour it does not.
         nvs_runtime::capability::require(
             &ctx,
@@ -1680,8 +1691,8 @@ mod tests {
             "the door's first question is the capability's own, unchanged"
         );
 
-        // And the second way: buy the host back, and § 3's range table is what
-        // refuses. That is the check `rule:core-classes/db-capabilities` says a named endpoint is not
+        // And the second way: buy the host back, and the denied-range table is
+        // what refuses. That is the check `rule:core-classes/db-capabilities` says a named endpoint is not
         // additionally put through — where every database on `10/8`, a
         // container network or loopback lives.
         let mut reachable = Ctx::new(OutputSink::Sink);
@@ -1690,7 +1701,7 @@ mod tests {
              [capabilities.net]\nconnect = [\"127.0.0.1\"]\ninternal = []\n",
         ));
         let by_range = nvs_runtime::capability::pin_host(&reachable, HOST, CONNECT)
-            .expect_err("loopback is the first range § 3 denies");
+            .expect_err("loopback is the first denied range");
         assert!(
             format!("{by_range:?}").contains("net.internal"),
             "the range half names the key that would except it: {by_range:?}"
@@ -1719,7 +1730,7 @@ mod tests {
     /// ungranted one; and [`address_of`] — the path `connect` takes to the very
     /// same address — is asked last and answers, so the refusal cannot be read
     /// as "this runtime will not open loopback". What separates them is which
-    /// authority wrote the endpoint, and that is the whole of § 3.
+    /// authority wrote the endpoint, and that is the whole of the rule.
     ///
     /// The deepest half is again a signature: `pinned_address` takes the
     /// [`Ctx`], so the policy has a deployment's `net.internal` in front of it,
@@ -1729,7 +1740,7 @@ mod tests {
         const HOST: &str = "127.0.0.1";
 
         // What the operator wrote: this program may open a database at that
-        // host, and nothing excepts any address from § 3's table. `internal = []`
+        // host, and nothing excepts any address from the denied-range table. `internal = []`
         // closes the loopback a test run otherwise reaches by default.
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_config(crate::tests::granting(

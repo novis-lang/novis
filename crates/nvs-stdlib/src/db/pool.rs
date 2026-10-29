@@ -12,46 +12,46 @@ use super::*;
 /// run a statement — `rule:security/db-pool-reset-is-a-boundary`'s acquire, where the reset is the gate.
 ///
 /// The lease is what the caller already holds a `max` slot on, and drawing
-/// against it is how § 13's ceiling counts a warm connection the same as a
-/// fresh one — `nvs_runtime::pool`'s *What `max` counts* owns that rule.
+/// against it is how that rule's per-core `max` counts a warm connection the
+/// same as a fresh one — `nvs_runtime::pool`'s *What `max` counts* owns how.
 ///
 /// **A failed reset destroys the connection.** Every driver's `reset` takes
 /// `self` by value — `nvs_db::PgConn::reset`, `nvs_db::MySqlConn::reset` and
 /// `nvs_db::TdsConn::reset` — and hands the connection back only on the path
-/// where every one of § 13's commands succeeded, so a connection that could not
-/// be proven clean is closed before this returns and there is no shape in which
+/// where every one of its reset commands succeeded, so a connection that could
+/// not be proven clean is closed before this returns and there is no shape in which
 /// one request reads another's session state. That is also why the caller
 /// cannot tell a failed reset from an empty pool: both are `None`, and both
 /// mean open a fresh connection, which is what a request did before there was a
 /// pool at all.
 ///
-/// **The three resets are not one reset**, and § 13 says so: PostgreSQL's keeps
-/// § 1's statement cache, MySQL's `COM_RESET_CONNECTION` drops it, and SQL
-/// Server's `sp_reset_connection` is "the same shape as MySQL's" in that
-/// section's own words and drops it too — so the connection each arm hands back
+/// **The resets are not one reset**, and the rule names each backend's:
+/// PostgreSQL's keeps `rule:core-classes/db-one-api`'s statement cache, while
+/// MySQL's `COM_RESET_CONNECTION` and SQL Server's `sp_reset_connection` are
+/// atomic reset commands that drop it — so the connection each arm hands back
 /// is warm in a different amount. None of that is a choice this function makes:
-/// each driver's own `reset` is where its section's property is met.
+/// each driver's own `reset` is where the rule's property is met.
 ///
-/// **The SQLite arm is reset like the rest of them now**, and § 13's per-backend
-/// list is where its shortness is argued: a file handle has no session state to
-/// leak, so rolling back whatever transaction is open is the whole of it, and
+/// **The SQLite arm is reset like the rest of them**, and the rule's
+/// per-backend list says what it undoes: it rolls back whatever transaction is
+/// open, applies its pragmas again and drops what the `temp` schema holds.
 /// `nvs_db::SqliteConn::reset` asks the engine rather than this driver's own
-/// depth count so that a transaction a caller opened in its own § 4 statement
-/// text is closed too. Every arm is spelled rather than left to a `_` so that a
-/// sixth driver arrives as a build failure instead of as a connection silently
-/// thrown away. MariaDB's arm is MySQL's: `COM_RESET_CONNECTION` is one
-/// protocol's command and § 13 says of both that it drops the prepared
-/// statements with the session state.
+/// depth count whether a transaction is open, so that one a caller opened with
+/// a `BEGIN` in its own statement text is closed too. Every arm is spelled
+/// rather than left to a `_` so that a sixth driver arrives as a build failure
+/// instead of as a connection silently thrown away. MariaDB's arm is MySQL's:
+/// `COM_RESET_CONNECTION` is one protocol's command, and on both it drops the
+/// prepared statements with the session state.
 ///
 /// **The SQL Server arm is reached now**: both openers call
 /// `nvs_db::TdsConn::connect`, so a released connection is one this function is
-/// asked for. It was written before either did, for the reason § 13 gives: a
+/// asked for. It was written before either did, for this reason: a
 /// driver that becomes openable while this function still answers `None` for it
 /// is a pool that quietly stops pooling, which nothing observable would report.
 pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
     let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
     let mut connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
-    // § 4's statement deadline belongs to the statement that named it, and this
+    // A statement's `timeout` belongs to the statement that named it, and this
     // connection is carrying whatever the last one on it did. The reset below is
     // the one exchange no program's clock may bound — a `RESET ALL` given up on
     // because a previous request asked for a 50ms query would destroy a healthy
@@ -98,8 +98,9 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
 /// of it leaves the rest for opening, which is what a caller asking for a whole
 /// answer by an instant meant.
 ///
-/// **`acquire = 0` never parks.** § 13 makes it legal and defines it as
-/// refusing rather than queueing, and so does a call with no task beneath it: a
+/// **`acquire = 0` never parks.** It is legal and refuses rather than queueing,
+/// as [`nvs_runtime::pool`] § *`acquire` is a queue, and a slot is handed over
+/// rather than freed* says, and so does a call with no task beneath it: a
 /// `nvs run` of a CLI program is one task, so there is no peer that could free
 /// a slot and waiting could only be this core standing still —
 /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`
@@ -119,9 +120,10 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
 /// A thrown `IOError` for the ceiling reached, which is where every ending but
 /// one lands: it is the refusal that stood beside the handshake that "did not
 /// open" before there was any waiting, on the same reading — what a program can
-/// do about either is the same, and § 8's `Db\DbError` is for a refusal the
-/// *server* made, which this is not. The one other ending is [`Ctx::cancel`]'s
-/// status for a task cancelled while it waited, which no `catch` sees.
+/// do about either is the same, and `rule:core-classes/db-error`'s `Db\DbError`
+/// is for a refusal the *server* made, which this is not. The one other ending
+/// is [`Ctx::cancel`]'s status for a task cancelled while it waited, which no
+/// `catch` sees.
 pub(crate) fn wait_for_slot(
     ctx: &mut nvs_runtime::Ctx,
     ticket: nvs_runtime::pool::Ticket,
@@ -181,22 +183,24 @@ pub(crate) fn wait_for_slot(
 /// [`Binds`] is the same split on the result, and both are made in
 /// [`rendering_for`].
 ///
-/// A pointer rather than a `match` at the two call sites because § 5's dialect
-/// and § 9's encoding are **one** choice: a statement rewritten for one
+/// A pointer rather than a `match` at the two call sites because
+/// `rule:core-classes/db-parameters`' dialect and the encoding of
+/// `rule:core-classes/db-column-types`' type map are **one** choice: a statement rewritten for one
 /// protocol and bound for another is refused by nothing here — `?` and `$1` are
 /// both valid text, `t` and `1` are both valid bytes — and fails at the server
 /// or, worse, binds the wrong value. [`rendering_for`] is the single place the
 /// pair is made.
 #[derive(Clone, Copy)]
 pub(crate) enum Encoder {
-    /// The four drivers with a wire: § 9's value as the octets that protocol
+    /// The four drivers with a wire: a type-map value as the octets that protocol
     /// reads a parameter in, `None` for `null`.
     Wire(fn(Value) -> std::io::Result<Option<Vec<u8>>>),
-    /// SQLite: § 9's value as one of five storage classes, `NULL` among them.
+    /// SQLite: a type-map value as one of five storage classes, `NULL` among them.
     Sqlite(fn(Value) -> std::io::Result<nvs_db::SqliteValue>),
 }
 
-/// `rule:core-classes/db-parameters`'s dialect and § 9's encoder for one driver.
+/// `rule:core-classes/db-parameters`'s dialect and the type map's encoder for
+/// one driver.
 ///
 /// Pure and separate from [`rendering_of`] so the pairing is testable with no
 /// connection in hand: `a_driver_is_bound_in_its_own_dialect` is what holds it
@@ -231,7 +235,7 @@ pub(crate) fn rendering_for(driver: nvs_db::Driver) -> (nvs_db::Dialect, Encoder
 /// picked.
 ///
 /// It no longer refuses anything, and neither does anything downstream of it:
-/// every driver binds, every driver sends, and § 7's [`transacting`] — the last
+/// every driver binds, every driver sends, and `transaction`'s [`transacting`] — the last
 /// place a `sqlite` block was turned away — is total.
 ///
 /// The `block` is still taken because the lookup can fail for a reason that is
@@ -302,18 +306,20 @@ pub(super) fn filed_connection<'a>(
 ///
 /// **A settings object names no block, and that is the whole difficulty.**
 /// `Core\Db::connect` asks `nvs_config::db::bounds_for` by the name an operator
-/// wrote; this path has only the hash § 2 built out of the settings themselves,
-/// so the block is found by building each block's own key and comparing —
+/// wrote; this path has only the hash `rule:core-classes/db-connection-is-named`
+/// builds out of the settings themselves, so the block is found by building
+/// each block's own key and comparing —
 /// [`super::open::block_settings_key`] owns that and owns why it is a key
 /// comparison rather than a field-by-field one.
 ///
 /// **A program that opens a configured endpoint by hand gets that endpoint's
 /// bounds**, which is the rule this exists for: those two connections are the
 /// same connection to the same server under the same credentials, they already
-/// share a pool because § 2's key is the pool's key, and a pool with two
+/// share a pool because that hash is the pool's key, and a pool with two
 /// answers for `max` would be a ceiling an operator sized and did not get. A
-/// settings object naming an endpoint no block describes keeps the defaults, because
-/// there is no table to read and § 13 requires the bounds to be finite anyway.
+/// settings object naming an endpoint no block describes keeps the defaults,
+/// because there is no table to read and the bounds are finite with nothing
+/// configured anyway.
 ///
 /// **It costs one key per configured block per `open`, and only on the miss.**
 /// The memoized-connection check runs first and answers every `open` after the
@@ -360,8 +366,9 @@ fn bounds_for_settings(
 mod tests {
     use super::*;
 
-    /// `rule:core-classes/db-parameters`'s rewrite and § 9's encoding are **one** choice per driver,
-    /// and the pairing is what a statement bound half one way fails on — at the
+    /// `rule:core-classes/db-parameters`'s rewrite and the encoding of
+    /// `rule:core-classes/db-column-types`' type map are **one** choice per
+    /// driver, and the pairing is what a statement bound half one way fails on — at the
     /// server if it is lucky, since `?` and `$1` are both valid text and `t` and
     /// `1` are both valid bytes.
     ///
@@ -456,7 +463,8 @@ mod tests {
 
     /// `rule:security/db-pool-reset-is-a-boundary`'s bounds for a connection a *program* described, which is
     /// the half that rule does not spell out: `connect` looks its block up by the
-    /// name an operator wrote, and `open` has only § 2's settings hash.
+    /// name an operator wrote, and `open` has only the settings hash
+    /// `rule:core-classes/db-connection-is-named` memoizes it on.
     ///
     /// The claim is asserted **on both sides**, because a body that read the
     /// table for every connection would pass the first half alone. A settings object
@@ -486,11 +494,12 @@ mod tests {
         assert_eq!(
             stranger,
             nvs_config::db::PoolBounds::DEFAULT,
-            "and settings no block describes have no table to read, so § 13's defaults bound them"
+            "and settings no block describes have no table to read, so the pool's defaults bound them"
         );
     }
 
-    /// § 13's `pool = false`, written **unscoped**: the audited deployment's
+    /// `rule:security/db-pool-reset-is-a-boundary`'s `pool = false`, written
+    /// **unscoped**: the audited deployment's
     /// requirement is that every connection the process opens maps to one
     /// request, and a per-block switch cannot say that about a connection a
     /// program described for itself.
