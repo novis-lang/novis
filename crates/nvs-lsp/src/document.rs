@@ -791,6 +791,11 @@ fn analyse_over(
         loaded.iter().filter(|file| file.id == entry),
         &module.imports,
     ));
+    // `nvs check` adds the same note on its failed compile
+    // (`rule:core-api/a-moved-name-says-where-it-went`). A diagnostic about any
+    // other name is left as it is, so this costs one comparison per `E0303`
+    // and `E0306`.
+    nvs_types::moved::note_moves(&mut diags, &map);
 
     Some(Analysed {
         map,

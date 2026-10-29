@@ -2672,6 +2672,28 @@ pub(crate) fn report_unknown_member(
     kind: &str,
     env: &mut Env<'_>,
 ) {
+    // `Core\Missing::Case` names a class `Core` does not have, so the class is
+    // what is wrong, not the member. It is the `E0303` a type annotation
+    // writing `Core\Missing` gets, and a moved name's note finds both. A short
+    // name an unresolved `use` brought in is that line's `E0306` already
+    // (`rule:types/one-mistake-reports-once`).
+    let core_class_missing = qname.is_core()
+        && !crate::core_lib::is_registered(qname)
+        && !crate::core_lib::is_importable(qname)
+        && env.symbols.get(qname).is_none()
+        && !env.symbols.is_extension(qname);
+    if core_class_missing {
+        let written = span_text(env.src, span)
+            .split("::")
+            .next()
+            .unwrap_or_default();
+        let short = !written.contains('\\');
+        if !(short && env.symbols.is_unresolved_import(qname)) {
+            env.diags
+                .report(nvs_hir::hierarchy::not_declared(qname, span));
+        }
+        return;
+    }
     env.diags.report(
         Diagnostic::error(
             code::E_UNKNOWN_MEMBER,

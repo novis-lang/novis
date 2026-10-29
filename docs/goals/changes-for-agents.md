@@ -6,7 +6,7 @@ context: [docs/rules/tooling/an-agent-asks-the-binary.md, docs/rules/packaging/t
 stages:
   - id: 1
     title: "a moved Core name says where it went"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-hir/src/autoload.rs, crates/nvs-hir/src/imports.rs, crates/nvs-diagnostics/src/diagnostic.rs, crates/nvs-cli/src/main.rs, crates/nvs-lsp/src/diagnostics.rs]
     extra:
       context:
@@ -61,14 +61,29 @@ it moved in. The first row is `Core\Order` to `Core\Arr::Order`. A test reads th
 if a row's new name does not exist or its old name still does. Why: the registry is the source of
 truth, so the table cannot name a place that is not there.
 
-**The note is a pass over the finished diagnostics, like the autoload note.** `nvs-hir` cannot read
-`nvs-stdlib`, because `nvs-stdlib` depends on it. So a function in `moved.rs` walks the diagnostics,
-reads each subject with `nvs_hir::hierarchy::undeclared_subject` (`crates/nvs-hir/src/hierarchy.rs:706`),
-and adds a help line and a fix to each one whose name is in the table. The pattern is
-`AutoloadMap::note_searched_roots` (`crates/nvs-hir/src/autoload.rs:559`). The CLI calls it beside that
-note (`crates/nvs-cli/src/main.rs:1011`), and the language server calls it where it publishes
-diagnostics (`crates/nvs-lsp/src/diagnostics.rs:1`). The first slice confirms which code a moved name
-gets in a `use`, in a type and in an expression, and the pass covers each.
+**The note is a pass over the finished diagnostics, like the autoload note, and it lives in
+`nvs-types`.** `nvs-hir` cannot read `nvs-stdlib`, and `nvs-stdlib` reads `nvs-hir` only in its
+tests, so the pass is `crates/nvs-types/src/moved.rs`, the crate that already reads both. It reads
+each subject with `nvs_hir::hierarchy::undeclared_subject` and
+`nvs_hir::resolve::unresolved_import_subject`, and adds a help line and a fix to each one whose name
+is in the table. The CLI calls it beside the autoload note (`crates/nvs-cli/src/main.rs:1289`), and
+the language server at the end of its analysis (`crates/nvs-lsp/src/document.rs:796`). Why: no new
+dependency edge, and the table stays pure data.
+
+**A `Core` class that does not exist is `E0303` in an expression too.** `Core\Order::Desc` was
+`E0405` ("has no constant named"), so the pass would have read a third headline. Now
+`report_unknown_member` (`crates/nvs-types/src/expr/members.rs:2668`) reports a `Core` class nothing
+declares as `E0303`, through `nvs_hir::hierarchy::not_declared`, and a short name an unresolved `use`
+brought in is not reported again. Why: the class is the mistake, one code covers all three positions,
+and `rule:types/one-mistake-reports-once`.
+
+**A `use` line's fix deletes the line and rewrites every short reference.** A class-scoped enum cannot
+be imported (`E0212`), so the one rewrite that fits every move is the new name in full at each
+reference. Its suggestions are one fix, in `--fix` and in the editor (`crates/nvs-lsp/src/actions.rs:243`).
+An aliased or grouped `use` gets the help line alone.
+
+**A move made before the first release has no version.** `Move::since` is `None` for it, and the help
+line names no version. Why: no release exists yet, so any number would be a guess.
 
 **The fix is safe.** The table names exactly one replacement, so the suggestion is a safe one
 (`crates/nvs-diagnostics/src/diagnostic.rs:115`), and `nvs check --fix` applies it. It writes the new
@@ -126,14 +141,14 @@ what changed before it edits a project.
 
 **Does:** `E0303` and `E0306` on a name in the table say where it moved, and carry a safe fix.
 
-- [ ] The rule fragment and its `designed` record (`core-api/a-moved-name-says-where-it-went`). `docs/rules/core-api/a-moved-name-says-where-it-went.md:1`, `data/rules/core-api/a-moved-name-says-where-it-went.json:1`
-- [ ] The table, with its first row, and the test that reads the registry. `crates/nvs-stdlib/src/moved.rs:1`, `crates/nvs-stdlib/src/registry.rs:702`
-- [ ] Which code a moved name gets in a `use`, a type and an expression, confirmed. `crates/nvs-hir/src/hierarchy.rs:651`, `crates/nvs-hir/src/resolve.rs:260`
-- [ ] The pass adds the help line and the safe fix. `crates/nvs-stdlib/src/moved.rs:1`, `crates/nvs-hir/src/hierarchy.rs:706`
-- [ ] The CLI and the language server call it. `crates/nvs-cli/src/main.rs:1011`, `crates/nvs-lsp/src/diagnostics.rs:1`
-- [ ] A conformance case: a moved name in a `use`, a type and an expression, each with its note. `tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst:1`
-- [ ] A `--fix` test: `nvs check --fix` rewrites each one, and the program then compiles. `crates/nvs-cli/tests/check_flags.rs:1`
-- [ ] The rule `shipped` with both in `guardedBy`. `data/rules/core-api/a-moved-name-says-where-it-went.json:1`
+- [x] The rule fragment and its `designed` record (`core-api/a-moved-name-says-where-it-went`). `docs/rules/core-api/a-moved-name-says-where-it-went.md:1`, `data/rules/core-api/a-moved-name-says-where-it-went.json:1`
+- [x] The table, with its first row, and the test that reads the registry. `crates/nvs-stdlib/src/moved.rs:1`, `crates/nvs-stdlib/src/registry.rs:702`
+- [x] Which code a moved name gets in a `use`, a type and an expression, confirmed. `crates/nvs-hir/src/hierarchy.rs:651`, `crates/nvs-hir/src/resolve.rs:260`
+- [x] The pass adds the help line and the safe fix. `crates/nvs-types/src/moved.rs:1`, `crates/nvs-hir/src/hierarchy.rs:706`
+- [x] The CLI and the language server call it. `crates/nvs-cli/src/main.rs:1289`, `crates/nvs-lsp/src/document.rs:796`
+- [x] A conformance case: a moved name in a `use`, a type and an expression, each with its note. `tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst:1`
+- [x] A `--fix` test: `nvs check --fix` rewrites each one, and the program then compiles. `crates/nvs-cli/tests/check_flags.rs:1`
+- [x] The rule `shipped` with both in `guardedBy`. `data/rules/core-api/a-moved-name-says-where-it-went.json:1`
 
 ### 2. the release changelog has a Formatter section
 
@@ -176,17 +191,23 @@ subagent. Such subagents run side by side, and none of them builds.
 
 ### State
 
-The goal is new and nothing is built. Every choice is settled in § *Standing decisions*. It is a side
-goal, so it runs only when a person starts it with `looper loop add --side changes-for-agents`.
+Stage 1 is done. `Core\Order` in a `use`, a type and an expression says it moved to
+`Core\Arr::Order` and carries a safe fix, `nvs check --fix` rewrites a program until it compiles, and
+the rule `core-api/a-moved-name-says-where-it-went` is shipped. Two standing decisions changed on
+contact: the pass lives in `nvs-types`, and an unknown `Core` class in an expression is `E0303`.
+`tests/conformance/reject/a-core-enum-is-not-reached-by-its-old-name.nvst` was updated for that code.
+
+Tests expected to go red in the gate: any test outside the conformance tree that pins `E0405` for a
+`Core` class that does not exist. Every `.nvst` that pins `E0405` on a `Core` class names a class that
+exists, so none is expected there.
 
 ### Next
 
-**Stage 1, one group**, on `nvs-stdlib` and the note's two callers. No gate.
+**Stage 2, one group**, on `tools/nv/cmd/release.ts` and its test. No gate.
 
-- [ ] The rule fragment and its `designed` record (`core-api/a-moved-name-says-where-it-went`). `docs/rules/core-api/a-moved-name-says-where-it-went.md:1`
-- [ ] The table and its registry test. `crates/nvs-stdlib/src/moved.rs:1`, `crates/nvs-stdlib/src/registry.rs:702`
-- [ ] The codes a moved name gets, confirmed. `crates/nvs-hir/src/hierarchy.rs:651`, `crates/nvs-hir/src/resolve.rs:260`
-- [ ] The pass, and its two callers. `crates/nvs-stdlib/src/moved.rs:1`, `crates/nvs-cli/src/main.rs:1011`, `crates/nvs-lsp/src/diagnostics.rs:1`
-- [ ] The conformance case and the `--fix` test. `tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst:1`, `crates/nvs-cli/tests/check_flags.rs:1`
+- [ ] Formatter after Performance, listed in full, for any type scoped `fmt`. `tools/nv/cmd/release.ts:105`, `tools/nv/cmd/release.ts:392`
+- [ ] The module doc's section list names Formatter. `tools/nv/cmd/release.ts:51`
+- [ ] Tests: `fix(fmt)`, `refactor(fmt)`, a breaking `feat(fmt)!` and the Internal count. `tools/nv/test/release.test.ts:1`
+- [ ] `docs/agent/conventions.md` § *A commit message* names the scope `fmt`. `docs/agent/conventions.md:26`
 
 ### Backlog

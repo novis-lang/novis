@@ -1,5 +1,5 @@
 --TEST--
-A `Core` enum that moved into its class has no namespace name left: `Core\Order` names nothing, and the error is reported where it is written — `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+A `Core` enum that moved into its class has no namespace name left: `Core\Order` names nothing, the error is reported where it is written, and it says where the enum went — `rule:enums/an-enum-lives-in-the-class-that-uses-it`, `rule:core-api/a-moved-name-says-where-it-went`
 --FILE--
 <?nvs
 array<int> $nums = [3, 1, 2];
@@ -7,8 +7,10 @@ echo Core\Arr::sort($nums, {order: Core\Order::Desc})[0], "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0405]: `Core\Order` has no constant named `Desc`
+error[E0303]: `Core\Order` is not declared
   --> case.nvs:3:36
+%A
+  = help: `Core\Order` moved to `Core\Arr::Order`. Write `Core\Arr::Order` here
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

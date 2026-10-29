@@ -365,3 +365,43 @@ fn fmt_keeps_an_unused_use() {
         "the formatter has no name resolution and deletes no line"
     );
 }
+
+/// A program that writes the moved name `Core\Order` in a `use` line, a type
+/// and an expression (`rule:core-api/a-moved-name-says-where-it-went`).
+const MOVED: &str = r#"<?nvs
+use Core\Order;
+
+class Pick {
+    public static function rank(Order $order): int { return $order == Order::Desc ? 1 : 0; }
+}
+
+Core\Order $order = Core\Order::Desc;
+echo Pick::rank($order) . "\n";
+"#;
+
+/// [`MOVED`] once `--fix` has written the new name everywhere.
+const MOVED_FIXED: &str = r#"<?nvs
+
+class Pick {
+    public static function rank(Core\Arr::Order $order): int { return $order == Core\Arr::Order::Desc ? 1 : 0; }
+}
+
+Core\Arr::Order $order = Core\Arr::Order::Desc;
+echo Pick::rank($order) . "\n";
+"#;
+
+#[test]
+fn check_fix_writes_where_a_moved_core_name_went_and_the_program_compiles() {
+    let dir = scratch("check-fix-moved", &[("main.nvs", MOVED)]);
+    let main = dir.join("main.nvs");
+    let (out, err, ok) = run_check(&["--fix"], &main);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("made 5 edits in 1 file\n"), "{out}");
+    assert_eq!(
+        std::fs::read_to_string(&main).expect("the file is still there"),
+        MOVED_FIXED,
+        "the `use` line goes, and every reference names the new place"
+    );
+    let (_, err, ok) = run_check(&[], &main);
+    assert!(ok, "the fixed program compiles: {err}");
+}

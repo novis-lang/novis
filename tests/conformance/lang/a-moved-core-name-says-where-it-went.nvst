@@ -1,0 +1,32 @@
+--TEST--
+`Core\Order` moved to `Core\Arr::Order`, so a `use` line, a type and an expression that write it each say where it went (`rule:core-api/a-moved-name-says-where-it-went`)
+--FILE--
+<?nvs
+use Core\Order;
+
+class Pick {
+    public static function rank(Order $order): int { return 1; }
+}
+
+Core\Order $order = Core\Order::Desc;
+echo Pick::rank($order) . "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0306]: `Core\Order` does not resolve to any declaration
+  --> case.nvs:2:5
+%A
+  = help: `Core\Order` moved to `Core\Arr::Order`. A `use` line cannot import it. Delete this line, and write `Core\Arr::Order` where this file writes `Order`
+%A
+error[E0303]: `Core\Order` is not declared
+  --> case.nvs:8:1
+%A
+  = help: `Core\Order` moved to `Core\Arr::Order`. Write `Core\Arr::Order` here
+%A
+error[E0303]: `Core\Order` is not declared
+  --> case.nvs:8:21
+%A
+  = help: `Core\Order` moved to `Core\Arr::Order`. Write `Core\Arr::Order` here
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

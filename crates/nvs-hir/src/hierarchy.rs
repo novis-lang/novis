@@ -698,9 +698,7 @@ pub fn undeclared_name_at(
             )),
         );
     }
-    let mut diagnostic =
-        Diagnostic::error(code::E_UNDEFINED_CLASS, format!("`{qname}`{NOT_DECLARED}"))
-            .with_primary(span, "no matching declaration");
+    let mut diagnostic = not_declared(qname, span);
     let through_namespace = !text.contains('\\') && QName::join(namespace, text) == *qname;
     if let Some(site) = site.filter(|_| through_namespace) {
         let candidates = imports::candidates(text, symbols, core.iter().copied());
@@ -720,6 +718,16 @@ pub fn undeclared_name_at(
 
 /// The end of [`undeclared_name_at`]'s headline, after the quoted name.
 const NOT_DECLARED: &str = " is not declared";
+
+/// The `E0303` that says `qname`, written at `span`, is not declared, with no
+/// help and no fix. [`undeclared_name_at`] builds on it, and so does a checker
+/// that finds a `Core` class nothing declares, such as `Core\Missing::Case`.
+/// [`undeclared_subject`] reads its headline back.
+#[must_use]
+pub fn not_declared(qname: &QName, span: Span) -> Diagnostic {
+    Diagnostic::error(code::E_UNDEFINED_CLASS, format!("`{qname}`{NOT_DECLARED}"))
+        .with_primary(span, "no matching declaration")
+}
 
 /// The name an [`undeclared_name_at`] diagnostic says is not declared, read
 /// back off its headline, and `None` for any other diagnostic.

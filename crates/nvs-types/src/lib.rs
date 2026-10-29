@@ -191,6 +191,7 @@ pub(crate) mod live;
 pub mod locals;
 pub mod lower;
 pub(crate) mod match_attribute;
+pub mod moved;
 pub mod narrow;
 pub mod package;
 pub mod paths;

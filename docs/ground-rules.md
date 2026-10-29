@@ -760,6 +760,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **An implemented `Core` member carries its reference card in the registry declaration beside its code** — An implemented `Core` member's reference documentation lives in its registry declaration, next to the code it documents: a short description of one or two sentences, a name and description per parameter — and for a shap… ([`core-api/reference-card`](rules/core-api.md#core-api-reference-card))
 - **A PHP built-in is absent for one of four standing reasons** — A PHP built-in that has no successor here is absent for one of four standing reasons:… ([`core-api/removals`](rules/core-api.md#core-api-removals))
 - **`Core`'s own API has no deprecation window before a release, and a removed name's error names its replacement** — While Novis is Pre-Alpha, a name `Core` removes from its own API is gone in the release that removes it: a member, a parameter, an attribute option or an option of an options bag. ([`core-api/no-deprecation-window-before-a-release`](rules/core-api.md#core-api-no-deprecation-window-before-a-release))
+- **A moved `Core` name's error says where it went, and carries a safe fix that writes it** — When `Core` moves a name, code that still writes the old name does not compile, and the error says where the name went. ([`core-api/a-moved-name-says-where-it-went`](rules/core-api.md#core-api-a-moved-name-says-where-it-went))
 
 ## The Core classes
 

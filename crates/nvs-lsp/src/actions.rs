@@ -238,10 +238,14 @@ pub fn at(
 ///
 /// A `W1003` is one fix. Its first suggestion is the rewrite, and the one after
 /// it is the `use` line the rewrite needs, so applying either alone leaves code
-/// that does not compile. Every other diagnostic offers each suggestion as a
-/// fix of its own, which is how `W1022`'s two groupings stay a choice.
+/// that does not compile. A moved `Core` name's `use` line is one fix for the
+/// same reason: it deletes the line and rewrites every reference to the short
+/// name (`nvs_types::moved`). Every other diagnostic offers each suggestion as
+/// a fix of its own, which is how `W1022`'s two groupings stay a choice.
 fn fixes(diagnostic: &Diagnostic) -> Vec<&[Suggestion]> {
-    if diagnostic.code == Some(code::W_DEPRECATED) {
+    if diagnostic.code == Some(code::W_DEPRECATED)
+        || nvs_types::moved::moved_subject(diagnostic).is_some()
+    {
         return (!diagnostic.suggestions.is_empty())
             .then_some(diagnostic.suggestions.as_slice())
             .into_iter()

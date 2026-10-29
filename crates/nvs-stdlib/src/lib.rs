@@ -175,6 +175,7 @@ mod mail;
 pub mod math;
 pub mod metrics;
 mod mime;
+pub mod moved;
 mod multipart;
 mod net;
 mod objmap;

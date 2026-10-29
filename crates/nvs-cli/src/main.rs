@@ -1291,6 +1291,7 @@ fn front_end_in(
                 .filter(|dir| !dir.as_os_str().is_empty())
                 .unwrap_or_else(|| std::path::Path::new(".")),
         );
+        nvs_types::moved::note_moves(&mut diags, &map);
         emit_diagnostics(&mut diags, &map, sink);
         return Err(ExitCode::FAILURE);
     };

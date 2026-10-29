@@ -1,0 +1,14 @@
+{
+  "title": "A moved `Core` name's error says where it went, and carries a safe fix that writes it",
+  "status": "shipped",
+  "seeAlso": [
+    "core-api/no-deprecation-window-before-a-release",
+    "statements/nothing-gets-a-second-name",
+    "ide/an-undeclared-name-offers-its-import"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-moved-core-name-says-where-it-went.nvst",
+    "crates/nvs-cli/tests/check_flags.rs",
+    "crates/nvs-stdlib/src/moved.rs"
+  ]
+}
