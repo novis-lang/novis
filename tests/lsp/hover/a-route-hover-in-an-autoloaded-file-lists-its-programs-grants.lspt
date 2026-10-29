@@ -1,0 +1,52 @@
+--TEST--
+a route in a file another program autoloads answers that program's grants, read from its entry's directory, with its `net.internal` addresses, each extension's own grants and the `[grants]` of its `package.toml`, `rule:ide/a-route-hover-shows-the-programs-grants`
+--FILE--
+<?nvs
+namespace Shop;
+
+class ItemController {
+    #[Core\Route(method: Core\Http\Method::Get, path: "/items")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function it<|>ems(): string {
+        return "";
+    }
+}
+--FILE public/index.nvs--
+<?nvs
+autoload 'Shop' from '..';
+--FILE public/nvs.toml--
+[capabilities.net]
+connect = ["api.example.com"]
+internal = ["10.0.0.5"]
+
+[[extension]]
+path = "resize.wasm"
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+grants = { read = ["/srv/images"], connect = ["cdn.example.com"] }
+--FILE public/package.toml--
+[grants]
+'Shop\*' = ["net.connect"]
+'Shop\Cache' = []
+--REQUEST--
+hover
+--EXPECT--
+This file is part of the program that starts at `public/index.nvs`.
+
+These are the grants of the whole program, from `public/nvs.toml`. Every route of the program has the same grants.
+
+- `fs.read`: files in `public`, except `nvs.toml` and names that start with `.` (default)
+- `fs.write`: only the directories `Core\IO::temporaryDir` makes (default)
+- `script.spawn`: files in `public`, outside its temporary directories (default)
+- `net.connect`: `api.example.com`
+- `net.internal`: `10.0.0.5`. `net.connect` may reach these private addresses.
+
+No other grant is given.
+
+Each extension has its own grants:
+
+- `resize.wasm`: reads `/srv/images`; connects to `cdn.example.com`
+
+The code in these namespaces has only these grants, from `public/package.toml`:
+
+- `Shop\*`: `net.connect`
+- `Shop\Cache`: nothing

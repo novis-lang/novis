@@ -1,8 +1,11 @@
 {
-  "title": "Hovering a route shows what the program's grants allow, labelled as that program's and read from the `nvs.toml` that `nvs check` reads in that directory",
+  "title": "Hovering a route shows what the program's grants allow, labelled as that program's and read from the configuration of the program's entry",
   "status": "shipped",
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
+    "security/grants-are-keyed-on-a-namespace",
+    "security/extension-grants-are-an-intersection",
+    "ide/an-autoloaded-file-borrows-its-programs-map",
     "ide/the-request-set-is-closed",
     "routing/routes-are-compiled-not-registered"
   ],
@@ -10,6 +13,7 @@
     "crates/nvs-lsp/src/grants.rs",
     "crates/nvs-lsp/tests/grants.rs",
     "tests/lsp/hover/a-route-hover-lists-the-programs-grants.lspt",
-    "tests/lsp/hover/a-changed-grant-changes-the-route-hover.lspt"
+    "tests/lsp/hover/a-changed-grant-changes-the-route-hover.lspt",
+    "tests/lsp/hover/a-route-hover-in-an-autoloaded-file-lists-its-programs-grants.lspt"
   ]
 }

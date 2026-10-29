@@ -483,6 +483,12 @@ pub struct Analysed {
     /// one still changes what this analysis resolves, which is why
     /// [`files`](Self::files) names them.
     pub lent: Vec<PathBuf>,
+    /// The entry of the program whose `autoload` map this walk borrowed, and
+    /// `None` for a document that is its own program's entry. It is the file
+    /// `nvs run` is handed, so the program's configuration is found from its
+    /// directory and not from the document's
+    /// (`rule:ide/a-route-hover-shows-the-programs-grants`).
+    pub program: Option<PathBuf>,
     /// The `autoload` declarations the **entry** document wrote, as the walk
     /// cooked them, each with its directory and its literals' spans.
     ///
@@ -710,6 +716,7 @@ fn analyse_over(
     // program's (`rule:ide/an-open-document-is-its-own-entry-point`).
     let lender = documents.lender_for(path);
     let lent = lender.map_or_else(Vec::new, |lender| lender.declaring().to_vec());
+    let program = lender.map(|lender| lender.entry().to_path_buf());
     let extensions = extension_set(path);
     let (module, loaded, autoload) = resolve_program_linted(
         entry,
@@ -792,6 +799,7 @@ fn analyse_over(
         module,
         loaded,
         lent,
+        program,
         autoloads,
         autoload,
         trivia,

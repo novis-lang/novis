@@ -15,7 +15,7 @@ fn with_no_nvs_toml_the_hover_names_the_default_policy() {
     std::fs::write(&entry, "<?nvs\n").expect("the entry file is written");
 
     assert_eq!(
-        of_program(&entry, None),
+        of_program(&entry, &entry, None),
         "No `nvs.toml` was found for this program. It runs under the default policy:\n\n\
          - `fs.read`: files in this file's directory, except `nvs.toml` and names that start \
          with `.` (default)\n\
@@ -39,7 +39,7 @@ fn a_rewritten_nvs_toml_changes_the_next_answer() {
         "[capabilities.net]\nconnect = [\"api.example.com\"]\n",
     )
     .expect("the configuration is written");
-    let before = of_program(&entry, None);
+    let before = of_program(&entry, &entry, None);
     assert!(
         before.contains("- `net.connect`: `api.example.com`\n"),
         "{before}"
@@ -47,7 +47,7 @@ fn a_rewritten_nvs_toml_changes_the_next_answer() {
 
     std::fs::write(&config, "[capabilities.net]\nconnect = false\n")
         .expect("the configuration is rewritten");
-    let after = of_program(&entry, None);
+    let after = of_program(&entry, &entry, None);
     assert!(after.contains("- `net.connect`: nothing\n"), "{after}");
 }
 
@@ -60,7 +60,7 @@ fn an_nvs_toml_that_does_not_load_is_named_and_lists_nothing() {
         .expect("the configuration is written");
 
     assert_eq!(
-        of_program(&entry, None),
+        of_program(&entry, &entry, None),
         "The grants of this program are in `nvs.toml`. This configuration does not load, \
          and `nvs check` shows the error."
     );

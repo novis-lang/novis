@@ -224,10 +224,11 @@ fn route(
     data: Option<&std::path::Path>,
 ) -> Option<(String, Span)> {
     let path = analysed.map.file(analysed.entry).path()?;
+    let program = analysed.program.as_deref().unwrap_or(path);
     if let Some((target, span)) = attribute_at(analysed, offset)
         && matches!(&target, Target::Type(name) if name.to_string() == nvs_types::derive::ROUTE)
     {
-        let grants = crate::grants::of_program(path, data);
+        let grants = crate::grants::of_program(program, path, data);
         let value = match name(analysed, (target, span), offset) {
             Some((card, _)) => format!("{}\n\n---\n\n{grants}", card.trim_end()),
             None => grants,
@@ -241,7 +242,7 @@ fn route(
         .rows()
         .iter()
         .any(|row| row.handler == symbol)
-        .then(|| (crate::grants::of_program(path, data), span))
+        .then(|| (crate::grants::of_program(program, path, data), span))
 }
 
 /// The row of the call at `offset`, and which of its parameters the cursor is

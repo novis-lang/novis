@@ -451,6 +451,9 @@ fn store(case: &Case, root: &Path) -> Result<(Materialised, Documents, Uri), Str
     for aux in &case.aux {
         open(&mut documents, &files.dir.join(&aux.path), &aux.body)?;
     }
+    // The programs that declare `autoload`, found as the server finds them at
+    // `initialize`, so a case's file borrows the map of the program that loads it.
+    documents.survey(crate::CheckScope::Workspace, Some(&files.dir));
     Ok((files, documents, entry))
 }
 
