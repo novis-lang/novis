@@ -1420,7 +1420,9 @@ mod tests {
 
     /// The sealing task parks with no deadline, so the wake it names runs each time a file opens,
     /// and only then. `record` reads the real clock, so a slow run may pass [`SEAL_AFTER`] between
-    /// two records and open a second file: the wakes are counted against the files opened.
+    /// two records and open a second file: the wakes are counted against the files opened. For the
+    /// same reason the open file is read from the writer's deadline, never through `seal_due`,
+    /// which seals a file older than [`SEAL_AFTER`], as every file is under Miri.
     #[test]
     fn the_wake_runs_when_a_file_opens_and_not_on_each_record() {
         let dir = nvs_repo::scratch("spool-wake");
@@ -1437,7 +1439,8 @@ mod tests {
         super::record(&ctx, log("second"));
         let opened = files(&dir).len();
         assert_eq!(woken.get(), opened, "{:?}", files(&dir));
-        assert!(super::seal_due().is_some(), "a file is open");
+        let deadline = super::WRITER.with_borrow(|slot| slot.as_ref().and_then(Writer::deadline));
+        assert!(deadline.is_some(), "a file is open");
 
         super::seal_now();
         assert_eq!(super::seal_due(), None);
